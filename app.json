@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "expo-minimal-test",
-    "slug": "expo-minimal-test",
+    "name": "expo-final",
+    "slug": "expo-final",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "exp-final",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -21,6 +22,21 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-dev-client",
+      "sentry-expo",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -1,21 +1,41 @@
 {
-  "name": "expo-minimal-test",
+  "name": "edudash-pro",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "start": "npx expo start --dev-client --host localhost",
+    "start:clear": "npx expo start --dev-client --host localhost --clear",
+    "open:android": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8083 tcp:8083 && adb shell am start -n com.k1ngdevops.expominimaltest/expo.modules.devlauncher.launcher.DevLauncherActivity -a android.intent.action.VIEW -d \"exp://expo-development-client/?url=http://127.0.0.1:8081\"",
+    "dev:android": "npm run start:clear & sleep 5 && npm run open:android",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
+    "@expo/ngrok": "^4.1.3",
+    "@supabase/supabase-js": "^2.57.3",
     "expo": "~53.0.22",
+    "expo-dev-client": "^5.2.4",
+    "expo-linear-gradient": "~14.1.5",
+    "expo-router": "~5.1.5",
+    "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~2.2.3",
+    "posthog-react-native": "^4.3.2",
     "react": "19.0.0",
-    "react-native": "0.79.6"
+    "react-native": "0.79.6",
+    "react-native-gesture-handler": "~2.24.0",
+    "react-native-google-mobile-ads": "^15.7.0",
+    "react-native-reanimated": "3.19.1",
+    "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "~4.11.1",
+    "sentry-expo": "^7.0.0",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "@types/react": "~19.0.10",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "typescript": "~5.8.3"
   },
   "private": true
 }
