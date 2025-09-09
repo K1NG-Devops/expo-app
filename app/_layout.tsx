@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import React, { useEffect } from 'react';
 import { startMonitoring } from '@/lib/monitoring';
 import { startAds } from '@/lib/ads';
+import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -10,7 +11,9 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack
+    // Wrap in SubscriptionProvider so screens can access subscription data
+    <SubscriptionProvider>
+      <Stack
       screenOptions={{
         headerShown: false,
         headerStyle: { backgroundColor: '#0b1220' },
@@ -21,5 +24,6 @@ export default function RootLayout() {
     >
       <Stack.Screen name="index" options={{ headerShown: false }} />
     </Stack>
+    </SubscriptionProvider>
   );
 }

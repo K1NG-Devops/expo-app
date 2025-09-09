@@ -1,5 +1,5 @@
 import * as Sentry from 'sentry-expo';
-import PostHog from 'posthog-react-native';
+import { getPostHog } from '@/lib/posthogClient';
 
 export function testSentry() {
   try {
@@ -11,7 +11,7 @@ export function testSentry() {
 
 export function testPostHog() {
   try {
-    PostHog.capture('test_event', { source: 'device', ts: Date.now() });
+    getPostHog()?.capture('test_event', { source: 'device', ts: Date.now() });
   } catch {}
 }
 

@@ -82,6 +82,10 @@ export default function PrincipalDashboardScreen() {
         <TouchableOpacity style={styles.cta} onPress={() => router.push('/(auth)/sign-in')}>
           <Text style={styles.ctaText}>Sign in to load data</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.cta, { marginTop: 8 }]} onPress={() => router.push({ pathname: '/screens/principal-seat-management', params: schoolId ? { school: String(schoolId) } : {} } as any)}>
+          <Text style={styles.ctaText}>Seat Management</Text>
+        </TouchableOpacity>
       </ScrollView>
     </>
   );

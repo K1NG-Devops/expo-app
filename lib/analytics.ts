@@ -1,9 +1,10 @@
 import * as Sentry from 'sentry-expo';
-import PostHog from 'posthog-react-native';
+import { getPostHog } from '@/lib/posthogClient';
 
 export function track(event: string, properties?: Record<string, any>) {
   try {
-    PostHog.capture(event, properties ?? {});
+    const ph = getPostHog();
+    ph?.capture(event, properties ?? {});
   } catch {}
   try {
     Sentry.Native.addBreadcrumb({

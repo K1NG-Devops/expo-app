@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
@@ -8,6 +10,7 @@ export default function SalesContactScreen() {
   const params = useLocalSearchParams<{ plan?: string }>();
   const initialPlan = useMemo(() => (params?.plan ? String(params.plan) : 'enterprise'), [params]);
 
+  const [role, setRole] = useState<string | null>(null);
   const [form, setForm] = useState({
     contact_name: '',
     contact_email: '',
@@ -23,14 +26,35 @@ export default function SalesContactScreen() {
 
   const onChange = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: userRes } = await supabase!.auth.getUser();
+        const id = userRes.user?.id;
+        let r: string | null = (userRes.user?.user_metadata as any)?.role ?? null;
+        if (!r && id) {
+          const { data } = await supabase!.from('profiles').select('role').eq('id', id).maybeSingle();
+          r = (data as any)?.role ?? null;
+        }
+        setRole(r);
+      } catch {}
+    })();
+  }, []);
+
+  const canSubmit = role === 'principal' || role === 'admin';
+
   async function onSubmit() {
     if (!form.contact_email) {
       Alert.alert('Email required', 'Please provide a contact email.');
       return;
     }
     try {
+      if (!canSubmit) {
+        Alert.alert('Not allowed', 'Only principals or school admins can submit enterprise requests.');
+        return;
+      }
       setSubmitting(true);
-      track('enterprise_cta_submitted', { plan: form.plan_interest });
+      track('enterprise_cta_submitted', { plan: form.plan_interest, role });
       const { error } = await supabase!.from('enterprise_leads').insert({ ...form });
       if (error) throw error;
       try {
@@ -53,11 +77,31 @@ export default function SalesContactScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Contact Sales', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
+      <Stack.Screen options={{
+        title: 'Contact Sales',
+        headerShown: true,
+        headerStyle: { backgroundColor: '#0b1220' },
+        headerTitleStyle: { color: '#fff' },
+        headerTintColor: '#00f5ff',
+        headerLeft: () => (
+          <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 12 }}>
+            <Text style={{ color: '#00f5ff', fontWeight: '700' }}>Back</Text>
+          </TouchableOpacity>
+        ),
+      }} />
+      <StatusBar style="light" backgroundColor="#0b1220" />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', android: undefined })} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Talk to Sales</Text>
           <Text style={styles.subtitle}>Tell us about your school and needs. We’ll follow up shortly.</Text>
+
+          {!canSubmit ? (
+            <View style={{ width: '100%', backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', padding: 12, borderRadius: 10 }}>
+              <Text style={{ color: '#ffb703', fontWeight: '700', marginBottom: 6 }}>Restricted</Text>
+              <Text style={{ color: '#9CA3AF' }}>Only principals or school admins can submit enterprise contact requests.</Text>
+            </View>
+          ) : null}
 
           <FormInput label="Name" value={form.contact_name} onChangeText={(v) => onChange('contact_name', v)} autoCapitalize="words" />
           <FormInput label="Email" value={form.contact_email} onChangeText={(v) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
@@ -69,11 +113,12 @@ export default function SalesContactScreen() {
           <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v) => onChange('plan_interest', v)} />
           <FormInput label="Notes" value={form.notes} onChangeText={(v) => onChange('notes', v)} multiline />
 
-          <TouchableOpacity style={[styles.button, submitting && { opacity: 0.5 }]} disabled={submitting} onPress={onSubmit}>
+          <TouchableOpacity style={[styles.button, (submitting || !canSubmit) && { opacity: 0.5 }]} disabled={submitting || !canSubmit} onPress={onSubmit}>
             <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+      </SafeAreaView>
     </>
   );
 }

@@ -1,5 +1,5 @@
 import * as Sentry from 'sentry-expo';
-import PostHog from 'posthog-react-native';
+import { initPostHog } from '@/lib/posthogClient';
 
 let started = false;
 
@@ -19,11 +19,9 @@ export function startMonitoring() {
   const PH_KEY = process.env.EXPO_PUBLIC_POSTHOG_KEY || '';
   const PH_HOST = process.env.EXPO_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com';
   if (PH_KEY) {
-    PostHog.init(PH_KEY, {
+    initPostHog(PH_KEY, {
       host: PH_HOST,
-      captureApplicationLifecycleEvents: true,
-      captureScreenViews: true,
-      captureDeepLinks: true,
+      captureAppLifecycleEvents: true,
     });
   }
 }

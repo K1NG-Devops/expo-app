@@ -9,7 +9,8 @@
     "dev:android": "npm run start:clear & sleep 5 && npm run open:android",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.3",
