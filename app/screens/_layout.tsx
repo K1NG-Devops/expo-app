@@ -34,12 +34,7 @@ export default function ScreensLayout() {
         ),
       }}
     >
-      <Stack.Screen name="teacher-dashboard" options={{ title: 'Teacher Dashboard' }} />
-      <Stack.Screen name="parent-dashboard" options={{ title: 'Parent Dashboard' }} />
-      <Stack.Screen name="principal-dashboard" options={{ title: 'Principal Dashboard' }} />
-      <Stack.Screen name="principal-seat-management" options={{ title: 'Seat Management' }} />
-      <Stack.Screen name="super-admin-leads" options={{ title: 'Sales/Leads' }} />
-      <Stack.Screen name="account" options={{ title: 'Account' }} />
+      {/* Let expo-router auto-register child routes; per-screen titles are set in each screen file. */}
     </Stack>
   );
 }

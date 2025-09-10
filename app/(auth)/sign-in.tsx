@@ -9,6 +9,7 @@ export default function SignIn() {
   const [mode, setMode] = useState<'password' | 'otp'>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -139,16 +140,21 @@ export default function SignIn() {
 
         {mode === 'password' ? (
           <>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#7b8794"
-              autoCapitalize="none"
-              secureTextEntry
-              textContentType="password"
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, { marginBottom: 0, flex: 1 }]}
+                placeholder="••••••••"
+                placeholderTextColor="#7b8794"
+                autoCapitalize="none"
+                secureTextEntry={!showPassword}
+                textContentType="password"
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity style={styles.showBtn} onPress={() => setShowPassword((s) => !s)}>
+                <Text style={styles.showBtnText}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </TouchableOpacity>
+            </View>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
             <TouchableOpacity disabled={loading} style={styles.button} onPress={onSignInWithPassword}>
               {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.buttonText}>Sign in</Text>}
@@ -199,6 +205,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '900', color: '#fff', marginBottom: 8 },
   subtitle: { fontSize: 14, color: '#9CA3AF', marginBottom: 16, textAlign: 'center' },
   input: { width: '100%', maxWidth: 420, backgroundColor: '#111827', color: '#fff', borderWidth: 1, borderColor: '#1f2937', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, marginBottom: 12 },
+  passwordRow: { width: '100%', maxWidth: 420, flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  showBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#1f2937' },
+  showBtnText: { color: '#00f5ff', fontWeight: '700' },
   button: { backgroundColor: '#00f5ff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, minWidth: 180, alignItems: 'center' },
   buttonText: { color: '#000', fontWeight: '800' },
   link: { marginTop: 14 },
