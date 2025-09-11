@@ -21,14 +21,11 @@ const formatTimeAgo = (dateString: string): string => {
   return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
 };
 
-const calculateMonthlyRevenue = (studentCount: number): number => {
-  // Average fee per student per month (in Rand)
-  const averageFeePerStudent = 1200;
-  const baseRevenue = studentCount * averageFeePerStudent;
-  
-  // Add some variation (90-110% of base)
-  const variation = 0.9 + Math.random() * 0.2;
-  return Math.round(baseRevenue * variation);
+const calculateEstimatedRevenue = (studentCount: number): number => {
+  // Only use as absolute fallback when no payment data exists
+  // Average fee per student per month (in Rand) - conservative estimate
+  const averageFeePerStudent = 1000; // Conservative estimate
+  return studentCount * averageFeePerStudent;
 };
 
 const calculateAttendanceRate = async (schoolId: string): Promise<number> => {
@@ -248,21 +245,23 @@ export const usePrincipalDashboard = () => {
           return typeMap[actionType] || 'event';
         };
 
-        // Parallel data fetching for optimal performance
+        // Parallel data fetching with strict security filters
         const dataPromises = [
-          // Students data with detailed info
+          // Students data - only for this principal's school
           supabase
             .from('students')
             .select('id, status, created_at, grade_level, preschool_id')
-            .eq('preschool_id', schoolId),
+            .eq('preschool_id', schoolId)
+            .not('id', 'is', null), // Ensure valid records
 
-          // Teachers data with status
+          // Teachers data - only for this principal's school
           supabase
             .from('teachers')
             .select('id, status, first_name, last_name, created_at, preschool_id')
-            .eq('preschool_id', schoolId),
+            .eq('preschool_id', schoolId)
+            .not('id', 'is', null),
 
-          // Parents data (unique emails from students)
+          // Parents data - only from students in this principal's school
           supabase
             .from('students')
             .select(`
@@ -272,35 +271,40 @@ export const usePrincipalDashboard = () => {
               preschool_id
             `)
             .eq('preschool_id', schoolId)
-            .not('parent_email', 'is', null),
+            .not('parent_email', 'is', null)
+            .not('id', 'is', null),
 
-          // Monthly payments for revenue calculation
+          // Payments - only for this principal's school with date bounds
           supabase
             .from('payments')
-            .select('amount, created_at, status, payment_type')
+            .select('amount, created_at, status, payment_type, school_id')
             .eq('school_id', schoolId)
-            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 30)).toISOString()),
+            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 60)).toISOString()) // Last 60 days for broader context
+            .not('id', 'is', null),
 
-          // Pending applications
+          // Applications - only for this principal's school
           supabase
             .from('student_applications')
-            .select('id, applicant_name, created_at, status, grade_applied')
+            .select('id, applicant_name, created_at, status, grade_applied, school_id')
             .eq('school_id', schoolId)
-            .in('status', ['pending', 'under_review', 'interview_scheduled']),
+            .in('status', ['pending', 'under_review', 'interview_scheduled'])
+            .not('id', 'is', null),
 
-          // Upcoming events (next 30 days)
+          // Events - only for this principal's school with date bounds
           supabase
             .from('events')
-            .select('id, title, event_date, event_type, description')
+            .select('id, title, event_date, event_type, description, school_id')
             .eq('school_id', schoolId)
             .gte('event_date', new Date().toISOString())
-            .lte('event_date', new Date(new Date().setDate(new Date().getDate() + 30)).toISOString()),
+            .lte('event_date', new Date(new Date().setDate(new Date().getDate() + 30)).toISOString())
+            .not('id', 'is', null),
 
-          // Recent activity logs
+          // Activity logs - only for this principal's organization with enhanced filtering
           supabase
             .from('audit_logs')
-            .select('id, action_type, description, created_at, user_name, table_name')
+            .select('id, action_type, description, created_at, user_name, table_name, organization_id')
             .eq('organization_id', schoolId)
+            .not('id', 'is', null)
             .order('created_at', { ascending: false })
             .limit(10)
         ];
@@ -332,25 +336,46 @@ export const usePrincipalDashboard = () => {
         const activeTeachers = teachersData.filter((t: any) => t?.status === 'active');
         const totalTeachers = activeTeachers.length;
         
-        // Calculate unique parents count
-        const uniqueParentEmails = new Set();
+        // Calculate unique parents count with better validation
+        const uniqueParentEmails = new Set<string>();
         parentsData.forEach((student: any) => {
-          if (student?.parent_email) {
-            uniqueParentEmails.add(student.parent_email.toLowerCase());
+          const email = student?.parent_email?.trim();
+          if (email && email.includes('@') && email.length > 5) {
+            uniqueParentEmails.add(email.toLowerCase());
           }
         });
         const totalParents = uniqueParentEmails.size;
 
-        // Calculate real attendance rate
-        const attendanceRate = await calculateAttendanceRate(schoolId);
+        // Calculate real attendance rate with error handling
+        let attendanceRate = 0;
+        try {
+          attendanceRate = await calculateAttendanceRate(schoolId);
+        } catch (error) {
+          console.warn('Failed to calculate attendance rate:', error);
+          // Keep as 0 rather than throwing
+        }
 
-        // Calculate monthly revenue from real payments
-        const completedPayments = paymentsData.filter((p: any) => p?.status === 'completed');
-        let monthlyRevenue = completedPayments.reduce((sum: number, payment: any) => sum + (payment?.amount || 0), 0);
+        // Calculate monthly revenue from real payments only
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
         
-        // If no real payment data, estimate based on student count
-        if (monthlyRevenue === 0 && totalStudents > 0) {
-          monthlyRevenue = calculateMonthlyRevenue(totalStudents);
+        const currentMonthPayments = paymentsData.filter((p: any) => {
+          if (!p?.created_at || p?.status !== 'completed') return false;
+          const paymentDate = new Date(p.created_at);
+          return paymentDate >= monthStart && paymentDate <= monthEnd;
+        });
+        
+        let monthlyRevenue = currentMonthPayments.reduce((sum: number, payment: any) => {
+          // Ensure amount is treated as cents if needed, convert to Rand
+          const amount = payment?.amount || 0;
+          // Assume amounts in database are in cents, convert to Rand
+          return sum + (amount > 1000 ? amount / 100 : amount);
+        }, 0);
+        
+        // Only estimate if absolutely no payment records exist for the school
+        if (monthlyRevenue === 0 && paymentsData.length === 0 && totalStudents > 0) {
+          monthlyRevenue = calculateEstimatedRevenue(totalStudents);
         }
 
         // Process applications

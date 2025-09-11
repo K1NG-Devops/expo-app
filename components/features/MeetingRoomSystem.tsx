@@ -152,8 +152,8 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
       setMeetings(formattedMeetings);
     } catch (error) {
       console.error('Failed to load meetings:', error);
-      // Fallback to mock data
-      setMeetings(generateMockMeetings());
+      // Show empty state with error message instead of mock data
+      setMeetings([]);
     } finally {
       setLoading(false);
     }
@@ -189,77 +189,11 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
       setMeetingRooms(formattedRooms);
     } catch (error) {
       console.error('Failed to load meeting rooms:', error);
-      // Fallback to mock data
-      setMeetingRooms(generateMockRooms());
+      // Show empty state with error message instead of mock data
+      setMeetingRooms([]);
     }
   }, [supabase, schoolId]);
 
-  const generateMockMeetings = (): Meeting[] => [
-    {
-      id: '1',
-      title: 'Weekly Staff Meeting',
-      description: 'Discuss weekly progress and upcoming events',
-      startTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
-      hostId: user?.id || '',
-      hostName: 'Principal Smith',
-      participants: [
-        { id: '1', name: 'Mrs. Johnson', email: 'johnson@school.com', role: 'teacher', status: 'accepted' },
-        { id: '2', name: 'Mr. Davis', email: 'davis@school.com', role: 'teacher', status: 'invited' }
-      ],
-      status: 'scheduled',
-      meetingRoomId: 'room1',
-      isRecording: false,
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: '2',
-      title: 'Parent-Teacher Conference',
-      description: 'Quarterly progress review with parents',
-      startTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      endTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
-      hostId: user?.id || '',
-      hostName: 'Ms. Williams',
-      participants: [
-        { id: '3', name: 'Sarah Parker', email: 'sparker@email.com', role: 'parent', status: 'accepted' },
-        { id: '4', name: 'John Parker', email: 'jparker@email.com', role: 'parent', status: 'accepted' }
-      ],
-      status: 'scheduled',
-      meetingRoomId: 'room2',
-      isRecording: true,
-      createdAt: new Date().toISOString()
-    }
-  ];
-
-  const generateMockRooms = (): MeetingRoom[] => [
-    {
-      id: 'room1',
-      name: 'Main Conference Room',
-      capacity: 50,
-      isActive: false,
-      features: {
-        videoCall: true,
-        screenShare: true,
-        recording: true,
-        chat: true,
-        whiteboard: true
-      }
-    },
-    {
-      id: 'room2',
-      name: 'Small Meeting Room',
-      capacity: 10,
-      isActive: true,
-      currentMeetingId: '2',
-      features: {
-        videoCall: true,
-        screenShare: true,
-        recording: true,
-        chat: true,
-        whiteboard: false
-      }
-    }
-  ];
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -318,7 +252,7 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
       }
 
       await loadMeetings();
-      setShowScheduleModal(false);
+      setActiveTab('meetings');
       resetNewMeetingForm();
       Alert.alert('Success', 'Meeting scheduled successfully!');
     } catch (error) {

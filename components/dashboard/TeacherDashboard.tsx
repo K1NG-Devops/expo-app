@@ -10,7 +10,7 @@
  * - Teaching resources and activities
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -19,14 +19,14 @@ import {
   StyleSheet,
   Dimensions,
   Alert,
-  Modal,
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeacherDashboard } from '@/hooks/useDashboardData';
-import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { router } from 'expo-router';
+import { track } from '@/lib/analytics';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -61,7 +61,7 @@ export const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
   
   // Use the custom data hook
-  const { data: dashboardData, loading: isLoading, error, refresh } = useTeacherDashboard();
+  const { data: dashboardData, loading: isLoading, refresh } = useTeacherDashboard();
   const metrics: TeacherMetric[] = dashboardData ? [
     {
       title: 'My Students',
@@ -93,7 +93,7 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'Create engaging lessons with AI',
       icon: 'bulb',
       color: '#4F46E5',
-      onPress: () => Alert.alert('AI Tools', 'Lesson generator coming soon'),
+      onPress: () => { track('edudash.ai.lesson_generator_opened'); router.push('/screens/ai-lesson-generator'); },
     },
     {
       id: 'homework-grader',
@@ -101,7 +101,7 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'Auto-grade assignments with AI',
       icon: 'checkmark-circle',
       color: '#059669',
-      onPress: () => Alert.alert('AI Tools', 'Homework grader coming soon'),
+      onPress: () => { track('edudash.ai.homework_grader_opened'); router.push('/screens/ai-homework-grader-live'); },
     },
     {
       id: 'progress-analysis',

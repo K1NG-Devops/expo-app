@@ -5,7 +5,7 @@
  * across dashboards, notifications, and user interfaces.
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 // Types for real-time events
@@ -92,8 +92,8 @@ export class RealtimeSubscriptionService {
     const channelName = `students_${schoolId}`;
 
     if (!this.channels.has(channelName)) {
-      const channel = supabase
-        ?.channel(channelName)
+      const channel = assertSupabase()
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -141,8 +141,8 @@ export class RealtimeSubscriptionService {
     const channelName = `payments_${schoolId}`;
 
     if (!this.channels.has(channelName)) {
-      const channel = supabase
-        ?.channel(channelName)
+      const channel = assertSupabase()
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -188,8 +188,8 @@ export class RealtimeSubscriptionService {
     const channelName = `teacher_activities_${schoolId}`;
 
     if (!this.channels.has(channelName)) {
-      const channel = supabase
-        ?.channel(channelName)
+      const channel = assertSupabase()
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -235,8 +235,8 @@ export class RealtimeSubscriptionService {
     const channelName = `attendance_${schoolId}`;
 
     if (!this.channels.has(channelName)) {
-      const channel = supabase
-        ?.channel(channelName)
+      const channel = assertSupabase()
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -282,8 +282,8 @@ export class RealtimeSubscriptionService {
     const channelName = `meetings_${schoolId}`;
 
     if (!this.channels.has(channelName)) {
-      const channel = supabase
-        ?.channel(channelName)
+      const channel = assertSupabase()
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
@@ -379,7 +379,7 @@ export class RealtimeSubscriptionService {
         if (subscriptionSet.size === 0) {
           const channel = this.channels.get(channelName);
           if (channel) {
-            supabase?.removeChannel(channel);
+            assertSupabase().removeChannel(channel);
             this.channels.delete(channelName);
             this.subscriptions.delete(channelName);
             this.cleanupCallbacks(channelName);
@@ -405,7 +405,7 @@ export class RealtimeSubscriptionService {
     channelsToRemove.forEach(channelName => {
       const channel = this.channels.get(channelName);
       if (channel) {
-        supabase?.removeChannel(channel);
+        assertSupabase().removeChannel(channel);
         this.channels.delete(channelName);
         this.subscriptions.delete(channelName);
         this.cleanupCallbacks(channelName);
@@ -418,7 +418,7 @@ export class RealtimeSubscriptionService {
    */
   static unsubscribeAll(): void {
     for (const [channelName, channel] of this.channels.entries()) {
-      supabase?.removeChannel(channel);
+      assertSupabase().removeChannel(channel);
     }
 
     this.channels.clear();
@@ -507,7 +507,7 @@ class DashboardRealtimeHook {
     isConnected: boolean;
   } {
     
-    if (!enabled || !schoolId || !supabase) {
+    if (!enabled || !schoolId) {
       return {
         subscriptions: [],
         unsubscribe: () => {},

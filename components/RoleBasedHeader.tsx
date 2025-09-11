@@ -13,7 +13,6 @@ interface RoleBasedHeaderProps {
   title?: string;
   subtitle?: string;
   showBackButton?: boolean; // Manual override
-  rightComponent?: React.ReactNode;
   backgroundColor?: string;
   textColor?: string;
   onBackPress?: () => void;
@@ -29,7 +28,6 @@ export function RoleBasedHeader({
   title,
   subtitle,
   showBackButton = true, // Default to true, will be overridden by rules
-  rightComponent,
   backgroundColor = '#ffffff',
   textColor = '#000000',
   onBackPress,
@@ -418,7 +416,6 @@ const styles = StyleSheet.create({
 export function useRoleBasedHeader() {
   const { user } = useAuth();
   const permissions = usePermissions();
-  const route = useRoute();
 
   return {
     shouldShowBackButton: !user, // Hide when signed in per rule

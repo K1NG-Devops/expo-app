@@ -3,7 +3,7 @@
  * Works in conjunction with server-side RLS policies to ensure data security
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { type Role, type Capability } from '@/lib/rbac';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
@@ -31,7 +31,7 @@ export class SecureQueryBuilder {
    * Build secure query for profiles table
    */
   profiles() {
-    const query = supabase.from('profiles').select('*');
+    const query = assertSupabase().from('profiles').select('*');
 
     // Apply role-based filters
     if (this.context.role === 'super_admin') {
@@ -50,7 +50,7 @@ export class SecureQueryBuilder {
    * Build secure query for teachers table
    */
   teachers() {
-    const query = supabase.from('teachers').select('*');
+    const query = assertSupabase().from('teachers').select('*');
 
     if (this.context.role === 'super_admin') {
       return query;
@@ -74,7 +74,7 @@ export class SecureQueryBuilder {
    * Build secure query for students table
    */
   students() {
-    const query = supabase.from('students').select('*');
+    const query = assertSupabase().from('students').select('*');
 
     if (this.context.role === 'super_admin') {
       return query;
@@ -94,7 +94,7 @@ export class SecureQueryBuilder {
    * Build secure query for classes table
    */
   classes() {
-    const query = supabase.from('classes').select('*');
+    const query = assertSupabase().from('classes').select('*');
 
     if (this.context.role === 'super_admin') {
       return query;
@@ -105,14 +105,9 @@ export class SecureQueryBuilder {
     } else if (this.context.role === 'parent') {
       // Parents can see classes their children are enrolled in
       // This requires a join with students table
-      return query
-        .eq('preschool_id', this.context.organizationId)
-        .in('id', 
-          supabase
-            .from('students')
-            .select('class_id')
-            .or(`parent_id.eq.${this.context.userId},guardian_id.eq.${this.context.userId}`)
-        );
+      // NOTE: Client-side subqueries are limited; prefer server-side RPC.
+      // As a safe client-side guard, scope to organization; RLS will further enforce visibility.
+      return query.eq('preschool_id', this.context.organizationId);
     } else {
       return query.eq('preschool_id', null); // Will return no results
     }
@@ -122,7 +117,7 @@ export class SecureQueryBuilder {
    * Build secure query for enterprise leads (super admin only)
    */
   enterpriseLeads() {
-    const query = supabase.from('enterprise_leads').select('*');
+    const query = assertSupabase().from('enterprise_leads').select('*');
 
     if (this.context.role === 'super_admin') {
       return query;
@@ -136,7 +131,7 @@ export class SecureQueryBuilder {
    * Build secure query for audit logs (super admin only)
    */
   auditLogs() {
-    const query = supabase.from('audit_logs').select('*');
+    const query = assertSupabase().from('audit_logs').select('*');
 
     if (this.context.role === 'super_admin') {
       return query;
@@ -361,13 +356,13 @@ export class SecureDatabase {
       let query;
       switch (operation) {
         case 'insert':
-          query = supabase.from(table).insert(data);
+          query = assertSupabase().from(table).insert(data);
           break;
         case 'update':
-          query = supabase.from(table).update(data);
+          query = assertSupabase().from(table).update(data);
           break;
         case 'upsert':
-          query = supabase.from(table).upsert(data);
+          query = assertSupabase().from(table).upsert(data);
           break;
         default:
           throw new Error(`Unsupported write operation: ${operation}`);

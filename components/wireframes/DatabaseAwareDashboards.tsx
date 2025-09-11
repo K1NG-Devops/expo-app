@@ -8,7 +8,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, View, Alert } from 'react-native';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { detectRoleAndSchool } from '@/lib/routeAfterLogin';
 import {
@@ -57,14 +57,14 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
       setLoading(true);
       
       // Fetch recent leads from enterprise_leads table
-      const { data: leadsData } = await supabase
+      const { data: leadsData } = await assertSupabase()
         .from('enterprise_leads')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5);
       
       // Fetch organization counts from preschools table
-      const { data: orgsData } = await supabase
+      const { data: orgsData } = await assertSupabase()
         .from('preschools')
         .select('id, name, country, created_at')
         .order('created_at', { ascending: false });
@@ -294,7 +294,7 @@ export const PrincipalDashboardDatabase: React.FC = () => {
       
       // Query actual database tables as used in principal-dashboard.tsx
       const queryTable = async (table: string): Promise<number|null> => {
-        const { count, error } = await supabase
+        const { count, error } = await assertSupabase()
           .from(table)
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', schoolId);
@@ -512,7 +512,7 @@ export const TeacherDashboardDatabase: React.FC = () => {
       
       if (user) {
         // Try to get user profile from profiles table
-        const { data: profileData } = await supabase
+        const { data: profileData } = await assertSupabase()
           .from('profiles')
           .select('*')
           .eq('id', user.id)
@@ -695,7 +695,7 @@ export const ParentDashboardDatabase: React.FC = () => {
       
       if (user) {
         // Try to get user profile
-        const { data: profileData } = await supabase
+        const { data: profileData } = await assertSupabase()
           .from('profiles')
           .select('*')
           .eq('id', user.id)

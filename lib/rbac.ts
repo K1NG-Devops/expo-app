@@ -5,7 +5,7 @@
  * and organization-level access control for the EduDash platform.
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { shouldAllowFallback, trackFallbackUsage } from '@/lib/security-config';
@@ -435,13 +435,13 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     
     // SECURITY: Validate the requester identity as best as possible
     // Try multiple sources for current authenticated identity
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await assertSupabase().auth.getSession();
     let sessionUserId: string | null = session?.user?.id ?? null;
 
     if (!sessionUserId) {
       // Fallback to getUser()
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await assertSupabase().auth.getUser();
         if (user?.id) sessionUserId = user.id;
       } catch {}
     }
@@ -473,11 +473,11 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     // Production: Use secure profile fetching without debug logging
 
     // Preferred: Use secure RPC that returns the caller's profile (bypasses RLS safely)
-    const { data: rpcProfile, error: rpcError } = await supabase
+    const { data: rpcProfile, error: rpcError } = await assertSupabase()
       .rpc('get_my_profile')
       .single();
 
-    if (rpcProfile && rpcProfile.id) {
+    if (rpcProfile && (rpcProfile as any).id) {
       profile = rpcProfile as any;
       console.log('RPC get_my_profile succeeded');
     } else {
@@ -486,11 +486,11 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       
       // Try the direct bypass function as a test
       try {
-        const { data: directProfile } = await supabase
+        const { data: directProfile } = await assertSupabase()
           .rpc('debug_get_profile_direct', { target_auth_id: userId })
           .single();
         console.log('Direct profile fetch completed');
-        if (directProfile && directProfile.id) {
+        if (directProfile && (directProfile as any).id) {
           profile = directProfile as any;
           console.log('Using direct profile as fallback');
         }
@@ -515,6 +515,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       
       // SECURITY: Create minimal fallback profile with restricted permissions
       // Use actual authenticated user data, not hardcoded values
+      if (!session?.user) {
+        return null;
+      }
       const fallbackProfile: UserProfile = {
         id: session.user.id, // Use actual authenticated user ID
         email: session.user.email || 'unknown@example.com', // Use actual email
@@ -560,7 +563,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     
     if (profile.preschool_id) {
       // Try to get organization membership
-      const { data: memberData, error: memberErr } = await supabase
+      const { data: memberData, error: memberErr } = await assertSupabase()
         .rpc('get_my_org_member', { p_org_id: profile.preschool_id as any })
         .single();
       
@@ -568,7 +571,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         orgMember = memberData as any;
         
         // Get organization details from preschools table
-        const { data: orgData } = await supabase
+        const { data: orgData } = await assertSupabase()
           .from('preschools')
           .select('id, name')
           .eq('id', profile.preschool_id)
@@ -644,7 +647,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     });
     
     // SECURITY: Validate authentication before returning error fallback
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await assertSupabase().auth.getSession();
 
     // Allow stored session for error fallback as well
     let sessionUserId: string | null = session?.user?.id ?? null;
@@ -662,6 +665,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     }
 
     // Return MINIMAL fallback profile on error
+    if (!session?.user) {
+      return null;
+    }
     const fallbackProfile: UserProfile = {
       id: session.user.id,
       email: session.user.email || 'unknown@example.com',

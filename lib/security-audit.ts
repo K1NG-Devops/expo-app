@@ -7,7 +7,7 @@
 
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import type { EnhancedUserProfile } from './rbac';
 import { normalizeRole } from './rbac';
 
@@ -304,7 +304,7 @@ export const SecurityUtils = {
    */
   async validateSession(userId: string): Promise<boolean> {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await assertSupabase().auth.getSession();
       return !!(session?.user?.id === userId);
     } catch {
       return false;

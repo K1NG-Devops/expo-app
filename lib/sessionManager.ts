@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { track, identifyUser } from '@/lib/analytics';
 import { identifyUserForFlags } from '@/lib/featureFlags';
 import { reportError } from '@/lib/monitoring';
@@ -104,7 +104,7 @@ async function clearStoredData(): Promise<void> {
 async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   try {
     // First get user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: profile, error: profileError } = await assertSupabase()
       .from('profiles')
       .select(`
         id,
@@ -237,7 +237,7 @@ async function refreshSession(
   maxAttempts: number = 3
 ): Promise<UserSession | null> {
   try {
-    const { data, error } = await supabase.auth.refreshSession({
+    const { data, error } = await assertSupabase().auth.refreshSession({
       refresh_token: refreshToken,
     });
 
@@ -369,7 +369,7 @@ export async function signInWithSession(
   error?: string;
 }> {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await assertSupabase().auth.signInWithPassword({
       email,
       password,
     });
@@ -411,7 +411,7 @@ export async function signInWithSession(
     ]);
 
     // Update last login
-    await supabase
+    await assertSupabase()
       .from('profiles')
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', data.user.id);
@@ -467,7 +467,7 @@ export async function signOut(): Promise<void> {
     }
 
     // Sign out from Supabase
-    await supabase.auth.signOut();
+    await assertSupabase().auth.signOut();
 
     // Clear stored data
     await clearStoredData();

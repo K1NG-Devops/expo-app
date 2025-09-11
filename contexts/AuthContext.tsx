@@ -186,12 +186,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (data.session?.user && mounted) {
           try {
             const ph = getPostHog();
-            ph?.identify(data.session.user.id, { 
-              email: data.session.user.email, 
-              role: currentProfile?.role,
-              organization_id: currentProfile?.organization_id,
-              plan_tier: currentProfile?.organization_membership?.plan_tier,
-            });
+            const phProps: Record<string, any> = {
+              ...(data.session.user.email ? { email: data.session.user.email } : {}),
+              ...(currentProfile?.role ? { role: currentProfile.role } : {}),
+              ...(currentProfile?.organization_id ? { organization_id: currentProfile.organization_id } : {}),
+              ...(currentProfile?.organization_membership?.plan_tier ? { plan_tier: currentProfile.organization_membership.plan_tier } : {}),
+            };
+            ph?.identify(data.session.user.id, phProps);
           } catch {}
           try {
             Sentry.Native.setUser({ 
@@ -222,12 +223,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (mounted) {
               try {
                 const ph = getPostHog();
-                ph?.identify(s.user.id, { 
-                  email: s.user.email, 
-                  role: enhancedProfile?.role,
-                  organization_id: enhancedProfile?.organization_id,
-                  plan_tier: enhancedProfile?.organization_membership?.plan_tier,
-                });
+                const phProps: Record<string, any> = {
+                  ...(s.user.email ? { email: s.user.email } : {}),
+                  ...(enhancedProfile?.role ? { role: enhancedProfile.role } : {}),
+                  ...(enhancedProfile?.organization_id ? { organization_id: enhancedProfile.organization_id } : {}),
+                  ...(enhancedProfile?.organization_membership?.plan_tier ? { plan_tier: enhancedProfile.organization_membership.plan_tier } : {}),
+                };
+                ph?.identify(s.user.id, phProps);
               } catch {}
               try {
                 Sentry.Native.setUser({ 
