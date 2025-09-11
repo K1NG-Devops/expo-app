@@ -236,16 +236,15 @@ export const PrincipalDashboard: React.FC = () => {
         <View style={styles.headerCard}>
           <View style={styles.headerContent}>
             <View style={styles.headerText}>
-              <Text style={styles.greeting}>{getGreeting()}, {user?.user_metadata?.first_name || 'Principal'}! 👋</Text>
-              <Text style={styles.schoolName}>🏨 Managing {dashboardData?.schoolName || 'Loading...'}</Text>
+              <View style={styles.headerTitleRow}>
+                <Ionicons name="school" size={20} color={Colors.light.tint} style={{ marginRight: 6 }} />
+                <Text style={styles.greeting}>{getGreeting()}, {user?.user_metadata?.first_name || 'Principal'}! 👋</Text>
+              </View>
+              <View style={styles.subRow}>
+                <Text style={styles.schoolName}>Managing {dashboardData?.schoolName || 'Loading...'}</Text>
+                <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>Principal</Text></View>
+              </View>
             </View>
-            <TouchableOpacity 
-              style={styles.languageButton}
-              onPress={() => setShowLanguageSelector(true)}
-            >
-              <Ionicons name="language" size={20} color={Colors.light.tint} />
-              <Text style={styles.languageButtonText}>Language</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -344,20 +343,28 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
   },
-  languageButton: {
+  headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: Colors.light.tint + '10',
-    borderRadius: 8,
-    marginLeft: 16,
+    marginBottom: 4,
   },
-  languageButtonText: {
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleBadge: {
+    marginLeft: 8,
+    backgroundColor: Colors.light.tint + '10',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  roleBadgeText: {
     color: Colors.light.tint,
     fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 4,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   greeting: {
     fontSize: 24,

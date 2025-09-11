@@ -59,7 +59,6 @@ interface TeacherMetric {
 
 export const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   
   // Use the custom data hook
   const { data: dashboardData, loading: isLoading, error, refresh } = useTeacherDashboard();
@@ -265,17 +264,17 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.headerCard}>
           <View style={styles.headerContent}>
             <View>
-              <Text style={styles.greeting}>
-                {getGreeting()}, {user?.user_metadata?.first_name || 'Teacher'}! 👩‍🏫
-              </Text>
-              <Text style={styles.schoolName}>Teaching at {dashboardData?.schoolName || 'Loading...'}</Text>
+              <View style={styles.headerTitleRow}>
+                <Ionicons name="briefcase" size={20} color={Colors.light.tint} style={{ marginRight: 6 }} />
+                <Text style={styles.greeting}>
+                  {getGreeting()}, {user?.user_metadata?.first_name || 'Teacher'}! 👩‍🏫
+                </Text>
+              </View>
+              <View style={styles.subRow}>
+                <Text style={styles.schoolName}>Teaching at {dashboardData?.schoolName || 'Loading...'}</Text>
+                <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>Teacher</Text></View>
+              </View>
             </View>
-            <TouchableOpacity 
-              style={styles.languageButton}
-              onPress={() => setIsLanguageModalVisible(true)}
-            >
-              <Ionicons name="globe-outline" size={24} color={Colors.light.tint} />
-            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -350,31 +349,6 @@ export const TeacherDashboard: React.FC = () => {
         <View style={{ height: 100 }} />
       </ScrollView>
       
-      {/* Language Selection Modal */}
-      <Modal
-        visible={isLanguageModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setIsLanguageModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Language Settings</Text>
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
-              onPress={() => setIsLanguageModalVisible(false)}
-            >
-              <Ionicons name="close" size={24} color={Colors.light.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.modalContent}>
-            <LanguageSelector 
-              onLanguageSelect={() => setIsLanguageModalVisible(false)}
-              showComingSoon={true}
-            />
-          </ScrollView>
-        </View>
-      </Modal>
     </>
   );
 };
@@ -413,11 +387,28 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
-  languageButton: {
-    padding: 8,
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  subRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleBadge: {
+    marginLeft: 8,
     backgroundColor: Colors.light.tint + '10',
-    borderRadius: 8,
-    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  roleBadgeText: {
+    color: Colors.light.tint,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'capitalize',
   },
   greeting: {
     fontSize: 24,
