@@ -5,6 +5,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol'
 import { HomeworkService } from '@/lib/services/homeworkService'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
+import { getCombinedUsage, incrementUsage } from '@/lib/ai/usage'
 
 export default function AIHomeworkGraderLive() {
   const [assignmentTitle, setAssignmentTitle] = useState('Counting to 10')
@@ -13,11 +14,16 @@ export default function AIHomeworkGraderLive() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [jsonBuffer, setJsonBuffer] = useState('')
   const [parsed, setParsed] = useState<null | { score: number; feedback: string; suggestions: string[]; strengths: string[]; areasForImprovement: string[] }>(null)
+  const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
   const bufferRef = useRef('')
 
   const flags = getFeatureFlagsSync()
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
   const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false
+
+  React.useEffect(() => {
+    (async () => setUsage(await getCombinedUsage()))()
+  }, [])
 
   const startStreaming = async () => {
     if (!submissionContent.trim()) {
@@ -46,9 +52,10 @@ export default function AIHomeworkGraderLive() {
             bufferRef.current += chunk
             setJsonBuffer(bufferRef.current)
           },
-          onFinal: ({ score, feedback, suggestions, strengths, areasForImprovement }) => {
+          onFinal: async ({ score, feedback, suggestions, strengths, areasForImprovement }) => {
             setParsed({ score, feedback, suggestions, strengths, areasForImprovement })
             setIsStreaming(false)
+            try { await incrementUsage('grading_assistance', 1); setUsage(await getCombinedUsage()); } catch {}
             track('edudash.ai.grader.ui_completed', { score })
           },
           onError: (err) => {
@@ -127,6 +134,7 @@ export default function AIHomeworkGraderLive() {
 
         <View style={[styles.card, { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB' }]}>
           <Text style={[styles.sectionTitle, { color: '#111827' }]}>Live JSON Stream</Text>
+          <Text style={{ color: '#6B7280', marginBottom: 6 }}>Monthly usage (local/server): Grading {usage.grading_assistance}</Text>
           <View style={[styles.jsonBox, { borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }]}>
             <Text style={[styles.jsonText, { color: '#111827' }]} selectable>
               {jsonBuffer || (isStreaming ? 'Waiting for tokens…' : 'No data yet. Press "Start Live Grading".')}

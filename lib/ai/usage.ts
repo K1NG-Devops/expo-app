@@ -20,7 +20,9 @@ async function getCurrentUserId(): Promise<string> {
   }
 }
 
-export async function getUsage(): Promise<Record<AIUsageFeature, number>> {
+export type AIUsageRecord = Record<AIUsageFeature, number>
+
+export async function getUsage(): Promise<AIUsageRecord> {
   const uid = await getCurrentUserId()
   const key = `${STORAGE_PREFIX}_${uid}_${monthKey()}`
   try {
@@ -46,5 +48,27 @@ export async function incrementUsage(feature: AIUsageFeature, count = 1): Promis
   } catch {
     // swallow
   }
+}
+
+export async function getServerUsage(): Promise<AIUsageRecord | null> {
+  try {
+    const { data, error } = await assertSupabase().functions.invoke('ai-usage', { body: {} as any })
+    if (error) throw error
+    const src: any = (data && (data.monthly || data)) || {}
+    const counts: AIUsageRecord = {
+      lesson_generation: Number(src.lesson_generation ?? src.lesson ?? src.lessons ?? 0) || 0,
+      grading_assistance: Number(src.grading_assistance ?? src.grading ?? 0) || 0,
+      homework_help: Number(src.homework_help ?? src.helper ?? 0) || 0,
+    }
+    return counts
+  } catch {
+    return null
+  }
+}
+
+export async function getCombinedUsage(): Promise<AIUsageRecord> {
+  const server = await getServerUsage()
+  if (server) return server
+  return await getUsage()
 }
 

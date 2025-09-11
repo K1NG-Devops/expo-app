@@ -29,6 +29,11 @@ import { useTeacherDashboard } from '@/hooks/useDashboardData';
 import { router } from 'expo-router';
 import { track } from '@/lib/analytics';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
+import {
+  EmptyClassesState,
+  EmptyAssignmentsState,
+  EmptyEventsState,
+} from '@/components/ui/EmptyState';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -116,6 +121,20 @@ export const TeacherDashboard: React.FC = () => {
         if (!aiGradingEnabled) { Alert.alert('AI Tool Disabled', 'Homework grader is not enabled for this build.'); return; }
         track('edudash.ai.homework_grader_opened');
         router.push('/screens/ai-homework-grader-live');
+      },
+    },
+    {
+      id: 'homework-helper',
+      title: 'Homework Helper',
+      subtitle: 'Child-safe, step-by-step guidance',
+      icon: 'help-circle',
+      color: '#2563EB',
+      onPress: () => {
+        if (!aiLessonEnabled && !aiGradingEnabled && !(AI_ENABLED && flags.ai_homework_help !== false)) {
+          Alert.alert('AI Tool Disabled', 'AI Homework Helper is not enabled for this build.'); return;
+        }
+        track('edudash.ai.homework_helper_opened');
+        router.push('/screens/ai-homework-helper');
       },
     },
     {
@@ -343,6 +362,15 @@ export const TeacherDashboard: React.FC = () => {
               {t('dashboard.ai_tools_enabled')}
             </Text>
           )}
+          {/* Info badge: privacy and gating */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="information-circle-outline" size={16} color={Colors.light.tabIconDefault} />
+            <Text style={{ color: Colors.light.tabIconDefault, marginLeft: 6, flex: 1 }}>
+              {t('dashboard.ai_tools_info', {
+                defaultValue: 'AI runs via a secure server. Usage may be limited by your plan or trial.'
+              })}
+            </Text>
+          </View>
           <View style={styles.aiToolsContainer}>
             {aiTools.map(renderAIToolCard)}
           </View>
@@ -352,7 +380,11 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('dashboard.my_classes')}</Text>
           <View style={styles.classesContainer}>
-            {dashboardData?.myClasses.map(renderClassCard)}
+            {dashboardData?.myClasses && dashboardData.myClasses.length > 0 ? (
+              dashboardData.myClasses.map(renderClassCard)
+            ) : (
+              <EmptyClassesState onCreateClass={() => Alert.alert('Create Class', 'Class creation will be available soon!')} />
+            )}
           </View>
         </View>
 
@@ -360,7 +392,11 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('dashboard.recent_assignments')}</Text>
           <View style={styles.assignmentsContainer}>
-            {dashboardData?.recentAssignments.map(renderAssignmentCard)}
+            {dashboardData?.recentAssignments && dashboardData.recentAssignments.length > 0 ? (
+              dashboardData.recentAssignments.map(renderAssignmentCard)
+            ) : (
+              <EmptyAssignmentsState onCreateAssignment={() => router.push('/screens/assign-homework')} />
+            )}
           </View>
         </View>
 
@@ -368,25 +404,29 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.section}>
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>{t('dashboard.upcoming_events')}</Text>
-            {dashboardData?.upcomingEvents.map((event) => (
-              <View key={event.id} style={styles.eventItem}>
-                <View style={[styles.eventIcon, {
-                  backgroundColor: event.type === 'meeting' ? '#4F46E5' : 
-                                 event.type === 'activity' ? '#059669' : '#DC2626'
-                }]}>
-                  <Ionicons 
-                    name={event.type === 'meeting' ? 'people' : 
-                         event.type === 'activity' ? 'color-palette' : 'document-text'} 
-                    size={16} 
-                    color="white" 
-                  />
+            {dashboardData?.upcomingEvents && dashboardData.upcomingEvents.length > 0 ? (
+              dashboardData.upcomingEvents.map((event) => (
+                <View key={event.id} style={styles.eventItem}>
+                  <View style={[styles.eventIcon, {
+                    backgroundColor: event.type === 'meeting' ? '#4F46E5' : 
+                                   event.type === 'activity' ? '#059669' : '#DC2626'
+                  }]}>
+                    <Ionicons 
+                      name={event.type === 'meeting' ? 'people' : 
+                           event.type === 'activity' ? 'color-palette' : 'document-text'} 
+                      size={16} 
+                      color="white" 
+                    />
+                  </View>
+                  <View style={styles.eventContent}>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <Text style={styles.eventTime}>{event.time}</Text>
+                  </View>
                 </View>
-                <View style={styles.eventContent}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <Text style={styles.eventTime}>{event.time}</Text>
-                </View>
-              </View>
-            ))}
+              ))
+            ) : (
+              <EmptyEventsState onCreateEvent={() => Alert.alert('Create Event', 'Event creation will be available soon!')} />
+            )}
           </View>
         </View>
 

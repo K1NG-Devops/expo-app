@@ -42,6 +42,7 @@ export interface FeatureFlags {
 }
 
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
+const AI_DEFAULT = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true') || (process.env.NODE_ENV === 'production')
 const DEFAULT_FLAGS: FeatureFlags = {
   // Core features
   ai_gateway_enabled: process.env.EXPO_PUBLIC_AI_GATEWAY_ENABLED === 'true',
@@ -52,11 +53,11 @@ const DEFAULT_FLAGS: FeatureFlags = {
   advanced_grading_enabled: process.env.EXPO_PUBLIC_ADVANCED_GRADING_ENABLED === 'true',
   contact_sales_enabled: process.env.EXPO_PUBLIC_CONTACT_SALES_ENABLED === 'true',
   
-  // AI Features - start disabled for staged rollout
-  ai_lesson_generation: false,
-  ai_homework_help: false,
-  ai_grading_assistance: false,
-  ai_stem_activities: false,
+  // AI Features - default to enabled when AI env toggles are true or in production
+  ai_lesson_generation: AI_DEFAULT,
+  ai_homework_help: AI_DEFAULT,
+  ai_grading_assistance: AI_DEFAULT,
+  ai_stem_activities: AI_DEFAULT,
   ai_streaming_enabled: false,
   
   // Collaboration Features - enterprise tier

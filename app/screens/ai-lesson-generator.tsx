@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getUsage, incrementUsage } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage } from '@/lib/ai/usage'
 
 export default function AILessonGeneratorScreen() {
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
@@ -42,7 +42,7 @@ export default function AILessonGeneratorScreen() {
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
 
   useEffect(() => {
-    (async () => setUsage(await getUsage()))()
+    (async () => setUsage(await getCombinedUsage()))()
   }, [])
 
   const onGenerate = async () => {
@@ -70,7 +70,7 @@ export default function AILessonGeneratorScreen() {
         description: typeof content === 'string' ? content : JSON.stringify(content),
       }))
       await incrementUsage('lesson_generation', 1)
-      setUsage(await getUsage())
+      setUsage(await getCombinedUsage())
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
       track('edudash.ai.lesson.generate_failed', { error: e?.message })

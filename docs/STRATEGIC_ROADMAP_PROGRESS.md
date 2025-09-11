@@ -94,6 +94,37 @@ Next:
 
 ---
 
+## 2025-01-11 – Milestone: B1 (Teacher-first) – Phase 4
+Scope:
+- Combined usage counters: attempts server usage via functions.invoke('ai-usage') and falls back to local counters
+- Homework Grader UI shows monthly usage; increments on completion
+
+Verification:
+- Usage appears on Lesson Generator and Homework Grader; safe when server usage endpoint absent
+- Typecheck remains clean (0 errors)
+
+Next:
+- Wire AI Homework Helper when screen is available
+- If server endpoint for usage exists, map to exact fields (ai_usage_logs monthly)
+
+---
+
+## 2025-01-11 – Milestone: B1 (Teacher-first) – Phase 5
+Scope:
+- New AI Homework Helper screen with feature-flag/build gating, edge function invocation, analytics, and usage counters
+- Teacher Dashboard now includes Homework Helper tile (gated)
+
+Verification:
+- AI Helper disabled states show clear message when gated
+- Edge function ai-proxy invoked on Ask AI; response shown; usage increments
+- Typecheck clean (0 errors)
+
+Next:
+- Add small info badge in AI Tools explaining privacy and gating
+- Begin C1 Principal Hub MVP planning PRD (requirements, data/APIs, rollout gates)
+
+---
+
 ## 2025-01-11 – Dashboard Production-Readiness Assessment
 
 Principal Dashboard (components/dashboard/PrincipalDashboard.tsx)

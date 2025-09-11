@@ -268,5 +268,27 @@
     "billing": "Billing",
     "usage": "Usage",
     "limits": "Plan Limits"
+  },
+  "empty": {
+    "no_classes_title": "No Classes Yet",
+    "no_classes_description": "You haven't created any classes yet. Start by creating your first class to manage students and lessons.",
+    "create_first_class": "Create First Class",
+    "no_assignments_title": "No Assignments",
+    "no_assignments_description": "No homework or assignments have been created yet. Create your first assignment to get started.",
+    "create_assignment": "Create Assignment",
+    "no_students_title": "No Students Enrolled",
+    "no_students_description": "Your school doesn't have any students enrolled yet. Start by enrolling your first students.",
+    "enroll_first_student": "Enroll First Student",
+    "no_teachers_title": "No Teachers Yet",
+    "no_teachers_description": "Your school doesn't have any teachers yet. Invite teaching staff to join your school.",
+    "invite_teacher": "Invite Teacher",
+    "no_events_title": "No Upcoming Events",
+    "no_events_description": "No events are scheduled. Events will appear here when created.",
+    "create_event": "Create Event",
+    "no_activity_title": "No Recent Activity",
+    "no_activity_description": "Recent school activity will appear here as it happens.",
+    "no_financial_data_title": "No Financial Data",
+    "no_financial_data_description": "Financial reports and revenue data will be shown here once available.",
+    "view_reports": "View Reports"
   }
 }

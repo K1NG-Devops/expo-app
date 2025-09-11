@@ -29,6 +29,10 @@ import MeetingRoomSystem from '@/components/features/MeetingRoomSystem';
 import RealtimeActivityFeed from '@/components/dashboard/RealtimeActivityFeed';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { router } from 'expo-router';
+import {
+  EmptyStudentsState,
+  EmptyActivityState,
+} from '@/components/ui/EmptyState';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -203,10 +207,7 @@ export const PrincipalDashboard: React.FC = () => {
       return (
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>{t('dashboard.recentActivity')}</Text>
-          <View style={styles.noDataContainer}>
-            <Ionicons name="pulse" size={32} color={Colors.light.tabIconDefault} />
-            <Text style={styles.noDataText}>{t('dashboard.no_data_available')}</Text>
-          </View>
+          <EmptyActivityState />
         </View>
       );
     }
@@ -284,7 +285,17 @@ export const PrincipalDashboard: React.FC = () => {
         <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('dashboard.school_overview')}</Text>
           <View style={styles.metricsGrid}>
-            {dashboardData && metrics.map(renderMetricCard)}
+            {dashboardData && metrics.length > 0 ? (
+              metrics.map(renderMetricCard)
+            ) : dashboardData && (
+              dashboardData.totalStudents === 0 && dashboardData.totalTeachers === 0 ? (
+                <View style={styles.emptyMetricsContainer}>
+                  <EmptyStudentsState onEnrollStudent={() => router.push('/screens/student-enrollment')} />
+                </View>
+              ) : (
+                metrics.map(renderMetricCard)
+              )
+            )}
           </View>
         </View>
 
@@ -627,6 +638,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  emptyMetricsContainer: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });
 
