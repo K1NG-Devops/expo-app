@@ -42,6 +42,58 @@ Follow-ups:
 
 ---
 
+## 2025-01-11 – Milestone: B1 (Teacher-first) – Phase 1
+Scope:
+- Added feature-flag gating for Teacher AI tools (ai_lesson_generation, ai_grading_assistance) and build-level AI env toggle
+- Wired Teacher dashboard AI tools to real screens with analytics events
+- Implemented AI proxy call for Lesson Generator via Supabase Edge Function (functions.invoke('ai-proxy')) with safe prompt and error handling
+
+Verification:
+- AI tools disabled when flags off; show clear message
+- Lesson Generator: invoke edge function, update preview text, analytics tracked
+- npm run typecheck → 0 errors
+
+Next:
+- Extend edge function payloads and client error messaging for grading stream
+- Add robust empty/loading/error states for AI Homework Grader streaming
+- Add feature flag UI indicators (e.g., badge) when gated
+
+---
+
+## 2025-01-11 – Milestone: B1 (Teacher-first) – Phase 2
+Scope:
+- AI Homework Grader now gated by flags and build env, with analytics on start/complete/fail
+- Calls secure Supabase Edge Function (ai-proxy) for grading; falls back to simulated streaming if edge call fails
+- Improved UX for disabled states and error reporting
+
+Verification:
+- Start button disabled when AI off; clear messages shown
+- ai-proxy invoked for grading when enabled; onFinal updates summary; analytics tracked
+- npm run typecheck → 0 errors
+
+Follow-ups:
+- Optionally show streaming UI based on edge function server-sent events when available
+- Add in-app rate-limit feedback (from edge response) and monthly usage counters
+
+---
+
+## 2025-01-11 – Milestone: B1 (Teacher-first) – Phase 3
+Scope:
+- Client-side monthly usage counters (SecureStore) for AI features added and displayed on AI Lesson Generator
+- Teacher Dashboard now shows AI gating indicator (enabled/disabled) below section title
+- AI Homework Grader returns user-friendly rate limit messages when server signals limits
+
+Verification:
+- Lesson Generator shows local monthly usage and increments on generation
+- Teacher dashboard shows correct indicator based on flags/env
+- npm run typecheck → 0 errors
+
+Next:
+- Extend UI usage counters to Homework Grader and AI Homework Helper screens
+- Map server usage counters (when available) to override local counters for accuracy
+
+---
+
 ## 2025-01-11 – Dashboard Production-Readiness Assessment
 
 Principal Dashboard (components/dashboard/PrincipalDashboard.tsx)

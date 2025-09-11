@@ -24,9 +24,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 import { useTeacherDashboard } from '@/hooks/useDashboardData';
 import { router } from 'expo-router';
 import { track } from '@/lib/analytics';
+import { getFeatureFlagsSync } from '@/lib/featureFlags';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -58,29 +60,34 @@ interface TeacherMetric {
 }
 
 export const TeacherDashboard: React.FC = () => {
+  const flags = getFeatureFlagsSync();
+  const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
+  const aiLessonEnabled = AI_ENABLED && flags.ai_lesson_generation !== false;
+  const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false;
   const { user } = useAuth();
+  const { t } = useTranslation();
   
   // Use the custom data hook
-  const { data: dashboardData, loading: isLoading, refresh } = useTeacherDashboard();
+  const { data: dashboardData, loading: isLoading, error, refresh } = useTeacherDashboard();
   const metrics: TeacherMetric[] = dashboardData ? [
     {
-      title: 'My Students',
+      title: t('metrics.my_students'),
       value: dashboardData.totalStudents,
-      subtitle: `across ${dashboardData.totalClasses} classes`,
+      subtitle: t('metrics.across_classes', { count: dashboardData.totalClasses }),
       icon: 'people-outline',
       color: '#4F46E5',
     },
     {
-      title: 'Pending Grading',
+      title: t('metrics.pending_grading'),
       value: dashboardData.pendingGrading,
-      subtitle: 'assignments to review',
+      subtitle: t('metrics.assignments_to_review'),
       icon: 'document-text-outline',
       color: '#DC2626',
     },
     {
-      title: 'Lessons Today',
+      title: t('metrics.lessons_today'),
       value: dashboardData.upcomingLessons,
-      subtitle: 'scheduled classes',
+      subtitle: t('metrics.scheduled_classes'),
       icon: 'book-outline',
       color: '#059669',
     },
@@ -93,7 +100,11 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'Create engaging lessons with AI',
       icon: 'bulb',
       color: '#4F46E5',
-      onPress: () => { track('edudash.ai.lesson_generator_opened'); router.push('/screens/ai-lesson-generator'); },
+      onPress: () => {
+        if (!aiLessonEnabled) { Alert.alert('AI Tool Disabled', 'Lesson generator is not enabled for this build.'); return; }
+        track('edudash.ai.lesson_generator_opened');
+        router.push('/screens/ai-lesson-generator');
+      },
     },
     {
       id: 'homework-grader',
@@ -101,7 +112,11 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'Auto-grade assignments with AI',
       icon: 'checkmark-circle',
       color: '#059669',
-      onPress: () => { track('edudash.ai.homework_grader_opened'); router.push('/screens/ai-homework-grader-live'); },
+      onPress: () => {
+        if (!aiGradingEnabled) { Alert.alert('AI Tool Disabled', 'Homework grader is not enabled for this build.'); return; }
+        track('edudash.ai.homework_grader_opened');
+        router.push('/screens/ai-homework-grader-live');
+      },
     },
     {
       id: 'progress-analysis',
@@ -109,7 +124,7 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'AI-powered student insights',
       icon: 'analytics',
       color: '#7C3AED',
-      onPress: () => Alert.alert('AI Tools', 'Progress analysis coming soon'),
+      onPress: () => {}, // Will be implemented in progress analysis screen
     },
   ];
 
@@ -119,36 +134,36 @@ export const TeacherDashboard: React.FC = () => {
       title: 'Take Attendance',
       icon: 'checkmark-done',
       color: '#059669',
-      onPress: () => Alert.alert('Action', 'Attendance feature coming soon'),
+      onPress: () => {}, // Will be implemented in attendance screen
     },
     {
       id: 'create-lesson',
       title: 'Create Lesson',
       icon: 'add-circle',
       color: '#4F46E5',
-      onPress: () => Alert.alert('Action', 'Lesson creation coming soon'),
+      onPress: () => {}, // Will be implemented in lesson creation screen
     },
     {
       id: 'message-parents',
       title: 'Message Parents',
       icon: 'chatbubbles',
       color: '#7C3AED',
-      onPress: () => Alert.alert('Action', 'Messaging feature coming soon'),
+      onPress: () => {}, // Will be implemented in messaging screen
     },
     {
       id: 'view-reports',
       title: 'View Reports',
       icon: 'document-text',
       color: '#DC2626',
-      onPress: () => Alert.alert('Action', 'Reports coming soon'),
+      onPress: () => {}, // Will be implemented in reports screen
     },
   ];
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour < 12) return t('dashboard.good_morning');
+    if (hour < 17) return t('dashboard.good_afternoon');
+    return t('dashboard.good_evening');
   };
 
   const renderMetricCard = (metric: TeacherMetric) => (
@@ -245,7 +260,28 @@ export const TeacherDashboard: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading Teacher Dashboard...</Text>
+        <View style={styles.loadingSkeleton}>
+          <View style={styles.skeletonHeader} />
+          <View style={styles.skeletonMetrics}>
+            {[1, 2, 3].map(i => (
+              <View key={i} style={styles.skeletonMetric} />
+            ))}
+          </View>
+          <View style={styles.skeletonSection} />
+        </View>
+      </View>
+    );
+  }
+
+  if (error && !dashboardData) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="warning-outline" size={48} color="#DC2626" />
+        <Text style={styles.errorTitle}>{t('dashboard.error_title')}</Text>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={refresh}>
+          <Text style={styles.retryButtonText}>{t('dashboard.retry_button')}</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -271,8 +307,8 @@ export const TeacherDashboard: React.FC = () => {
                 </Text>
               </View>
               <View style={styles.subRow}>
-                <Text style={styles.schoolName}>Teaching at {dashboardData?.schoolName || 'Loading...'}</Text>
-                <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>Teacher</Text></View>
+                <Text style={styles.schoolName}>{t('dashboard.teaching_at_school', { schoolName: dashboardData?.schoolName || t('common.loading') })}</Text>
+                <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{t('dashboard.teacher')}</Text></View>
               </View>
             </View>
           </View>
@@ -281,7 +317,7 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* Key Metrics */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📊 Today's Overview</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.todays_overview')}</Text>
           <View style={styles.metricsGrid}>
             {metrics.map(renderMetricCard)}
           </View>
@@ -289,7 +325,7 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚡ Quick Actions</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions_section')}</Text>
           <View style={styles.quickActionsGrid}>
             {quickActions.map(renderQuickAction)}
           </View>
@@ -297,7 +333,16 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* AI Tools */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🤖 AI Teaching Tools</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.ai_teaching_tools')}</Text>
+          {(!aiLessonEnabled || !aiGradingEnabled) ? (
+            <Text style={{ color: Colors.light.tabIconDefault, marginBottom: 8 }}>
+              {t('dashboard.ai_tools_disabled')}
+            </Text>
+          ) : (
+            <Text style={{ color: Colors.light.tabIconDefault, marginBottom: 8 }}>
+              {t('dashboard.ai_tools_enabled')}
+            </Text>
+          )}
           <View style={styles.aiToolsContainer}>
             {aiTools.map(renderAIToolCard)}
           </View>
@@ -305,7 +350,7 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* My Classes */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📚 My Classes</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.my_classes')}</Text>
           <View style={styles.classesContainer}>
             {dashboardData?.myClasses.map(renderClassCard)}
           </View>
@@ -313,7 +358,7 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* Recent Assignments */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📝 Recent Homework Assignments</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.recent_assignments')}</Text>
           <View style={styles.assignmentsContainer}>
             {dashboardData?.recentAssignments.map(renderAssignmentCard)}
           </View>
@@ -322,7 +367,7 @@ export const TeacherDashboard: React.FC = () => {
         {/* Upcoming Events */}
         <View style={styles.section}>
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>📅 Upcoming Events</Text>
+            <Text style={styles.sectionTitle}>{t('dashboard.upcoming_events')}</Text>
             {dashboardData?.upcomingEvents.map((event) => (
               <View key={event.id} style={styles.eventItem}>
                 <View style={[styles.eventIcon, {
@@ -698,6 +743,67 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
+  },
+  // Loading skeleton styles
+  loadingSkeleton: {
+    padding: 16,
+  },
+  skeletonHeader: {
+    height: 100,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  skeletonMetrics: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  skeletonMetric: {
+    width: cardWidth,
+    height: 80,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+  },
+  skeletonSection: {
+    height: 200,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 12,
+  },
+  // Error state styles
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#f8fafc',
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#DC2626',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: Colors.light.tint,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

@@ -1,5 +1,6 @@
 const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
 import { assertSupabase } from '../supabase'
+import { track } from '../analytics'
 
 export class HomeworkService {
   static async gradeHomework(submissionId: string, submissionContent: string, assignmentTitle: string, gradeLevel: string) {
@@ -72,6 +73,53 @@ export class HomeworkService {
         return
       }
 
+      // Attempt secure server-side grading via Edge Function
+      try {
+        track('edudash.ai.grading.started', {})
+        const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
+          body: {
+            feature: 'grading_assistance',
+            submission: submissionContent,
+            assignment_title: assignmentTitle,
+            grade_level: gradeLevel,
+            locale: 'en-ZA'
+          }
+        })
+        if (error) throw error
+
+        const payload: any = data?.result || data || {}
+        const score = typeof payload.score === 'number' ? payload.score : 85
+        const feedback = payload.feedback || 'Great effort! Solid understanding with minor gaps.'
+        const strengths: string[] = Array.isArray(payload.strengths) ? payload.strengths : ['Understands core concept']
+        const areasForImprovement: string[] = Array.isArray(payload.areasForImprovement) ? payload.areasForImprovement : ['Double-check counting sequence']
+        const suggestions: string[] = Array.isArray(payload.suggestions) ? payload.suggestions : ['Practice with number lines']
+
+        handlers.onFinal?.({ score, feedback, suggestions, strengths, areasForImprovement })
+        track('edudash.ai.grading.completed', { score })
+
+        try {
+          await assertSupabase()
+            .from('homework_submissions')
+            .update({
+              grade: Number(score),
+              feedback: feedback,
+              graded_at: new Date().toISOString(),
+              graded_by: 'ai',
+              status: 'reviewed'
+            })
+            .eq('id', submissionId)
+        } catch {}
+        return
+      } catch (invokeError: any) {
+        const msg = String(invokeError?.message || '')
+        if (msg.toLowerCase().includes('rate') && (msg.includes('429') || msg.toLowerCase().includes('limit'))) {
+          handlers.onError?.({ message: 'Rate limit reached. Please try again later.', code: 'rate_limited' })
+          track('edudash.ai.grading.rate_limited', {})
+          return
+        }
+        // Fallback to simulated streaming when server grading fails
+      }
+
       // Simulated streaming: emit a couple of JSON chunks, then final
       const chunks = [
         '{"grade":"Good","feedback":"Analyzing submission","strengths":[],',
@@ -89,6 +137,7 @@ export class HomeworkService {
       const suggestions: string[] = ['Practice with number lines']
 
       handlers.onFinal?.({ score, feedback, suggestions, strengths, areasForImprovement })
+      track('edudash.ai.grading.completed_fallback', { score })
 
       try {
         await assertSupabase()

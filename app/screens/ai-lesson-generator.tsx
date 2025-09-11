@@ -1,14 +1,19 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
+import { getFeatureFlagsSync } from '@/lib/featureFlags'
+import { track } from '@/lib/analytics'
+import { getUsage, incrementUsage } from '@/lib/ai/usage'
 
 export default function AILessonGeneratorScreen() {
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
   const [generated, setGenerated] = useState<any | null>({ title: 'New Lesson', description: 'AI generated lesson', content: { sections: [] }, activities: [] })
   const [saving, setSaving] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
 
   const categoriesQuery = useQuery({
     queryKey: ['lesson_categories'],
@@ -32,6 +37,48 @@ export default function AILessonGeneratorScreen() {
     },
     staleTime: 60_000,
   })
+
+  const flags = getFeatureFlagsSync();
+  const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
+
+  useEffect(() => {
+    (async () => setUsage(await getUsage()))()
+  }, [])
+
+  const onGenerate = async () => {
+    try {
+      if (!AI_ENABLED || flags.ai_lesson_generation === false) {
+        Alert.alert('AI Disabled', 'Lesson generator is not enabled in this build.');
+        return;
+      }
+      setGenerating(true)
+      track('edudash.ai.lesson.generate_started', {})
+      const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
+        body: {
+          feature: 'lesson_generation',
+          subject: 'Mathematics',
+          grade: '3',
+          duration_minutes: 45,
+          locale: 'en-ZA',
+          prompt: 'Generate a child-safe, CAPS-aligned Grade 3 fractions lesson (45 minutes) with objectives, warm-up, activities, and assessment.'
+        }
+      })
+      if (error) throw error
+      const content = (data && (data.content || data.lesson || data.plan)) || 'No lesson content returned.'
+      setGenerated((prev: any) => ({
+        ...(prev || {}),
+        description: typeof content === 'string' ? content : JSON.stringify(content),
+      }))
+      await incrementUsage('lesson_generation', 1)
+      setUsage(await getUsage())
+      track('edudash.ai.lesson.generate_completed', {})
+    } catch (e: any) {
+      track('edudash.ai.lesson.generate_failed', { error: e?.message })
+      Alert.alert('Generation failed', e?.message || 'Unable to generate lesson at this time.')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const onSave = async () => {
     try {
@@ -74,12 +121,22 @@ export default function AILessonGeneratorScreen() {
       <ScrollView contentContainerStyle={styles.contentPadding}>
         <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>Preview</Text>
-          <Text style={{ color: palette.textSecondary }}>This is a minimal scaffold. Integrate your preferred AI provider to generate content.</Text>
+          <Text style={{ color: palette.textSecondary }}>
+            Use the AI generator to draft a CAPS-aligned lesson. Review and edit before saving.
+          </Text>
+          <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
+            Monthly usage (local): Lessons generated {usage.lesson_generation}
+          </Text>
         </View>
 
-        <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: '#3B82F6' }]} disabled={saving}>
-          {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Lesson</Text>}
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: '#111827', flex: 1 }]} disabled={generating}>
+            {generating ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Generate Lesson</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: '#3B82F6', flex: 1 }]} disabled={saving}>
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Lesson</Text>}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   )

@@ -28,6 +28,7 @@ import { usePrincipalDashboard } from '@/hooks/useDashboardData';
 import MeetingRoomSystem from '@/components/features/MeetingRoomSystem';
 import RealtimeActivityFeed from '@/components/dashboard/RealtimeActivityFeed';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { router } from 'expo-router';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -103,7 +104,7 @@ export const PrincipalDashboard: React.FC = () => {
       subtitle: t('quick_actions.manage_teachers_subtitle'),
       icon: 'people',
       color: '#4F46E5',
-      onPress: () => {}, // Will be implemented in teacher management screen
+      onPress: () => router.push('/screens/teacher-management'),
     },
     {
       id: 'student-enrollment',
@@ -111,7 +112,7 @@ export const PrincipalDashboard: React.FC = () => {
       subtitle: t('quick_actions.student_enrollment_subtitle'),
       icon: 'person-add',
       color: '#059669',
-      onPress: () => {}, // Will be implemented in student enrollment screen
+      onPress: () => router.push('/screens/student-enrollment'),
     },
     {
       id: 'financial-reports',

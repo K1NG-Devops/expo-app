@@ -3,6 +3,8 @@ import React, { useMemo, useRef, useState } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { HomeworkService } from '@/lib/services/homeworkService'
+import { getFeatureFlagsSync } from '@/lib/featureFlags'
+import { track } from '@/lib/analytics'
 
 export default function AIHomeworkGraderLive() {
   const [assignmentTitle, setAssignmentTitle] = useState('Counting to 10')
@@ -13,9 +15,17 @@ export default function AIHomeworkGraderLive() {
   const [parsed, setParsed] = useState<null | { score: number; feedback: string; suggestions: string[]; strengths: string[]; areasForImprovement: string[] }>(null)
   const bufferRef = useRef('')
 
+  const flags = getFeatureFlagsSync()
+  const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
+  const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false
+
   const startStreaming = async () => {
     if (!submissionContent.trim()) {
       Alert.alert('Missing submission', 'Please provide the student submission text.')
+      return
+    }
+    if (!aiGradingEnabled) {
+      Alert.alert('AI Tool Disabled', 'Homework grader is not enabled in this build.')
       return
     }
     try {
@@ -23,6 +33,7 @@ export default function AIHomeworkGraderLive() {
       setJsonBuffer('')
       bufferRef.current = ''
       setParsed(null)
+      track('edudash.ai.grader.ui_started', {})
 
       const submissionId = 'temp-local'
       await HomeworkService.streamGradeHomework(
@@ -38,16 +49,19 @@ export default function AIHomeworkGraderLive() {
           onFinal: ({ score, feedback, suggestions, strengths, areasForImprovement }) => {
             setParsed({ score, feedback, suggestions, strengths, areasForImprovement })
             setIsStreaming(false)
+            track('edudash.ai.grader.ui_completed', { score })
           },
           onError: (err) => {
             setIsStreaming(false)
-            Alert.alert('Stream error', err.message || 'Unknown error')
+            track('edudash.ai.grader.ui_failed', { error: err?.message })
+            Alert.alert('Grading failed', err.message || 'Unknown error')
           },
         }
       )
     } catch (e: any) {
       setIsStreaming(false)
-      Alert.alert('Error', e?.message || 'Failed to start grading stream')
+      track('edudash.ai.grader.ui_failed', { error: e?.message })
+      Alert.alert('Error', e?.message || 'Failed to start grading')
     }
   }
 
@@ -94,8 +108,8 @@ export default function AIHomeworkGraderLive() {
 
           <TouchableOpacity
             onPress={startStreaming}
-            disabled={isStreaming}
-            style={[styles.primaryButton, { opacity: isStreaming ? 0.6 : 1, backgroundColor: '#8B5CF6' }]}
+            disabled={isStreaming || !aiGradingEnabled}
+            style={[styles.primaryButton, { opacity: (isStreaming || !aiGradingEnabled) ? 0.6 : 1, backgroundColor: '#8B5CF6' }]}
           >
             {isStreaming ? (
               <View style={styles.inlineRow}>
