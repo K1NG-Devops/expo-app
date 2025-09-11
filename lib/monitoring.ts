@@ -61,13 +61,14 @@ function configureSentryForAndroid() {
     debug: process.env.EXPO_PUBLIC_DEBUG_MODE === 'true',
     tracesSampleRate: parseFloat(process.env.EXPO_PUBLIC_SENTRY_TRACE_SAMPLE_RATE || '0.2'),
     
-    // Android-specific configuration
-    enableNativeCrashHandling: Platform.OS === 'android',
-    enableAutoPerformanceTracing: true,
+    // Disable native features since @sentry/react-native is not installed
+    enableNative: false,
+    enableNativeCrashHandling: false,
+    enableAutoPerformanceTracing: false,
     enableAutoBreadcrumbTracking: true,
     
     // PII scrubbing
-    beforeSend: (event, hint) => {
+    beforeSend: (event: any, hint: any) => {
       if (!flags.production_db_dev_mode && process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true') {
         // In production, scrub PII from all event data
         event = scrubPII(event);
@@ -75,7 +76,7 @@ function configureSentryForAndroid() {
       return event;
     },
     
-    beforeBreadcrumb: (breadcrumb, hint) => {
+    beforeBreadcrumb: (breadcrumb: any, hint: any) => {
       // Scrub PII from breadcrumbs
       if (process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true') {
         breadcrumb = scrubPII(breadcrumb);
@@ -143,12 +144,16 @@ export function startMonitoring() {
       const sentryConfig = configureSentryForAndroid();
       Sentry.init(sentryConfig);
       
-      // Add Android-specific context
-      Sentry.Native.setContext('testing_environment', {
-        android_only: flags.android_only_mode,
-        production_db_dev: flags.production_db_dev_mode,
-        admob_test_ids: flags.admob_test_ids,
-      });
+      // Add Android-specific context (with fallback if Native is not available)
+      try {
+        Sentry.Native.setContext('testing_environment', {
+          android_only: flags.android_only_mode,
+          production_db_dev: flags.production_db_dev_mode,
+          admob_test_ids: flags.admob_test_ids,
+        });
+      } catch (nativeError) {
+        console.warn('Sentry Native context not available, using JS-only mode');
+      }
       
       console.log('Sentry initialized for Android testing');
     } catch (error) {
@@ -189,13 +194,26 @@ export function reportError(error: Error, context?: Record<string, any>) {
       ? scrubPII(context) 
       : context;
     
-    Sentry.Native.captureException(error, {
-      extra: scrubbed,
-      tags: {
-        component: 'app_error',
-        platform: Platform.OS,
-      },
-    });
+    try {
+      Sentry.Native.captureException(error, {
+        extra: scrubbed,
+        tags: {
+          component: 'app_error',
+          platform: Platform.OS,
+        },
+      });
+    } catch (nativeError) {
+      // Fallback to browser captureException if native is not available
+      if (Sentry.Browser) {
+        Sentry.Browser.captureException(error, {
+          extra: scrubbed,
+          tags: {
+            component: 'app_error',
+            platform: Platform.OS,
+          },
+        });
+      }
+    }
   } catch (reportingError) {
     console.error('Failed to report error:', reportingError);
   }

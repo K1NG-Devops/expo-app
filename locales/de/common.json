@@ -1,0 +1,65 @@
+{
+  "app": {
+    "name": "EduDash",
+    "tagline": "Bildung durch KI stärken",
+    "version": "1.0.0"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "profile": "Profil",
+    "settings": "Einstellungen",
+    "logout": "Abmelden",
+    "back": "Zurück",
+    "next": "Weiter",
+    "cancel": "Abbrechen",
+    "save": "Speichern",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "add": "Hinzufügen",
+    "search": "Suchen"
+  },
+  "auth": {
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "signOut": "Abmelden",
+    "forgotPassword": "Passwort vergessen",
+    "resetPassword": "Passwort zurücksetzen",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "confirmPassword": "Passwort bestätigen",
+    "firstName": "Vorname",
+    "lastName": "Nachname",
+    "loading": "Laden...",
+    "signingIn": "Anmelden...",
+    "signingUp": "Konto wird erstellt...",
+    "invalidCredentials": "Ungültige E-Mail oder Passwort",
+    "accountCreated": "Konto erfolgreich erstellt",
+    "passwordResetSent": "Passwort-Reset-Link an Ihre E-Mail gesendet"
+  },
+  "ai": {
+    "homework": {
+      "title": "KI-Hausaufgaben-Assistent",
+      "description": "Erhalten Sie Schritt-für-Schritt-Hilfe bei Ihren Hausaufgaben",
+      "loading": "Denke nach...",
+      "error": "Entschuldigung, ich konnte bei dieser Frage nicht helfen. Bitte versuchen Sie es erneut."
+    },
+    "lessons": {
+      "title": "KI-Unterrichtsgenerator",
+      "description": "Erstellen Sie ansprechende Lektionen mit KI-Unterstützung",
+      "loading": "Lektion wird erstellt...",
+      "error": "Fehler beim Generieren der Lektion. Bitte versuchen Sie es erneut."
+    }
+  },
+  "common": {
+    "loading": "Laden...",
+    "error": "Fehler",
+    "success": "Erfolg",
+    "warning": "Warnung",
+    "info": "Information"
+  },
+  "curriculum": {
+    "standards": {
+      "placeholder": "{{subject}} - Klasse {{grade}} Standards"
+    }
+  }
+}

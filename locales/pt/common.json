@@ -1,0 +1,65 @@
+{
+  "app": {
+    "name": "EduDash",
+    "tagline": "Potencializando a Educação através da IA",
+    "version": "1.0.0"
+  },
+  "navigation": {
+    "dashboard": "Painel",
+    "profile": "Perfil",
+    "settings": "Configurações",
+    "logout": "Sair",
+    "back": "Voltar",
+    "next": "Próximo",
+    "cancel": "Cancelar",
+    "save": "Salvar",
+    "edit": "Editar",
+    "delete": "Excluir",
+    "add": "Adicionar",
+    "search": "Pesquisar"
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signUp": "Cadastrar",
+    "signOut": "Sair",
+    "forgotPassword": "Esqueci a Senha",
+    "resetPassword": "Redefinir Senha",
+    "email": "E-mail",
+    "password": "Senha",
+    "confirmPassword": "Confirmar Senha",
+    "firstName": "Nome",
+    "lastName": "Sobrenome",
+    "loading": "Carregando...",
+    "signingIn": "Entrando...",
+    "signingUp": "Criando conta...",
+    "invalidCredentials": "E-mail ou senha inválidos",
+    "accountCreated": "Conta criada com sucesso",
+    "passwordResetSent": "Link de redefinição enviado para seu e-mail"
+  },
+  "ai": {
+    "homework": {
+      "title": "Assistente IA para Lições de Casa",
+      "description": "Obtenha ajuda passo a passo com suas lições de casa",
+      "loading": "Pensando...",
+      "error": "Desculpe, não consegui ajudar com essa pergunta. Tente novamente."
+    },
+    "lessons": {
+      "title": "Gerador IA de Aulas",
+      "description": "Crie aulas envolventes com assistência de IA",
+      "loading": "Criando aula...",
+      "error": "Falha ao gerar a aula. Tente novamente."
+    }
+  },
+  "common": {
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "warning": "Aviso",
+    "info": "Informação"
+  },
+  "curriculum": {
+    "standards": {
+      "placeholder": "{{subject}} - Padrões da {{grade}}ª Série"
+    }
+  }
+}

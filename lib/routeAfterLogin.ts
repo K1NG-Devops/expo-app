@@ -8,13 +8,20 @@ import type { User } from '@supabase/supabase-js';
 function normalizeRole(r?: string | null): string | null {
   if (!r) return null;
   const s = String(r).trim().toLowerCase();
-  // Map potential variants to canonical
-  if (s.includes('super')) return 'superadmin';
-  if (s.includes('principal')) return 'principal';
-  if (s === 'admin' || s.includes('school admin')) return 'admin';
+  
+  // Map potential variants to canonical Role types
+  if (s.includes('super') || s === 'superadmin') return 'super_admin';
+  if (s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
   if (s.includes('teacher')) return 'teacher';
   if (s.includes('parent')) return 'parent';
-  return s as any;
+  
+  // Handle exact matches for the canonical types
+  if (['super_admin', 'principal_admin', 'teacher', 'parent'].includes(s)) {
+    return s;
+  }
+  
+  console.warn('Unrecognized role:', r, '-> normalized to parent');
+  return 'parent'; // Default fallback
 }
 
 /**
@@ -109,10 +116,17 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     });
 
     // Navigate to determined route (with params if needed)
-    if (route.params) {
-      router.replace({ pathname: route.path as any, params: route.params } as any);
-    } else {
-      router.replace(route.path as any);
+    console.log('Navigating to route:', route);
+    try {
+      if (route.params) {
+        router.replace({ pathname: route.path as any, params: route.params } as any);
+      } else {
+        router.replace(route.path as any);
+      }
+    } catch (navigationError) {
+      console.error('Navigation failed, falling back to debug:', navigationError);
+      // Fallback to debug screen to help diagnose the issue
+      router.replace('/debug-user');
     }
   } catch (error) {
     reportError(new Error('Post-login routing failed'), {
@@ -138,17 +152,15 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   }
   
   // Check if user has active access
-  if (!profile.hasCapability('access_mobile_app')) {
-    return { path: '/account' }; // Route to account settings to resolve access issues
-  }
+    if (!profile.hasCapability('access_mobile_app')) {
+      return { path: '/screens/account' }; // Route to account settings to resolve access issues
+    }
 
   // Route based on role and capabilities
   switch (role) {
-    case 'superadmin':
     case 'super_admin':
       return { path: '/screens/super-admin-leads' };
     
-    case 'principal':
     case 'principal_admin':
       // Check if they have school association
       if (profile.organization_id) {
@@ -158,7 +170,7 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
         };
       } else {
         // No school associated, route to setup or contact support
-        return { path: '/account' };
+        return { path: '/screens/account' };
       }
     
     case 'teacher':
@@ -166,9 +178,9 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       if (profile.seat_status === 'active') {
         return { path: '/screens/teacher-dashboard' };
       } else if (profile.seat_status === 'pending') {
-        return { path: '/account' }; // Show pending seat activation
+        return { path: '/screens/account' }; // Show pending seat activation
       } else {
-        return { path: '/account' }; // Show seat issues
+        return { path: '/screens/account' }; // Show seat issues
       }
     
     case 'parent':

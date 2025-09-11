@@ -1,4 +1,13 @@
-# Project Rules and Guards
+# Project Rules and Guidelines
+
+## Quality Assurance Process
+**CRITICAL**: Before confirming any section or task as complete, always:
+1. Run linting/type checking: `npm run lint` or `npx tsc --noEmit`
+2. Attempt to build the project: `npx expo start` or equivalent
+3. Resolve any compilation errors, missing dependencies, or type issues
+4. Only mark tasks complete after successful build verification
+
+This prevents shipping broken code and ensures all dependencies are properly installed.
 
 Authoritative, repeatable rules to prevent regressions in dev and CI. Keep this file up to date as we learn.
 

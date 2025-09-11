@@ -76,7 +76,7 @@ export default function SalesContactScreen() {
   }
 
   return (
-    <>
+<View style={{ flex: 1 }}>
       <Stack.Screen options={{
         title: 'Contact Sales',
         headerShown: true,
@@ -103,15 +103,15 @@ export default function SalesContactScreen() {
             </View>
           ) : null}
 
-          <FormInput label="Name" value={form.contact_name} onChangeText={(v) => onChange('contact_name', v)} autoCapitalize="words" />
-          <FormInput label="Email" value={form.contact_email} onChangeText={(v) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
-          <FormInput label="Phone" value={form.phone} onChangeText={(v) => onChange('phone', v)} keyboardType="phone-pad" />
-          <FormInput label="Organization" value={form.organization_name} onChangeText={(v) => onChange('organization_name', v)} />
-          <FormInput label="Country" value={form.country} onChangeText={(v) => onChange('country', v)} />
-          <FormInput label="Your role" value={form.role} onChangeText={(v) => onChange('role', v)} placeholder="Principal / Admin / Teacher / Parent" />
-          <FormInput label="School size" value={form.school_size} onChangeText={(v) => onChange('school_size', v)} placeholder="e.g., 200 students" />
-          <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v) => onChange('plan_interest', v)} />
-          <FormInput label="Notes" value={form.notes} onChangeText={(v) => onChange('notes', v)} multiline />
+          <FormInput label="Name" value={form.contact_name} onChangeText={(v: string) => onChange('contact_name', v)} autoCapitalize="words" />
+          <FormInput label="Email" value={form.contact_email} onChangeText={(v: string) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
+          <FormInput label="Phone" value={form.phone} onChangeText={(v: string) => onChange('phone', v)} keyboardType="phone-pad" />
+          <FormInput label="Organization" value={form.organization_name} onChangeText={(v: string) => onChange('organization_name', v)} />
+          <FormInput label="Country" value={form.country} onChangeText={(v: string) => onChange('country', v)} />
+          <FormInput label="Your role" value={form.role} onChangeText={(v: string) => onChange('role', v)} placeholder="Principal / Admin / Teacher / Parent" />
+          <FormInput label="School size" value={form.school_size} onChangeText={(v: string) => onChange('school_size', v)} placeholder="e.g., 200 students" />
+          <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v: string) => onChange('plan_interest', v)} />
+          <FormInput label="Notes" value={form.notes} onChangeText={(v: string) => onChange('notes', v)} multiline />
 
           <TouchableOpacity style={[styles.button, (submitting || !canSubmit) && { opacity: 0.5 }]} disabled={submitting || !canSubmit} onPress={onSubmit}>
             <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
@@ -119,7 +119,7 @@ export default function SalesContactScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       </SafeAreaView>
-    </>
+</View>
   );
 }
 

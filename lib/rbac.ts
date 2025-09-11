@@ -410,6 +410,13 @@ export class PermissionChecker {
     
     return userTierIndex >= requiredTierIndex;
   }
+  
+  /**
+   * Get the enhanced profile (for backward compatibility)
+   */
+  get enhancedProfile(): EnhancedUserProfile | null {
+    return this.profile;
+  }
 }
 
 /**
@@ -514,9 +521,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         role: 'parent' as any, // DEFAULT TO LOWEST PRIVILEGE ROLE
         first_name: 'User',
         last_name: '',
-        avatar_url: null,
-        organization_id: null,
-        organization_name: null,
+        avatar_url: undefined,
+        organization_id: undefined,
+        organization_name: undefined,
         seat_status: 'inactive' as any, // INACTIVE by default for security
         capabilities: [], // NO CAPABILITIES by default
         created_at: new Date().toISOString(),
@@ -661,9 +668,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       role: 'parent' as any, // LOWEST PRIVILEGE ROLE
       first_name: 'User',
       last_name: '',
-      avatar_url: null,
-      organization_id: null,
-      organization_name: null,
+      avatar_url: undefined,
+      organization_id: undefined,
+      organization_name: undefined,
       seat_status: 'inactive' as any, // INACTIVE for security
       capabilities: [], // NO CAPABILITIES
       created_at: new Date().toISOString(),

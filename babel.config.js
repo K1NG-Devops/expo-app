@@ -7,7 +7,7 @@ module.exports = function (api) {
         'module-resolver',
         {
           root: ['.'],
-          alias: { '@': './' },
+          alias: { '@': './', tslib: './node_modules/tslib/tslib.js' },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },
       ],

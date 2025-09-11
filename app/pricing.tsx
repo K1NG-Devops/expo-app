@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 
 export default function PricingScreen() {
   return (
-    <>
+<View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: 'Pricing', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
       <StatusBar style="light" backgroundColor="#0b1220" />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
@@ -32,7 +32,7 @@ export default function PricingScreen() {
           </View>
         </ScrollView>
       </SafeAreaView>
-    </>
+</View>
   );
 }
 

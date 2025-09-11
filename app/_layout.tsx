@@ -9,6 +9,9 @@ import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { AuthProvider } from '@/contexts/AuthContext';
+// Initialize i18n
+import i18n from '@/lib/i18n';
+import { I18nextProvider } from 'react-i18next';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -42,6 +45,10 @@ export default function RootLayout() {
         admob_test_ids: flags.admob_test_ids,
       });
 
+      // Initialize i18n (internationalization)
+      console.log('🌍 Initializing internationalization...');
+      // i18n is already initialized via import
+      
       // Initialize session management
       console.log('🔐 Initializing session management...');
       await initializeSession();
@@ -139,23 +146,25 @@ export default function RootLayout() {
 
   return (
     // Provide auth context globally to mirror standalone app behavior
-    <AuthProvider>
-      {/* Wrap in SubscriptionProvider so screens can access subscription data */}
-      <SubscriptionProvider>
-        <StatusBar style="light" backgroundColor="#0b1220" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            headerStyle: { backgroundColor: '#0b1220' },
-            headerTitleStyle: { color: '#ffffff' },
-            headerTintColor: '#00f5ff',
-            contentStyle: { backgroundColor: '#0b1220' },
-          }}
-        >
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-        </Stack>
-      </SubscriptionProvider>
-    </AuthProvider>
+    <I18nextProvider i18n={i18n}>
+      <AuthProvider>
+        {/* Wrap in SubscriptionProvider so screens can access subscription data */}
+        <SubscriptionProvider>
+          <StatusBar style="light" backgroundColor="#0b1220" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              headerStyle: { backgroundColor: '#0b1220' },
+              headerTitleStyle: { color: '#ffffff' },
+              headerTintColor: '#00f5ff',
+              contentStyle: { backgroundColor: '#0b1220' },
+            }}
+          >
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+          </Stack>
+        </SubscriptionProvider>
+      </AuthProvider>
+    </I18nextProvider>
   );
 }
 

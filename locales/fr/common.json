@@ -1,0 +1,65 @@
+{
+  "app": {
+    "name": "EduDash",
+    "tagline": "Renforcer l'Éducation grâce à l'IA",
+    "version": "1.0.0"
+  },
+  "navigation": {
+    "dashboard": "Tableau de bord",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "logout": "Se déconnecter",
+    "back": "Retour",
+    "next": "Suivant",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "add": "Ajouter",
+    "search": "Rechercher"
+  },
+  "auth": {
+    "signIn": "Se connecter",
+    "signUp": "S'inscrire",
+    "signOut": "Se déconnecter",
+    "forgotPassword": "Mot de passe oublié",
+    "resetPassword": "Réinitialiser le mot de passe",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "confirmPassword": "Confirmer le mot de passe",
+    "firstName": "Prénom",
+    "lastName": "Nom de famille",
+    "loading": "Chargement...",
+    "signingIn": "Connexion en cours...",
+    "signingUp": "Création du compte...",
+    "invalidCredentials": "E-mail ou mot de passe invalide",
+    "accountCreated": "Compte créé avec succès",
+    "passwordResetSent": "Lien de réinitialisation envoyé à votre e-mail"
+  },
+  "ai": {
+    "homework": {
+      "title": "Assistant IA pour les Devoirs",
+      "description": "Obtenez une aide étape par étape pour vos devoirs",
+      "loading": "Réflexion...",
+      "error": "Désolé, je n'ai pas pu aider avec cette question. Veuillez réessayer."
+    },
+    "lessons": {
+      "title": "Générateur IA de Leçons",
+      "description": "Créez des leçons engageantes avec l'assistance de l'IA",
+      "loading": "Création de la leçon...",
+      "error": "Échec de la génération de la leçon. Veuillez réessayer."
+    }
+  },
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "warning": "Avertissement",
+    "info": "Information"
+  },
+  "curriculum": {
+    "standards": {
+      "placeholder": "{{subject}} - Standards de Niveau {{grade}}"
+    }
+  }
+}

@@ -23,4 +23,12 @@ if (url && anon) {
   });
 }
 
+// Helper function to assert supabase client exists
+export function assertSupabase(): SupabaseClient {
+  if (!client) {
+    throw new Error('Supabase client not initialized. Check EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+  }
+  return client;
+}
+
 export const supabase = client;

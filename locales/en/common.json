@@ -1,0 +1,224 @@
+{
+  "app": {
+    "name": "EduDash",
+    "tagline": "Empowering Education Through AI",
+    "version": "1.0.0"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Sign Out",
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "add": "Add",
+    "search": "Search"
+  },
+  "auth": {
+    "signIn": "Sign In",
+    "signUp": "Sign Up",
+    "signOut": "Sign Out",
+    "forgotPassword": "Forgot Password",
+    "resetPassword": "Reset Password",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "loading": "Loading...",
+    "signingIn": "Signing in...",
+    "signingUp": "Creating account...",
+    "invalidCredentials": "Invalid email or password",
+    "accountCreated": "Account created successfully",
+    "passwordResetSent": "Password reset link sent to your email"
+  },
+  "roles": {
+    "parent": "Parent",
+    "teacher": "Teacher",
+    "principal": "Principal",
+    "admin": "Administrator",
+    "superAdmin": "Super Admin"
+  },
+  "dashboard": {
+    "welcome": "Welcome back, {{name}}!",
+    "quickActions": "Quick Actions",
+    "recentActivity": "Recent Activity",
+    "statistics": "Statistics",
+    "notifications": "Notifications",
+    "noActivity": "No recent activity",
+    "loading": "Loading dashboard..."
+  },
+  "ai": {
+    "homework": {
+      "title": "AI Homework Helper",
+      "description": "Get step-by-step help with your homework",
+      "askQuestion": "Ask a question about your homework",
+      "questionPlaceholder": "Type your homework question here...",
+      "subject": "Subject",
+      "gradeLevel": "Grade Level",
+      "difficulty": "Difficulty Level",
+      "getHelp": "Get Help",
+      "explanation": "Explanation",
+      "stepByStep": "Step by Step",
+      "hints": "Hints",
+      "relatedConcepts": "Related Concepts",
+      "practiceProblems": "Practice Problems",
+      "loading": "Thinking...",
+      "error": "Sorry, I couldn't help with that question. Please try again.",
+      "noQuestion": "Please enter a question to get help."
+    },
+    "lessons": {
+      "title": "AI Lesson Generator",
+      "description": "Create engaging lessons with AI assistance",
+      "topic": "Lesson Topic",
+      "topicPlaceholder": "Enter the main topic for your lesson",
+      "subject": "Subject",
+      "gradeLevel": "Grade Level",
+      "duration": "Duration (minutes)",
+      "objectives": "Learning Objectives",
+      "objectivePlaceholder": "What should students learn?",
+      "generate": "Generate Lesson",
+      "materials": "Materials Needed",
+      "activities": "Activities",
+      "assessment": "Assessment",
+      "extensions": "Extensions",
+      "loading": "Creating lesson...",
+      "error": "Failed to generate lesson. Please try again."
+    },
+    "usage": {
+      "title": "AI Usage",
+      "monthly": "This Month",
+      "daily": "Today",
+      "tokens": "Tokens Used",
+      "requests": "Requests Made",
+      "cost": "Cost",
+      "remaining": "Remaining Quota",
+      "unlimited": "Unlimited",
+      "upgradeRequired": "Upgrade required for more usage",
+      "rateLimited": "Rate limit exceeded. Please try again later."
+    }
+  },
+  "homework": {
+    "title": "Homework",
+    "assignments": "Assignments",
+    "dueDate": "Due Date",
+    "status": "Status",
+    "pending": "Pending",
+    "completed": "Completed",
+    "overdue": "Overdue",
+    "submit": "Submit",
+    "viewDetails": "View Details",
+    "noAssignments": "No homework assignments"
+  },
+  "lessons": {
+    "title": "Lessons",
+    "create": "Create Lesson",
+    "edit": "Edit Lesson",
+    "delete": "Delete Lesson",
+    "duplicate": "Duplicate",
+    "share": "Share",
+    "preview": "Preview",
+    "publish": "Publish",
+    "draft": "Draft",
+    "published": "Published"
+  },
+  "students": {
+    "title": "Students",
+    "addStudent": "Add Student",
+    "studentName": "Student Name",
+    "class": "Class",
+    "grade": "Grade",
+    "status": "Status",
+    "active": "Active",
+    "inactive": "Inactive",
+    "viewProfile": "View Profile",
+    "editProfile": "Edit Profile"
+  },
+  "classes": {
+    "title": "Classes",
+    "addClass": "Add Class",
+    "className": "Class Name",
+    "teacher": "Teacher",
+    "students": "Students",
+    "schedule": "Schedule",
+    "assignments": "Assignments"
+  },
+  "reports": {
+    "title": "Reports",
+    "generate": "Generate Report",
+    "export": "Export",
+    "performance": "Performance Report",
+    "attendance": "Attendance Report",
+    "progress": "Progress Report",
+    "dateRange": "Date Range",
+    "from": "From",
+    "to": "To"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile Settings",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "language": "Language",
+    "theme": "Theme",
+    "about": "About",
+    "support": "Support",
+    "termsOfService": "Terms of Service",
+    "privacyPolicy": "Privacy Policy"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark All as Read",
+    "noNotifications": "No notifications",
+    "newAssignment": "New assignment: {{title}}",
+    "gradePosted": "Grade posted for {{assignment}}",
+    "reminderDue": "Reminder: {{assignment}} is due tomorrow"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Network error. Please check your connection.",
+    "unauthorized": "You don't have permission to access this resource.",
+    "notFound": "The requested resource was not found.",
+    "validation": "Please check your input and try again.",
+    "serverError": "Server error. Please try again later."
+  },
+  "success": {
+    "saved": "Changes saved successfully",
+    "deleted": "Item deleted successfully",
+    "created": "Item created successfully",
+    "updated": "Item updated successfully"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information",
+    "confirm": "Are you sure?",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "close": "Close",
+    "retry": "Retry",
+    "refresh": "Refresh"
+  },
+  "curriculum": {
+    "standards": {
+      "placeholder": "{{subject}} - Grade {{grade}} Standards"
+    }
+  },
+  "subscription": {
+    "free": "Free",
+    "starter": "Starter",
+    "premium": "Premium", 
+    "enterprise": "Enterprise",
+    "upgrade": "Upgrade Plan",
+    "billing": "Billing",
+    "usage": "Usage",
+    "limits": "Plan Limits"
+  }
+}

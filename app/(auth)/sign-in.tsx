@@ -90,7 +90,7 @@ export default function SignIn() {
   }
 
   return (
-    <>
+<View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           title: 'Sign In',
@@ -98,11 +98,6 @@ export default function SignIn() {
           headerStyle: { backgroundColor: '#0b1220' },
           headerTitleStyle: { color: '#ffffff' },
           headerTintColor: '#00f5ff',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => import('@/lib/authActions').then(m => m.signOutAndRedirect())}>
-              <Text style={{ color: '#00f5ff', fontWeight: '700' }}>Sign out</Text>
-            </TouchableOpacity>
-          ),
         }}
       />
       <KeyboardScreen contentContainerStyle={styles.container}>
@@ -196,7 +191,7 @@ export default function SignIn() {
           <Text style={styles.linkText}>Back</Text>
         </TouchableOpacity>
       </KeyboardScreen>
-    </>
+    </View>
   );
 }
 

@@ -32,7 +32,7 @@ export default function AccountScreen() {
   const onRefresh = useCallback(async () => { setRefreshing(true); await load(); setRefreshing(false); }, [load]);
 
   return (
-    <>
+<View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: 'Account', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
       <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}>
         <View style={styles.card}>
@@ -52,7 +52,7 @@ export default function AccountScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
       </ScrollView>
-    </>
+</View>
   );
 }
 

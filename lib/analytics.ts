@@ -143,13 +143,25 @@ export function track<T extends keyof AnalyticsEvent>(
       ph.capture(String(event), scrubbedProperties);
     }
     
-    // Add to Sentry breadcrumbs for error context
-    Sentry.Native.addBreadcrumb({
-      category: 'analytics',
-      message: String(event),
-      data: scrubbedProperties,
-      level: 'info',
-    });
+    // Add to Sentry breadcrumbs for error context (with fallback)
+    try {
+      Sentry.Native.addBreadcrumb({
+        category: 'analytics',
+        message: String(event),
+        data: scrubbedProperties,
+        level: 'info',
+      });
+    } catch (nativeError) {
+      // Fallback to browser breadcrumb if native is not available
+      if (Sentry.Browser) {
+        Sentry.Browser.addBreadcrumb({
+          category: 'analytics',
+          message: String(event),
+          data: scrubbedProperties,
+          level: 'info',
+        });
+      }
+    }
     
     // Console log in debug mode
     if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
@@ -185,11 +197,21 @@ export function identifyUser(userId: string, properties: Record<string, any> = {
       ph.identify(userId, scrubbedProperties);
     }
     
-    // Set user context in Sentry
-    Sentry.Native.setUser({
-      id: userId,
-      ...scrubbedProperties,
-    });
+    // Set user context in Sentry (with fallback)
+    try {
+      Sentry.Native.setUser({
+        id: userId,
+        ...scrubbedProperties,
+      });
+    } catch (nativeError) {
+      // Fallback to browser setUser if native is not available
+      if (Sentry.Browser) {
+        Sentry.Browser.setUser({
+          id: userId,
+          ...scrubbedProperties,
+        });
+      }
+    }
     
   } catch (error) {
     console.error('Failed to identify user:', error);

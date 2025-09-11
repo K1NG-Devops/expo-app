@@ -261,14 +261,14 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
       <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.testimonialsGradient}>
         <Text style={styles.sectionTitle}>Neural Testimonials</Text>
         <Text style={styles.sectionSubtitle}>From the educators using tomorrow's technology today</Text>
-        <>
+<View style={{ flex: 1 }}>
           <TestimonialCard index={activeTestimonial} />
           <View style={styles.testimonialDots}>
             {testimonials.map((_: any, index: number) => (
               <TouchableOpacity key={index} style={[styles.dot, index === activeTestimonial && styles.activeDot]} onPress={() => setActiveTestimonial(index)} />
             ))}
           </View>
-        </>
+</View>
       </LinearGradient>
     </View>
   );

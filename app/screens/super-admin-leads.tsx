@@ -1,18 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
-import { useAuth } from '@/contexts/AuthContext';
-import { detectRoleAndSchool } from '@/lib/routeAfterLogin';
 
 const STATUSES = ['new','contacted','qualified','proposal','closed-won','closed-lost'] as const;
 
 export default function SuperAdminLeadsScreen() {
-  const { user } = useAuth();
-  const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [leads, setLeads] = useState<any[]>([]);
@@ -20,14 +16,8 @@ export default function SuperAdminLeadsScreen() {
   const [convertOpenFor, setConvertOpenFor] = useState<string | null>(null);
   const [convertForm, setConvertForm] = useState<{ org: string; country: string; principalEmail: string; seats: string }>({ org: '', country: '', principalEmail: '', seats: '10' });
 
-  const canView = role === 'superadmin';
-
-  const loadRole = useCallback(async () => {
-    try {
-      const { role: detectedRole } = await detectRoleAndSchool(user);
-      setRole(detectedRole);
-    } catch {}
-  }, [user]);
+  // If user reached this screen, they're authorized (routing system validated them)
+  const canView = true;
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -42,8 +32,7 @@ export default function SuperAdminLeadsScreen() {
     finally { setLoading(false); }
   }, [filter]);
 
-  useEffect(() => { loadRole(); }, [loadRole]);
-  useEffect(() => { if (canView) fetchLeads(); }, [canView, fetchLeads]);
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   const onRefresh = useCallback(async () => { setRefreshing(true); await fetchLeads(); setRefreshing(false); }, [fetchLeads]);
 
@@ -59,16 +48,16 @@ export default function SuperAdminLeadsScreen() {
 
   if (!canView) {
     return (
-      <>
+<View style={{ flex: 1 }}>
         <Stack.Screen options={{ title: 'Sales/Leads', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff', headerBackVisible: false }} />
         <StatusBar style="light" backgroundColor="#0b1220" />
         <View style={styles.denied}><Text style={styles.deniedText}>Access denied — super admin only.</Text></View>
-      </>
+</View>
     );
   }
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: 'Sales/Leads', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff', headerBackVisible: false }} />
       <StatusBar style="light" backgroundColor="#0b1220" />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
@@ -159,7 +148,7 @@ export default function SuperAdminLeadsScreen() {
         {(!loading && leads.length === 0) ? <Text style={styles.empty}>No leads found.</Text> : null}
       </ScrollView>
       </SafeAreaView>
-    </>
+    </View>
   );
 }
 

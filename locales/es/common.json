@@ -1,0 +1,224 @@
+{
+  "app": {
+    "name": "EduDash",
+    "tagline": "Potenciando la Educación a través de IA",
+    "version": "1.0.0"
+  },
+  "navigation": {
+    "dashboard": "Panel",
+    "profile": "Perfil",
+    "settings": "Configuración",
+    "logout": "Cerrar Sesión",
+    "back": "Atrás",
+    "next": "Siguiente",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "add": "Agregar",
+    "search": "Buscar"
+  },
+  "auth": {
+    "signIn": "Iniciar Sesión",
+    "signUp": "Registrarse",
+    "signOut": "Cerrar Sesión",
+    "forgotPassword": "Olvidé mi Contraseña",
+    "resetPassword": "Restablecer Contraseña",
+    "email": "Correo Electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar Contraseña",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "loading": "Cargando...",
+    "signingIn": "Iniciando sesión...",
+    "signingUp": "Creando cuenta...",
+    "invalidCredentials": "Correo o contraseña inválidos",
+    "accountCreated": "Cuenta creada exitosamente",
+    "passwordResetSent": "Enlace de restablecimiento enviado a su correo"
+  },
+  "roles": {
+    "parent": "Padre/Madre",
+    "teacher": "Profesor/a",
+    "principal": "Director/a",
+    "admin": "Administrador/a",
+    "superAdmin": "Super Administrador/a"
+  },
+  "dashboard": {
+    "welcome": "¡Bienvenido/a, {{name}}!",
+    "quickActions": "Acciones Rápidas",
+    "recentActivity": "Actividad Reciente",
+    "statistics": "Estadísticas",
+    "notifications": "Notificaciones",
+    "noActivity": "Sin actividad reciente",
+    "loading": "Cargando panel..."
+  },
+  "ai": {
+    "homework": {
+      "title": "Asistente IA para Tareas",
+      "description": "Obtén ayuda paso a paso con tus tareas",
+      "askQuestion": "Haz una pregunta sobre tu tarea",
+      "questionPlaceholder": "Escribe tu pregunta sobre la tarea aquí...",
+      "subject": "Materia",
+      "gradeLevel": "Nivel de Grado",
+      "difficulty": "Nivel de Dificultad",
+      "getHelp": "Obtener Ayuda",
+      "explanation": "Explicación",
+      "stepByStep": "Paso a Paso",
+      "hints": "Pistas",
+      "relatedConcepts": "Conceptos Relacionados",
+      "practiceProblems": "Problemas de Práctica",
+      "loading": "Pensando...",
+      "error": "Lo siento, no pude ayudar con esa pregunta. Inténtalo de nuevo.",
+      "noQuestion": "Por favor ingresa una pregunta para obtener ayuda."
+    },
+    "lessons": {
+      "title": "Generador IA de Lecciones",
+      "description": "Crea lecciones atractivas con asistencia de IA",
+      "topic": "Tema de la Lección",
+      "topicPlaceholder": "Ingresa el tema principal de tu lección",
+      "subject": "Materia",
+      "gradeLevel": "Nivel de Grado",
+      "duration": "Duración (minutos)",
+      "objectives": "Objetivos de Aprendizaje",
+      "objectivePlaceholder": "¿Qué deben aprender los estudiantes?",
+      "generate": "Generar Lección",
+      "materials": "Materiales Necesarios",
+      "activities": "Actividades",
+      "assessment": "Evaluación",
+      "extensions": "Extensiones",
+      "loading": "Creando lección...",
+      "error": "Error al generar la lección. Inténtalo de nuevo."
+    },
+    "usage": {
+      "title": "Uso de IA",
+      "monthly": "Este Mes",
+      "daily": "Hoy",
+      "tokens": "Tokens Usados",
+      "requests": "Solicitudes Realizadas",
+      "cost": "Costo",
+      "remaining": "Cuota Restante",
+      "unlimited": "Ilimitado",
+      "upgradeRequired": "Actualización requerida para más uso",
+      "rateLimited": "Límite de velocidad excedido. Inténtalo más tarde."
+    }
+  },
+  "homework": {
+    "title": "Tareas",
+    "assignments": "Asignaciones",
+    "dueDate": "Fecha de Vencimiento",
+    "status": "Estado",
+    "pending": "Pendiente",
+    "completed": "Completado",
+    "overdue": "Vencido",
+    "submit": "Entregar",
+    "viewDetails": "Ver Detalles",
+    "noAssignments": "Sin tareas asignadas"
+  },
+  "lessons": {
+    "title": "Lecciones",
+    "create": "Crear Lección",
+    "edit": "Editar Lección",
+    "delete": "Eliminar Lección",
+    "duplicate": "Duplicar",
+    "share": "Compartir",
+    "preview": "Vista Previa",
+    "publish": "Publicar",
+    "draft": "Borrador",
+    "published": "Publicado"
+  },
+  "students": {
+    "title": "Estudiantes",
+    "addStudent": "Agregar Estudiante",
+    "studentName": "Nombre del Estudiante",
+    "class": "Clase",
+    "grade": "Grado",
+    "status": "Estado",
+    "active": "Activo",
+    "inactive": "Inactivo",
+    "viewProfile": "Ver Perfil",
+    "editProfile": "Editar Perfil"
+  },
+  "classes": {
+    "title": "Clases",
+    "addClass": "Agregar Clase",
+    "className": "Nombre de la Clase",
+    "teacher": "Profesor/a",
+    "students": "Estudiantes",
+    "schedule": "Horario",
+    "assignments": "Asignaciones"
+  },
+  "reports": {
+    "title": "Reportes",
+    "generate": "Generar Reporte",
+    "export": "Exportar",
+    "performance": "Reporte de Rendimiento",
+    "attendance": "Reporte de Asistencia",
+    "progress": "Reporte de Progreso",
+    "dateRange": "Rango de Fechas",
+    "from": "Desde",
+    "to": "Hasta"
+  },
+  "settings": {
+    "title": "Configuración",
+    "profile": "Configuración del Perfil",
+    "notifications": "Notificaciones",
+    "privacy": "Privacidad",
+    "language": "Idioma",
+    "theme": "Tema",
+    "about": "Acerca de",
+    "support": "Soporte",
+    "termsOfService": "Términos de Servicio",
+    "privacyPolicy": "Política de Privacidad"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "markAllRead": "Marcar Todo como Leído",
+    "noNotifications": "Sin notificaciones",
+    "newAssignment": "Nueva asignación: {{title}}",
+    "gradePosted": "Calificación publicada para {{assignment}}",
+    "reminderDue": "Recordatorio: {{assignment}} vence mañana"
+  },
+  "errors": {
+    "generic": "Algo salió mal. Inténtalo de nuevo.",
+    "network": "Error de red. Verifica tu conexión.",
+    "unauthorized": "No tienes permisos para acceder a este recurso.",
+    "notFound": "El recurso solicitado no fue encontrado.",
+    "validation": "Verifica tu entrada e inténtalo de nuevo.",
+    "serverError": "Error del servidor. Inténtalo más tarde."
+  },
+  "success": {
+    "saved": "Cambios guardados exitosamente",
+    "deleted": "Elemento eliminado exitosamente",
+    "created": "Elemento creado exitosamente",
+    "updated": "Elemento actualizado exitosamente"
+  },
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "confirm": "¿Estás seguro/a?",
+    "yes": "Sí",
+    "no": "No",
+    "ok": "OK",
+    "close": "Cerrar",
+    "retry": "Reintentar",
+    "refresh": "Actualizar"
+  },
+  "curriculum": {
+    "standards": {
+      "placeholder": "{{subject}} - Estándares de Grado {{grade}}"
+    }
+  },
+  "subscription": {
+    "free": "Gratis",
+    "starter": "Inicial",
+    "premium": "Premium", 
+    "enterprise": "Empresarial",
+    "upgrade": "Actualizar Plan",
+    "billing": "Facturación",
+    "usage": "Uso",
+    "limits": "Límites del Plan"
+  }
+}

@@ -31,6 +31,9 @@ export const DesignSystem = {
   },
 } as const;
 
+// Export Colors as an alias to DesignSystem.colors for backward compatibility
+export const Colors = DesignSystem.colors;
+
 export function getRoleColors(role: string) {
   switch (role) {
     case 'parent':

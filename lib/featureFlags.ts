@@ -36,6 +36,9 @@ export interface FeatureFlags {
   android_only_mode: boolean;
   admob_test_ids: boolean;
   production_db_dev_mode: boolean;
+  
+  // Language Features
+  enableMultilanguageSupport: boolean;
 }
 
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
@@ -75,6 +78,9 @@ const DEFAULT_FLAGS: FeatureFlags = {
   android_only_mode: process.env.EXPO_PUBLIC_PLATFORM_TESTING === 'android',
   admob_test_ids: process.env.EXPO_PUBLIC_ADMOB_TEST_IDS_ONLY === 'true',
   production_db_dev_mode: process.env.EXPO_PUBLIC_USE_PRODUCTION_DB_AS_DEV === 'true',
+  
+  // Language Features
+  enableMultilanguageSupport: process.env.EXPO_PUBLIC_ENABLE_MULTILANGUAGE !== 'false',
 };
 
 let cachedFlags: FeatureFlags | null = null;
@@ -144,6 +150,9 @@ export async function getFeatureFlags(userId?: string): Promise<FeatureFlags> {
       android_only_mode: DEFAULT_FLAGS.android_only_mode,
       admob_test_ids: DEFAULT_FLAGS.admob_test_ids,
       production_db_dev_mode: DEFAULT_FLAGS.production_db_dev_mode,
+      
+      // Language - env default with PostHog override
+      enableMultilanguageSupport: flags.multilanguage_support ?? DEFAULT_FLAGS.enableMultilanguageSupport,
     };
     
     lastFetchTime = now;
