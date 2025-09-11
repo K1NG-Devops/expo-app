@@ -33,7 +33,7 @@ import {
   EmptyStudentsState,
   EmptyActivityState,
 } from '@/components/ui/EmptyState';
-
+import { CacheIndicator } from '@/components/ui/CacheIndicator';
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
 
@@ -62,7 +62,7 @@ export const PrincipalDashboard: React.FC = () => {
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   
   // Use the custom data hook
-  const { data: dashboardData, loading: isLoading, error, refresh } = usePrincipalDashboard();
+  const { data: dashboardData, loading: isLoading, error, refresh, lastRefresh, isLoadingFromCache } = usePrincipalDashboard();
 
   const formatCurrency = (amount: number): string => {
     if (amount >= 1000000) {
@@ -280,6 +280,16 @@ export const PrincipalDashboard: React.FC = () => {
           </View>
         </View>
       </View>
+
+        {/* Cache Status Indicator */}
+        <View style={styles.section}>
+          <CacheIndicator 
+            isLoadingFromCache={isLoadingFromCache}
+            lastUpdated={lastRefresh}
+            onRefresh={refresh}
+            compact={true}
+          />
+        </View>
 
         {/* Key Metrics */}
         <View style={styles.section}>

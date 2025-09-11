@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { offlineCacheService } from '@/lib/services/offlineCacheService';
 
 // Helper functions for business logic
 const formatTimeAgo = (dateString: string): string => {
@@ -181,8 +182,9 @@ export const usePrincipalDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     const startTime = Date.now();
     console.log('🏫 Loading Principal Dashboard data...');
     
@@ -190,6 +192,26 @@ export const usePrincipalDashboard = () => {
       setLoading(true);
       setError(null);
       setLastRefresh(new Date());
+
+      // Try to load from cache first (unless forced refresh)
+      if (!forceRefresh && user?.id) {
+        setIsLoadingFromCache(true);
+        const cachedData = await offlineCacheService.getPrincipalDashboard(
+          user.id, 
+          user.user_metadata?.school_id || 'unknown'
+        );
+        
+        if (cachedData) {
+          console.log('📱 Loading from cache...');
+          setData(cachedData);
+          setLoading(false);
+          setIsLoadingFromCache(false);
+          // Continue to fetch fresh data in background
+          setTimeout(() => fetchData(true), 100);
+          return;
+        }
+        setIsLoadingFromCache(false);
+      }
 
       if (!user?.id) {
         throw new Error('User not authenticated');
@@ -453,6 +475,16 @@ export const usePrincipalDashboard = () => {
           attendance: attendanceRate
         });
 
+        // Cache the fresh data for offline use
+        if (user?.id) {
+          await offlineCacheService.cachePrincipalDashboard(
+            user.id,
+            schoolId,
+            dashboardData
+          );
+          console.log('💾 Dashboard data cached for offline use');
+        }
+
       } else {
         // No school found for this principal
         console.warn('⚠️ No school found for this principal');
@@ -504,7 +536,7 @@ export const usePrincipalDashboard = () => {
 
   const refresh = useCallback(() => {
     console.log('🔄 Refreshing Principal Dashboard data...');
-    fetchData();
+    fetchData(true); // Force refresh from server
   }, [fetchData]);
 
   // Auto-refresh every 5 minutes when data is loaded
@@ -524,7 +556,8 @@ export const usePrincipalDashboard = () => {
     loading,
     error,
     refresh,
-    lastRefresh
+    lastRefresh,
+    isLoadingFromCache
   };
 };
 
@@ -536,11 +569,32 @@ export const useTeacherDashboard = () => {
   const [data, setData] = useState<TeacherDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
+
+      // Try to load from cache first (unless forced refresh)
+      if (!forceRefresh && user?.id) {
+        setIsLoadingFromCache(true);
+        const cachedData = await offlineCacheService.getTeacherDashboard(
+          user.id, 
+          user.user_metadata?.school_id || 'unknown'
+        );
+        
+        if (cachedData) {
+          console.log('📱 Loading teacher data from cache...');
+          setData(cachedData);
+          setLoading(false);
+          setIsLoadingFromCache(false);
+          // Continue to fetch fresh data in background
+          setTimeout(() => fetchData(true), 100);
+          return;
+        }
+        setIsLoadingFromCache(false);
+      }
 
       if (!user?.id) {
         throw new Error('User not authenticated');
@@ -648,6 +702,16 @@ export const useTeacherDashboard = () => {
           recentAssignments,
           upcomingEvents: []
         };
+
+        // Cache the fresh data for offline use
+        if (user?.id && teacherData.preschool_id) {
+          await offlineCacheService.cacheTeacherDashboard(
+            user.id,
+            teacherData.preschool_id,
+            dashboardData
+          );
+          console.log('💾 Teacher dashboard data cached for offline use');
+        }
       } else {
         // No teacher record found, use empty data
         dashboardData = createEmptyTeacherData();
@@ -679,10 +743,10 @@ export const useTeacherDashboard = () => {
   }, [fetchData]);
 
   const refresh = useCallback(() => {
-    fetchData();
+    fetchData(true); // Force refresh from server
   }, [fetchData]);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error, refresh, isLoadingFromCache };
 };
 
 /**

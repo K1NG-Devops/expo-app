@@ -29,11 +29,13 @@ import { useTeacherDashboard } from '@/hooks/useDashboardData';
 import { router } from 'expo-router';
 import { track } from '@/lib/analytics';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import {
   EmptyClassesState,
   EmptyAssignmentsState,
   EmptyEventsState,
 } from '@/components/ui/EmptyState';
+import { CacheIndicator } from '@/components/ui/CacheIndicator';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -67,13 +69,16 @@ interface TeacherMetric {
 export const TeacherDashboard: React.FC = () => {
   const flags = getFeatureFlagsSync();
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
-  const aiLessonEnabled = AI_ENABLED && flags.ai_lesson_generation !== false;
-  const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false;
+  const { tier } = useSubscription();
+  const planAllowsAI = tier === 'pro' || tier === 'enterprise';
+  const aiLessonEnabled = planAllowsAI && AI_ENABLED && flags.ai_lesson_generation !== false;
+  const aiGradingEnabled = planAllowsAI && AI_ENABLED && flags.ai_grading_assistance !== false;
+  const aiHelperEnabled = planAllowsAI && AI_ENABLED && flags.ai_homework_help !== false;
   const { user } = useAuth();
   const { t } = useTranslation();
   
   // Use the custom data hook
-  const { data: dashboardData, loading: isLoading, error, refresh } = useTeacherDashboard();
+  const { data: dashboardData, loading: isLoading, error, refresh, isLoadingFromCache } = useTeacherDashboard();
   const metrics: TeacherMetric[] = dashboardData ? [
     {
       title: t('metrics.my_students'),
@@ -106,7 +111,7 @@ export const TeacherDashboard: React.FC = () => {
       icon: 'bulb',
       color: '#4F46E5',
       onPress: () => {
-        if (!aiLessonEnabled) { Alert.alert('AI Tool Disabled', 'Lesson generator is not enabled for this build.'); return; }
+        if (!aiLessonEnabled) { Alert.alert(t('dashboard.ai_upgrade_required_title', { defaultValue: 'Upgrade Required' }), t('dashboard.ai_upgrade_required_message', { defaultValue: 'Your plan does not include this AI feature. Start a trial or upgrade to continue.' })); return; }
         track('edudash.ai.lesson_generator_opened');
         router.push('/screens/ai-lesson-generator');
       },
@@ -118,7 +123,7 @@ export const TeacherDashboard: React.FC = () => {
       icon: 'checkmark-circle',
       color: '#059669',
       onPress: () => {
-        if (!aiGradingEnabled) { Alert.alert('AI Tool Disabled', 'Homework grader is not enabled for this build.'); return; }
+        if (!aiGradingEnabled) { Alert.alert(t('dashboard.ai_upgrade_required_title', { defaultValue: 'Upgrade Required' }), t('dashboard.ai_upgrade_required_message', { defaultValue: 'Your plan does not include this AI feature. Start a trial or upgrade to continue.' })); return; }
         track('edudash.ai.homework_grader_opened');
         router.push('/screens/ai-homework-grader-live');
       },
@@ -130,7 +135,7 @@ export const TeacherDashboard: React.FC = () => {
       icon: 'help-circle',
       color: '#2563EB',
       onPress: () => {
-        if (!aiLessonEnabled && !aiGradingEnabled && !(AI_ENABLED && flags.ai_homework_help !== false)) {
+        if (!aiHelperEnabled) {
           Alert.alert('AI Tool Disabled', 'AI Homework Helper is not enabled for this build.'); return;
         }
         track('edudash.ai.homework_helper_opened');
@@ -248,22 +253,35 @@ export const TeacherDashboard: React.FC = () => {
     </TouchableOpacity>
   );
 
-  const renderAIToolCard = (tool: typeof aiTools[0]) => (
-    <TouchableOpacity
-      key={tool.id}
-      style={[styles.aiToolCard, { backgroundColor: tool.color + '10' }]}
-      onPress={tool.onPress}
-    >
-      <View style={[styles.aiToolIcon, { backgroundColor: tool.color }]}>
-        <Ionicons name={tool.icon as any} size={24} color="white" />
-      </View>
-      <View style={styles.aiToolContent}>
-        <Text style={styles.aiToolTitle}>{tool.title}</Text>
-        <Text style={styles.aiToolSubtitle}>{tool.subtitle}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
-    </TouchableOpacity>
-  );
+  const renderAIToolCard = (tool: typeof aiTools[0]) => {
+    const enabled = tool.id === 'lesson-generator' ? aiLessonEnabled
+      : tool.id === 'homework-grader' ? aiGradingEnabled
+      : tool.id === 'homework-helper' ? aiHelperEnabled
+      : true;
+
+    return (
+      <TouchableOpacity
+        key={tool.id}
+        style={[styles.aiToolCard, { backgroundColor: tool.color + '10', opacity: enabled ? 1 : 0.5 }]}
+        onPress={tool.onPress}
+        disabled={!enabled}
+      >
+        <View style={[styles.aiToolIcon, { backgroundColor: tool.color }]}>
+          <Ionicons name={tool.icon as any} size={24} color="white" />
+        </View>
+        <View style={styles.aiToolContent}>
+          <Text style={styles.aiToolTitle}>{tool.title}</Text>
+          <Text style={styles.aiToolSubtitle}>{tool.subtitle}</Text>
+          {!enabled && (
+            <Text style={{ color: Colors.light.tabIconDefault, marginTop: 4 }}>
+              {t('dashboard.ai_upgrade_required_cta', { defaultValue: 'Upgrade to use' })}
+            </Text>
+          )}
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
+      </TouchableOpacity>
+    );
+  };
 
   const renderQuickAction = (action: typeof quickActions[0]) => (
     <TouchableOpacity
@@ -334,6 +352,15 @@ export const TeacherDashboard: React.FC = () => {
         </View>
       </View>
 
+        {/* Cache Status Indicator */}
+        <View style={styles.section}>
+          <CacheIndicator 
+            isLoadingFromCache={isLoadingFromCache}
+            onRefresh={refresh}
+            compact={true}
+          />
+        </View>
+
         {/* Key Metrics */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('dashboard.todays_overview')}</Text>
@@ -367,7 +394,7 @@ export const TeacherDashboard: React.FC = () => {
             <Ionicons name="information-circle-outline" size={16} color={Colors.light.tabIconDefault} />
             <Text style={{ color: Colors.light.tabIconDefault, marginLeft: 6, flex: 1 }}>
               {t('dashboard.ai_tools_info', {
-                defaultValue: 'AI runs via a secure server. Usage may be limited by your plan or trial.'
+                defaultValue: 'AI runs on a secure server. Access and usage are limited by your plan or trial.'
               })}
             </Text>
           </View>
