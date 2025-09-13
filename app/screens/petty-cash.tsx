@@ -20,10 +20,13 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 // Removed Picker import to fix ViewManager error
@@ -89,6 +92,9 @@ export default function PettyCashScreen() {
     category: '',
     receipt_number: '',
   });
+  
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const loadPettyCashData = async () => {
     if (!user) return;
@@ -188,13 +194,16 @@ export default function PettyCashScreen() {
     }
 
     try {
+      setUploadingReceipt(true);
+      
       const { data: userProfile } = await supabase
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
-      const { error } = await supabase
+      // First, insert the transaction
+      const { data: transactionData, error: transactionError } = await supabase
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,
@@ -205,14 +214,30 @@ export default function PettyCashScreen() {
           receipt_number: expenseForm.receipt_number.trim() || null,
           created_by: user?.id,
           status: 'approved', // In a real system, this might need approval
-        });
+        })
+        .select()
+        .single();
 
-      if (error) {
+      if (transactionError) {
         Alert.alert('Error', 'Failed to add expense');
         return;
       }
 
-      Alert.alert('Success', 'Expense added successfully');
+      // Upload receipt if one was selected
+      let receiptPath = null;
+      if (receiptImage && transactionData) {
+        receiptPath = await uploadReceiptImage(receiptImage, transactionData.id);
+        
+        if (receiptPath) {
+          // Update transaction with receipt path
+          await supabase
+            .from('petty_cash_transactions')
+            .update({ receipt_image_path: receiptPath })
+            .eq('id', transactionData.id);
+        }
+      }
+
+      Alert.alert('Success', `Expense added successfully${receiptPath ? ' with receipt' : ''}`);
       setShowAddExpense(false);
       setExpenseForm({
         amount: '',
@@ -220,9 +245,12 @@ export default function PettyCashScreen() {
         category: '',
         receipt_number: '',
       });
+      setReceiptImage(null);
       loadPettyCashData();
     } catch {
       Alert.alert('Error', 'Failed to add expense');
+    } finally {
+      setUploadingReceipt(false);
     }
   };
 
@@ -306,6 +334,103 @@ export default function PettyCashScreen() {
       case 'Replenishment': return 'add-circle';
       default: return 'receipt';
     }
+  };
+
+  const uploadReceiptImage = async (imageUri: string, transactionId: string) => {
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      
+      const fileExt = imageUri.split('.').pop();
+      const fileName = `receipt_${transactionId}_${Date.now()}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, blob, {
+          contentType: `image/${fileExt}`,
+          cacheControl: '3600',
+        });
+      
+      if (error) throw error;
+      
+      return data.path;
+    } catch (error) {
+      console.error('Error uploading receipt:', error);
+      return null;
+    }
+  };
+
+  const selectReceiptImage = () => {
+    Alert.alert(
+      'Add Receipt',
+      'Choose how to add your receipt:',
+      [
+        { 
+          text: 'Take Photo', 
+          onPress: () => takeReceiptPhoto() 
+        },
+        { 
+          text: 'Choose from Gallery', 
+          onPress: () => pickReceiptFromGallery() 
+        },
+        { 
+          text: 'Cancel', 
+          style: 'cancel' 
+        }
+      ]
+    );
+  };
+
+  const takeReceiptPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Camera permission is needed to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setReceiptImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const pickReceiptFromGallery = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Gallery permission is needed to select photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setReceiptImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to select image');
+    }
+  };
+
+  const removeReceiptImage = () => {
+    setReceiptImage(null);
   };
 
   useEffect(() => {
@@ -487,8 +612,13 @@ export default function PettyCashScreen() {
               <Text style={styles.modalCancel}>Cancel</Text>
             </TouchableOpacity>
             <Text style={styles.modalTitle}>Add Expense</Text>
-            <TouchableOpacity onPress={handleAddExpense}>
-              <Text style={styles.modalSave}>Add</Text>
+            <TouchableOpacity 
+              onPress={handleAddExpense}
+              disabled={uploadingReceipt}
+            >
+              <Text style={[styles.modalSave, uploadingReceipt && { opacity: 0.5 }]}>
+                {uploadingReceipt ? 'Uploading...' : 'Add'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -550,6 +680,32 @@ export default function PettyCashScreen() {
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, receipt_number: text }))}
                 placeholder="Receipt or reference number"
               />
+            </View>
+
+            {/* Receipt Upload Section */}
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Receipt Image (Optional)</Text>
+              
+              {receiptImage ? (
+                <View style={styles.receiptPreviewContainer}>
+                  <Image source={{ uri: receiptImage }} style={styles.receiptPreview} />
+                  <TouchableOpacity 
+                    style={styles.removeReceiptButton}
+                    onPress={removeReceiptImage}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  style={styles.uploadReceiptButton}
+                  onPress={selectReceiptImage}
+                >
+                  <Ionicons name="camera" size={24} color="#6B7280" />
+                  <Text style={styles.uploadReceiptText}>Add Receipt Photo</Text>
+                  <Text style={styles.uploadReceiptSubtext}>Tap to take photo or select from gallery</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <View style={styles.balanceInfo}>
@@ -886,6 +1042,47 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     color: '#9CA3AF',
+  },
+  uploadReceiptButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#e1e5e9',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 24,
+    backgroundColor: '#f8f9fa',
+  },
+  uploadReceiptText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
+    marginTop: 8,
+  },
+  uploadReceiptSubtext: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  receiptPreviewContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  receiptPreview: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    resizeMode: 'cover',
+  },
+  removeReceiptButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 2,
   },
   balanceInfo: {
     flexDirection: 'row',

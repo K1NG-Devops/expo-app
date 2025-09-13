@@ -29,6 +29,8 @@ import { router } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import { changeLanguage as changeAppLanguage } from '@/lib/i18n';
 import AnnouncementService from '@/lib/services/announcementService';
+import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -50,8 +52,8 @@ interface TeacherCardProps {
 export const EnhancedPrincipalDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useTheme();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
-  const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   
   const {
@@ -78,7 +80,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const changeLanguage = async (languageCode: string) => {
     await changeAppLanguage(languageCode as any);
-    setShowLanguageSelector(false);
   };
 
   const handleSendAnnouncement = async (announcement: AnnouncementData) => {
@@ -237,6 +238,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   return (
     <>
+      <RoleBasedHeader 
+        title={t('dashboard.principal_hub', { defaultValue: 'Principal Hub' })}
+        subtitle={data.schoolName ? t('dashboard.managing_school', { schoolName: data.schoolName }) : undefined}
+      />
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -244,56 +249,12 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           <RefreshControl refreshing={loading} onRefresh={refresh} />
         }
       >
-      {/* Header */}
-      <View style={styles.header}>
-        {/* Top Row: Avatar and Settings */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            onPress={() => setShowLanguageSelector(!showLanguageSelector)}
-            style={styles.profileSection}
-          >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {(profile as any)?.name?.substring(0, 2).toUpperCase() || user?.user_metadata?.first_name?.substring(0, 2).toUpperCase() || 'U'}
-              </Text>
-            </View>
-            {showLanguageSelector && (
-              <View style={styles.languageDropdown}>
-                {[
-                  { label: 'EN', value: 'en', name: 'English' },
-                  { label: 'AF', value: 'af', name: 'Afrikaans' },
-                  { label: 'ZU', value: 'zu', name: 'Zulu' },
-                  { label: 'ST', value: 'st', name: 'Sepedi' },
-                ].map((lang) => (
-                  <TouchableOpacity
-                    key={lang.value}
-                    style={styles.languageOption}
-                    onPress={() => changeLanguage(lang.value)}
-                  >
-                    <Text style={styles.languageOptionText}>{lang.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => setShowOptionsMenu(true)}
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color="white" />
-          </TouchableOpacity>
-        </View>
-        
-        {/* Bottom: Greeting Text */}
-        <View style={styles.headerText}>
+        {/* Welcome Section */}
+        <View style={styles.welcomeSection}>
           <Text style={styles.greeting}>
             {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
           </Text>
-          <Text style={styles.schoolName}>
-            {t('dashboard.managing_school', { schoolName: data.schoolName })}
-          </Text>
         </View>
-      </View>
 
       {/* Quick Stats */}
       <View style={styles.section}>
@@ -772,40 +733,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
-  header: {
+  welcomeSection: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerText: {
-    flex: 1,
+    paddingVertical: 16,
+    marginBottom: 8,
   },
   greeting: {
     fontSize: 18,
     fontWeight: '600',
     color: 'white',
-    marginBottom: 4,
-  },
-  schoolName: {
-    fontSize: 14,
-    color: '#E0E7FF',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 10,
-    borderRadius: 8,
-    marginLeft: 8,
   },
   section: {
     paddingHorizontal: 20,
@@ -1195,59 +1132,6 @@ const styles = StyleSheet.create({
   toolSubtitle: {
     fontSize: 14,
     color: '#6B7280',
-  },
-  // Header Profile Section Styles
-  profileSection: {
-    position: 'relative',
-    marginRight: 8,
-  },
-  settingsButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  currentLanguage: {
-    color: 'white',
-    fontSize: 10,
-    fontWeight: '600',
-    opacity: 0.8,
-  },
-  languageDropdown: {
-    position: 'absolute',
-    top: 42,
-    right: 0,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    minWidth: 120,
-    zIndex: 1000,
-  },
-  languageOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  languageOptionText: {
-    fontSize: 12,
-    color: '#111827',
   },
   // Options Menu Styles
   modalOverlay: {

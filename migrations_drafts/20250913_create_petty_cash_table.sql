@@ -150,6 +150,73 @@ WHERE NOT EXISTS (
 )
 LIMIT 5; -- Only add to first 5 schools to avoid too much sample data
 
+-- Add receipt image path column to petty_cash_transactions
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'petty_cash_transactions' AND column_name = 'receipt_image_path') THEN
+        ALTER TABLE petty_cash_transactions ADD COLUMN receipt_image_path TEXT;
+    END IF;
+END $$;
+
+-- Create petty cash reconciliations table
+CREATE TABLE IF NOT EXISTS petty_cash_reconciliations (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  preschool_id UUID NOT NULL REFERENCES preschools(id) ON DELETE CASCADE,
+  system_amount DECIMAL(10,2) NOT NULL,
+  physical_amount DECIMAL(10,2) NOT NULL,
+  variance DECIMAL(10,2) NOT NULL,
+  cash_breakdown JSONB NOT NULL DEFAULT '[]'::jsonb,
+  notes TEXT,
+  reconciled_by UUID NOT NULL REFERENCES users(auth_user_id),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Audit fields
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+-- Create indexes for reconciliations
+CREATE INDEX IF NOT EXISTS idx_petty_cash_reconciliations_preschool_id ON petty_cash_reconciliations(preschool_id);
+CREATE INDEX IF NOT EXISTS idx_petty_cash_reconciliations_created_at ON petty_cash_reconciliations(created_at DESC);
+
+-- RLS for reconciliations
+ALTER TABLE petty_cash_reconciliations ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can view reconciliations from their preschool
+DROP POLICY IF EXISTS "Users can view reconciliations from their preschool" ON petty_cash_reconciliations;
+CREATE POLICY "Users can view reconciliations from their preschool" ON petty_cash_reconciliations
+    FOR SELECT 
+    USING (
+        preschool_id IN (
+            SELECT preschool_id 
+            FROM users 
+            WHERE auth_user_id = auth.uid()
+            AND role IN ('principal_admin', 'teacher', 'staff')
+        )
+    );
+
+-- Policy: Users can insert reconciliations for their preschool
+DROP POLICY IF EXISTS "Users can create reconciliations for their preschool" ON petty_cash_reconciliations;
+CREATE POLICY "Users can create reconciliations for their preschool" ON petty_cash_reconciliations
+    FOR INSERT 
+    WITH CHECK (
+        preschool_id IN (
+            SELECT preschool_id 
+            FROM users 
+            WHERE auth_user_id = auth.uid()
+            AND role IN ('principal_admin', 'teacher', 'staff')
+        )
+    );
+
+-- Create receipts storage bucket (this needs to be done via Supabase dashboard or API)
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('receipts', 'receipts', true);
+-- CREATE POLICY "Public Access" ON storage.objects FOR SELECT USING (bucket_id = 'receipts');
+-- CREATE POLICY "Authenticated users can upload" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'receipts' AND auth.role() = 'authenticated');
+
 COMMENT ON TABLE petty_cash_transactions IS 'Petty cash expense and replenishment tracking for Principal Hub';
 COMMENT ON COLUMN petty_cash_transactions.type IS 'expense: money spent, replenishment: money added to petty cash';
 COMMENT ON COLUMN petty_cash_transactions.status IS 'approved: transaction is processed, pending: awaiting approval, rejected: denied';
+COMMENT ON COLUMN petty_cash_transactions.receipt_image_path IS 'Path to uploaded receipt image in Supabase storage';
+
+COMMENT ON TABLE petty_cash_reconciliations IS 'Cash reconciliation records comparing system vs physical cash';
+COMMENT ON COLUMN petty_cash_reconciliations.variance IS 'Difference between physical and system amounts';
+COMMENT ON COLUMN petty_cash_reconciliations.cash_breakdown IS 'JSON array of denomination counts';
