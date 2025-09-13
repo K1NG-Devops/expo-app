@@ -260,7 +260,7 @@ export default function StudentEnrollment() {
               });
               
               // **INSERT REAL STUDENT INTO DATABASE**
-              const { data: newStudent, error: insertError } = await supabase
+              const { data: newStudent, error: insertError } = await supabase!
                 .from('students')
                 .insert({
                   first_name: studentInfo.firstName,

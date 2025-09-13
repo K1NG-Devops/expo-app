@@ -299,8 +299,8 @@ export const usePrincipalHub = () => {
       const classesCount = classesResult.status === 'fulfilled' ? (classesResult.value.count || 0) : 0;
       const applicationsCount = applicationsResult.status === 'fulfilled' ? (applicationsResult.value.count || 0) : 0;
       const attendanceData = attendanceResult.status === 'fulfilled' ? (attendanceResult.value.data || []) : [];
-      const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {};
-      const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {};
+      const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
+      const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
       
       console.log('📊 REAL DATA FETCHED:', {
         studentsCount,
@@ -322,14 +322,14 @@ export const usePrincipalHub = () => {
       const processedTeachers = await Promise.all(
         teachersData.map(async (teacher: any) => {
           // Get classes assigned to this teacher
-          const { count: teacherClassesCount } = await supabase
+          const { count: teacherClassesCount } = await supabase!
             .from('classes')
             .select('id', { count: 'exact', head: true })
             .eq('teacher_id', teacher.auth_user_id)
             .eq('is_active', true) || { count: 0 };
             
           // Get students count for teacher's classes
-          const { data: teacherClasses } = await supabase
+          const { data: teacherClasses } = await supabase!
             .from('classes')
             .select('id')
             .eq('teacher_id', teacher.auth_user_id)
@@ -339,7 +339,7 @@ export const usePrincipalHub = () => {
           let studentsInClasses = 0;
           
           if (classIds.length > 0) {
-            const { count: studentsCount } = await supabase
+            const { count: studentsCount } = await supabase!
               .from('students')
               .select('id', { count: 'exact', head: true })
               .in('class_id', classIds) || { count: 0 };

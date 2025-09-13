@@ -306,7 +306,103 @@ Implementation checklists
 
 How to propose changes
 - Reference this rules.md in PR descriptions when adding AI endpoints, new data fetches, or analytics
-- Include a brief “Rules compliance” section in PRs covering AI, RLS, state management, and observability
+- Include a brief "Rules compliance" section in PRs covering AI, RLS, state management, and observability
+
+---
+
+## Current Database Schema [PROTECTED]
+
+**Last Updated**: 2025-09-13  
+**Status**: Production Schema - DO NOT MODIFY CODE TO MATCH MISSING SCHEMA  
+**Rule**: If code references missing tables/columns, CREATE the missing schema via migration
+
+### Core Tables Overview
+
+**Identity & Organization**:
+- `organizations` - Multi-tenant organization container
+- `preschools` - Individual school instances within organizations
+- `users` - All user accounts with role-based access (superadmin, principal, teacher, parent)
+- `profiles` - Extended user profile information
+- `subscription_plans`, `subscriptions`, `platform_subscriptions` - Billing and subscription management
+
+**Academic Structure**:
+- `age_groups` - Age-based grouping for students
+- `classes` - Individual classroom instances with teacher assignments
+- `students` - Student records with preschool and class associations
+- `student_enrollments`, `class_assignments` - Student-class relationship management
+
+**Learning & Assessment**:
+- `lessons`, `lesson_categories` - Lesson planning and organization
+- `activities`, `learning_activities` - Interactive learning activities
+- `homework_assignments`, `homework_submissions` - Assignment workflow
+- `assignments`, `assignment_submissions`, `assignment_grades` - Enhanced assignment system
+- `assessments`, `assessment_rubrics` - Formal assessment tools
+- `resources`, `resource_categories` - Educational resource library
+
+**Communication & Engagement**:
+- `messages`, `conversations`, `conversation_members` - Messaging system
+- `announcements` - School-wide announcements (EXISTING - can be used for Principal Hub)
+- `events`, `event_participants`, `event_updates` - Event management
+- `notifications` - Push notification system
+
+**Operations & Administration**:
+- `attendance_records`, `attendance` - Student attendance tracking
+- `classroom_reports` - Daily/weekly student progress reports
+- `payments`, `billing_invoices` - Financial transaction management
+- `enrollment_applications` - Student enrollment pipeline
+- `meeting_rooms`, `meeting_sessions` - Video conferencing system
+
+**AI & Analytics**:
+- `ai_usage_logs`, `ai_services` - AI feature usage and cost tracking
+- `activity_logs`, `audit_logs` - System activity and security auditing
+- `platform_analytics` - System-wide metrics collection
+
+**Principal Hub Specific Tables** (ANALYSIS):
+- ✅ `announcements` - EXISTS (can use for principal announcements)
+- ❌ `principal_announcements` - MISSING (could use existing announcements table)
+- ❌ `financial_transactions` - MISSING (use payments table or create specific table)
+- ❌ `teacher_performance_metrics` - MISSING (need to create)
+- ✅ `teachers` - EXISTS (for teacher management)
+- ✅ `meeting_rooms`, `meeting_sessions` - EXISTS (for principal collaboration)
+
+### Key Relationships
+
+```
+organizations → preschools → users (principal, teachers)
+                          → classes → students
+                          → lessons → activities → homework_assignments
+users (parents) ← students (via parent_id or student_parent_relationships)
+assignments → assignment_submissions → assignment_grades
+conversations → messages (multi-user messaging)
+events → event_participants (school events)
+```
+
+### RLS Security Model
+- All tenant data scoped by `preschool_id` or `organization_id`
+- Super-admin operations bypass RLS via service role functions
+- Users can only access data within their assigned preschool/organization
+- Parent-student relationships managed through `student_parent_relationships`
+
+### Missing Tables for Principal Hub MVP
+Based on PRD requirements vs existing schema:
+
+1. **teacher_performance_metrics** - Track teacher KPIs and evaluation data
+2. **financial_transactions** (optional) - Could extend `payments` table instead
+3. **principal_groups** - EXISTS (for principal collaboration groups)
+4. **meeting_action_items** - EXISTS (for meeting follow-ups)
+
+**Recommendation**: Use existing `announcements`, `payments`, and `teachers` tables. Only create `teacher_performance_metrics` for MVP.
+
+### Database Migration Rules [NONNEGOTIABLE]
+**CRITICAL**: ALL database changes must use Supabase migrations - NEVER run SQL directly in Supabase dashboard
+
+- Use `npx supabase migration new <name>` to create migration files
+- Use `npx supabase db push` to apply migrations to remote
+- Use `npx supabase db pull` to sync remote changes to local
+- **NO COPY/PASTE SQL** - All changes must be version controlled via migrations
+- Keep local and remote databases in perfect sync
+- Migration files must be descriptive and atomic (one logical change per migration)
+- Always test migrations locally before pushing to remote
 
 ---
 

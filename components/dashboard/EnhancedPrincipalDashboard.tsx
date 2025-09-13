@@ -28,6 +28,7 @@ import { usePrincipalHub } from '@/hooks/usePrincipalHub';
 import { router } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import { changeLanguage as changeAppLanguage } from '@/lib/i18n';
+import AnnouncementService from '@/lib/services/announcementService';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -80,18 +81,43 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     setShowLanguageSelector(false);
   };
 
-  const handleSendAnnouncement = (announcement: AnnouncementData) => {
-    // In a real implementation, this would send to the API
-    console.log('📢 Sending announcement:', announcement);
+  const handleSendAnnouncement = async (announcement: AnnouncementData) => {
+    const preschoolId = data.schoolId;
+    const userId = user?.id;
     
-    Alert.alert(
-      '📢 Announcement Sent!',
-      `"${announcement.title}" has been sent to ${announcement.audience.join(', ')} (${announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups'}).\n\nPriority: ${announcement.priority.toUpperCase()}${announcement.requiresResponse ? '\n⚠️ Response required' : ''}`,
-      [
-        { text: 'View Sent', onPress: () => Alert.alert('Coming Soon', 'View sent announcements feature coming soon!') },
-        { text: 'OK', style: 'default' }
-      ]
-    );
+    if (!preschoolId || !userId) {
+      Alert.alert('Error', 'Unable to send announcement. Please try again.');
+      return;
+    }
+    
+    try {
+      console.log('📢 Sending announcement via database:', announcement);
+      
+      const result = await AnnouncementService.createAnnouncement(
+        preschoolId,
+        userId,
+        announcement
+      );
+      
+      if (result.success) {
+        Alert.alert(
+          '📢 Announcement Sent!',
+          `"${announcement.title}" has been sent to ${announcement.audience.join(', ')} (${announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups'}).\n\nPriority: ${announcement.priority.toUpperCase()}${announcement.requiresResponse ? '\n⚠️ Response required' : ''}`,
+          [
+            { text: 'View Sent', onPress: () => Alert.alert('Coming Soon', 'View sent announcements feature coming soon!') },
+            { text: 'OK', style: 'default' }
+          ]
+        );
+        
+        // Refresh dashboard data to show updated announcement count
+        refresh();
+      } else {
+        Alert.alert('Error', `Failed to send announcement: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('💥 Error sending announcement:', error);
+      Alert.alert('Error', 'An unexpected error occurred while sending the announcement.');
+    }
   };
 
   const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, color, trend, onPress }) => (
