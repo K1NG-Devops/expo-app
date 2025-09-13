@@ -207,15 +207,9 @@ export const TeacherDashboard: React.FC = () => {
       icon: 'analytics',
       color: '#7C3AED',
       onPress: () => {
-        Alert.alert(
-          '📊 Progress Analysis (beta)',
-          'We are building AI-powered class and student insights:\n\n• Trends and at-risk students\n• Lesson impact analysis\n• Actionable recommendations\n\nThis feature will roll out to Pro and Enterprise tiers.',
-          [
-            { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: AI Progress Analysis', `Please enable AI Progress Analysis for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
-            { text: 'See plans', onPress: () => router.push('/pricing') },
-            { text: 'Close', style: 'cancel' },
-          ]
-        );
+        // Navigate to AI Progress Analysis screen
+        track('edudash.ai.progress_analysis_opened');
+        router.push('/screens/ai-progress-analysis');
       },
     },
   ];
@@ -276,16 +270,8 @@ export const TeacherDashboard: React.FC = () => {
       key={classInfo.id} 
       style={styles.classCard}
       onPress={() => {
-        Alert.alert(
-          'Class details',
-          'Class details and lesson planning are coming soon. In the meantime, choose an action:',
-          [
-            { text: 'Take Attendance', onPress: () => router.push('/screens/attendance') },
-            { text: 'Assign Homework', onPress: () => router.push('/screens/assign-homework') },
-            { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Class Management', `Please enable class creation/management for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
-            { text: 'Close', style: 'cancel' },
-          ]
-        );
+        // Navigate to class details with class ID
+        router.push(`/screens/class-details?classId=${classInfo.id}&className=${encodeURIComponent(classInfo.name)}`);
       }}
       accessibilityRole="button"
       accessibilityLabel={`Open options for ${classInfo.name}`}
@@ -327,15 +313,8 @@ export const TeacherDashboard: React.FC = () => {
       key={assignment.id} 
       style={styles.assignmentCard}
       onPress={() => {
-        Alert.alert(
-          'Assignment',
-          'Assignment details are coming soon. You can:',
-          [
-            { text: 'Grade Homework', onPress: () => router.push('/screens/ai-homework-grader-live') },
-            { text: 'View Reports', onPress: () => router.push('/screens/teacher-reports') },
-            { text: 'Close', style: 'cancel' },
-          ]
-        );
+        // Navigate to assignment details with assignment ID
+        router.push(`/screens/assignment-details?assignmentId=${assignment.id}&title=${encodeURIComponent(assignment.title)}`);
       }}
       accessibilityRole="button"
       accessibilityLabel={`Open options for ${assignment.title}`}
@@ -565,15 +544,8 @@ export const TeacherDashboard: React.FC = () => {
               dashboardData.myClasses.map(renderClassCard)
             ) : (
               <EmptyClassesState onCreateClass={() => {
-                Alert.alert(
-                  'Class management',
-                  'We are building class creation and management. Until then, you can assign homework or take attendance from Quick Actions.',
-                  [
-                    { text: 'Assign Homework', onPress: () => router.push('/screens/assign-homework') },
-                    { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Class Management', `Please enable class creation/management for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
-                    { text: 'Close', style: 'cancel' },
-                  ]
-                );
+                // Navigate to class creation screen
+                router.push('/screens/create-class');
               }} />
             )}
           </View>
@@ -617,15 +589,8 @@ export const TeacherDashboard: React.FC = () => {
               ))
             ) : (
               <EmptyEventsState onCreateEvent={() => {
-                Alert.alert(
-                  'Events',
-                  'Event creation and scheduling are coming soon. For now, you can message parents or share updates from Reports.',
-                  [
-                    { text: 'Message Parents', onPress: () => router.push('/screens/teacher-messages') },
-                    { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Events', `Please enable events creation/scheduling for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
-                    { text: 'Close', style: 'cancel' },
-                  ]
-                );
+                // Navigate to event creation screen
+                router.push('/screens/create-event');
               }} />
             )}
           </View>
