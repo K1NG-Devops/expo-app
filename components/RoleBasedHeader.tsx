@@ -147,9 +147,9 @@ export function RoleBasedHeader({
       }
     ]}>
       <View style={styles.content}>
-        {/* Back Button Area */}
+        {/* Left Section - Profile Picture */}
         <View style={styles.leftSection}>
-          {showBack && (
+          {showBack ? (
             <TouchableOpacity
               onPress={handleBackPress}
               style={styles.backButton}
@@ -161,6 +161,28 @@ export function RoleBasedHeader({
                 size={24} 
                 color={headerTextColor} 
               />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={[styles.avatarButton, { 
+                backgroundColor: theme.surfaceVariant,
+                borderWidth: 2,
+                borderColor: theme.primary + '40'
+              }]} 
+              onPress={() => setMenuVisible(true)}
+            >
+              {user?.user_metadata?.avatar_url ? (
+                <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImage} />
+              ) : (
+                <View style={[styles.avatarFallback, { 
+                  backgroundColor: theme.primary, 
+                  borderColor: theme.primaryLight 
+                }]}>
+                  <Text style={[styles.avatarFallbackText, { color: theme.onPrimary }]}>
+                    {profileInitials}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -177,12 +199,13 @@ export function RoleBasedHeader({
           )}
         </View>
 
-        {/* Right Section - Theme Toggle & Avatar Menu */}
+        {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
           {/* Theme Toggle Button */}
           <TouchableOpacity 
             style={[styles.themeButton, { marginRight: 8 }]} 
             onPress={toggleTheme}
+            accessibilityLabel="Toggle theme"
           >
             <Ionicons 
               name={mode === 'dark' ? 'sunny' : 'moon'} 
@@ -191,27 +214,17 @@ export function RoleBasedHeader({
             />
           </TouchableOpacity>
           
-          {/* Avatar Menu Button */}
+          {/* Settings Button */}
           <TouchableOpacity 
-            style={[styles.avatarButton, { 
-              backgroundColor: theme.surfaceVariant,
-              borderWidth: 2,
-              borderColor: theme.primary + '40'
-            }]} 
+            style={styles.settingsButton} 
             onPress={() => setMenuVisible(true)}
+            accessibilityLabel="Open settings menu"
           >
-            {user?.user_metadata?.avatar_url ? (
-              <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImage} />
-            ) : (
-              <View style={[styles.avatarFallback, { 
-                backgroundColor: theme.primary, 
-                borderColor: theme.primaryLight 
-              }]}>
-                <Text style={[styles.avatarFallbackText, { color: theme.onPrimary }]}>
-                  {profileInitials}
-                </Text>
-              </View>
-            )}
+            <Ionicons 
+              name="settings-outline" 
+              size={20} 
+              color={headerTextColor} 
+            />
           </TouchableOpacity>
         </View>
       </View>

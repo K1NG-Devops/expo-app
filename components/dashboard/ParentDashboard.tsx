@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, ScrollView, View, Text, RefreshControl, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
+import { router } from 'expo-router';
 import AdBanner from '@/components/ui/AdBanner';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -237,9 +238,10 @@ export default function ParentDashboard() {
           provider: 'claude',
           prompt: question,
           metadata: {
-            studentAge: 12,
-            subject: 'General',
-            difficulty: 'intermediate'
+            studentAge: children.length > 0 ? 8 : 10, // Default age based on preschool range
+            subject: 'General Education',
+            difficulty: 'beginner', // More appropriate for preschool level
+            childrenCount: children.length
           },
           requestedAt: new Date(),
         });
@@ -330,8 +332,8 @@ export default function ParentDashboard() {
     switch (action) {
       case 'homework':
         track('edudash.parent.homework_help_requested', {
-          subject: 'General',
-          child_age: 0,
+          subject: 'General Education',
+          child_age: children.length > 0 ? 8 : 10,
           user_id: user?.id,
           children_count: children.length,
           source: 'dashboard_quick_action',
@@ -352,7 +354,8 @@ export default function ParentDashboard() {
           current_tier: 'free',
           target_tier: 'pro',
         });
-        Alert.alert(t('common.info'), 'Upgrade to Pro for unlimited AI help!');
+        // Navigate to pricing screen instead of showing placeholder alert
+        router.push('/pricing');
         break;
     }
   };
@@ -458,7 +461,7 @@ export default function ParentDashboard() {
                       {child.first_name} {child.last_name}
                     </Text>
                     <Text style={styles.childClass}>
-                      Class ID: {child.class_id}
+                      {child.class_id ? `Class: ${child.class_id}` : 'No class assigned'}
                     </Text>
                   </View>
                 </LinearGradient>
