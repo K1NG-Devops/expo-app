@@ -26,7 +26,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import { Picker } from '@react-native-picker/picker';
+// Removed Picker import to fix ViewManager error
 
 interface PettyCashTransaction {
   id: string;
@@ -518,16 +518,28 @@ export default function PettyCashScreen() {
 
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Category *</Text>
-              <Picker
-                selectedValue={expenseForm.category}
-                onValueChange={(value) => setExpenseForm(prev => ({ ...prev, category: value }))}
-                style={styles.formPicker}
+              <TouchableOpacity 
+                style={styles.categorySelector}
+                onPress={() => {
+                  Alert.alert(
+                    'Select Category',
+                    'Choose an expense category:',
+                    [
+                      ...EXPENSE_CATEGORIES.map(category => ({
+                        text: category,
+                        onPress: () => setExpenseForm(prev => ({ ...prev, category }))
+                      })),
+                      { text: 'Cancel', style: 'cancel' }
+                    ],
+                    { cancelable: true }
+                  );
+                }}
               >
-                <Picker.Item label="Select category..." value="" />
-                {EXPENSE_CATEGORIES.map(category => (
-                  <Picker.Item key={category} label={category} value={category} />
-                ))}
-              </Picker>
+                <Text style={[styles.categoryText, !expenseForm.category && styles.placeholder]}>
+                  {expenseForm.category || 'Select category...'}
+                </Text>
+                <Ionicons name="chevron-down" size={20} color="#6B7280" />
+              </TouchableOpacity>
             </View>
 
             <View style={styles.formGroup}>
@@ -858,9 +870,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
-  formPicker: {
-    backgroundColor: '#fff',
+  categorySelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e1e5e9',
     borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  categoryText: {
+    fontSize: 16,
+    color: '#333',
+  },
+  placeholder: {
+    color: '#9CA3AF',
   },
   balanceInfo: {
     flexDirection: 'row',
