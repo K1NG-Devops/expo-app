@@ -1,6 +1,5 @@
 import { Stack } from 'expo-router';
 import React from 'react';
-import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ScreensLayout() {
@@ -9,15 +8,11 @@ export default function ScreensLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
+        headerShown: false, // Hide default header - each screen manages its own RoleBasedHeader
         contentStyle: { backgroundColor: theme.background },
-        // Use custom, role-based header across signed-in screens
-        header: () => (
-          <RoleBasedHeader />
-        ),
       }}
     >
-      {/* Let expo-router auto-register child routes; per-screen titles are set in each screen file. */}
+      {/* Let expo-router auto-register child routes; each screen renders its own RoleBasedHeader */}
     </Stack>
   );
 }

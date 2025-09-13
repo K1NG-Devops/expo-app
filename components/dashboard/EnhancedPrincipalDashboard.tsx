@@ -105,7 +105,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           '📢 Announcement Sent!',
           `"${announcement.title}" has been sent to ${announcement.audience.join(', ')} (${announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups'}).\n\nPriority: ${announcement.priority.toUpperCase()}${announcement.requiresResponse ? '\n⚠️ Response required' : ''}`,
           [
-            { text: 'View Sent', onPress: () => Alert.alert('Coming Soon', 'View sent announcements feature coming soon!') },
+            { text: 'View Sent', onPress: () => router.push('/screens/announcements-history') },
             { text: 'OK', style: 'default' }
           ]
         );
