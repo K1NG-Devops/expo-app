@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
@@ -6,7 +6,10 @@ import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage, incrementUsage } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
+import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
+import { router } from 'expo-router'
 
 export default function AILessonGeneratorScreen() {
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
@@ -14,6 +17,8 @@ export default function AILessonGeneratorScreen() {
   const [saving, setSaving] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [models, setModels] = useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
+  const [selectedModel, setSelectedModel] = useState<string>('')
 
   const categoriesQuery = useQuery({
     queryKey: ['lesson_categories'],
@@ -25,24 +30,19 @@ export default function AILessonGeneratorScreen() {
     staleTime: 60_000,
   })
 
-  const classesQuery = useQuery({
-    queryKey: ['teacher_classes'],
-    queryFn: async () => {
-      const { data, error } = await assertSupabase()
-        .from('classes')
-        .select('id,name')
-        .eq('is_active', true)
-      if (error) throw error
-      return (data || []) as { id: string; name: string }[]
-    },
-    staleTime: 60_000,
-  })
-
   const flags = getFeatureFlagsSync();
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
 
   useEffect(() => {
-    (async () => setUsage(await getCombinedUsage()))()
+    (async () => {
+      setUsage(await getCombinedUsage())
+      try {
+        const limits = await getEffectiveLimits()
+        setModels(limits.modelOptions || [])
+        const stored = await getPreferredModel('lesson_generation')
+        setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
+      } catch { /* noop */ void 0; }
+    })()
   }, [])
 
   const onGenerate = async () => {
@@ -51,11 +51,26 @@ export default function AILessonGeneratorScreen() {
         Alert.alert('AI Disabled', 'Lesson generator is not enabled in this build.');
         return;
       }
+      // Enforce quota before making a request
+      const gate = await canUseFeature('lesson_generation', 1)
+      if (!gate.allowed) {
+        const status = await getQuotaStatus('lesson_generation')
+        Alert.alert(
+          'Monthly limit reached',
+          `You have used ${status.used} of ${status.limit} lesson generations this month. ${gate.requiresPrepay ? 'Please upgrade or purchase more to continue.' : ''}`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'See plans', onPress: () => router.push('/pricing') },
+          ]
+        )
+        return
+      }
       setGenerating(true)
       track('edudash.ai.lesson.generate_started', {})
       const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
         body: {
           feature: 'lesson_generation',
+          model: selectedModel,
           subject: 'Mathematics',
           grade: '3',
           duration_minutes: 45,
@@ -70,6 +85,7 @@ export default function AILessonGeneratorScreen() {
         description: typeof content === 'string' ? content : JSON.stringify(content),
       }))
       await incrementUsage('lesson_generation', 1)
+      try { await logUsageEvent({ feature: 'lesson_generation', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
       setUsage(await getCombinedUsage())
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
@@ -127,7 +143,25 @@ export default function AILessonGeneratorScreen() {
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
             Monthly usage (local): Lessons generated {usage.lesson_generation}
           </Text>
+          {/* Quota summary (best-effort) */}
+          <QuotaSummary feature="lesson_generation" />
         </View>
+
+        {/* Model selector */}
+        {models.length > 0 && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+            <Text style={[styles.cardTitle, { color: palette.text }]}>Model</Text>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {models.map(m => (
+                <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'lesson_generation') } catch { /* noop */ } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? '#111827' : '#E5E7EB', backgroundColor: selectedModel === m.id ? '#111827' : 'transparent' }}>
+                  <Text style={{ color: selectedModel === m.id ? '#fff' : palette.text }}>
+                    {`${m.name} · x${m.relativeCost} · ${m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'}${(m as any).notes ? ` · ${(m as any).notes}` : ''}`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: '#111827', flex: 1 }]} disabled={generating}>
@@ -140,6 +174,24 @@ export default function AILessonGeneratorScreen() {
       </ScrollView>
     </SafeAreaView>
   )
+}
+
+function QuotaSummary({ feature }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help' }) {
+  const [text, setText] = React.useState<string>('')
+  React.useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const status = await getQuotaStatus(feature)
+        if (mounted) setText(`Quota: ${status.used}/${status.limit} used, ${status.remaining} remaining`)
+      } catch {
+        if (mounted) setText('Quota: unavailable')
+      }
+    })()
+    return () => { mounted = false }
+  }, [feature])
+  if (!text) return null
+  return <Text style={{ color: '#6B7280', marginTop: 4 }}>{text}</Text>
 }
 
 const styles = StyleSheet.create({

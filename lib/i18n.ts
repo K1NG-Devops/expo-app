@@ -12,7 +12,7 @@ let getLocales: () => Array<{ languageCode: string; [key: string]: any }> = () =
 try {
   const expoLocalization = require('expo-localization');
   getLocales = expoLocalization.getLocales;
-} catch (error) {
+} catch {
   console.warn('expo-localization not available, using fallback');
 }
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
@@ -183,10 +183,12 @@ export const getAvailableLanguages = (): Array<{
   nativeName: string;
   rtl: boolean;
 }> => {
-  return Object.entries(SUPPORTED_LANGUAGES).map(([code, info]) => ({
-    code: code as SupportedLanguage,
-    ...info,
-  }));
+  return Object.entries(SUPPORTED_LANGUAGES)
+    .map(([code, info]) => ({
+      code: code as SupportedLanguage,
+      ...info,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by English name
 };
 
 /**
@@ -199,11 +201,13 @@ export const getComingSoonLanguages = (): Array<{
   rtl: boolean;
   comingSoon: true;
 }> => {
-  return Object.entries(COMING_SOON_LANGUAGES).map(([code, info]) => ({
-    code,
-    ...info,
-    comingSoon: true as const,
-  }));
+  return Object.entries(COMING_SOON_LANGUAGES)
+    .map(([code, info]) => ({
+      code,
+      ...info,
+      comingSoon: true as const,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically by English name
 };
 
 /**

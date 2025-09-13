@@ -8,6 +8,7 @@
     "dashboard": "Painel",
     "profile": "Perfil",
     "settings": "Configurações",
+    "account": "Conta",
     "logout": "Sair",
     "back": "Voltar",
     "next": "Próximo",
@@ -16,7 +17,9 @@
     "edit": "Editar",
     "delete": "Excluir",
     "add": "Adicionar",
-    "search": "Pesquisar"
+    "search": "Pesquisar",
+    "retry": "Tentar Novamente",
+    "close": "Fechar"
   },
   "auth": {
     "signIn": "Entrar",
@@ -49,6 +52,36 @@
       "loading": "Criando aula...",
       "error": "Falha ao gerar a aula. Tente novamente."
     }
+  },
+  "settings": {
+    "title": "Configurações",
+    "profile": "Configurações do Perfil",
+    "notifications": "Notificações",
+    "privacy": "Privacidade",
+    "language": {
+      "title": "Idioma",
+      "comingSoon": "Em Breve",
+      "soon": "Em Breve"
+    },
+    "theme": {
+      "title": "Tema",
+      "light": "Claro",
+      "dark": "Escuro",
+      "system": "Sistema",
+      "preview": "Prévia do Tema",
+      "primary": "Primário",
+      "secondary": "Secundário",
+      "accent": "Destaque"
+    },
+    "preferences": {
+      "title": "Preferências",
+      "autoTheme": "Tema Automático",
+      "autoThemeDesc": "Alterar tema baseado nas configurações do sistema"
+    },
+    "about": "Sobre",
+    "support": "Suporte",
+    "termsOfService": "Termos de Serviço",
+    "privacyPolicy": "Política de Privacidade"
   },
   "common": {
     "loading": "Carregando...",

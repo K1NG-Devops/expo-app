@@ -1,11 +1,14 @@
 // @ts-nocheck
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { HomeworkService } from '@/lib/services/homeworkService'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage, incrementUsage } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
+import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
+import { router } from 'expo-router'
 
 export default function AIHomeworkGraderLive() {
   const [assignmentTitle, setAssignmentTitle] = useState('Counting to 10')
@@ -15,6 +18,8 @@ export default function AIHomeworkGraderLive() {
   const [jsonBuffer, setJsonBuffer] = useState('')
   const [parsed, setParsed] = useState<null | { score: number; feedback: string; suggestions: string[]; strengths: string[]; areasForImprovement: string[] }>(null)
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [models, setModels] = React.useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
+  const [selectedModel, setSelectedModel] = React.useState<string>('')
   const bufferRef = useRef('')
 
   const flags = getFeatureFlagsSync()
@@ -22,7 +27,15 @@ export default function AIHomeworkGraderLive() {
   const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false
 
   React.useEffect(() => {
-    (async () => setUsage(await getCombinedUsage()))()
+    (async () => {
+      setUsage(await getCombinedUsage())
+      try {
+        const limits = await getEffectiveLimits()
+        setModels(limits.modelOptions || [])
+        const stored = await getPreferredModel('grading_assistance')
+        setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
+      } catch { /* noop */ void 0; }
+    })()
   }, [])
 
   const startStreaming = async () => {
@@ -32,6 +45,20 @@ export default function AIHomeworkGraderLive() {
     }
     if (!aiGradingEnabled) {
       Alert.alert('AI Tool Disabled', 'Homework grader is not enabled in this build.')
+      return
+    }
+    // Enforce quota before starting
+    const gate = await canUseFeature('grading_assistance', 1)
+    if (!gate.allowed) {
+      const status = await getQuotaStatus('grading_assistance')
+      Alert.alert(
+        'Monthly limit reached',
+        `You have used ${status.used} of ${status.limit} grading sessions this month. ${gate.requiresPrepay ? 'Please upgrade or purchase more to continue.' : ''}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/pricing') },
+        ]
+      )
       return
     }
     try {
@@ -55,7 +82,11 @@ export default function AIHomeworkGraderLive() {
           onFinal: async ({ score, feedback, suggestions, strengths, areasForImprovement }) => {
             setParsed({ score, feedback, suggestions, strengths, areasForImprovement })
             setIsStreaming(false)
-            try { await incrementUsage('grading_assistance', 1); setUsage(await getCombinedUsage()); } catch {}
+            try {
+              await incrementUsage('grading_assistance', 1);
+              try { await logUsageEvent({ feature: 'grading_assistance', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
+              setUsage(await getCombinedUsage());
+            } catch { /* noop */ void 0; }
             track('edudash.ai.grader.ui_completed', { score })
           },
           onError: (err) => {
@@ -63,7 +94,8 @@ export default function AIHomeworkGraderLive() {
             track('edudash.ai.grader.ui_failed', { error: err?.message })
             Alert.alert('Grading failed', err.message || 'Unknown error')
           },
-        }
+        },
+        { model: selectedModel }
       )
     } catch (e: any) {
       setIsStreaming(false)
@@ -113,6 +145,22 @@ export default function AIHomeworkGraderLive() {
             multiline
           />
 
+          {/* Model selector */}
+          {models.length > 0 && (
+            <View style={[styles.card, { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB' }]}>
+              <Text style={[styles.sectionTitle, { color: '#111827' }]}>Model</Text>
+              <View style={[styles.inlineRow, { gap: 8, flexWrap: 'wrap' }]}>
+                {models.map(m => (
+                  <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'grading_assistance') } catch { /* noop */ } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? '#8B5CF6' : '#E5E7EB', backgroundColor: selectedModel === m.id ? '#8B5CF6' : 'transparent' }}>
+                    <Text style={{ color: selectedModel === m.id ? '#fff' : '#111827' }}>
+                      {`${m.name} · x${m.relativeCost} · ${m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'}${(m as any).notes ? ` · ${(m as any).notes}` : ''}`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           <TouchableOpacity
             onPress={startStreaming}
             disabled={isStreaming || !aiGradingEnabled}
@@ -135,6 +183,7 @@ export default function AIHomeworkGraderLive() {
         <View style={[styles.card, { backgroundColor: '#FFFFFF', borderColor: '#E5E7EB' }]}>
           <Text style={[styles.sectionTitle, { color: '#111827' }]}>Live JSON Stream</Text>
           <Text style={{ color: '#6B7280', marginBottom: 6 }}>Monthly usage (local/server): Grading {usage.grading_assistance}</Text>
+          <QuotaSummary feature="grading_assistance" />
           <View style={[styles.jsonBox, { borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }]}>
             <Text style={[styles.jsonText, { color: '#111827' }]} selectable>
               {jsonBuffer || (isStreaming ? 'Waiting for tokens…' : 'No data yet. Press "Start Live Grading".')}
@@ -156,6 +205,24 @@ export default function AIHomeworkGraderLive() {
       </ScrollView>
     </View>
   )
+}
+
+function QuotaSummary({ feature }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help' }) {
+  const [text, setText] = React.useState<string>('')
+  React.useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const status = await getQuotaStatus(feature)
+        if (mounted) setText(`Quota: ${status.used}/${status.limit} used, ${status.remaining} remaining`)
+      } catch {
+        if (mounted) setText('Quota: unavailable')
+      }
+    })()
+    return () => { mounted = false }
+  }, [feature])
+  if (!text) return null
+  return <Text style={{ color: '#6B7280', marginTop: 4 }}>{text}</Text>
 }
 
 const styles = StyleSheet.create({

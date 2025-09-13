@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.k1ngdevops.expominimaltest'
+    namespace 'com.k1ngdevops.edudashpro'
     defaultConfig {
-        applicationId 'com.k1ngdevops.expominimaltest'
+        applicationId 'com.k1ngdevops.edudashpro'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

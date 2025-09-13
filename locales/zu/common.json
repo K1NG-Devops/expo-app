@@ -8,6 +8,7 @@
     "dashboard": "Ideshibhodi",
     "profile": "Iphrofayela",
     "settings": "Izilungiselelo",
+    "account": "I-akhawunti",
     "logout": "Phuma",
     "back": "Emuva",
     "next": "Okulandelayo",
@@ -163,8 +164,26 @@
     "profile": "Izilungiselelo Zephrofayela",
     "notifications": "Izaziso",
     "privacy": "Ubumfihlo",
-    "language": "Ulimi",
-    "theme": "Itimu",
+    "language": {
+      "title": "Ulimi",
+      "comingSoon": "Kuyeza Masinyane",
+      "soon": "Masinyane"
+    },
+    "theme": {
+      "title": "Itimu",
+      "light": "Ukukhanya",
+      "dark": "Ubumnyama",
+      "system": "Uhlelo",
+      "preview": "Ukubuka Itimu",
+      "primary": "Eyinhloko",
+      "secondary": "Eyesibili",
+      "accent": "Ukugcizelela"
+    },
+    "preferences": {
+      "title": "Okuthandayo",
+      "autoTheme": "Itimu Ezenzekelayo",
+      "autoThemeDesc": "Guqula itimu ngokwezilungiselelo zohlelo"
+    },
     "about": "Mayelana",
     "support": "Usizo",
     "termsOfService": "Imigomo Yesevisi",

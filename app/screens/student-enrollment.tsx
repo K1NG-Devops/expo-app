@@ -4,7 +4,7 @@
  * Allows principals to enroll new students and manage enrollments
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,8 +16,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface Grade {
   id: string;
@@ -25,44 +26,288 @@ interface Grade {
   capacity: number;
   enrolled: number;
   available: number;
+  fees: {
+    admission: number;
+    tuition: number;
+    books: number;
+    uniform: number;
+    activities: number;
+  };
 }
 
+interface StudentInfo {
+  // Basic Info
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female' | 'other' | '';
+  idNumber: string;
+  
+  // Contact Info
+  address: string;
+  city: string;
+  postalCode: string;
+  phone: string;
+  email: string;
+  
+  // Parent/Guardian Info
+  parentFirstName: string;
+  parentLastName: string;
+  parentPhone: string;
+  parentEmail: string;
+  parentIdNumber: string;
+  relationship: 'mother' | 'father' | 'guardian' | '';
+  
+  // Emergency Contact
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  emergencyContactRelationship: string;
+  
+  // Medical Info
+  allergies: string;
+  medicalConditions: string;
+  medications: string;
+  doctorName: string;
+  doctorPhone: string;
+  
+  // Previous School
+  previousSchool: string;
+  previousGrade: string;
+  reasonForLeaving: string;
+  
+  // Additional Notes
+  specialRequirements: string;
+  transportNeeds: 'none' | 'school_bus' | 'private' | '';
+}
+
+type EnrollmentStep = 'basic' | 'contact' | 'parent' | 'medical' | 'documents' | 'fees' | 'review';
+
+const initialStudentInfo: StudentInfo = {
+  firstName: '',
+  lastName: '',
+  dateOfBirth: '',
+  gender: '',
+  idNumber: '',
+  address: '',
+  city: '',
+  postalCode: '',
+  phone: '',
+  email: '',
+  parentFirstName: '',
+  parentLastName: '',
+  parentPhone: '',
+  parentEmail: '',
+  parentIdNumber: '',
+  relationship: '',
+  emergencyContactName: '',
+  emergencyContactPhone: '',
+  emergencyContactRelationship: '',
+  allergies: '',
+  medicalConditions: '',
+  medications: '',
+  doctorName: '',
+  doctorPhone: '',
+  previousSchool: '',
+  previousGrade: '',
+  reasonForLeaving: '',
+  specialRequirements: '',
+  transportNeeds: '',
+};
+
 export default function StudentEnrollment() {
-  const { t } = useTranslation();
+  const { user, profile } = useAuth();
   const [selectedGrade, setSelectedGrade] = useState<string>('');
-  const [studentName, setStudentName] = useState('');
-  const [parentEmail, setParentEmail] = useState('');
+  const [currentStep, setCurrentStep] = useState<EnrollmentStep>('basic');
+  const [studentInfo, setStudentInfo] = useState<StudentInfo>(initialStudentInfo);
   const [loading, setLoading] = useState(false);
+  const [documents, setDocuments] = useState<{[key: string]: string}>({});
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  
+  // Get preschool ID from user context
+  const getPreschoolId = useCallback((): string | null => {
+    if (profile?.organization_id) {
+      return profile.organization_id as string;
+    }
+    return user?.user_metadata?.preschool_id || null;
+  }, [profile, user]);
 
   const grades: Grade[] = [
-    { id: 'grade-r', name: 'Grade R', capacity: 30, enrolled: 28, available: 2 },
-    { id: 'grade-1', name: 'Grade 1', capacity: 30, enrolled: 25, available: 5 },
-    { id: 'grade-2', name: 'Grade 2', capacity: 30, enrolled: 30, available: 0 },
-    { id: 'grade-3', name: 'Grade 3', capacity: 30, enrolled: 27, available: 3 },
-    { id: 'grade-4', name: 'Grade 4', capacity: 30, enrolled: 24, available: 6 },
-    { id: 'grade-5', name: 'Grade 5', capacity: 30, enrolled: 29, available: 1 },
-    { id: 'grade-6', name: 'Grade 6', capacity: 30, enrolled: 26, available: 4 },
-    { id: 'grade-7', name: 'Grade 7', capacity: 30, enrolled: 23, available: 7 },
+    { 
+      id: 'grade-r', name: 'Grade R', capacity: 30, enrolled: 28, available: 2,
+      fees: { admission: 500, tuition: 2800, books: 450, uniform: 300, activities: 200 }
+    },
+    { 
+      id: 'grade-1', name: 'Grade 1', capacity: 30, enrolled: 25, available: 5,
+      fees: { admission: 500, tuition: 3200, books: 520, uniform: 350, activities: 250 }
+    },
+    { 
+      id: 'grade-2', name: 'Grade 2', capacity: 30, enrolled: 30, available: 0,
+      fees: { admission: 500, tuition: 3200, books: 520, uniform: 350, activities: 250 }
+    },
+    { 
+      id: 'grade-3', name: 'Grade 3', capacity: 30, enrolled: 27, available: 3,
+      fees: { admission: 500, tuition: 3500, books: 580, uniform: 380, activities: 300 }
+    },
+    { 
+      id: 'grade-4', name: 'Grade 4', capacity: 30, enrolled: 24, available: 6,
+      fees: { admission: 500, tuition: 3500, books: 580, uniform: 380, activities: 300 }
+    },
+    { 
+      id: 'grade-5', name: 'Grade 5', capacity: 30, enrolled: 29, available: 1,
+      fees: { admission: 500, tuition: 3800, books: 620, uniform: 400, activities: 350 }
+    },
+    { 
+      id: 'grade-6', name: 'Grade 6', capacity: 30, enrolled: 26, available: 4,
+      fees: { admission: 500, tuition: 3800, books: 620, uniform: 400, activities: 350 }
+    },
+    { 
+      id: 'grade-7', name: 'Grade 7', capacity: 30, enrolled: 23, available: 7,
+      fees: { admission: 500, tuition: 4200, books: 720, uniform: 450, activities: 400 }
+    },
   ];
 
-  const handleEnrollStudent = () => {
-    if (!studentName.trim() || !parentEmail.trim() || !selectedGrade) {
+  const stepOrder: EnrollmentStep[] = ['basic', 'contact', 'parent', 'medical', 'documents', 'fees', 'review'];
+  
+  const updateStudentInfo = (field: keyof StudentInfo, value: string) => {
+    setStudentInfo(prev => ({ ...prev, [field]: value }));
+  };
+  
+  const goToNextStep = () => {
+    const currentIndex = stepOrder.indexOf(currentStep);
+    if (currentIndex < stepOrder.length - 1) {
+      setCurrentStep(stepOrder[currentIndex + 1]);
+    }
+  };
+  
+  const goToPreviousStep = () => {
+    const currentIndex = stepOrder.indexOf(currentStep);
+    if (currentIndex > 0) {
+      setCurrentStep(stepOrder[currentIndex - 1]);
+    }
+  };
+  
+  const validateCurrentStep = (): boolean => {
+    switch (currentStep) {
+      case 'basic':
+        return !!(studentInfo.firstName && studentInfo.lastName && studentInfo.dateOfBirth && selectedGrade);
+      case 'contact':
+        return !!(studentInfo.address && studentInfo.city && studentInfo.phone);
+      case 'parent':
+        return !!(studentInfo.parentFirstName && studentInfo.parentLastName && studentInfo.parentPhone && studentInfo.parentEmail);
+      case 'medical':
+        return true; // Medical info is optional but recommended
+      case 'documents':
+        return Object.keys(documents).length >= 2; // At least birth certificate and ID copy
+      case 'fees':
+        return true; // Fees are calculated automatically
+      case 'review':
+        return agreedToTerms;
+      default:
+        return false;
+    }
+  };
+  
+  const getStepTitle = (): string => {
+    switch (currentStep) {
+      case 'basic': return 'Basic Information';
+      case 'contact': return 'Contact Details';
+      case 'parent': return 'Parent/Guardian Info';
+      case 'medical': return 'Medical Information';
+      case 'documents': return 'Required Documents';
+      case 'fees': return 'Fee Structure';
+      case 'review': return 'Review & Submit';
+      default: return 'Enrollment';
+    }
+  };
+  
+  const calculateTotalFees = (): number => {
+    if (!selectedGrade) return 0;
+    const grade = grades.find(g => g.id === selectedGrade);
+    if (!grade) return 0;
+    return Object.values(grade.fees).reduce((total, fee) => total + fee, 0);
+  };
+
+  const handleEnrollStudent = async () => {
+    const studentFullName = `${studentInfo.firstName} ${studentInfo.lastName}`.trim();
+    if (!studentFullName || !studentInfo.parentEmail.trim() || !selectedGrade) {
       Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    const preschoolId = getPreschoolId();
+    if (!preschoolId || !supabase) {
+      Alert.alert('Error', 'Unable to enroll student. Please try again later.');
       return;
     }
 
     Alert.alert(
       'Enroll Student',
-      `Ready to enroll ${studentName} in ${grades.find(g => g.id === selectedGrade)?.name}?`,
+      `Ready to enroll ${studentFullName} in ${grades.find(g => g.id === selectedGrade)?.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Enroll',
-          onPress: () => {
-            Alert.alert('Success', 'Student enrolled successfully! Parent will receive a welcome email.');
-            setStudentName('');
-            setParentEmail('');
-            setSelectedGrade('');
+          onPress: async () => {
+            try {
+              setLoading(true);
+              
+              console.log('📝 Enrolling student in database:', {
+                firstName: studentInfo.firstName,
+                lastName: studentInfo.lastName,
+                parentEmail: studentInfo.parentEmail,
+                grade: selectedGrade,
+                preschoolId
+              });
+              
+              // **INSERT REAL STUDENT INTO DATABASE**
+              const { data: newStudent, error: insertError } = await supabase
+                .from('students')
+                .insert({
+                  first_name: studentInfo.firstName,
+                  last_name: studentInfo.lastName,
+                  date_of_birth: studentInfo.dateOfBirth || '2019-01-01', // Default if not provided
+                  preschool_id: preschoolId,
+                  is_active: true,
+                  status: 'active',
+                  // TODO: Add parent_id lookup based on parentEmail
+                  // TODO: Add class_id lookup based on selected grade
+                  // TODO: Add more fields as needed (gender, medical conditions, etc.)
+                })
+                .select()
+                .single();
+              
+              if (insertError) {
+                console.error('Error enrolling student:', insertError);
+                Alert.alert('Enrollment Error', 'Failed to enroll student. Please try again.');
+                return;
+              }
+              
+              console.log('✅ Student enrolled successfully:', newStudent);
+              
+              Alert.alert(
+                'Success! 🎉', 
+                `${studentFullName} has been enrolled successfully!\n\nStudent ID: ${newStudent.id}\nParent will receive a welcome email at ${studentInfo.parentEmail}`,
+                [
+                  {
+                    text: 'Enroll Another',
+                    onPress: () => {
+                      setStudentInfo(initialStudentInfo);
+                      setSelectedGrade('');
+                    }
+                  },
+                  {
+                    text: 'View Students',
+                    onPress: () => router.push('/screens/students-detail')
+                  }
+                ]
+              );
+              
+            } catch (error) {
+              console.error('Failed to enroll student:', error);
+              Alert.alert('Error', 'Failed to enroll student. Please check your connection and try again.');
+            } finally {
+              setLoading(false);
+            }
           }
         }
       ]
@@ -144,12 +389,23 @@ export default function StudentEnrollment() {
           <Text style={styles.sectionTitle}>Student Information</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Student Full Name *</Text>
+            <Text style={styles.inputLabel}>Student First Name *</Text>
             <TextInput
               style={styles.textInput}
-              value={studentName}
-              onChangeText={setStudentName}
-              placeholder="Enter student's full name"
+              value={studentInfo.firstName}
+              onChangeText={(value) => updateStudentInfo('firstName', value)}
+              placeholder="Enter student's first name"
+              placeholderTextColor={Colors.light.tabIconDefault}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Student Last Name *</Text>
+            <TextInput
+              style={styles.textInput}
+              value={studentInfo.lastName}
+              onChangeText={(value) => updateStudentInfo('lastName', value)}
+              placeholder="Enter student's last name"
               placeholderTextColor={Colors.light.tabIconDefault}
             />
           </View>
@@ -158,8 +414,8 @@ export default function StudentEnrollment() {
             <Text style={styles.inputLabel}>Parent/Guardian Email *</Text>
             <TextInput
               style={styles.textInput}
-              value={parentEmail}
-              onChangeText={setParentEmail}
+              value={studentInfo.parentEmail}
+              onChangeText={(value) => updateStudentInfo('parentEmail', value)}
               placeholder="parent@example.com"
               placeholderTextColor={Colors.light.tabIconDefault}
               keyboardType="email-address"
@@ -169,12 +425,12 @@ export default function StudentEnrollment() {
         </View>
 
         {/* Enrollment Summary */}
-        {selectedGrade && studentName && parentEmail && (
+        {selectedGrade && studentInfo.firstName && studentInfo.parentEmail && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Enrollment Summary</Text>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryText}>
-                Student: <Text style={styles.summaryBold}>{studentName}</Text>
+                Student: <Text style={styles.summaryBold}>{studentInfo.firstName} {studentInfo.lastName}</Text>
               </Text>
               <Text style={styles.summaryText}>
                 Grade: <Text style={styles.summaryBold}>
@@ -182,7 +438,7 @@ export default function StudentEnrollment() {
                 </Text>
               </Text>
               <Text style={styles.summaryText}>
-                Parent Email: <Text style={styles.summaryBold}>{parentEmail}</Text>
+                Parent Email: <Text style={styles.summaryBold}>{studentInfo.parentEmail}</Text>
               </Text>
             </View>
           </View>
@@ -192,14 +448,14 @@ export default function StudentEnrollment() {
         <TouchableOpacity
           style={[
             styles.enrollButton,
-            (!selectedGrade || !studentName || !parentEmail) && styles.disabledButton
+            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && styles.disabledButton
           ]}
           onPress={handleEnrollStudent}
-          disabled={!selectedGrade || !studentName || !parentEmail || loading}
+          disabled={!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail || loading}
         >
           <Text style={[
             styles.enrollButtonText,
-            (!selectedGrade || !studentName || !parentEmail) && styles.disabledButtonText
+            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && styles.disabledButtonText
           ]}>
             {loading ? 'Enrolling...' : 'Enroll Student'}
           </Text>

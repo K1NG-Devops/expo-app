@@ -5,12 +5,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeRole } from '@/lib/rbac';
 
 export default function SalesContactScreen() {
   const params = useLocalSearchParams<{ plan?: string }>();
   const initialPlan = useMemo(() => (params?.plan ? String(params.plan) : 'enterprise'), [params]);
 
-  const [role, setRole] = useState<string | null>(null);
+  const { profile } = useAuth();
+  const roleNorm = normalizeRole(String(profile?.role || ''));
   const [form, setForm] = useState({
     contact_name: '',
     contact_email: '',
@@ -26,22 +29,15 @@ export default function SalesContactScreen() {
 
   const onChange = (k: keyof typeof form, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: userRes } = await supabase!.auth.getUser();
-        const id = userRes.user?.id;
-        let r: string | null = (userRes.user?.user_metadata as any)?.role ?? null;
-        if (!r && id) {
-          const { data } = await supabase!.from('profiles').select('role').eq('id', id).maybeSingle();
-          r = (data as any)?.role ?? null;
-        }
-        setRole(r);
-      } catch {}
-    })();
-  }, []);
+  // Role-based gating: only principals or school admins (principal_admin) and super admins can submit
+  const canSubmit = roleNorm === 'principal_admin' || roleNorm === 'super_admin';
 
-  const canSubmit = role === 'principal' || role === 'admin';
+  // Redirect non-principal/admin users to pricing if they reach this route directly
+  useEffect(() => {
+    if (!canSubmit) {
+      router.replace('/pricing');
+    }
+  }, [canSubmit]);
 
   async function onSubmit() {
     if (!form.contact_email) {
@@ -54,7 +50,7 @@ export default function SalesContactScreen() {
         return;
       }
       setSubmitting(true);
-      track('enterprise_cta_submitted', { plan: form.plan_interest, role });
+      track('enterprise_cta_submitted', { plan: form.plan_interest, role: roleNorm });
       const { error } = await supabase!.from('enterprise_leads').insert({ ...form });
       if (error) throw error;
       try {
@@ -65,7 +61,7 @@ export default function SalesContactScreen() {
             payload: form,
           },
         } as any);
-      } catch {}
+      } catch { /* noop */ }
       Alert.alert('Thank you', 'Our team will contact you shortly.');
       setForm({ ...form, contact_name: '', contact_email: '', phone: '', organization_name: '', country: '', role: '', school_size: '', notes: '' });
     } catch (e: any) {
@@ -100,22 +96,27 @@ export default function SalesContactScreen() {
             <View style={{ width: '100%', backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', padding: 12, borderRadius: 10 }}>
               <Text style={{ color: '#ffb703', fontWeight: '700', marginBottom: 6 }}>Restricted</Text>
               <Text style={{ color: '#9CA3AF' }}>Only principals or school admins can submit enterprise contact requests.</Text>
+              <TouchableOpacity onPress={() => router.push('/pricing')} style={[styles.button, { marginTop: 10 }]}>
+                <Text style={styles.buttonText}>Back to Pricing</Text>
+              </TouchableOpacity>
             </View>
-          ) : null}
+          ) : (
+            <>
+              <FormInput label="Name" value={form.contact_name} onChangeText={(v: string) => onChange('contact_name', v)} autoCapitalize="words" />
+              <FormInput label="Email" value={form.contact_email} onChangeText={(v: string) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
+              <FormInput label="Phone" value={form.phone} onChangeText={(v: string) => onChange('phone', v)} keyboardType="phone-pad" />
+              <FormInput label="Organization" value={form.organization_name} onChangeText={(v: string) => onChange('organization_name', v)} />
+              <FormInput label="Country" value={form.country} onChangeText={(v: string) => onChange('country', v)} />
+              <FormInput label="Your role" value={form.role} onChangeText={(v: string) => onChange('role', v)} placeholder="Principal / Admin / Teacher / Parent" />
+              <FormInput label="School size" value={form.school_size} onChangeText={(v: string) => onChange('school_size', v)} placeholder="e.g., 200 students" />
+              <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v: string) => onChange('plan_interest', v)} />
+              <FormInput label="Notes" value={form.notes} onChangeText={(v: string) => onChange('notes', v)} multiline />
 
-          <FormInput label="Name" value={form.contact_name} onChangeText={(v: string) => onChange('contact_name', v)} autoCapitalize="words" />
-          <FormInput label="Email" value={form.contact_email} onChangeText={(v: string) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
-          <FormInput label="Phone" value={form.phone} onChangeText={(v: string) => onChange('phone', v)} keyboardType="phone-pad" />
-          <FormInput label="Organization" value={form.organization_name} onChangeText={(v: string) => onChange('organization_name', v)} />
-          <FormInput label="Country" value={form.country} onChangeText={(v: string) => onChange('country', v)} />
-          <FormInput label="Your role" value={form.role} onChangeText={(v: string) => onChange('role', v)} placeholder="Principal / Admin / Teacher / Parent" />
-          <FormInput label="School size" value={form.school_size} onChangeText={(v: string) => onChange('school_size', v)} placeholder="e.g., 200 students" />
-          <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v: string) => onChange('plan_interest', v)} />
-          <FormInput label="Notes" value={form.notes} onChangeText={(v: string) => onChange('notes', v)} multiline />
-
-          <TouchableOpacity style={[styles.button, (submitting || !canSubmit) && { opacity: 0.5 }]} disabled={submitting || !canSubmit} onPress={onSubmit}>
-            <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
-          </TouchableOpacity>
+              <TouchableOpacity style={[styles.button, submitting && { opacity: 0.5 }]} disabled={submitting} onPress={onSubmit}>
+                <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
       </SafeAreaView>

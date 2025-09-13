@@ -6,12 +6,16 @@ export function testSentry() {
     Sentry.Native.captureMessage('Test event from device', { level: 'info' as any });
     // Also capture an example exception
     Sentry.Native.captureException(new Error('Sentry test exception'));
-  } catch {}
+  } catch {
+    // no-op
+  }
 }
 
 export function testPostHog() {
   try {
     getPostHog()?.capture('test_event', { source: 'device', ts: Date.now() });
-  } catch {}
+  } catch {
+    // no-op
+  }
 }
 

@@ -1,4 +1,4 @@
-package com.k1ngdevops.expominimaltest
+package com.k1ngdevops.edudashpro
 
 import android.app.Application
 import android.content.res.Configuration

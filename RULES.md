@@ -231,6 +231,7 @@ Our mission is to build a leading educational platform that competes with Google
 - No mock data in DB or code. Always handle empty/loading/error states
 - Do not modify working auth configuration (contexts/SimpleWorkingAuth.tsx)
 - RLS must remain secure and enforced for all tenant data access
+- **DATABASE SCHEMA FLEXIBILITY**: If code references a table or column that doesn't exist in the database, the missing table/column should be created via migration or manual SQL - the application code should NOT be changed to accommodate missing database schema. This ensures forward compatibility and allows the app to work with evolving database structures.
 
 AI and secrets hardening
 - Do not call Anthropic from the client. All AI requests must go through Supabase Edge Function: functions/v1/ai-proxy
@@ -306,4 +307,74 @@ Implementation checklists
 How to propose changes
 - Reference this rules.md in PR descriptions when adding AI endpoints, new data fetches, or analytics
 - Include a brief “Rules compliance” section in PRs covering AI, RLS, state management, and observability
+
+---
+
+## Parent Linking & RLS Flow [NONNEGOTIABLE]
+
+Goal: Allow parents/guardians to link children securely, with staff approval where needed, under strict RLS.
+
+Schema (to be introduced via Task 4 migrations):
+- student_parent_links
+  - id uuid pk default gen_random_uuid()
+  - student_id uuid not null
+  - parent_user_id uuid not null
+  - relationship_type text check (relationship_type in ('parent','guardian')) not null
+  - status text check (status in ('pending','approved','denied','revoked')) not null default 'pending'
+  - requested_at timestamptz not null default now()
+  - approved_at timestamptz
+  - approved_by uuid
+  - reason text
+
+- invite_codes
+  - id uuid pk default gen_random_uuid()
+  - code text unique not null
+  - student_id uuid not null
+  - expires_at timestamptz not null
+  - created_by uuid not null
+  - used_by uuid
+  - used_at timestamptz
+
+- profile_completion
+  - user_id uuid primary key
+  - fields_completed jsonb not null default '{}'::jsonb
+  - percent int not null default 0
+  - updated_at timestamptz not null default now()
+
+RLS policies (principles):
+- Enable RLS on all three tables.
+- Parents can SELECT their own links only: parent_user_id = auth.uid().
+- Parents can INSERT pending link requests for themselves only (parent_user_id = auth.uid()).
+- Parents cannot UPDATE status fields directly; approvals/denials only through RPC with SECURITY DEFINER.
+- Invite codes are redeemed via RPC only; no direct INSERT/UPDATE/DELETE for public.
+- Staff approvals occur via RPC that validates staff capability (principal/teacher) for the student’s school.
+
+RPC endpoints (SECURITY DEFINER):
+- create_parent_link_request(student_identifier text | invite_code text, relationship_type text)
+- approve_parent_link(link_id uuid)
+- deny_parent_link(link_id uuid, reason text)
+- create_invite_code(student_id uuid, expires_at timestamptz)
+- redeem_invite_code(code text)
+- get_my_children()
+
+DB Flow (happy paths):
+1) Invite Code (fast path)
+   - Staff creates invite code for a student.
+   - Parent redeems code via `redeem_invite_code` → inserts approved link.
+2) Request Link (no code)
+   - Parent submits pending request via `create_parent_link_request`.
+   - Staff reviews queue and approves/denies via RPC; audit timestamps are set.
+
+Client Flow:
+- Profile Wizard (/profiles-gate) collects parent info → Link Child screen
+- Link Child options: Invite Code OR Request Link
+- Parent Dashboard: if no children → show empty state + CTA to Link Child; show pending requests if any
+
+Migration Rules [PROTECTED]:
+- All migrations must be additive and idempotent (use IF NOT EXISTS where possible)
+- Never drop columns/tables in mainline migrations; deprecate and clean up in dedicated, reviewed migrations
+- One logical feature per migration file; name with UTC: YYYYMMDD_HHMMSS_parent_linking_schema.sql
+- Always enable RLS and add minimum viable policies in the same migration that creates a table
+- Staff operations must go through RPCs; avoid broad UPDATE/DELETE policies
+- Every migration must be applied locally and in CI before merging; keep schema.sql in sync if used
 

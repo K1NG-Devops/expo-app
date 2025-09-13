@@ -16,7 +16,8 @@ export class HomeworkService {
       }
 
       const ageMatch = String(gradeLevel || '').match(/(\d{1,2})/)
-      const studentAge = ageMatch ? Math.max(3, Math.min(12, parseInt(ageMatch[1], 10))) : 5
+      const _studentAge = ageMatch ? Math.max(3, Math.min(12, parseInt(ageMatch[1], 10))) : 5;
+      void _studentAge;
 
       // Placeholder AI grading call — integrate actual provider later
       const score = 85
@@ -36,10 +37,10 @@ export class HomeworkService {
             status: 'reviewed'
           })
           .eq('id', submissionId)
-      } catch {}
+      } catch (e) { console.debug('homework_submissions update failed', e); }
 
       return { score, feedback, suggestions, strengths, areasForImprovement }
-    } catch (error: any) {
+    } catch {
       return {
         score: 70,
         feedback: 'Thank you for submitting your homework. Keep up the good work!',
@@ -59,7 +60,8 @@ export class HomeworkService {
       onDelta?: (chunk: string) => void
       onFinal?: (payload: { score: number; feedback: string; suggestions: string[]; strengths: string[]; areasForImprovement: string[] }) => void
       onError?: (err: { message: string; code?: string }) => void
-    }
+    },
+    options?: { model?: string }
   ): Promise<void> {
     try {
       if (!AI_ENABLED) {
@@ -79,6 +81,7 @@ export class HomeworkService {
         const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
           body: {
             feature: 'grading_assistance',
+            model: options?.model,
             submission: submissionContent,
             assignment_title: assignmentTitle,
             grade_level: gradeLevel,
@@ -108,7 +111,7 @@ export class HomeworkService {
               status: 'reviewed'
             })
             .eq('id', submissionId)
-        } catch {}
+        } catch (e) { console.debug('homework_submissions update failed', e); }
         return
       } catch (invokeError: any) {
         const msg = String(invokeError?.message || '')
@@ -150,7 +153,7 @@ export class HomeworkService {
             status: 'reviewed'
           })
           .eq('id', submissionId)
-      } catch {}
+      } catch { /* noop */ void 0; }
     } catch (e: any) {
       handlers.onError?.({ message: e?.message || 'Streaming error' })
     }

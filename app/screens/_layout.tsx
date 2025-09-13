@@ -1,19 +1,19 @@
 import { Stack } from 'expo-router';
 import React from 'react';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function ScreensLayout() {
+  const { theme } = useTheme();
+  
   return (
     <Stack
       screenOptions={{
         headerShown: true,
-        contentStyle: { backgroundColor: '#0b1220' },
+        contentStyle: { backgroundColor: theme.background },
         // Use custom, role-based header across signed-in screens
         header: () => (
-          <RoleBasedHeader
-            backgroundColor="#0b1220"
-            textColor="#ffffff"
-          />
+          <RoleBasedHeader />
         ),
       }}
     >

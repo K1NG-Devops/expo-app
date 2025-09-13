@@ -1,0 +1,26 @@
+{
+  "timestamp": "2025-09-12T23:04:32.740Z",
+  "counts": {
+    "preschools": 0,
+    "users": 0,
+    "students": 0,
+    "classes": 0,
+    "assignments": 0,
+    "homework_assignments": 0,
+    "teachers": 0,
+    "parents": 0,
+    "activity_feed": 0,
+    "classroom_reports": 0,
+    "attendance": 0,
+    "announcements": 0,
+    "ai_usage_logs": 0
+  },
+  "samples": {
+    "preschools": [],
+    "users": [],
+    "students": [],
+    "classes": []
+  },
+  "tableInfo": null,
+  "rlsPolicies": []
+}

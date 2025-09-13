@@ -20,6 +20,8 @@ import {
   Dimensions,
   Alert,
   RefreshControl,
+  Linking,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -36,6 +38,7 @@ import {
   EmptyEventsState,
 } from '@/components/ui/EmptyState';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
+import { assertSupabase } from '@/lib/supabase';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 2;
@@ -79,6 +82,55 @@ export const TeacherDashboard: React.FC = () => {
   
   // Use the custom data hook
   const { data: dashboardData, loading: isLoading, error, refresh, isLoadingFromCache } = useTeacherDashboard();
+
+  // Non-intrusive upgrade nudge (shown ~33% of the time if plan doesn't allow AI)
+  const [showUpgradeNudge, setShowUpgradeNudge] = React.useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = React.useState(false);
+  React.useEffect(() => {
+    if (!planAllowsAI) {
+      setShowUpgradeNudge(Math.random() < 0.33);
+    } else {
+      setShowUpgradeNudge(false);
+    }
+  }, [planAllowsAI]);
+
+  // Admin org usage summary (for principals/admins)
+  const [orgLimits, setOrgLimits] = React.useState<null | { used: { lesson_generation: number; grading_assistance: number; homework_help: number }, quotas: { lesson_generation: number; grading_assistance: number; homework_help: number } }>(null);
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (user?.role === 'principal_admin') {
+          const { data: userRes } = await assertSupabase().auth.getUser();
+          const uid = userRes?.user?.id;
+          // Fetch profile to get org id
+          if (uid) {
+            const { data: prof } = await assertSupabase().from('profiles').select('preschool_id').eq('id', uid).maybeSingle();
+            const orgId = (prof as any)?.preschool_id;
+            if (orgId) {
+              const { data: limitsRes } = await assertSupabase().functions.invoke('ai-usage', { body: { action: 'org_limits', organization_id: orgId } as any });
+              if (mounted && limitsRes && (limitsRes.used || limitsRes.quotas)) {
+                setOrgLimits({
+                  used: {
+                    lesson_generation: Number(limitsRes.used?.lesson_generation || 0),
+                    grading_assistance: Number(limitsRes.used?.grading_assistance || 0),
+                    homework_help: Number(limitsRes.used?.homework_help || 0),
+                  },
+                  quotas: {
+                    lesson_generation: Number(limitsRes.quotas?.lesson_generation || 0),
+                    grading_assistance: Number(limitsRes.quotas?.grading_assistance || 0),
+                    homework_help: Number(limitsRes.quotas?.homework_help || 0),
+                  }
+                });
+              }
+            }
+          }
+        }
+      } catch { /* noop */ }
+    })();
+    return () => { mounted = false };
+  }, [user?.role]);
+
   const metrics: TeacherMetric[] = dashboardData ? [
     {
       title: t('metrics.my_students'),
@@ -102,6 +154,12 @@ export const TeacherDashboard: React.FC = () => {
       color: '#059669',
     },
   ] : [];
+
+  const openRequestFeatureEmail = (subject: string, body?: string) => {
+    const to = process.env.EXPO_PUBLIC_SUPPORT_EMAIL || process.env.EXPO_PUBLIC_SALES_EMAIL || 'support@example.com';
+    const mailto = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body || '')}`;
+    try { Linking.openURL(mailto); } catch { /* noop */ }
+  };
 
   const aiTools = [
     {
@@ -148,7 +206,17 @@ export const TeacherDashboard: React.FC = () => {
       subtitle: 'AI-powered student insights',
       icon: 'analytics',
       color: '#7C3AED',
-      onPress: () => {}, // Will be implemented in progress analysis screen
+      onPress: () => {
+        Alert.alert(
+          '📊 Progress Analysis (beta)',
+          'We are building AI-powered class and student insights:\n\n• Trends and at-risk students\n• Lesson impact analysis\n• Actionable recommendations\n\nThis feature will roll out to Pro and Enterprise tiers.',
+          [
+            { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: AI Progress Analysis', `Please enable AI Progress Analysis for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
+            { text: 'See plans', onPress: () => router.push('/pricing') },
+            { text: 'Close', style: 'cancel' },
+          ]
+        );
+      },
     },
   ];
 
@@ -158,28 +226,28 @@ export const TeacherDashboard: React.FC = () => {
       title: 'Take Attendance',
       icon: 'checkmark-done',
       color: '#059669',
-      onPress: () => {}, // Will be implemented in attendance screen
+      onPress: () => { router.push('/screens/attendance'); },
     },
     {
       id: 'create-lesson',
       title: 'Create Lesson',
       icon: 'add-circle',
       color: '#4F46E5',
-      onPress: () => {}, // Will be implemented in lesson creation screen
+      onPress: () => { router.push('/screens/create-lesson'); },
     },
     {
       id: 'message-parents',
       title: 'Message Parents',
       icon: 'chatbubbles',
       color: '#7C3AED',
-      onPress: () => {}, // Will be implemented in messaging screen
+      onPress: () => { router.push('/screens/teacher-messages'); },
     },
     {
       id: 'view-reports',
       title: 'View Reports',
       icon: 'document-text',
       color: '#DC2626',
-      onPress: () => {}, // Will be implemented in reports screen
+      onPress: () => { router.push('/screens/teacher-reports'); },
     },
   ];
 
@@ -204,7 +272,24 @@ export const TeacherDashboard: React.FC = () => {
   );
 
   const renderClassCard = (classInfo: ClassInfo) => (
-    <TouchableOpacity key={classInfo.id} style={styles.classCard}>
+    <TouchableOpacity 
+      key={classInfo.id} 
+      style={styles.classCard}
+      onPress={() => {
+        Alert.alert(
+          'Class details',
+          'Class details and lesson planning are coming soon. In the meantime, choose an action:',
+          [
+            { text: 'Take Attendance', onPress: () => router.push('/screens/attendance') },
+            { text: 'Assign Homework', onPress: () => router.push('/screens/assign-homework') },
+            { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Class Management', `Please enable class creation/management for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
+            { text: 'Close', style: 'cancel' },
+          ]
+        );
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`Open options for ${classInfo.name}`}
+    >
       <View style={styles.classHeader}>
         <View>
           <Text style={styles.className}>{classInfo.name}</Text>
@@ -223,7 +308,23 @@ export const TeacherDashboard: React.FC = () => {
   );
 
   const renderAssignmentCard = (assignment: Assignment) => (
-    <TouchableOpacity key={assignment.id} style={styles.assignmentCard}>
+    <TouchableOpacity 
+      key={assignment.id} 
+      style={styles.assignmentCard}
+      onPress={() => {
+        Alert.alert(
+          'Assignment',
+          'Assignment details are coming soon. You can:',
+          [
+            { text: 'Grade Homework', onPress: () => router.push('/screens/ai-homework-grader-live') },
+            { text: 'View Reports', onPress: () => router.push('/screens/teacher-reports') },
+            { text: 'Close', style: 'cancel' },
+          ]
+        );
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`Open options for ${assignment.title}`}
+    >
       <View style={styles.assignmentHeader}>
         <Text style={styles.assignmentTitle}>{assignment.title}</Text>
         <View style={[styles.statusBadge, {
@@ -265,6 +366,8 @@ export const TeacherDashboard: React.FC = () => {
         style={[styles.aiToolCard, { backgroundColor: tool.color + '10', opacity: enabled ? 1 : 0.5 }]}
         onPress={tool.onPress}
         disabled={!enabled}
+        accessibilityRole="button"
+        accessibilityLabel={tool.title}
       >
         <View style={[styles.aiToolIcon, { backgroundColor: tool.color }]}>
           <Ionicons name={tool.icon as any} size={24} color="white" />
@@ -336,7 +439,7 @@ export const TeacherDashboard: React.FC = () => {
       <View style={styles.header}>
         <View style={styles.headerCard}>
           <View style={styles.headerContent}>
-            <View>
+            <View style={{ flex: 1 }}>
               <View style={styles.headerTitleRow}>
                 <Ionicons name="briefcase" size={20} color={Colors.light.tint} style={{ marginRight: 6 }} />
                 <Text style={styles.greeting}>
@@ -348,6 +451,12 @@ export const TeacherDashboard: React.FC = () => {
                 <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{t('dashboard.teacher')}</Text></View>
               </View>
             </View>
+            <TouchableOpacity
+              style={styles.headerMenuButton}
+              onPress={() => setShowOptionsMenu(true)}
+            >
+              <Ionicons name="ellipsis-vertical" size={24} color={Colors.light.tabIconDefault} />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -398,6 +507,36 @@ export const TeacherDashboard: React.FC = () => {
               })}
             </Text>
           </View>
+
+          {/* Admin Org Usage Summary */}
+          {user?.role === 'principal_admin' && orgLimits && (
+            <View style={styles.orgUsageRow}>
+              <Text style={styles.orgUsagePill}>Lessons: {orgLimits.used.lesson_generation}/{orgLimits.quotas.lesson_generation}</Text>
+              <Text style={styles.orgUsagePill}>Grading: {orgLimits.used.grading_assistance}/{orgLimits.quotas.grading_assistance}</Text>
+              <Text style={styles.orgUsagePill}>Helper: {orgLimits.used.homework_help}/{orgLimits.quotas.homework_help}</Text>
+              <TouchableOpacity onPress={() => router.push('/screens/admin-ai-allocation')}>
+                <Text style={styles.orgUsageLink}>Manage</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Occasional upgrade nudge */}
+          {!planAllowsAI && showUpgradeNudge && (
+            <View style={styles.upgradeNudge}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.upgradeNudgeText}>
+                  {t('dashboard.ai_upgrade_nudge', { defaultValue: 'Unlock AI tools with Pro or Enterprise.' })}
+                </Text>
+                <TouchableOpacity onPress={() => router.push('/pricing')}>
+                  <Text style={styles.upgradeNudgeLink}>{t('dashboard.see_plans', { defaultValue: 'See plans' })}</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity onPress={() => setShowUpgradeNudge(false)} accessibilityLabel="Dismiss upgrade message">
+                <Ionicons name="close" size={16} color={Colors.light.tabIconDefault} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.aiToolsContainer}>
             {aiTools.map(renderAIToolCard)}
           </View>
@@ -410,7 +549,17 @@ export const TeacherDashboard: React.FC = () => {
             {dashboardData?.myClasses && dashboardData.myClasses.length > 0 ? (
               dashboardData.myClasses.map(renderClassCard)
             ) : (
-              <EmptyClassesState onCreateClass={() => Alert.alert('Create Class', 'Class creation will be available soon!')} />
+              <EmptyClassesState onCreateClass={() => {
+                Alert.alert(
+                  'Class management',
+                  'We are building class creation and management. Until then, you can assign homework or take attendance from Quick Actions.',
+                  [
+                    { text: 'Assign Homework', onPress: () => router.push('/screens/assign-homework') },
+                    { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Class Management', `Please enable class creation/management for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
+                    { text: 'Close', style: 'cancel' },
+                  ]
+                );
+              }} />
             )}
           </View>
         </View>
@@ -452,7 +601,17 @@ export const TeacherDashboard: React.FC = () => {
                 </View>
               ))
             ) : (
-              <EmptyEventsState onCreateEvent={() => Alert.alert('Create Event', 'Event creation will be available soon!')} />
+              <EmptyEventsState onCreateEvent={() => {
+                Alert.alert(
+                  'Events',
+                  'Event creation and scheduling are coming soon. For now, you can message parents or share updates from Reports.',
+                  [
+                    { text: 'Message Parents', onPress: () => router.push('/screens/teacher-messages') },
+                    { text: 'Request feature', onPress: () => openRequestFeatureEmail('Feature Request: Events', `Please enable events creation/scheduling for my account.\n\nUser: ${user?.id || 'unknown'}\nRole: ${user?.role || 'unknown'}`) },
+                    { text: 'Close', style: 'cancel' },
+                  ]
+                );
+              }} />
             )}
           </View>
         </View>
@@ -460,6 +619,80 @@ export const TeacherDashboard: React.FC = () => {
         {/* Bottom Padding */}
         <View style={{ height: 100 }} />
       </ScrollView>
+      
+      {/* Options Menu Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showOptionsMenu}
+        onRequestClose={() => setShowOptionsMenu(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowOptionsMenu(false)}
+        >
+          <View style={styles.optionsMenuContent}>
+            <View style={styles.optionsMenuHeader}>
+              <Text style={styles.optionsMenuTitle}>Menu</Text>
+              <TouchableOpacity onPress={() => setShowOptionsMenu(false)}>
+                <Ionicons name="close" size={24} color={Colors.light.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/screens/account');
+              }}
+            >
+              <View style={styles.optionLeft}>
+                <Ionicons name="person-outline" size={24} color="#4F46E5" />
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>My Profile</Text>
+                  <Text style={styles.optionSubtitle}>Account settings, profile picture & biometrics</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.light.tabIconDefault} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/screens/teacher-reports');
+              }}
+            >
+              <View style={styles.optionLeft}>
+                <Ionicons name="analytics-outline" size={24} color="#059669" />
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>My Reports</Text>
+                  <Text style={styles.optionSubtitle}>View student progress & class analytics</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.light.tabIconDefault} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/screens/teacher-messages');
+              }}
+            >
+              <View style={styles.optionLeft}>
+                <Ionicons name="chatbubbles-outline" size={24} color="#7C3AED" />
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Messages</Text>
+                  <Text style={styles.optionSubtitle}>Communicate with parents & administration</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={Colors.light.tabIconDefault} />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
       
     </>
   );
@@ -612,6 +845,51 @@ const styles = StyleSheet.create({
   },
   aiToolsContainer: {
     gap: 12,
+  },
+  orgUsageRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  orgUsagePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'white',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    color: Colors.light.text,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  orgUsageLink: {
+    color: Colors.light.tint,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  upgradeNudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#E5E7EB',
+    backgroundColor: 'white',
+    marginBottom: 8,
+  },
+  upgradeNudgeText: {
+    color: Colors.light.text,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  upgradeNudgeLink: {
+    color: Colors.light.tint,
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 4,
   },
   aiToolCard: {
     flexDirection: 'row',
@@ -871,6 +1149,63 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Modal and Menu Styles
+  headerMenuButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(75, 85, 99, 0.1)',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  optionsMenuContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  optionsMenuHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  optionsMenuTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  optionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  optionText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  optionSubtitle: {
+    fontSize: 14,
+    color: Colors.light.tabIconDefault,
+    lineHeight: 20,
   },
 });
 

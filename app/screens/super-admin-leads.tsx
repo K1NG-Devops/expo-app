@@ -28,7 +28,9 @@ export default function SuperAdminLeadsScreen() {
       }
       const { data, error } = await q;
       if (!error) setLeads(data || []);
-    } catch {}
+    } catch (e) {
+      console.error('Failed to fetch leads:', e);
+    }
     finally { setLoading(false); }
   }, [filter]);
 
@@ -43,7 +45,9 @@ export default function SuperAdminLeadsScreen() {
         track('lead_status_changed', { id, status });
         setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
       }
-    } catch {}
+    } catch (e) {
+      console.error('Failed to update lead status:', e);
+    }
   };
 
   if (!canView) {

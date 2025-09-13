@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "expo-final",
-    "slug": "expo-final",
+    "name": "EduDashPro",
+    "slug": "edudashpro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "scheme": "exp-final",
+    "scheme": "edudashpro",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -14,14 +14,18 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "runtimeVersion": "1.0.0"
     },
     "plugins": [
       "expo-router",
@@ -40,8 +44,20 @@
     "experiments": {
       "typedRoutes": true
     },
+    "developmentClient": {
+      "silentLaunch": true
+    },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "57d5bed1-4674-4caa-a0ed-d0d14a21becb"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/57d5bed1-4674-4caa-a0ed-d0d14a21becb"
     }
   }
 }

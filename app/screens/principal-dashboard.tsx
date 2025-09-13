@@ -1,5 +1,6 @@
 import React from 'react';
-import { PrincipalDashboard } from '@/components/dashboard/PrincipalDashboard';
+import { EnhancedPrincipalDashboard } from '@/components/dashboard/EnhancedPrincipalDashboard';
+
 export default function PrincipalDashboardScreen() {
-  return <PrincipalDashboard />;
+  return <EnhancedPrincipalDashboard />;
 }

@@ -68,7 +68,7 @@ function configureSentryForAndroid() {
     enableAutoBreadcrumbTracking: true,
     
     // PII scrubbing
-    beforeSend: (event: any, hint: any) => {
+beforeSend: (event: any) => {
       if (!flags.production_db_dev_mode && process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true') {
         // In production, scrub PII from all event data
         event = scrubPII(event);
@@ -76,7 +76,7 @@ function configureSentryForAndroid() {
       return event;
     },
     
-    beforeBreadcrumb: (breadcrumb: any, hint: any) => {
+beforeBreadcrumb: (breadcrumb: any) => {
       // Scrub PII from breadcrumbs
       if (process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true') {
         breadcrumb = scrubPII(breadcrumb);
@@ -151,7 +151,7 @@ export function startMonitoring() {
           production_db_dev: flags.production_db_dev_mode,
           admob_test_ids: flags.admob_test_ids,
         });
-      } catch (nativeError) {
+      } catch {
         console.warn('Sentry Native context not available, using JS-only mode');
       }
       
@@ -202,7 +202,7 @@ export function reportError(error: Error, context?: Record<string, any>) {
           platform: Platform.OS,
         },
       });
-    } catch (nativeError) {
+    } catch {
       // Fallback to browser captureException if native is not available
       if (Sentry.Browser) {
         Sentry.Browser.captureException(error, {

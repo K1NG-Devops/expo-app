@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as Sentry from 'sentry-expo';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { getPostHog } from '@/lib/posthogClient';
 import { track } from '@/lib/analytics';
 import { routeAfterLogin } from '@/lib/routeAfterLogin';
@@ -170,7 +170,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Get current auth session
-        const { data } = await supabase!.auth.getSession();
+        const client = assertSupabase();
+        const { data } = await client.auth.getSession();
         if (mounted) {
           setSession(data.session ?? null);
           setUser(data.session?.user ?? null);
@@ -193,13 +194,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               ...(currentProfile?.organization_membership?.plan_tier ? { plan_tier: currentProfile.organization_membership.plan_tier } : {}),
             };
             ph?.identify(data.session.user.id, phProps);
-          } catch {}
+          } catch (e) {
+            console.debug('PostHog identify failed', e);
+          }
           try {
             Sentry.Native.setUser({ 
               id: data.session.user.id, 
               email: data.session.user.email || undefined 
             } as any);
-          } catch {}
+          } catch (e) {
+            console.debug('Sentry setUser failed', e);
+          }
         }
       } finally {
         if (mounted) {
@@ -208,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Subscribe to auth changes
-      const { data: listener } = supabase!.auth.onAuthStateChange(async (event, s) => {
+      const { data: listener } = assertSupabase().auth.onAuthStateChange(async (event, s) => {
         if (!mounted) return;
         
         setSession(s ?? null);
@@ -230,13 +235,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   ...(enhancedProfile?.organization_membership?.plan_tier ? { plan_tier: enhancedProfile.organization_membership.plan_tier } : {}),
                 };
                 ph?.identify(s.user.id, phProps);
-              } catch {}
+              } catch (e) {
+                console.debug('PostHog identify (auth change) failed', e);
+              }
               try {
                 Sentry.Native.setUser({ 
                   id: s.user.id, 
                   email: s.user.email || undefined 
                 } as any);
-              } catch {}
+              } catch (e) {
+                console.debug('Sentry setUser (auth change) failed', e);
+              }
 
               track('edudash.auth.signed_in', {
                 user_id: s.user.id,
@@ -256,8 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(null);
             setPermissions(createPermissionChecker(null));
             
-            try { await getPostHog()?.reset(); } catch {}
-            try { Sentry.Native.setUser(null as any); } catch {}
+            try { await getPostHog()?.reset(); } catch (e) { console.debug('PostHog reset failed', e); }
+            try { Sentry.Native.setUser(null as any); } catch (e) { console.debug('Sentry clear user failed', e); }
             
             track('edudash.auth.signed_out', {});
           }
@@ -270,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      try { unsub?.subscription?.unsubscribe(); } catch {}
+      try { unsub?.subscription?.unsubscribe(); } catch (e) { console.debug('Auth listener unsubscribe failed', e); }
     };
   }, []);
 

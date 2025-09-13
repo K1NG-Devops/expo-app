@@ -8,6 +8,7 @@
     "dashboard": "Kontrolepaneel",
     "profile": "Profiel",
     "settings": "Instellings",
+    "account": "Rekening",
     "logout": "Teken Uit",
     "back": "Terug",
     "next": "Volgende",
@@ -163,8 +164,26 @@
     "profile": "Profiel Instellings",
     "notifications": "Kennisgewings",
     "privacy": "Privaatheid",
-    "language": "Taal",
-    "theme": "Tema",
+    "language": {
+      "title": "Taal",
+      "comingSoon": "Binnekort Beskikbaar",
+      "soon": "Binnekort"
+    },
+    "theme": {
+      "title": "Tema",
+      "light": "Lig",
+      "dark": "Donker",
+      "system": "Stelsel",
+      "preview": "Tema Voorskou",
+      "primary": "Primêr",
+      "secondary": "Sekondêr",
+      "accent": "Aksent"
+    },
+    "preferences": {
+      "title": "Voorkeure",
+      "autoTheme": "Outomatiese Tema",
+      "autoThemeDesc": "Verander tema gebaseer op stelsel instellings"
+    },
     "about": "Oor",
     "support": "Ondersteuning",
     "termsOfService": "Diensbepalings",

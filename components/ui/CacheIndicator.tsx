@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
 
 interface CacheIndicatorProps {
   isLoadingFromCache?: boolean;
@@ -32,7 +31,6 @@ export const CacheIndicator: React.FC<CacheIndicatorProps> = ({
   onRefresh,
   compact = false,
 }) => {
-  const { t } = useTranslation();
   const opacity = React.useRef(new Animated.Value(1)).current;
 
   const formatTimeAgo = (date: Date): string => {

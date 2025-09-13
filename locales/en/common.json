@@ -8,6 +8,7 @@
     "dashboard": "Dashboard",
     "profile": "Profile",
     "settings": "Settings",
+    "account": "Account",
     "logout": "Sign Out",
     "back": "Back",
     "next": "Next",
@@ -16,7 +17,9 @@
     "edit": "Edit",
     "delete": "Delete",
     "add": "Add",
-    "search": "Search"
+    "search": "Search",
+    "retry": "Retry",
+    "close": "Close"
   },
   "auth": {
     "signIn": "Sign In",
@@ -44,6 +47,13 @@
     "superAdmin": "Super Admin"
   },
   "dashboard": {
+    "parentDashboard": "Parent Dashboard",
+    "accessDenied": "Access Denied",
+    "mobileAppAccessRequired": "Mobile app access is required to use this feature. Please contact your administrator.",
+    "parentRoleRequired": "Parent role is required to access this dashboard.",
+    "goToAccount": "Go to Account",
+    "noChildren": "No linked children yet",
+    "noChildrenDescription": "When your school links your account to a child, they will appear here.",
     "welcome": "Welcome back, {{name}}!",
     "quickActions": "Quick Actions",
     "recentActivity": "Recent Activity",
@@ -51,6 +61,8 @@
     "notifications": "Notifications",
     "noActivity": "No recent activity",
     "loading": "Loading dashboard...",
+    "connectionError": "Connection error. Please check your internet connection.",
+    "loadError": "Unable to load data. Please try again.",
     "error_title": "Unable to load dashboard",
     "retry_button": "Try Again",
     "good_morning": "Good morning",
@@ -70,7 +82,20 @@
     "no_school_assigned": "No School Assigned",
     "no_data_available": "No school data available",
     "principal": "Principal",
-    "teacher": "Teacher"
+    "teacher": "Teacher",
+    "school_insights": "School Insights",
+    "financial_management": "Financial Management",
+    "ai_analytics": "AI & Analytics",
+    "teaching_staff": "Teaching Staff",
+    "school_capacity": "School Capacity",
+    "students_enrolled": "Students Enrolled",
+    "budget_management": "Budget Management",
+    "petty_cash_system": "Petty Cash System",
+    "financial_reports": "Financial Reports",
+    "ai_co_principal": "AI Co-Principal",
+    "ai_content_creation": "AI Content Creation",
+    "advanced_analytics": "Advanced Analytics",
+    "announcements": "Announcements"
   },
   "metrics": {
     "total_students": "Total Students",
@@ -174,6 +199,36 @@
     "draft": "Draft",
     "published": "Published"
   },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile Settings",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "language": {
+      "title": "Language",
+      "comingSoon": "Coming Soon",
+      "soon": "Soon"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "preview": "Theme Preview",
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "accent": "Accent"
+    },
+    "preferences": {
+      "title": "Preferences",
+      "autoTheme": "Automatic Theme",
+      "autoThemeDesc": "Switch theme based on system settings"
+    },
+    "about": "About",
+    "support": "Support",
+    "termsOfService": "Terms of Service",
+    "privacyPolicy": "Privacy Policy"
+  },
   "students": {
     "title": "Students",
     "addStudent": "Add Student",
@@ -205,18 +260,6 @@
     "dateRange": "Date Range",
     "from": "From",
     "to": "To"
-  },
-  "settings": {
-    "title": "Settings",
-    "profile": "Profile Settings",
-    "notifications": "Notifications",
-    "privacy": "Privacy",
-    "language": "Language",
-    "theme": "Theme",
-    "about": "About",
-    "support": "Support",
-    "termsOfService": "Terms of Service",
-    "privacyPolicy": "Privacy Policy"
   },
   "notifications": {
     "title": "Notifications",

@@ -417,7 +417,7 @@ export class RealtimeSubscriptionService {
    * Unsubscribe from all active subscriptions
    */
   static unsubscribeAll(): void {
-    for (const [channelName, channel] of this.channels.entries()) {
+for (const [, channel] of this.channels.entries()) {
       assertSupabase().removeChannel(channel);
     }
 

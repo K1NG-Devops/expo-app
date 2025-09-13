@@ -8,6 +8,7 @@
     "dashboard": "Boto ya taolo",
     "profile": "Kemedi",
     "settings": "Dipeakanyo",
+    "account": "Akhaonte",
     "logout": "Etšwa",
     "back": "Morago",
     "next": "Latelago",
@@ -163,8 +164,26 @@
     "profile": "Dipeakanyo tša kemedi",
     "notifications": "Dikitsišo",
     "privacy": "Sephiri",
-    "language": "Polelo",
-    "theme": "Moko",
+    "language": {
+      "title": "Polelo",
+      "comingSoon": "E tla fihla",
+      "soon": "Hawe"
+    },
+    "theme": {
+      "title": "Moko",
+      "light": "Lesedi",
+      "dark": "Lefifi",
+      "system": "Tshepetšo",
+      "preview": "Ponelopele ya moko",
+      "primary": "Ya pele",
+      "secondary": "Ya bobedi",
+      "accent": "Mogato"
+    },
+    "preferences": {
+      "title": "Dikgetho",
+      "autoTheme": "Moko wa itiriši",
+      "autoThemeDesc": "Fetola moko go ya ka dipeakanyo tša tshepetšo"
+    },
     "about": "Ka ga",
     "support": "Thekgo",
     "termsOfService": "Dipeelano tša tirelo",

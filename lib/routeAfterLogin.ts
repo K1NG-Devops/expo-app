@@ -52,9 +52,11 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
         role = normalizeRole((udata as any).role ?? role);
         school = (udata as any).preschool_id ?? school;
       }
-    } catch {}
+    } catch (e) {
+      console.debug('Fallback #1 (users table) lookup failed', e);
+    }
   }
-
+  
   // Second fallback: legacy profiles table by id/user_id
   if (id && (!role || school === null)) {
     try {
@@ -67,7 +69,9 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
         role = normalizeRole((data as any).role ?? role);
         school = (data as any).preschool_id ?? school;
       }
-    } catch {}
+    } catch (e) {
+      console.debug('Fallback #2 (profiles table) lookup failed', e);
+    }
   }
   return { role, school };
 }

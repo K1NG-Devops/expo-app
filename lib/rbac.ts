@@ -16,6 +16,7 @@ import type { UserProfile } from './sessionManager';
 export const ROLES = {
   parent: { level: 1, name: 'parent', display: 'Parent' },
   teacher: { level: 2, name: 'teacher', display: 'Teacher' },
+  principal: { level: 3, name: 'principal', display: 'Principal' },
   principal_admin: { level: 3, name: 'principal_admin', display: 'Principal/Admin' },
   super_admin: { level: 4, name: 'super_admin', display: 'Super Admin' },
 } as const;
@@ -97,6 +98,22 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'grade_assignments',
     'view_class_analytics',
     'communicate_with_parents',
+  ],
+  principal: [
+    'view_dashboard',
+    'access_mobile_app',
+    'view_organization_settings',
+    'invite_members',
+    'manage_seats',
+    'view_school_metrics',
+    'manage_teachers',
+    'manage_students',
+    'manage_classes',
+    'access_principal_hub',
+    'generate_school_reports',
+    'create_assignments',
+    'grade_assignments',
+    'view_class_analytics',
   ],
   principal_admin: [
     'view_dashboard',
@@ -443,7 +460,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       try {
         const { data: { user } } = await assertSupabase().auth.getUser();
         if (user?.id) sessionUserId = user.id;
-      } catch {}
+      } catch (e) {
+        console.debug('auth.getUser() failed while fetching profile', e);
+      }
     }
 
     // Also try stored session if needed
@@ -452,7 +471,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       try {
         storedSession = await getCurrentSession();
         if (storedSession?.user_id) sessionUserId = storedSession.user_id;
-      } catch {}
+      } catch (e) {
+        console.debug('getCurrentSession() failed while fetching profile', e);
+      }
     }
 
     // If we have an authenticated identity and it mismatches, block
@@ -557,39 +578,122 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     console.log('Successfully fetched profile');
     
     // Process the real profile data
-    // Get organization membership if user has a preschool_id
-    let orgMember = null;
-    let org = null;
-    
-    if (profile.preschool_id) {
-      // Try to get organization membership
-      const { data: memberData, error: memberErr } = await assertSupabase()
-        .rpc('get_my_org_member', { p_org_id: profile.preschool_id as any })
-        .single();
-      
-      if (memberData) {
-        orgMember = memberData as any;
-        
-        // Get organization details from preschools table
-        const { data: orgData } = await assertSupabase()
-          .from('preschools')
-          .select('id, name')
-          .eq('id', profile.preschool_id)
-          .limit(1);
-          
-        if (orgData && orgData.length > 0) {
-          org = { ...orgData[0], plan_tier: 'free' };
+    // Resolve organization identifier (UUID id or tenant slug)
+    let orgMember = null as any;
+    let org: any = null;
+
+    const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+    // Consider multiple sources for organization identifier
+    const sessionMeta = (session?.user as any)?.user_metadata || {};
+    const orgIdentifierRaw: string | undefined =
+      (profile as any)?.preschool_id ||
+      (profile as any)?.organization_id ||
+      (profile as any)?.tenant_slug ||
+      sessionMeta.tenant_slug ||
+      sessionMeta.preschool_slug ||
+      sessionMeta.school_slug ||
+      (isUuid(String(sessionMeta.school_id || '')) ? undefined : sessionMeta.school_id);
+    let resolvedOrgId: string | null = null;
+
+    if (orgIdentifierRaw) {
+      try {
+        if (isUuid(orgIdentifierRaw)) {
+          // Try preschools by id first
+          const { data: presById } = await assertSupabase()
+            .from('preschools')
+            .select('id, name, plan_tier')
+            .eq('id', orgIdentifierRaw)
+            .maybeSingle();
+          if (presById) {
+            org = presById;
+            resolvedOrgId = presById.id;
+          } else {
+            // Try organizations by id
+            const { data: orgById } = await assertSupabase()
+              .from('organizations')
+              .select('id, name, plan_tier')
+              .eq('id', orgIdentifierRaw)
+              .maybeSingle();
+            if (orgById) {
+              // Standardize org object shape
+              org = { ...orgById };
+              resolvedOrgId = orgById.id;
+            }
+          }
+        } else {
+          // Treat as tenant slug
+          // Prefer preschools.tenant_slug
+          try {
+            const { data: presBySlug } = await assertSupabase()
+              .from('preschools')
+              .select('id, name, plan_tier')
+              .eq('tenant_slug', orgIdentifierRaw)
+              .maybeSingle();
+            if (presBySlug) {
+              org = presBySlug;
+              resolvedOrgId = presBySlug.id;
+            }
+          } catch (e) {
+            console.debug('preschools by tenant_slug lookup failed', e);
+          }
+
+          if (!resolvedOrgId) {
+            // Try organizations.tenant_slug
+            try {
+              const { data: orgBySlug } = await assertSupabase()
+                .from('organizations')
+                .select('id, name, plan_tier')
+                .eq('tenant_slug', orgIdentifierRaw)
+                .maybeSingle();
+              if (orgBySlug) {
+                org = { ...orgBySlug };
+                resolvedOrgId = orgBySlug.id;
+              }
+            } catch (e2) {
+              console.debug('organizations by tenant_slug lookup failed', e2);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Organization resolution failed:', e);
+      }
+    }
+
+    // If we have a resolved ID, attempt to get membership details
+    if (resolvedOrgId) {
+      try {
+        const { data: memberData } = await assertSupabase()
+          .rpc('get_my_org_member', { p_org_id: resolvedOrgId as any })
+          .single();
+        if (memberData) {
+          orgMember = memberData as any;
+        }
+      } catch (e) {
+        console.debug('get_my_org_member RPC failed', e);
+      }
+
+      // If org details not loaded yet (e.g., organizations table), try preschools by id to get name
+      if (!org) {
+        try {
+          const { data: orgData } = await assertSupabase()
+            .from('preschools')
+            .select('id, name, plan_tier')
+            .eq('id', resolvedOrgId)
+            .maybeSingle();
+          if (orgData) org = orgData;
+        } catch (e) {
+          console.debug('preschools by id lookup failed', e);
         }
       }
     }
-    
+
     // Get capabilities based on role
     const capabilities = await getUserCapabilities(
       profile.role,
       org?.plan_tier || 'free',
       orgMember?.seat_status
     );
-    
+
     // Create base profile from database data
     const baseProfile: UserProfile = {
       id: profile.id,
@@ -598,17 +702,17 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       first_name: profile.first_name,
       last_name: profile.last_name,
       avatar_url: profile.avatar_url,
-      organization_id: orgMember?.organization_id || profile.preschool_id,
+      organization_id: resolvedOrgId || orgMember?.organization_id || (profile as any)?.organization_id || (profile as any)?.preschool_id,
       organization_name: org?.name,
       seat_status: orgMember?.seat_status || 'active',
       capabilities,
       created_at: profile.created_at,
       last_login_at: profile.last_login_at,
     };
-    
+
     // Create enhanced profile
     const enhancedProfile = createEnhancedProfile(baseProfile, {
-      organization_id: orgMember?.organization_id || profile.preschool_id,
+      organization_id: baseProfile.organization_id,
       organization_name: org?.name,
       plan_tier: org?.plan_tier || 'free',
       seat_status: orgMember?.seat_status || 'active',
@@ -656,7 +760,9 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       try {
         storedSession = await getCurrentSession();
         if (storedSession?.user_id) sessionUserId = storedSession.user_id;
-      } catch {}
+      } catch (e) {
+        console.debug('getCurrentSession() failed in error fallback', e);
+      }
     }
 
     if (!sessionUserId || sessionUserId !== userId) {

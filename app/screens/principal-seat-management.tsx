@@ -1,10 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, RefreshControl, FlatList } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { getEffectiveLimits } from '@/lib/ai/limits';
+import { router } from 'expo-router';
 
 export default function PrincipalSeatManagementScreen() {
   const params = useLocalSearchParams<{ school?: string }>();
@@ -37,7 +39,9 @@ export default function PrincipalSeatManagementScreen() {
       const { data: seatsRows } = await supabase!.from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
       const seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
       setTeachers(teacherList.map(t => ({ ...t, hasSeat: seatSet.has(t.id) })));
-    } catch {}
+    } catch (e) {
+      console.debug('Failed to load teachers for seat management', e);
+    }
   }, [schoolId, subscriptionId]);
 
   useEffect(() => { loadTeachers(); }, [loadTeachers]);
@@ -67,6 +71,9 @@ export default function PrincipalSeatManagementScreen() {
     const ok = await revokeSeat(subscriptionId, userId);
     if (!ok) setError('Failed to revoke seat');
   };
+
+  const [canManageAI, setCanManageAI] = useState(false);
+  useEffect(() => { (async () => { try { const limits = await getEffectiveLimits(); setCanManageAI(!!limits.canOrgAllocate); } catch { /* noop */ } })(); }, []);
 
   return (
     <>
@@ -102,6 +109,12 @@ export default function PrincipalSeatManagementScreen() {
             <Text style={styles.btnDangerText}>Revoke seat</Text>
           </TouchableOpacity>
         </View>
+
+        {canManageAI && (
+          <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={() => router.push('/screens/admin-ai-allocation')}>
+            <Text style={styles.btnPrimaryText}>Manage AI Allocation</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.title, { marginTop: 12 }]}>Teachers</Text>
         {teachers.map((t) => (

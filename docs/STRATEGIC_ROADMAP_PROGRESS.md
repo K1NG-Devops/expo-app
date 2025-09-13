@@ -18,8 +18,8 @@ Verification:
 ## NEXT STRATEGIC PRIORITIES (TODO)
 - [x] A1. Security/Auth TS cleanup (AuthContext, RBAC, Security, SessionManager, Security-audit)
 - [x] A2. UI/Hook TS cleanup (Wireframes dashboards, MeetingRoom state, useDashboardData unions)
-- [ ] B1. AI Gateway MVP (Teacher-first): harden lesson generator, grading assist, homework helper via feature flags and safe server proxy
-- [ ] B2. Append progress after each milestone; run typecheck per rule
+- [x] B1. AI Gateway MVP (Teacher-first): harden lesson generator, grading assist, homework helper via feature flags and safe server proxy
+- [x] B2. Append progress after each milestone; run typecheck per rule
 - [ ] C1. Principal Hub MVP planning: requirements, API/data needs, and rollout gates
 
 ---
@@ -124,6 +124,23 @@ Next:
 - Begin C1 Principal Hub MVP planning PRD (requirements, data/APIs, rollout gates)
 
 ---
+
+## 2025-01-11 – Milestone: Pricing & Gating Refresh
+Scope:
+- Added new tiers and quotas: Parent Starter (R49), Parent Plus (R149), Private Teacher (R299), Pro (R599), Preschool Pro (Custom), Enterprise (Special)
+- Pricing page now supports Monthly/Annual toggle and WARP-style plan layout
+- Enforced quota gating per tier in client with server-aware overrides
+- Teacher Dashboard updated: org usage summary for admins, non-op quick actions now show alerts
+- Principal Dashboard: financial reports navigation wired; other actions safely stubbed
+
+Verification:
+- npm run typecheck → 0 errors
+- Pricing page shows plans in order from Free to Enterprise
+- AI screens gate based on updated quotas and show quota summaries
+
+Follow-ups:
+- Build comparison table as full responsive component (beyond summary list)
+- Finalize server functions for org limits and allocation
 
 ## 2025-01-11 – Dashboard Production-Readiness Assessment
 

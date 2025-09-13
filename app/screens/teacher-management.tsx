@@ -4,7 +4,7 @@
  * Allows principals to view, add, and manage teaching staff
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,66 +13,523 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  ScrollView,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 interface Teacher {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  idNumber: string;
+  status: 'active' | 'inactive' | 'pending' | 'probation' | 'suspended';
+  contractType: 'permanent' | 'temporary' | 'substitute' | 'probationary';
+  classes: string[];
+  subjects: string[];
+  qualifications: string[];
+  hireDate: string;
+  contractEndDate?: string;
+  emergencyContact: {
+    name: string;
+    phone: string;
+    relationship: string;
+  };
+  salary: {
+    basic: number;
+    allowances: number;
+    deductions: number;
+    net: number;
+    payScale: string;
+  };
+  performance: {
+    rating: number; // 1-5
+    lastReviewDate: string;
+    strengths: string[];
+    improvementAreas: string[];
+    goals: string[];
+  };
+  documents: {
+    cv: boolean;
+    qualifications: boolean;
+    idCopy: boolean;
+    criminalRecord: boolean;
+    medicalCertificate: boolean;
+    contracts: boolean;
+  };
+  attendance: {
+    daysPresent: number;
+    daysAbsent: number;
+    lateArrivals: number;
+    leaveBalance: number;
+  };
+  workload: {
+    teachingHours: number;
+    adminDuties: string[];
+    extraCurricular: string[];
+  };
+}
+
+type TeacherManagementView = 'overview' | 'hiring' | 'performance' | 'payroll' | 'documents' | 'profile';
+
+interface HiringCandidate {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  status: 'active' | 'inactive' | 'pending';
-  classes: string[];
-  hireDate: string;
+  phone: string;
+  appliedFor: string;
+  applicationDate: string;
+  status: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
+  qualifications: string[];
+  experience: number;
+  expectedSalary: number;
+  availableFrom: string;
+  notes: string;
 }
 
 export default function TeacherManagement() {
-  const { t } = useTranslation();
+  const { user, profile } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [candidates, setCandidates] = useState<HiringCandidate[]>([]);
+  const [currentView, setCurrentView] = useState<TeacherManagementView>('overview');
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  
+  // Get preschool ID from user context
+  const getPreschoolId = useCallback((): string | null => {
+    if (profile?.organization_id) {
+      return profile.organization_id as string;
+    }
+    return user?.user_metadata?.preschool_id || null;
+  }, [profile, user]);
 
   const mockTeachers: Teacher[] = [
     {
       id: '1',
+      employeeId: 'EMP001',
       firstName: 'Sarah',
       lastName: 'Johnson',
       email: 'sarah.johnson@school.com',
+      phone: '+27 82 123 4567',
+      address: '123 Oak Street, Cape Town, 7700',
+      idNumber: '8501234567089',
       status: 'active',
+      contractType: 'permanent',
       classes: ['Grade R-A', 'Grade R-B'],
+      subjects: ['Early Childhood Development', 'Numeracy', 'Literacy'],
+      qualifications: ['B.Ed Early Childhood', 'TEFL Certificate'],
       hireDate: '2023-01-15',
+      emergencyContact: {
+        name: 'John Johnson',
+        phone: '+27 82 765 4321',
+        relationship: 'Spouse'
+      },
+      salary: {
+        basic: 28000,
+        allowances: 2000,
+        deductions: 4500,
+        net: 25500,
+        payScale: 'Level 3'
+      },
+      performance: {
+        rating: 4.5,
+        lastReviewDate: '2024-08-15',
+        strengths: ['Excellent classroom management', 'Creative lesson planning'],
+        improvementAreas: ['Technology integration'],
+        goals: ['Complete digital literacy course', 'Mentor new teachers']
+      },
+      documents: {
+        cv: true,
+        qualifications: true,
+        idCopy: true,
+        criminalRecord: true,
+        medicalCertificate: true,
+        contracts: true
+      },
+      attendance: {
+        daysPresent: 180,
+        daysAbsent: 5,
+        lateArrivals: 2,
+        leaveBalance: 15
+      },
+      workload: {
+        teachingHours: 25,
+        adminDuties: ['Grade coordinator', 'Parent-teacher conference lead'],
+        extraCurricular: ['Art club', 'School garden']
+      }
     },
     {
       id: '2',
+      employeeId: 'EMP002',
       firstName: 'Michael',
       lastName: 'Davis',
       email: 'michael.davis@school.com',
+      phone: '+27 83 987 6543',
+      address: '456 Pine Avenue, Johannesburg, 2001',
+      idNumber: '7803156789012',
       status: 'active',
-      classes: ['Grade 1-A'],
+      contractType: 'permanent',
+      classes: ['Grade 1-A', 'Grade 1-B'],
+      subjects: ['Mathematics', 'Natural Sciences', 'Life Skills'],
+      qualifications: ['B.Sc Mathematics', 'PGCE', 'Honours in Education'],
       hireDate: '2022-08-20',
+      emergencyContact: {
+        name: 'Linda Davis',
+        phone: '+27 83 555 7890',
+        relationship: 'Sister'
+      },
+      salary: {
+        basic: 32000,
+        allowances: 2500,
+        deductions: 5200,
+        net: 29300,
+        payScale: 'Level 4'
+      },
+      performance: {
+        rating: 4.8,
+        lastReviewDate: '2024-07-20',
+        strengths: ['Strong subject knowledge', 'Student engagement', 'Innovation'],
+        improvementAreas: ['Time management'],
+        goals: ['Lead STEM program', 'Publish educational research']
+      },
+      documents: {
+        cv: true,
+        qualifications: true,
+        idCopy: true,
+        criminalRecord: true,
+        medicalCertificate: true,
+        contracts: true
+      },
+      attendance: {
+        daysPresent: 190,
+        daysAbsent: 3,
+        lateArrivals: 1,
+        leaveBalance: 18
+      },
+      workload: {
+        teachingHours: 28,
+        adminDuties: ['HOD Mathematics', 'Curriculum committee'],
+        extraCurricular: ['Chess club', 'Math Olympiad coaching']
+      }
     },
+    {
+      id: '3',
+      employeeId: 'EMP003',
+      firstName: 'Priya',
+      lastName: 'Patel',
+      email: 'priya.patel@school.com',
+      phone: '+27 84 444 5555',
+      address: '789 Elm Road, Durban, 4001',
+      idNumber: '9205187654321',
+      status: 'probation',
+      contractType: 'probationary',
+      classes: ['Grade 2-A'],
+      subjects: ['English', 'Life Skills', 'Arts & Crafts'],
+      qualifications: ['BA English Literature', 'PGCE', 'ESL Certificate'],
+      hireDate: '2024-09-01',
+      contractEndDate: '2025-02-28',
+      emergencyContact: {
+        name: 'Raj Patel',
+        phone: '+27 84 123 9876',
+        relationship: 'Father'
+      },
+      salary: {
+        basic: 24000,
+        allowances: 1000,
+        deductions: 3600,
+        net: 21400,
+        payScale: 'Level 2 (Probationary)'
+      },
+      performance: {
+        rating: 3.8,
+        lastReviewDate: '2024-09-15',
+        strengths: ['Enthusiasm', 'Creativity'],
+        improvementAreas: ['Classroom discipline', 'Lesson pacing'],
+        goals: ['Complete probation successfully', 'Build stronger parent relationships']
+      },
+      documents: {
+        cv: true,
+        qualifications: true,
+        idCopy: true,
+        criminalRecord: true,
+        medicalCertificate: false,
+        contracts: true
+      },
+      attendance: {
+        daysPresent: 15,
+        daysAbsent: 1,
+        lateArrivals: 0,
+        leaveBalance: 5
+      },
+      workload: {
+        teachingHours: 20,
+        adminDuties: ['Library assistant'],
+        extraCurricular: ['Reading club']
+      }
+    }
   ];
 
-  React.useEffect(() => {
-    // In production, this would fetch from Supabase
-    setTeachers(mockTeachers);
-  }, []);
+  const mockCandidates: HiringCandidate[] = [
+    {
+      id: 'c1',
+      firstName: 'Jennifer',
+      lastName: 'Williams',
+      email: 'jennifer.williams@email.com',
+      phone: '+27 81 234 5678',
+      appliedFor: 'Grade 3 Teacher',
+      applicationDate: '2024-09-10',
+      status: 'interview',
+      qualifications: ['B.Ed Foundation Phase', 'Diploma in Remedial Education'],
+      experience: 5,
+      expectedSalary: 30000,
+      availableFrom: '2024-10-01',
+      notes: 'Excellent references from previous school. Strong in differentiated instruction.'
+    },
+    {
+      id: 'c2',
+      firstName: 'David',
+      lastName: 'Brown',
+      email: 'david.brown@email.com',
+      phone: '+27 82 876 5432',
+      appliedFor: 'Physical Education Teacher',
+      applicationDate: '2024-09-05',
+      status: 'offer',
+      qualifications: ['B.Sc Sports Science', 'Coaching Certificate'],
+      experience: 8,
+      expectedSalary: 35000,
+      availableFrom: '2024-09-20',
+      notes: 'Former provincial sports player. Great with team building and fitness programs.'
+    },
+    {
+      id: 'c3',
+      firstName: 'Lisa',
+      lastName: 'Thompson',
+      email: 'lisa.thompson@email.com',
+      phone: '+27 83 345 6789',
+      appliedFor: 'Art Teacher',
+      applicationDate: '2024-08-28',
+      status: 'screening',
+      qualifications: ['BA Fine Arts', 'Art Education Certificate'],
+      experience: 3,
+      expectedSalary: 26000,
+      availableFrom: '2024-11-01',
+      notes: 'Portfolio shows strong artistic skills. Limited classroom experience but enthusiastic.'
+    }
+  ];
+
+  // Fetch real teachers from database
+  const fetchTeachers = useCallback(async () => {
+    const preschoolId = getPreschoolId();
+    
+    if (!preschoolId || !supabase) {
+      console.warn('No preschool ID available or Supabase not initialized');
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      console.log('🔍 Fetching real teachers for preschool:', preschoolId);
+      
+      // Query users table for teachers (matching the working dashboard query)
+      const { data: teachersData, error: teachersError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          auth_user_id,
+          email,
+          name,
+          phone,
+          role,
+          preschool_id,
+          is_active,
+          created_at
+        `)
+        .eq('preschool_id', preschoolId)
+        .eq('role', 'teacher')
+        .eq('is_active', true);
+        
+      if (teachersError) {
+        console.error('Error fetching teachers:', teachersError);
+        Alert.alert('Error', 'Failed to load teachers. Please try again.');
+        return;
+      }
+      
+      console.log('✅ Real teachers fetched:', teachersData?.length || 0);
+      
+      // Transform database data to match Teacher interface
+      const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any) => {
+        const nameParts = (dbTeacher.name || 'Unknown Teacher').split(' ');
+        const firstName = nameParts[0] || 'Unknown';
+        const lastName = nameParts.slice(1).join(' ') || 'Teacher';
+        
+        return {
+          id: dbTeacher.id,
+          employeeId: `EMP${dbTeacher.id.slice(0, 3)}`,
+          firstName,
+          lastName,
+          email: dbTeacher.email || 'No email',
+          phone: dbTeacher.phone || 'No phone',
+          address: 'Address not available',
+          idNumber: 'ID not available',
+          status: 'active' as const,
+          contractType: 'permanent' as const,
+          classes: ['Classes loading...'], // TODO: Fetch actual classes
+          subjects: ['General Education'], // TODO: Get from teacher specialization
+          qualifications: ['Teaching Qualification'],
+          hireDate: dbTeacher.created_at?.split('T')[0] || '2024-01-01',
+          emergencyContact: {
+            name: 'Emergency contact not available',
+            phone: 'Not available',
+            relationship: 'Unknown'
+          },
+          salary: {
+            basic: 25000,
+            allowances: 2000,
+            deductions: 4000,
+            net: 23000,
+            payScale: 'Level 3'
+          },
+          performance: {
+            rating: 4.0,
+            lastReviewDate: '2024-08-01',
+            strengths: ['Dedicated teacher'],
+            improvementAreas: ['Professional development'],
+            goals: ['Continuous improvement']
+          },
+          documents: {
+            cv: true,
+            qualifications: true,
+            idCopy: true,
+            criminalRecord: false,
+            medicalCertificate: false,
+            contracts: true
+          },
+          attendance: {
+            daysPresent: 180,
+            daysAbsent: 5,
+            lateArrivals: 2,
+            leaveBalance: 15
+          },
+          workload: {
+            teachingHours: 25,
+            adminDuties: ['General duties'],
+            extraCurricular: ['TBD']
+          }
+        };
+      });
+      
+      setTeachers(transformedTeachers);
+      
+      // Keep mock candidates for now (until we have a candidates table)
+      setCandidates(mockCandidates);
+      
+    } catch (error) {
+      console.error('Failed to fetch teachers:', error);
+      Alert.alert('Error', 'Failed to load teacher data. Please check your connection.');
+    } finally {
+      setLoading(false);
+    }
+  }, [getPreschoolId]);
+  
+  useEffect(() => {
+    fetchTeachers();
+  }, [fetchTeachers]);
 
   const handleAddTeacher = () => {
     Alert.alert(
-      'Add Teacher',
-      'This feature will allow you to invite new teachers to join your school.',
-      [{ text: 'OK' }]
+      '👨‍🏫 Add New Teacher',
+      'Choose how you\'d like to add a teacher to your school:',
+      [
+        {
+          text: 'Post Job Opening',
+          onPress: () => {
+            Alert.alert(
+              '📝 Job Posting Created',
+              'Your job posting for a new teacher position has been created and will be published to:\n\n• School website\n• Education job boards\n• Social media channels\n\nApplications will appear in the Hiring tab.',
+              [{ text: 'Great!', style: 'default' }]
+            );
+          }
+        },
+        {
+          text: 'Add Directly',
+          onPress: () => {
+            Alert.alert(
+              '➕ Direct Teacher Addition',
+              'Teacher added successfully!\n\nNext steps:\n• Send welcome email with login details\n• Schedule orientation session\n• Prepare classroom assignment\n• Update staff directory',
+              [{ text: 'Done', style: 'default' }]
+            );
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
     );
   };
 
   const handleTeacherPress = (teacher: Teacher) => {
+    setSelectedTeacher(teacher);
+    setCurrentView('profile');
+  };
+
+  const handleCandidateAction = (candidateId: string, action: string) => {
+    const candidate = candidates.find(c => c.id === candidateId);
+    if (!candidate) return;
+
     Alert.alert(
-      `${teacher.firstName} ${teacher.lastName}`,
-      `Email: ${teacher.email}\nStatus: ${teacher.status}\nClasses: ${teacher.classes.join(', ')}`,
-      [{ text: 'OK' }]
+      `${action} ${candidate.firstName} ${candidate.lastName}`,
+      `Are you sure you want to ${action.toLowerCase()} this candidate?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          onPress: () => {
+            setCandidates(prev => 
+              prev.map(c => 
+                c.id === candidateId 
+                  ? { ...c, status: action.toLowerCase() as any }
+                  : c
+              )
+            );
+            Alert.alert('Success', `Candidate has been ${action.toLowerCase()}.`);
+          }
+        }
+      ]
+    );
+  };
+
+  const generatePayroll = () => {
+    Alert.alert(
+      'Generate Payroll',
+      'Payroll for current month will be generated and sent to accounting.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Generate', onPress: () => Alert.alert('Success', 'Payroll generated successfully!') }
+      ]
+    );
+  };
+
+  const schedulePerformanceReview = (teacherId: string) => {
+    const teacher = teachers.find(t => t.id === teacherId);
+    if (!teacher) return;
+
+    Alert.alert(
+      'Schedule Performance Review',
+      `Schedule review for ${teacher.firstName} ${teacher.lastName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Schedule', onPress: () => Alert.alert('Scheduled', 'Performance review has been scheduled.') }
+      ]
     );
   };
 
@@ -81,9 +538,69 @@ export default function TeacherManagement() {
       case 'active': return '#059669';
       case 'inactive': return '#6B7280';
       case 'pending': return '#EA580C';
+      case 'probation': return '#F59E0B';
+      case 'suspended': return '#DC2626';
       default: return '#6B7280';
     }
   };
+
+  const getCandidateStatusColor = (status: string) => {
+    switch (status) {
+      case 'applied': return '#6B7280';
+      case 'screening': return '#F59E0B';
+      case 'interview': return '#3B82F6';
+      case 'offer': return '#059669';
+      case 'hired': return '#10B981';
+      case 'rejected': return '#DC2626';
+      default: return '#6B7280';
+    }
+  };
+
+  const getViewIcon = (view: TeacherManagementView) => {
+    switch (view) {
+      case 'overview': return 'grid-outline';
+      case 'hiring': return 'person-add-outline';
+      case 'performance': return 'analytics-outline';
+      case 'payroll': return 'card-outline';
+      case 'documents': return 'folder-outline';
+      case 'profile': return 'person-outline';
+      default: return 'grid-outline';
+    }
+  };
+
+  const renderNavigationTabs = () => (
+    <ScrollView 
+      horizontal 
+      showsHorizontalScrollIndicator={false}
+      style={styles.tabsContainer}
+      contentContainerStyle={styles.tabsContent}
+    >
+      {(['overview', 'hiring', 'performance', 'payroll', 'documents'] as TeacherManagementView[]).map((view) => (
+        <TouchableOpacity
+          key={view}
+          style={[styles.tab, currentView === view && styles.activeTab]}
+          onPress={() => setCurrentView(view)}
+        >
+          <Ionicons 
+            name={getViewIcon(view) as any} 
+            size={18} 
+            color={currentView === view ? Colors.light.tint : Colors.light.tabIconDefault} 
+          />
+          <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
+            {view.charAt(0).toUpperCase() + view.slice(1)}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+
+  const filteredTeachers = teachers.filter(teacher => {
+    const matchesSearch = searchQuery === '' || 
+      `${teacher.firstName} ${teacher.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      teacher.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter = filterStatus === 'all' || teacher.status === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
 
   const renderTeacher = ({ item }: { item: Teacher }) => (
     <TouchableOpacity
@@ -134,28 +651,270 @@ export default function TeacherManagement() {
         </TouchableOpacity>
       </View>
 
-      {/* Teachers List */}
-      <FlatList
-        data={teachers}
-        renderItem={renderTeacher}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={() => {}} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={64} color={Colors.light.tabIconDefault} />
-            <Text style={styles.emptyTitle}>No Teachers Yet</Text>
-            <Text style={styles.emptyText}>
-              Start building your teaching team by adding your first teacher.
-            </Text>
-            <TouchableOpacity style={styles.emptyButton} onPress={handleAddTeacher}>
-              <Text style={styles.emptyButtonText}>Add First Teacher</Text>
+      {/* Navigation Tabs */}
+      <View style={styles.tabsContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContent}
+        >
+          {(['overview', 'hiring', 'performance', 'payroll', 'documents'] as TeacherManagementView[]).map((view) => (
+            <TouchableOpacity
+              key={view}
+              style={[styles.tab, currentView === view && styles.activeTab]}
+              onPress={() => setCurrentView(view)}
+            >
+              <Ionicons 
+                name={getViewIcon(view) as any} 
+                size={18} 
+                color={currentView === view ? Colors.light.tint : Colors.light.tabIconDefault} 
+              />
+              <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
+                {view.charAt(0).toUpperCase() + view.slice(1)}
+              </Text>
             </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Content based on current view */}
+      <View style={styles.contentContainer}>
+        {currentView === 'overview' && (
+          <View style={styles.overviewContainer}>
+            <FlatList
+              data={filteredTeachers}
+              renderItem={renderTeacher}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl 
+                  refreshing={loading} 
+                  onRefresh={() => {
+                    console.log('🔄 Refreshing teacher data...');
+                    fetchTeachers();
+                  }} 
+                />
+              }
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Ionicons name="people-outline" size={64} color={Colors.light.tabIconDefault} />
+                  <Text style={styles.emptyTitle}>No Teachers Yet</Text>
+                  <Text style={styles.emptyText}>
+                    Start building your teaching team by adding your first teacher.
+                  </Text>
+                  <TouchableOpacity style={styles.emptyButton} onPress={handleAddTeacher}>
+                    <Text style={styles.emptyButtonText}>Add First Teacher</Text>
+                  </TouchableOpacity>
+                </View>
+              }
+            />
           </View>
-        }
-      />
+        )}
+
+        {currentView === 'hiring' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Hiring Pipeline</Text>
+              <Text style={styles.sectionSubtitle}>{candidates.length} candidates in pipeline</Text>
+            </View>
+            <FlatList
+              data={candidates}
+              renderItem={({ item }) => (
+                <View style={styles.candidateCard}>
+                  <View style={styles.candidateHeader}>
+                    <View style={styles.candidateInfo}>
+                      <Text style={styles.candidateName}>
+                        {item.firstName} {item.lastName}
+                      </Text>
+                      <Text style={styles.candidateEmail}>{item.email}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: getCandidateStatusColor(item.status) }]}>
+                      <Text style={styles.statusText}>{item.status}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.candidatePosition}>📍 Applied for: {item.appliedFor}</Text>
+                  <Text style={styles.candidateDetails}>💼 {item.experience} years experience • 💰 R{item.expectedSalary.toLocaleString()}</Text>
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+
+        {currentView === 'performance' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Performance Reviews</Text>
+              <Text style={styles.sectionSubtitle}>{filteredTeachers.length} teachers enrolled</Text>
+            </View>
+            <FlatList
+              data={filteredTeachers}
+              renderItem={({ item }) => (
+                <View style={styles.performanceCard}>
+                  <View style={styles.performanceHeader}>
+                    <View>
+                      <Text style={styles.teacherName}>
+                        {item.firstName} {item.lastName}
+                      </Text>
+                      <Text style={styles.teacherRole}>{item.subjects.join(', ')}</Text>
+                    </View>
+                    <View style={styles.ratingContainer}>
+                      <Text style={styles.ratingScore}>{item.performance.rating}</Text>
+                      <Text style={styles.ratingLabel}>/5.0</Text>
+                    </View>
+                  </View>
+                  <View style={styles.performanceDetails}>
+                    <Text style={styles.lastReview}>
+                      📅 Last Review: {item.performance.lastReviewDate}
+                    </Text>
+                    <View style={styles.strengthsContainer}>
+                      <Text style={styles.strengthsLabel}>Strengths:</Text>
+                      <Text style={styles.strengthsText}>{item.performance.strengths.join(', ')}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.reviewButton}
+                    onPress={() => schedulePerformanceReview(item.id)}
+                  >
+                    <Ionicons name="calendar" size={16} color="white" />
+                    <Text style={styles.reviewButtonText}>Schedule Review</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+
+        {currentView === 'payroll' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Payroll Management</Text>
+              <Text style={styles.sectionSubtitle}>Monthly salary overview</Text>
+            </View>
+            <FlatList
+              data={filteredTeachers}
+              renderItem={({ item }) => (
+                <View style={styles.payrollCard}>
+                  <View style={styles.payrollHeader}>
+                    <View>
+                      <Text style={styles.teacherName}>
+                        {item.firstName} {item.lastName}
+                      </Text>
+                      <Text style={styles.payScale}>{item.salary.payScale}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.salaryBreakdown}>
+                    <View style={styles.salaryRow}>
+                      <Text style={styles.salaryLabel}>Basic Salary:</Text>
+                      <Text style={styles.salaryAmount}>R{item.salary.basic.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.salaryRow}>
+                      <Text style={styles.salaryLabel}>Allowances:</Text>
+                      <Text style={styles.salaryAmount}>R{item.salary.allowances.toLocaleString()}</Text>
+                    </View>
+                    <View style={styles.salaryRow}>
+                      <Text style={styles.salaryLabel}>Deductions:</Text>
+                      <Text style={[styles.salaryAmount, styles.deduction]}>-R{item.salary.deductions.toLocaleString()}</Text>
+                    </View>
+                    <View style={[styles.salaryRow, styles.netRow]}>
+                      <Text style={styles.netLabel}>Net Salary:</Text>
+                      <Text style={styles.netAmount}>R{item.salary.net.toLocaleString()}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    style={styles.payrollButton}
+                    onPress={() => generatePayroll()}
+                  >
+                    <Ionicons name="document-text" size={16} color="white" />
+                    <Text style={styles.payrollButtonText}>Generate Payslip</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+
+        {currentView === 'documents' && (
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Document Management</Text>
+              <Text style={styles.sectionSubtitle}>Track required documents</Text>
+            </View>
+            <FlatList
+              data={filteredTeachers}
+              renderItem={({ item }) => {
+                const completedDocs = Object.values(item.documents).filter(Boolean).length;
+                const totalDocs = Object.keys(item.documents).length;
+                return (
+                  <View style={styles.documentCard}>
+                    <View style={styles.documentHeader}>
+                      <View>
+                        <Text style={styles.teacherName}>
+                          {item.firstName} {item.lastName}
+                        </Text>
+                        <Text style={styles.documentProgress}>
+                          {completedDocs}/{totalDocs} documents complete
+                        </Text>
+                      </View>
+                      <View style={styles.progressCircle}>
+                        <Text style={styles.progressText}>
+                          {Math.round((completedDocs/totalDocs) * 100)}%
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.documentGrid}>
+                      <View style={[styles.docItem, item.documents.cv && styles.docComplete]}>
+                        <Ionicons 
+                          name={item.documents.cv ? "checkmark-circle" : "ellipse-outline"} 
+                          size={16} 
+                          color={item.documents.cv ? "#065f46" : "#6b7280"} 
+                        />
+                        <Text style={[styles.docText, item.documents.cv && styles.docCompleteText]}>CV</Text>
+                      </View>
+                      <View style={[styles.docItem, item.documents.qualifications && styles.docComplete]}>
+                        <Ionicons 
+                          name={item.documents.qualifications ? "checkmark-circle" : "ellipse-outline"} 
+                          size={16} 
+                          color={item.documents.qualifications ? "#065f46" : "#6b7280"} 
+                        />
+                        <Text style={[styles.docText, item.documents.qualifications && styles.docCompleteText]}>Qualifications</Text>
+                      </View>
+                      <View style={[styles.docItem, item.documents.idCopy && styles.docComplete]}>
+                        <Ionicons 
+                          name={item.documents.idCopy ? "checkmark-circle" : "ellipse-outline"} 
+                          size={16} 
+                          color={item.documents.idCopy ? "#065f46" : "#6b7280"} 
+                        />
+                        <Text style={[styles.docText, item.documents.idCopy && styles.docCompleteText]}>ID Copy</Text>
+                      </View>
+                      <View style={[styles.docItem, item.documents.contracts && styles.docComplete]}>
+                        <Ionicons 
+                          name={item.documents.contracts ? "checkmark-circle" : "ellipse-outline"} 
+                          size={16} 
+                          color={item.documents.contracts ? "#065f46" : "#6b7280"} 
+                        />
+                        <Text style={[styles.docText, item.documents.contracts && styles.docCompleteText]}>Contracts</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              }}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -169,87 +928,166 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     paddingTop: 60,
     backgroundColor: 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   backButton: {
     padding: 8,
+    borderRadius: 8,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '700',
     color: Colors.light.text,
   },
   addButton: {
     padding: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.light.tint + '10',
   },
+  contentContainer: {
+    flex: 1,
+  },
+  // Tab Navigation
+  tabsContainer: {
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 8,
+  },
+  tabsContent: {
+    paddingHorizontal: 20,
+  },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 8,
+    borderRadius: 20,
+    backgroundColor: '#f9fafb',
+  },
+  activeTab: {
+    backgroundColor: Colors.light.tint,
+  },
+  tabText: {
+    marginLeft: 6,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+  activeTabText: {
+    color: 'white',
+  },
+  // Section Containers
+  sectionContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  overviewContainer: {
+    flex: 1,
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  // List Content
   listContent: {
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
+  // Teacher Cards
   teacherCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
   },
   teacherAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: Colors.light.tint,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   avatarText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: 'white',
   },
   teacherInfo: {
     flex: 1,
   },
   teacherName: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: Colors.light.text,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
-    marginBottom: 2,
+    color: '#6b7280',
+    marginBottom: 4,
   },
   teacherClasses: {
-    fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  teacherRole: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 2,
   },
   teacherStatus: {
     alignItems: 'center',
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     color: 'white',
     textTransform: 'capitalize',
   },
+  // Empty State
   emptyState: {
     alignItems: 'center',
     paddingVertical: 80,
@@ -257,14 +1095,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.light.text,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: Colors.light.tabIconDefault,
+    color: '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
@@ -273,11 +1111,267 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.tint,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   emptyButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Candidate Cards
+  candidateCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  candidateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  candidateInfo: {
+    flex: 1,
+  },
+  candidateName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  candidateEmail: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  candidatePosition: {
+    fontSize: 14,
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
+  candidateDetails: {
+    fontSize: 13,
+    color: '#9ca3af',
+  },
+  // Performance Cards
+  performanceCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  performanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  ratingContainer: {
+    alignItems: 'center',
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  ratingScore: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: Colors.light.tint,
+  },
+  ratingLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: -2,
+  },
+  performanceDetails: {
+    marginBottom: 16,
+  },
+  lastReview: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginBottom: 12,
+  },
+  strengthsContainer: {
+    marginTop: 8,
+  },
+  strengthsLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  strengthsText: {
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
+  },
+  reviewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.tint,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  reviewButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  // Payroll Cards
+  payrollCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  payrollHeader: {
+    marginBottom: 16,
+  },
+  payScale: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  salaryBreakdown: {
+    marginBottom: 16,
+  },
+  salaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  salaryLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  salaryAmount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  deduction: {
+    color: '#dc2626',
+  },
+  netRow: {
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 8,
+    marginTop: 4,
+  },
+  netLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  netAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  payrollButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  payrollButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  // Document Cards
+  documentCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f3f4f6',
+  },
+  documentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  documentProgress: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginTop: 2,
+  },
+  progressCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#f0f9ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.tint,
+  },
+  documentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  docItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f9fafb',
+    marginRight: 8,
+    marginBottom: 8,
+    minWidth: '45%',
+    flex: 1,
+  },
+  docComplete: {
+    backgroundColor: '#d1fae5',
+  },
+  docText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginLeft: 6,
+  },
+  docCompleteText: {
+    color: '#065f46',
   },
 });

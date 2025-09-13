@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Colors } from '@/constants/DesignSystem'
 import { IconSymbol } from '@/components/ui/IconSymbol'
 import { useQuery } from '@tanstack/react-query'
 import { assertSupabase } from '@/lib/supabase'

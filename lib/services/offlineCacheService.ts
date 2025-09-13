@@ -36,6 +36,7 @@ const CACHE_EXPIRY = {
   ACTIVITY_FEED: 2 * 60 * 1000, // 2 minutes
   STATIC_DATA: 60 * 60 * 1000, // 1 hour
 } as const;
+void CACHE_EXPIRY;
 
 interface CacheItem<T> {
   data: T;
@@ -65,8 +66,7 @@ class OfflineCacheService {
     identifier: string,
     data: T,
     userId: string,
-    schoolId?: string,
-    customExpiry?: number
+    schoolId?: string
   ): Promise<void> {
     try {
       const fullKey = `${keyPrefix}${identifier}`;
@@ -313,8 +313,7 @@ class OfflineCacheService {
       `${schoolId}_${userId}`,
       data,
       userId,
-      schoolId,
-      CACHE_EXPIRY.DASHBOARD_DATA
+      schoolId
     );
   }
 
@@ -343,8 +342,7 @@ class OfflineCacheService {
       `${schoolId}_${userId}`,
       data,
       userId,
-      schoolId,
-      CACHE_EXPIRY.DASHBOARD_DATA
+      schoolId
     );
   }
 
@@ -372,8 +370,7 @@ class OfflineCacheService {
       userId,
       data,
       userId,
-      undefined,
-      CACHE_EXPIRY.DASHBOARD_DATA
+      undefined
     );
   }
 
@@ -401,8 +398,7 @@ class OfflineCacheService {
       identifier,
       activities,
       userId,
-      schoolId,
-      CACHE_EXPIRY.ACTIVITY_FEED
+      schoolId
     );
   }
 

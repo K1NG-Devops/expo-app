@@ -17,14 +17,15 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { DesignSystem, getRoleColors } from '@/constants/DesignSystem';
+import { DesignSystem } from '@/constants/DesignSystem';
 import { Avatar } from '@/components/ui/Avatar';
 import AdBanner from '@/components/ui/AdBanner';
-import { featuresContent, testimonialsContent } from '@/constants/marketing';
+import { featuresContent } from '@/constants/marketing';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeRole } from '@/lib/rbac';
 
 const { width, height } = Dimensions.get('window');
 const isSmall = width < 400;
-const isMedium = width < 600;
 
 interface HoloStatCardProps {
   icon: string;
@@ -42,10 +43,7 @@ interface TestimonialsSectionProps {
   setActiveTestimonial: (index: number | ((prev: number) => number)) => void;
 }
 
-interface QASectionProps {
-  showQA: boolean;
-  setShowQA: (show: boolean) => void;
-}
+interface QASectionProps {}
 
 interface FeatureModalProps {
   selectedFeature: any;
@@ -53,9 +51,7 @@ interface FeatureModalProps {
 }
 
 export default function Landing() {
-  const scrollY = useRef(new Animated.Value(0)).current;
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
-  const [showQA, setShowQA] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -74,9 +70,10 @@ export default function Landing() {
         if (data.session) {
           router.replace('/profiles-gate');
         }
-      } catch {}
+      } catch { /* noop */ }
     })();
   }, []);
+
 
   return (
     <View style={styles.container}>
@@ -92,7 +89,7 @@ export default function Landing() {
           <HeroSection />
           <FeaturesSection setSelectedFeature={setSelectedFeature} />
           <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} />
-          <QASection showQA={showQA} setShowQA={setShowQA} />
+          <QASection />
           <AdBanner />
           <FooterSection />
         </ScrollView>
@@ -105,6 +102,9 @@ export default function Landing() {
 
 const HeroSection = () => {
   const floatingY = useRef(new Animated.Value(0)).current;
+
+  const { profile } = useAuth();
+  const roleNorm = normalizeRole(String(profile?.role || ''));
 
   useEffect(() => {
     Animated.loop(
@@ -174,9 +174,14 @@ const HeroSection = () => {
                 </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.tertiaryCTA} onPress={() => router.push('/sales/contact?plan=enterprise')}>
+              <TouchableOpacity
+                style={styles.tertiaryCTA}
+onPress={() => {
+                  router.push('/pricing' as any);
+                }}
+              >
                 <LinearGradient colors={['rgba(255,128,0,0.12)', 'rgba(255,0,128,0.08)']} style={styles.tertiaryGradient}>
-                  <Text style={styles.tertiaryCtaText}>Contact Sales</Text>
+                  <Text style={styles.tertiaryCtaText}>{(roleNorm === 'principal_admin' || roleNorm === 'super_admin') ? 'Contact Sales' : 'See Pricing'}</Text>
                   <IconSymbol name="arrow.right" size={16} color="#ff8000" />
                 </LinearGradient>
               </TouchableOpacity>
@@ -274,7 +279,7 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
   );
 };
 
-const QASection: React.FC<QASectionProps> = ({ showQA, setShowQA }) => {
+const QASection: React.FC<QASectionProps> = () => {
   const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
   const qaData = [
     { question: 'How does the Quantum AI Brain work?', answer: 'Server-side AI with strict privacy and compliance.' },

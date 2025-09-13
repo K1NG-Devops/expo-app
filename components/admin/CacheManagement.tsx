@@ -23,7 +23,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 
@@ -44,7 +43,6 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
   onClose,
   schoolId
 }) => {
-  const { t } = useTranslation();
   const { user } = useAuth();
   const [stats, setStats] = useState<CacheStats | null>(null);
   const [loading, setLoading] = useState(true);

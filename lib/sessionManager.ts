@@ -17,7 +17,7 @@ export interface UserSession {
 export interface UserProfile {
   id: string;
   email: string;
-  role: 'super_admin' | 'principal_admin' | 'teacher' | 'parent';
+  role: 'super_admin' | 'principal_admin' | 'principal' | 'teacher' | 'parent';
   organization_id?: string;
   organization_name?: string;
   first_name?: string;
@@ -177,6 +177,14 @@ async function getUserCapabilities(role: string, planTier?: string): Promise<str
       'access_admin_tools',
     ],
     principal_admin: [
+      'access_mobile_app',
+      'view_school_metrics',
+      'manage_teachers',
+      'manage_students',
+      'access_principal_hub',
+      'generate_reports',
+    ],
+    principal: [
       'access_mobile_app',
       'view_school_metrics',
       'manage_teachers',

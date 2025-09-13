@@ -5,7 +5,10 @@ import { assertSupabase } from '@/lib/supabase'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
 import { Colors } from '@/constants/Colors'
-import { getCombinedUsage, incrementUsage } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
+import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
+import { router } from 'expo-router'
 
 export default function AIHomeworkHelperScreen() {
   const [question, setQuestion] = useState('Explain how to solve long division: 156 ÷ 12 step by step for a Grade 4 learner.')
@@ -13,13 +16,23 @@ export default function AIHomeworkHelperScreen() {
   const [loading, setLoading] = useState(false)
   const [answer, setAnswer] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [models, setModels] = useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
+  const [selectedModel, setSelectedModel] = useState<string>('')
 
   const flags = getFeatureFlagsSync()
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
   const aiHelperEnabled = AI_ENABLED && flags.ai_homework_help !== false
 
   useEffect(() => {
-    (async () => setUsage(await getCombinedUsage()))()
+    (async () => {
+      setUsage(await getCombinedUsage())
+      try {
+        const limits = await getEffectiveLimits()
+        setModels(limits.modelOptions || [])
+        const stored = await getPreferredModel('homework_help')
+        setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
+      } catch { /* noop */ void 0; }
+    })()
   }, [])
 
   const onAskAI = async () => {
@@ -32,6 +45,21 @@ export default function AIHomeworkHelperScreen() {
       return
     }
 
+    // Enforce quota before making a request
+    const gate = await canUseFeature('homework_help', 1)
+    if (!gate.allowed) {
+      const status = await getQuotaStatus('homework_help')
+      Alert.alert(
+        'Monthly limit reached',
+        `You have used ${status.used} of ${status.limit} homework help sessions this month. ${gate.requiresPrepay ? 'Please upgrade or purchase more to continue.' : ''}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'See plans', onPress: () => router.push('/pricing') },
+        ]
+      )
+      return
+    }
+
     try {
       setLoading(true)
       setAnswer('')
@@ -40,6 +68,7 @@ export default function AIHomeworkHelperScreen() {
       const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
         body: {
           feature: 'homework_help',
+          model: selectedModel,
           prompt: question,
           subject,
           locale: 'en-ZA',
@@ -55,6 +84,7 @@ export default function AIHomeworkHelperScreen() {
       const content = (data && (data.content || data.answer || data.explanation)) || 'No response.'
       setAnswer(typeof content === 'string' ? content : JSON.stringify(content, null, 2))
       await incrementUsage('homework_help', 1)
+      try { await logUsageEvent({ feature: 'homework_help', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
       setUsage(await getCombinedUsage())
       track('edudash.ai.helper.completed', { subject })
     } catch (e: any) {
@@ -82,6 +112,22 @@ export default function AIHomeworkHelperScreen() {
         )}
 
         <View style={styles.card}>
+          {/* Model selector */}
+          {models.length > 0 && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={styles.label}>Model</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {models.map(m => (
+              <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'homework_help') } catch { /* noop */ void 0; } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? Colors.light.text : '#E5E7EB', backgroundColor: selectedModel === m.id ? Colors.light.text : 'transparent' }}>
+                    <Text style={{ color: selectedModel === m.id ? '#fff' : Colors.light.text }}>
+                      {`${m.name} · x${m.relativeCost} · ${m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'}${(m as any).notes ? ` · ${(m as any).notes}` : ''}`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           <Text style={styles.label}>Subject</Text>
           <TextInput
             style={styles.input}
@@ -109,6 +155,7 @@ export default function AIHomeworkHelperScreen() {
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Response</Text>
           <Text style={styles.usage}>Monthly usage (local/server): Helper {usage.homework_help}</Text>
+          <QuotaSummary feature="homework_help" />
           {answer ? (
             <Text style={styles.answer} selectable>{answer}</Text>
           ) : (
@@ -118,6 +165,24 @@ export default function AIHomeworkHelperScreen() {
       </ScrollView>
     </SafeAreaView>
   )
+}
+
+function QuotaSummary({ feature }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help' }) {
+  const [text, setText] = React.useState<string>('')
+  React.useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const status = await getQuotaStatus(feature)
+        if (mounted) setText(`Quota: ${status.used}/${status.limit} used, ${status.remaining} remaining`)
+      } catch {
+        if (mounted) setText('Quota: unavailable')
+      }
+    })()
+    return () => { mounted = false }
+  }, [feature])
+  if (!text) return null
+  return <Text style={{ color: Colors.light.tabIconDefault, marginBottom: 8 }}>{text}</Text>
 }
 
 const styles = StyleSheet.create({

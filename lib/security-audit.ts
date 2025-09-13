@@ -306,7 +306,8 @@ export const SecurityUtils = {
     try {
       const { data: { session } } = await assertSupabase().auth.getSession();
       return !!(session?.user?.id === userId);
-    } catch {
+    } catch (e) {
+      console.debug('validateSession failed', e);
       return false;
     }
   },
@@ -315,6 +316,7 @@ export const SecurityUtils = {
    * Check for concurrent sessions (potential account compromise)
    */
   async checkConcurrentSessions(userId: string): Promise<boolean> {
+    void userId;
     // This would require session tracking in database
     // For now, return false (no concurrent sessions detected)
     return false;

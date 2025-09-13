@@ -1,24 +1,54 @@
-import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Platform, View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { Platform, View, ActivityIndicator, Text, StyleSheet, AppState, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { startMonitoring } from '@/lib/monitoring';
 import { initializeAdMob } from '@/lib/adMob';
 import { initializeSession } from '@/lib/sessionManager';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
+import { promptIfEnabled, getEnabled as getBiometricEnabled, isEnrolled as isBiometricEnrolled, isHardwareAvailable as isBiometricAvailable, authenticate as biometricAuth } from '@/lib/biometrics';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { AuthProvider } from '@/contexts/AuthContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 // Initialize i18n
 import i18n from '@/lib/i18n';
 import { I18nextProvider } from 'react-i18next';
+import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     initializeApp();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const handler = async (state: string) => {
+      if (state === 'active') {
+        try {
+          const [enabled, available, enrolled] = await Promise.all([
+            getBiometricEnabled(),
+            isBiometricAvailable(),
+            isBiometricEnrolled(),
+          ]);
+          if (enabled && available && enrolled) {
+            setLocked(true);
+            const ok = await biometricAuth('Unlock EduDash Pro');
+            if (active) setLocked(!ok);
+          }
+        } catch {
+          if (active) setLocked(false);
+        }
+      }
+    };
+    const sub = AppState.addEventListener('change', handler);
+    return () => {
+      active = false;
+      sub.remove();
+    };
   }, []);
 
   const initializeApp = async () => {
@@ -52,6 +82,17 @@ export default function RootLayout() {
       // Initialize session management
       console.log('🔐 Initializing session management...');
       await initializeSession();
+
+      // Optional biometric lock (device-level)
+      try {
+        const ok = await promptIfEnabled();
+        if (!ok) {
+          setInitError('Biometric authentication canceled');
+          return;
+        }
+      } catch (e) {
+        console.warn('Biometric prompt failed or skipped:', e);
+      }
 
       // Initialize AdMob with test IDs only
       console.log('📱 Initializing AdMob...');
@@ -123,12 +164,14 @@ export default function RootLayout() {
   // Show loading screen during initialization
   if (!isInitialized && !initError) {
     return (
-      <View style={initStyles.container}>
-        <StatusBar style="light" backgroundColor="#0b1220" />
-        <ActivityIndicator size="large" color="#00f5ff" />
-        <Text style={initStyles.loadingText}>Initializing EduDash Pro...</Text>
-        <Text style={initStyles.subText}>Setting up monitoring, session management, and feature flags</Text>
-      </View>
+      <ThemeProvider>
+        <View style={initStyles.container}>
+          <StatusBar style="light" backgroundColor="#4F46E5" hidden />
+          <ActivityIndicator size="large" color="#00f5ff" />
+          <Text style={initStyles.loadingText}>Initializing EduDash Pro...</Text>
+          <Text style={initStyles.subText}>Setting up monitoring, session management, and feature flags</Text>
+        </View>
+      </ThemeProvider>
     );
   }
 
@@ -136,7 +179,7 @@ export default function RootLayout() {
   if (initError) {
     return (
       <View style={initStyles.container}>
-        <StatusBar style="light" backgroundColor="#0b1220" />
+        <StatusBar style="light" backgroundColor="#4F46E5" hidden />
         <Text style={initStyles.errorTitle}>⚠️ Initialization Error</Text>
         <Text style={initStyles.errorText}>{initError}</Text>
         <Text style={initStyles.subText}>Check console for details</Text>
@@ -147,23 +190,32 @@ export default function RootLayout() {
   return (
     // Provide auth context globally to mirror standalone app behavior
     <I18nextProvider i18n={i18n}>
-      <AuthProvider>
-        {/* Wrap in SubscriptionProvider so screens can access subscription data */}
-        <SubscriptionProvider>
-          <StatusBar style="light" backgroundColor="#0b1220" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              headerStyle: { backgroundColor: '#0b1220' },
-              headerTitleStyle: { color: '#ffffff' },
-              headerTintColor: '#00f5ff',
-              contentStyle: { backgroundColor: '#0b1220' },
-            }}
-          >
-            <Stack.Screen name="index" options={{ headerShown: false }} />
-          </Stack>
-        </SubscriptionProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          {/* Wrap in SubscriptionProvider so screens can access subscription data */}
+          <SubscriptionProvider>
+            <ThemedStackWrapper />
+
+          {locked && (
+            <View style={lockStyles.overlay} pointerEvents="auto">
+              <View style={lockStyles.card}>
+                <Text style={lockStyles.title}>Unlock EduDash Pro</Text>
+                <Text style={lockStyles.subtitle}>Authenticate to continue</Text>
+                <TouchableOpacity
+                  style={lockStyles.tryBtn}
+                  onPress={async () => {
+                    const ok = await biometricAuth('Unlock EduDash Pro');
+                    setLocked(!ok);
+                  }}
+                >
+                  <Text style={lockStyles.tryBtnText}>Try again</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          </SubscriptionProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </I18nextProvider>
   );
 }
@@ -202,4 +254,30 @@ const initStyles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+});
+
+const lockStyles = StyleSheet.create({
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#0b1220',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  card: {
+    width: '85%',
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+    padding: 20,
+    alignItems: 'center',
+  },
+  title: { color: '#FFFFFF', fontWeight: '800', fontSize: 18 },
+  subtitle: { color: '#9CA3AF', marginTop: 6, textAlign: 'center' },
+  tryBtn: { marginTop: 16, backgroundColor: '#00f5ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
+  tryBtnText: { color: '#000', fontWeight: '800' },
 });

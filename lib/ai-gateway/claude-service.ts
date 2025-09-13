@@ -16,8 +16,7 @@ import {
   ClaudeMessage,
   AIRequest,
   AIResponse,
-  AIServiceError,
-  AIServiceType
+  AIServiceError
 } from './types';
 
 // Default Claude configuration

@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
-import type { Role } from '@/lib/rbac';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface RoleBasedHeaderProps {
   title?: string;
@@ -28,8 +28,8 @@ export function RoleBasedHeader({
   title,
   subtitle,
   showBackButton = true, // Default to true, will be overridden by rules
-  backgroundColor = '#ffffff',
-  textColor = '#000000',
+  backgroundColor,
+  textColor,
   onBackPress,
 }: RoleBasedHeaderProps) {
   const [menuVisible, setMenuVisible] = useState(false);
@@ -39,6 +39,7 @@ export function RoleBasedHeader({
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const permissions = usePermissions();
+  const { theme, mode, toggleTheme } = useTheme();
 
   // Apply rule: "When the user is signed in, the back arrow button should not be visible in the UI"
   const shouldShowBackButton = () => {
@@ -114,6 +115,10 @@ export function RoleBasedHeader({
   const displayTitle = getContextualTitle();
   const displaySubtitle = getContextualSubtitle();
   const showBack = shouldShowBackButton();
+  
+  // Use theme colors if not explicitly provided
+  const headerBgColor = backgroundColor || theme.headerBackground;
+  const headerTextColor = textColor || theme.headerText;
 
   const profileInitials = useMemo(() => {
     const name = (user?.user_metadata?.first_name || '') + ' ' + (user?.user_metadata?.last_name || '');
@@ -124,9 +129,9 @@ export function RoleBasedHeader({
   }, [user?.user_metadata]);
 
   const roleChip = permissions?.enhancedProfile?.role ? (
-    <View style={styles.roleChip}>
-      <Ionicons name="shield-checkmark" size={12} color={textColor} />
-      <Text style={[styles.roleChipText, { color: textColor }]}>
+    <View style={[styles.roleChip, { backgroundColor: theme.surfaceVariant }]}>
+      <Ionicons name="shield-checkmark" size={12} color={theme.primary} />
+      <Text style={[styles.roleChipText, { color: theme.primary }]}>
         {String(permissions.enhancedProfile.role).replace('_', ' ')}
       </Text>
     </View>
@@ -137,7 +142,8 @@ export function RoleBasedHeader({
       styles.container,
       { 
         paddingTop: insets.top,
-        backgroundColor 
+        backgroundColor: headerBgColor,
+        borderBottomColor: theme.divider,
       }
     ]}>
       <View style={styles.content}>
@@ -153,7 +159,7 @@ export function RoleBasedHeader({
               <Ionicons 
                 name={Platform.OS === 'ios' ? 'chevron-back' : 'arrow-back'} 
                 size={24} 
-                color={textColor} 
+                color={headerTextColor} 
               />
             </TouchableOpacity>
           )}
@@ -161,25 +167,49 @@ export function RoleBasedHeader({
 
         {/* Title Section */}
         <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: textColor }]} numberOfLines={1}>
+          <Text style={[styles.title, { color: headerTextColor }]} numberOfLines={1}>
             {displayTitle}
           </Text>
           {displaySubtitle && (
-            <Text style={[styles.subtitle, { color: textColor + '80' }]} numberOfLines={1}>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
               {displaySubtitle}
             </Text>
           )}
         </View>
 
-        {/* Right Section - Avatar Menu */}
+        {/* Right Section - Theme Toggle & Avatar Menu */}
         <View style={styles.rightSection}>
-          <TouchableOpacity style={styles.avatarButton} onPress={() => setMenuVisible(true)}>
-            {/* If user has avatar url, show it; else show initials */}
+          {/* Theme Toggle Button */}
+          <TouchableOpacity 
+            style={[styles.themeButton, { marginRight: 8 }]} 
+            onPress={toggleTheme}
+          >
+            <Ionicons 
+              name={mode === 'dark' ? 'sunny' : 'moon'} 
+              size={20} 
+              color={headerTextColor} 
+            />
+          </TouchableOpacity>
+          
+          {/* Avatar Menu Button */}
+          <TouchableOpacity 
+            style={[styles.avatarButton, { 
+              backgroundColor: theme.surfaceVariant,
+              borderWidth: 2,
+              borderColor: theme.primary + '40'
+            }]} 
+            onPress={() => setMenuVisible(true)}
+          >
             {user?.user_metadata?.avatar_url ? (
               <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImage} />
             ) : (
-              <View style={[styles.avatarFallback, { borderColor: textColor + '40' }]}>
-                <Text style={[styles.avatarFallbackText, { color: textColor }]}>{profileInitials}</Text>
+              <View style={[styles.avatarFallback, { 
+                backgroundColor: theme.primary, 
+                borderColor: theme.primaryLight 
+              }]}>
+                <Text style={[styles.avatarFallbackText, { color: theme.onPrimary }]}>
+                  {profileInitials}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -189,34 +219,42 @@ export function RoleBasedHeader({
       {/* Dropdown Menu */}
       {menuVisible && (
         <Modal transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-          <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
-            <View style={styles.menuContainer}>
+          <TouchableOpacity style={[styles.menuOverlay, { backgroundColor: theme.modalOverlay }]} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+            <View style={[styles.menuContainer, { backgroundColor: theme.modalBackground, borderColor: theme.border }]}>
               <View style={styles.menuHeader}>
-                <Text style={styles.menuTitle}>{user?.user_metadata?.first_name || 'Account'}</Text>
+                <Text style={[styles.menuTitle, { color: theme.text }]}>{user?.user_metadata?.first_name || 'Account'}</Text>
                 {roleChip}
               </View>
 
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); /* future: navigate profile */ }}>
-                <Ionicons name="person-circle-outline" size={18} color="#374151" />
-                <Text style={styles.menuItemText}>Profile</Text>
+                <Ionicons name="person-circle-outline" size={18} color={theme.textSecondary} />
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Profile</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setLanguageVisible(true); }}>
-                <Ionicons name="language" size={18} color="#374151" />
-                <Text style={styles.menuItemText}>Language</Text>
+                <Ionicons name="language" size={18} color={theme.textSecondary} />
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Language</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); toggleTheme(); }}>
+                <Ionicons name={mode === 'dark' ? 'sunny' : 'moon'} size={18} color={theme.textSecondary} />
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Theme</Text>
+                <Text style={[styles.themeIndicator, { color: theme.textTertiary }]}>
+                  {mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System'}
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); /* future: settings */ }}>
-                <Ionicons name="settings-outline" size={18} color="#374151" />
-                <Text style={styles.menuItemText}>Settings</Text>
-                <View style={styles.comingSoonBadge}><Text style={styles.comingSoonText}>Soon</Text></View>
+                <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Settings</Text>
+                <View style={[styles.comingSoonBadge, { backgroundColor: theme.warning }]}><Text style={[styles.comingSoonText, { color: theme.onWarning }]}>Soon</Text></View>
               </TouchableOpacity>
 
-              <View style={styles.menuDivider} />
+              <View style={[styles.menuDivider, { backgroundColor: theme.divider }]} />
 
               <TouchableOpacity style={styles.menuItem} onPress={signOutAndRedirect}>
-                <Ionicons name="log-out-outline" size={18} color="#DC2626" />
-                <Text style={[styles.menuItemText, { color: '#DC2626' }]}>Sign out</Text>
+                <Ionicons name="log-out-outline" size={18} color={theme.error} />
+                <Text style={[styles.menuItemText, { color: theme.error }]}>Sign out</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -226,11 +264,11 @@ export function RoleBasedHeader({
       {/* Language Selector Modal */}
       {languageVisible && (
         <Modal visible animationType="slide" onRequestClose={() => setLanguageVisible(false)}>
-          <View style={styles.langModalContainer}>
-            <View style={styles.langModalHeader}>
-              <Text style={styles.langModalTitle}>Language Settings</Text>
+          <View style={[styles.langModalContainer, { backgroundColor: theme.background }]}>
+            <View style={[styles.langModalHeader, { backgroundColor: theme.surface, borderBottomColor: theme.divider }]}>
+              <Text style={[styles.langModalTitle, { color: theme.text }]}>Language Settings</Text>
               <TouchableOpacity onPress={() => setLanguageVisible(false)} style={styles.langCloseButton}>
-                <Ionicons name="close" size={22} color="#111827" />
+                <Ionicons name="close" size={22} color={theme.text} />
               </TouchableOpacity>
             </View>
             <LanguageSelector onLanguageSelect={() => setLanguageVisible(false)} showComingSoon={true} />
@@ -279,8 +317,18 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   rightSection: {
-    width: 44,
+    width: 88, // Increased width to fit both buttons
     alignItems: 'flex-end',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  themeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   roleChip: {
     flexDirection: 'row',
@@ -298,48 +346,53 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   avatarButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36, // Larger for better visibility
+    height: 36,
+    borderRadius: 18,
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   avatarFallback: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff10',
   },
   avatarFallbackText: {
-    fontSize: 12,
+    fontSize: 14, // Larger text for bigger avatar
     fontWeight: '700',
+  },
+  themeIndicator: {
+    fontSize: 12,
+    marginLeft: 'auto',
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.15)',
+    backgroundColor: 'rgba(0,0,0,0.4)', // Darker overlay for better contrast
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
   },
   menuContainer: {
-    marginTop: 72,
-    marginRight: 12,
-    backgroundColor: 'white',
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    width: 220,
+    marginTop: 80, // Adjust for larger avatar
+    marginRight: 16,
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    width: 240, // Slightly wider for theme indicator
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
   },
   menuHeader: {
     paddingHorizontal: 8,

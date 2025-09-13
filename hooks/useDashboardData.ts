@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 
@@ -175,9 +175,17 @@ const createEmptyTeacherData = (): TeacherDashboardData => ({
 /**
  * Comprehensive Principal Dashboard Hook with Real Data Integration
  * Provides complete school management analytics and real-time updates
+ * 
+ * FIXES APPLIED (2025-01-11):
+ * - Removed non-existent 'principal_id' column query from preschools table
+ * - Added proper user profile lookup via users table with auth_user_id
+ * - Added fallback lookup via organization_members table
+ * - Added support for both organizations and preschools table lookup
+ * - Updated data queries to use correct organization relationship structure
+ * - Added compatibility with both preschool_id and organization_id patterns
  */
 export const usePrincipalDashboard = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [data, setData] = useState<PrincipalDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -225,19 +233,175 @@ export const usePrincipalDashboard = () => {
       }
 
       // Enhanced principal data fetch with comprehensive error handling
-      const { data: principalData, error: principalError } = await supabase
-        .from('preschools')
-        .select(`
-          id,
-          name,
-          address,
-          phone,
-          email,
-          subscription_status,
-          principal_id
-        `)
-        .eq('principal_id', user.id)
-        .maybeSingle();
+      // Use the existing profile system instead of direct query
+      console.log('Using profile from auth context for organization lookup');
+      const userProfile = profile; // Use the existing profile from useAuth hook
+      
+      if (!userProfile) {
+        throw new Error('No user profile available - user not properly authenticated');
+      }
+
+      // Get organization identifier from profile (can be UUID id or tenant slug)
+      const rawOrgId = userProfile.organization_id as string | undefined;
+      const rawPreschoolId = (userProfile as any)?.preschool_id as string | undefined;
+      const rawTenantSlug = (userProfile as any)?.tenant_slug as string | undefined;
+
+      // Also consider auth user metadata slugs
+      const metaSlugCandidates: (string | undefined)[] = [
+        (user as any)?.user_metadata?.tenant_slug,
+        (user as any)?.user_metadata?.preschool_slug,
+        (user as any)?.user_metadata?.school_slug,
+        (user as any)?.user_metadata?.school_id, // may be slug in some setups
+      ];
+
+      const isUuid = (v: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+
+      // Prefer explicit orgId/preschoolId; otherwise first non-UUID slug from metadata
+      let orgIdentifier: string | undefined = rawOrgId || rawPreschoolId || rawTenantSlug;
+      if (!orgIdentifier) {
+        const metaSlug = metaSlugCandidates.find((s) => typeof s === 'string' && s.length > 0 && !isUuid(String(s)));
+        if (metaSlug) orgIdentifier = String(metaSlug);
+      }
+
+      if (!orgIdentifier) {
+        console.warn('⚠️ No organization identifier found in profile, checking organization membership');
+        // Try alternative lookup via organization_members table  
+        const { data: alternativeOrg } = await assertSupabase()
+          .from('organization_members')
+          .select('organization_id')
+          .eq('user_id', userProfile.id)
+          .maybeSingle();
+        
+        if (alternativeOrg?.organization_id) {
+          console.log('✅ Found organization via organization_members table');
+          orgIdentifier = alternativeOrg.organization_id as string;
+        } else {
+          console.warn('⚠️ No organization found via organization_members - trying self users row');
+          // Final fallback with RLS-friendly self read on public.users
+          try {
+            const { data: selfUser, error: selfErr } = await assertSupabase()
+              .from('users')
+              .select('id, auth_user_id, preschool_id, role')
+              .eq('auth_user_id', user.id)
+              .maybeSingle();
+            if (selfErr) {
+              console.warn('Self users row lookup error:', selfErr?.message);
+            }
+            if (selfUser?.preschool_id) {
+              console.log('✅ Resolved organization from self users row (preschool_id)');
+              orgIdentifier = selfUser.preschool_id as string;
+            } else {
+              console.warn('⚠️ Self users row did not contain preschool_id');
+            }
+          } catch (e) {
+            console.warn('Self users row lookup threw:', e);
+          }
+        }
+      } else {
+        console.log('✅ Found organization identifier in profile:', orgIdentifier);
+      }
+
+      // Fetch organization data from either organizations or preschools table by ID or slug
+      let principalData: any = null;
+      let principalError: any = null;
+
+      if (orgIdentifier) {
+        const tryFetchById = async (id: string) => {
+          // Try organizations by id first
+          const { data: orgData } = await assertSupabase()
+            .from('organizations')
+            .select('id, name, plan_tier, created_at, address, phone, email')
+            .eq('id', id)
+            .maybeSingle();
+          if (orgData) {
+            return { 
+              id: orgData.id, 
+              name: orgData.name, 
+              subscription_status: 'active', 
+              address: orgData.address, 
+              phone: orgData.phone, 
+              email: orgData.email 
+            };
+          }
+          
+          // Try preschools by id (they have more detailed subscription info)
+          const { data: preschoolData, error: preschoolErr } = await assertSupabase()
+            .from('preschools')
+            .select('id, name, address, phone, email, subscription_status, subscription_plan')
+            .eq('id', id)
+            .maybeSingle();
+          principalError = preschoolErr;
+          if (preschoolData) {
+            return {
+              id: preschoolData.id,
+              name: preschoolData.name,
+              subscription_status: preschoolData.subscription_status || 'active',
+              address: preschoolData.address,
+              phone: preschoolData.phone,
+              email: preschoolData.email
+            };
+          }
+          return null;
+        };
+
+        const tryFetchBySlug = async (slug: string) => {
+          // Preschools by tenant_slug (this column exists in preschools)
+          try {
+            const { data: preschoolBySlug } = await assertSupabase()
+              .from('preschools')
+              .select('id, name, address, phone, email, subscription_status')
+              .eq('tenant_slug', slug)
+              .maybeSingle();
+            if (preschoolBySlug) return preschoolBySlug;
+          } catch (e) {
+            console.warn('preschools.tenant_slug lookup failed:', e);
+          }
+
+          // Organizations by name (no tenant_slug in organizations table)
+          try {
+            const { data: orgByName } = await assertSupabase()
+              .from('organizations')
+              .select('id, name, plan_tier, created_at')
+              .ilike('name', slug.replace(/-/g, ' '))
+              .maybeSingle();
+            if (orgByName) {
+              return { id: orgByName.id, name: orgByName.name, subscription_status: 'active', address: null, phone: null, email: null };
+            }
+          } catch (e) {
+            console.warn('organizations name lookup failed:', e);
+          }
+
+          // As a last resort, try preschools name ilike
+          try {
+            const { data: preschoolByName } = await assertSupabase()
+              .from('preschools')
+              .select('id, name, address, phone, email, subscription_status')
+              .ilike('name', slug.replace(/-/g, ' '))
+              .maybeSingle();
+            return preschoolByName || null;
+          } catch (e) {
+            console.warn('preschools name lookup failed:', e);
+            return null;
+          }
+        };
+
+        if (isUuid(orgIdentifier)) {
+          principalData = await tryFetchById(orgIdentifier);
+        } else {
+          // Identifier looks like a slug (e.g., "young-eagles")
+          principalData = await tryFetchBySlug(orgIdentifier);
+          // If slug lookup failed, still try as ID in case it's a non-standard UUID
+          if (!principalData) {
+            principalData = await tryFetchById(orgIdentifier);
+          }
+        }
+
+        if (!principalData) {
+          console.warn('⚠️ No organization found by identifier (id/slug):', orgIdentifier);
+        } else {
+          console.log('✅ Resolved organization from identifier:', principalData?.id, principalData?.name);
+        }
+      }
 
       if (principalError && principalError.code !== 'PGRST116') {
         console.error('❌ Principal school fetch error:', principalError);
@@ -267,63 +431,71 @@ export const usePrincipalDashboard = () => {
           return typeMap[actionType] || 'event';
         };
 
-        // Parallel data fetching with strict security filters
+        // Parallel data fetching with correct schema
+        console.log('🔍 DEBUG: Starting parallel data fetch for schoolId:', schoolId);
+        
+        // Use authenticated Supabase client for all queries to work with RLS
+        const authenticatedClient = assertSupabase();
+        
+        // Extra debug: confirm auth identity for RLS
+        try {
+          const { data: me } = await authenticatedClient.auth.getUser();
+          console.log('🔐 RLS DEBUG - auth user id:', me?.user?.id);
+        } catch (e) {
+          console.debug('RLS auth getUser failed', e);
+        }
+        
         const dataPromises = [
-          // Students data - only for this principal's school
-          supabase
+          // Students data - use is_active instead of status, preschool_id only
+          authenticatedClient
             .from('students')
-            .select('id, status, created_at, grade_level, preschool_id')
+            .select('id, first_name, last_name, created_at, preschool_id, is_active, class_id')
             .eq('preschool_id', schoolId)
+            .eq('is_active', true)
             .not('id', 'is', null), // Ensure valid records
 
-          // Teachers data - only for this principal's school
-          supabase
-            .from('teachers')
-            .select('id, status, first_name, last_name, created_at, preschool_id')
-            .eq('preschool_id', schoolId)
-            .not('id', 'is', null),
+          // Teachers data - query organization_members for teachers
+          authenticatedClient
+            .from('organization_members')
+            .select('user_id')
+            .eq('organization_id', schoolId)
+            .eq('role', 'teacher'),
 
-          // Parents data - only from students in this principal's school
-          supabase
-            .from('students')
-            .select(`
-              id,
-              parent_email,
-              parent_phone,
-              preschool_id
-            `)
-            .eq('preschool_id', schoolId)
-            .not('parent_email', 'is', null)
-            .not('id', 'is', null),
+          // Parents data - query organization_members for parents
+          authenticatedClient
+            .from('organization_members')
+            .select('user_id')
+            .eq('organization_id', schoolId)
+            .eq('role', 'parent'),
 
-          // Payments - only for this principal's school with date bounds
-          supabase
+          // Payments - try both school_id and organization_id
+          authenticatedClient
             .from('payments')
-            .select('amount, created_at, status, payment_type, school_id')
-            .eq('school_id', schoolId)
-            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 60)).toISOString()) // Last 60 days for broader context
+            .select('amount, created_at, status, payment_type, school_id, organization_id')
+            .or(`school_id.eq.${schoolId},organization_id.eq.${schoolId}`)
+            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 60)).toISOString())
             .not('id', 'is', null),
 
-          // Applications - only for this principal's school
-          supabase
-            .from('student_applications')
-            .select('id, applicant_name, created_at, status, grade_applied, school_id')
-            .eq('school_id', schoolId)
+          // Applications - try both school_id and organization_id
+          authenticatedClient
+            .from('preschool_onboarding_requests')
+            .select('id, school_name, created_at, status, organization_id')
+            .or(`organization_id.eq.${schoolId},preschool_id.eq.${schoolId}`)
             .in('status', ['pending', 'under_review', 'interview_scheduled'])
             .not('id', 'is', null),
 
-          // Events - only for this principal's school with date bounds
-          supabase
+          // Events - try both school_id and organization_id
+          authenticatedClient
             .from('events')
-            .select('id, title, event_date, event_type, description, school_id')
-            .eq('school_id', schoolId)
+            .select('id, title, event_date, event_type, description, preschool_id, organization_id')
+            .or(`preschool_id.eq.${schoolId},organization_id.eq.${schoolId}`)
             .gte('event_date', new Date().toISOString())
             .lte('event_date', new Date(new Date().setDate(new Date().getDate() + 30)).toISOString())
             .not('id', 'is', null),
 
-          // Activity logs - only for this principal's organization with enhanced filtering
-          supabase
-            .from('audit_logs')
+          // Activity logs - use organization_id
+          authenticatedClient
+            .from('activity_logs')
             .select('id, action_type, description, created_at, user_name, table_name, organization_id')
             .eq('organization_id', schoolId)
             .not('id', 'is', null)
@@ -332,41 +504,104 @@ export const usePrincipalDashboard = () => {
         ];
 
         const results = await Promise.allSettled(dataPromises);
-        const [studentsResult, teachersResult, parentsResult, paymentsResult, applicationsResult, eventsResult, activitiesResult] = results;
+        const [
+          studentsResult, 
+          teacherMembersResult, 
+          parentMembersResult, 
+          paymentsResult, 
+          applicationsResult, 
+          eventsResult, 
+          activitiesResult
+        ] = results;
 
-        // Extract data with proper error handling
+        // Extract data with proper error handling and detailed logging
         const studentsData = studentsResult.status === 'fulfilled' ? studentsResult.value.data || [] : [];
-        const teachersData = teachersResult.status === 'fulfilled' ? teachersResult.value.data || [] : [];
-        const parentsData = parentsResult.status === 'fulfilled' ? parentsResult.value.data || [] : [];
+        const teacherMembersData = teacherMembersResult.status === 'fulfilled' ? teacherMembersResult.value.data || [] : [];
+        const parentMembersData = parentMembersResult.status === 'fulfilled' ? parentMembersResult.value.data || [] : [];
         const paymentsData = paymentsResult.status === 'fulfilled' ? paymentsResult.value.data || [] : [];
         const applicationsData = applicationsResult.status === 'fulfilled' ? applicationsResult.value.data || [] : [];
         const eventsData = eventsResult.status === 'fulfilled' ? eventsResult.value.data || [] : [];
         const activitiesData = activitiesResult.status === 'fulfilled' ? activitiesResult.value.data || [] : [];
 
+        // Fetch teacher and parent users by membership to avoid relying on users.preschool_id
+        let teacherUsersData: any[] = [];
+        let parentUsersData: any[] = [];
+        try {
+          if (teacherMembersData.length > 0) {
+            const teacherIds = (teacherMembersData as any[])
+              .map((m: any) => m.user_id)
+              .filter((v: any) => !!v);
+            if (teacherIds.length > 0) {
+              const { data: tUsers } = await authenticatedClient
+                .from('users')
+                .select('id, name, email, role, preschool_id, auth_user_id')
+                .in('auth_user_id', teacherIds)
+                .eq('role', 'teacher');
+              teacherUsersData = tUsers || [];
+            }
+          }
+          if (parentMembersData.length > 0) {
+            const parentIds = (parentMembersData as any[])
+              .map((m: any) => m.user_id)
+              .filter((v: any) => !!v);
+            if (parentIds.length > 0) {
+              const { data: pUsers } = await authenticatedClient
+                .from('users')
+                .select('id, name, email, role, preschool_id, auth_user_id')
+                .in('auth_user_id', parentIds)
+                .eq('role', 'parent');
+              parentUsersData = pUsers || [];
+            }
+          }
+        } catch (fetchUsersErr) {
+          console.warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
+        }
+
+        // Enhanced logging with actual data counts and sample records
+        console.log('🔍 DEBUG DATA RESULTS:');
+        console.log('- Students:', studentsData.length, studentsData.length > 0 ? studentsData[0] : 'No students found');
+        console.log('- Teacher Members:', teacherMembersData.length, teacherMembersData.length > 0 ? teacherMembersData[0] : 'No teacher members found');
+        console.log('- Parent Members:', parentMembersData.length, parentMembersData.length > 0 ? parentMembersData[0] : 'No parent members found');
+        console.log('- Teacher Users:', teacherUsersData.length, teacherUsersData.length > 0 ? teacherUsersData[0] : 'No teacher users found');
+        console.log('- Parent Users:', parentUsersData.length, parentUsersData.length > 0 ? parentUsersData[0] : 'No parent users found');
+        console.log('- Payments:', paymentsData.length);
+        console.log('- Applications:', applicationsData.length);
+        console.log('- Events:', eventsData.length);
+        console.log('- Activities:', activitiesData.length);
+
         // Log any failed requests for debugging
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
-            const queries = ['students', 'teachers', 'parents', 'payments', 'applications', 'events', 'activities'];
-            console.warn(`⚠️ ${queries[index]} query failed:`, result.reason);
+            const queries = ['students', 'teacher_members', 'parent_members', 'payments', 'applications', 'events', 'activities'];
+            console.error(`❌ ${queries[index]} query failed:`, result.reason);
           }
         });
 
         // Calculate comprehensive metrics with proper typing
-        const activeStudents = studentsData.filter((s: any) => s?.status === 'active');
-        const totalStudents = activeStudents.length;
+        // Students - using is_active filter from the query
+        const totalStudents = studentsData.length;
         
-        const activeTeachers = teachersData.filter((t: any) => t?.status === 'active');
-        const totalTeachers = activeTeachers.length;
+        // Teachers - prefer direct users query, but fall back to organization_members count under RLS constraints
+        const totalTeachers = teacherUsersData.length || teacherMembersData.length;
         
-        // Calculate unique parents count with better validation
-        const uniqueParentEmails = new Set<string>();
-        parentsData.forEach((student: any) => {
-          const email = student?.parent_email?.trim();
-          if (email && email.includes('@') && email.length > 5) {
-            uniqueParentEmails.add(email.toLowerCase());
-          }
-        });
-        const totalParents = uniqueParentEmails.size;
+        // Parents - prefer direct users query, but fall back to organization_members count under RLS constraints
+        const totalParents = parentUsersData.length || parentMembersData.length;
+        
+        // Extract teacher and parent names for debugging (best-effort)
+        const teacherNames = (teacherUsersData.length > 0
+          ? teacherUsersData.map((t: any) => t.name || 'Unknown')
+          : teacherMembersData.map((m: any) => m.user_id).slice(0, 3)
+        ).join(', ');
+        const parentNames = (parentUsersData.length > 0
+          ? parentUsersData.map((p: any) => p.name || 'Unknown')
+          : parentMembersData.map((m: any) => m.user_id).slice(0, 3)
+        ).join(', ');
+        
+        console.log('👥 STAFF DETAILS:');
+        console.log('- Teacher names:', teacherNames || 'None');
+        console.log('- Parent names:', parentNames || 'None');
+        console.log('- Teacher member count:', teacherMembersData.length);
+        console.log('- Parent member count:', parentMembersData.length);
 
         // Calculate real attendance rate with error handling
         let attendanceRate = 0;
@@ -604,34 +839,33 @@ export const useTeacherDashboard = () => {
         throw new Error('Supabase client not available');
       }
 
-      // Fetch teacher data with school information
-      const { data: teacherData, error: teacherError } = await supabase
-        .from('teachers')
-        .select(`
-          id,
-          user_id,
-          preschool_id,
-          first_name,
-          last_name,
-          preschools!inner(
-            id,
-            name
-          )
-        `)
-        .eq('user_id', user.id)
+      // Fetch teacher user row from public.users (teachers table is not populated)
+      const { data: teacherUser, error: teacherError } = await supabase
+        .from('users')
+        .select('id, auth_user_id, preschool_id, first_name, last_name, role')
+        .eq('auth_user_id', user.id)
+        .eq('role', 'teacher')
         .maybeSingle();
 
       if (teacherError) {
-        console.error('Teacher fetch error:', teacherError);
+        console.error('Teacher user fetch error:', teacherError);
       }
 
       let dashboardData: TeacherDashboardData;
 
-      if (teacherData) {
-        const teacherId = teacherData.id;
-        const schoolName = (teacherData.preschools as any)?.name || 'Unknown School';
+      if (teacherUser) {
+        const teacherId = teacherUser.id; // references users.id in your schema
+        let schoolName = 'Unknown School';
+        if (teacherUser.preschool_id) {
+          const { data: school } = await supabase
+            .from('preschools')
+            .select('id, name')
+            .eq('id', teacherUser.preschool_id)
+            .maybeSingle();
+          schoolName = school?.name || schoolName;
+        }
 
-        // Fetch teacher's classes
+        // Fetch teacher's classes (teacher_id references users.id)
         const { data: classesData } = await supabase
           .from('classes')
           .select(`
@@ -704,10 +938,10 @@ export const useTeacherDashboard = () => {
         };
 
         // Cache the fresh data for offline use
-        if (user?.id && teacherData.preschool_id) {
+        if (user?.id && teacherUser.preschool_id) {
           await offlineCacheService.cacheTeacherDashboard(
             user.id,
-            teacherData.preschool_id,
+            teacherUser.preschool_id,
             dashboardData
           );
           console.log('💾 Teacher dashboard data cached for offline use');

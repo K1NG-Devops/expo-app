@@ -8,6 +8,7 @@
     "dashboard": "Dashboard",
     "profile": "Profil",
     "settings": "Einstellungen",
+    "account": "Konto",
     "logout": "Abmelden",
     "back": "Zurück",
     "next": "Weiter",
@@ -16,7 +17,9 @@
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "add": "Hinzufügen",
-    "search": "Suchen"
+    "search": "Suchen",
+    "retry": "Wiederholen",
+    "close": "Schließen"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -49,6 +52,36 @@
       "loading": "Lektion wird erstellt...",
       "error": "Fehler beim Generieren der Lektion. Bitte versuchen Sie es erneut."
     }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "profile": "Profileinstellungen",
+    "notifications": "Benachrichtigungen",
+    "privacy": "Datenschutz",
+    "language": {
+      "title": "Sprache",
+      "comingSoon": "Bald Verfügbar",
+      "soon": "Bald"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Hell",
+      "dark": "Dunkel",
+      "system": "System",
+      "preview": "Theme-Vorschau",
+      "primary": "Primär",
+      "secondary": "Sekundär",
+      "accent": "Akzent"
+    },
+    "preferences": {
+      "title": "Einstellungen",
+      "autoTheme": "Automatisches Theme",
+      "autoThemeDesc": "Theme basierend auf Systemeinstellungen wechseln"
+    },
+    "about": "Über",
+    "support": "Support",
+    "termsOfService": "Nutzungsbedingungen",
+    "privacyPolicy": "Datenschutzrichtlinie"
   },
   "common": {
     "loading": "Laden...",

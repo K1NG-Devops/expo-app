@@ -51,7 +51,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
               if (t === 'free') t = 'enterprise';
             }
           }
-        } catch {}
+        } catch (e) {
+          console.debug('Enterprise subscription detection failed', e);
+        }
 
         if (mounted) {
           setTier(t);

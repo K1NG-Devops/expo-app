@@ -1,21 +1,65 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
+// Dynamically require AsyncStorage to avoid web/test issues
+let AsyncStorage: any = null;
+try {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+} catch (e) {
+  console.debug('AsyncStorage import failed (non-React Native env?)', e);
+}
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Expo SecureStore adapter compatible with Supabase's storage interface
+// SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
 const SecureStoreAdapter = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
   setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value, { keychainService: key }),
   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
+// AsyncStorage adapter (preferred for Android, no 2KB limit)
+const AsyncStorageAdapter = AsyncStorage
+  ? {
+      getItem: (key: string) => AsyncStorage.getItem(key),
+      setItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+      removeItem: (key: string) => AsyncStorage.removeItem(key),
+    }
+  : null;
+
+// In-memory fallback for tests or environments without the above storages
+const MemoryStorageAdapter = {
+  _map: new Map<string, string>(),
+  getItem: async (key: string) => (MemoryStorageAdapter._map.has(key) ? MemoryStorageAdapter._map.get(key)! : null),
+  setItem: async (key: string, value: string) => {
+    MemoryStorageAdapter._map.set(key, value);
+  },
+  removeItem: async (key: string) => {
+    MemoryStorageAdapter._map.delete(key);
+  },
+};
+
+function chooseStorage() {
+  try {
+    // Use AsyncStorage on Android to avoid SecureStore size limit warning/failures
+    if (Platform?.OS === 'android' && AsyncStorageAdapter) return AsyncStorageAdapter;
+    // iOS and other platforms: prefer SecureStore; fall back if unavailable
+    if (SecureStoreAdapter) return SecureStoreAdapter;
+    if (AsyncStorageAdapter) return AsyncStorageAdapter;
+  } catch (e) {
+    console.debug('chooseStorage unexpected error', e);
+  }
+  return MemoryStorageAdapter;
+}
+
 let client: SupabaseClient | null = null;
 if (url && anon) {
+  const storage = chooseStorage();
   client = createClient(url, anon, {
     auth: {
-      storage: SecureStoreAdapter as any,
+      storage: storage as any,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

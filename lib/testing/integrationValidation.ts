@@ -362,6 +362,7 @@ export class IntegrationValidator {
         }
 
       } catch (error) {
+        console.debug('Real-time subscription test failed (setup)', error);
         console.error('Real-time subscription test failed:', error);
       }
 
@@ -412,6 +413,7 @@ export class IntegrationValidator {
           components.push('Financial Metrics');
         }
       } catch (error) {
+        console.debug('Financial dashboard integration issue details', error);
         issues.push('Financial dashboard integration issue');
       }
 
@@ -421,6 +423,7 @@ export class IntegrationValidator {
           components.push('Attendance Metrics');
         }
       } catch (error) {
+        console.debug('Attendance dashboard integration issue details', error);
         issues.push('Attendance dashboard integration issue');
       }
 
@@ -430,6 +433,7 @@ export class IntegrationValidator {
           components.push('Student Analytics');
         }
       } catch (error) {
+        console.debug('Student dashboard integration issue details', error);
         issues.push('Student dashboard integration issue');
       }
 
@@ -440,6 +444,7 @@ export class IntegrationValidator {
           components.push('Meeting Room System');
         }
       } catch (error) {
+        console.debug('Meeting room system integration issue details', error);
         issues.push('Meeting room system integration issue');
       }
 
@@ -633,6 +638,7 @@ class PerformanceMonitor {
       };
       
     } catch (error) {
+      void error;
       return {
         loadTime: Date.now() - startTime,
         dataFetchTime: 0,

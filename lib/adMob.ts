@@ -52,7 +52,6 @@ let isInitialized = false;
  * Get appropriate ad unit ID based on testing mode
  */
 function getAdUnitId(adType: keyof typeof ADMOB_TEST_IDS.android): string {
-  const flags = getFeatureFlagsSync();
   const platform = Platform.OS as 'android' | 'ios';
   
   // Always use test IDs during development phase

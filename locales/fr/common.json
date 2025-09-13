@@ -8,6 +8,7 @@
     "dashboard": "Tableau de bord",
     "profile": "Profil",
     "settings": "Paramètres",
+    "account": "Compte",
     "logout": "Se déconnecter",
     "back": "Retour",
     "next": "Suivant",
@@ -16,7 +17,9 @@
     "edit": "Modifier",
     "delete": "Supprimer",
     "add": "Ajouter",
-    "search": "Rechercher"
+    "search": "Rechercher",
+    "retry": "Réessayer",
+    "close": "Fermer"
   },
   "auth": {
     "signIn": "Se connecter",
@@ -49,6 +52,36 @@
       "loading": "Création de la leçon...",
       "error": "Échec de la génération de la leçon. Veuillez réessayer."
     }
+  },
+  "settings": {
+    "title": "Paramètres",
+    "profile": "Paramètres du Profil",
+    "notifications": "Notifications",
+    "privacy": "Confidentialité",
+    "language": {
+      "title": "Langue",
+      "comingSoon": "Bientôt Disponible",
+      "soon": "Bientôt"
+    },
+    "theme": {
+      "title": "Thème",
+      "light": "Clair",
+      "dark": "Sombre",
+      "system": "Système",
+      "preview": "Aperçu du Thème",
+      "primary": "Primaire",
+      "secondary": "Secondaire",
+      "accent": "Accent"
+    },
+    "preferences": {
+      "title": "Préférences",
+      "autoTheme": "Thème Automatique",
+      "autoThemeDesc": "Changer le thème selon les paramètres système"
+    },
+    "about": "À Propos",
+    "support": "Support",
+    "termsOfService": "Conditions d'Utilisation",
+    "privacyPolicy": "Politique de Confidentialité"
   },
   "common": {
     "loading": "Chargement...",

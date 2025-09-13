@@ -8,6 +8,7 @@
     "dashboard": "Panel",
     "profile": "Perfil",
     "settings": "Configuración",
+    "account": "Cuenta",
     "logout": "Cerrar Sesión",
     "back": "Atrás",
     "next": "Siguiente",
@@ -16,7 +17,9 @@
     "edit": "Editar",
     "delete": "Eliminar",
     "add": "Agregar",
-    "search": "Buscar"
+    "search": "Buscar",
+    "retry": "Reintentar",
+    "close": "Cerrar"
   },
   "auth": {
     "signIn": "Iniciar Sesión",
@@ -163,8 +166,26 @@
     "profile": "Configuración del Perfil",
     "notifications": "Notificaciones",
     "privacy": "Privacidad",
-    "language": "Idioma",
-    "theme": "Tema",
+    "theme": {
+      "title": "Tema",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Sistema",
+      "preview": "Vista Previa del Tema",
+      "primary": "Primario",
+      "secondary": "Secundario",
+      "accent": "Acento"
+    },
+    "language": {
+      "title": "Idioma",
+      "comingSoon": "Próximamente",
+      "soon": "Pronto"
+    },
+    "preferences": {
+      "title": "Preferencias",
+      "autoTheme": "Tema Automático",
+      "autoThemeDesc": "Cambiar tema según configuración del sistema"
+    },
     "about": "Acerca de",
     "support": "Soporte",
     "termsOfService": "Términos de Servicio",

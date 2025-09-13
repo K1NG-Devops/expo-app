@@ -13,7 +13,7 @@ export default function AdBanner() {
     BannerAd = ads.BannerAd;
     BannerAdSize = ads.BannerAdSize;
     TestIds = ads.TestIds;
-  } catch (e) {
+  } catch {
     // Native module not available in this build; no-op.
     return null;
   }

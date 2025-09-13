@@ -22,6 +22,15 @@ async function getCurrentUserId(): Promise<string> {
 
 export type AIUsageRecord = Record<AIUsageFeature, number>
 
+export type AIUsageLogEvent = {
+  feature: AIUsageFeature
+  model: string
+  tokensIn?: number
+  tokensOut?: number
+  estCostCents?: number
+  timestamp: string // ISO string
+}
+
 export async function getUsage(): Promise<AIUsageRecord> {
   const uid = await getCurrentUserId()
   const key = `${STORAGE_PREFIX}_${uid}_${monthKey()}`
@@ -47,6 +56,60 @@ export async function incrementUsage(feature: AIUsageFeature, count = 1): Promis
     await SecureStore.setItemAsync(key, JSON.stringify(next))
   } catch {
     // swallow
+  }
+}
+
+const LOG_QUEUE_KEY_PREFIX = 'ai_usage_log_queue'
+
+async function enqueueUsageLog(event: AIUsageLogEvent): Promise<void> {
+  const uid = await getCurrentUserId()
+  const key = `${LOG_QUEUE_KEY_PREFIX}_${uid}`
+  try {
+    const raw = await SecureStore.getItemAsync(key)
+    const arr: AIUsageLogEvent[] = raw ? JSON.parse(raw) : []
+    arr.push(event)
+    await SecureStore.setItemAsync(key, JSON.stringify(arr))
+  } catch {
+    // swallow
+  }
+}
+
+export async function flushUsageLogQueue(): Promise<void> {
+  const uid = await getCurrentUserId()
+  const key = `${LOG_QUEUE_KEY_PREFIX}_${uid}`
+  try {
+    const raw = await SecureStore.getItemAsync(key)
+    const arr: AIUsageLogEvent[] = raw ? JSON.parse(raw) : []
+    if (!arr.length) return
+    const remaining: AIUsageLogEvent[] = []
+    for (const ev of arr) {
+      try {
+        const { error } = await assertSupabase().functions.invoke('ai-usage', { body: { action: 'log', event: ev } as any })
+        if (error) remaining.push(ev)
+      } catch {
+        remaining.push(ev)
+      }
+    }
+    if (remaining.length) {
+      await SecureStore.setItemAsync(key, JSON.stringify(remaining))
+    } else {
+      await SecureStore.deleteItemAsync(key)
+    }
+  } catch {
+    // swallow
+  }
+}
+
+export async function logUsageEvent(event: AIUsageLogEvent): Promise<void> {
+  try {
+    const payload = { action: 'log', event }
+    const { error } = await assertSupabase().functions.invoke('ai-usage', { body: payload as any })
+    if (error) throw error
+  } catch {
+    await enqueueUsageLog(event)
+  } finally {
+    // best-effort flush of any pending logs
+try { await flushUsageLogQueue() } catch { /* noop */ void 0; }
   }
 }
 

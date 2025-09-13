@@ -151,7 +151,7 @@ export function track<T extends keyof AnalyticsEvent>(
         data: scrubbedProperties,
         level: 'info',
       });
-    } catch (nativeError) {
+    } catch {
       // Fallback to browser breadcrumb if native is not available
       if (Sentry.Browser) {
         Sentry.Browser.addBreadcrumb({
@@ -203,7 +203,7 @@ export function identifyUser(userId: string, properties: Record<string, any> = {
         id: userId,
         ...scrubbedProperties,
       });
-    } catch (nativeError) {
+    } catch {
       // Fallback to browser setUser if native is not available
       if (Sentry.Browser) {
         Sentry.Browser.setUser({

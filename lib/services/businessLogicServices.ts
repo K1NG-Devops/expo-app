@@ -160,6 +160,7 @@ class FinancialAnalyticsService {
    * Project future revenue based on historical data and trends
    */
   static async projectRevenue(schoolId: string, months: number = 6): Promise<RevenueProjection> {
+    void months;
     if (!supabase) {
       return this.getEmptyRevenueProjection();
     }

@@ -27,10 +27,10 @@ const safeDisplay = (value: any, fallback: string = '—'): string => {
   return String(value);
 };
 
-const safeNumber = (value: any, fallback: number = 0): number => {
-  const num = Number(value);
-  return isNaN(num) ? fallback : num;
-};
+// const _safeNumber = (value: any, fallback: number = 0): number => {
+//   const num = Number(value);
+//   return isNaN(num) ? fallback : num;
+// };
 
 /**
  * SuperAdmin Dashboard - Database-Aware
@@ -48,7 +48,9 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
     try {
       const { role: detectedRole } = await detectRoleAndSchool(user);
       setRole(detectedRole);
-    } catch {}
+    } catch (e) {
+      console.debug('detectRoleAndSchool failed for SuperAdminDashboard', e);
+    }
   }, [user]);
 
   const fetchData = useCallback(async () => {
@@ -283,7 +285,9 @@ export const PrincipalDashboardDatabase: React.FC = () => {
       const { role: detectedRole, school } = await detectRoleAndSchool(user);
       setRole(detectedRole);
       setSchoolId(school);
-    } catch {}
+    } catch (e) {
+      console.debug('detectRoleAndSchool failed for PrincipalDashboard', e);
+    }
   }, [user]);
 
   const fetchCounts = useCallback(async () => {

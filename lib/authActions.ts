@@ -6,14 +6,14 @@ import { supabase } from '@/lib/supabase';
 export async function signOutAndRedirect() {
   try {
     await supabase!.auth.signOut();
-  } catch {}
+  } catch { /* noop */ void 0; }
   try {
     // Clear analytics identities
     await getPostHog()?.reset();
-  } catch {}
+  } catch { /* noop */ void 0; }
   try {
     Sentry.Native.setUser(null as any);
-  } catch {}
+  } catch { /* noop */ void 0; }
   router.replace('/');
 }
 
