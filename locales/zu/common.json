@@ -51,7 +51,15 @@
     "statistics": "Izibalo",
     "notifications": "Izaziso",
     "noActivity": "Awukho umsebenzi wakamuva",
-    "loading": "Ilayisha ideshibhodi..."
+    "loading": "Ilayisha ideshibhodi...",
+    "principal_hub": "Indawo Kanthishanhloko",
+    "managing_school": "Ukuphatha {{schoolName}}",
+    "school_overview": "Ukubuka Isikole",
+    "financial_management": "Ukuphatha Kwezezimali",
+    "ai_analytics": "I-AI Nokuhlaziya",
+    "good_morning": "Sawubona",
+    "good_afternoon": "Sanibonani",
+    "good_evening": "Sakubona"
   },
   "ai": {
     "homework": {

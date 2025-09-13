@@ -31,6 +31,8 @@ export interface AIRequest {
     subject?: string;
     difficulty?: 'beginner' | 'intermediate' | 'advanced';
     language?: string;
+    childrenCount?: number;
+    [key: string]: any; // Allow additional properties
   };
   requestedAt: Date;
 }

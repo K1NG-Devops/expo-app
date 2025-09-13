@@ -18,6 +18,7 @@ import { fetchEnhancedUserProfile, type Role } from '@/lib/rbac';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import { supabase } from '@/lib/supabase';
 
 const ROLES = [
   {
@@ -53,6 +54,35 @@ export default function ProfilesGateScreen() {
   const [accessValidation, setAccessValidation] = useState<ReturnType<typeof validateUserAccess> | null>(null);
 
   useEffect(() => {
+    // Special case: If user came from biometric login and has no profile data,
+    // they might be an existing user - try to detect their role
+    const handleExistingUser = async () => {
+      if (!profile && user) {
+        console.log('Profiles-gate: No profile found, checking if existing user...');
+        try {
+          // Try to detect user role from legacy methods
+          const { detectRoleAndSchool } = await import('@/lib/routeAfterLogin');
+          const { role } = await detectRoleAndSchool(user);
+          
+          if (role) {
+            console.log('Profiles-gate: Found existing user role:', role);
+            // Route based on detected role
+            const routes = {
+              'parent': '/screens/parent-dashboard',
+              'teacher': '/screens/teacher-dashboard', 
+              'principal_admin': '/screens/principal-dashboard',
+              'super_admin': '/screens/super-admin-leads'
+            };
+            const targetRoute = routes[role as keyof typeof routes] || '/screens/parent-dashboard';
+            router.replace(targetRoute as any);
+            return;
+          }
+        } catch (error) {
+          console.error('Error detecting existing user role:', error);
+        }
+      }
+    };
+
     if (profile) {
       const validation = validateUserAccess(profile);
       setAccessValidation(validation);
@@ -61,6 +91,9 @@ export default function ProfilesGateScreen() {
       if (validation.hasAccess) {
         routeAfterLogin(user, profile).catch(console.error);
       }
+    } else {
+      // Try to handle existing users who may not have proper profile data
+      handleExistingUser();
     }
   }, [profile, user]);
 
@@ -78,31 +111,79 @@ export default function ProfilesGateScreen() {
     setIsSubmitting(true);
     
     try {
-      // For now, we'll use a simple role assignment
-      // In a production app, this might involve organization validation
+      console.log('Profile gate: Continuing with selected role:', selectedRole);
       
       track('edudash.profile_gate.role_submitted', {
         user_id: user.id,
         submitted_role: selectedRole,
       });
 
-      // Refresh profile to get updated information
+      // First, try to update the user's profile/metadata with selected role
+      try {
+        // Update user metadata to persist the selected role
+        if (supabase) {
+          const { error: updateError } = await supabase.auth.updateUser({
+            data: { 
+              role: selectedRole,
+              profile_completed: true,
+              profile_completion_timestamp: new Date().toISOString()
+            }
+          });
+
+          if (updateError) {
+            console.error('Failed to update user metadata:', updateError);
+          } else {
+            console.log('Successfully updated user metadata with role:', selectedRole);
+          }
+        }
+
+      } catch (metadataError) {
+        console.error('Error updating user metadata:', metadataError);
+        // Continue anyway, as this is not critical for routing
+      }
+
+      // Refresh profile to get updated data
       await refreshProfile();
       
-      // Attempt to route user after profile update
-      const updatedProfile = await fetchEnhancedUserProfile(user.id);
-      if (updatedProfile) {
+      // Try to get enhanced profile first
+      let updatedProfile;
+      try {
+        updatedProfile = await fetchEnhancedUserProfile(user.id);
+      } catch (profileError) {
+        console.error('Error fetching enhanced profile:', profileError);
+      }
+
+      // If we have an enhanced profile with proper role, use enhanced routing
+      if (updatedProfile && updatedProfile.role) {
+        console.log('Profile gate: Using enhanced routing with profile:', updatedProfile);
         await routeAfterLogin(user, updatedProfile);
-      } else {
-        // Show contact support message
-        Alert.alert(
-          'Profile Setup Required',
-          'We need to set up your profile. Please contact your organization administrator or our support team.',
-          [{ text: 'OK' }]
-        );
+        return;
       }
       
+      // Fallback: Route directly based on selected role
+      console.log('Profile gate: Using fallback routing for role:', selectedRole);
+      const routes = {
+        'parent': '/screens/parent-dashboard',
+        'teacher': '/screens/teacher-dashboard', 
+        'principal_admin': '/screens/principal-dashboard',
+      };
+      
+      const targetRoute = routes[selectedRole as keyof typeof routes];
+      if (targetRoute) {
+        console.log('Profile gate: Routing to:', targetRoute);
+        router.replace(targetRoute as any);
+        return;
+      }
+
+      // Last resort: Show contact support message
+      Alert.alert(
+        'Profile Setup Required',
+        'We need to set up your profile. Please contact your organization administrator or our support team.',
+        [{ text: 'OK' }]
+      );
+      
     } catch (error) {
+      console.error('Profile gate: Continue failed:', error);
       reportError(new Error('Profile setup failed'), {
         userId: user.id,
         selectedRole,

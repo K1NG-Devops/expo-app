@@ -381,10 +381,10 @@ export const usePrincipalHub = () => {
           } else if (studentTeacherRatio > 25) {
             status = 'needs_attention';
             performanceIndicator = `High student ratio (${Math.round(studentTeacherRatio)}:1) - may need support`;
-          } else if (teacherClassesCount >= 3 && studentTeacherRatio <= 20 && teacherAttendanceRate >= 85) {
+          } else if ((teacherClassesCount ?? 0) >= 3 && studentTeacherRatio <= 20 && teacherAttendanceRate >= 85) {
             status = 'excellent';
             performanceIndicator = `Excellent performance - ${teacherClassesCount} classes, ${Math.round(studentTeacherRatio)}:1 ratio, ${teacherAttendanceRate}% attendance`;
-          } else if (teacherClassesCount >= 2 && studentTeacherRatio <= 22 && teacherAttendanceRate >= 80) {
+          } else if ((teacherClassesCount ?? 0) >= 2 && studentTeacherRatio <= 22 && teacherAttendanceRate >= 80) {
             status = 'excellent';
             performanceIndicator = `Strong performance - ${teacherClassesCount} classes, good attendance rates`;
           } else if (studentTeacherRatio <= 25 && teacherAttendanceRate >= 75) {

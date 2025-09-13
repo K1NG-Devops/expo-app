@@ -48,7 +48,20 @@
       "silentLaunch": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "EduDash Pro - AI-Powered Educational Platform",
+      "shortName": "EduDash Pro",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#00f5ff",
+      "backgroundColor": "#0a0a0f",
+      "description": "Revolutionary AI-powered educational platform for preschools. Trusted by educators worldwide for next-generation learning experiences with Society 5.0 technology.",
+      "keywords": ["education", "preschool", "AI", "learning", "teachers", "parents", "lessons", "artificial intelligence", "educational technology", "edtech"],
+      "author": "EduDash Pro Team",
+      "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
+      "startUrl": "/",
+      "display": "standalone",
+      "orientation": "any"
     },
     "extra": {
       "router": {},

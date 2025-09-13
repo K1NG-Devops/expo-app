@@ -2,6 +2,8 @@ import React from 'react';
 import { Platform, View } from 'react-native';
 
 export default function AdBanner() {
+  // Explicitly exclude web platform to prevent bundling issues
+  if (Platform.OS === 'web') return null;
   if (Platform.OS !== 'android') return null;
   if (process.env.EXPO_PUBLIC_ENABLE_ADS === '0') return null;
 

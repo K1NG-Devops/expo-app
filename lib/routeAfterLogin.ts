@@ -128,9 +128,9 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
         router.replace(route.path as any);
       }
     } catch (navigationError) {
-      console.error('Navigation failed, falling back to debug:', navigationError);
-      // Fallback to debug screen to help diagnose the issue
-      router.replace('/debug-user');
+      console.error('Navigation failed, falling back to profiles-gate:', navigationError);
+      // Fallback to profile gate to ensure user can access the app
+      router.replace('/profiles-gate');
     }
   } catch (error) {
     reportError(new Error('Post-login routing failed'), {

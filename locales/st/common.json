@@ -51,7 +51,15 @@
     "statistics": "Dipalopalo",
     "notifications": "Dikitsišo",
     "noActivity": "Ga go na ditiro tša bošego",
-    "loading": "Go na go laetšwa boto ya taolo..."
+    "loading": "Go na go laetšwa boto ya taolo...",
+    "principal_hub": "Lefelo la Modulasetulo",
+    "managing_school": "Go laola {{schoolName}}",
+    "school_overview": "Pono ya Sekolo",
+    "financial_management": "Taolo ya Ditšhelete",
+    "ai_analytics": "AI le Tshekatsheko",
+    "good_morning": "Thobela",
+    "good_afternoon": "Thobela",
+    "good_evening": "Thobela"
   },
   "ai": {
     "homework": {

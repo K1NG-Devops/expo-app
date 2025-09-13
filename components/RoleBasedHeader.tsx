@@ -8,6 +8,7 @@ import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
+import { router } from 'expo-router';
 
 interface RoleBasedHeaderProps {
   title?: string;
@@ -169,7 +170,8 @@ export function RoleBasedHeader({
                 borderWidth: 2,
                 borderColor: theme.primary + '40'
               }]} 
-              onPress={() => setMenuVisible(true)}
+              onPress={() => router.push('/screens/account')}
+              accessibilityLabel="Go to account settings"
             >
               {user?.user_metadata?.avatar_url ? (
                 <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImage} />
@@ -239,9 +241,14 @@ export function RoleBasedHeader({
                 {roleChip}
               </View>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); /* future: navigate profile */ }}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/screens/settings'); }}>
+                <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Settings</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/screens/account'); }}>
                 <Ionicons name="person-circle-outline" size={18} color={theme.textSecondary} />
-                <Text style={[styles.menuItemText, { color: theme.text }]}>Profile</Text>
+                <Text style={[styles.menuItemText, { color: theme.text }]}>Account Settings</Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setLanguageVisible(true); }}>
@@ -255,12 +262,6 @@ export function RoleBasedHeader({
                 <Text style={[styles.themeIndicator, { color: theme.textTertiary }]}>
                   {mode === 'dark' ? 'Dark' : mode === 'light' ? 'Light' : 'System'}
                 </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); /* future: settings */ }}>
-                <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
-                <Text style={[styles.menuItemText, { color: theme.text }]}>Settings</Text>
-                <View style={[styles.comingSoonBadge, { backgroundColor: theme.warning }]}><Text style={[styles.comingSoonText, { color: theme.onWarning }]}>Soon</Text></View>
               </TouchableOpacity>
 
               <View style={[styles.menuDivider, { backgroundColor: theme.divider }]} />
@@ -336,6 +337,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   themeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  settingsButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -437,17 +446,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F3F4F6',
     marginVertical: 6,
-  },
-  comingSoonBadge: {
-    backgroundColor: '#FFE4B5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  comingSoonText: {
-    fontSize: 10,
-    color: '#92400E',
-    fontWeight: '700',
   },
   langModalContainer: {
     flex: 1,

@@ -1,5 +1,6 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
+import * as Device from "expo-device";
 
 const KEY = "biometrics_enabled";
 const CACHE_DURATION = 30000; // 30 seconds cache for hardware checks
@@ -24,6 +25,7 @@ async function getCapabilities(): Promise<{
 
   // Return cached result if still valid
   if (capabilityCache && now - capabilityCache.timestamp < CACHE_DURATION) {
+    console.log('Using cached biometric capabilities:', capabilityCache);
     return {
       isAvailable: capabilityCache.isAvailable,
       isEnrolled: capabilityCache.isEnrolled,
@@ -32,10 +34,13 @@ async function getCapabilities(): Promise<{
 
   // Fetch new capabilities
   try {
+    console.log('Checking biometric capabilities...');
     const [isAvailable, isEnrolled] = await Promise.all([
       LocalAuthentication.hasHardwareAsync(),
       LocalAuthentication.isEnrolledAsync(),
     ]);
+
+    console.log('Biometric capabilities result:', { isAvailable, isEnrolled });
 
     // Update cache
     capabilityCache = {
@@ -85,6 +90,13 @@ export async function authenticate(
   reason = "Unlock EduDash Pro",
 ): Promise<boolean> {
   try {
+    // Log device info for OPPO-specific debugging
+    console.log('Biometric auth attempt on device:', {
+      brand: Device.brand,
+      model: Device.modelName,
+      platform: Device.osName
+    });
+
     // Check capabilities first
     const { isAvailable, isEnrolled } = await getCapabilities();
 
@@ -93,18 +105,45 @@ export async function authenticate(
       return false;
     }
 
-    const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: reason,
+    // Get supported authentication types for better user prompts
+    const supportedTypes = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    
+    // Create appropriate prompt message based on available biometrics
+    let promptMessage = reason;
+    if (supportedTypes.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+      promptMessage = reason === "Unlock EduDash Pro" 
+        ? "Place your finger on the sensor to unlock EduDash Pro" 
+        : reason;
+    } else if (supportedTypes.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+      promptMessage = reason === "Unlock EduDash Pro" 
+        ? "Look at the camera to unlock EduDash Pro" 
+        : reason;
+    }
+
+    // Configure authentication options (skip biometricsSecurityLevel for OPPO compatibility)
+    const authOptions: LocalAuthentication.LocalAuthenticationOptions = {
+      promptMessage,
       fallbackLabel: "Use passcode",
       disableDeviceFallback: false,
       cancelLabel: "Cancel",
-      // Enhanced security settings - cast to correct type
-      biometricsSecurityLevel: LocalAuthentication.SecurityLevel.BIOMETRIC_STRONG as any,
-    });
+      // Skip biometricsSecurityLevel to avoid casting issues on OPPO and other Android devices
+    };
 
+    const res = await LocalAuthentication.authenticateAsync(authOptions);
+
+    console.log('Biometric authentication result:', {
+      success: res.success,
+      error: res.error,
+      warning: res.warning
+    });
     return !!res.success;
   } catch (error) {
-    console.warn("Biometric authentication error:", error);
+    console.error("Biometric authentication error:", error);
+    console.error("Error details:", {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     return false;
   }
 }

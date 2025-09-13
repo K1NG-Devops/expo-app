@@ -23,9 +23,13 @@ import AdBanner from '@/components/ui/AdBanner';
 import { featuresContent } from '@/constants/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
+import { setPageMetadata, landingPageSEO } from '@/lib/webSEO';
 
 const { width, height } = Dimensions.get('window');
 const isSmall = width < 400;
+const isWeb = Platform.OS === 'web';
+const isTablet = width >= 768;
+const isDesktop = width >= 1024;
 
 interface HoloStatCardProps {
   icon: string;
@@ -36,14 +40,18 @@ interface HoloStatCardProps {
 
 interface FeaturesSectionProps {
   setSelectedFeature: (feature: any) => void;
+  webOptimized?: boolean;
 }
 
 interface TestimonialsSectionProps {
   activeTestimonial: number;
   setActiveTestimonial: (index: number | ((prev: number) => number)) => void;
+  webOptimized?: boolean;
 }
 
-interface QASectionProps {}
+interface QASectionProps {
+  webOptimized?: boolean;
+}
 
 interface FeatureModalProps {
   selectedFeature: any;
@@ -54,6 +62,7 @@ export default function Landing() {
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [webOptimized, setWebOptimized] = useState(false);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -62,6 +71,16 @@ export default function Landing() {
   }, []);
 
   useEffect(() => {
+    // Set SEO metadata for web
+    if (isWeb) {
+      setPageMetadata(landingPageSEO);
+    }
+
+    // Enable web-specific optimizations
+    if (isWeb && (isTablet || isDesktop)) {
+      setWebOptimized(true);
+    }
+
     // If a session exists, route to the appropriate dashboard
     (async () => {
       try {
@@ -86,12 +105,12 @@ export default function Landing() {
           scrollEventThrottle={16}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}
         >
-          <HeroSection />
-          <FeaturesSection setSelectedFeature={setSelectedFeature} />
-          <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} />
-          <QASection />
-          <AdBanner />
-          <FooterSection />
+          <HeroSection webOptimized={webOptimized} />
+          <FeaturesSection setSelectedFeature={setSelectedFeature} webOptimized={webOptimized} />
+          <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} webOptimized={webOptimized} />
+          <QASection webOptimized={webOptimized} />
+          {!webOptimized && <AdBanner />}
+          <FooterSection webOptimized={webOptimized} />
         </ScrollView>
       </SafeAreaView>
 
@@ -100,7 +119,7 @@ export default function Landing() {
   );
 }
 
-const HeroSection = () => {
+const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
   const floatingY = useRef(new Animated.Value(0)).current;
 
   const { profile } = useAuth();
@@ -132,24 +151,25 @@ const HeroSection = () => {
               <Text style={styles.logoText}>EduDash Pro</Text>
               <Text style={styles.logoSubtext}>Society 5.0</Text>
             </View>
-            <TouchableOpacity style={styles.accessButton} onPress={() => router.push('/(auth)/sign-in')}>
-              <LinearGradient colors={['#00f5ff', '#0080ff']} style={styles.accessGradient}>
-                <Text style={styles.accessButtonText}>Neural Access</Text>
+            <TouchableOpacity style={[styles.accessButton, webOptimized && styles.accessButtonWeb]} onPress={() => router.push('/(auth)/sign-in')}>
+              <LinearGradient colors={['#00f5ff', '#0080ff']} style={[styles.accessGradient, webOptimized && styles.accessGradientWeb]}>
+                <Text style={[styles.accessButtonText, webOptimized && styles.accessButtonTextWeb]}>Neural Access</Text>
                 <IconSymbol name="arrow.right" size={16} color="#000000" />
               </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.heroTextContainer}>
-            <Animated.View style={[styles.heroTitle, { transform: [{ translateY: floatingY }] }]}>
-              <Text style={styles.heroMainTitle}>
+          <View style={[styles.heroTextContainer, webOptimized && styles.heroTextContainerWeb]}>
+            <Animated.View style={[styles.heroTitle, { transform: [{ translateY: floatingY }] }, webOptimized && styles.heroTitleWeb]}>
+              <Text style={[styles.heroMainTitle, webOptimized && styles.heroMainTitleWeb]}>
                 <Text style={styles.gradientTextPrimary}>NEURAL</Text> EDUCATION{String.fromCharCode(10)}
                 <Text style={styles.gradientTextSecondary}>REVOLUTION</Text>
               </Text>
-              <Text style={styles.heroTagline}>🚀 Society 5.0 • AI • Robotics • Virtual Reality • Quantum Learning</Text>
-              <Text style={styles.heroSubtitle}>
+              <Text style={[styles.heroTagline, webOptimized && styles.heroTaglineWeb]}>🚀 Society 5.0 • AI • Robotics • Virtual Reality • Quantum Learning</Text>
+              <Text style={[styles.heroSubtitle, webOptimized && styles.heroSubtitleWeb]}>
                 The convergence of artificial intelligence, quantum computing, and neural networks creates the ultimate
                 educational ecosystem for the super-human digital age.
+                {webOptimized && " Trusted by educational institutions worldwide for next-generation learning experiences."}
               </Text>
             </Animated.View>
 
@@ -203,7 +223,7 @@ const HoloStatCard: React.FC<HoloStatCardProps> = ({ icon, number, label, color 
   </View>
 );
 
-const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature }) => {
+const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature, webOptimized = false }) => {
   const features = featuresContent;
   return (
     <View style={styles.featuresContainer}>
@@ -231,7 +251,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature })
   );
 };
 
-const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimonial, setActiveTestimonial }) => {
+const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimonial, setActiveTestimonial, webOptimized = false }) => {
   const testimonials = require('@/constants/marketing').testimonialsContent as typeof import('@/constants/marketing').testimonialsContent;
   const isDesktop = width >= (DesignSystem.breakpoints?.lg ?? 1024);
 
@@ -279,7 +299,7 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
   );
 };
 
-const QASection: React.FC<QASectionProps> = () => {
+const QASection: React.FC<QASectionProps> = ({ webOptimized = false }) => {
   const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
   const qaData = [
     { question: 'How does the Quantum AI Brain work?', answer: 'Server-side AI with strict privacy and compliance.' },
@@ -332,7 +352,7 @@ const FeatureModal: React.FC<FeatureModalProps> = ({ selectedFeature, setSelecte
   );
 };
 
-const FooterSection = () => (
+const FooterSection = ({ webOptimized = false }: { webOptimized?: boolean }) => (
   <View style={styles.footerContainer}>
     <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.footerGradient}>
       <View style={styles.footerContent}>
@@ -436,4 +456,13 @@ const styles = StyleSheet.create({
   footerLogoGradient: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   footerLogoText: { fontSize: 26, fontWeight: '900', color: DesignSystem.colors.text.primary, marginBottom: 4 },
   footerLogoSubtext: { fontSize: 13, color: DesignSystem.colors.text.quantum, fontWeight: '600' },
+  // Web-specific styles
+  accessButtonWeb: { borderRadius: 8 },
+  accessGradientWeb: { paddingHorizontal: 24, paddingVertical: 14 },
+  accessButtonTextWeb: { fontSize: 14 },
+  heroTextContainerWeb: { maxWidth: 800, alignSelf: 'center' },
+  heroTitleWeb: { marginBottom: 32 },
+  heroMainTitleWeb: { fontSize: 48, lineHeight: 56 },
+  heroTaglineWeb: { fontSize: 16, marginBottom: 16 },
+  heroSubtitleWeb: { fontSize: 18, lineHeight: 26, maxWidth: 600 },
 });

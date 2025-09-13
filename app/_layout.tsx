@@ -9,11 +9,12 @@ import { track } from '@/lib/analytics';
 import { promptIfEnabled, getEnabled as getBiometricEnabled, isEnrolled as isBiometricEnrolled, isHardwareAvailable as isBiometricAvailable, authenticate as biometricAuth } from '@/lib/biometrics';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 // Initialize i18n
 import i18n from '@/lib/i18n';
 import { I18nextProvider } from 'react-i18next';
 import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -83,15 +84,16 @@ export default function RootLayout() {
       console.log('🔐 Initializing session management...');
       await initializeSession();
 
-      // Optional biometric lock (device-level)
+      // Optional biometric lock (device-level) - don't treat cancellation as initialization error
       try {
         const ok = await promptIfEnabled();
         if (!ok) {
-          setInitError('Biometric authentication canceled');
-          return;
+          console.log('Biometric authentication was canceled or skipped during initialization - continuing app startup');
+          // Don't treat this as an error - user can still use the app normally
         }
       } catch (e) {
-        console.warn('Biometric prompt failed or skipped:', e);
+        console.warn('Biometric prompt failed or skipped during initialization:', e);
+        // Continue with app initialization even if biometric prompt fails
       }
 
       // Initialize AdMob with test IDs only
@@ -165,12 +167,7 @@ export default function RootLayout() {
   if (!isInitialized && !initError) {
     return (
       <ThemeProvider>
-        <View style={initStyles.container}>
-          <StatusBar style="light" backgroundColor="#4F46E5" hidden />
-          <ActivityIndicator size="large" color="#00f5ff" />
-          <Text style={initStyles.loadingText}>Initializing EduDash Pro...</Text>
-          <Text style={initStyles.subText}>Setting up monitoring, session management, and feature flags</Text>
-        </View>
+        <ThemedLoadingScreen />
       </ThemeProvider>
     );
   }
@@ -178,12 +175,9 @@ export default function RootLayout() {
   // Show error screen if initialization failed
   if (initError) {
     return (
-      <View style={initStyles.container}>
-        <StatusBar style="light" backgroundColor="#4F46E5" hidden />
-        <Text style={initStyles.errorTitle}>⚠️ Initialization Error</Text>
-        <Text style={initStyles.errorText}>{initError}</Text>
-        <Text style={initStyles.subText}>Check console for details</Text>
-      </View>
+      <ThemeProvider>
+        <ThemedErrorScreen error={initError} />
+      </ThemeProvider>
     );
   }
 
@@ -196,23 +190,7 @@ export default function RootLayout() {
           <SubscriptionProvider>
             <ThemedStackWrapper />
 
-          {locked && (
-            <View style={lockStyles.overlay} pointerEvents="auto">
-              <View style={lockStyles.card}>
-                <Text style={lockStyles.title}>Unlock EduDash Pro</Text>
-                <Text style={lockStyles.subtitle}>Authenticate to continue</Text>
-                <TouchableOpacity
-                  style={lockStyles.tryBtn}
-                  onPress={async () => {
-                    const ok = await biometricAuth('Unlock EduDash Pro');
-                    setLocked(!ok);
-                  }}
-                >
-                  <Text style={lockStyles.tryBtnText}>Try again</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
           </SubscriptionProvider>
         </AuthProvider>
       </ThemeProvider>
@@ -220,64 +198,170 @@ export default function RootLayout() {
   );
 }
 
-const initStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  subText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#EF4444',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ffffff',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-});
+// Themed Loading Screen Component
+function ThemedLoadingScreen() {
+  const { theme, isDark } = useTheme();
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    loadingText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    subText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+  });
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <ActivityIndicator size="large" color={theme.primary} />
+      <Text style={styles.loadingText}>Initializing EduDash Pro...</Text>
+      <Text style={styles.subText}>Setting up monitoring, session management, and feature flags</Text>
+    </View>
+  );
+}
 
-const lockStyles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#0b1220',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  card: {
-    width: '85%',
-    backgroundColor: '#111827',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-    padding: 20,
-    alignItems: 'center',
-  },
-  title: { color: '#FFFFFF', fontWeight: '800', fontSize: 18 },
-  subtitle: { color: '#9CA3AF', marginTop: 6, textAlign: 'center' },
-  tryBtn: { marginTop: 16, backgroundColor: '#00f5ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
-  tryBtnText: { color: '#000', fontWeight: '800' },
-});
+// Themed Error Screen Component
+function ThemedErrorScreen({ error }: { error: string }) {
+  const { theme, isDark } = useTheme();
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    errorTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: theme.error,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    errorText: {
+      fontSize: 16,
+      color: theme.text,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    subText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+  });
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <Text style={styles.errorTitle}>⚠️ Initialization Error</Text>
+      <Text style={styles.errorText}>{error}</Text>
+      <Text style={styles.subText}>Check console for details</Text>
+    </View>
+  );
+}
+
+// Themed Lock Screen Component  
+function ThemedLockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const { theme, isDark } = useTheme();
+  const { t } = require('react-i18next').useTranslation();
+  
+  const styles = StyleSheet.create({
+    overlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.modalOverlay,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    card: {
+      width: '85%',
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 24,
+      alignItems: 'center',
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    iconContainer: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: theme.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    title: { 
+      color: theme.text, 
+      fontWeight: '700', 
+      fontSize: 20,
+      marginBottom: 8,
+    },
+    subtitle: { 
+      color: theme.textSecondary, 
+      textAlign: 'center',
+      fontSize: 16,
+      marginBottom: 24,
+    },
+    tryBtn: { 
+      backgroundColor: theme.primary, 
+      paddingHorizontal: 24, 
+      paddingVertical: 12, 
+      borderRadius: 12,
+      minWidth: 120,
+    },
+    tryBtnText: { 
+      color: theme.onPrimary, 
+      fontWeight: '600',
+      fontSize: 16,
+      textAlign: 'center',
+    },
+  });
+  
+  return (
+    <View style={styles.overlay} pointerEvents="auto">
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <View style={styles.card}>
+        <View style={styles.iconContainer}>
+          <Ionicons name="finger-print" size={32} color={theme.onPrimary} />
+        </View>
+        <Text style={styles.title}>{t('settings.biometric.unlockApp')}</Text>
+        <Text style={styles.subtitle}>{t('settings.biometric.authRequired')}</Text>
+        <TouchableOpacity
+          style={styles.tryBtn}
+          onPress={async () => {
+            const ok = await biometricAuth('Unlock EduDash Pro');
+            if (ok) onUnlock();
+          }}
+        >
+          <Text style={styles.tryBtnText}>{t('settings.biometric.authenticate')}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}

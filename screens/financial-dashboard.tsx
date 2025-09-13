@@ -13,7 +13,28 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { School, FinancialTransaction } from '../types';
+// Define types locally
+interface School {
+  id: string;
+  name: string;
+  created_by: string;
+  created_at: string;
+}
+
+interface FinancialTransaction {
+  id: string;
+  preschool_id: string;
+  student_id?: string;
+  type: 'fee_payment' | 'expense' | 'refund';
+  amount: number;
+  description: string;
+  status: 'pending' | 'completed' | 'failed';
+  created_at: string;
+  students?: {
+    first_name: string;
+    last_name: string;
+  };
+}
 
 interface FinancialMetrics {
   monthlyRevenue: number;
@@ -35,7 +56,7 @@ interface MonthlyData {
 const FinancialDashboard: React.FC = () => {
   const { user } = useAuth();
   const router = useRouter();
-  // const [school, setSchool] = useState<School | null>(null); // For future use
+  const [school, setSchool] = useState<School | null>(null);
   const [metrics, setMetrics] = useState<FinancialMetrics>({
     monthlyRevenue: 0,
     outstandingPayments: 0,
@@ -51,7 +72,7 @@ const FinancialDashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadFinancialData = async () => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     try {
       setLoading(true);
@@ -72,7 +93,7 @@ const FinancialDashboard: React.FC = () => {
         setSchool(schoolData);
 
         // Get financial transactions
-        const { data: transactions, error: transactionError } = await supabase
+        const { data: transactions, error: transactionError } = await supabase!
           .from('financial_transactions')
           .select(`
             *,
@@ -92,7 +113,7 @@ const FinancialDashboard: React.FC = () => {
         }
 
         // Get student count
-        const { count: studentCount } = await supabase
+        const { count: studentCount } = await supabase!
           .from('students')
           .select('*', { count: 'exact', head: true })
           .eq('preschool_id', schoolData.id)
@@ -103,7 +124,7 @@ const FinancialDashboard: React.FC = () => {
         const currentYear = new Date().getFullYear();
 
         // Monthly revenue (fees paid this month)
-        const { data: monthlyRevenue } = await supabase
+        const { data: monthlyRevenue } = await supabase!
           .from('financial_transactions')
           .select('amount')
           .eq('preschool_id', schoolData.id)
@@ -115,7 +136,7 @@ const FinancialDashboard: React.FC = () => {
         const totalRevenue = monthlyRevenue?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
         // Outstanding payments
-        const { data: outstanding } = await supabase
+        const { data: outstanding } = await supabase!
           .from('financial_transactions')
           .select('amount')
           .eq('preschool_id', schoolData.id)
@@ -125,7 +146,7 @@ const FinancialDashboard: React.FC = () => {
         const totalOutstanding = outstanding?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
         // Monthly expenses
-        const { data: monthlyExpenses } = await supabase
+        const { data: monthlyExpenses } = await supabase!
           .from('financial_transactions')
           .select('amount')
           .eq('preschool_id', schoolData.id)
@@ -156,7 +177,7 @@ const FinancialDashboard: React.FC = () => {
           const month = date.getMonth() + 1;
           const year = date.getFullYear();
           
-          const { data: monthRevenue } = await supabase
+          const { data: monthRevenue } = await supabase!
             .from('financial_transactions')
             .select('amount')
             .eq('preschool_id', schoolData.id)
@@ -165,7 +186,7 @@ const FinancialDashboard: React.FC = () => {
             .gte('created_at', `${year}-${month.toString().padStart(2, '0')}-01`)
             .lt('created_at', `${year}-${(month + 1).toString().padStart(2, '0')}-01`);
 
-          const { data: monthExpenses } = await supabase
+          const { data: monthExpenses } = await supabase!
             .from('financial_transactions')
             .select('amount')
             .eq('preschool_id', schoolData.id)

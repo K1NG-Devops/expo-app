@@ -7,6 +7,7 @@
 
 import * as SecureStore from "expo-secure-store";
 import { Alert } from "react-native";
+import i18next from "i18next";
 
 const BACKUP_KEY = "biometric_backup_data";
 const FALLBACK_PIN_KEY = "fallback_pin_hash";
@@ -42,11 +43,15 @@ export class BiometricBackupManager {
    * Create a hash for sensitive data
    */
   private static async hashData(data: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(data);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", dataBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    // Simple hash function for React Native compatibility
+    let hash = 0;
+    if (data.length === 0) return hash.toString();
+    for (let i = 0; i < data.length; i++) {
+      const char = data.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16);
   }
 
   /**
@@ -54,9 +59,9 @@ export class BiometricBackupManager {
    */
   private static generateRecoveryToken(): string {
     const timestamp = Date.now().toString(36);
-    const randomBytes = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
+    const randomBytes = Array.from({ length: 16 }, () => 
+      Math.floor(Math.random() * 256)
+    ).map((b) => b.toString(16).padStart(2, "0")).join("");
     return `${timestamp}-${randomBytes}`;
   }
 
@@ -276,7 +281,7 @@ export class BiometricBackupManager {
           Alert.alert(
             "No Backup Methods Available",
             "Please set up backup authentication methods in your profile settings.",
-            [{ text: "OK", onPress: () => resolve(false) }],
+            [{ text: i18next.t("common.ok"), onPress: () => resolve(false) }],
           );
           return;
         }
@@ -297,7 +302,7 @@ export class BiometricBackupManager {
         }
 
         options.push({
-          text: "Cancel",
+          text: i18next.t("navigation.cancel"),
           style: "cancel" as const,
           onPress: () => resolve(false),
         });

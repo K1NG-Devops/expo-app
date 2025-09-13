@@ -27,7 +27,8 @@ import { signOutAndRedirect } from "@/lib/authActions";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
-import { ThemeLanguageSettings } from "@/components/settings/ThemeLanguageSettings";
+import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
+import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 
 export default function AccountScreen() {
   const { theme, mode, toggleTheme } = useTheme();
@@ -688,34 +689,7 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: t('navigation.profile'),
-          headerStyle: { backgroundColor: theme.headerBackground },
-          headerTitleStyle: { color: theme.headerText },
-          headerTintColor: theme.headerTint,
-          headerRight: () => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={[styles.settingsButton, { marginRight: 8 }]}
-                onPress={toggleTheme}
-              >
-                <Ionicons 
-                  name={mode === 'dark' ? 'moon' : 'sunny'} 
-                  size={24} 
-                  color={theme.headerTint} 
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.settingsButton}
-                onPress={() => setShowSettingsMenu(true)}
-              >
-                <Ionicons name="ellipsis-vertical" size={24} color={theme.headerTint} />
-              </TouchableOpacity>
-            </View>
-          ),
-        }}
-      />
+      <RoleBasedHeader title={t('navigation.account')} />
 
       <ScrollView
         style={styles.scrollView}

@@ -56,13 +56,13 @@ const PrincipalAnalytics: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
 
   const loadAnalytics = async () => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     try {
       setLoading(true);
 
       // Get school info
-      const { data: school } = await supabase
+      const { data: school } = await supabase!
         .from('preschools')
         .select('id, name')
         .eq('created_by', user.id)
@@ -71,7 +71,7 @@ const PrincipalAnalytics: React.FC = () => {
       if (!school) return;
 
       // Get enrollment data
-      const { data: students, count: totalStudents } = await supabase
+      const { data: students, count: totalStudents } = await supabase!
         .from('students')
         .select(`
           id,
@@ -93,7 +93,7 @@ const PrincipalAnalytics: React.FC = () => {
       // Age group distribution
       const ageGroupCounts: { [key: string]: number } = {};
       students?.forEach(s => {
-        const ageGroup = s.age_groups?.name || 'Unknown';
+        const ageGroup = (s.age_groups as any)?.name || 'Unknown';
         ageGroupCounts[ageGroup] = (ageGroupCounts[ageGroup] || 0) + 1;
       });
       const ageGroupDistribution = Object.entries(ageGroupCounts).map(([ageGroup, count]) => ({
@@ -102,7 +102,7 @@ const PrincipalAnalytics: React.FC = () => {
       }));
 
       // Get attendance data
-      const { data: attendanceRecords } = await supabase
+      const { data: attendanceRecords } = await supabase!
         .from('attendance_records')
         .select('status, date')
         .eq('preschool_id', school.id)
@@ -114,7 +114,7 @@ const PrincipalAnalytics: React.FC = () => {
 
       // Today's attendance
       const today = new Date().toISOString().split('T')[0];
-      const { data: todayAttendance } = await supabase
+      const { data: todayAttendance } = await supabase!
         .from('attendance_records')
         .select('status')
         .eq('preschool_id', school.id)
@@ -129,7 +129,7 @@ const PrincipalAnalytics: React.FC = () => {
       const currentMonth = new Date().getMonth() + 1;
       const currentYear = new Date().getFullYear();
 
-      const { data: monthlyRevenue } = await supabase
+      const { data: monthlyRevenue } = await supabase!
         .from('financial_transactions')
         .select('amount')
         .eq('preschool_id', school.id)
@@ -140,7 +140,7 @@ const PrincipalAnalytics: React.FC = () => {
 
       const totalRevenue = monthlyRevenue?.reduce((sum, t) => sum + t.amount, 0) || 0;
 
-      const { data: outstanding } = await supabase
+      const { data: outstanding } = await supabase!
         .from('financial_transactions')
         .select('amount')
         .eq('preschool_id', school.id)
@@ -151,7 +151,7 @@ const PrincipalAnalytics: React.FC = () => {
       const paymentRate = totalRevenue > 0 ? (totalRevenue / (totalRevenue + totalOutstanding)) * 100 : 0;
 
       // Get staff data from users table
-      const { data: teachers, count: totalStaff } = await supabase
+      const { data: teachers, count: totalStaff } = await supabase!
         .from('users')
         .select('id, role')
         .eq('preschool_id', school.id)

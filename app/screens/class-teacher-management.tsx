@@ -79,13 +79,13 @@ export default function ClassTeacherManagementScreen() {
   });
 
   const loadData = async () => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     try {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -97,7 +97,7 @@ export default function ClassTeacherManagementScreen() {
       }
 
       // Load classes with teacher and enrollment information
-      const { data: classesData } = await supabase
+      const { data: classesData } = await supabase!
         .from('classes')
         .select(`
           *,
@@ -129,7 +129,7 @@ export default function ClassTeacherManagementScreen() {
       setClasses(processedClasses);
 
       // Load teachers with their class assignments from users table
-      const { data: teachersData } = await supabase
+      const { data: teachersData } = await supabase!
         .from('users')
         .select(`
           *,
@@ -150,7 +150,7 @@ export default function ClassTeacherManagementScreen() {
         email: teacher.email,
         phone: teacher.phone,
         specialization: teacher.subject_specialization || '',
-        status: teacher.role === 'teacher' ? 'active' : 'inactive',
+        status: (teacher.is_active !== false ? 'active' : 'inactive') as 'active' | 'inactive',
         hire_date: teacher.created_at,
         classes_assigned: teacher.classes?.length || 0,
         students_count: teacher.students?.length || 0,
@@ -174,13 +174,13 @@ export default function ClassTeacherManagementScreen() {
     }
 
     try {
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
-      const { error } = await supabase
+      const { error } = await supabase!
         .from('classes')
         .insert({
           name: classForm.name.trim(),
@@ -216,7 +216,7 @@ export default function ClassTeacherManagementScreen() {
     if (!selectedClass || !classForm.teacher_id) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await supabase!
         .from('classes')
         .update({ teacher_id: classForm.teacher_id })
         .eq('id', selectedClass.id);
@@ -247,7 +247,7 @@ export default function ClassTeacherManagementScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase
+              const { error } = await supabase!
                 .from('classes')
                 .update({ teacher_id: null })
                 .eq('id', classInfo.id);
@@ -270,7 +270,7 @@ export default function ClassTeacherManagementScreen() {
 
   const handleToggleClassStatus = async (classInfo: ClassInfo) => {
     try {
-      const { error } = await supabase
+      const { error } = await supabase!
         .from('classes')
         .update({ is_active: !classInfo.is_active })
         .eq('id', classInfo.id);

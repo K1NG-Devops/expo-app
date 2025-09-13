@@ -97,13 +97,13 @@ export default function PettyCashScreen() {
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const loadPettyCashData = async () => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     try {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -115,7 +115,7 @@ export default function PettyCashScreen() {
       }
 
       // Load petty cash transactions
-      const { data: transactionsData, error: transError } = await supabase
+      const { data: transactionsData, error: transError } = await supabase!
         .from('petty_cash_transactions')
         .select('*')
         .eq('preschool_id', userProfile.preschool_id)
@@ -150,7 +150,7 @@ export default function PettyCashScreen() {
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Get opening balance (this would typically be set by admin)
-      const { data: settingsData } = await supabase
+      const { data: settingsData } = await supabase!
         .from('school_settings')
         .select('petty_cash_limit, opening_balance')
         .eq('preschool_id', userProfile.preschool_id)
@@ -196,14 +196,14 @@ export default function PettyCashScreen() {
     try {
       setUploadingReceipt(true);
       
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
       // First, insert the transaction
-      const { data: transactionData, error: transactionError } = await supabase
+      const { data: transactionData, error: transactionError } = await supabase!
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,
@@ -230,7 +230,7 @@ export default function PettyCashScreen() {
         
         if (receiptPath) {
           // Update transaction with receipt path
-          await supabase
+          await supabase!
             .from('petty_cash_transactions')
             .update({ receipt_image_path: receiptPath })
             .eq('id', transactionData.id);
@@ -266,14 +266,19 @@ export default function PettyCashScreen() {
       return;
     }
 
+    if (!supabase) {
+      Alert.alert('Error', 'Database connection not available');
+      return;
+    }
+
     try {
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
-      const { error } = await supabase
+      const { error } = await supabase!
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,
@@ -337,6 +342,8 @@ export default function PettyCashScreen() {
   };
 
   const uploadReceiptImage = async (imageUri: string, transactionId: string) => {
+    if (!supabase) return null;
+    
     try {
       const response = await fetch(imageUri);
       const blob = await response.blob();
@@ -344,7 +351,7 @@ export default function PettyCashScreen() {
       const fileExt = imageUri.split('.').pop();
       const fileName = `receipt_${transactionId}_${Date.now()}.${fileExt}`;
       
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabase!.storage
         .from('receipts')
         .upload(fileName, blob, {
           contentType: `image/${fileExt}`,

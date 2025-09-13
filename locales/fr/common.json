@@ -39,6 +39,30 @@
     "accountCreated": "Compte créé avec succès",
     "passwordResetSent": "Lien de réinitialisation envoyé à votre e-mail"
   },
+  "roles": {
+    "parent": "Parent",
+    "teacher": "Enseignant",
+    "principal": "Directeur",
+    "admin": "Administrateur",
+    "superAdmin": "Super Administrateur"
+  },
+  "dashboard": {
+    "welcome": "Bienvenue, {{name}}!",
+    "quickActions": "Actions Rapides",
+    "recentActivity": "Activité Récente",
+    "statistics": "Statistiques",
+    "notifications": "Notifications",
+    "noActivity": "Aucune activité récente",
+    "loading": "Chargement du tableau de bord...",
+    "principal_hub": "Centre Principal",
+    "managing_school": "Gestion de {{schoolName}}",
+    "school_overview": "Aperçu de l'École",
+    "financial_management": "Gestion Financière",
+    "ai_analytics": "IA et Analyse",
+    "good_morning": "Bonjour",
+    "good_afternoon": "Bon après-midi",
+    "good_evening": "Bonsoir"
+  },
   "ai": {
     "homework": {
       "title": "Assistant IA pour les Devoirs",

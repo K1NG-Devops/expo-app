@@ -25,7 +25,7 @@ export default function ThemeDemoScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <RoleBasedHeader title={t ? "Theme & Language Demo" : "Theme & Language Demo"} />
+      <RoleBasedHeader title={t("Theme & Language Demo")} />
       
       <ScrollView style={styles.scrollView}>
         {/* Theme and Language Settings */}
