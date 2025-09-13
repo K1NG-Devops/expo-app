@@ -224,68 +224,54 @@ export default function SignIn() {
       setLoading(true);
       setError(null);
 
-      console.log('Starting enhanced biometric authentication');
+      console.log('Starting biometric unlock for existing session');
       
-      // Use the enhanced biometric authentication service
-      const authResult = await EnhancedBiometricAuth.authenticateWithBiometric();
-      
-      if (!authResult.success) {
-        console.log('Biometric authentication failed:', authResult.error);
-        setError(authResult.error || "Biometric authentication failed");
+      // Gate with device authentication
+      const authRes = await BiometricAuthService.authenticate('Use biometric authentication to unlock');
+      if (!authRes.success) {
+        setError(authRes.error || "Biometric authentication failed");
         setLoading(false);
         return;
       }
 
-      const { userData } = authResult;
-      if (!userData) {
-        setError("No user data found. Please sign in with password first.");
-        setLoading(false);
-        return;
-      }
-
-      console.log('Biometric authentication successful for:', userData.email);
-
-      // Check if there's a cached profile to use for faster routing
-      if (userData.profileSnapshot && userData.profileSnapshot.role) {
-        console.log('Using cached profile for routing:', userData.profileSnapshot);
-        
-        // Create a mock user object for routing
-        const mockUser = {
-          id: userData.userId,
-          email: userData.email
-        };
-        
-        // Create a profile object from cached data
-        const cachedProfile = {
-          id: userData.userId,
-          role: userData.profileSnapshot.role,
-          organization_id: userData.profileSnapshot.organization_id,
-          seat_status: userData.profileSnapshot.seat_status,
-          // Add minimal required properties for routing
-          hasCapability: () => true, // Assume cached users have access
-          organization_membership: {
-            plan_tier: 'basic' // Default tier for cached users
+      // After unlock, verify session is still valid
+      try {
+        const { data } = await supabase!.auth.getSession();
+        if (data.session?.user) {
+          // Use cached profile snapshot if present to route faster, else go to profiles gate
+          const enhanced = await EnhancedBiometricAuth.getBiometricSession();
+          if (enhanced?.profileSnapshot?.role) {
+            const mockUser = { id: enhanced.userId, email: enhanced.email };
+            const cachedProfile = {
+              id: enhanced.userId,
+              role: enhanced.profileSnapshot.role,
+              organization_id: enhanced.profileSnapshot.organization_id,
+              seat_status: enhanced.profileSnapshot.seat_status,
+              hasCapability: () => true,
+              organization_membership: { plan_tier: 'basic' }
+            };
+            try {
+              const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+              await routeAfterLogin(mockUser as any, cachedProfile as any);
+              setLoading(false);
+              return;
+            } catch (e) {
+              console.warn('Routing with cached profile failed, going to profiles gate:', e);
+            }
           }
-        };
-        
-        try {
-          const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-          await routeAfterLogin(mockUser as any, cachedProfile as any);
-          setLoading(false);
-          return;
-        } catch (routingError) {
-          console.error('Error routing with cached profile:', routingError);
-          // Fall through to profile gate
+          router.replace("/profiles-gate");
+        } else {
+          setError("Session expired. Please sign in.");
         }
+      } catch (e) {
+        console.error('Session check after biometric unlock failed:', e);
+        setError("Could not verify session after unlock.");
       }
 
-      // No cached profile or routing failed - go to profile gate
-      console.log('No cached profile available, routing to profile gate');
-      router.replace("/profiles-gate");
       setLoading(false);
       
     } catch (error) {
-      console.error("Enhanced biometric login error:", error);
+      console.error("Biometric unlock error:", error);
       setError("Biometric login failed. Please try password login.");
       setLoading(false);
     }

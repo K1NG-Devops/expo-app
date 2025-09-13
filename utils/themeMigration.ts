@@ -78,8 +78,8 @@ export function createThemeAwareStyle<T extends Record<string, any>>(
   Object.entries(migrations).forEach(([styleKey, colorMappings]) => {
     if (result[styleKey] && colorMappings) {
       Object.entries(colorMappings).forEach(([property, themeKey]) => {
-        if (result[styleKey][property] && theme[themeKey]) {
-          result[styleKey][property] = theme[themeKey];
+        if (result[styleKey][property] && themeKey && theme[themeKey as keyof typeof theme]) {
+          result[styleKey][property] = theme[themeKey as keyof typeof theme];
         }
       });
     }

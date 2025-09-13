@@ -91,7 +91,7 @@ export default function StudentDetailScreen() {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await supabase!
         .from('users')
         .select('preschool_id, role')
         .eq('auth_user_id', user.id)
@@ -103,7 +103,7 @@ export default function StudentDetailScreen() {
       }
 
       // Get student details with related information
-      const { data: studentData, error: studentError } = await supabase
+      const { data: studentData, error: studentError } = await supabase!
         .from('students')
         .select(`
           *,
@@ -142,7 +142,7 @@ export default function StudentDetailScreen() {
       const ageInfo = calculateAge(studentData.date_of_birth);
       
       // Get attendance data
-      const { data: attendanceData } = await supabase
+      const { data: attendanceData } = await supabase!
         .from('attendance_records')
         .select('status, date')
         .eq('student_id', studentId)
@@ -155,7 +155,7 @@ export default function StudentDetailScreen() {
       const lastAttendance = attendanceData?.[0]?.date;
 
       // Get financial data
-      const { data: financialData } = await supabase
+      const { data: financialData } = await supabase!
         .from('financial_transactions')
         .select('amount, status, type')
         .eq('student_id', studentId)
@@ -185,7 +185,7 @@ export default function StudentDetailScreen() {
 
       // Load available classes for assignment (Principal only)
       if (userProfile.role === 'principal') {
-        const { data: classesData } = await supabase
+        const { data: classesData } = await supabase!
           .from('classes')
           .select(`
             *,
@@ -246,7 +246,7 @@ export default function StudentDetailScreen() {
     if (!selectedClassId || !student) return;
 
     try {
-      const { error } = await supabase
+      const { error } = await supabase!
         .from('students')
         .update({ class_id: selectedClassId })
         .eq('id', student.id);

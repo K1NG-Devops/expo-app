@@ -11,12 +11,6 @@ import {
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  getEnabled as getBiometricsEnabled,
-  setEnabled as setBiometricsEnabled,
-  isHardwareAvailable,
-  isEnrolled,
-} from "@/lib/biometrics";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
 import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
 import { supabase } from "@/lib/supabase";
@@ -147,16 +141,14 @@ export default function SettingsScreen() {
       
       // Load biometric information using direct methods that work on OppoA40
       try {
-        // Use the working methods directly
-        const capabilities = await BiometricAuthService.checkCapabilities();
-        const availableTypes = await BiometricAuthService.getAvailableBiometricOptions();
-        const isEnabled = await BiometricAuthService.isBiometricEnabled();
+        // Use unified service
+        const [capabilities, availableTypes, isEnabled] = await Promise.all([
+          BiometricAuthService.checkCapabilities(),
+          BiometricAuthService.getAvailableBiometricOptions(),
+          BiometricAuthService.isBiometricEnabled(),
+        ]);
         
-        console.log('Settings: Direct biometric check:', {
-          capabilities,
-          availableTypes,
-          isEnabled
-        });
+        console.log('Settings: Biometric check:', { capabilities, availableTypes, isEnabled });
         
         setBiometricSupported(capabilities.isAvailable);
         setBiometricEnrolled(capabilities.isEnrolled);
@@ -169,31 +161,6 @@ export default function SettingsScreen() {
         setHasBackupMethods(backupMethods.hasPin || backupMethods.hasSecurityQuestions);
       } catch (error) {
         console.error("Error loading biometric info:", error);
-        // Enhanced fallback for OPPO devices
-        try {
-          const [supported, enrolled, enabled] = await Promise.all([
-            isHardwareAvailable(),
-            isEnrolled(),
-            getBiometricsEnabled(),
-          ]);
-          setBiometricSupported(supported);
-          setBiometricEnrolled(enrolled);
-          setBiometricEnabled(enabled);
-          
-          // For OPPO devices, assume fingerprint is available if hardware is supported
-          if (supported && enrolled) {
-            setBiometricTypes(['Fingerprint']);
-          }
-          
-          console.log('Settings: Using fallback biometric detection', {
-            supported,
-            enrolled,
-            enabled,
-            assumedTypes: supported && enrolled ? ['Fingerprint'] : []
-          });
-        } catch (fallbackError) {
-          console.error('Biometric fallback error:', fallbackError);
-        }
       }
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -234,7 +201,6 @@ export default function SettingsScreen() {
       if (biometricEnabled) {
         // Disable biometric authentication
         await BiometricAuthService.disableBiometric();
-        await setBiometricsEnabled(false);
         setBiometricEnabled(false);
         Alert.alert(
           "Biometric Login Disabled",
@@ -247,7 +213,6 @@ export default function SettingsScreen() {
           user.email || "",
         );
         if (success) {
-          await setBiometricsEnabled(true);
           setBiometricEnabled(true);
           Alert.alert(
             "Biometric Login Enabled",

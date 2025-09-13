@@ -56,7 +56,7 @@ export class AIInsightsService {
   
   private static async analyzeAttendance(schoolId: string, startDate: Date, endDate: Date): Promise<AIInsight | null> {
     try {
-      const { data: attendanceRecords } = await supabase
+      const { data: attendanceRecords } = await supabase!
         .from('attendance_records')
         .select('status, date')
         .eq('preschool_id', schoolId)
@@ -71,7 +71,7 @@ export class AIInsightsService {
       
       // Get previous week for comparison
       const prevWeekStart = new Date(startDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const { data: prevWeekRecords } = await supabase
+      const { data: prevWeekRecords } = await supabase!
         .from('attendance_records')
         .select('status')
         .eq('preschool_id', schoolId)
@@ -123,7 +123,7 @@ export class AIInsightsService {
   
   private static async analyzeFinancials(schoolId: string, startDate: Date, endDate: Date): Promise<AIInsight | null> {
     try {
-      const { data: currentRevenue } = await supabase
+      const { data: currentRevenue } = await supabase!
         .from('financial_transactions')
         .select('amount')
         .eq('preschool_id', schoolId)
@@ -132,7 +132,7 @@ export class AIInsightsService {
         .gte('created_at', startDate.toISOString())
         .lte('created_at', endDate.toISOString());
       
-      const { data: outstanding } = await supabase
+      const { data: outstanding } = await supabase!
         .from('financial_transactions')
         .select('amount')
         .eq('preschool_id', schoolId)
@@ -169,7 +169,7 @@ export class AIInsightsService {
   
   private static async analyzeEnrollment(schoolId: string, startDate: Date, endDate: Date): Promise<AIInsight | null> {
     try {
-      const { data: students, count: totalStudents } = await supabase
+      const { data: students, count: totalStudents } = await supabase!
         .from('students')
         .select('id, created_at, status')
         .eq('preschool_id', schoolId);
@@ -216,13 +216,13 @@ export class AIInsightsService {
   
   private static async analyzeTeacherPerformance(schoolId: string): Promise<AIInsight | null> {
     try {
-      const { data: teachers, count: totalTeachers } = await supabase
+      const { data: teachers, count: totalTeachers } = await supabase!
         .from('users')
         .select('id, role')
         .eq('preschool_id', schoolId)
         .eq('role', 'teacher');
       
-      const { count: totalStudents } = await supabase
+      const { count: totalStudents } = await supabase!
         .from('students')
         .select('id', { count: 'exact', head: true })
         .eq('preschool_id', schoolId)
@@ -266,7 +266,7 @@ export class AIInsightsService {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       
-      const { data: overduePayments } = await supabase
+      const { data: overduePayments } = await supabase!
         .from('financial_transactions')
         .select('amount, created_at')
         .eq('preschool_id', schoolId)

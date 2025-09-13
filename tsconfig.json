@@ -13,7 +13,10 @@
     "skipLibCheck": true
   },
   "exclude": [
-    "scripts/test-rls-policies.ts"
+    "scripts/test-rls-policies.ts",
+    "supabase/functions/**/*",
+    "supabase/supabase/functions/**/*",
+    "supabase/components/**/*"
   ],
   "include": [
     "**/*.ts",

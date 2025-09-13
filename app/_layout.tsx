@@ -6,8 +6,9 @@ import { initializeAdMob } from '@/lib/adMob';
 import { initializeSession } from '@/lib/sessionManager';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
-import { promptIfEnabled, getEnabled as getBiometricEnabled, isEnrolled as isBiometricEnrolled, isHardwareAvailable as isBiometricAvailable, authenticate as biometricAuth } from '@/lib/biometrics';
+import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
+import { supabase } from '@/lib/supabase';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 // Initialize i18n
@@ -30,15 +31,19 @@ export default function RootLayout() {
     const handler = async (state: string) => {
       if (state === 'active') {
         try {
-          const [enabled, available, enrolled] = await Promise.all([
-            getBiometricEnabled(),
-            isBiometricAvailable(),
-            isBiometricEnrolled(),
-          ]);
-          if (enabled && available && enrolled) {
+          // Determine if a session exists
+          let hasSession = false;
+          try {
+            const { data } = await supabase!.auth.getSession();
+            hasSession = !!data.session?.user;
+          } catch (e) {
+            hasSession = false;
+          }
+          const shouldGate = await BiometricAuthService.shouldGate({ hasSession, graceMs: 30000 });
+          if (shouldGate) {
             setLocked(true);
-            const ok = await biometricAuth('Unlock EduDash Pro');
-            if (active) setLocked(!ok);
+            const res = await BiometricAuthService.authenticate('Unlock EduDash Pro');
+            if (active) setLocked(!res.success);
           }
         } catch {
           if (active) setLocked(false);
@@ -84,16 +89,11 @@ export default function RootLayout() {
       console.log('🔐 Initializing session management...');
       await initializeSession();
 
-      // Optional biometric lock (device-level) - don't treat cancellation as initialization error
+      // Optional: initialize biometric service (migration)
       try {
-        const ok = await promptIfEnabled();
-        if (!ok) {
-          console.log('Biometric authentication was canceled or skipped during initialization - continuing app startup');
-          // Don't treat this as an error - user can still use the app normally
-        }
+        await BiometricAuthService.init();
       } catch (e) {
-        console.warn('Biometric prompt failed or skipped during initialization:', e);
-        // Continue with app initialization even if biometric prompt fails
+        console.warn('Biometric service init failed (continuing):', e);
       }
 
       // Initialize AdMob with test IDs only
@@ -355,8 +355,8 @@ function ThemedLockScreen({ onUnlock }: { onUnlock: () => void }) {
         <TouchableOpacity
           style={styles.tryBtn}
           onPress={async () => {
-            const ok = await biometricAuth('Unlock EduDash Pro');
-            if (ok) onUnlock();
+            const res = await BiometricAuthService.authenticate('Unlock EduDash Pro');
+            if (res.success) onUnlock();
           }}
         >
           <Text style={styles.tryBtnText}>{t('settings.biometric.authenticate')}</Text>

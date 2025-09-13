@@ -17,7 +17,8 @@
       "supportsTablet": true,
       "runtimeVersion": {
         "policy": "appVersion"
-      }
+      },
+      "bundleIdentifier": "com.k1ngdevops.edudashpro"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,7 +26,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "runtimeVersion": "1.0.0"
+      "runtimeVersion": "1.0.0",
+      "package": "com.k1ngdevops.edudashpro"
     },
     "plugins": [
       "expo-router",
@@ -35,7 +37,10 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "androidManifestApplicationMetaData": {
+            "com.google.android.gms.ads.APPLICATION_ID": "ca-app-pub-3940256099942544~3347511713"
+          }
         }
       ],
       "expo-localization",
@@ -56,7 +61,18 @@
       "themeColor": "#00f5ff",
       "backgroundColor": "#0a0a0f",
       "description": "Revolutionary AI-powered educational platform for preschools. Trusted by educators worldwide for next-generation learning experiences with Society 5.0 technology.",
-      "keywords": ["education", "preschool", "AI", "learning", "teachers", "parents", "lessons", "artificial intelligence", "educational technology", "edtech"],
+      "keywords": [
+        "education",
+        "preschool",
+        "AI",
+        "learning",
+        "teachers",
+        "parents",
+        "lessons",
+        "artificial intelligence",
+        "educational technology",
+        "edtech"
+      ],
       "author": "EduDash Pro Team",
       "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
       "startUrl": "/",
@@ -68,6 +84,10 @@
       "eas": {
         "projectId": "57d5bed1-4674-4caa-a0ed-d0d14a21becb"
       }
+    },
+    "react-native-google-mobile-ads": {
+      "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+      "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
     },
     "updates": {
       "url": "https://u.expo.dev/57d5bed1-4674-4caa-a0ed-d0d14a21becb"

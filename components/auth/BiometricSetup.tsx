@@ -87,6 +87,8 @@ export function BiometricSetup({ visible, onClose, onSetupComplete }: BiometricS
       
       if (success) {
         // Enhanced service shows its own success alert
+        // Set lastUnlockedAt to now to avoid immediate re-prompt after enabling
+        try { await BiometricAuthService.setLastUnlockedAt(Date.now()); } catch {}
         onSetupComplete?.(true);
         onClose();
       }

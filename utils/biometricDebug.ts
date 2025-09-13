@@ -199,12 +199,14 @@ export class BiometricDebugger {
         promptMessage: 'Test Authentication - Default',
         cancelLabel: 'Cancel',
       });
+      const err1 = (typeof (result1 as any)?.error === 'string') ? (result1 as any).error : undefined;
+      const warn1 = (typeof (result1 as any)?.warning === 'string') ? (result1 as any).warning : undefined;
       tests.push({
         name: 'Default Configuration',
         config: { promptMessage: 'Test Authentication - Default' },
         success: result1.success,
-        error: result1.error,
-        warning: result1.warning,
+        error: err1,
+        warning: warn1,
       });
     } catch (error) {
       tests.push({
@@ -223,6 +225,8 @@ export class BiometricDebugger {
         disableDeviceFallback: false,
         requireConfirmation: false,
       });
+      const err2 = (typeof (result2 as any)?.error === 'string') ? (result2 as any).error : undefined;
+      const warn2 = (typeof (result2 as any)?.warning === 'string') ? (result2 as any).warning : undefined;
       tests.push({
         name: 'Permissive Configuration',
         config: { 
@@ -230,8 +234,8 @@ export class BiometricDebugger {
           requireConfirmation: false,
         },
         success: result2.success,
-        error: result2.error,
-        warning: result2.warning,
+        error: err2,
+        warning: warn2,
       });
     } catch (error) {
       tests.push({
@@ -254,14 +258,16 @@ export class BiometricDebugger {
         requireConfirmation: false,
         // Skip biometricsSecurityLevel to avoid casting issues on some Android devices
       });
+      const err3 = (typeof (result3 as any)?.error === 'string') ? (result3 as any).error : undefined;
+      const warn3 = (typeof (result3 as any)?.warning === 'string') ? (result3 as any).warning : undefined;
       tests.push({
         name: 'No Security Level (OPPO Compatible)',
         config: { 
           note: 'Skips biometricsSecurityLevel to avoid casting issues',
         },
         success: result3.success,
-        error: result3.error,
-        warning: result3.warning,
+        error: err3,
+        warning: warn3,
       });
     } catch (error) {
       tests.push({

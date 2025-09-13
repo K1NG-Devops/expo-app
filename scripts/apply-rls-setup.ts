@@ -47,7 +47,7 @@ async function executeSQL(sql: string) {
       results.push({ success: false, error: 'Service role required' });
     } catch (error) {
       console.error('❌ Error executing statement:', error);
-      results.push({ success: false, error: error.message });
+      results.push({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
   }
   

@@ -11,8 +11,13 @@ import * as SecureStore from "expo-secure-store";
 import { Alert, Platform } from "react-native";
 import * as Device from "expo-device";
 
-const BIOMETRIC_STORAGE_KEY = "biometric_enabled";
+const BIOMETRIC_STORAGE_KEY = "biometric_enabled"; // canonical flag ("true"/"false")
+const LEGACY_BIOMETRIC_STORAGE_KEY = "biometrics_enabled"; // legacy flag ("1"/"0")
 const BIOMETRIC_USER_KEY = "biometric_user_data";
+const BIOMETRIC_LOCK_SECRET_KEY = "biometric_lock_secret"; // random secret gated by device auth
+const LAST_UNLOCKED_AT_KEY = "biometric_last_unlocked_at"; // timestamp ms
+const LAST_USER_ID_KEY = "biometric_last_user_id"; // optional binding to current user
+
 const MAX_FAILED_ATTEMPTS = 3;
 const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
@@ -45,6 +50,24 @@ export interface BiometricSecurityState {
 }
 
 export class BiometricAuthService {
+  /**
+   * Run one-time migrations and setup
+   */
+  static async init(): Promise<void> {
+    try {
+      // Migrate legacy enable flag if present and canonical not set
+      const canonical = await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => null);
+      const legacy = await SecureStore.getItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => null);
+      if (!canonical && (legacy === "1" || legacy === "0")) {
+        const value = legacy === "1" ? "true" : "false";
+        await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, value);
+        await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => {});
+      }
+    } catch (e) {
+      console.warn("BiometricAuthService.init migration skipped:", e);
+    }
+  }
+
   /**
    * Check if biometric authentication is available and enrolled
    */
@@ -375,11 +398,8 @@ export class BiometricAuthService {
       
       const result = await LocalAuthentication.authenticateAsync(authConfig);
       
-      console.log('Authentication result:', {
-        success: result.success,
-        error: (result as any).error,
-        warning: (result as any).warning
-      });
+      // Log raw result to avoid type issues across platforms
+      console.log('Authentication result:', result);
 
       // Update security state based on result
       await this.updateSecurityState(result.success);
@@ -387,6 +407,8 @@ export class BiometricAuthService {
       if (result.success) {
         // Update last used timestamp
         await this.updateLastUsed();
+        // Record unlock time for grace period logic
+        try { await this.setLastUnlockedAt(Date.now()); } catch {}
 
         return {
           success: true,
@@ -395,7 +417,7 @@ export class BiometricAuthService {
       } else {
         return {
           success: false,
-          error: (result as any).error || "Authentication failed",
+          error: result.error || "Authentication failed",
         };
       }
     } catch (error) {
@@ -415,10 +437,21 @@ export class BiometricAuthService {
    */
   static async isBiometricEnabled(): Promise<boolean> {
     try {
-      // Try SecureStore first, fallback to AsyncStorage
-      let enabled = await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(
-        () => null,
-      );
+      // Try SecureStore first (canonical)
+      let enabled = await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => null);
+
+      // Migrate from legacy if canonical missing
+      if (!enabled) {
+        const legacy = await SecureStore.getItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => null);
+        if (legacy === "1" || legacy === "0") {
+          const canonical = legacy === "1" ? "true" : "false";
+          await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, canonical);
+          await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => {});
+          enabled = canonical;
+        }
+      }
+
+      // Fallback to AsyncStorage for canonical only (compat)
       if (!enabled) {
         enabled = await AsyncStorage.getItem(BIOMETRIC_STORAGE_KEY);
       }
@@ -478,6 +511,11 @@ export class BiometricAuthService {
         BIOMETRIC_USER_KEY,
         JSON.stringify(biometricData),
       );
+      // Create lock secret and bind to user id
+      await SecureStore.setItemAsync(BIOMETRIC_LOCK_SECRET_KEY, securityToken);
+      await SecureStore.setItemAsync(LAST_USER_ID_KEY, userId);
+      // Initialize lastUnlockedAt to now, so we don't immediately re-prompt
+      await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(Date.now()));
 
       // Also maintain AsyncStorage compatibility for existing code
       await AsyncStorage.setItem(BIOMETRIC_STORAGE_KEY, "true");
@@ -500,6 +538,9 @@ export class BiometricAuthService {
         SecureStore.deleteItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => {}),
         SecureStore.deleteItemAsync(BIOMETRIC_USER_KEY).catch(() => {}),
         SecureStore.deleteItemAsync("biometric_security_state").catch(() => {}),
+        SecureStore.deleteItemAsync(BIOMETRIC_LOCK_SECRET_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(LAST_UNLOCKED_AT_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(LAST_USER_ID_KEY).catch(() => {}),
         AsyncStorage.removeItem(BIOMETRIC_STORAGE_KEY),
         AsyncStorage.removeItem(BIOMETRIC_USER_KEY),
       ]);
@@ -656,6 +697,50 @@ export class BiometricAuthService {
       availableTypes,
       lastUsed: storedData?.lastUsed,
     };
+  }
+
+  /**
+   * Get last unlocked timestamp (ms)
+   */
+  static async getLastUnlockedAt(): Promise<number | null> {
+    try {
+      const ts = await SecureStore.getItemAsync(LAST_UNLOCKED_AT_KEY);
+      if (!ts) return null;
+      const num = Number(ts);
+      return Number.isFinite(num) ? num : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Set last unlocked timestamp (ms)
+   */
+  static async setLastUnlockedAt(ts: number): Promise<void> {
+    try {
+      await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(ts));
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  /**
+   * Decide if the app should gate on foreground based on session, enablement, enrollment and grace window
+   */
+  static async shouldGate(opts: { hasSession: boolean; graceMs: number }): Promise<boolean> {
+    try {
+      if (!opts.hasSession) return false;
+      const [enabled, caps] = await Promise.all([
+        this.isBiometricEnabled(),
+        this.checkCapabilities(),
+      ]);
+      if (!enabled || !caps.isAvailable || !caps.isEnrolled) return false;
+      const last = await this.getLastUnlockedAt();
+      if (last && Date.now() - last < opts.graceMs) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
 
