@@ -304,13 +304,15 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               key={index}
               {...metric}
               onPress={() => {
-                // Navigate to detailed views
-                if (metric.title.includes('Students')) {
-                  router.push('/screens/student-enrollment');
-                } else if (metric.title.includes('Staff')) {
+                // Navigate to proper management views
+                if (metric.title.includes('Students') || metric.title.includes('Total Students')) {
+                  router.push('/screens/student-management'); // Comprehensive student management
+                } else if (metric.title.includes('Staff') || metric.title.includes('Teaching Staff')) {
                   router.push('/screens/teacher-management');
-                } else if (metric.title.includes('Revenue')) {
+                } else if (metric.title.includes('Revenue') || metric.title.includes('Monthly Revenue')) {
                   router.push('/screens/financial-dashboard');
+                } else if (metric.title.includes('Applications')) {
+                  router.push('/screens/student-enrollment'); // Enrollment for applications
                 }
               }}
             />
@@ -432,10 +434,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           style={styles.aiInsightsBanner}
           onPress={() => {
             Alert.alert(
-              '🤖 AI Co-Principal Insights',
-              'Today\'s AI-generated insights:\n\n• 📈 Attendance improved by 5% this week\n• 🎯 3 teachers need professional development support\n• 💰 Budget utilization at 78% - on track\n• ⚠️ 2 urgent action items from last meeting\n\nUpgrade to get personalized AI insights daily!',
+              '🤖 AI-Powered Insights',
+              'AI analytics are now available to provide data-driven insights based on your school data:\n\n• Student attendance patterns\n• Financial trend analysis\n• Teacher performance metrics\n• Parent engagement insights\n• Enrollment optimization\n\nView comprehensive analytics to unlock AI-powered recommendations.',
               [
-                { text: 'Upgrade Now', onPress: () => router.push('/pricing' as any) },
+                { text: 'View Analytics', onPress: () => router.push('/screens/principal-analytics') },
+                { text: 'Learn More', onPress: () => router.push('/pricing' as any) },
                 { text: 'Later', style: 'cancel' },
               ]
             )
@@ -446,8 +449,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Ionicons name="sparkles" size={20} color="#8B5CF6" />
             </View>
             <View style={styles.aiInsightsContent}>
-              <Text style={styles.aiInsightsTitle}>AI Co-Principal Insights</Text>
-              <Text style={styles.aiInsightsSubtitle}>3 new insights • Tap to view all</Text>
+              <Text style={styles.aiInsightsTitle}>AI Analytics Available</Text>
+              <Text style={styles.aiInsightsSubtitle}>Get data-driven insights • Tap to explore</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
           </View>
@@ -499,6 +502,34 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             </View>
             <Ionicons name="chevron-forward" size={16} color="#6B7280" />
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }]}
+            onPress={() => router.push('/screens/petty-cash')}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="wallet" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>Petty Cash</Text>
+              <Text style={styles.toolSubtitle}>Manage daily expenses & cash on hand</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.toolCard, { backgroundColor: '#10B981' + '10' }]}
+            onPress={() => router.push('/screens/class-teacher-management')}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#10B981' }]}>
+              <Ionicons name="school" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>Class & Teacher Management</Text>
+              <Text style={styles.toolSubtitle}>Assign teachers, manage classes & ratios</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -510,11 +541,12 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={[styles.toolCard, { backgroundColor: '#8B5CF6' + '10' }]}
             onPress={() => {
               Alert.alert(
-                '🤖 AI Co-Principal Assistant',
-                'Your AI assistant can help with:\n\n• Meeting summaries & action items\n• Staff performance insights\n• Student progress analysis\n• Administrative task automation\n\nUpgrade to unlock full AI features!',
+                '🤖 AI Insights & Recommendations',
+                'Get AI-powered insights based on your school data:\n\n• Attendance pattern analysis\n• Financial trend insights\n• Teacher performance indicators\n• Student progress tracking\n• Enrollment optimization tips\n\nView detailed analytics now:',
                 [
-                  { text: 'Learn More', onPress: () => router.push('/pricing' as any) },
-                  { text: 'Close', style: 'cancel' },
+                  { text: 'View AI Insights', onPress: () => router.push('/screens/principal-analytics') },
+                  { text: 'Create Lessons with AI', onPress: () => router.push('/screens/ai-lesson-generator') },
+                  { text: 'Later', style: 'cancel' },
                 ]
               )
             }}
@@ -523,8 +555,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Ionicons name="sparkles" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>AI Co-Principal</Text>
-              <Text style={styles.toolSubtitle}>Get AI insights and assistance</Text>
+              <Text style={styles.toolTitle}>AI Insights</Text>
+              <Text style={styles.toolSubtitle}>Data-driven recommendations & analytics</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#6B7280" />
           </TouchableOpacity>
@@ -533,11 +565,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={[styles.toolCard, { backgroundColor: '#EC4899' + '10' }]}
             onPress={() => {
               Alert.alert(
-                '✨ AI Content Generator',
-                'Create CAPS-aligned content:\n\n• Lesson plans & activities\n• Assessments & rubrics\n• Homework assignments\n• Progress reports\n\nTry 3 free generations, then upgrade!',
+                '✨ AI Lesson Generator',
+                'Create engaging educational content for your students:\n\n• Age-appropriate lesson plans\n• Interactive activity suggestions\n• Assessment templates\n• Learning objectives alignment\n\nStart creating lessons now:',
                 [
-                  { text: 'Try Now', onPress: () => router.push('/screens/ai-lesson-generator') },
-                  { text: 'Upgrade', onPress: () => router.push('/pricing' as any) },
+                  { text: 'Create Lesson', onPress: () => router.push('/screens/ai-lesson-generator') },
+                  { text: 'View AI Tools', onPress: () => router.push('/screens/ai-homework-grader-live') },
                   { text: 'Later', style: 'cancel' },
                 ]
               )

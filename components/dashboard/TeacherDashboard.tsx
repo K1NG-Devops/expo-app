@@ -304,6 +304,21 @@ export const TeacherDashboard: React.FC = () => {
         <Ionicons name="time-outline" size={16} color="#4F46E5" />
         <Text style={styles.nextLessonText}>{classInfo.nextLesson}</Text>
       </View>
+      {(classInfo as any).presentToday !== undefined && (
+        <View style={styles.attendanceInfo}>
+          <View style={styles.attendanceBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#059669" />
+            <Text style={styles.attendanceText}>
+              {(classInfo as any).presentToday}/{classInfo.studentCount} present today
+            </Text>
+          </View>
+          {(classInfo as any).attendanceRate !== undefined && (
+            <Text style={styles.attendanceRate}>
+              {(classInfo as any).attendanceRate}% attendance
+            </Text>
+          )}
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -974,6 +989,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#4F46E5',
     marginLeft: 8,
+  },
+  attendanceInfo: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+  },
+  attendanceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  attendanceText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#059669',
+    marginLeft: 4,
+  },
+  attendanceRate: {
+    fontSize: 11,
+    color: Colors.light.tabIconDefault,
+    fontWeight: '500',
   },
   assignmentsContainer: {
     gap: 12,

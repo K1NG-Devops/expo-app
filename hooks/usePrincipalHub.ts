@@ -346,16 +346,53 @@ export const usePrincipalHub = () => {
             studentsInClasses = studentsCount || 0;
           }
           
-          // Determine status based on real metrics
+          // Enhanced performance calculation based on multiple factors
           let status: 'excellent' | 'good' | 'needs_attention' = 'good';
           let performanceIndicator = 'Active teacher';
           
-          if (teacherClassesCount && teacherClassesCount >= 2 && studentsInClasses >= 15) {
-            status = 'excellent';
-            performanceIndicator = `Managing ${teacherClassesCount} classes efficiently`;
-          } else if (teacherClassesCount === 0) {
+          // Calculate optimal ratios and workload
+          const studentTeacherRatio = studentsInClasses > 0 ? studentsInClasses / Math.max(teacherClassesCount || 1, 1) : 0;
+          const workloadScore = teacherClassesCount || 0;
+          
+          // Get attendance rate for teacher's students (performance indicator)
+          let teacherAttendanceRate = 0;
+          if (classIds.length > 0) {
+            const { data: teacherAttendanceData } = await supabase!
+              .from('attendance_records')
+              .select('status, student_id')
+              .in('student_id', await supabase!
+                .from('students')
+                .select('id')
+                .in('class_id', classIds)
+                .then(res => (res.data || []).map((s: any) => s.id))
+              )
+              .gte('date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]) || { data: [] };
+              
+            if (teacherAttendanceData && teacherAttendanceData.length > 0) {
+              const presentCount = teacherAttendanceData.filter((a: any) => a.status === 'present').length;
+              teacherAttendanceRate = Math.round((presentCount / teacherAttendanceData.length) * 100);
+            }
+          }
+          
+          // Sophisticated performance evaluation
+          if (teacherClassesCount === 0) {
             status = 'needs_attention';
-            performanceIndicator = 'No classes assigned';
+            performanceIndicator = 'No classes assigned - requires attention';
+          } else if (studentTeacherRatio > 25) {
+            status = 'needs_attention';
+            performanceIndicator = `High student ratio (${Math.round(studentTeacherRatio)}:1) - may need support`;
+          } else if (teacherClassesCount >= 3 && studentTeacherRatio <= 20 && teacherAttendanceRate >= 85) {
+            status = 'excellent';
+            performanceIndicator = `Excellent performance - ${teacherClassesCount} classes, ${Math.round(studentTeacherRatio)}:1 ratio, ${teacherAttendanceRate}% attendance`;
+          } else if (teacherClassesCount >= 2 && studentTeacherRatio <= 22 && teacherAttendanceRate >= 80) {
+            status = 'excellent';
+            performanceIndicator = `Strong performance - ${teacherClassesCount} classes, good attendance rates`;
+          } else if (studentTeacherRatio <= 25 && teacherAttendanceRate >= 75) {
+            status = 'good';
+            performanceIndicator = `Good performance - managing ${studentsInClasses} students effectively`;
+          } else {
+            status = 'needs_attention';
+            performanceIndicator = `Performance review needed - ${teacherAttendanceRate}% attendance rate in classes`;
           }
           
           // Split name into parts for display
@@ -380,9 +417,45 @@ export const usePrincipalHub = () => {
         })
       );
       
-      // Calculate estimated monthly revenue based on real student count
-      const estimatedMonthlyRevenue = studentsCount * 1200; // R1200 per student average
-      const previousMonthRevenue = Math.round(estimatedMonthlyRevenue * 0.9); // Simulate 10% growth
+      // Get REAL financial data from transactions
+      const currentMonth = new Date().getMonth() + 1;
+      const currentYear = new Date().getFullYear();
+      
+      // Fetch actual financial transactions for current month
+      const { data: currentMonthTransactions } = await supabase!
+        .from('financial_transactions')
+        .select('amount, type, status')
+        .eq('preschool_id', preschoolId)
+        .eq('type', 'fee_payment')
+        .eq('status', 'completed')
+        .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
+        .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`) || { data: [] };
+      
+      // Fetch previous month for comparison
+      const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+      const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
+      
+      const { data: previousMonthTransactions } = await supabase!
+        .from('financial_transactions')
+        .select('amount, type, status')
+        .eq('preschool_id', preschoolId)
+        .eq('type', 'fee_payment')
+        .eq('status', 'completed')
+        .gte('created_at', `${prevYear}-${prevMonth.toString().padStart(2, '0')}-01`)
+        .lt('created_at', `${prevYear}-${(prevMonth + 1).toString().padStart(2, '0')}-01`) || { data: [] };
+      
+      // Calculate real revenue
+      const currentMonthRevenue = (currentMonthTransactions || []).reduce((sum: number, transaction: any) => {
+        return sum + (transaction.amount || 0);
+      }, 0);
+      
+      const previousMonthRevenue = (previousMonthTransactions || []).reduce((sum: number, transaction: any) => {
+        return sum + (transaction.amount || 0);
+      }, 0);
+      
+      // Only use estimation as fallback if no real data exists
+      const estimatedMonthlyRevenue = currentMonthRevenue > 0 ? currentMonthRevenue : studentsCount * 1200;
+      const finalPreviousRevenue = previousMonthRevenue > 0 ? previousMonthRevenue : Math.round(estimatedMonthlyRevenue * 0.9);
       
       // Build real stats object
       const stats = {
@@ -404,7 +477,7 @@ export const usePrincipalHub = () => {
         },
         monthlyRevenue: { 
           total: estimatedMonthlyRevenue, 
-          trend: estimatedMonthlyRevenue > previousMonthRevenue ? 'up' : 'stable' 
+          trend: estimatedMonthlyRevenue > finalPreviousRevenue ? 'up' : estimatedMonthlyRevenue < finalPreviousRevenue ? 'down' : 'stable' 
         },
         attendanceRate: { 
           percentage: attendanceRate || 0, 
@@ -415,13 +488,32 @@ export const usePrincipalHub = () => {
       
       const teachers = processedTeachers;
       
+      // Get real expense data from petty cash and other expenses
+      const { data: expenseTransactions } = await supabase!
+        .from('petty_cash_transactions')
+        .select('amount')
+        .eq('preschool_id', preschoolId)
+        .eq('type', 'expense')
+        .eq('status', 'approved')
+        .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
+        .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`) || { data: [] };
+      
+      const realExpenses = (expenseTransactions || []).reduce((sum: number, expense: any) => {
+        return sum + (expense.amount || 0);
+      }, 0);
+      
+      // Use real expenses or estimate at 65% of revenue (more conservative)
+      const totalExpenses = realExpenses > 0 ? realExpenses : Math.round(estimatedMonthlyRevenue * 0.65);
+      const netProfit = estimatedMonthlyRevenue - totalExpenses;
+      const profitMargin = estimatedMonthlyRevenue > 0 ? Math.round((netProfit / estimatedMonthlyRevenue) * 100) : 0;
+      
       const financialSummary = {
         monthlyRevenue: estimatedMonthlyRevenue,
-        previousMonthRevenue,
-        estimatedExpenses: Math.round(estimatedMonthlyRevenue * 0.7),
-        netProfit: Math.round(estimatedMonthlyRevenue * 0.3),
-        revenueGrowth: ((estimatedMonthlyRevenue - previousMonthRevenue) / previousMonthRevenue * 100),
-        profitMargin: 30,
+        previousMonthRevenue: finalPreviousRevenue,
+        estimatedExpenses: totalExpenses,
+        netProfit,
+        revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((estimatedMonthlyRevenue - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
+        profitMargin,
         timestamp: new Date().toISOString()
       };
       
@@ -448,7 +540,39 @@ export const usePrincipalHub = () => {
         total: applicationsCount + Math.round(applicationsCount * 0.8)
       };
       
-      const recentActivities = [
+      // Get real recent activities from database
+      const { data: recentDBActivities } = await supabase!
+        .from('activity_logs')
+        .select('action_type, description, created_at, user_name')
+        .eq('organization_id', preschoolId)
+        .order('created_at', { ascending: false })
+        .limit(8) || { data: [] };
+      
+      // Process activities with meaningful information
+      const processedActivities = (recentDBActivities || []).map((activity: any) => {
+        const activityType = activity.action_type;
+        let type: 'enrollment' | 'application' = 'enrollment';
+        let icon = 'information-circle';
+        
+        if (activityType?.includes('student') || activityType?.includes('enrollment')) {
+          type = 'enrollment';
+          icon = 'people';
+        } else if (activityType?.includes('application') || activityType?.includes('apply')) {
+          type = 'application';
+          icon = 'document-text';
+        }
+        
+        return {
+          type,
+          title: activity.description || `${activityType} activity`,
+          timestamp: activity.created_at,
+          icon,
+          userName: activity.user_name
+        };
+      });
+      
+      // Add current status activities if no recent activities exist
+      const recentActivities = processedActivities.length > 0 ? processedActivities : [
         {
           type: 'enrollment' as const,
           title: `${studentsCount} students currently enrolled`,

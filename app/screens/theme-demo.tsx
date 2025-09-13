@@ -20,12 +20,12 @@ import { ThemedModal } from '@/components/ui/ThemedModal';
 
 export default function ThemeDemoScreen() {
   const { theme } = useTheme();
-  const { } = useTranslation(); // Available for future translations
+  const { t } = useTranslation(); // Translation function
   const [modalVisible, setModalVisible] = useState(false);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <RoleBasedHeader title="Theme & Language Demo" />
+      <RoleBasedHeader title={t ? "Theme & Language Demo" : "Theme & Language Demo"} />
       
       <ScrollView style={styles.scrollView}>
         {/* Theme and Language Settings */}

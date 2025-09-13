@@ -131,6 +131,8 @@ export interface TeacherDashboardData {
     grade: string;
     room: string;
     nextLesson: string;
+    attendanceRate?: number;
+    presentToday?: number;
   }>;
   recentAssignments: Array<{
     id: string;
@@ -865,7 +867,7 @@ export const useTeacherDashboard = () => {
           schoolName = school?.name || schoolName;
         }
 
-        // Fetch teacher's classes (teacher_id references users.id)
+        // Fetch teacher's classes with student and attendance data
         const { data: classesData } = await supabase
           .from('classes')
           .select(`
@@ -873,18 +875,50 @@ export const useTeacherDashboard = () => {
             name,
             grade_level,
             room_number,
-            students!inner(id)
+            students!inner(id, first_name, last_name)
           `)
           .eq('teacher_id', teacherId);
 
-        const myClasses = classesData?.map(classItem => ({
-          id: classItem.id,
-          name: classItem.name,
-          studentCount: classItem.students?.length || 0,
-          grade: classItem.grade_level || 'Grade R',
-          room: classItem.room_number || 'TBD',
-          nextLesson: getNextLessonTime()
-        })) || [];
+        // Get today's attendance for all teacher's students
+        const today = new Date().toISOString().split('T')[0];
+        const allStudentIds = classesData?.flatMap(cls => 
+          cls.students?.map((s: any) => s.id) || []
+        ) || [];
+        
+        let todayAttendanceData: any[] = [];
+        if (allStudentIds.length > 0) {
+          const { data: attendanceData } = await supabase
+            .from('attendance_records')
+            .select('student_id, status')
+            .in('student_id', allStudentIds)
+            .gte('date', today + 'T00:00:00')
+            .lt('date', today + 'T23:59:59');
+          
+          todayAttendanceData = attendanceData || [];
+        }
+
+        const myClasses = classesData?.map(classItem => {
+          const classStudents = classItem.students || [];
+          const classStudentIds = classStudents.map((s: any) => s.id);
+          const classAttendance = todayAttendanceData.filter(a => 
+            classStudentIds.includes(a.student_id)
+          );
+          const presentCount = classAttendance.filter(a => a.status === 'present').length;
+          const attendanceRate = classStudents.length > 0 
+            ? Math.round((presentCount / classStudents.length) * 100)
+            : 0;
+            
+          return {
+            id: classItem.id,
+            name: classItem.name,
+            studentCount: classStudents.length,
+            grade: classItem.grade_level || 'Grade R',
+            room: classItem.room_number || 'TBD',
+            nextLesson: getNextLessonTime(),
+            attendanceRate,
+            presentToday: presentCount
+          };
+        }) || [];
 
         // Calculate total students
         const totalStudents = myClasses.reduce((sum, cls) => sum + cls.studentCount, 0);
@@ -906,6 +940,15 @@ export const useTeacherDashboard = () => {
           .order('created_at', { ascending: false })
           .limit(3);
 
+        // Fetch upcoming events for teacher's school
+        const { data: eventsData } = await supabase
+          .from('events')
+          .select('id, title, event_date, event_type, description')
+          .eq('preschool_id', teacherUser.preschool_id)
+          .gte('event_date', new Date().toISOString())
+          .order('event_date', { ascending: true })
+          .limit(5);
+
         const recentAssignments = assignmentsData?.map(assignment => {
           const submissions = assignment.assignment_submissions || [];
           const submittedCount = submissions.filter(s => s.status === 'submitted').length;
@@ -926,6 +969,28 @@ export const useTeacherDashboard = () => {
           .filter(a => a.status === 'pending')
           .reduce((sum, a) => sum + a.submitted, 0);
 
+        // Process upcoming events
+        const upcomingEvents = eventsData?.map(event => {
+          const eventDate = new Date(event.event_date);
+          const now = new Date();
+          const diffInHours = Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+          
+          let timeStr = '';
+          if (diffInHours < 24) {
+            timeStr = diffInHours <= 2 ? 'Soon' : `In ${diffInHours} hours`;
+          } else {
+            const diffInDays = Math.floor(diffInHours / 24);
+            timeStr = diffInDays === 1 ? 'Tomorrow' : `In ${diffInDays} days`;
+          }
+          
+          return {
+            id: event.id,
+            title: event.title,
+            time: timeStr,
+            type: (event.event_type || 'event') as 'meeting' | 'activity' | 'assessment'
+          };
+        }) || [];
+
         dashboardData = {
           schoolName,
           totalStudents,
@@ -934,7 +999,7 @@ export const useTeacherDashboard = () => {
           pendingGrading,
           myClasses,
           recentAssignments,
-          upcomingEvents: []
+          upcomingEvents
         };
 
         // Cache the fresh data for offline use
@@ -999,13 +1064,66 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
     try {
       setLoading(true);
 
-      // Mock analytics data
-      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!user?.id || !supabase) {
+        throw new Error('User not authenticated or Supabase not available');
+      }
+
+      // Get user's organization/school for analytics
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('preschool_id, role')
+        .eq('auth_user_id', user.id)
+        .single();
+
+      let aiUsageData = { current: 0, limit: 100 };
+      let subscriptionStatus = 'active';
+      let recentLogins = 0;
+
+      if (userProfile?.preschool_id) {
+        // Get AI usage data if available
+        try {
+          const { data: aiUsage } = await supabase
+            .from('ai_usage_logs')
+            .select('id')
+            .eq('organization_id', userProfile.preschool_id)
+            .gte('created_at', new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString());
+          
+          aiUsageData.current = aiUsage?.length || 0;
+        } catch (error) {
+          console.warn('AI usage data not available:', error);
+        }
+
+        // Get subscription status from school data
+        try {
+          const { data: schoolData } = await supabase
+            .from('preschools')
+            .select('subscription_status')
+            .eq('id', userProfile.preschool_id)
+            .single();
+          
+          subscriptionStatus = schoolData?.subscription_status || 'active';
+        } catch (error) {
+          console.warn('Subscription status not available:', error);
+        }
+
+        // Get recent login activity (approximate)
+        try {
+          const { data: activityLogs } = await supabase
+            .from('activity_logs')
+            .select('id')
+            .eq('organization_id', userProfile.preschool_id)
+            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 7)).toISOString());
+          
+          recentLogins = activityLogs?.length || 0;
+        } catch (error) {
+          console.warn('Activity logs not available:', error);
+        }
+      }
       
       setAnalytics({
-        aiUsage: { current: 15, limit: 100 },
-        subscriptionStatus: 'active',
-        recentLogins: 24
+        aiUsage: aiUsageData,
+        subscriptionStatus,
+        recentLogins
       });
     } catch (err) {
       console.error('Failed to fetch dashboard analytics:', err);

@@ -856,8 +856,7 @@ export default function AccountScreen() {
             </View>
 
             {/* Biometric Setting */}
-            {(biometricSupported || true) && (
-              <TouchableOpacity
+            <TouchableOpacity
                 style={styles.settingItem}
                 onPress={biometricSupported ? toggleBiometric : () => {
                   Alert.alert(
@@ -888,7 +887,6 @@ export default function AccountScreen() {
                   color={!biometricSupported ? theme.textDisabled : biometricEnabled ? theme.success : theme.textSecondary}
                 />
               </TouchableOpacity>
-            )}
 
             {/* Theme & Language Settings */}
             <TouchableOpacity
