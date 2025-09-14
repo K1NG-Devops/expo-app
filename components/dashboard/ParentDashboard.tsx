@@ -11,7 +11,7 @@ import ErrorBanner from '@/components/ui/ErrorBanner';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import OfflineBanner from '@/components/sync/OfflineBanner';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { getCurrentLanguage, changeLanguage, getAvailableLanguages } from '@/lib/i18n';
 import claudeService from '@/lib/ai-gateway/claude-service';
 import { track } from '@/lib/analytics';
@@ -58,7 +58,7 @@ function useTier() {
     if (forced === 'pro' || forced === 'enterprise') setTier(forced as any);
     (async () => {
       try {
-        const { data } = await supabase!.auth.getUser();
+const { data } = await assertSupabase().auth.getUser();
         const roleTier = (data.user?.user_metadata as any)?.subscription_tier as string | undefined;
         if (roleTier === 'pro' || roleTier === 'enterprise') setTier(roleTier as any);
       } catch (error) {
@@ -100,8 +100,9 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
       setError(null);
       
       // Load children (if any)
-      if (supabase && user?.id) {
-        const { data: studentsData } = await supabase
+      if (user?.id) {
+        const client = assertSupabase();
+        const { data: studentsData } = await client
           .from('students')
           .select('id, first_name, last_name, class_id, is_active')
           .or(`parent_id.eq.${user.id},guardian_id.eq.${user.id}`)
@@ -143,7 +144,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
 
-        const { data: usageData } = await supabase
+        const { data: usageData } = await client
           .from('ai_usage_logs')
           .select('service_type')
           .eq('user_id', user.id)

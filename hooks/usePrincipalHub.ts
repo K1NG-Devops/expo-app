@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
@@ -83,15 +83,11 @@ export interface PrincipalHubData {
 
 // API helper function
 const apiCall = async (endpoint: string, user?: any) => {
-  if (!supabase) {
-    throw new Error('Supabase client not initialized');
-  }
-  
   // Try to get current session
   let accessToken = null;
   
   try {
-    const { data: { session }, error } = await supabase.auth.getSession();
+    const { data: { session }, error } = await assertSupabase().auth.getSession();
     
     if (error) {
       console.warn('Session error:', error);
@@ -101,14 +97,14 @@ const apiCall = async (endpoint: string, user?: any) => {
       accessToken = session.access_token;
     } else {
       // Fallback: Try to get user and refresh session
-      const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+      const { data: { user: currentUser }, error: userError } = await assertSupabase().auth.getUser();
       
       if (userError || !currentUser) {
         throw new Error('User not authenticated - please log in again');
       }
       
       // Try refreshing the session
-      const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
+      const { data: { session: newSession }, error: refreshError } = await assertSupabase().auth.refreshSession();
       
       if (refreshError || !newSession?.access_token) {
         throw new Error('Unable to refresh authentication - please log in again');
@@ -215,10 +211,6 @@ export const usePrincipalHub = () => {
 
       console.log('🏫 Loading REAL Principal Hub data from database for preschool:', preschoolId);
 
-      if (!supabase) {
-        throw new Error('Supabase client not initialized');
-      }
-
       // **FETCH REAL DATA FROM DATABASE INSTEAD OF API/MOCK**
       console.log('📊 Fetching real data from Supabase tables...');
       
@@ -232,14 +224,14 @@ export const usePrincipalHub = () => {
         preschoolResult
       ] = await Promise.allSettled([
         // Get students count
-        supabase
+        assertSupabase()
           .from('students')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
           .eq('is_active', true),
           
         // Get teachers from users table with real data (CORRECTED)
-        supabase
+        assertSupabase()
           .from('users')
           .select(`
             id, 
@@ -257,21 +249,21 @@ export const usePrincipalHub = () => {
           .eq('is_active', true),
           
         // Get classes count
-        supabase
+        assertSupabase()
           .from('classes')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
           .eq('is_active', true),
           
         // Get pending applications from enrollment_applications
-        supabase
+        assertSupabase()
           .from('enrollment_applications')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
           .in('status', ['pending', 'under_review', 'interview_scheduled']),
           
         // Get recent attendance records for attendance rate
-        supabase
+        assertSupabase()
           .from('attendance_records')
           .select('status')
           .eq('preschool_id', preschoolId)
@@ -279,14 +271,14 @@ export const usePrincipalHub = () => {
           .limit(1000),
           
         // Get preschool capacity info
-        supabase
+        assertSupabase()
           .from('preschools')
           .select('capacity, name')
           .eq('id', preschoolId)
           .single(),
           
         // Get preschool info for school name
-        supabase
+        assertSupabase()
           .from('preschools')
           .select('name')
           .eq('id', preschoolId)
@@ -322,14 +314,14 @@ export const usePrincipalHub = () => {
       const processedTeachers = await Promise.all(
         teachersData.map(async (teacher: any) => {
           // Get classes assigned to this teacher
-          const { count: teacherClassesCount } = await supabase!
+          const { count: teacherClassesCount } = await assertSupabase()
             .from('classes')
             .select('id', { count: 'exact', head: true })
             .eq('teacher_id', teacher.auth_user_id)
             .eq('is_active', true) || { count: 0 };
             
           // Get students count for teacher's classes
-          const { data: teacherClasses } = await supabase!
+          const { data: teacherClasses } = await assertSupabase()
             .from('classes')
             .select('id')
             .eq('teacher_id', teacher.auth_user_id)
@@ -339,7 +331,7 @@ export const usePrincipalHub = () => {
           let studentsInClasses = 0;
           
           if (classIds.length > 0) {
-            const { count: studentsCount } = await supabase!
+            const { count: studentsCount } = await assertSupabase()
               .from('students')
               .select('id', { count: 'exact', head: true })
               .in('class_id', classIds) || { count: 0 };
@@ -357,10 +349,10 @@ export const usePrincipalHub = () => {
           // Get attendance rate for teacher's students (performance indicator)
           let teacherAttendanceRate = 0;
           if (classIds.length > 0) {
-            const { data: teacherAttendanceData } = await supabase!
+            const { data: teacherAttendanceData } = await assertSupabase()
               .from('attendance_records')
               .select('status, student_id')
-              .in('student_id', await supabase!
+.in('student_id', await assertSupabase()
                 .from('students')
                 .select('id')
                 .in('class_id', classIds)
@@ -422,7 +414,7 @@ export const usePrincipalHub = () => {
       const currentYear = new Date().getFullYear();
       
       // Fetch actual financial transactions for current month
-      const { data: currentMonthTransactions } = await supabase!
+      const { data: currentMonthTransactions } = await assertSupabase()
         .from('financial_transactions')
         .select('amount, type, status')
         .eq('preschool_id', preschoolId)
@@ -435,7 +427,7 @@ export const usePrincipalHub = () => {
       const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
       const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
       
-      const { data: previousMonthTransactions } = await supabase!
+      const { data: previousMonthTransactions } = await assertSupabase()
         .from('financial_transactions')
         .select('amount, type, status')
         .eq('preschool_id', preschoolId)
@@ -489,7 +481,7 @@ export const usePrincipalHub = () => {
       const teachers = processedTeachers;
       
       // Get real expense data from petty cash and other expenses
-      const { data: expenseTransactions } = await supabase!
+      const { data: expenseTransactions } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount')
         .eq('preschool_id', preschoolId)
@@ -541,7 +533,7 @@ export const usePrincipalHub = () => {
       };
       
       // Get real recent activities from database
-      const { data: recentDBActivities } = await supabase!
+      const { data: recentDBActivities } = await assertSupabase()
         .from('activity_logs')
         .select('action_type, description, created_at, user_name')
         .eq('organization_id', preschoolId)

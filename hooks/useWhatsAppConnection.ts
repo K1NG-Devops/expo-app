@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '../lib/supabase'
+import { assertSupabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { queryKeys } from '../lib/query/queryClient'
 import { track } from '../lib/analytics'
@@ -39,7 +39,7 @@ export const useWhatsAppConnection = () => {
 
       try {
         // Get user's WhatsApp contact
-        const { data: contact, error: contactError } = await supabase
+        const { data: contact, error: contactError } = await assertSupabase()
           .from('whatsapp_contacts')
           .select('*')
           .eq('user_id', user.id)
@@ -51,7 +51,7 @@ export const useWhatsAppConnection = () => {
         }
 
         // Get school's WhatsApp number (from preschool settings or config)
-        const { data: preschool } = await supabase
+        const { data: preschool } = await assertSupabase()
           .from('preschools')
           .select('phone, settings')
           .eq('id', profile.organization_id)
@@ -101,7 +101,7 @@ export const useWhatsAppConnection = () => {
         : `+27${data.phoneNumber.replace(/^0/, '')}` // Assume SA number if no country code
 
       // Create or update WhatsApp contact
-      const { data: contact, error } = await supabase
+      const { data: contact, error } = await assertSupabase()
         .from('whatsapp_contacts')
         .upsert({
           preschool_id: profile.organization_id,
@@ -144,7 +144,7 @@ export const useWhatsAppConnection = () => {
         throw new Error('No WhatsApp contact to opt out')
       }
 
-      const { error } = await supabase
+      const { error } = await assertSupabase()
         .from('whatsapp_contacts')
         .update({
           consent_status: 'opted_out',
@@ -178,7 +178,7 @@ export const useWhatsAppConnection = () => {
       }
 
       // Call WhatsApp send Edge Function
-      const { data, error } = await supabase.functions.invoke('whatsapp-send', {
+      const { data, error } = await assertSupabase().functions.invoke('whatsapp-send', {
         body: {
           contact_id: connectionStatus.contact.id,
           message_type: 'template',

@@ -15,7 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 // DateTimePicker removed for better cross-platform compatibility
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 // Types for meeting room system
 interface Meeting {
@@ -110,11 +110,12 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
   }, [schoolId]);
 
   const loadMeetings = useCallback(async () => {
-    if (!supabase || !user?.id) return;
+    if (!user?.id) return;
 
     setLoading(true);
     try {
-      const { data: meetingsData, error } = await supabase
+      const client = assertSupabase();
+      const { data: meetingsData, error } = await client
         .from('meetings')
         .select(`
           *,
@@ -157,13 +158,12 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
     } finally {
       setLoading(false);
     }
-  }, [supabase, user?.id, schoolId]);
+  }, [user?.id, schoolId]);
 
   const loadMeetingRooms = useCallback(async () => {
-    if (!supabase) return;
-
     try {
-      const { data: roomsData, error } = await supabase
+      const client = assertSupabase();
+      const { data: roomsData, error } = await client
         .from('meeting_rooms')
         .select('*')
         .eq('school_id', schoolId)
@@ -192,7 +192,7 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
       // Show empty state with error message instead of mock data
       setMeetingRooms([]);
     }
-  }, [supabase, schoolId]);
+  }, [schoolId]);
 
 
   const onRefresh = useCallback(async () => {
@@ -214,8 +214,9 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
 
     setLoading(true);
     try {
-      if (supabase && user?.id) {
-        const { data: meetingData, error: meetingError } = await supabase
+      if (user?.id) {
+        const client = assertSupabase();
+        const { data: meetingData, error: meetingError } = await client
           .from('meetings')
           .insert([
             {
@@ -243,7 +244,7 @@ const MeetingRoomSystem: React.FC<MeetingRoomSystemProps> = ({ onClose, schoolId
             status: 'invited'
           }));
 
-          const { error: participantError } = await supabase
+          const { error: participantError } = await client
             .from('meeting_participants')
             .insert(participantInserts);
 

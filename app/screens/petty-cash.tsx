@@ -629,7 +629,7 @@ onPress={() => router.push('/screens/petty-cash-reconcile')}
         <View style={styles.transactionsCard}>
           <View style={styles.transactionsHeader}>
             <Text style={styles.transactionsTitle}>Recent Transactions</Text>
-            <TouchableOpacity onPress={() => router.push('/screens/petty-cash-history')}>
+<TouchableOpacity onPress={() => router.push('/screens/financial-transactions')}>
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>

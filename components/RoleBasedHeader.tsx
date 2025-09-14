@@ -9,7 +9,7 @@ import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 
 interface RoleBasedHeaderProps {
@@ -59,7 +59,7 @@ export function RoleBasedHeader({
       // If not in metadata, try profiles table
       if (!url) {
         try {
-          const { data: profileData } = await supabase!
+          const { data: profileData } = await assertSupabase()
             .from('profiles')
             .select('avatar_url')
             .eq('id', user.id)

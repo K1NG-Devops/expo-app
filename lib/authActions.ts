@@ -1,11 +1,11 @@
 import * as Sentry from 'sentry-expo';
 import { router } from 'expo-router';
 import { getPostHog } from '@/lib/posthogClient';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 export async function signOutAndRedirect() {
   try {
-    await supabase!.auth.signOut();
+    await assertSupabase().auth.signOut();
   } catch { /* noop */ void 0; }
   try {
     // Clear analytics identities
