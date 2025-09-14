@@ -11,9 +11,27 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { Stack, router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import { Colors } from '@/constants/Colors';
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from '@expo/vector-icons';
+
+// Safe icon component that handles potential undefined icons
+const SafeIcon = ({ name, size, color, fallback = "●" }: { 
+  name: any; 
+  size?: number; 
+  color?: string; 
+  fallback?: string 
+}) => {
+  if (Ionicons && typeof Ionicons === 'function') {
+    try {
+      return <Ionicons name={name} size={size} color={color} />;
+    } catch (error) {
+      console.warn('Icon rendering error:', error);
+    }
+  }
+  return <Text style={{ fontSize: size, color }}>{fallback}</Text>;
+};
+
 import {
   getEnabled as getBiometricsEnabled,
   setEnabled as setBiometricsEnabled,
@@ -31,7 +49,7 @@ import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettin
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 
 export default function AccountScreen() {
-  const { theme, mode, toggleTheme } = useTheme();
+  const { theme, mode } = useTheme();
   const { t } = useTranslation();
   const [refreshing, setRefreshing] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -543,6 +561,23 @@ export default function AccountScreen() {
         // Still update local state even if DB update fails
       }
 
+      // Also update user metadata to ensure persistence
+      try {
+        const { error: metaError } = await supabase!.auth.updateUser({
+          data: { 
+            avatar_url: publicUrl
+          }
+        });
+        
+        if (metaError) {
+          console.warn("User metadata update error:", metaError);
+        } else {
+          console.log("Successfully updated avatar in user metadata");
+        }
+      } catch (metaErr) {
+        console.warn("Failed to update user metadata:", metaErr);
+      }
+
       // Update local state
       setProfileImage(publicUrl);
       Alert.alert("Success", "Profile picture updated!");
@@ -689,7 +724,10 @@ export default function AccountScreen() {
 
   return (
     <View style={styles.container}>
-      <RoleBasedHeader title={t('navigation.account')} />
+      <RoleBasedHeader title={t('navigation.account')} showBackButton onBackPress={() => {
+        // Prefer router back when available, fall back to navigation
+        try { require('expo-router').router.back(); } catch {}
+      }} />
 
       <ScrollView
         style={styles.scrollView}
@@ -723,7 +761,7 @@ export default function AccountScreen() {
                   <Text style={styles.loadingText}>⟳</Text>
                 </View>
               ) : (
-                <Ionicons name="camera" size={16} color={theme.onSecondary} />
+                <SafeIcon name="camera" size={16} color={theme.onSecondary} fallback="📷" />
               )}
             </View>
           </TouchableOpacity>
@@ -746,7 +784,7 @@ export default function AccountScreen() {
 
           <View style={styles.infoCard}>
             <View style={styles.infoRow}>
-              <Ionicons name="person-outline" size={20} color={theme.textSecondary} />
+              <SafeIcon name="person-outline" size={20} color={theme.textSecondary} fallback="👤" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Full Name</Text>
                 <Text style={styles.infoValue}>
@@ -759,14 +797,14 @@ export default function AccountScreen() {
                 style={styles.editButton}
                 onPress={() => setShowEditProfile(true)}
               >
-                <Ionicons name="pencil" size={16} color={theme.primary} />
+                <SafeIcon name="pencil" size={16} color={theme.primary} fallback="✏️" />
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={[styles.infoCard, { marginTop: 12 }]}>
             <View style={styles.infoRow}>
-              <Ionicons name="mail-outline" size={20} color={theme.textSecondary} />
+              <SafeIcon name="mail-outline" size={20} color={theme.textSecondary} fallback="✉️" />
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Email</Text>
                 <Text style={styles.infoValue}>{email || "Not set"}</Text>
@@ -804,7 +842,7 @@ export default function AccountScreen() {
           onPress={signOutAndRedirect}
           style={styles.signOutButton}
         >
-          <Ionicons name="log-out-outline" size={20} color={theme.onError} />
+          <SafeIcon name="log-out-outline" size={20} color={theme.onError} fallback="🚪" />
           <Text style={styles.signOutText}>{t('navigation.logout')}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -825,7 +863,7 @@ export default function AccountScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{t('navigation.settings')}</Text>
               <TouchableOpacity onPress={() => setShowSettingsMenu(false)}>
-                <Ionicons name="close" size={24} color={theme.text} />
+                <SafeIcon name="close" size={24} color={theme.text} fallback="✖️" />
               </TouchableOpacity>
             </View>
 

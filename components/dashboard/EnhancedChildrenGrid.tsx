@@ -57,6 +57,19 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
   const [isAccordionExpanded, setIsAccordionExpanded] = useState(false)
   const [cardHeight, setCardHeight] = useState<number | null>(null)
 
+  // Density and typography adjustments for smaller screens
+  const isSmallDevice = width < 380 || height < 700
+  const density = useMemo(() => ({
+    cardPadding: isSmallDevice ? 12 : 16,
+    avatar: isSmallDevice ? 44 : 50,
+    nameFont: isSmallDevice ? 15 : 16,
+    lastNameFont: isSmallDevice ? 11 : 12,
+    infoFont: isSmallDevice ? 10 : 11,
+    progressFont: isSmallDevice ? 9 : 10,
+    badgeFont: isSmallDevice ? 9 : 10,
+    actionText: isSmallDevice ? 9 : 10,
+  }), [isSmallDevice])
+
   // Configure layout animation for smooth accordion transitions
   React.useEffect(() => {
     if (Platform.OS === 'ios') {
@@ -212,34 +225,53 @@ track('edudash.parent.children_accordion_toggled', {
             ? ['#2a2a2a', '#3a3a3a']
             : ['#ffffff', '#f8f9fa']
           }
-          style={styles.cardGradient}
+          style={[styles.cardGradient, { padding: density.cardPadding }]}
         >
-          {/* Header with Status */}
+          {/* Header with Status and Badges */}
           <View style={styles.cardHeader}>
-            <View style={[styles.statusIndicator, { backgroundColor: statusColor }]}>
+            <View style={styles.headerLeftRow}>
+              <View style={[styles.statusIndicator, { backgroundColor: statusColor }]}>
               <Ionicons name={statusIcon as any} size={10} color="#FFFFFF" />
             </View>
-            <Text style={[styles.lastActivity, { color: theme.textTertiary }]}>
+            <Text style={[styles.lastActivity, { color: theme.textTertiary, fontSize: density.progressFont }]}>
               {child.lastActivity ? 
                 `${Math.floor((Date.now() - child.lastActivity.getTime()) / (1000 * 60 * 60))}h ago` :
                 'No activity'
               }
             </Text>
+            </View>
+            <View style={styles.headerBadges}>
+              {child.homeworkPending && child.homeworkPending > 0 && (
+                <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
+                  <Text style={[styles.badgeText, { fontSize: density.badgeFont }]}>{child.homeworkPending}</Text>
+                </View>
+              )}
+              {child.upcomingEvents && child.upcomingEvents > 0 && (
+                <View style={[styles.badge, { backgroundColor: '#F59E0B' }]}>
+                  <Text style={[styles.badgeText, { fontSize: density.badgeFont }]}>{child.upcomingEvents}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Avatar and Name */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarContainer}>
               {child.avatarUrl ? (
-                <Image source={{ uri: child.avatarUrl }} style={styles.avatarImage} />
+                <Image source={{ uri: child.avatarUrl }} style={[styles.avatarImage, { width: density.avatar, height: density.avatar, borderRadius: density.avatar / 2 }]} />
               ) : (
-                generateAvatar(child.firstName, child.lastName)
+                <LinearGradient
+                  colors={getAvatarColors(child.firstName, child.lastName)}
+                  style={[styles.avatarGradient, { width: density.avatar, height: density.avatar, borderRadius: density.avatar / 2 }]}
+                >
+                  <Text style={styles.avatarText}>{`${child.firstName[0]}${child.lastName[0]}`.toUpperCase()}</Text>
+                </LinearGradient>
               )}
             </View>
-            <Text style={[styles.childName, { color: theme.text }]}>
+            <Text style={[styles.childName, { color: theme.text, fontSize: density.nameFont }]}>
               {child.firstName}
             </Text>
-            <Text style={[styles.childLastName, { color: theme.textSecondary }]}>
+            <Text style={[styles.childLastName, { color: theme.textSecondary, fontSize: density.lastNameFont }]}>
               {child.lastName}
             </Text>
           </View>
@@ -247,7 +279,8 @@ track('edudash.parent.children_accordion_toggled', {
           {/* Info Section */}
           <View style={styles.infoSection}>
             {child.age && (
-              <Text style={[styles.infoText, { color: theme.textSecondary }]}>
+              <Text style={[styles.infoText, { color: theme.textSecondary, fontSize: density.infoFont }]}>
+Size: density.infoFont }]}>
                 Age {child.age}
               </Text>
             )}
@@ -257,7 +290,7 @@ track('edudash.parent.children_accordion_toggled', {
               </Text>
             )}
             {child.className && (
-              <Text style={[styles.classText, { color: theme.textTertiary }]}>
+              <Text style={[styles.classText, { color: theme.textTertiary, fontSize: density.infoFont }]}>
                 {child.className}
               </Text>
             )}
@@ -277,7 +310,7 @@ track('edudash.parent.children_accordion_toggled', {
                   ]} 
                 />
               </View>
-              <Text style={[styles.progressText, { color: theme.textSecondary }]}>
+              <Text style={[styles.progressText, { color: theme.textSecondary, fontSize: density.progressFont }]}>
                 Progress
               </Text>
             </View>
@@ -286,10 +319,8 @@ track('edudash.parent.children_accordion_toggled', {
           {/* Quick Actions */}
           {renderQuickActions(child)}
 
-          {/* Notification Badges */}
-          <View style={styles.badgeContainer}>
-            {child.homeworkPending && child.homeworkPending > 0 && (
-              <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
+          {/* Notification Badges moved to header to avoid overlap with time */}
+          <View />
                 <Text style={styles.badgeText}>{child.homeworkPending}</Text>
               </View>
             )}
@@ -331,20 +362,21 @@ track('edudash.parent.children_accordion_toggled', {
   // Compute a sensible max height for the inner scroller to avoid taking the whole screen
   const accordionMaxHeight = useMemo(() => {
     // Estimate per-card height if not measured yet
-    const EST_CARD = 168
-    const MAX_VISIBLE = 3
+    const EST_CARD = isSmallDevice ? 156 : 168
+    const MAX_VISIBLE = (height < 700 || width < 360) ? 2 : 3
     const count = Math.min(childrenData.length, MAX_VISIBLE)
     const perCard = cardHeight || EST_CARD
     // Include vertical margins between cards and padding
     const verticalGaps = Math.max(0, count - 1) * 12
-    const padding = 24 // container padding approximations
+    const padding = isSmallDevice ? 20 : 24
     const computed = perCard * count + verticalGaps + padding
-    // Cap to 80% of screen height or 640, whichever is smaller
-    const cap = Math.min(height * 0.8, 640)
+    // Cap scales by device height and width
+    const capBase = height < 700 ? height * 0.7 : height * 0.8
+    const cap = Math.min(capBase, width < 360 ? 560 : 640)
     // Enforce a sensible minimum
-    const minH = 220
+    const minH = width < 360 ? 180 : 220
     return Math.max(Math.min(computed, cap), minH)
-  }, [childrenData.length, cardHeight])
+  }, [childrenData.length, cardHeight, height, width, isSmallDevice])
 
   return (
     <View style={styles.container}>
