@@ -1,4 +1,8 @@
 {
+  "back": "Back",
+  "ok": "OK",
+  "cancel": "Cancel",
+  "save": "Save",
   "app": {
     "name": "EduDash",
     "tagline": "Empowering Education Through AI",
@@ -65,9 +69,9 @@
     "loadError": "Unable to load data. Please try again.",
     "error_title": "Unable to load dashboard",
     "retry_button": "Try Again",
-    "good_morning": "Good morning",
-    "good_afternoon": "Good afternoon",
-    "good_evening": "Good evening",
+    "good_morning": "🌅 Good morning",
+    "good_afternoon": "☀️ Good afternoon",
+    "good_evening": "🌙 Good evening",
     "managing_school": "Managing {{schoolName}}",
     "teaching_at_school": "Teaching at {{schoolName}}",
     "school_overview": "School Overview",
@@ -96,7 +100,18 @@
     "ai_content_creation": "AI Content Creation",
     "advanced_analytics": "Advanced Analytics",
     "announcements": "Announcements",
-    "principal_hub": "Principal Hub"
+    "principal_hub": "Principal Hub",
+    "aiHelpUsed": "Used AI homework help {{count}} times this month",
+    "upgradeLimitReached": "Upgrade for unlimited access",
+    "managingChildren": "Managing {{count}} child",
+    "managingChildrenPlural": "Managing {{count}} children",
+    "syncStatus": "Synced",
+    "tierFree": "Free",
+    "tierPro": "Pro", 
+    "tierEnterprise": "Enterprise",
+    "tierLabel": "{{tier}} Tier",
+    "upgradeHint": "Upgrade for more ✨",
+    "usageLimits": "Usage Limits"
   },
   "metrics": {
     "total_students": "Total Students",
@@ -274,6 +289,7 @@
     "studentName": "Student Name",
     "class": "Class",
     "grade": "Grade",
+    "preschool": "Preschool",
     "status": "Status",
     "active": "Active",
     "inactive": "Inactive",
@@ -354,6 +370,7 @@
     "premium": "Premium", 
     "enterprise": "Enterprise",
     "upgrade": "Upgrade Plan",
+    "upgradeToPro": "Upgrade to Pro",
     "billing": "Billing",
     "usage": "Usage",
     "limits": "Plan Limits"

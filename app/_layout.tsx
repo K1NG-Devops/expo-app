@@ -16,6 +16,7 @@ import i18n from '@/lib/i18n';
 import { I18nextProvider } from 'react-i18next';
 import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 import { Ionicons } from '@expo/vector-icons';
+import { QueryProvider } from '@/lib/query/queryClient';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -36,7 +37,7 @@ export default function RootLayout() {
           try {
             const { data } = await supabase!.auth.getSession();
             hasSession = !!data.session?.user;
-          } catch (e) {
+    } catch (error) {
             hasSession = false;
           }
           const shouldGate = await BiometricAuthService.shouldGate({ hasSession, graceMs: 30000 });
@@ -185,14 +186,16 @@ export default function RootLayout() {
     // Provide auth context globally to mirror standalone app behavior
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
-        <AuthProvider>
-          {/* Wrap in SubscriptionProvider so screens can access subscription data */}
-          <SubscriptionProvider>
-            <ThemedStackWrapper />
+        <QueryProvider>
+          <AuthProvider>
+            {/* Wrap in SubscriptionProvider so screens can access subscription data */}
+            <SubscriptionProvider>
+              <ThemedStackWrapper />
 
-          {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
-          </SubscriptionProvider>
-        </AuthProvider>
+            {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+            </SubscriptionProvider>
+          </AuthProvider>
+        </QueryProvider>
       </ThemeProvider>
     </I18nextProvider>
   );

@@ -73,7 +73,7 @@ const FinancialReports: React.FC = () => {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Financial Reports</Text>
-        <TouchableOpacity onPress={() => router.push('/screens/export-data')}>
+<TouchableOpacity onPress={() => router.push('/screens/financial-dashboard')}>
           <Ionicons name="download" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
@@ -118,7 +118,7 @@ const FinancialReports: React.FC = () => {
               onPress={() => {
                 if (!report.comingSoon) {
                   // Navigate to specific report screen
-                  router.push(`/screens/reports/${report.title.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-')}`);
+router.push('/screens/financial-dashboard');
                 }
               }}
               disabled={report.comingSoon}
@@ -162,21 +162,21 @@ const FinancialReports: React.FC = () => {
           <View style={styles.actionGrid}>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => router.push('/screens/export-all-data')}
+onPress={() => router.push('/screens/financial-reports')}
             >
               <Ionicons name="download" size={32} color="#007AFF" />
               <Text style={styles.actionText}>Export All Data</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => router.push('/screens/schedule-reports')}
+onPress={() => router.push('/screens/financial-transactions')}
             >
               <Ionicons name="calendar" size={32} color="#10B981" />
               <Text style={styles.actionText}>Schedule Reports</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionCard}
-              onPress={() => router.push('/screens/report-templates')}
+onPress={() => router.push('/screens/financial-transactions')}
             >
               <Ionicons name="document" size={32} color="#8B5CF6" />
               <Text style={styles.actionText}>Custom Templates</Text>

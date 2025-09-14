@@ -55,6 +55,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+
+  // Create theme-aware styles
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const {
     data,
@@ -105,7 +108,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           '📢 Announcement Sent!',
           `"${announcement.title}" has been sent to ${announcement.audience.join(', ')} (${announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups'}).\n\nPriority: ${announcement.priority.toUpperCase()}${announcement.requiresResponse ? '\n⚠️ Response required' : ''}`,
           [
-            { text: 'View Sent', onPress: () => router.push('/screens/announcements-history') },
+{ text: 'View Messages', onPress: () => router.push('/screens/teacher-messages') },
             { text: 'OK', style: 'default' }
           ]
         );
@@ -223,7 +226,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   if (error && isEmpty) {
     return (
       <View style={styles.errorContainer}>
-        <Ionicons name="warning-outline" size={48} color="#DC2626" />
+        <Ionicons name="warning-outline" size={48} color={theme.error} />
         <Text style={styles.errorTitle}>Unable to Load Principal Hub</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={refresh}>
@@ -316,13 +319,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Teaching Staff</Text>
-          <TouchableOpacity
-            style={styles.viewAllButton}
-            onPress={() => router.push('/screens/teacher-management')}
-          >
-            <Text style={styles.viewAllText}>View All</Text>
-            <Ionicons name="chevron-forward" size={16} color="#4F46E5" />
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => router.push('/screens/teacher-management')}
+            >
+              <Text style={styles.viewAllText}>View All</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+            </TouchableOpacity>
         </View>
         
         {teachersWithStatus.length > 0 ? (
@@ -344,7 +347,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           </ScrollView>
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color="#6B7280" />
+            <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
             <Text style={styles.emptyStateText}>No teachers assigned yet</Text>
             <TouchableOpacity
               style={styles.emptyStateButton}
@@ -366,7 +369,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               onPress={() => router.push('/screens/financial-dashboard')}
             >
               <Text style={styles.viewAllText}>Details</Text>
-              <Ionicons name="chevron-forward" size={16} color="#4F46E5" />
+              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
             </TouchableOpacity>
           </View>
           
@@ -413,7 +416,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.aiInsightsTitle}>AI Analytics Available</Text>
               <Text style={styles.aiInsightsSubtitle}>Get data-driven insights • Tap to explore</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#8B5CF6" />
+            <Ionicons name="chevron-forward" size={16} color={theme.accent} />
           </View>
         </TouchableOpacity>
       </View>
@@ -433,7 +436,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Financial Overview</Text>
               <Text style={styles.toolSubtitle}>View revenue, expenses & cash flow trends</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -447,7 +450,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Payment History</Text>
               <Text style={styles.toolSubtitle}>Browse, filter & export payment records</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -461,7 +464,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Financial Reports</Text>
               <Text style={styles.toolSubtitle}>Generate detailed financial analysis</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -475,7 +478,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Petty Cash</Text>
               <Text style={styles.toolSubtitle}>Manage daily expenses & cash on hand</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -489,7 +492,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Class & Teacher Management</Text>
               <Text style={styles.toolSubtitle}>Assign teachers, manage classes & ratios</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -519,7 +522,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>AI Insights</Text>
               <Text style={styles.toolSubtitle}>Data-driven recommendations & analytics</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -543,7 +546,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Create Lessons</Text>
               <Text style={styles.toolSubtitle}>Generate lessons & assessments with AI</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -557,7 +560,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.toolTitle}>Advanced Analytics</Text>
               <Text style={styles.toolSubtitle}>Deep insights & forecasting</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -570,7 +573,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={styles.actionCard}
             onPress={() => router.push('/screens/student-enrollment')}
           >
-            <Ionicons name="person-add" size={24} color="#4F46E5" />
+            <Ionicons name="person-add" size={24} color={theme.primary} />
             <Text style={styles.actionText}>Enroll Student</Text>
           </TouchableOpacity>
           
@@ -578,7 +581,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={styles.actionCard}
             onPress={() => router.push('/screens/teacher-management')}
           >
-            <Ionicons name="people" size={24} color="#059669" />
+            <Ionicons name="people" size={24} color={theme.success} />
             <Text style={styles.actionText}>Teachers & Staff</Text>
           </TouchableOpacity>
           
@@ -586,7 +589,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={styles.actionCard}
             onPress={handleCreateAnnouncement}
           >
-            <Ionicons name="megaphone" size={24} color="#7C3AED" />
+            <Ionicons name="megaphone" size={24} color={theme.accent} />
             <Text style={styles.actionText}>Send Announcement</Text>
           </TouchableOpacity>
         </View>
@@ -596,7 +599,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             style={styles.actionCard}
             onPress={() => router.push('/screens/admin/school-settings')}
           >
-            <Ionicons name="settings" size={24} color="#6B7280" />
+            <Ionicons name="settings" size={24} color={theme.textSecondary} />
             <Text style={styles.actionText}>School Settings</Text>
           </TouchableOpacity>
           
@@ -614,7 +617,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               )
             }}
           >
-            <Ionicons name="shield-checkmark" size={24} color="#10B981" />
+            <Ionicons name="shield-checkmark" size={24} color={theme.success} />
             <Text style={styles.actionText}>User Access</Text>
           </TouchableOpacity>
           
@@ -637,7 +640,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               )
             }}
           >
-            <Ionicons name="cloud-upload" size={24} color="#8B5CF6" />
+            <Ionicons name="cloud-upload" size={24} color={theme.accent} />
             <Text style={styles.actionText}>Export Data</Text>
           </TouchableOpacity>
         </View>
@@ -660,7 +663,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             <View style={styles.optionsMenuHeader}>
               <Text style={styles.optionsMenuTitle}>Menu</Text>
               <TouchableOpacity onPress={() => setShowOptionsMenu(false)}>
-                <Ionicons name="close" size={24} color="#111827" />
+                <Ionicons name="close" size={24} color={theme.text} />
               </TouchableOpacity>
             </View>
             
@@ -672,13 +675,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               }}
             >
               <View style={styles.optionLeft}>
-                <Ionicons name="person-outline" size={24} color="#4F46E5" />
+                <Ionicons name="person-outline" size={24} color={theme.primary} />
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>My Profile</Text>
                   <Text style={styles.optionSubtitle}>Account settings, profile picture & biometrics</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -689,13 +692,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               }}
             >
               <View style={styles.optionLeft}>
-                <Ionicons name="settings-outline" size={24} color="#059669" />
+                <Ionicons name="settings-outline" size={24} color={theme.success} />
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>School Settings</Text>
                   <Text style={styles.optionSubtitle}>Configure school preferences & policies</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -706,13 +709,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               }}
             >
               <View style={styles.optionLeft}>
-                <Ionicons name="megaphone-outline" size={24} color="#7C3AED" />
+                <Ionicons name="megaphone-outline" size={24} color={theme.accent} />
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>Create Announcement</Text>
                   <Text style={styles.optionSubtitle}>Send messages to teachers & parents</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={16} color="#6B7280" />
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -728,13 +731,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.background,
   },
   welcomeSection: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginBottom: 8,
@@ -742,7 +745,7 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'white',
+    color: theme.onPrimary,
   },
   section: {
     paddingHorizontal: 20,
@@ -751,7 +754,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 12,
   },
   sectionHeader: {
@@ -766,7 +769,7 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 14,
-    color: '#4F46E5',
+    color: theme.primary,
     marginRight: 4,
   },
   metricsGrid: {
@@ -775,13 +778,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   metricCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     width: cardWidth,
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -796,10 +799,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     marginLeft: 8,
+    color: theme.text,
   },
   metricTitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   trendBadge: {
@@ -814,12 +818,12 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   teacherCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 12,
     marginRight: 12,
     width: 200,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -833,14 +837,14 @@ const styles = StyleSheet.create({
   teacherAvatar: {
     width: 32,
     height: 32,
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
   },
   teacherInitials: {
-    color: 'white',
+    color: theme.onPrimary,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -850,11 +854,11 @@ const styles = StyleSheet.create({
   teacherName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   teacherSpecialty: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   statusBadge: {
     width: 20,
@@ -873,19 +877,19 @@ const styles = StyleSheet.create({
   },
   teacherStat: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginHorizontal: 2,
   },
   performanceIndicator: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#4F46E5',
+    color: theme.primary,
   },
   capacityCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -899,7 +903,7 @@ const styles = StyleSheet.create({
   capacityTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginLeft: 8,
   },
   capacityInfo: {
@@ -909,16 +913,16 @@ const styles = StyleSheet.create({
   },
   capacityText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   capacityPercentage: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   capacityBar: {
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.border,
     borderRadius: 2,
   },
   capacityFill: {
@@ -930,12 +934,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   financialCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -943,25 +947,26 @@ const styles = StyleSheet.create({
   },
   financialLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   financialValue: {
     fontSize: 18,
     fontWeight: '700',
+    color: theme.text,
   },
   actionsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
   actionCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     flex: 1,
     marginHorizontal: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -970,41 +975,41 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#111827',
+    color: theme.text,
     marginTop: 8,
   },
   emptyState: {
     alignItems: 'center',
     padding: 32,
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 12,
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginVertical: 8,
   },
   emptyStateButton: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
   },
   emptyStateButtonText: {
-    color: 'white',
+    color: theme.onPrimary,
     fontSize: 14,
     fontWeight: '500',
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.background,
   },
   loadingSkeleton: {
     padding: 20,
   },
   skeletonHeader: {
     height: 80,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.surfaceVariant,
     borderRadius: 8,
     marginBottom: 20,
   },
@@ -1016,12 +1021,12 @@ const styles = StyleSheet.create({
   skeletonMetric: {
     width: cardWidth,
     height: 100,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.surfaceVariant,
     borderRadius: 12,
   },
   skeletonSection: {
     height: 200,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: theme.surfaceVariant,
     borderRadius: 12,
   },
   errorContainer: {
@@ -1029,45 +1034,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.background,
   },
   errorTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginTop: 16,
     textAlign: 'center',
   },
   errorText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 8,
   },
   retryButton: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 16,
   },
   retryButtonText: {
-    color: 'white',
+    color: theme.onPrimary,
     fontSize: 14,
     fontWeight: '500',
   },
   // AI Insights Banner Styles
   aiInsightsBanner: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 3,
     borderLeftWidth: 4,
-    borderLeftColor: '#8B5CF6',
+    borderLeftColor: theme.accent,
   },
   aiInsightsHeader: {
     flexDirection: 'row',
@@ -1077,7 +1082,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#8B5CF6' + '15',
+    backgroundColor: theme.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1088,12 +1093,12 @@ const styles = StyleSheet.create({
   aiInsightsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 2,
   },
   aiInsightsSubtitle: {
     fontSize: 14,
-    color: '#8B5CF6',
+    color: theme.accent,
     fontWeight: '500',
   },
   // Tool Cards Styles
@@ -1105,8 +1110,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'white',
-    shadowColor: '#000',
+    backgroundColor: theme.cardBackground,
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -1126,21 +1131,21 @@ const styles = StyleSheet.create({
   toolTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 2,
   },
   toolSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   // Options Menu Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: theme.modalOverlay,
     justifyContent: 'flex-end',
   },
   optionsMenuContent: {
-    backgroundColor: 'white',
+    backgroundColor: theme.cardBackground,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
@@ -1157,7 +1162,7 @@ const styles = StyleSheet.create({
   optionsMenuTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#111827',
+    color: theme.text,
   },
   optionItem: {
     flexDirection: 'row',
@@ -1165,7 +1170,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     marginBottom: 12,
   },
@@ -1181,12 +1186,12 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 2,
   },
   optionSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
 });
 

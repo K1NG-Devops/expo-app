@@ -5,9 +5,100 @@
  * features for biometric authentication in EduDash Pro.
  */
 
-import * as SecureStore from "expo-secure-store";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import i18next from "i18next";
+
+// Dynamically import SecureStore to avoid web issues
+let SecureStore: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    SecureStore = require('expo-secure-store');
+  }
+} catch (e) {
+  console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
+
+// Dynamically require AsyncStorage to avoid web/test issues
+let AsyncStorage: any = null;
+try {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+} catch (e) {
+  console.debug('AsyncStorage import failed (non-React Native env?)', e);
+  // Web fallback using localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    AsyncStorage = {
+      getItem: async (key: string) => {
+        try {
+          return window.localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: async (key: string, value: string) => {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          // ignore
+        }
+      },
+      removeItem: async (key: string) => {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      },
+    };
+  }
+}
+
+// SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
+const SecureStoreAdapter = SecureStore ? {
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value, { keychainService: key }),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+} : null;
+
+// AsyncStorage adapter (preferred for Android, no 2KB limit)
+const AsyncStorageAdapter = AsyncStorage
+  ? {
+      getItem: (key: string) => AsyncStorage.getItem(key),
+      setItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+      removeItem: (key: string) => AsyncStorage.removeItem(key),
+    }
+  : null;
+
+// In-memory fallback for tests or environments without the above storages
+const MemoryStorageAdapter = {
+  _map: new Map<string, string>(),
+  getItem: async (key: string) => (MemoryStorageAdapter._map.has(key) ? MemoryStorageAdapter._map.get(key)! : null),
+  setItem: async (key: string, value: string) => {
+    MemoryStorageAdapter._map.set(key, value);
+  },
+  removeItem: async (key: string) => {
+    MemoryStorageAdapter._map.delete(key);
+  },
+};
+
+function chooseStorage() {
+  try {
+    // Web platform: use localStorage via AsyncStorage or memory fallback
+    if (Platform?.OS === 'web') {
+      if (AsyncStorageAdapter) return AsyncStorageAdapter;
+      return MemoryStorageAdapter;
+    }
+    // Use AsyncStorage on Android to avoid SecureStore size limit warning/failures
+    if (Platform?.OS === 'android' && AsyncStorageAdapter) return AsyncStorageAdapter;
+    // iOS and other platforms: prefer SecureStore; fall back if unavailable
+    if (SecureStoreAdapter) return SecureStoreAdapter;
+    if (AsyncStorageAdapter) return AsyncStorageAdapter;
+  } catch (e) {
+    console.debug('chooseStorage unexpected error', e);
+  }
+  return MemoryStorageAdapter;
+}
+
+const storage = chooseStorage();
 
 const BACKUP_KEY = "biometric_backup_data";
 const FALLBACK_PIN_KEY = "fallback_pin_hash";
@@ -80,13 +171,13 @@ export class BiometricBackupManager {
       // Set up PIN fallback if requested
       if (options.enablePinFallback && options.pin) {
         const pinHash = await this.hashData(options.pin);
-        await SecureStore.setItemAsync(FALLBACK_PIN_KEY, pinHash);
+        await storage.setItem(FALLBACK_PIN_KEY, pinHash);
         hasPin = true;
       }
 
       // Set up security questions if provided
       if (options.enableSecurityQuestions && options.securityQuestions) {
-        await SecureStore.setItemAsync(
+        await storage.setItem(
           SECURITY_QUESTIONS_KEY,
           JSON.stringify(options.securityQuestions),
         );
@@ -111,8 +202,8 @@ export class BiometricBackupManager {
         version: 1,
       };
 
-      await SecureStore.setItemAsync(BACKUP_KEY, JSON.stringify(backupData));
-      await SecureStore.setItemAsync(BACKUP_RECOVERY_KEY, recoveryToken);
+      await storage.setItem(BACKUP_KEY, JSON.stringify(backupData));
+      await storage.setItem(BACKUP_RECOVERY_KEY, recoveryToken);
 
       return true;
     } catch (error) {
@@ -126,7 +217,7 @@ export class BiometricBackupManager {
    */
   static async verifyPinFallback(pin: string): Promise<boolean> {
     try {
-      const storedPinHash = await SecureStore.getItemAsync(FALLBACK_PIN_KEY);
+      const storedPinHash = await storage.getItem(FALLBACK_PIN_KEY);
       if (!storedPinHash) {
         return false;
       }
@@ -146,7 +237,7 @@ export class BiometricBackupManager {
     answers: { questionId: string; answer: string }[],
   ): Promise<boolean> {
     try {
-      const storedQuestions = await SecureStore.getItemAsync(
+      const storedQuestions = await storage.getItem(
         SECURITY_QUESTIONS_KEY,
       );
       if (!storedQuestions) {
@@ -194,7 +285,7 @@ export class BiometricBackupManager {
 
       let questions: string[] = [];
       if (backupData.hasSecurityQuestions) {
-        const storedQuestions = await SecureStore.getItemAsync(
+        const storedQuestions = await storage.getItem(
           SECURITY_QUESTIONS_KEY,
         );
         if (storedQuestions) {
@@ -220,7 +311,7 @@ export class BiometricBackupManager {
    */
   static async getBackupData(): Promise<BiometricBackupData | null> {
     try {
-      const data = await SecureStore.getItemAsync(BACKUP_KEY);
+      const data = await storage.getItem(BACKUP_KEY);
       return data ? JSON.parse(data) : null;
     } catch (error) {
       console.error("Error getting backup data:", error);
@@ -234,10 +325,10 @@ export class BiometricBackupManager {
   static async disableBiometricBackup(): Promise<void> {
     try {
       await Promise.all([
-        SecureStore.deleteItemAsync(BACKUP_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(FALLBACK_PIN_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(SECURITY_QUESTIONS_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(BACKUP_RECOVERY_KEY).catch(() => {}),
+        storage.removeItem(BACKUP_KEY).catch(() => {}),
+        storage.removeItem(FALLBACK_PIN_KEY).catch(() => {}),
+        storage.removeItem(SECURITY_QUESTIONS_KEY).catch(() => {}),
+        storage.removeItem(BACKUP_RECOVERY_KEY).catch(() => {}),
       ]);
     } catch (error) {
       console.error("Error disabling biometric backup:", error);
@@ -250,7 +341,7 @@ export class BiometricBackupManager {
   static async updatePinFallback(newPin: string): Promise<boolean> {
     try {
       const pinHash = await this.hashData(newPin);
-      await SecureStore.setItemAsync(FALLBACK_PIN_KEY, pinHash);
+      await storage.setItem(FALLBACK_PIN_KEY, pinHash);
 
       // Update backup data
       const backupData = await this.getBackupData();
@@ -259,7 +350,7 @@ export class BiometricBackupManager {
         backupData.backupMethod = backupData.hasSecurityQuestions
           ? "both"
           : "pin";
-        await SecureStore.setItemAsync(BACKUP_KEY, JSON.stringify(backupData));
+        await storage.setItem(BACKUP_KEY, JSON.stringify(backupData));
       }
 
       return true;
@@ -379,7 +470,7 @@ export class BiometricBackupManager {
               return;
             }
 
-            const storedQuestions = await SecureStore.getItemAsync(
+            const storedQuestions = await storage.getItem(
               SECURITY_QUESTIONS_KEY,
             );
             if (storedQuestions) {

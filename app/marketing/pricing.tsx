@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Platform,
   ColorValue,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
+import { navigateTo } from '@/lib/navigation/router-utils';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { DesignSystem } from '@/constants/DesignSystem';
@@ -134,7 +134,7 @@ const Header = () => (
     
     <View style={styles.logo}>
       <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.logoGradient}>
-        <IconSymbol name="brain" size={28} color="#000000" />
+        <IconSymbol name="help-circle" size={28} color="#000000" />
       </LinearGradient>
       <Text style={styles.logoText}>EduDash Pro</Text>
     </View>
@@ -165,7 +165,7 @@ const PricingGrid = () => (
   </View>
 );
 
-const PricingCard = ({ tier, index }: { tier: PricingTier; index: number }) => (
+const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => (
   <View style={[
     styles.pricingCard,
     tier.recommended && styles.recommendedCard,
@@ -211,7 +211,7 @@ const PricingCard = ({ tier, index }: { tier: PricingTier; index: number }) => (
         ]}
         onPress={() => {
           if (tier.cta === 'Contact Sales') {
-            router.push('/marketing/contact');
+            navigateTo.contact();
           } else {
             router.push('/(auth)/sign-up');
           }
@@ -252,7 +252,7 @@ const EnterpriseSection = () => (
       </View>
       <TouchableOpacity 
         style={styles.enterpriseButton}
-        onPress={() => router.push('/marketing/contact')}
+        onPress={() => navigateTo.contact()}
       >
         <LinearGradient colors={['#ff8000', '#ff0080']} style={styles.enterpriseButtonGradient}>
           <Text style={styles.enterpriseButtonText}>Schedule Enterprise Demo</Text>

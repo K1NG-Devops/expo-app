@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
@@ -10,6 +10,7 @@ import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
+import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 
 export default function AILessonGeneratorScreen() {
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
@@ -32,6 +33,23 @@ export default function AILessonGeneratorScreen() {
 
   const flags = getFeatureFlagsSync();
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
+
+  // Refresh function to reload usage, model data, and categories
+  const handleRefresh = async () => {
+    try {
+      setUsage(await getCombinedUsage())
+      const limits = await getEffectiveLimits()
+      setModels(limits.modelOptions || [])
+      const stored = await getPreferredModel('lesson_generation')
+      setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
+      // Refetch categories
+      await categoriesQuery.refetch()
+    } catch (error) {
+      console.error('Error refreshing AI lesson generator data:', error)
+    }
+  }
+
+  const { refreshing, onRefreshHandler } = useSimplePullToRefresh(handleRefresh, 'ai_lesson_generator')
 
   useEffect(() => {
     (async () => {
@@ -134,7 +152,17 @@ export default function AILessonGeneratorScreen() {
         <Text style={[styles.title, { color: palette.text }]}>AI Lesson Generator</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.contentPadding}>
+      <ScrollView 
+        contentContainerStyle={styles.contentPadding}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefreshHandler}
+            tintColor="#3B82F6"
+            title="Refreshing AI data..."
+          />
+        }
+      >
         <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>Preview</Text>
           <Text style={{ color: palette.textSecondary }}>

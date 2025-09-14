@@ -338,7 +338,7 @@ export default function StudentDetailScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Student Details</Text>
-        <TouchableOpacity onPress={() => router.push(`/screens/edit-student?studentId=${student.id}`)}>
+<TouchableOpacity onPress={() => router.push('/screens/student-management')}>
           <Ionicons name="create" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
@@ -489,7 +489,7 @@ export default function StudentDetailScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Financial Status</Text>
-            <TouchableOpacity onPress={() => router.push(`/screens/student-fees?studentId=${student.id}`)}>
+<TouchableOpacity onPress={() => router.push('/screens/financial-transactions')}>
               <Text style={styles.viewAllText}>View Details</Text>
             </TouchableOpacity>
           </View>

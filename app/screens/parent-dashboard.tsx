@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useTranslation } from 'react-i18next';
 import { useAuth, usePermissions } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
 import ParentDashboard from '@/components/dashboard/ParentDashboard';
@@ -13,6 +14,7 @@ import { track } from '@/lib/analytics';
 
 export default function ParentDashboardScreen() {
   const { t } = useTranslation();
+  const { theme, isDark } = useTheme();
   const { user, profile } = useAuth();
   const permissions = usePermissions();
   const { ready: subscriptionReady, tier } = useSubscription();
@@ -42,27 +44,76 @@ export default function ParentDashboardScreen() {
     }
   }, [canView, hasAccess, subscriptionReady, tier, user?.id, featuresEnabled]);
 
+  // Create styles hook before any conditional returns
+  const deniedStyles = React.useMemo(() => StyleSheet.create({
+    deniedContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    deniedGradient: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 32,
+    },
+    deniedTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginTop: 24,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    deniedText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 24,
+      marginBottom: 32,
+    },
+    accountButton: {
+      borderRadius: 25,
+      overflow: 'hidden',
+    },
+    accountButtonGradient: {
+      paddingHorizontal: 24,
+      paddingVertical: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    accountButtonText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#000000',
+      marginRight: 8,
+    },
+  }), [theme]);
+
   // Early return after all hooks are called
   if (!canView || !hasAccess) {
+
     return (
       <View style={{ flex: 1 }}>
-        <Stack.Screen options={{ title: t('dashboard.parentDashboard'), headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff', headerBackVisible: false }} />
-        <StatusBar style="light" backgroundColor="#0b1220" />
-        <SafeAreaView edges={['top']} style={styles.deniedContainer}>
+        <Stack.Screen options={{ title: t('dashboard.parentDashboard'), headerStyle: { backgroundColor: theme.background }, headerTitleStyle: { color: theme.text }, headerTintColor: theme.primary, headerBackVisible: false }} />
+        <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.background} />
+        <SafeAreaView edges={['top']} style={deniedStyles.deniedContainer}>
           <LinearGradient
-            colors={['#0b1220', '#1a0a2e', '#16213e']}
-            style={styles.deniedGradient}
+            colors={isDark 
+              ? ['#0b1220', '#1a0a2e', '#16213e']
+              : ['#ffffff', '#f8f9fa', '#e9ecef']
+            }
+            style={deniedStyles.deniedGradient}
           >
             <IconSymbol name="shield.slash" size={64} color="#EF4444" />
-            <Text style={styles.deniedTitle}>{t('dashboard.accessDenied')}</Text>
-            <Text style={styles.deniedText}>
+            <Text style={deniedStyles.deniedTitle}>{t('dashboard.accessDenied')}</Text>
+            <Text style={deniedStyles.deniedText}>
               {!hasAccess 
                 ? t('dashboard.mobileAppAccessRequired')
                 : t('dashboard.parentRoleRequired')
               }
             </Text>
             <TouchableOpacity 
-              style={styles.accountButton}
+              style={deniedStyles.accountButton}
               onPress={() => {
                 track('edudash.dashboard.access_denied_redirect', {
                   user_id: user?.id,
@@ -73,10 +124,10 @@ export default function ParentDashboardScreen() {
               }}
             >
               <LinearGradient
-                colors={['#00f5ff', '#0080ff']}
-                style={styles.accountButtonGradient}
+                colors={[theme.primary, theme.primary + 'CC']}
+                style={deniedStyles.accountButtonGradient}
               >
-                <Text style={styles.accountButtonText}>{t('dashboard.goToAccount')}</Text>
+                <Text style={deniedStyles.accountButtonText}>{t('dashboard.goToAccount')}</Text>
                 <IconSymbol name="arrow.right" size={16} color="#000000" />
               </LinearGradient>
             </TouchableOpacity>
@@ -88,55 +139,11 @@ export default function ParentDashboardScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Parent Dashboard', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff', headerBackVisible: false }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.background} />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
         <ParentDashboard />
       </SafeAreaView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  deniedContainer: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  deniedGradient: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  deniedTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 24,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  deniedText: {
-    fontSize: 16,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  accountButton: {
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  accountButtonGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  accountButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000000',
-    marginRight: 8,
-  },
-});

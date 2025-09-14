@@ -51,10 +51,43 @@ export const CAPABILITIES = {
   view_class_analytics: 'view_class_analytics',
   communicate_with_parents: 'communicate_with_parents',
   
-  // Parent capabilities
+  // Parent capabilities (ENHANCED for Parent Dashboard)
   view_child_progress: 'view_child_progress',
   communicate_with_teachers: 'communicate_with_teachers',
   access_homework_help: 'access_homework_help',
+  
+  // Parent Dashboard Capabilities (NEW)
+  access_parent_dashboard: 'access_parent_dashboard',
+  submit_homework: 'submit_homework',
+  view_announcements: 'view_announcements',
+  use_whatsapp: 'use_whatsapp',
+  send_voice_notes: 'send_voice_notes',
+  view_progress: 'view_progress',
+  in_app_messaging: 'in_app_messaging',
+  parent_teacher_chat: 'parent_teacher_chat',
+  offline_homework_submission: 'offline_homework_submission',
+  receive_push_notifications: 'receive_push_notifications',
+  
+  // WhatsApp Integration Capabilities
+  whatsapp_opt_in: 'whatsapp_opt_in',
+  whatsapp_send_messages: 'whatsapp_send_messages',
+  whatsapp_receive_messages: 'whatsapp_receive_messages',
+  whatsapp_voice_messages: 'whatsapp_voice_messages',
+  
+  // Communication & Engagement
+  read_school_announcements: 'read_school_announcements',
+  reply_to_teachers: 'reply_to_teachers',
+  send_media_messages: 'send_media_messages',
+  record_voice_feedback: 'record_voice_feedback',
+  view_engagement_metrics: 'view_engagement_metrics',
+  provide_feedback: 'provide_feedback',
+  
+  // Progress & Analytics
+  view_student_progress: 'view_student_progress',
+  view_homework_history: 'view_homework_history',
+  view_attendance_records: 'view_attendance_records',
+  access_ai_insights: 'access_ai_insights',
+  view_progress_reports: 'view_progress_reports',
   
   // AI capabilities (tier-dependent)
   ai_lesson_generation: 'ai_lesson_generation',
@@ -84,11 +117,41 @@ export type Capability = keyof typeof CAPABILITIES;
 // Role-based capability mapping
 const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
   parent: [
+    // Core access
     'view_dashboard',
     'access_mobile_app',
     'view_child_progress',
     'communicate_with_teachers',
     'access_homework_help',
+    
+    // Parent Dashboard Core Features
+    'access_parent_dashboard',
+    'submit_homework',
+    'view_announcements',
+    'send_voice_notes',
+    'view_progress',
+    'in_app_messaging',
+    'parent_teacher_chat',
+    'offline_homework_submission',
+    'receive_push_notifications',
+    
+    // Communication & Engagement
+    'read_school_announcements',
+    'reply_to_teachers',
+    'send_media_messages',
+    'record_voice_feedback',
+    'provide_feedback',
+    
+    // Progress & Analytics
+    'view_student_progress',
+    'view_homework_history',
+    'view_attendance_records',
+    'view_progress_reports',
+    
+    // WhatsApp Integration (base capabilities - tier dependent for advanced)
+    'whatsapp_opt_in',
+    'whatsapp_send_messages',
+    'whatsapp_receive_messages',
   ],
   teacher: [
     'view_dashboard',
@@ -152,11 +215,15 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
 // Plan tier capability additions
 const TIER_CAPABILITIES: Record<PlanTier, Capability[]> = {
   free: [
-    'ai_homework_helper', // Limited usage
+    'ai_homework_helper', // Limited usage (10 requests/month per roadmap)
+    'view_engagement_metrics', // Basic engagement tracking
   ],
   starter: [
     'ai_homework_helper',
     'ai_lesson_generation', // Limited usage
+    'view_engagement_metrics',
+    'whatsapp_voice_messages', // Voice messages in WhatsApp
+    'access_ai_insights', // Basic AI insights
   ],
   premium: [
     'ai_homework_helper',
@@ -164,6 +231,10 @@ const TIER_CAPABILITIES: Record<PlanTier, Capability[]> = {
     'ai_grading_assistance',
     'ai_stem_activities',
     'advanced_analytics',
+    'view_engagement_metrics',
+    'whatsapp_voice_messages',
+    'access_ai_insights',
+    'use_whatsapp', // Full WhatsApp integration
   ],
   enterprise: [
     'ai_homework_helper',
@@ -175,6 +246,10 @@ const TIER_CAPABILITIES: Record<PlanTier, Capability[]> = {
     'custom_reports',
     'sso_access',
     'priority_support',
+    'view_engagement_metrics',
+    'whatsapp_voice_messages',
+    'access_ai_insights',
+    'use_whatsapp',
   ],
 };
 
@@ -496,7 +571,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     // Preferred: Use secure RPC that returns the caller's profile (bypasses RLS safely)
     const { data: rpcProfile, error: rpcError } = await assertSupabase()
       .rpc('get_my_profile')
-      .single();
+      .maybeSingle();
 
     if (rpcProfile && (rpcProfile as any).id) {
       profile = rpcProfile as any;
@@ -509,7 +584,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       try {
         const { data: directProfile } = await assertSupabase()
           .rpc('debug_get_profile_direct', { target_auth_id: userId })
-          .single();
+          .maybeSingle();
         console.log('Direct profile fetch completed');
         if (directProfile && (directProfile as any).id) {
           profile = directProfile as any;
@@ -521,7 +596,10 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     }
     
     if (!profile) {
-      console.error('Failed to fetch basic user profile:', profileError);
+      // Only log an error if it's not the common "no rows" case
+      if (!(profileError && (profileError as any).code === 'PGRST116')) {
+        console.error('Failed to fetch basic user profile:', profileError);
+      }
       
       // SECURITY: Check if fallback is allowed for this session
       const sessionToken = session?.access_token || storedSession?.access_token || '';
@@ -601,7 +679,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
           // Try preschools by id first
           const { data: presById } = await assertSupabase()
             .from('preschools')
-            .select('id, name, plan_tier')
+            .select('id, name, subscription_tier')
             .eq('id', orgIdentifierRaw)
             .maybeSingle();
           if (presById) {
@@ -626,7 +704,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
           try {
             const { data: presBySlug } = await assertSupabase()
               .from('preschools')
-              .select('id, name, plan_tier')
+              .select('id, name, subscription_tier')
               .eq('tenant_slug', orgIdentifierRaw)
               .maybeSingle();
             if (presBySlug) {
@@ -677,7 +755,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         try {
           const { data: orgData } = await assertSupabase()
             .from('preschools')
-            .select('id, name, plan_tier')
+            .select('id, name, subscription_tier')
             .eq('id', resolvedOrgId)
             .maybeSingle();
           if (orgData) org = orgData;
@@ -690,7 +768,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     // Get capabilities based on role
     const capabilities = await getUserCapabilities(
       profile.role,
-      org?.plan_tier || 'free',
+      org?.subscription_tier || org?.plan_tier || 'free',
       orgMember?.seat_status
     );
 
@@ -714,7 +792,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     const enhancedProfile = createEnhancedProfile(baseProfile, {
       organization_id: baseProfile.organization_id,
       organization_name: org?.name,
-      plan_tier: org?.plan_tier || 'free',
+      plan_tier: org?.subscription_tier || org?.plan_tier || 'free',
       seat_status: orgMember?.seat_status || 'active',
       invited_by: orgMember?.invited_by,
       created_at: orgMember?.created_at,
@@ -726,7 +804,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       role: normalizeRole(profile.role) || 'unknown',
       has_org: !!orgMember || !!profile.preschool_id,
       seat_status: orgMember?.seat_status || 'active',
-      plan_tier: org?.plan_tier || 'free',
+      plan_tier: org?.subscription_tier || org?.plan_tier || 'free',
       capabilities_count: capabilities.length,
       database_success: true,
     });

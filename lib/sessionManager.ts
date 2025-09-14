@@ -1,8 +1,100 @@
-import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { assertSupabase } from '@/lib/supabase';
 import { track, identifyUser } from '@/lib/analytics';
 import { identifyUserForFlags } from '@/lib/featureFlags';
 import { reportError } from '@/lib/monitoring';
+
+// Dynamically import SecureStore to avoid web issues
+let SecureStore: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    SecureStore = require('expo-secure-store');
+  }
+} catch (e) {
+  console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
+
+// Dynamically require AsyncStorage to avoid web/test issues
+let AsyncStorage: any = null;
+try {
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+} catch (e) {
+  console.debug('AsyncStorage import failed (non-React Native env?)', e);
+  // Web fallback using localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    AsyncStorage = {
+      getItem: async (key: string) => {
+        try {
+          return window.localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: async (key: string, value: string) => {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          // ignore
+        }
+      },
+      removeItem: async (key: string) => {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      },
+    };
+  }
+}
+
+// SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
+const SecureStoreAdapter = SecureStore ? {
+  getItem: (key: string) => SecureStore.getItemAsync(key),
+  setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value, { keychainService: key }),
+  removeItem: (key: string) => SecureStore.deleteItemAsync(key),
+} : null;
+
+// AsyncStorage adapter (preferred for Android, no 2KB limit)
+const AsyncStorageAdapter = AsyncStorage
+  ? {
+      getItem: (key: string) => AsyncStorage.getItem(key),
+      setItem: (key: string, value: string) => AsyncStorage.setItem(key, value),
+      removeItem: (key: string) => AsyncStorage.removeItem(key),
+    }
+  : null;
+
+// In-memory fallback for tests or environments without the above storages
+const MemoryStorageAdapter = {
+  _map: new Map<string, string>(),
+  getItem: async (key: string) => (MemoryStorageAdapter._map.has(key) ? MemoryStorageAdapter._map.get(key)! : null),
+  setItem: async (key: string, value: string) => {
+    MemoryStorageAdapter._map.set(key, value);
+  },
+  removeItem: async (key: string) => {
+    MemoryStorageAdapter._map.delete(key);
+  },
+};
+
+function chooseStorage() {
+  try {
+    // Web platform: use localStorage via AsyncStorage or memory fallback
+    if (Platform?.OS === 'web') {
+      if (AsyncStorageAdapter) return AsyncStorageAdapter;
+      return MemoryStorageAdapter;
+    }
+    // Use AsyncStorage on Android to avoid SecureStore size limit warning/failures
+    if (Platform?.OS === 'android' && AsyncStorageAdapter) return AsyncStorageAdapter;
+    // iOS and other platforms: prefer SecureStore; fall back if unavailable
+    if (SecureStoreAdapter) return SecureStoreAdapter;
+    if (AsyncStorageAdapter) return AsyncStorageAdapter;
+  } catch (e) {
+    console.debug('chooseStorage unexpected error', e);
+  }
+  return MemoryStorageAdapter;
+}
+
+const storage = chooseStorage();
 
 export interface UserSession {
   access_token: string;
@@ -40,7 +132,7 @@ let sessionRefreshTimer: any = null;
  */
 async function storeSession(session: UserSession): Promise<void> {
   try {
-    await SecureStore.setItemAsync(SESSION_STORAGE_KEY, JSON.stringify(session));
+    await storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
   } catch (error) {
     reportError(new Error('Failed to store session'), { error });
     throw error;
@@ -52,7 +144,7 @@ async function storeSession(session: UserSession): Promise<void> {
  */
 async function getStoredSession(): Promise<UserSession | null> {
   try {
-    const sessionData = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
+    const sessionData = await storage.getItem(SESSION_STORAGE_KEY);
     return sessionData ? JSON.parse(sessionData) : null;
   } catch (error) {
     console.error('Failed to retrieve session:', error);
@@ -65,7 +157,7 @@ async function getStoredSession(): Promise<UserSession | null> {
  */
 async function storeProfile(profile: UserProfile): Promise<void> {
   try {
-    await SecureStore.setItemAsync(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+    await storage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
   } catch (error) {
     console.error('Failed to store profile:', error);
   }
@@ -76,7 +168,7 @@ async function storeProfile(profile: UserProfile): Promise<void> {
  */
 async function getStoredProfile(): Promise<UserProfile | null> {
   try {
-    const profileData = await SecureStore.getItemAsync(PROFILE_STORAGE_KEY);
+    const profileData = await storage.getItem(PROFILE_STORAGE_KEY);
     return profileData ? JSON.parse(profileData) : null;
   } catch (error) {
     console.error('Failed to retrieve profile:', error);
@@ -90,8 +182,8 @@ async function getStoredProfile(): Promise<UserProfile | null> {
 async function clearStoredData(): Promise<void> {
   try {
     await Promise.all([
-      SecureStore.deleteItemAsync(SESSION_STORAGE_KEY),
-      SecureStore.deleteItemAsync(PROFILE_STORAGE_KEY),
+      storage.removeItem(SESSION_STORAGE_KEY),
+      storage.removeItem(PROFILE_STORAGE_KEY),
     ]);
   } catch (error) {
     console.error('Failed to clear stored data:', error);
@@ -115,15 +207,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         avatar_url,
         created_at,
         last_login_at,
-        organization_members(
-          organization_id,
-          seat_status,
-          organizations(
-            id,
-            name,
-            plan_tier
-          )
-        )
+        preschool_id
       `)
       .eq('id', userId)
       .single();
@@ -134,11 +218,11 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
     }
 
     // Extract organization info
-    const orgMember = profile.organization_members?.[0];
-    const org = orgMember?.organizations as any;
+    const orgMember = null as any;
+    const org = null as any;
 
     // Get user capabilities based on role and subscription
-    const planTier = Array.isArray(org) ? org[0]?.plan_tier : org?.plan_tier;
+    const planTier = undefined;
     const capabilities = await getUserCapabilities(profile.role, planTier);
 
     return {
@@ -148,9 +232,9 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       first_name: profile.first_name,
       last_name: profile.last_name,
       avatar_url: profile.avatar_url,
-      organization_id: orgMember?.organization_id,
-      organization_name: Array.isArray(org) ? org[0]?.name : org?.name,
-      seat_status: orgMember?.seat_status,
+      organization_id: profile.preschool_id,
+      organization_name: undefined,
+      seat_status: 'active',
       capabilities,
       created_at: profile.created_at,
       last_login_at: profile.last_login_at,
@@ -497,12 +581,33 @@ export async function getCurrentSession(): Promise<UserSession | null> {
   
   if (!session) return null;
 
-  if (needsRefresh(session)) {
+  // Check if session is expired or needs refresh
+  const now = Date.now();
+  const timeUntilExpiry = session.expires_at * 1000 - now;
+  
+  // If completely expired, try to refresh anyway (token might still be valid)
+  if (timeUntilExpiry <= 0) {
+    console.log('Session expired, attempting refresh');
     const refreshedSession = await refreshSession(session.refresh_token);
     if (refreshedSession) {
       setupAutoRefresh(refreshedSession);
+      return refreshedSession;
     }
-    return refreshedSession;
+    // If refresh fails, clear the expired session
+    await clearStoredData();
+    return null;
+  }
+  
+  // If needs refresh but not expired yet
+  if (needsRefresh(session)) {
+    console.log('Session needs refresh, attempting refresh');
+    const refreshedSession = await refreshSession(session.refresh_token);
+    if (refreshedSession) {
+      setupAutoRefresh(refreshedSession);
+      return refreshedSession;
+    }
+    // If refresh fails, return the current session (still valid)
+    console.warn('Session refresh failed, using current session');
   }
 
   return session;

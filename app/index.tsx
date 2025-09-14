@@ -110,7 +110,7 @@ export default function Landing() {
           <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} webOptimized={webOptimized} />
           <QASection webOptimized={webOptimized} />
           {!webOptimized && <AdBanner />}
-          <FooterSection webOptimized={webOptimized} />
+          <FooterSection />
         </ScrollView>
       </SafeAreaView>
 
@@ -146,7 +146,7 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
           <View style={styles.navbar}>
             <View style={styles.logo}>
               <LinearGradient colors={['#00f5ff', '#0080ff', '#8000ff']} style={styles.logoGradient}>
-                <IconSymbol name="brain" size={28} color="#FFFFFF" />
+                <IconSymbol name="help-circle" size={28} color="#FFFFFF" />
               </LinearGradient>
               <Text style={styles.logoText}>EduDash Pro</Text>
               <Text style={styles.logoSubtext}>Society 5.0</Text>
@@ -175,7 +175,7 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
 
             <View style={styles.holoStats}>
               <HoloStatCard icon="cpu" number="∞" label="AI Neurons" color={['#00f5ff', '#0080ff']} />
-              <HoloStatCard icon="brain" number="5.0" label="Society" color={['#8000ff', '#ff0080']} />
+              <HoloStatCard icon="help-circle" number="5.0" label="Society" color={['#8000ff', '#ff0080']} />
               <HoloStatCard icon="sparkles" number="∞²" label="Possibilities" color={['#ff0080', '#ff8000']} />
             </View>
 
@@ -223,7 +223,7 @@ const HoloStatCard: React.FC<HoloStatCardProps> = ({ icon, number, label, color 
   </View>
 );
 
-const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature, webOptimized = false }) => {
+const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature }) => {
   const features = featuresContent;
   return (
     <View style={styles.featuresContainer}>
@@ -251,7 +251,7 @@ const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature, w
   );
 };
 
-const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimonial, setActiveTestimonial, webOptimized = false }) => {
+const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimonial, setActiveTestimonial }) => {
   const testimonials = require('@/constants/marketing').testimonialsContent as typeof import('@/constants/marketing').testimonialsContent;
   const isDesktop = width >= (DesignSystem.breakpoints?.lg ?? 1024);
 
@@ -299,7 +299,7 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
   );
 };
 
-const QASection: React.FC<QASectionProps> = ({ webOptimized = false }) => {
+const QASection: React.FC<QASectionProps> = () => {
   const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
   const qaData = [
     { question: 'How does the Quantum AI Brain work?', answer: 'Server-side AI with strict privacy and compliance.' },
@@ -352,13 +352,13 @@ const FeatureModal: React.FC<FeatureModalProps> = ({ selectedFeature, setSelecte
   );
 };
 
-const FooterSection = ({ webOptimized = false }: { webOptimized?: boolean }) => (
+const FooterSection = () => (
   <View style={styles.footerContainer}>
     <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.footerGradient}>
       <View style={styles.footerContent}>
         <View style={styles.footerLogo}>
           <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.footerLogoGradient}>
-            <IconSymbol name="brain" size={32} color="#000000" />
+            <IconSymbol name="help-circle" size={32} color="#000000" />
           </LinearGradient>
           <Text style={styles.footerLogoText}>EduDash Pro</Text>
           <Text style={styles.footerLogoSubtext}>AI-Powered Education Platform</Text>

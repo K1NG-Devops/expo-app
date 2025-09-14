@@ -7,9 +7,18 @@
 
 import * as LocalAuthentication from "expo-local-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import { Alert, Platform } from "react-native";
 import * as Device from "expo-device";
+
+// Dynamically import SecureStore to avoid web issues
+let SecureStore: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    SecureStore = require('expo-secure-store');
+  }
+} catch (e) {
+  console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
 
 const BIOMETRIC_STORAGE_KEY = "biometric_enabled"; // canonical flag ("true"/"false")
 const LEGACY_BIOMETRIC_STORAGE_KEY = "biometrics_enabled"; // legacy flag ("1"/"0")
@@ -17,6 +26,7 @@ const BIOMETRIC_USER_KEY = "biometric_user_data";
 const BIOMETRIC_LOCK_SECRET_KEY = "biometric_lock_secret"; // random secret gated by device auth
 const LAST_UNLOCKED_AT_KEY = "biometric_last_unlocked_at"; // timestamp ms
 const LAST_USER_ID_KEY = "biometric_last_user_id"; // optional binding to current user
+const BIOMETRIC_REFRESH_TOKEN_KEY = "biometric_refresh_token"; // persisted for restoring Supabase session after logout
 
 const MAX_FAILED_ATTEMPTS = 3;
 const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -55,6 +65,11 @@ export class BiometricAuthService {
    */
   static async init(): Promise<void> {
     try {
+      // Skip migration on web or if SecureStore unavailable
+      if (!SecureStore) {
+        console.log('BiometricAuthService.init: SecureStore unavailable, skipping migration');
+        return;
+      }
       // Migrate legacy enable flag if present and canonical not set
       const canonical = await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => null);
       const legacy = await SecureStore.getItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => null);
@@ -73,6 +88,21 @@ export class BiometricAuthService {
    */
   static async checkCapabilities(): Promise<BiometricCapabilities> {
     try {
+      // Development mode override for web/desktop testing
+      const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
+      const isWeb = Platform.OS === 'web';
+      const enableWebBiometricTesting = process.env.EXPO_PUBLIC_ENABLE_WEB_BIOMETRIC_TESTING === 'true';
+      
+      if (isDevelopment && isWeb && enableWebBiometricTesting) {
+        console.log('[DEV] Using mock biometric capabilities for web testing');
+        return {
+          isAvailable: true,
+          supportedTypes: [LocalAuthentication.AuthenticationType.FINGERPRINT],
+          isEnrolled: true,
+          securityLevel: "strong",
+        };
+      }
+      
       const isAvailable = await LocalAuthentication.hasHardwareAsync();
       const supportedTypes =
         await LocalAuthentication.supportedAuthenticationTypesAsync();
@@ -293,6 +323,27 @@ export class BiometricAuthService {
    */
   static async authenticate(reason?: string): Promise<BiometricAuthResult> {
     try {
+      // Development mode override for web/desktop testing
+      const isDevelopment = __DEV__ || process.env.NODE_ENV === 'development';
+      const isWeb = Platform.OS === 'web';
+      const enableWebBiometricTesting = process.env.EXPO_PUBLIC_ENABLE_WEB_BIOMETRIC_TESTING === 'true';
+      
+      if (isDevelopment && isWeb && enableWebBiometricTesting) {
+        console.log('[DEV] Using mock biometric authentication for web testing');
+        // Simulate a brief delay for realistic UX
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Always succeed in development web mode for UI testing
+        await this.updateSecurityState(true);
+        await this.updateLastUsed();
+        await this.setLastUnlockedAt(Date.now());
+        
+        return {
+          success: true,
+          biometricType: LocalAuthentication.AuthenticationType.FINGERPRINT,
+        };
+      }
+      
       // Check if locked out first
       const isLocked = await this.isLockedOut();
       if (isLocked) {
@@ -438,10 +489,10 @@ export class BiometricAuthService {
   static async isBiometricEnabled(): Promise<boolean> {
     try {
       // Try SecureStore first (canonical)
-      let enabled = await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => null);
+      let enabled = SecureStore ? await SecureStore.getItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => null) : null;
 
       // Migrate from legacy if canonical missing
-      if (!enabled) {
+      if (!enabled && SecureStore) {
         const legacy = await SecureStore.getItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => null);
         if (legacy === "1" || legacy === "0") {
           const canonical = legacy === "1" ? "true" : "false";
@@ -505,20 +556,45 @@ export class BiometricAuthService {
         version: 1,
       };
 
-      // Use SecureStore for sensitive data
-      await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, "true");
-      await SecureStore.setItemAsync(
-        BIOMETRIC_USER_KEY,
-        JSON.stringify(biometricData),
-      );
-      // Create lock secret and bind to user id
-      await SecureStore.setItemAsync(BIOMETRIC_LOCK_SECRET_KEY, securityToken);
-      await SecureStore.setItemAsync(LAST_USER_ID_KEY, userId);
-      // Initialize lastUnlockedAt to now, so we don't immediately re-prompt
-      await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(Date.now()));
+      // Use SecureStore for sensitive data (fallback to AsyncStorage on web)
+      if (SecureStore) {
+        await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, "true");
+        await SecureStore.setItemAsync(
+          BIOMETRIC_USER_KEY,
+          JSON.stringify(biometricData),
+        );
+        // Create lock secret and bind to user id
+        await SecureStore.setItemAsync(BIOMETRIC_LOCK_SECRET_KEY, securityToken);
+        await SecureStore.setItemAsync(LAST_USER_ID_KEY, userId);
+        // Initialize lastUnlockedAt to now, so we don't immediately re-prompt
+        await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(Date.now()));
+      } else {
+        // Web fallback using AsyncStorage
+        await AsyncStorage.setItem(BIOMETRIC_STORAGE_KEY, "true");
+        await AsyncStorage.setItem(BIOMETRIC_USER_KEY, JSON.stringify(biometricData));
+        await AsyncStorage.setItem(BIOMETRIC_LOCK_SECRET_KEY, securityToken);
+        await AsyncStorage.setItem(LAST_USER_ID_KEY, userId);
+        await AsyncStorage.setItem(LAST_UNLOCKED_AT_KEY, String(Date.now()));
+      }
 
       // Also maintain AsyncStorage compatibility for existing code
       await AsyncStorage.setItem(BIOMETRIC_STORAGE_KEY, "true");
+
+      // Persist current Supabase refresh token to support biometric restore after logout
+      try {
+        const { getCurrentSession } = await import('@/lib/sessionManager');
+        const current = await getCurrentSession();
+        const refreshToken = current?.refresh_token;
+        if (refreshToken) {
+          if (SecureStore) {
+            await SecureStore.setItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY, refreshToken);
+          } else {
+            await AsyncStorage.setItem(BIOMETRIC_REFRESH_TOKEN_KEY, refreshToken);
+          }
+        }
+      } catch (e) {
+        console.warn('Could not persist biometric refresh token during enablement:', e);
+      }
 
       return true;
     } catch (error) {
@@ -704,7 +780,9 @@ export class BiometricAuthService {
    */
   static async getLastUnlockedAt(): Promise<number | null> {
     try {
-      const ts = await SecureStore.getItemAsync(LAST_UNLOCKED_AT_KEY);
+      const ts = SecureStore 
+        ? await SecureStore.getItemAsync(LAST_UNLOCKED_AT_KEY)
+        : await AsyncStorage.getItem(LAST_UNLOCKED_AT_KEY);
       if (!ts) return null;
       const num = Number(ts);
       return Number.isFinite(num) ? num : null;
@@ -718,7 +796,11 @@ export class BiometricAuthService {
    */
   static async setLastUnlockedAt(ts: number): Promise<void> {
     try {
-      await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(ts));
+      if (SecureStore) {
+        await SecureStore.setItemAsync(LAST_UNLOCKED_AT_KEY, String(ts));
+      } else {
+        await AsyncStorage.setItem(LAST_UNLOCKED_AT_KEY, String(ts));
+      }
     } catch (e) {
       // ignore
     }

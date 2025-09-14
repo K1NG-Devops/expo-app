@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
@@ -9,6 +9,7 @@ import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
+import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 
 export default function AIHomeworkHelperScreen() {
   const [question, setQuestion] = useState('Explain how to solve long division: 156 ÷ 12 step by step for a Grade 4 learner.')
@@ -22,6 +23,21 @@ export default function AIHomeworkHelperScreen() {
   const flags = getFeatureFlagsSync()
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
   const aiHelperEnabled = AI_ENABLED && flags.ai_homework_help !== false
+
+  // Refresh function to reload usage and model data
+  const handleRefresh = async () => {
+    try {
+      setUsage(await getCombinedUsage())
+      const limits = await getEffectiveLimits()
+      setModels(limits.modelOptions || [])
+      const stored = await getPreferredModel('homework_help')
+      setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
+    } catch (error) {
+      console.error('Error refreshing AI homework helper data:', error)
+    }
+  }
+
+  const { refreshing, onRefreshHandler } = useSimplePullToRefresh(handleRefresh, 'ai_homework_helper')
 
   useEffect(() => {
     (async () => {
@@ -103,7 +119,17 @@ export default function AIHomeworkHelperScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefreshHandler}
+            tintColor="#007AFF"
+            title="Refreshing AI data..."
+          />
+        }
+      >
         <Text style={styles.title}>AI Homework Helper</Text>
         <Text style={styles.subtitle}>Child-safe, step-by-step guidance. No direct answers without explanation.</Text>
 

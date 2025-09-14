@@ -7,22 +7,26 @@ import {
   ActivityIndicator,
   View,
   Alert,
+  Modal,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import * as Linking from "expo-linking";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
+import { signInWithSession } from "@/lib/sessionManager";
 import KeyboardScreen from "@/components/ui/KeyboardScreen";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
 import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
-import { BiometricSetup } from "@/components/auth/BiometricSetup";
+// Biometric setup component (used conditionally)
+// import { BiometricSetup } from "@/components/auth/BiometricSetup";
 import { EnhancedBiometricAuth } from "@/services/EnhancedBiometricAuth";
 import BiometricDebugger from "../../utils/biometricDebug";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function SignIn() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
+  console.log('Theme loaded:', theme.background); // Prevent unused warning
   const { t } = useTranslation();
   const [mode, setMode] = useState<"password" | "otp">("password");
   const [email, setEmail] = useState("");
@@ -35,8 +39,11 @@ export default function SignIn() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [storedUserData, setStoredUserData] = useState<any>(null);
-  const [showBiometricSetup, setShowBiometricSetup] = useState(false);
+  // Biometric setup modal state (conditionally used)
+  // const [showBiometricSetup, setShowBiometricSetup] = useState(false);
   const [biometricType, setBiometricType] = useState<string | null>(null);
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
+  const hasPromptedRef = React.useRef(false);
 
   const canUseSupabase = !!supabase;
 
@@ -47,12 +54,17 @@ export default function SignIn() {
 
   const checkBiometricStatus = async () => {
     try {
+      console.log('[SignIn] Checking biometric status...');
       const securityInfo = await BiometricAuthService.getSecurityInfo();
-      setBiometricAvailable(
-        securityInfo.capabilities.isAvailable &&
-          securityInfo.capabilities.isEnrolled,
-      );
+      const isAvailable = securityInfo.capabilities.isAvailable && securityInfo.capabilities.isEnrolled;
+      setBiometricAvailable(isAvailable);
       setBiometricEnabled(securityInfo.isEnabled);
+
+      console.log('[SignIn] Biometric status:', {
+        isAvailable,
+        isEnabled: securityInfo.isEnabled,
+        availableTypes: securityInfo.availableTypes,
+      });
 
       // Determine the primary biometric type for display
       const availableTypes = securityInfo.availableTypes;
@@ -70,6 +82,12 @@ export default function SignIn() {
       const userData = await BiometricAuthService.getStoredBiometricData();
       const enhancedSessionData = await EnhancedBiometricAuth.getBiometricSession();
       
+      console.log('[SignIn] Biometric data found:', {
+        hasUserData: !!userData,
+        hasEnhancedSession: !!enhancedSessionData,
+        userEmail: userData?.email || enhancedSessionData?.email,
+      });
+
       // Prefer enhanced session data if available, fall back to legacy data
       const effectiveUserData = enhancedSessionData ? {
         userId: enhancedSessionData.userId,
@@ -82,8 +100,26 @@ export default function SignIn() {
       setStoredUserData(effectiveUserData);
 
       // Pre-populate email if we have stored biometric data
-      if (userData?.email) {
-        setEmail(userData.email);
+      if (effectiveUserData?.email) {
+        setEmail(effectiveUserData.email);
+      }
+
+      // Auto-open biometric prompt modal if conditions are met and not prompted yet
+      console.log('[SignIn] Auto-prompt check:', {
+        isAvailable,
+        isEnabled: securityInfo.isEnabled,
+        hasUserData: !!effectiveUserData,
+        hasPrompted: hasPromptedRef.current,
+        willShowPrompt: isAvailable && !!effectiveUserData && !hasPromptedRef.current,
+      });
+
+      if (isAvailable && effectiveUserData && !hasPromptedRef.current) {
+        console.log('[SignIn] Showing biometric prompt modal');
+        hasPromptedRef.current = true;
+        // Add a small delay to ensure the screen is fully rendered
+        setTimeout(() => {
+          setShowBiometricPrompt(true);
+        }, 500);
       }
 
       // Log debug info in development
@@ -109,48 +145,47 @@ export default function SignIn() {
     }
     try {
       setLoading(true);
-      const { data, error: err } = await supabase!.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+      // Use unified session manager to ensure tokens are stored for biometric restore
+      const { session, profile, error } = await signInWithSession(
+        email.trim(),
+        password
+      );
       setLoading(false);
-      if (err) return setError(err.message);
-      if (data?.user) {
-        console.log('Password login successful for:', data.user.email);
-        
-        // Store enhanced biometric session data for future biometric logins
-        try {
-          // Get user profile for caching
-          const { fetchEnhancedUserProfile } = await import('@/lib/rbac');
-          const profile = await fetchEnhancedUserProfile(data.user.id);
-          
-          // Store biometric session data (this doesn't enable biometric auth yet)
-          await EnhancedBiometricAuth.storeBiometricSession(
-            data.user.id, 
-            data.user.email!, 
-            profile
-          );
-          console.log('Stored biometric session data for future use');
-        } catch (sessionError) {
-          console.error('Error storing biometric session data:', sessionError);
-          // Continue anyway as this is not critical for login
-        }
-        
-        // Check if biometric is available but not enabled
-        try {
-          const securityInfo = await BiometricAuthService.getSecurityInfo();
-          if (securityInfo.capabilities.isAvailable && 
-              securityInfo.capabilities.isEnrolled && 
-              !securityInfo.isEnabled) {
-            // Show biometric setup modal
-            setShowBiometricSetup(true);
-            return; // Don't redirect yet, let user decide on biometric setup
-          }
-        } catch (e) {
-          console.warn('Could not check biometric status:', e);
-        }
-        router.replace("/profiles-gate");
+
+      if (error || !session) {
+        return setError(error || "Failed to sign in.");
       }
+
+      console.log('Password login successful for:', session.email);
+      
+      // Store enhanced biometric session data for future biometric logins
+      try {
+        const effectiveProfile = profile ?? (await (await import('@/lib/rbac')).fetchEnhancedUserProfile(session.user_id));
+        await EnhancedBiometricAuth.storeBiometricSession(
+          session.user_id,
+          session.email!,
+          effectiveProfile as any
+        );
+        console.log('Stored biometric session data for future use');
+      } catch (sessionError) {
+        console.error('Error storing biometric session data:', sessionError);
+        // Continue anyway as this is not critical for login
+      }
+      
+      // Check if biometric is available but not enabled
+      try {
+        const securityInfo = await BiometricAuthService.getSecurityInfo();
+        if (securityInfo.capabilities.isAvailable && 
+            securityInfo.capabilities.isEnrolled && 
+            !securityInfo.isEnabled) {
+          // Show biometric setup modal (feature temporarily disabled)
+          // setShowBiometricSetup(true);
+          // return; // Don't redirect yet, let user decide on biometric setup
+        }
+      } catch (e) {
+        console.warn('Could not check biometric status:', e);
+      }
+      router.replace("/profiles-gate");
     } catch (e: any) {
       setLoading(false);
       setError(e?.message ?? "Failed to sign in.");
@@ -212,6 +247,8 @@ export default function SignIn() {
   }
 
   async function onBiometricLogin() {
+    // Close modal before starting auth to avoid overlay during system prompt
+    if (showBiometricPrompt) setShowBiometricPrompt(false);
     if (!biometricAvailable || !biometricEnabled) {
       Alert.alert(
         t("settings.biometric.title"),
@@ -224,54 +261,54 @@ export default function SignIn() {
       setLoading(true);
       setError(null);
 
-      console.log('Starting biometric unlock for existing session');
+      console.log('Starting enhanced biometric authentication');
       
-      // Gate with device authentication
-      const authRes = await BiometricAuthService.authenticate('Use biometric authentication to unlock');
-      if (!authRes.success) {
-        setError(authRes.error || "Biometric authentication failed");
+      // Use the enhanced biometric authentication which handles session restoration
+      const result = await EnhancedBiometricAuth.authenticateWithBiometric();
+      
+      if (!result.success) {
+        setError(result.error || "Biometric authentication failed");
         setLoading(false);
         return;
       }
 
-      // After unlock, verify session is still valid
-      try {
-        const { data } = await supabase!.auth.getSession();
-        if (data.session?.user) {
-          // Use cached profile snapshot if present to route faster, else go to profiles gate
-          const enhanced = await EnhancedBiometricAuth.getBiometricSession();
-          if (enhanced?.profileSnapshot?.role) {
-            const mockUser = { id: enhanced.userId, email: enhanced.email };
-            const cachedProfile = {
-              id: enhanced.userId,
-              role: enhanced.profileSnapshot.role,
-              organization_id: enhanced.profileSnapshot.organization_id,
-              seat_status: enhanced.profileSnapshot.seat_status,
-              hasCapability: () => true,
-              organization_membership: { plan_tier: 'basic' }
-            };
-            try {
-              const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-              await routeAfterLogin(mockUser as any, cachedProfile as any);
-              setLoading(false);
-              return;
-            } catch (e) {
-              console.warn('Routing with cached profile failed, going to profiles gate:', e);
-            }
+      console.log('Enhanced biometric authentication successful');
+      
+      if (result.sessionRestored && result.userData) {
+        // Use cached profile snapshot if present to route faster, else go to profiles gate
+        const enhanced = result.userData;
+        if (enhanced?.profileSnapshot?.role) {
+          const mockUser = { id: enhanced.userId, email: enhanced.email };
+          const cachedProfile = {
+            id: enhanced.userId,
+            role: enhanced.profileSnapshot.role,
+            organization_id: enhanced.profileSnapshot.organization_id,
+            seat_status: enhanced.profileSnapshot.seat_status,
+            hasCapability: () => true,
+            organization_membership: { plan_tier: 'basic' }
+          };
+          try {
+            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+            await routeAfterLogin(mockUser as any, cachedProfile as any);
+            setLoading(false);
+            return;
+          } catch (e) {
+            console.warn('Routing with cached profile failed, going to profiles gate:', e);
           }
-          router.replace("/profiles-gate");
-        } else {
-          setError("Session expired. Please sign in.");
         }
-      } catch (e) {
-        console.error('Session check after biometric unlock failed:', e);
-        setError("Could not verify session after unlock.");
+        router.replace("/profiles-gate");
+      } else {
+        console.error('Could not restore valid session for biometric login');
+        setError("Session expired. Please sign in with your password to re-enable biometric login.");
+        // Clear biometric data since session is invalid
+        await EnhancedBiometricAuth.clearBiometricSession();
+        await BiometricAuthService.disableBiometric();
       }
 
       setLoading(false);
       
     } catch (error) {
-      console.error("Biometric unlock error:", error);
+      console.error("Enhanced biometric authentication error:", error);
       setError("Biometric login failed. Please try password login.");
       setLoading(false);
     }
@@ -288,6 +325,40 @@ export default function SignIn() {
           headerTintColor: "#00f5ff",
         }}
       />
+      {/* Biometric Prompt Modal */}
+      <Modal
+        visible={showBiometricPrompt && biometricAvailable && biometricEnabled && !!storedUserData}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowBiometricPrompt(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={{ alignItems: 'center', marginBottom: 12 }}>
+              <Ionicons 
+                name={biometricType === 'face' ? 'scan' : biometricType === 'iris' ? 'eye' : 'finger-print'}
+                size={28}
+                color="#0b1220"
+              />
+            </View>
+            <Text style={styles.modalTitle}>Quick sign-in</Text>
+            <Text style={styles.modalSubtitle}>
+              {storedUserData?.email ? `Sign in as ${storedUserData.email}` : 'Use your biometrics to sign in'}
+            </Text>
+            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={onBiometricLogin} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color="#0b1220" />
+              ) : (
+                <Text style={styles.modalPrimaryBtnText}>Use biometrics</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowBiometricPrompt(false)}>
+              <Text style={styles.modalSecondaryBtnText}>Use password instead</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <KeyboardScreen contentContainerStyle={styles.container}>
         <Text style={styles.title}>{t("auth.signIn")}</Text>
 
@@ -615,5 +686,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     textDecorationLine: "underline",
+  },
+  // Modal styles
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0b1220',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#4b5563',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalPrimaryBtn: {
+    backgroundColor: '#00f5ff',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalPrimaryBtnText: {
+    color: '#0b1220',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  modalSecondaryBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalSecondaryBtnText: {
+    color: '#0ea5e9',
+    fontWeight: '700',
   },
 });

@@ -9,6 +9,7 @@ config.resolver.platforms = ['ios', 'android', 'web'];
 
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 
+
 // Block native-only modules on web platform
 const originalResolver = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
@@ -21,6 +22,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
         type: 'sourceFile',
       };
     }
+    
   }
   
   // Use default resolver for other cases

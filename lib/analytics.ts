@@ -51,6 +51,20 @@ export interface AnalyticsEvent {
   'edudash.parent.homework_help_requested': { subject: string; child_age: number };
   'edudash.parent.teacher_message_sent': { message_length: number };
   
+  // WhatsApp Integration events
+  'edudash.whatsapp.quick_action_pressed': { connected: boolean; timestamp: string };
+  'edudash.whatsapp.opt_in': { user_id: string; preschool_id: string; phone_number_hash: string; consent_given: boolean; timestamp: string };
+  'edudash.whatsapp.opt_out': { user_id: string; preschool_id?: string; timestamp: string };
+  'edudash.whatsapp.test_message_sent': { user_id?: string; preschool_id?: string; timestamp: string };
+  'edudash.whatsapp.deep_link_opened': { user_id: string; preschool_id?: string; has_school_number: boolean };
+  'edudash.whatsapp.modal_opened': { current_status: 'connected' | 'disconnected'; timestamp: string };
+  'edudash.whatsapp.modal_closed': { final_status: 'connected' | 'disconnected'; session_duration_ms: number };
+  'edudash.whatsapp.phone_validation_failed': { phone_input: string; error_type: 'format' | 'length' | 'country' };
+  'edudash.whatsapp.consent_given': { user_id: string; timestamp: string };
+  'edudash.whatsapp.consent_declined': { user_id: string; step: 'consent' | 'phone'; timestamp: string };
+  'edudash.whatsapp.feature_viewed': { feature_name: string; connection_status: 'connected' | 'disconnected'; timestamp: string };
+  'edudash.whatsapp.demo_quick_action': { timestamp: string };
+  
   // Subscription/Billing events
   'edudash.billing.upgrade_viewed': { current_tier: string; target_tier: string };
   'edudash.billing.checkout_started': { tier: string; seat_count: number; annual: boolean };

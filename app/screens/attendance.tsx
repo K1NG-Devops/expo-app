@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { StatusBar } from 'expo-status-bar'
 import { Stack, router } from 'expo-router'
 import { track } from '@/lib/analytics'
+import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 
 export default function AttendanceScreen() {
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
@@ -19,6 +20,20 @@ export default function AttendanceScreen() {
     const d = new Date()
     setToday(d.toISOString().slice(0, 10))
   }, [])
+
+  // Refresh function to refetch classes and students data
+  const handleRefresh = async () => {
+    try {
+      await classesQuery.refetch()
+      if (classId) {
+        await studentsQuery.refetch()
+      }
+    } catch (error) {
+      console.error('Error refreshing attendance data:', error)
+    }
+  }
+
+  const { refreshing, onRefreshHandler } = useSimplePullToRefresh(handleRefresh, 'attendance')
 
   const classesQuery = useQuery({
     queryKey: ['teacher_classes_for_attendance'],
@@ -102,7 +117,17 @@ export default function AttendanceScreen() {
       <Stack.Screen options={{ title: 'Take Attendance', headerStyle: { backgroundColor: palette.background }, headerTitleStyle: { color: '#fff' }, headerTintColor: palette.primary }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView 
+          contentContainerStyle={styles.container}
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefreshHandler}
+              tintColor="#00f5ff"
+              title="Refreshing attendance data..."
+            />
+          }
+        >
           <Text style={styles.subtitle}>Date: {today}</Text>
 
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>

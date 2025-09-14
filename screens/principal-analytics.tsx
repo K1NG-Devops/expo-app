@@ -403,7 +403,7 @@ const PrincipalAnalytics: React.FC = () => {
             </Text>
             <TouchableOpacity
               style={styles.insightButton}
-              onPress={() => router.push('/screens/academic-reports')}
+onPress={() => router.push('/screens/principal-analytics')}
             >
               <Text style={styles.insightButtonText}>View Detailed Reports</Text>
             </TouchableOpacity>

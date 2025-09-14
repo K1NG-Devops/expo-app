@@ -26,9 +26,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as DocumentPicker from 'expo-document-picker';
+// import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 // Removed Picker import to fix ViewManager error
 
 interface PettyCashTransaction {
@@ -67,7 +68,9 @@ const EXPENSE_CATEGORIES = [
 
 export default function PettyCashScreen() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [transactions, setTransactions] = useState<PettyCashTransaction[]>([]);
   const [summary, setSummary] = useState<PettyCashSummary>({
@@ -156,7 +159,7 @@ export default function PettyCashScreen() {
         .eq('preschool_id', userProfile.preschool_id)
         .single();
 
-      const openingBalance = settingsData?.opening_balance || 5000; // Default R5,000
+      const openingBalance = settingsData?.opening_balance ?? 0; // No mock fallback
       const currentBalance = openingBalance + replenishments - expenses;
 
       setSummary({
@@ -318,10 +321,10 @@ export default function PettyCashScreen() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return '#10B981';
-      case 'pending': return '#F59E0B';
-      case 'rejected': return '#EF4444';
-      default: return '#6B7280';
+      case 'approved': return theme?.success || '#10B981';
+      case 'pending': return theme?.warning || '#F59E0B';
+      case 'rejected': return theme?.error || '#EF4444';
+      default: return theme?.textSecondary || '#6B7280';
     }
   };
 
@@ -444,6 +447,80 @@ export default function PettyCashScreen() {
     loadPettyCashData();
   }, [user]);
 
+  // Helpers for cancel/delete/reverse
+  const canDelete = async (): Promise<boolean> => {
+    try {
+      const { data } = await supabase!
+        .from('users')
+        .select('role')
+        .eq('auth_user_id', user?.id)
+        .single();
+      return data?.role === 'principal_admin';
+    } catch {
+      return false;
+    }
+  };
+
+  const handleCancelTransaction = async (transactionId: string) => {
+    try {
+      const { error } = await supabase!
+        .from('petty_cash_transactions')
+        .update({ status: 'rejected' })
+        .eq('id', transactionId)
+        .eq('status', 'pending');
+      if (error) throw error;
+      loadPettyCashData();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to cancel transaction');
+    }
+  };
+
+  const handleDeleteTransaction = async (transactionId: string) => {
+    try {
+      const allowed = await canDelete();
+      if (!allowed) {
+        Alert.alert('Not allowed', 'Only principals can delete transactions');
+        return;
+      }
+      const { error } = await supabase!
+        .from('petty_cash_transactions')
+        .delete()
+        .eq('id', transactionId);
+      if (error) throw error;
+      loadPettyCashData();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to delete transaction');
+    }
+  };
+
+  const handleReverseTransaction = async (t: PettyCashTransaction) => {
+    try {
+      const { data: userProfile } = await supabase!
+        .from('users')
+        .select('preschool_id')
+        .eq('auth_user_id', user?.id)
+        .single();
+
+      const oppositeType = t.type === 'expense' ? 'replenishment' : 'expense';
+      const { error } = await supabase!
+        .from('petty_cash_transactions')
+        .insert({
+          preschool_id: userProfile?.preschool_id,
+          amount: t.amount,
+          description: `Reversal of ${t.type} (${t.id}) - ${t.description}`,
+          category: 'Other',
+          type: oppositeType as any,
+          created_by: user?.id,
+          status: 'approved',
+          metadata: { reversed_of: t.id },
+        });
+      if (error) throw error;
+      loadPettyCashData();
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create reversal');
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadPettyCashData();
@@ -468,7 +545,7 @@ export default function PettyCashScreen() {
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Petty Cash</Text>
-        <TouchableOpacity onPress={() => router.push('/screens/petty-cash-report')}>
+<TouchableOpacity onPress={() => router.push('/screens/financial-reports')}>
           <Ionicons name="document-text" size={24} color="#007AFF" />
         </TouchableOpacity>
       </View>
@@ -540,7 +617,7 @@ export default function PettyCashScreen() {
             
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push('/screens/petty-cash-report')}
+onPress={() => router.push('/screens/petty-cash-reconcile')}
             >
               <Ionicons name="bar-chart" size={24} color="#007AFF" />
               <Text style={styles.actionText}>View Report</Text>
@@ -565,7 +642,13 @@ export default function PettyCashScreen() {
             </View>
           ) : (
             transactions.slice(0, 10).map((transaction) => (
-              <View key={transaction.id} style={styles.transactionItem}>
+              <View 
+                key={transaction.id} 
+                style={styles.transactionItem}
+                onTouchEnd={() => {}}
+                onStartShouldSetResponder={() => false}
+                onResponderRelease={() => {}}
+              >
                 <View style={styles.transactionLeft}>
                   <Ionicons
                     name={getCategoryIcon(transaction.category) as any}
@@ -600,6 +683,23 @@ export default function PettyCashScreen() {
                     <Text style={styles.statusText}>{transaction.status}</Text>
                   </View>
                 </View>
+                <TouchableOpacity
+                  onPress={async () => {
+                    const options: any[] = [];
+                    if (transaction.status === 'pending') {
+                      options.push({ text: 'Cancel (reject)', onPress: () => handleCancelTransaction(transaction.id) });
+                    }
+                    options.push({ text: 'Reverse', onPress: () => handleReverseTransaction(transaction) });
+                    const allowDelete = await canDelete();
+                    if (allowDelete) {
+                      options.push({ text: 'Delete', style: 'destructive', onPress: () => handleDeleteTransaction(transaction.id) });
+                    }
+                    options.push({ text: 'Close', style: 'cancel' });
+                    Alert.alert('Transaction Options', 'Choose an action', options, { cancelable: true });
+                  }}
+                >
+                  <Ionicons name="ellipsis-vertical" size={18} color={theme?.textSecondary || '#6B7280'} />
+                </TouchableOpacity>
               </View>
             ))
           )}
@@ -771,10 +871,10 @@ export default function PettyCashScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.background || '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
@@ -792,24 +892,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.surface || '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme?.border || '#e1e5e9',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -817,7 +917,7 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 8,
   },
   currentBalance: {
@@ -828,14 +928,14 @@ const styles = StyleSheet.create({
   lowBalanceWarning: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: theme?.warningLight || '#FEF3C7',
     padding: 8,
     borderRadius: 6,
     marginBottom: 16,
   },
   warningText: {
     fontSize: 12,
-    color: '#92400E',
+    color: theme?.warning || '#92400E',
     marginLeft: 4,
   },
   summaryGrid: {
@@ -848,19 +948,19 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   summaryLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   actionsCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -869,7 +969,7 @@ const styles = StyleSheet.create({
   actionsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 16,
   },
   actionsGrid: {
@@ -881,22 +981,22 @@ const styles = StyleSheet.create({
     width: '48%',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
     borderRadius: 8,
     marginBottom: 12,
   },
   actionText: {
     fontSize: 12,
-    color: '#333',
+    color: theme?.text || '#333',
     marginTop: 8,
     textAlign: 'center',
   },
   transactionsCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -911,10 +1011,10 @@ const styles = StyleSheet.create({
   transactionsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   viewAllText: {
-    color: '#007AFF',
+    color: theme?.primary || '#007AFF',
     fontSize: 14,
     fontWeight: '500',
   },
@@ -925,12 +1025,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme?.text || '#111827',
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     textAlign: 'center',
     marginTop: 8,
   },
@@ -954,17 +1054,17 @@ const styles = StyleSheet.create({
   transactionDescription: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 2,
   },
   transactionCategory: {
     fontSize: 12,
-    color: '#8B5CF6',
+    color: theme?.accent || '#8B5CF6',
     marginBottom: 2,
   },
   transactionDate: {
     fontSize: 11,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   transactionRight: {
     alignItems: 'flex-end',
@@ -987,30 +1087,30 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.modalBackground || '#f8f9fa',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.surface || '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme?.border || '#e1e5e9',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   modalCancel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   modalSave: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: theme?.primary || '#007AFF',
   },
   modalContent: {
     flex: 1,
@@ -1022,30 +1122,31 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   formInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
+    color: theme?.inputText || '#111827',
   },
   categorySelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 8,
     padding: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
   },
   categoryText: {
     fontSize: 16,
-    color: '#333',
+    color: theme?.inputText || '#333',
   },
   placeholder: {
     color: '#9CA3AF',
@@ -1055,11 +1156,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.border || '#e1e5e9',
     borderStyle: 'dashed',
     borderRadius: 8,
     padding: 24,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
   },
   uploadReceiptText: {
     fontSize: 16,
@@ -1095,22 +1196,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
     padding: 16,
     borderRadius: 8,
     marginTop: 20,
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   balanceAmount: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   replenishmentInfo: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
     padding: 16,
     borderRadius: 8,
     marginTop: 20,
@@ -1118,12 +1219,12 @@ const styles = StyleSheet.create({
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 4,
   },
 });

@@ -27,6 +27,8 @@ import de from '../locales/de/common.json';
 import af from '../locales/af/common.json';
 import zu from '../locales/zu/common.json';
 import st from '../locales/st/common.json';
+// WhatsApp translations
+import enWhatsApp from '../locales/en/whatsapp.json';
 
 // Supported languages for educational content
 export const SUPPORTED_LANGUAGES = {
@@ -55,7 +57,7 @@ export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 
 // Language resources
 const resources = {
-  en: { common: en },
+  en: { common: en, whatsapp: enWhatsApp },
   es: { common: es },
   fr: { common: fr },
   pt: { common: pt },
@@ -104,7 +106,7 @@ i18n
     
     // Namespace configuration
     defaultNS: 'common',
-    ns: ['common'],
+    ns: ['common', 'whatsapp'],
     
     interpolation: {
       escapeValue: false, // React already does escaping
@@ -117,6 +119,9 @@ i18n
     
     // Debug in development
     debug: __DEV__,
+    
+    // Return objects for complex translations
+    returnObjects: true,
     
     // Key separator for nested translations
     keySeparator: '.',

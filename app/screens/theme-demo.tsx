@@ -10,6 +10,7 @@ import {
   ScrollView,
   Text,
   StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -17,17 +18,36 @@ import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
 import { ThemedButton } from '@/components/ui/ThemedButton';
 import { ThemedModal } from '@/components/ui/ThemedModal';
+import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh';
 
 export default function ThemeDemoScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation(); // Translation function
   const [modalVisible, setModalVisible] = useState(false);
 
+  // Refresh function for theme data (mock functionality)
+  const handleRefresh = async () => {
+    // In a real app, this might refresh theme/language settings from server
+    await new Promise(resolve => setTimeout(resolve, 500));
+  };
+
+  const { refreshing, onRefreshHandler } = useSimplePullToRefresh(handleRefresh, 'theme_demo');
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <RoleBasedHeader title={t("Theme & Language Demo")} />
       
-      <ScrollView style={styles.scrollView}>
+      <ScrollView 
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefreshHandler}
+            tintColor={theme.primary}
+            title="Refreshing theme data..."
+          />
+        }
+      >
         {/* Theme and Language Settings */}
         <ThemeLanguageSettings />
         

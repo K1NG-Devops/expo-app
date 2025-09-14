@@ -250,3 +250,67 @@ Verification:
 
 **Technical Health**: Zero TypeScript errors, clean architecture, production-grade code quality maintained.
 
+---
+
+## 2025-01-13 – Milestone: Roadmap Alignment Audit & Sprint Status
+
+Scope:
+- Audited codebase against Strategic Roadmap (90-day plan) and dashboards against production readiness.
+- Baseline diagnostics captured (typecheck, analytics usage, functions, i18n).
+- Identified gaps, regressions, and immediate priorities.
+
+Findings (highlights):
+- TypeScript: 111 errors across 25 files (regression from prior 0). Status: RED – stop-the-line.
+- AI Gateway: Implemented (ai-proxy, ai-usage) with client gating and usage counters. Needs server-side limits clarity and standardized error schema.
+- Offline-first: No persistent query cache or offline queue found. Status: Needs foundational implementation.
+- Analytics: AI flows instrumented; broader navigation/error coverage partial.
+- Dashboards: Principal and Parent production-ready (real data). Teacher good but needs offline caching, i18n cleanups. SuperAdmin scope TBD.
+- Localization: English and Afrikaans present; isiZulu missing. Several missing keys in en/af for new UI strings.
+- Financial tools: Petty cash and financial reports use real queries; verify RLS and add reconciliation view.
+
+Sprint Completion Snapshot (estimates):
+- Sprint 1 (Days 1–30): ~55% overall
+  - TS zero errors: 0% current (regressed)
+  - AI gateway integration: ~80%
+  - Basic offline sync: ~20%
+  - Analytics tracking: ~60%
+- Sprint 2 (Days 31–60): ~53% overall
+  - Principal Hub MVP: ~60% (meeting transcript/summary + WhatsApp pending)
+  - Mobile-first enhancements: ~30%
+  - SA localization: ~40% (en/af partial, isiZulu missing)
+  - AI features (lesson, grading, helper): ~75%
+- Sprint 3 (Days 61–90): ~15% overall
+  - Pilot program: ~10% (no evidence of live pilots)
+  - Go-to-market: ~20% (pricing present; partnerships/zero-rating pending)
+
+Verification:
+- Reviewed TeacherDashboard.tsx for AI gating, org usage queries, and navigation.
+- Cross-checked locales/en/common.json and locales/af/common.json; identified missing keys.
+- Verified progress log claims for Principal/Parent dashboards against code-level integrations.
+
+Follow-ups (Prioritized):
+P0 – Blockers
+- Restore TypeScript to 0 errors with CI gating.
+- Add typed env module; replace hard-coded strings with i18n keys (add missing keys in en/af).
+P1 – High Priority
+- Implement offline query persistence and offline mutation queue.
+- Harden AI edge functions (timeouts, standardized errors, authoritative usage counters).
+- Define and ship SuperAdmin MVP scope.
+P2 – Important
+- Mobile-first backlog (offline assignments, low-data mode, voice-to-text, quick grading, PWA).
+- Principal Hub: meeting transcription/summary and WhatsApp integration.
+- Add isiZulu baseline and run i18n coverage audit.
+
+NEXT STRATEGIC PRIORITIES (TODO) – 2025-01-13 Refresh
+- [ ] TS Zero Errors regression fix + CI gate
+- [ ] Offline-first foundation (TanStack Query persistence + offline queue)
+- [ ] AI edge: standardized error schema + server usage counters
+- [ ] SuperAdmin Dashboard MVP (scope + implementation)
+- [ ] Localization: add isiZulu, fill missing en/af keys, replace hard-coded strings
+- [ ] Pricing/Quota matrix centralization and server-enforced quotas
+- [ ] Teacher Dashboard: caching, empty/error states, accessibility pass
+
+Rule Additions (Change Control):
+- All major changes MUST be aligned with both strategic roadmap docs prior to merge.
+- Each PR updates STRATEGIC_ROADMAP_PROGRESS.md with scope, verification, and follow-ups.
+- `npm run typecheck` must pass (0 errors) before merge.

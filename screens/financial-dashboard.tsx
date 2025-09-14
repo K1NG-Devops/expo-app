@@ -13,44 +13,14 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { FinancialDataService, UnifiedTransaction, FinancialMetrics, MonthlyTrendData } from '../services/FinancialDataService';
+
 // Define types locally
 interface School {
   id: string;
   name: string;
   created_by: string;
   created_at: string;
-}
-
-interface FinancialTransaction {
-  id: string;
-  preschool_id: string;
-  student_id?: string;
-  type: 'fee_payment' | 'expense' | 'refund';
-  amount: number;
-  description: string;
-  status: 'pending' | 'completed' | 'failed';
-  created_at: string;
-  students?: {
-    first_name: string;
-    last_name: string;
-  };
-}
-
-interface FinancialMetrics {
-  monthlyRevenue: number;
-  outstandingPayments: number;
-  totalStudents: number;
-  averageFeePerStudent: number;
-  paymentCompletionRate: number;
-  monthlyExpenses: number;
-  netIncome: number;
-}
-
-interface MonthlyData {
-  month: string;
-  revenue: number;
-  expenses: number;
-  netIncome: number;
 }
 
 const FinancialDashboard: React.FC = () => {
@@ -66,8 +36,8 @@ const FinancialDashboard: React.FC = () => {
     monthlyExpenses: 0,
     netIncome: 0,
   });
-  const [recentTransactions, setRecentTransactions] = useState<FinancialTransaction[]>([]);
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<UnifiedTransaction[]>([]);
+  const [monthlyData, setMonthlyData] = useState<MonthlyTrendData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -92,120 +62,17 @@ const FinancialDashboard: React.FC = () => {
       if (schoolData) {
         setSchool(schoolData);
 
-        // Get financial transactions
-        const { data: transactions, error: transactionError } = await supabase!
-          .from('financial_transactions')
-          .select(`
-            *,
-            students (
-              first_name,
-              last_name
-            )
-          `)
-          .eq('preschool_id', schoolData.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
+        // Load financial metrics using the new service
+        const financialMetrics = await FinancialDataService.getFinancialMetrics(schoolData.id);
+        setMetrics(financialMetrics);
 
-        if (transactionError) {
-          console.error('Error loading transactions:', transactionError);
-        } else {
-          setRecentTransactions(transactions || []);
-        }
+        // Load recent transactions
+        const transactions = await FinancialDataService.getRecentTransactions(schoolData.id, 10);
+        setRecentTransactions(transactions);
 
-        // Get student count
-        const { count: studentCount } = await supabase!
-          .from('students')
-          .select('*', { count: 'exact', head: true })
-          .eq('preschool_id', schoolData.id)
-          .eq('status', 'active');
-
-        // Calculate financial metrics
-        const currentMonth = new Date().getMonth() + 1;
-        const currentYear = new Date().getFullYear();
-
-        // Monthly revenue (fees paid this month)
-        const { data: monthlyRevenue } = await supabase!
-          .from('financial_transactions')
-          .select('amount')
-          .eq('preschool_id', schoolData.id)
-          .eq('type', 'fee_payment')
-          .eq('status', 'completed')
-          .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-          .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
-
-        const totalRevenue = monthlyRevenue?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-        // Outstanding payments
-        const { data: outstanding } = await supabase!
-          .from('financial_transactions')
-          .select('amount')
-          .eq('preschool_id', schoolData.id)
-          .eq('type', 'fee_payment')
-          .eq('status', 'pending');
-
-        const totalOutstanding = outstanding?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-        // Monthly expenses
-        const { data: monthlyExpenses } = await supabase!
-          .from('financial_transactions')
-          .select('amount')
-          .eq('preschool_id', schoolData.id)
-          .eq('type', 'expense')
-          .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-          .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`);
-
-        const totalExpenses = monthlyExpenses?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-        const averageFee = studentCount && studentCount > 0 ? totalRevenue / studentCount : 0;
-        const paymentRate = totalRevenue > 0 ? (totalRevenue / (totalRevenue + totalOutstanding)) * 100 : 0;
-
-        setMetrics({
-          monthlyRevenue: totalRevenue,
-          outstandingPayments: totalOutstanding,
-          totalStudents: studentCount || 0,
-          averageFeePerStudent: averageFee,
-          paymentCompletionRate: paymentRate,
-          monthlyExpenses: totalExpenses,
-          netIncome: totalRevenue - totalExpenses,
-        });
-
-        // Get monthly data for last 6 months
-        const monthlyDataArray: MonthlyData[] = [];
-        for (let i = 5; i >= 0; i--) {
-          const date = new Date();
-          date.setMonth(date.getMonth() - i);
-          const month = date.getMonth() + 1;
-          const year = date.getFullYear();
-          
-          const { data: monthRevenue } = await supabase!
-            .from('financial_transactions')
-            .select('amount')
-            .eq('preschool_id', schoolData.id)
-            .eq('type', 'fee_payment')
-            .eq('status', 'completed')
-            .gte('created_at', `${year}-${month.toString().padStart(2, '0')}-01`)
-            .lt('created_at', `${year}-${(month + 1).toString().padStart(2, '0')}-01`);
-
-          const { data: monthExpenses } = await supabase!
-            .from('financial_transactions')
-            .select('amount')
-            .eq('preschool_id', schoolData.id)
-            .eq('type', 'expense')
-            .gte('created_at', `${year}-${month.toString().padStart(2, '0')}-01`)
-            .lt('created_at', `${year}-${(month + 1).toString().padStart(2, '0')}-01`);
-
-          const revenue = monthRevenue?.reduce((sum, t) => sum + t.amount, 0) || 0;
-          const expenses = monthExpenses?.reduce((sum, t) => sum + t.amount, 0) || 0;
-
-          monthlyDataArray.push({
-            month: date.toLocaleDateString('en-US', { month: 'short' }),
-            revenue,
-            expenses,
-            netIncome: revenue - expenses,
-          });
-        }
-
-        setMonthlyData(monthlyDataArray);
+        // Load monthly trend data
+        const trendData = await FinancialDataService.getMonthlyTrendData(schoolData.id);
+        setMonthlyData(trendData);
       }
     } catch (error) {
       console.error('Error loading financial data:', error);
@@ -225,21 +92,9 @@ const FinancialDashboard: React.FC = () => {
     await loadFinancialData();
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-ZA', {
-      style: 'currency',
-      currency: 'ZAR',
-    }).format(amount);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return '#10B981';
-      case 'pending': return '#F59E0B';
-      case 'failed': return '#EF4444';
-      default: return '#6B7280';
-    }
-  };
+  const formatCurrency = FinancialDataService.formatCurrency;
+  const getStatusColor = FinancialDataService.getStatusColor;
+  const getDisplayStatus = FinancialDataService.getDisplayStatus;
 
   if (loading && !refreshing) {
     return (
@@ -317,22 +172,30 @@ const FinancialDashboard: React.FC = () => {
               <View key={index} style={styles.transactionCard}>
                 <View style={styles.transactionLeft}>
                   <Text style={styles.transactionDescription}>
-                    {transaction.description || `${transaction.type.replace('_', ' ').toUpperCase()}`}
+                    {transaction.description}
                   </Text>
                   <Text style={styles.transactionDate}>
-                    {new Date(transaction.created_at).toLocaleDateString()}
+                    {new Date(transaction.date).toLocaleDateString()}
                   </Text>
+                  {transaction.reference && (
+                    <Text style={styles.transactionReference}>
+                      Ref: {transaction.reference}
+                    </Text>
+                  )}
                 </View>
                 <View style={styles.transactionRight}>
                   <Text style={[
                     styles.transactionAmount,
-                    { color: transaction.type === 'expense' ? '#EF4444' : '#10B981' }
+                    { color: transaction.type === 'expense' ? '#EF4444' : transaction.type === 'outstanding' ? '#F59E0B' : '#10B981' }
                   ]}>
                     {transaction.type === 'expense' ? '-' : '+'}{formatCurrency(transaction.amount)}
                   </Text>
                   <View style={[styles.statusBadge, { backgroundColor: getStatusColor(transaction.status) }]}>
-                    <Text style={styles.statusText}>{transaction.status}</Text>
+                    <Text style={styles.statusText}>{getDisplayStatus(transaction.status)}</Text>
                   </View>
+                  <Text style={styles.transactionSource}>
+                    {transaction.source === 'payment' ? 'Payment' : 'Petty Cash'}
+                  </Text>
                 </View>
               </View>
             ))
@@ -515,6 +378,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
   },
+  transactionReference: {
+    fontSize: 10,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
   transactionRight: {
     alignItems: 'flex-end',
   },
@@ -533,6 +402,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '500',
     textTransform: 'uppercase',
+  },
+  transactionSource: {
+    fontSize: 9,
+    color: '#888',
+    marginTop: 4,
+    textAlign: 'right',
   },
   emptyState: {
     alignItems: 'center',

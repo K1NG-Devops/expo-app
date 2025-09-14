@@ -3,6 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 // import { useTranslation } from 'react-i18n';
 
+// Temporary wrappers to allow className usage without type errors during migration
+const V = View as any;
+const T = Text as any;
+const TO = TouchableOpacity as any;
+const SV = ScrollView as any;
+
 interface PricingFeature {
   name: string;
   free: boolean | string;
@@ -133,7 +139,7 @@ const FeatureIcon: React.FC<{ value: boolean | string }> = ({ value }) => {
   if (value === false) {
     return <Ionicons name="close-circle" size={20} color="#ef4444" />;
   }
-  return <Text className="text-sm text-gray-700 font-medium">{value}</Text>;
+  return <T className="text-sm text-gray-700 font-medium">{value}</T>;
 };
 
 export const PricingComparisonTable: React.FC<PricingComparisonTableProps> = ({
@@ -161,123 +167,123 @@ export const PricingComparisonTable: React.FC<PricingComparisonTableProps> = ({
   }, {} as Record<string, PricingFeature[]>);
 
   return (
-    <View className={`w-full ${className}`}>
+    <V className={`w-full ${className}`}>
       {/* Mobile: Stacked Cards */}
-      <View className="md:hidden">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-4">
-          <View className="flex-row space-x-4 pb-4">
+      <V className="md:hidden">
+        <SV horizontal showsHorizontalScrollIndicator={false} className="px-4">
+          <V className="flex-row space-x-4 pb-4">
             {plans.map((plan) => (
-              <View key={plan.id} className={`w-72 bg-white rounded-xl shadow-sm border ${plan.popular ? 'border-blue-500' : 'border-gray-200'} p-6`}>
+              <V key={plan.id} className={`w-72 bg-white rounded-xl shadow-sm border ${plan.popular ? 'border-blue-500' : 'border-gray-200'} p-6`}>
                 {plan.popular && (
-                  <View className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500 px-3 py-1 rounded-full">
-                    <Text className="text-white text-xs font-semibold">Most Popular</Text>
-                  </View>
+                  <V className="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-blue-500 px-3 py-1 rounded-full">
+                    <T className="text-white text-xs font-semibold">Most Popular</T>
+                  </V>
                 )}
                 
-                <View className="text-center mb-6">
-                  <Text className="text-lg font-bold text-gray-900 mb-1">{plan.name}</Text>
-                  <Text className="text-sm text-gray-500 mb-3">{plan.target_audience}</Text>
-                  <Text className="text-3xl font-bold text-gray-900">
+                <V className="text-center mb-6">
+                  <T className="text-lg font-bold text-gray-900 mb-1">{plan.name}</T>
+                  <T className="text-sm text-gray-500 mb-3">{plan.target_audience}</T>
+                  <T className="text-3xl font-bold text-gray-900">
                     {isAnnual ? plan.price_annual : plan.price_monthly}
-                  </Text>
+                  </T>
                   {plan.price_monthly !== 'Custom' && isAnnual && (
-                    <Text className="text-sm text-green-600 font-medium">Save 17%</Text>
+                    <T className="text-sm text-green-600 font-medium">Save 17%</T>
                   )}
-                  <Text className="text-sm text-gray-500 mt-2">{plan.description}</Text>
-                </View>
+                  <T className="text-sm text-gray-500 mt-2">{plan.description}</T>
+                </V>
                 
-                <TouchableOpacity
+                <TO
                   onPress={() => onSelectPlan(plan.id)}
                   className={`w-full py-3 px-4 rounded-lg mb-6 ${plan.popular ? 'bg-blue-500' : 'bg-gray-900'}`}
                 >
-                  <Text className="text-white text-center font-semibold">{plan.cta_text}</Text>
-                </TouchableOpacity>
+                  <T className="text-white text-center font-semibold">{plan.cta_text}</T>
+                </TO>
                 
-                <View className="space-y-3">
+                <V className="space-y-3">
                   {Object.entries(groupedFeatures).map(([category, categoryFeatures]) => (
-                    <View key={category}>
-                      <Text className="text-sm font-semibold text-gray-700 mb-2 border-b border-gray-100 pb-1">
+                    <V key={category}>
+                      <T className="text-sm font-semibold text-gray-700 mb-2 border-b border-gray-100 pb-1">
                         {getCategoryTitle(category)}
-                      </Text>
+                      </T>
                       {categoryFeatures.map((feature) => (
-                        <View key={feature.name} className="flex-row items-center justify-between py-1">
-                          <Text className="text-sm text-gray-600 flex-1">{feature.name}</Text>
-                          <View className="ml-2">
+                        <V key={feature.name} className="flex-row items-center justify-between py-1">
+                          <T className="text-sm text-gray-600 flex-1">{feature.name}</T>
+                          <V className="ml-2">
                             <FeatureIcon value={feature[plan.id as keyof PricingFeature] as boolean | string} />
-                          </View>
-                        </View>
+                          </V>
+                        </V>
                       ))}
-                    </View>
+                    </V>
                   ))}
-                </View>
-              </View>
+                </V>
+              </V>
             ))}
-          </View>
-        </ScrollView>
-      </View>
+          </V>
+        </SV>
+      </V>
 
       {/* Desktop: Full Comparison Table */}
-      <View className="hidden md:block overflow-x-auto">
-        <View className="min-w-full border border-gray-200 rounded-lg">
+      <V className="hidden md:block overflow-x-auto">
+        <V className="min-w-full border border-gray-200 rounded-lg">
           {/* Header */}
-          <View className="bg-gray-50 flex-row">
-            <View className="w-64 p-4 border-r border-gray-200">
-              <Text className="text-sm font-semibold text-gray-700">Features</Text>
-            </View>
+          <V className="bg-gray-50 flex-row">
+            <V className="w-64 p-4 border-r border-gray-200">
+              <T className="text-sm font-semibold text-gray-700">Features</T>
+            </V>
             {plans.map((plan) => (
-              <View key={plan.id} className={`flex-1 min-w-32 p-4 border-r border-gray-200 text-center ${plan.popular ? 'bg-blue-50' : ''}`}>
+              <V key={plan.id} className={`flex-1 min-w-32 p-4 border-r border-gray-200 text-center ${plan.popular ? 'bg-blue-50' : ''}`}>
                 {plan.popular && (
-                  <View className="bg-blue-500 px-2 py-1 rounded text-center mb-2">
-                    <Text className="text-white text-xs font-semibold">Most Popular</Text>
-                  </View>
+                  <V className="bg-blue-500 px-2 py-1 rounded text-center mb-2">
+                    <T className="text-white text-xs font-semibold">Most Popular</T>
+                  </V>
                 )}
-                <Text className="text-lg font-bold text-gray-900">{plan.name}</Text>
-                <Text className="text-2xl font-bold text-gray-900 mt-2">
+                <T className="text-lg font-bold text-gray-900">{plan.name}</T>
+                <T className="text-2xl font-bold text-gray-900 mt-2">
                   {isAnnual ? plan.price_annual : plan.price_monthly}
-                </Text>
+                </T>
                 {plan.price_monthly !== 'Custom' && isAnnual && (
-                  <Text className="text-sm text-green-600 font-medium">Save 17%</Text>
+                  <T className="text-sm text-green-600 font-medium">Save 17%</T>
                 )}
-                <Text className="text-sm text-gray-500 mt-2">{plan.target_audience}</Text>
-                <TouchableOpacity
+                <T className="text-sm text-gray-500 mt-2">{plan.target_audience}</T>
+                <TO
                   onPress={() => onSelectPlan(plan.id)}
                   className={`w-full py-2 px-3 rounded-lg mt-3 ${plan.popular ? 'bg-blue-500' : 'bg-gray-900'}`}
                 >
-                  <Text className="text-white text-center text-sm font-semibold">{plan.cta_text}</Text>
-                </TouchableOpacity>
-              </View>
+                  <T className="text-white text-center text-sm font-semibold">{plan.cta_text}</T>
+                </TO>
+              </V>
             ))}
-          </View>
+          </V>
 
           {/* Feature Categories */}
           {Object.entries(groupedFeatures).map(([category, categoryFeatures]) => (
-            <View key={category}>
-              <View className="bg-gray-100 flex-row">
-                <View className="w-64 p-3 border-r border-gray-200">
-                  <Text className="text-sm font-bold text-gray-800">{getCategoryTitle(category)}</Text>
-                </View>
+            <V key={category}>
+              <V className="bg-gray-100 flex-row">
+                <V className="w-64 p-3 border-r border-gray-200">
+                  <T className="text-sm font-bold text-gray-800">{getCategoryTitle(category)}</T>
+                </V>
                 {plans.map((plan) => (
-                  <View key={plan.id} className="flex-1 min-w-32 p-3 border-r border-gray-200" />
+                  <V key={plan.id} className="flex-1 min-w-32 p-3 border-r border-gray-200" />
                 ))}
-              </View>
+              </V>
               
               {categoryFeatures.map((feature, index) => (
-                <View key={feature.name} className={`flex-row ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <View className="w-64 p-3 border-r border-gray-200">
-                    <Text className="text-sm text-gray-700">{feature.name}</Text>
-                  </View>
+                <V key={feature.name} className={`flex-row ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                  <V className="w-64 p-3 border-r border-gray-200">
+                    <T className="text-sm text-gray-700">{feature.name}</T>
+                  </V>
                   {plans.map((plan) => (
-                    <View key={plan.id} className="flex-1 min-w-32 p-3 border-r border-gray-200 text-center items-center justify-center">
+                    <V key={plan.id} className="flex-1 min-w-32 p-3 border-r border-gray-200 text-center items-center justify-center">
                       <FeatureIcon value={feature[plan.id as keyof PricingFeature] as boolean | string} />
-                    </View>
+                    </V>
                   ))}
-                </View>
+                </V>
               ))}
-            </View>
+            </V>
           ))}
-        </View>
-      </View>
-    </View>
+        </V>
+      </V>
+    </V>
   );
 };
 

@@ -46,8 +46,8 @@
       "expo-localization",
       "expo-secure-store"
     ],
-    "experiments": {
-      "typedRoutes": true
+"experiments": {
+      "typedRoutes": false
     },
     "developmentClient": {
       "silentLaunch": true

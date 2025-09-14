@@ -22,7 +22,8 @@ import {
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { router } from 'expo-router';
+import { navigateTo } from '@/lib/navigation/router-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,7 +57,7 @@ interface Teacher {
 
 export default function ClassTeacherManagementScreen() {
   const { user } = useAuth();
-  const router = useRouter();
+// useRouter not needed; using router singleton from expo-router
   
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -428,7 +429,7 @@ export default function ClassTeacherManagementScreen() {
                   <View style={styles.classFooter}>
                     <TouchableOpacity
                       style={styles.viewStudentsButton}
-                      onPress={() => router.push(`/screens/class-students?classId=${classInfo.id}`)}
+                      onPress={() => navigateTo.classStudents(classInfo.id)}
                     >
                       <Ionicons name="people" size={16} color="#8B5CF6" />
                       <Text style={styles.viewStudentsText}>View Students</Text>
@@ -436,7 +437,7 @@ export default function ClassTeacherManagementScreen() {
                     
                     <TouchableOpacity
                       style={styles.editClassButton}
-                      onPress={() => router.push(`/screens/edit-class?classId=${classInfo.id}`)}
+                      onPress={() => navigateTo.editClass(classInfo.id)}
                     >
                       <Ionicons name="create" size={16} color="#6B7280" />
                       <Text style={styles.editClassText}>Edit</Text>
@@ -456,7 +457,7 @@ export default function ClassTeacherManagementScreen() {
                 <Text style={styles.emptySubtitle}>Add teachers to assign them to classes</Text>
                 <TouchableOpacity 
                   style={styles.addButton} 
-                  onPress={() => router.push('/screens/add-teacher')}
+                  onPress={() => navigateTo.addTeacher()}
                 >
                   <Ionicons name="person-add" size={20} color="#fff" />
                   <Text style={styles.addButtonText}>Add Teacher</Text>
@@ -506,14 +507,14 @@ export default function ClassTeacherManagementScreen() {
                   <View style={styles.teacherActions}>
                     <TouchableOpacity
                       style={styles.viewClassesButton}
-                      onPress={() => router.push(`/screens/teacher-classes?teacherId=${teacher.id}`)}
+                      onPress={() => navigateTo.teacherClasses(teacher.id)}
                     >
                       <Text style={styles.viewClassesText}>View Classes</Text>
                     </TouchableOpacity>
                     
                     <TouchableOpacity
                       style={styles.editTeacherButton}
-                      onPress={() => router.push(`/screens/edit-teacher?teacherId=${teacher.id}`)}
+                      onPress={() => navigateTo.editTeacher(teacher.id)}
                     >
                       <Ionicons name="create" size={16} color="#6B7280" />
                     </TouchableOpacity>

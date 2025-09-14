@@ -212,7 +212,7 @@ export default function PettyCashReconcileScreen() {
         'Reconciliation Complete',
         `Cash reconciliation has been recorded.\n\nVariance: ${formatCurrency(reconciliationData.variance)}`,
         [
-          { text: 'View History', onPress: () => router.push('/screens/petty-cash-history') },
+{ text: 'View History', onPress: () => router.push('/screens/petty-cash') },
           { text: 'Done', onPress: () => router.back() },
         ]
       );
@@ -273,7 +273,7 @@ export default function PettyCashReconcileScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cash Reconciliation</Text>
         <TouchableOpacity 
-          onPress={() => router.push('/screens/petty-cash-history')}
+onPress={() => router.push('/screens/petty-cash')}
           disabled={loading}
         >
           <Ionicons name="time-outline" size={24} color="#007AFF" />

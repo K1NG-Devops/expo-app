@@ -31,7 +31,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     
     (async () => {
       try {
-        const { data: userRes } = await supabase!.auth.getUser();
+        const { data: userRes, error: userError } = await supabase!.auth.getUser();
+        if (userError || !userRes.user) {
+          console.debug('Failed to get user for subscription detection:', userError);
+          if (mounted) setReady(true);
+          return;
+        }
+        
         const user = userRes.user;
         
         if (!mounted) return; // Prevent state updates if unmounted
@@ -40,19 +46,64 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
         if (metaTier === 'pro' || metaTier === 'enterprise') t = metaTier as Tier;
 
-        // Try to detect school-owned subscription (draft schema).
+        // Try to detect school-owned subscription using correct schema
         let seatsData: Seats = null;
         try {
-          const schoolId = (user?.user_metadata as any)?.preschool_id as string | undefined;
+          // First, get user's preschool_id from profiles table (correct approach)
+          let schoolId: string | undefined;
+          
+          // Try user metadata first (fastest)
+          schoolId = (user?.user_metadata as any)?.preschool_id;
+          
+          // If not in metadata, query profiles table
+          if (!schoolId && user.id) {
+            try {
+              const { data: profileData, error: profileError } = await supabase!
+                .from('profiles')
+                .select('preschool_id')
+                .eq('id', user.id)
+                .maybeSingle();
+              
+              if (!profileError && profileData?.preschool_id) {
+                schoolId = profileData.preschool_id;
+              }
+            } catch (profileErr) {
+              console.debug('Profile lookup failed:', profileErr);
+            }
+          }
+          
+          // Now query subscriptions with correct schema columns
           if (schoolId && mounted) {
-            const { data: sub } = await supabase!.from('subscriptions').select('id, plan, owner_type, seats_total, seats_used').eq('owner_type','school').eq('school_id', schoolId).ilike('plan', '%enterprise%').maybeSingle();
-            if (sub && mounted) {
-              seatsData = { total: (sub as any).seats_total ?? 0, used: (sub as any).seats_used ?? 0 };
-              if (t === 'free') t = 'enterprise';
+            try {
+              const { data: sub, error: subError } = await supabase!
+                .from('subscriptions')
+                .select('id, plan_id, owner_type, seats_total, seats_used, status')
+                .eq('owner_type', 'school')
+                .eq('school_id', schoolId)
+                .eq('status', 'active') // Only active subscriptions
+                .maybeSingle();
+              
+              if (!subError && sub && mounted) {
+                // Check if this is an enterprise subscription based on plan_id
+                const planId = sub.plan_id?.toLowerCase() || '';
+                const isEnterprise = planId.includes('enterprise') || planId.includes('pro');
+                
+                if (isEnterprise) {
+                  seatsData = { 
+                    total: sub.seats_total ?? 0, 
+                    used: sub.seats_used ?? 0 
+                  };
+                  if (t === 'free') t = 'enterprise';
+                }
+              } else if (subError) {
+                console.debug('Subscription query error:', subError);
+              }
+            } catch (subErr) {
+              console.debug('Subscription query failed:', subErr);
             }
           }
         } catch (e) {
-          console.debug('Enterprise subscription detection failed', e);
+          console.debug('Enterprise subscription detection failed:', e);
         }
 
         if (mounted) {
@@ -60,8 +111,12 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           setSeats(seatsData);
           setReady(true);
         }
-      } catch {
+      } catch (err) {
+        console.debug('SubscriptionContext initialization failed:', err);
         if (mounted) {
+          // Always set ready to true to prevent blocking the UI
+          setTier('free'); // Safe fallback
+          setSeats(null);
           setReady(true);
         }
       }
@@ -74,18 +129,36 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const assignSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await supabase!.rpc('assign_teacher_seat', { p_subscription_id: subscriptionId, p_user_id: userId });
-      return !error;
-    } catch {
+      const { error } = await supabase!.rpc('assign_teacher_seat', { 
+        p_subscription_id: subscriptionId, 
+        p_user_id: userId 
+      });
+      
+      if (error) {
+        console.debug('Seat assignment RPC error:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.debug('Seat assignment failed:', err);
       return false;
     }
   };
 
   const revokeSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await supabase!.rpc('revoke_teacher_seat', { p_subscription_id: subscriptionId, p_user_id: userId });
-      return !error;
-    } catch {
+      const { error } = await supabase!.rpc('revoke_teacher_seat', { 
+        p_subscription_id: subscriptionId, 
+        p_user_id: userId 
+      });
+      
+      if (error) {
+        console.debug('Seat revocation RPC error:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.debug('Seat revocation failed:', err);
       return false;
     }
   };

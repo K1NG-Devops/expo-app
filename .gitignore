@@ -38,3 +38,4 @@ yarn-error.*
 
 # Ignore local supabase artifacts
 supabase/
+.env.migration

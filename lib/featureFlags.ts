@@ -39,10 +39,40 @@ export interface FeatureFlags {
   
   // Language Features
   enableMultilanguageSupport: boolean;
+  
+  // Parent Dashboard Features (NEW)
+  parent_hub_enabled: boolean;
+  whatsapp_integration: boolean;
+  offline_homework: boolean;
+  voice_notes: boolean;
+  progress_tracking: boolean;
+  in_app_messaging: boolean;
+  school_announcements: boolean;
+  parent_teacher_chat: boolean;
+  homework_submissions_v2: boolean;
+  push_notifications: boolean;
+  multilingual_auto_translate: boolean;
+  parent_engagement_metrics: boolean;
+  
+  // WhatsApp Specific Features
+  whatsapp_opt_in: boolean;
+  whatsapp_webhook: boolean;
+  whatsapp_send_receive: boolean;
+  
+  // Offline Features
+  offline_sync_engine: boolean;
+  offline_media_storage: boolean;
+  progressive_sync: boolean;
+  
+  // South African Localization
+  sa_languages_support: boolean; // English, Afrikaans, isiZulu, Sesotho
+  caps_curriculum_alignment: boolean;
+  sa_payment_methods: boolean;
 }
 
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
 const AI_DEFAULT = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true') || (process.env.NODE_ENV === 'production')
+const SA_TENANT_DEFAULT = process.env.EXPO_PUBLIC_COUNTRY === 'ZA' || process.env.EXPO_PUBLIC_SA_TENANT === 'true'
 const DEFAULT_FLAGS: FeatureFlags = {
   // Core features
   ai_gateway_enabled: process.env.EXPO_PUBLIC_AI_GATEWAY_ENABLED === 'true',
@@ -82,6 +112,35 @@ const DEFAULT_FLAGS: FeatureFlags = {
   
   // Language Features
   enableMultilanguageSupport: process.env.EXPO_PUBLIC_ENABLE_MULTILANGUAGE !== 'false',
+  
+  // Parent Dashboard Features (NEW) - Strategic Roadmap Implementation
+  parent_hub_enabled: process.env.EXPO_PUBLIC_PARENT_HUB_ENABLED !== 'false', // enabled by default
+  whatsapp_integration: SA_TENANT_DEFAULT, // enabled for SA tenants
+  offline_homework: process.env.EXPO_PUBLIC_OFFLINE_HOMEWORK !== 'false', // beta feature
+  voice_notes: true, // core feature enabled
+  progress_tracking: true, // core feature enabled
+  in_app_messaging: true, // core feature enabled
+  school_announcements: true, // core feature enabled
+  parent_teacher_chat: true, // core communication feature
+  homework_submissions_v2: process.env.EXPO_PUBLIC_HOMEWORK_V2_ENABLED === 'true',
+  push_notifications: process.env.EXPO_PUBLIC_PUSH_NOTIFICATIONS !== 'false',
+  multilingual_auto_translate: SA_TENANT_DEFAULT, // for SA multi-language support
+  parent_engagement_metrics: true, // basic engagement tracking
+  
+  // WhatsApp Specific Features
+  whatsapp_opt_in: SA_TENANT_DEFAULT, // SA has 90%+ WhatsApp penetration
+  whatsapp_webhook: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_WEBHOOK_ENABLED === 'true',
+  whatsapp_send_receive: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_API_ENABLED === 'true',
+  
+  // Offline Features - Strategic "Offline-First" Architecture
+  offline_sync_engine: process.env.EXPO_PUBLIC_OFFLINE_SYNC !== 'false', // core offline feature
+  offline_media_storage: process.env.EXPO_PUBLIC_OFFLINE_MEDIA !== 'false',
+  progressive_sync: process.env.EXPO_PUBLIC_PROGRESSIVE_SYNC !== 'false',
+  
+  // South African Localization - Strategic "SA-First" Approach
+  sa_languages_support: SA_TENANT_DEFAULT, // English, Afrikaans, isiZulu, Sesotho
+  caps_curriculum_alignment: SA_TENANT_DEFAULT, // CAPS = Curriculum and Assessment Policy Statement
+  sa_payment_methods: SA_TENANT_DEFAULT, // EFT, Ozow, SnapScan
 };
 
 let cachedFlags: FeatureFlags | null = null;

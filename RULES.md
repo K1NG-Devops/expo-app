@@ -393,11 +393,14 @@ Based on PRD requirements vs existing schema:
 
 **Recommendation**: Use existing `announcements`, `payments`, and `teachers` tables. Only create `teacher_performance_metrics` for MVP.
 
-### Database Migration Rules [NONNEGOTIABLE]
+## Database Migration Rules [NONNEGOTIABLE]
 **CRITICAL**: ALL database changes must use Supabase migrations - NEVER run SQL directly in Supabase dashboard
 
 - Use `npx supabase migration new <name>` to create migration files
 - Use `npx supabase db push` to apply migrations to remote
+- Log all migration errors and resolutions in `docs/MIGRATION_LOG.md` (copy exact error text)
+- Before writing a new migration, read `docs/MIGRATION_LOG.md` and avoid prior mistakes
+- Never change application code to “work around” a missing table/column; add a migration instead
 - Use `npx supabase db pull` to sync remote changes to local
 - **NO COPY/PASTE SQL** - All changes must be version controlled via migrations
 - Keep local and remote databases in perfect sync

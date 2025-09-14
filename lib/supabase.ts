@@ -1,6 +1,15 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+
+// Dynamically import SecureStore to avoid web issues
+let SecureStore: any = null;
+try {
+  if (Platform.OS !== 'web') {
+    SecureStore = require('expo-secure-store');
+  }
+} catch (e) {
+  console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
 
 // Dynamically require AsyncStorage to avoid web/test issues
 let AsyncStorage: any = null;
@@ -8,17 +17,43 @@ try {
   AsyncStorage = require('@react-native-async-storage/async-storage').default;
 } catch (e) {
   console.debug('AsyncStorage import failed (non-React Native env?)', e);
+  // Web fallback using localStorage
+  if (typeof window !== 'undefined' && window.localStorage) {
+    AsyncStorage = {
+      getItem: async (key: string) => {
+        try {
+          return window.localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: async (key: string, value: string) => {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          // ignore
+        }
+      },
+      removeItem: async (key: string) => {
+        try {
+          window.localStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      },
+    };
+  }
 }
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
-const SecureStoreAdapter = {
+const SecureStoreAdapter = SecureStore ? {
   getItem: (key: string) => SecureStore.getItemAsync(key),
   setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value, { keychainService: key }),
   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
-};
+} : null;
 
 // AsyncStorage adapter (preferred for Android, no 2KB limit)
 const AsyncStorageAdapter = AsyncStorage
@@ -43,6 +78,11 @@ const MemoryStorageAdapter = {
 
 function chooseStorage() {
   try {
+    // Web platform: use localStorage via AsyncStorage or memory fallback
+    if (Platform?.OS === 'web') {
+      if (AsyncStorageAdapter) return AsyncStorageAdapter;
+      return MemoryStorageAdapter;
+    }
     // Use AsyncStorage on Android to avoid SecureStore size limit warning/failures
     if (Platform?.OS === 'android' && AsyncStorageAdapter) return AsyncStorageAdapter;
     // iOS and other platforms: prefer SecureStore; fall back if unavailable
@@ -75,4 +115,4 @@ export function assertSupabase(): SupabaseClient {
   return client;
 }
 
-export const supabase = client;
+export const supabase = client as unknown as SupabaseClient;

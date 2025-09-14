@@ -15,10 +15,12 @@ import {
   Dimensions,
   Alert,
   SafeAreaView,
+  RefreshControl,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh';
 
 const { width } = Dimensions.get('window');
 
@@ -26,6 +28,14 @@ export default function PrincipalAnalyticsScreen() {
   useTranslation(); // For future internationalization
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'financial' | 'teachers'>('overview');
+
+  // Refresh function for analytics data
+  const handleRefresh = async () => {
+    // In a real app, this would refresh analytics data from the server
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  };
+
+  const { refreshing, onRefreshHandler } = useSimplePullToRefresh(handleRefresh, 'principal_analytics');
 
   const periods = [
     { id: 'week', label: 'This Week' },
@@ -163,7 +173,18 @@ export default function PrincipalAnalyticsScreen() {
         }}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefreshHandler}
+            tintColor="#4F46E5"
+            title="Refreshing analytics..."
+          />
+        }
+      >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>

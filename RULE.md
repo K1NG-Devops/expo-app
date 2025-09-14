@@ -267,7 +267,62 @@ Sentry.init({
 });
 ```
 
-## 🌍 Internationalization
+## 🌍 Internationalization & Theming (MANDATORY)
+
+### I18N-000: ALWAYS Use i18n in All Components
+**Issue**: Hardcoded strings prevent localization and accessibility
+**Rule**: **ALL USER-FACING TEXT MUST USE i18n TRANSLATION KEYS**
+
+```typescript
+// ❌ NEVER DO THIS - Hardcoded text
+<Text>Welcome back, Parent!</Text>
+<Text>Usage Limits</Text>
+<Button title="Upgrade to Pro" />
+
+// ✅ ALWAYS DO THIS - Use translation keys
+<Text>{t('dashboard.welcome', { name: userName })}</Text>
+<Text>{t('dashboard.usageLimits')}</Text>
+<Button title={t('subscription.upgradeToPro')} />
+```
+
+**Mandatory for ALL new components:**
+- Dashboard headers and titles
+- Button labels and descriptions
+- Error messages and alerts
+- Form labels and placeholders
+- Status indicators and badges
+- Modal content and confirmations
+
+### THEME-000: ALWAYS Use ThemeContext in All Components
+**Issue**: Components break in dark mode and lack accessibility
+**Rule**: **ALL COMPONENTS MUST USE useTheme() HOOK FOR COLORS**
+
+```typescript
+// ❌ NEVER DO THIS - Hardcoded colors
+const styles = {
+  text: { color: '#FFFFFF' },
+  background: { backgroundColor: '#0b1220' }
+};
+
+// ✅ ALWAYS DO THIS - Use theme colors
+import { useTheme } from '@/contexts/ThemeContext';
+
+const Component = () => {
+  const { theme } = useTheme();
+  
+  return (
+    <Text style={{ color: theme.text }}>
+      {t('component.title')}
+    </Text>
+  );
+};
+```
+
+**Required ThemeContext Usage:**
+- Text colors: `theme.text`, `theme.textSecondary`, `theme.textTertiary`
+- Background colors: `theme.background`, `theme.surface`, `theme.elevated`
+- UI colors: `theme.primary`, `theme.success`, `theme.warning`, `theme.error`
+- Borders and dividers: `theme.border`, `theme.divider`
 
 ### I18N-001: Always Provide Language Fallbacks
 **Rule**: Set up proper fallback languages and handle missing translations gracefully.
@@ -295,6 +350,37 @@ t('common.error')
 t('welcome')
 t('title')
 t('error')
+```
+
+### THEME-001: Create Theme-Aware Styles
+**Rule**: Use React.useMemo() to create styles that respond to theme changes.
+
+```typescript
+const Component = () => {
+  const { theme } = useTheme();
+  
+  const styles = React.useMemo(() => StyleSheet.create({
+    container: {
+      backgroundColor: theme.background,
+      borderColor: theme.border,
+    },
+    text: {
+      color: theme.text,
+    }
+  }), [theme]);
+  
+  return <View style={styles.container}>...</View>;
+};
+```
+
+### THEME-002: Test Both Light and Dark Modes
+**Rule**: Every component must be tested in both light and dark themes.
+
+```typescript
+// Add theme toggle for testing
+const { toggleTheme } = useTheme();
+
+// Test component in both modes during development
 ```
 
 ## 🔄 State Management

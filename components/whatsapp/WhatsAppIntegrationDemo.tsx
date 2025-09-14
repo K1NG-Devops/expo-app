@@ -1,0 +1,401 @@
+import React, { useState } from 'react'
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useTheme } from '../../contexts/ThemeContext'
+import { useTranslation } from 'react-i18next'
+import { WhatsAppQuickAction } from './WhatsAppQuickAction'
+import { WhatsAppStatusChip } from './WhatsAppStatusChip'
+import { WhatsAppOptInModal } from './WhatsAppOptInModal'
+import { useWhatsAppConnection } from '../../hooks/useWhatsAppConnection'
+import { track } from '../../lib/analytics'
+
+interface WhatsAppIntegrationDemoProps {
+  onClose?: () => void
+}
+
+export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = ({ onClose }) => {
+  const { theme, isDark } = useTheme()
+  const { t } = useTranslation()
+  const { connectionStatus } = useWhatsAppConnection()
+  const [showOptInModal, setShowOptInModal] = useState(false)
+  const [selectedFeature, setSelectedFeature] = useState<string | null>(null)
+
+  const handleFeaturePress = (feature: string) => {
+    setSelectedFeature(feature)
+    track('edudash.whatsapp.feature_viewed', {
+      feature_name: feature,
+      connection_status: connectionStatus.isConnected ? 'connected' : 'disconnected',
+      timestamp: new Date().toISOString()
+    })
+  }
+
+  const features = [
+    {
+      id: 'instant_messages',
+      icon: 'flash' as const,
+      title: t('whatsapp.features.instantMessages'),
+      description: t('whatsapp.features.instantMessagesDesc'),
+      color: '#25D366',
+    },
+    {
+      id: 'direct_chat',
+      icon: 'chatbubbles' as const,
+      title: t('whatsapp.features.directChat'),
+      description: t('whatsapp.features.directChatDesc'),
+      color: '#007AFF',
+    },
+    {
+      id: 'homework_reminders',
+      icon: 'notifications' as const,
+      title: t('whatsapp.features.homeworkReminders'),
+      description: t('whatsapp.features.homeworkRemindersDesc'),
+      color: '#FF9500',
+    },
+    {
+      id: 'voice_messages',
+      icon: 'mic' as const,
+      title: t('whatsapp.features.voiceMessages'),
+      description: t('whatsapp.features.voiceMessagesDesc'),
+      color: '#34C759',
+    },
+    {
+      id: 'media_sharing',
+      icon: 'image' as const,
+      title: t('whatsapp.features.mediaSharing'),
+      description: t('whatsapp.features.mediaSharingDesc'),
+      color: '#AF52DE',
+    },
+    {
+      id: 'works_offline',
+      icon: 'cloud-offline' as const,
+      title: t('whatsapp.features.workOffline'),
+      description: t('whatsapp.features.workOfflineDesc'),
+      color: '#FF6B6B',
+    },
+  ]
+
+  const benefits = [
+    t('whatsapp.benefits.familyFriendly'),
+    t('whatsapp.benefits.instantDelivery'),
+    t('whatsapp.benefits.worksOffline'),
+    t('whatsapp.benefits.noAppSwitching'),
+    t('whatsapp.benefits.voiceSupport'),
+    t('whatsapp.benefits.mediaFriendly'),
+  ]
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.text,
+      flex: 1,
+      marginLeft: 12,
+    },
+    closeButton: {
+      padding: 4,
+    },
+    scrollContent: {
+      padding: 20,
+    },
+    section: {
+      marginBottom: 32,
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 16,
+    },
+    sectionDescription: {
+      fontSize: 16,
+      color: theme.textSecondary,
+      lineHeight: 24,
+      marginBottom: 20,
+    },
+    statusContainer: {
+      backgroundColor: isDark ? '#2A2A2A' : '#F8F9FA',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    statusInfo: {
+      flex: 1,
+    },
+    statusTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    statusSubtitle: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    quickActionContainer: {
+      marginBottom: 24,
+    },
+    featuresGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'space-between',
+      marginTop: 12,
+    },
+    featureCard: {
+      width: '48%',
+      backgroundColor: isDark ? '#2A2A2A' : '#FFFFFF',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: '#000',
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    featureCardSelected: {
+      borderColor: '#25D366',
+      borderWidth: 2,
+      backgroundColor: isDark ? '#1F2A1F' : '#F0FFF4',
+    },
+    featureIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    featureTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    featureDescription: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      lineHeight: 16,
+    },
+    benefitsList: {
+      marginTop: 12,
+    },
+    benefitItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    benefitText: {
+      fontSize: 16,
+      color: theme.text,
+      lineHeight: 24,
+      marginLeft: 8,
+    },
+    demoActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 24,
+    },
+    demoButton: {
+      flex: 1,
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      marginHorizontal: 4,
+      alignItems: 'center',
+    },
+    demoButtonSecondary: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    demoButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#FFFFFF',
+    },
+    demoButtonTextSecondary: {
+      color: theme.text,
+    },
+    troubleshootingBox: {
+      backgroundColor: isDark ? '#2A2A2A' : '#FFF9E6',
+      borderRadius: 8,
+      padding: 16,
+      marginTop: 20,
+      borderLeftWidth: 4,
+      borderLeftColor: '#FF9500',
+    },
+    troubleshootingTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 8,
+    },
+    troubleshootingText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      lineHeight: 20,
+    },
+  })
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Ionicons name="logo-whatsapp" size={28} color="#25D366" />
+        <Text style={styles.headerTitle}>
+          {t('whatsapp:title')}
+        </Text>
+        {onClose && (
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Ionicons name="close" size={24} color={theme.text} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Connection Status */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Connection Status</Text>
+          <View style={styles.statusContainer}>
+            <View style={styles.statusInfo}>
+              <Text style={styles.statusTitle}>
+                {connectionStatus.isConnected ? 'WhatsApp Connected' : 'WhatsApp Not Connected'}
+              </Text>
+              <Text style={styles.statusSubtitle}>
+                {connectionStatus.isConnected 
+                  ? 'Receiving school updates via WhatsApp'
+                  : 'Connect to receive instant school updates'
+                }
+              </Text>
+            </View>
+            <WhatsAppStatusChip onPress={() => setShowOptInModal(true)} />
+          </View>
+        </View>
+
+        {/* Quick Action */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Quick Action</Text>
+          <View style={styles.quickActionContainer}>
+            <WhatsAppQuickAction size="large" />
+          </View>
+        </View>
+
+        {/* Features */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>WhatsApp Features</Text>
+          <Text style={styles.sectionDescription}>
+            Discover how WhatsApp integration enhances your school communication experience.
+          </Text>
+          <View style={styles.featuresGrid}>
+            {features.map((feature) => (
+              <TouchableOpacity
+                key={feature.id}
+                style={[
+                  styles.featureCard,
+                  selectedFeature === feature.id && styles.featureCardSelected,
+                ]}
+                onPress={() => handleFeaturePress(feature.id)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.featureIcon, { backgroundColor: `${feature.color}20` }]}>
+                  <Ionicons name={feature.icon} size={20} color={feature.color} />
+                </View>
+                <Text style={styles.featureTitle}>{feature.title}</Text>
+                <Text style={styles.featureDescription}>{feature.description}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Benefits */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            {t('whatsapp.benefits.title')}
+          </Text>
+          <View style={styles.benefitsList}>
+            {benefits.map((benefit, index) => (
+              <View key={index} style={styles.benefitItem}>
+                <Ionicons name="checkmark-circle" size={20} color="#25D366" />
+                <Text style={styles.benefitText}>{benefit}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Demo Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Try It Out</Text>
+          <View style={styles.demoActions}>
+            <TouchableOpacity
+              style={[styles.demoButton, styles.demoButtonSecondary]}
+              onPress={() => setShowOptInModal(true)}
+            >
+              <Text style={[styles.demoButtonText, styles.demoButtonTextSecondary]}>
+                {connectionStatus.isConnected ? 'Manage Connection' : 'Connect WhatsApp'}
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.demoButton}
+              onPress={() => {
+                // Demo the quick action
+                track('edudash.whatsapp.demo_quick_action', {
+                  timestamp: new Date().toISOString()
+                })
+              }}
+            >
+              <Text style={styles.demoButtonText}>
+                Demo Quick Action
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Troubleshooting */}
+        {connectionStatus.isConnected && (
+          <View style={styles.troubleshootingBox}>
+            <Text style={styles.troubleshootingTitle}>
+              {t('whatsapp.troubleshooting.notReceiving')}
+            </Text>
+            <Text style={styles.troubleshootingText}>
+              {t('whatsapp.troubleshooting.checkConnection')}
+              {'\n'}• {t('whatsapp.troubleshooting.updatePhone')}
+              {'\n'}• {t('whatsapp.troubleshooting.contactSupport')}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      <WhatsAppOptInModal
+        visible={showOptInModal}
+        onClose={() => setShowOptInModal(false)}
+        onSuccess={() => {
+          setShowOptInModal(false)
+          // Show success feedback
+        }}
+      />
+    </View>
+  )
+}
+
+export default WhatsAppIntegrationDemo

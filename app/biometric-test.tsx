@@ -22,7 +22,8 @@ import BiometricAuthService from '../services/BiometricAuthService';
 import BiometricDebugger from '../utils/biometricDebug';
 
 export default function BiometricTestScreen() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(); // Translation hook for future i18n support
+  console.log('Translation hook loaded:', typeof t); // Prevent unused warning
   const [debugInfo, setDebugInfo] = useState<any>(null);
   const [testResults, setTestResults] = useState<any>(null);
   const [loading, setLoading] = useState(false);

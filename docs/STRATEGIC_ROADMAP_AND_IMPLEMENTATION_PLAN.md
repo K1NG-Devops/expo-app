@@ -611,6 +611,24 @@ CRITICAL PATH ITEMS:
 
 ---
 
+## 📋 **CHANGE CONTROL & WORKING RULES**
+
+### Implementation Governance
+- All major feature, architectural, or pricing changes **MUST** be aligned with:
+  1. This document (STRATEGIC_ROADMAP_AND_IMPLEMENTATION_PLAN.md)
+  2. The progress log (STRATEGIC_ROADMAP_PROGRESS.md - latest entries)
+- Before merging any changes, confirm the change is reflected in the progress log with verification steps
+- All PRs must include `npm run typecheck` results showing 0 TypeScript errors
+- Each milestone requires scope definition, implementation verification, and follow-up documentation
+
+### Quality Gates
+- **TypeScript**: Zero compilation errors before merge
+- **Testing**: Key user flows validated
+- **Documentation**: Progress log updated with each significant change
+- **Review**: Strategic alignment confirmed via roadmap consultation
+
+---
+
 ## 🛠 **TECHNICAL DEBT CLEANUP - LIVE PROGRESS LOG**
 
 ### **Phase 1: TypeScript Error Reduction (In Progress)**
