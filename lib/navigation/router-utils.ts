@@ -6,99 +6,98 @@ import { router } from 'expo-router';
  */
 export const navigateTo = {
   // Marketing routes
-  contact: () => router.push('/(marketing)/contact' as any),
+  contact: () => router.push('/sales/contact' as any),
   
-  // Screen routes with dynamic parameters
+  // Screen routes with dynamic parameters (mapped to existing screens)
   classStudents: (classId: string) => 
-    router.push(`/(app)/screens/class-students?classId=${classId}` as any),
+    router.push({ pathname: '/screens/class-teacher-management' as any, params: { classId } } as any),
   
   editClass: (classId: string) => 
-    router.push(`/(app)/screens/edit-class?classId=${classId}` as any),
+    router.push({ pathname: '/screens/class-teacher-management' as any, params: { classId, edit: '1' } } as any),
   
   addTeacher: () => 
-    router.push('/(app)/screens/add-teacher' as any),
+    router.push('/screens/teacher-management' as any),
   
   teacherClasses: (teacherId: string) => 
-    router.push(`/(app)/screens/teacher-classes?teacherId=${teacherId}` as any),
+    router.push({ pathname: '/screens/class-teacher-management' as any, params: { teacherId } } as any),
   
   editTeacher: (teacherId: string) => 
-    router.push(`/(app)/screens/edit-teacher?teacherId=${teacherId}` as any),
+    router.push({ pathname: '/screens/teacher-management' as any, params: { teacherId, edit: '1' } } as any),
   
   // Petty cash routes
   pettyCashHistory: () => 
-    router.push('/(app)/screens/petty-cash-history' as any),
+    router.push('/screens/financial-transactions' as any),
   
   pettyCashReport: () => 
-    router.push('/(app)/screens/petty-cash-report' as any),
+    router.push('/screens/financial-reports' as any),
   
   // Student routes  
   editStudent: (studentId: string) => 
-    router.push(`/(app)/screens/edit-student?studentId=${studentId}` as any),
+    router.push({ pathname: '/screens/student-management' as any, params: { studentId, edit: '1' } } as any),
   
   studentFees: (studentId: string) => 
-    router.push(`/(app)/screens/student-fees?studentId=${studentId}` as any),
+    router.push({ pathname: '/screens/financial-transactions' as any, params: { studentId } } as any),
   
-  // Financial routes
+  // Financial routes (map to existing financial screens)
   addTransaction: () => 
-    router.push('/(app)/screens/add-transaction' as any),
+    router.push('/screens/financial-transactions' as any),
   
   paymentReminders: () => 
-    router.push('/(app)/screens/payment-reminders' as any),
+    router.push('/screens/financial-transactions' as any),
   
   expenseCategories: () => 
-    router.push('/(app)/screens/expense-categories' as any),
+    router.push('/screens/financial-transactions' as any),
   
   exportData: () => 
-    router.push('/(app)/screens/export-data' as any),
+    router.push('/screens/financial-reports' as any),
   
   exportAllData: () => 
-    router.push('/(app)/screens/export-all-data' as any),
+    router.push('/screens/financial-reports' as any),
   
   scheduleReports: () => 
-    router.push('/(app)/screens/schedule-reports' as any),
+    router.push('/screens/financial-reports' as any),
   
   reportTemplates: () => 
-    router.push('/(app)/screens/report-templates' as any),
+    router.push('/screens/financial-reports' as any),
   
   // Analytics routes
   exportAnalytics: () => 
-    router.push('/(app)/screens/export-analytics' as any),
+    router.push('/screens/principal-analytics' as any),
   
   academicReports: () => 
-    router.push('/(app)/screens/academic-reports' as any),
+    router.push('/screens/teacher-reports' as any),
   
   approvalHistory: () => 
-    router.push('/(app)/screens/approval-history' as any),
+    router.push('/screens/principal-analytics' as any),
   
   // Dynamic report routes
-  dynamicReport: (reportName: string) => {
-    const slug = reportName.toLowerCase().replace(/ & /g, '-').replace(/ /g, '-');
-    router.push(`/(app)/screens/reports/${slug}` as any);
+  dynamicReport: (_reportName: string) => {
+    router.push('/screens/financial-reports' as any);
   },
   
   // AI and class management
   aiProgressAnalysis: () => 
-    router.push('/(app)/screens/ai-progress-analysis' as any),
+    router.push('/screens/teacher-reports' as any),
   
   classDetails: (classId: string, className: string) => 
-    router.push(`/(app)/screens/class-details?classId=${classId}&className=${encodeURIComponent(className)}` as any),
+    router.push({ pathname: '/screens/class-teacher-management' as any, params: { classId, className } } as any),
   
   assignmentDetails: (assignmentId: string, title: string) => 
-    router.push(`/(app)/screens/assignment-details?assignmentId=${assignmentId}&title=${encodeURIComponent(title)}` as any),
+    router.push({ pathname: '/screens/teacher-reports' as any, params: { assignmentId, title } } as any),
   
   createClass: () => 
-    router.push('/(app)/screens/create-class' as any),
+    router.push('/screens/class-teacher-management' as any),
   
   createEvent: () => 
-    router.push('/(app)/screens/create-event' as any),
+    router.push('/screens/teacher-reports' as any),
   
   // Announcements
   announcementsHistory: () => 
-    router.push('/(app)/screens/announcements-history' as any),
+    router.push('/screens/teacher-messages' as any),
   
   // Help routes
   financialReportsHelp: () => 
-    router.push('/(app)/help/financial-reports' as any),
+    router.push('/screens/financial-reports' as any),
 };
 
 /**
