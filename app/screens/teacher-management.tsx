@@ -21,6 +21,8 @@ import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import { navigateBack } from '@/lib/navigation';
 
 interface Teacher {
   id: string;
@@ -635,21 +637,19 @@ export default function TeacherManagement() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
-        </TouchableOpacity>
-        <Text style={styles.title}>Teacher Management</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleAddTeacher}
-        >
-          <Ionicons name="add" size={24} color={Colors.light.tint} />
-        </TouchableOpacity>
-      </View>
+      <RoleBasedHeader 
+        title="Teacher Management" 
+        showBackButton={true}
+        onBackPress={() => navigateBack('/')}
+      />
+      
+      {/* Floating Action Button for Adding Teachers */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleAddTeacher}
+      >
+        <Ionicons name="add" size={24} color="white" />
+      </TouchableOpacity>
 
       {/* Navigation Tabs */}
       <View style={styles.tabsContainer}>
@@ -924,36 +924,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: 60,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  addButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.light.tint + '10',
-  },
   contentContainer: {
     flex: 1,
   },
@@ -1196,6 +1166,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#6b7280',
     marginTop: -2,
+  },
+  // Floating Action Button
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.light.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   performanceDetails: {
     marginBottom: 16,

@@ -52,7 +52,8 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
   loading = false
 }) => {
   const { theme, isDark } = useTheme()
-  const { t } = useTranslation() // Translation hook for future i18n support
+  // Translation hook loaded for future i18n support
+  useTranslation()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
   const [isAccordionExpanded, setIsAccordionExpanded] = useState(false)
   const [cardHeight, setCardHeight] = useState<number | null>(null)
@@ -124,19 +125,6 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
     return colors[colorIndex]
   }
 
-  const generateAvatar = (firstName: string, lastName: string) => {
-    const initials = `${firstName[0]}${lastName[0]}`.toUpperCase()
-    const colors = getAvatarColors(firstName, lastName)
-    
-    return (
-      <LinearGradient
-        colors={colors}
-        style={styles.avatarGradient}
-      >
-        <Text style={styles.avatarText}>{initials}</Text>
-      </LinearGradient>
-    )
-  }
 
   const renderQuickActions = (child: Child) => (
     <View style={styles.quickActions}>
@@ -187,7 +175,7 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
       })
     }
     setIsAccordionExpanded(!isAccordionExpanded)
-track('edudash.parent.children_accordion_toggled', { 
+    track('edudash.parent.children_accordion_toggled', { 
       expanded: !isAccordionExpanded, 
       children_count: childrenData.length 
     })
@@ -231,8 +219,8 @@ track('edudash.parent.children_accordion_toggled', {
           <View style={styles.cardHeader}>
             <View style={styles.headerLeftRow}>
               <View style={[styles.statusIndicator, { backgroundColor: statusColor }]}>
-              <Ionicons name={statusIcon as any} size={10} color="#FFFFFF" />
-            </View>
+                <Ionicons name={statusIcon as any} size={10} color="#FFFFFF" />
+              </View>
             <Text style={[styles.lastActivity, { color: theme.textTertiary, fontSize: density.progressFont }]}>
               {child.lastActivity ? 
                 `${Math.floor((Date.now() - child.lastActivity.getTime()) / (1000 * 60 * 60))}h ago` :
@@ -280,7 +268,6 @@ track('edudash.parent.children_accordion_toggled', {
           <View style={styles.infoSection}>
             {child.age && (
               <Text style={[styles.infoText, { color: theme.textSecondary, fontSize: density.infoFont }]}>
-Size: density.infoFont }]}>
                 Age {child.age}
               </Text>
             )}
@@ -318,18 +305,6 @@ Size: density.infoFont }]}>
 
           {/* Quick Actions */}
           {renderQuickActions(child)}
-
-          {/* Notification Badges moved to header to avoid overlap with time */}
-          <View />
-                <Text style={styles.badgeText}>{child.homeworkPending}</Text>
-              </View>
-            )}
-            {child.upcomingEvents && child.upcomingEvents > 0 && (
-              <View style={[styles.badge, { backgroundColor: '#F59E0B' }]}>
-                <Text style={styles.badgeText}>{child.upcomingEvents}</Text>
-              </View>
-            )}
-          </View>
         </LinearGradient>
       </TouchableOpacity>
     )
@@ -387,7 +362,7 @@ Size: density.infoFont }]}>
         activeOpacity={0.7}
       >
         <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
+            <View style={styles.headerLeft}>
             <Ionicons 
               name="people" 
               size={24} 
@@ -399,14 +374,14 @@ Size: density.infoFont }]}>
                 My Children
               </Text>
               <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
-{childrenData.length} {childrenData.length === 1 ? 'child' : 'children'}
+                {childrenData.length} {childrenData.length === 1 ? 'child' : 'children'}
               </Text>
             </View>
           </View>
           <View style={styles.headerRight}>
-{!isAccordionExpanded && childrenData.length > 0 && (
+            {!isAccordionExpanded && childrenData.length > 0 && (
               <View style={styles.previewAvatars}>
-{childrenData.slice(0, 3).map((child, index) => (
+                {childrenData.slice(0, 3).map((child, index) => (
                   <View key={child.id} style={[styles.miniAvatar, { marginLeft: index > 0 ? -8 : 0 }]}>
                     {child.avatarUrl ? (
                       <Image source={{ uri: child.avatarUrl }} style={styles.miniAvatarImage} />
@@ -422,9 +397,9 @@ Size: density.infoFont }]}>
                     )}
                   </View>
                 ))}
-{childrenData.length > 3 && (
+                {childrenData.length > 3 && (
                   <View style={[styles.miniAvatar, styles.moreIndicator, { marginLeft: -8 }]}>
-<Text style={styles.moreText}>+{childrenData.length - 3}</Text>
+                    <Text style={styles.moreText}>+{childrenData.length - 3}</Text>
                   </View>
                 )}
               </View>
@@ -449,7 +424,7 @@ Size: density.infoFont }]}>
             contentContainerStyle={styles.scrollContent}
           >
             <View style={styles.stackContainer}>
-{childrenData.map((child, idx) => renderChildCard(child, idx))}
+              {childrenData.map((child, idx) => renderChildCard(child, idx))}
             </View>
           </ScrollView>
         </View>
@@ -570,6 +545,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  headerLeftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   statusIndicator: {
     width: 20,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Modal, Image } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,8 @@ import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { supabase } from '@/lib/supabase';
+import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 
 interface RoleBasedHeaderProps {
   title?: string;
@@ -35,6 +37,7 @@ export function RoleBasedHeader({
 }: RoleBasedHeaderProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [languageVisible, setLanguageVisible] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
@@ -42,22 +45,48 @@ export function RoleBasedHeader({
   const permissions = usePermissions();
   const { theme, mode, toggleTheme } = useTheme();
 
-  // Apply rule: "When the user is signed in, the back arrow button should not be visible in the UI"
-  const shouldShowBackButton = () => {
-    // If user is signed in, hide back button (per rule)
-    if (user) {
-      return false;
-    }
-    
-    // If not signed in, respect the showBackButton prop
-    return showBackButton && navigation.canGoBack();
-  };
+  // Load avatar URL from user metadata or profiles table
+  useEffect(() => {
+    const loadAvatarUrl = async () => {
+      if (!user?.id) {
+        setAvatarUrl(null);
+        return;
+      }
+
+      // First, try user metadata (fastest)
+      let url = user.user_metadata?.avatar_url;
+      
+      // If not in metadata, try profiles table
+      if (!url) {
+        try {
+          const { data: profileData } = await supabase!
+            .from('profiles')
+            .select('avatar_url')
+            .eq('id', user.id)
+            .maybeSingle();
+          
+          if (profileData?.avatar_url) {
+            url = profileData.avatar_url;
+          }
+        } catch (error) {
+          console.debug('Failed to load avatar from profiles:', error);
+        }
+      }
+      
+      setAvatarUrl(url || null);
+    };
+
+    loadAvatarUrl();
+  }, [user?.id, user?.user_metadata?.avatar_url]);
+
+  // Use centralized navigation logic
+  const shouldShowBack = shouldShowBackButton(route.name, !!user) && showBackButton;
 
   const handleBackPress = () => {
     if (onBackPress) {
       onBackPress();
-    } else if (navigation.canGoBack()) {
-      navigation.goBack();
+    } else {
+      navigateBack();
     }
   };
 
@@ -115,7 +144,7 @@ export function RoleBasedHeader({
 
   const displayTitle = getContextualTitle();
   const displaySubtitle = getContextualSubtitle();
-  const showBack = shouldShowBackButton();
+  const showBack = shouldShowBack;
   
   // Use theme colors if not explicitly provided
   const headerBgColor = backgroundColor || theme.headerBackground;
@@ -173,8 +202,8 @@ export function RoleBasedHeader({
               onPress={() => router.push('/screens/account')}
               accessibilityLabel="Go to account settings"
             >
-              {user?.user_metadata?.avatar_url ? (
-                <Image source={{ uri: user.user_metadata.avatar_url }} style={styles.avatarImage} />
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
                 <View style={[styles.avatarFallback, { 
                   backgroundColor: theme.primary, 
