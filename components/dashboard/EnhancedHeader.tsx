@@ -33,7 +33,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
       setCurrentTime(new Date())
     }, 60000)
 
-    // Set weather-based greeting (mock implementation)
+    // Time-based greeting
     const hour = new Date().getHours()
     if (hour < 12) {
       setWeatherGreeting(t('dashboard.good_morning'))

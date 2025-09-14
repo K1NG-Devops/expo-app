@@ -25,30 +25,26 @@ import SkeletonLoader from '../ui/SkeletonLoader';
 import { RoleBasedHeader } from '../RoleBasedHeader';
 // import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 
-// Temporary mock WhatsApp connection for testing
-const useMockWhatsAppConnection = () => {
-  return {
-    connectionStatus: {
-      isConnected: false,
-      isLoading: false,
-      error: undefined
-    },
-    isLoading: false,
-    error: undefined,
-    optIn: async () => {},
-    optOut: () => {},
-    sendTestMessage: () => {},
-    isOptingIn: false,
-    isOptingOut: false,
-    isSendingTest: false,
-    getWhatsAppDeepLink: () => null,
-    formatPhoneNumber: (phone: string) => phone,
-    isWhatsAppEnabled: () => false,
-    optInError: null,
-    optOutError: null,
-    testMessageError: null
-  };
-};
+// WhatsApp integration
+// Prefer real hook when available; otherwise gracefully degrade
+import { useWhatsAppConnection as useRealWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+const useMockWhatsAppConnection = () => ({
+  connectionStatus: { isConnected: false, isLoading: false, error: undefined },
+  isLoading: false,
+  error: undefined,
+  optIn: async () => {},
+  optOut: () => {},
+  sendTestMessage: () => {},
+  isOptingIn: false,
+  isOptingOut: false,
+  isSendingTest: false,
+  getWhatsAppDeepLink: () => null,
+  formatPhoneNumber: (phone: string) => phone,
+  isWhatsAppEnabled: () => false,
+  optInError: null,
+  optOutError: null,
+  testMessageError: null,
+});
 
 function useTier() {
   // Temporary: derive from env or profiles; default to 'free'
@@ -84,8 +80,14 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tier = useTier();
   
-  // WhatsApp integration - using mock for now
-  const whatsApp = useMockWhatsAppConnection();
+  // WhatsApp integration
+  const whatsApp = (() => {
+    try {
+      return useRealWhatsAppConnection();
+    } catch {
+      return useMockWhatsAppConnection();
+    }
+  })();
 
   // Create profile initials for avatar
 
@@ -108,36 +110,8 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
           .or(`parent_id.eq.${user.id},guardian_id.eq.${user.id}`)
           .eq('is_active', true)
           .limit(5);
-        
-        // Use real data if available, otherwise show mock data for demonstration
         const realChildren = studentsData || [];
-        
-        // Add some mock children for demonstration if no real children exist
-        const mockChildren = realChildren.length === 0 ? [
-          {
-            id: 'mock-1',
-            first_name: 'Emma',
-            last_name: 'Johnson',
-            class_id: 'cls_2024_001',
-            is_active: true
-          },
-          {
-            id: 'mock-2', 
-            first_name: 'Liam',
-            last_name: 'Johnson',
-            class_id: 'cls_2024_002',
-            is_active: true
-          },
-          {
-            id: 'mock-3',
-            first_name: 'Sophia',
-            last_name: 'Johnson', 
-            class_id: 'cls_2024_003',
-            is_active: true
-          }
-        ] : [];
-        
-        setChildren([...realChildren, ...mockChildren]);
+        setChildren(realChildren);
 
         // Load AI usage for this month
         const startOfMonth = new Date();

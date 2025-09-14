@@ -92,11 +92,9 @@ export class PrincipalHubService {
         Promise.resolve({ count: 3 }) // Mock data for now
       ]);
 
-      // Calculate attendance rate (mock calculation)
-      const attendanceRate = 92; // Mock - would be calculated from attendance records
-
-      // Calculate monthly revenue (mock calculation) 
-      const monthlyRevenue = (studentsResult.count || 0) * 850; // R850 per student average
+      // Attendance rate and revenue should come from real data; use conservative defaults if missing
+      const attendanceRate = 0; // Use 0 if not computed from records
+      const monthlyRevenue = Math.round((studentsResult.count || 0) * 1200); // Fallback estimation only
 
       return {
         totalStudents: studentsResult.count || 0,

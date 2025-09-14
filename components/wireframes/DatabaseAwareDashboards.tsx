@@ -6,7 +6,8 @@
  * students, classes) and handle null values gracefully.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { router } from 'expo-router';
 import { ScrollView, View, Alert } from 'react-native';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -582,19 +583,19 @@ export const TeacherDashboardDatabase: React.FC = () => {
           icon="🎯"
           title="Generate Lesson Plan"
           subtitle="AI-powered lesson planning for your subjects"
-          onPress={() => Alert.alert('AI Tools', 'Lesson generator coming soon!')}
+          onPress={() => router.push('/screens/ai-lesson-generator')}
         />
         <WireframeListItem
           icon="📝"
           title="Grade Assignments"
           subtitle="AI-assisted grading with rubric support"
-          onPress={() => Alert.alert('AI Tools', 'AI grading coming soon!')}
+          onPress={() => router.push('/screens/ai-homework-grader-live')}
         />
         <WireframeListItem
           icon="🧪"
           title="STEM Activities"
           subtitle="Generate hands-on science activities"
-          onPress={() => Alert.alert('AI Tools', 'STEM generator coming soon!')}
+          onPress={() => router.push('/screens/teacher-reports')}
         />
       </WireframeCard>
 
@@ -792,7 +793,7 @@ export const ParentDashboardDatabase: React.FC = () => {
           icon="📞"
           title="School Contact"
           subtitle="Reach out to school administration"
-          onPress={() => Alert.alert('Contact School', 'Feature coming soon')}
+          onPress={() => router.push('/screens/teacher-messages')}
         />
       </WireframeCard>
 
