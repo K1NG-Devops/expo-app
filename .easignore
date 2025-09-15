@@ -23,29 +23,24 @@ expo_logs.txt
 credentials.json
 @edudashpro__*.jks
 
-# Dev-only data and debug assets
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.mp4
-*.mov
-*.psd
-*.ai
-*.sketch
-
-# Supabase local config and migrations drafts (runtime doesn’t need these)
-supabase/.temp/
+# Dev-only heavy reports and debug outputs (be specific to avoid excluding needed assets)
+database-*.json
+database-inspection-*.json
+database-sql-inspection-*.json
 memory_cleanup_*/
+
+# Supabase local temp and migration drafts (not needed for build)
+supabase/.temp/
 migrations_drafts/
 server-examples/
 
-# Scripts and local reports
+# Scripts and local reports (optional to exclude)
 scripts/*.sh
 scripts/*.ts
 reports/
-*.md
-*.json
+
+# Keep assets (png/jpg) and config JSON files included for the app to bundle correctly
+# Do NOT add global patterns like *.png or *.json here.
 
 # VCS
 .git/
