@@ -2,6 +2,9 @@
   "name": "edudash-pro",
   "version": "1.0.0",
   "main": "expo-router/entry",
+  "expo": {
+    "entryPoint": "app.config.js"
+  },
   "scripts": {
     "start": "npx expo start --dev-client --host localhost",
     "start:clear": "npx expo start --dev-client --host localhost --clear",
