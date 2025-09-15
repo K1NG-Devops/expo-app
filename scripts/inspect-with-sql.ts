@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 
 // Load environment variables
-const SUPABASE_URL = 'https://lvvvjywrmpcqrpvuptdi.supabase.co';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_DB_URL || '';
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!SERVICE_ROLE_KEY) {

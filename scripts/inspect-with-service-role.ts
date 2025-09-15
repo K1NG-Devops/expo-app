@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 
 // Load environment variables
-const SUPABASE_URL = 'https://lvvvjywrmpcqrpvuptdi.supabase.co';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_DB_URL || '';
 
 // Service role will be provided as environment variable or command line argument
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.argv[2];
@@ -23,6 +23,10 @@ if (!SERVICE_ROLE_KEY) {
 
 // Create service role client (bypasses RLS)
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+if (!SUPABASE_URL) {
+  console.error('Missing SUPABASE URL env');
+  process.exit(1);
+}
 
 interface InspectionReport {
   timestamp: string;

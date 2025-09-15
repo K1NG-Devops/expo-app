@@ -3,9 +3,13 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client
-const supabaseUrl = 'https://rpbxqgsqgaqwctzzjxui.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJwYnhxZ3NxZ2Fxd2N0enpqeHVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzU4MjYyNTUsImV4cCI6MjA1MTQwMjI1NX0.49CJcXTq5AO0HPEkqiRhq8NbO3RqPXnRSfmYPK5wIjQ';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_DB_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
+if (!supabaseUrl || !supabaseKey) {
+  console.error('Missing Supabase env. Set EXPO_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function checkTables() {
