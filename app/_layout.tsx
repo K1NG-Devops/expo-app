@@ -202,6 +202,8 @@ export default function RootLayout() {
               <ThemedStackWrapper />
               {/* OTA update banner */}
               <UpdateBanner />
+              {/* Small badge to confirm OTA visually */}
+              <PreviewBadge />
               {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
             </SubscriptionProvider>
           </AuthProvider>
@@ -319,6 +321,34 @@ function UpdateBanner() {
       <TouchableOpacity style={styles.button} onPress={onUpdateNow} disabled={updating}>
         <Text style={styles.buttonText}>{updating ? 'Updating…' : 'Update now'}</Text>
       </TouchableOpacity>
+    </View>
+  );
+}
+
+// Small floating badge to visually confirm OTA
+function PreviewBadge() {
+  const { theme } = useTheme();
+  const styles = StyleSheet.create({
+    container: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    text: {
+      color: '#fff',
+      fontSize: 11,
+      fontWeight: '600',
+    }
+  })
+  // Show only on native platforms for clarity
+  if (Platform.OS === 'web') return null;
+  return (
+    <View style={styles.container} pointerEvents="none">
+      <Text style={styles.text}>Preview OTA test</Text>
     </View>
   );
 }
