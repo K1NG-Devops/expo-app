@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function TeacherInviteAcceptScreen() {
@@ -8,6 +8,13 @@ export default function TeacherInviteAcceptScreen() {
   const [token, setToken] = useState('');
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Prefill from deep link params if present
+  const params = useLocalSearchParams<{ token?: string; email?: string }>();
+  React.useEffect(() => {
+    if (typeof params?.token === 'string' && params.token) setToken(String(params.token));
+    if (typeof params?.email === 'string' && params.email) setEmail(String(params.email));
+  }, [params?.token, params?.email]);
 
   const onAccept = async () => {
     if (!user?.id) {

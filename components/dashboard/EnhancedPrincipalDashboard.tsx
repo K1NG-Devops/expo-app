@@ -735,6 +735,32 @@ onPress={() => router.push('/screens/financial-dashboard')}
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.optionItem}
+              onPress={() => {
+                setShowOptionsMenu(false);
+                router.push('/screens/principal-seat-management');
+              }}
+            >
+              <View style={styles.optionLeft}>
+                <Ionicons name="id-card" size={24} color={theme.success} />
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Seat Management</Text>
+                  <Text style={styles.optionSubtitle}>Assign or revoke teacher seats</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
+              <View style={styles.optionLeft}>
+                <Ionicons name="megaphone-outline" size={24} color={theme.accent} />
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>Create Announcement</Text>
+                  <Text style={styles.optionSubtitle}>Send messages to teachers & parents</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
