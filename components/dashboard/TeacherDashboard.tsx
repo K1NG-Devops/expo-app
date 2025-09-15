@@ -391,6 +391,25 @@ export const TeacherDashboard: React.FC = () => {
     </TouchableOpacity>
   );
 
+  const seatPendingBanner = (
+    <View style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D', borderWidth: 1, padding: 10, borderRadius: 10, marginBottom: 12 }}>
+      <Text style={{ color: '#92400E', fontWeight: '700' }}>Access Restricted</Text>
+      <Text style={{ color: '#92400E' }}>Your teacher seat is pending. Ask your administrator to assign a seat.</Text>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <TouchableOpacity style={{ backgroundColor: '#FDE68A', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }} onPress={() => router.push('/screens/account')}>
+          <Text style={{ color: '#92400E', fontWeight: '700' }}>Account</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ backgroundColor: '#FDE68A', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }} onPress={() => refresh()}>
+          <Text style={{ color: '#92400E', fontWeight: '700' }}>Refresh</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // Seat pending banner display: use profile from AuthContext
+  const { profile } = useAuth();
+  const showSeatPending = profile?.role && String(profile.role).toLowerCase().includes('teacher') && profile?.seat_status === 'pending';
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>

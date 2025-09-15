@@ -602,6 +602,14 @@ onPress={() => router.push('/screens/financial-dashboard')}
             <Ionicons name="people-circle" size={24} color={theme.primary} />
             <Text style={styles.actionText}>Parent Requests</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/screens/principal-seat-management')}
+          >
+            <Ionicons name="id-card" size={24} color={theme.success} />
+            <Text style={styles.actionText}>Seat Management</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={styles.actionsGrid}>
