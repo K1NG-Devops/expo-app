@@ -22,7 +22,9 @@
         "EXPO_PUBLIC_TENANT_SLUG": "preview",
         "EXPO_PUBLIC_WHATSAPP_API_ENABLED": "true",
         "EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER": "+27674770975",
-        "EXPO_PUBLIC_API_BASE": "https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1"
+        "EXPO_PUBLIC_API_BASE": "https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1",
+        "EXPO_PUBLIC_ENABLE_TEST_ADS": "true",
+        "EXPO_PUBLIC_ENABLE_ADS": "1"
       }
     },
     "production": {

@@ -88,8 +88,12 @@ export class PrincipalHubService {
           .eq('preschool_id', preschoolId)
           .eq('is_active', true),
 
-        // Pending applications (simulated - could be from a applications table)
-        Promise.resolve({ count: 3 }) // Mock data for now
+        // Pending applications from enrollment_applications
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('status', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .in('status', ['pending', 'in_review', 'new'])
       ]);
 
       // Attendance rate over last 30 days
@@ -254,16 +258,27 @@ export class PrincipalHubService {
     try {
       const supabase = assertSupabase();
 
-      // For now, simulate announcement creation since we need the announcements table
-      // This would use the principal_announcements table from our schema
-      console.log('Creating announcement:', {
+      // Normalize payload to match announcements table
+      const payload: any = {
         preschool_id: preschoolId,
         created_by: createdBy,
-        ...announcementData
-      });
+        title: announcementData.title ?? (announcementData.content?.slice(0, 100) || 'Announcement'),
+        content: announcementData.content,
+        audience: announcementData.target_audience || [],
+        priority: announcementData.priority ?? 'normal',
+        is_active: true,
+        scheduled_for: announcementData.scheduled_for ?? null,
+        expires_at: announcementData.expires_at ?? null,
+      };
 
-      // Simulate successful creation
-      return `announcement_${Date.now()}`;
+      const { data, error } = await supabase
+        .from('announcements')
+        .insert(payload)
+        .select('id')
+        .single();
+
+      if (error) throw error;
+      return String((data as any).id);
     } catch (error) {
       console.error('Failed to create announcement:', error);
       throw new Error('Failed to create announcement');
@@ -309,17 +324,53 @@ export class PrincipalHubService {
    */
   static async getEnrollmentPipeline(preschoolId: string) {
     try {
-      // Mock implementation - would integrate with applications/enquiries table
-      return {
-        new_applications: 5,
-        in_review: 3,
-        approved: 2,
-        enrolled_this_month: 4,
-        waiting_list: 1
+      const supabase = assertSupabase();
+
+      // Fetch recent applications (last 90 days) and compute pipeline counts
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: apps, error } = await supabase
+        .from('enrollment_applications')
+        .select('status, created_at, decision, enrolled_at')
+        .eq('preschool_id', preschoolId)
+        .gte('created_at', ninetyDaysAgo);
+
+      if (error) throw error;
+
+      const pipeline = {
+        new_applications: 0,
+        in_review: 0,
+        approved: 0,
+        enrolled_this_month: 0,
+        waiting_list: 0,
       };
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      (apps || []).forEach((a: any) => {
+        const status = String(a.status || '').toLowerCase();
+        if (status === 'pending' || status === 'new') pipeline.new_applications++;
+        else if (status === 'in_review' || status === 'review') pipeline.in_review++;
+        else if (status === 'approved') pipeline.approved++;
+        else if (status === 'waitlisted' || status === 'waiting_list') pipeline.waiting_list++;
+
+        if (a.enrolled_at) {
+          const enrolledAt = new Date(a.enrolled_at);
+          if (enrolledAt >= monthStart) pipeline.enrolled_this_month++;
+        }
+      });
+
+      return pipeline;
     } catch (error) {
       console.error('Failed to fetch enrollment pipeline:', error);
-      throw new Error('Failed to load enrollment data');
+      // Safe fallback
+      return {
+        new_applications: 0,
+        in_review: 0,
+        approved: 0,
+        enrolled_this_month: 0,
+        waiting_list: 0,
+      };
     }
   }
 

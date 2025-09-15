@@ -729,6 +729,13 @@ export default function SignIn() {
           </>
         )}
 
+        <TouchableOpacity
+          style={styles.link}
+          onPress={() => router.push('/screens/teacher-invite-accept')}
+        >
+          <Text style={styles.linkText}>Have an invite token? Accept it</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.link} onPress={() => router.back()}>
           <Text style={styles.linkText}>Back</Text>
         </TouchableOpacity>

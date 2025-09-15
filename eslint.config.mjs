@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import parser from '@typescript-eslint/parser';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
   js.configs.recommended,
@@ -31,6 +32,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': typescript,
+      'react-hooks': reactHooks,
     },
     rules: {
       // Allow any for scaffolded/generated code
@@ -42,6 +44,12 @@ export default [
       'no-empty': 'warn', // Allow empty blocks in scaffolded code
       'no-unused-vars': 'off',
       'no-undef': 'off', // Let TypeScript handle this
+      // React hooks best practices
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+      // Relax rules that conflict with current serverless patterns
+      'no-useless-catch': 'off',
+      'no-prototype-builtins': 'off',
     },
   },
   {

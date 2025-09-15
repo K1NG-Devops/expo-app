@@ -71,6 +71,25 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
     actionText: isSmallDevice ? 9 : 10,
   }), [isSmallDevice])
 
+  // Compute a sensible max height for the inner scroller to avoid taking the whole screen
+  const accordionMaxHeight = useMemo(() => {
+    // Estimate per-card height if not measured yet
+    const EST_CARD = isSmallDevice ? 156 : 168
+    const MAX_VISIBLE = (height < 700 || width < 360) ? 2 : 3
+    const count = Math.min(childrenData.length, MAX_VISIBLE)
+    const perCard = cardHeight || EST_CARD
+    // Include vertical margins between cards and padding
+    const verticalGaps = Math.max(0, count - 1) * 12
+    const padding = isSmallDevice ? 20 : 24
+    const computed = perCard * count + verticalGaps + padding
+    // Cap scales by device height and width
+    const capBase = height < 700 ? height * 0.7 : height * 0.8
+    const cap = Math.min(capBase, width < 360 ? 560 : 640)
+    // Enforce a sensible minimum
+    const minH = width < 360 ? 180 : 220
+    return Math.max(Math.min(computed, cap), minH)
+  }, [childrenData.length, cardHeight, height, width, isSmallDevice])
+
   // Configure layout animation for smooth accordion transitions
   React.useEffect(() => {
     if (Platform.OS === 'ios') {
@@ -333,25 +352,6 @@ export const EnhancedChildrenGrid: React.FC<EnhancedChildrenGridProps> = ({
       </View>
     )
   }
-
-  // Compute a sensible max height for the inner scroller to avoid taking the whole screen
-  const accordionMaxHeight = useMemo(() => {
-    // Estimate per-card height if not measured yet
-    const EST_CARD = isSmallDevice ? 156 : 168
-    const MAX_VISIBLE = (height < 700 || width < 360) ? 2 : 3
-    const count = Math.min(childrenData.length, MAX_VISIBLE)
-    const perCard = cardHeight || EST_CARD
-    // Include vertical margins between cards and padding
-    const verticalGaps = Math.max(0, count - 1) * 12
-    const padding = isSmallDevice ? 20 : 24
-    const computed = perCard * count + verticalGaps + padding
-    // Cap scales by device height and width
-    const capBase = height < 700 ? height * 0.7 : height * 0.8
-    const cap = Math.min(capBase, width < 360 ? 560 : 640)
-    // Enforce a sensible minimum
-    const minH = width < 360 ? 180 : 220
-    return Math.max(Math.min(computed, cap), minH)
-  }, [childrenData.length, cardHeight, height, width, isSmallDevice])
 
   return (
     <View style={styles.container}>

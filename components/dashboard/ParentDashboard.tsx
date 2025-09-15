@@ -28,7 +28,7 @@ import { RoleBasedHeader } from '../RoleBasedHeader';
 // WhatsApp integration
 // Prefer real hook when available; otherwise gracefully degrade
 import { useWhatsAppConnection as useRealWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
-const useMockWhatsAppConnection = () => ({
+const getMockWhatsAppConnection = () => ({
   connectionStatus: { isConnected: false, isLoading: false, error: undefined },
   isLoading: false,
   error: undefined,
@@ -81,13 +81,8 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const tier = useTier();
   
   // WhatsApp integration
-  const whatsApp = (() => {
-    try {
-      return useRealWhatsAppConnection();
-    } catch {
-      return useMockWhatsAppConnection();
-    }
-  })();
+  const realWhatsApp = useRealWhatsAppConnection();
+  const whatsApp = realWhatsApp || getMockWhatsAppConnection();
 
   // Create profile initials for avatar
 

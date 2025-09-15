@@ -8,6 +8,7 @@ import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
+import * as Updates from 'expo-updates';
 import { assertSupabase } from '@/lib/supabase';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
@@ -199,8 +200,9 @@ export default function RootLayout() {
             {/* Wrap in SubscriptionProvider so screens can access subscription data */}
             <SubscriptionProvider>
               <ThemedStackWrapper />
-
-            {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+              {/* OTA update banner */}
+              <UpdateBanner />
+              {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
             </SubscriptionProvider>
           </AuthProvider>
         </QueryProvider>
@@ -242,6 +244,81 @@ function ThemedLoadingScreen() {
       <ActivityIndicator size="large" color={theme.primary} />
       <Text style={styles.loadingText}>Initializing EduDash Pro...</Text>
       <Text style={styles.subText}>Setting up monitoring, session management, and feature flags</Text>
+    </View>
+  );
+}
+
+// OTA Update Banner Component
+function UpdateBanner() {
+  const { theme } = useTheme();
+  const [available, setAvailable] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return; // updates not relevant on web
+    let mounted = true;
+    (async () => {
+      try {
+        setChecking(true);
+        const res = await Updates.checkForUpdateAsync();
+        if (mounted && res?.isAvailable) setAvailable(true);
+      } catch {
+        // ignore
+      } finally {
+        if (mounted) setChecking(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  const onUpdateNow = async () => {
+    try {
+      setUpdating(true);
+      await Updates.fetchUpdateAsync();
+      await Updates.reloadAsync();
+    } catch {
+      setUpdating(false);
+    }
+  };
+
+  if (Platform.OS === 'web' || !available) return null;
+
+  const styles = StyleSheet.create({
+    container: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    text: {
+      color: '#fff',
+      fontWeight: '600',
+    },
+    button: {
+      backgroundColor: 'rgba(255,255,255,0.15)',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 6,
+    },
+    buttonText: {
+      color: '#fff',
+      fontWeight: '700',
+    },
+  });
+
+  return (
+    <View style={styles.container} accessibilityRole="alert">
+      <Text style={styles.text}>{checking ? 'Checking for updates…' : 'An update is available'}</Text>
+      <TouchableOpacity style={styles.button} onPress={onUpdateNow} disabled={updating}>
+        <Text style={styles.buttonText}>{updating ? 'Updating…' : 'Update now'}</Text>
+      </TouchableOpacity>
     </View>
   );
 }

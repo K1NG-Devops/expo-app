@@ -21,6 +21,7 @@ import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
+import { TeacherInviteService } from '@/lib/services/teacherInviteService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { navigateBack } from '@/lib/navigation';
 
@@ -82,6 +83,22 @@ interface Teacher {
 
 type TeacherManagementView = 'overview' | 'hiring' | 'performance' | 'payroll' | 'documents' | 'profile';
 
+interface Candidate {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  appliedFor: string;
+  applicationDate: string;
+  status: 'applied' | 'screening' | 'interview' | 'offer' | 'hired' | 'rejected';
+  qualifications: string[];
+  experience: number;
+  expectedSalary: number;
+  availableFrom: string;
+  notes: string;
+}
+
 interface HiringCandidate {
   id: string;
   firstName: string;
@@ -101,7 +118,8 @@ interface HiringCandidate {
 export default function TeacherManagement() {
   const { user, profile } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [candidates, setCandidates] = useState<HiringCandidate[]>([]);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [invites, setInvites] = useState<Array<{ id: string; email: string; status: string; created_at: string }>>([]);
   const [currentView, setCurrentView] = useState<TeacherManagementView>('overview');
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(false);
@@ -232,10 +250,23 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
   }, [getPreschoolId]);
   
   useEffect(() => {
+    loadInvites();
     fetchTeachers();
   }, [fetchTeachers]);
 
   const [showInviteModal, setShowInviteModal] = useState(false);
+
+
+  const loadInvites = async () => {
+    try {
+      const schoolId = getPreschoolId();
+      if (!schoolId) return;
+      const list = await TeacherInviteService.listInvites(schoolId);
+      setInvites(list.map(i => ({ id: i.id, email: i.email, status: i.status, created_at: i.created_at })));
+    } catch {
+      // ignore
+    }
+  };
   const [inviteEmail, setInviteEmail] = useState('');
 
   const handleAddTeacher = () => {
@@ -548,6 +579,48 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
 
         {currentView === 'hiring' && (
           <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Hiring Pipeline</Text>
+              <Text style={styles.sectionSubtitle}>{candidates.length} candidates in pipeline</Text>
+            </View>
+            {/* Invites list */}
+            <View style={[styles.sectionHeader, { marginTop: 8 }] }>
+              <Text style={styles.sectionTitle}>Invitations</Text>
+              <Text style={styles.sectionSubtitle}>{invites.length} invites</Text>
+            </View>
+            <FlatList
+              data={invites}
+              keyExtractor={(i) => i.id}
+              renderItem={({ item }) => (
+                <View style={styles.candidateCard}>
+                  <View style={styles.candidateHeader}>
+                    <View style={styles.candidateInfo}>
+                      <Text style={styles.candidateName}>{item.email}</Text>
+                      <Text style={styles.candidateEmail}>Status: {item.status}</Text>
+                    </View>
+                    {item.status === 'pending' && (
+                      <TouchableOpacity
+style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}
+                        onPress={async () => {
+                          try {
+                            await TeacherInviteService.revoke(item.id)
+                            await loadInvites()
+                          } catch (e: any) {
+                            Alert.alert('Error', e?.message || 'Failed to revoke invite')
+                          }
+                        }}
+                      >
+                        <Ionicons name="trash" size={18} color="#dc2626" />
+<Text style={{ color: '#dc2626', fontWeight: '700' }}>Revoke</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={<Text style={styles.sectionSubtitle}>No invites yet</Text>}
+            />
+
+            {/* Candidates pipeline */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Hiring Pipeline</Text>
               <Text style={styles.sectionSubtitle}>{candidates.length} candidates in pipeline</Text>
@@ -1192,6 +1265,11 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginLeft: 6,
   },
+  btn: { alignItems: 'center', padding: 12, borderRadius: 12 },
+  btnPrimary: { backgroundColor: '#00f5ff' },
+  btnPrimaryText: { color: '#000', fontWeight: '800' },
+  btnDanger: { backgroundColor: '#ff0080' },
+  btnDangerText: { color: '#000', fontWeight: '800' },
   docCompleteText: {
     color: '#065f46',
   },

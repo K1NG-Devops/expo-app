@@ -7,7 +7,11 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
-  }),
+    // New Expo SDK requires these fields
+    // See: https://docs.expo.dev/versions/latest/sdk/notifications/
+    shouldShowBanner: true,
+    shouldShowList: true,
+  } as Notifications.NotificationBehavior),
 })
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {

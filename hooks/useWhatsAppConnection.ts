@@ -177,26 +177,57 @@ export const useWhatsAppConnection = () => {
         throw new Error('WhatsApp not connected')
       }
 
-      // Call WhatsApp send Edge Function
-      const { data, error } = await assertSupabase().functions.invoke('whatsapp-send', {
+      const contactId = connectionStatus.contact.id
+      const parentName = profile?.first_name || 'Parent'
+
+      // 1) Try template first
+      try {
+        const tmpl = await assertSupabase().functions.invoke('whatsapp-send', {
+          body: {
+            contact_id: contactId,
+            message_type: 'template',
+            template_name: 'welcome_parent', // To be approved later
+            template_params: [parentName]
+          }
+        })
+
+        if (!tmpl.error && tmpl.data?.success !== false) {
+          // Track template send
+          track('edudash.whatsapp.test_message_sent', {
+            user_id: user?.id,
+            preschool_id: profile?.organization_id,
+            timestamp: new Date().toISOString(),
+            method: 'template'
+          })
+          return tmpl.data
+        }
+      } catch (e) {
+        // fall through to text fallback
+      }
+
+      // 2) Fallback to plain text to ensure QA works even without templates
+      const textBody = `Hello ${parentName}! 👋\n\nThis is a test message from EduDash Pro to confirm your WhatsApp connection. You’ll receive school updates here. Reply STOP to opt out.`
+      const txt = await assertSupabase().functions.invoke('whatsapp-send', {
         body: {
-          contact_id: connectionStatus.contact.id,
-          message_type: 'template',
-          template_name: 'welcome_parent', // Assumes we have this template
-          template_params: [profile?.first_name || 'Parent']
+          contact_id: contactId,
+          message_type: 'text',
+          content: textBody,
         }
       })
 
-      if (error) throw error
+      if (txt.error || txt.data?.success === false) {
+        throw new Error(txt.error?.message || (txt.data && (txt.data as any).error) || 'Failed to send text fallback')
+      }
 
-      // Track test message
+      // Track text fallback
       track('edudash.whatsapp.test_message_sent', {
         user_id: user?.id,
         preschool_id: profile?.organization_id,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        method: 'text_fallback'
       })
 
-      return data
+      return txt.data
     },
     onError: (error) => {
       console.error('Test message failed:', error)

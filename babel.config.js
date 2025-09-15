@@ -6,7 +6,8 @@ module.exports = function (api) {
       [
         'module-resolver',
         {
-          root: ['.'],
+          // Avoid transforming relative imports inside node_modules (e.g., '.' in react-native-svg)
+          // Only provide explicit aliases we actually use
           alias: { '@': './', tslib: './node_modules/tslib/tslib.js' },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },

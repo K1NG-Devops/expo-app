@@ -6,9 +6,6 @@ import { EnhancedBiometricAuth } from '@/services/EnhancedBiometricAuth';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { BiometricBackupManager } from '@/lib/BiometricBackupManager';
 
-export async function signOutAndRedirect(): Promise<void>;
-export async function signOutAndRedirect(event: any): Promise<void>;
-export async function signOutAndRedirect(options: { clearBiometrics?: boolean; redirectTo?: string }): Promise<void>;
 export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: boolean; redirectTo?: string } | any): Promise<void> {
   try {
     // Sign out via unified session manager: clears stored session/profile and Supabase auth

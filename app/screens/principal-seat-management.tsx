@@ -10,8 +10,9 @@ import { router } from 'expo-router';
 
 export default function PrincipalSeatManagementScreen() {
   const params = useLocalSearchParams<{ school?: string }>();
-  const schoolId = (params?.school ? String(params.school) : null);
+  const routeSchoolId = (params?.school ? String(params.school) : null);
   const { seats, assignSeat, revokeSeat } = useSubscription();
+  const [effectiveSchoolId, setEffectiveSchoolId] = useState<string | null>(routeSchoolId);
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [teacherEmail, setTeacherEmail] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -19,30 +20,80 @@ export default function PrincipalSeatManagementScreen() {
   const [error, setError] = useState<string | null>(null);
   const [teachers, setTeachers] = useState<{ id: string; email: string; hasSeat: boolean }[]>([]);
 
+  // Resolve the school id if not provided in the route
+  useEffect(() => {
+    (async () => {
+      if (effectiveSchoolId) return; // already set from route
+      try {
+        // Try user metadata first
+        const { data: userRes } = await assertSupabase().auth.getUser();
+        const metaSchool = (userRes?.user?.user_metadata as any)?.preschool_id as string | undefined;
+        if (metaSchool) { setEffectiveSchoolId(metaSchool); return; }
+        // Fallback to profiles table
+        if (userRes?.user?.id) {
+          const { data: prof } = await assertSupabase()
+            .from('profiles')
+            .select('preschool_id')
+            .eq('id', userRes.user.id)
+            .maybeSingle();
+          if (prof?.preschool_id) { setEffectiveSchoolId(prof.preschool_id); }
+        }
+      } catch (e) {
+        console.debug('Failed to resolve school id:', e);
+      }
+    })();
+  }, [effectiveSchoolId]);
+
   const loadSubscription = useCallback(async () => {
-    if (!schoolId) return;
+    if (!effectiveSchoolId) return;
     try {
       setLoading(true); setError(null);
-      const { data, error } = await assertSupabase().from('subscriptions').select('id').eq('owner_type','school').eq('school_id', schoolId).maybeSingle();
+      const { data, error } = await assertSupabase().from('subscriptions').select('id').eq('owner_type','school').eq('school_id', effectiveSchoolId).maybeSingle();
       if (!error && data) setSubscriptionId((data as any).id);
     } catch (e: any) { setError(e?.message || 'Load failed'); }
     finally { setLoading(false); }
-  }, [schoolId]);
+  }, [effectiveSchoolId]);
 
   useEffect(() => { loadSubscription(); }, [loadSubscription]);
 
   const loadTeachers = useCallback(async () => {
-    if (!schoolId || !subscriptionId) return;
+    if (!effectiveSchoolId) return;
     try {
-      const { data: profs } = await assertSupabase().from('profiles').select('id,email,role,preschool_id').eq('preschool_id', schoolId).eq('role', 'teacher');
-      const teacherList: { id: string; email: string; hasSeat: boolean }[] = (profs || []).map((p: any) => ({ id: p.id, email: p.email, hasSeat: false }));
-      const { data: seatsRows } = await assertSupabase().from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
-      const seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
+      // Fetch teacher identities from profiles first
+      const { data: profs, error: profErr } = await assertSupabase()
+        .from('profiles')
+        .select('id,email,role,preschool_id')
+        .eq('preschool_id', effectiveSchoolId)
+        .eq('role', 'teacher');
+
+      let teacherList: { id: string; email: string; hasSeat: boolean }[] = (profs || []).map((p: any) => ({ id: p.id, email: p.email, hasSeat: false }));
+
+      // If none found (schema variance), fall back to users table by auth_user_id
+      if ((!teacherList || teacherList.length === 0)) {
+        try {
+          const { data: users } = await assertSupabase()
+            .from('users')
+            .select('id, auth_user_id, email, role, preschool_id')
+            .eq('preschool_id', effectiveSchoolId)
+            .eq('role', 'teacher');
+          teacherList = (users || []).map((u: any) => ({ id: u.auth_user_id || u.id, email: u.email, hasSeat: false }));
+        } catch (fallbackErr) {
+          console.debug('Fallback users query failed:', fallbackErr);
+        }
+      }
+
+      // Overlay seat assignment if we have a subscription id
+      let seatSet = new Set<string>();
+      if (subscriptionId) {
+        const { data: seatsRows } = await assertSupabase().from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
+        seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
+      }
+
       setTeachers(teacherList.map(t => ({ ...t, hasSeat: seatSet.has(t.id) })));
     } catch (e) {
       console.debug('Failed to load teachers for seat management', e);
     }
-  }, [schoolId, subscriptionId]);
+  }, [effectiveSchoolId, subscriptionId]);
 
   useEffect(() => { loadTeachers(); }, [loadTeachers]);
 
@@ -52,6 +103,9 @@ export default function PrincipalSeatManagementScreen() {
     try {
       const { data } = await assertSupabase().from('profiles').select('id,role,preschool_id').eq('email', email).maybeSingle();
       if (data && (data as any).id) return (data as any).id as string;
+      // Fallback to users table if profiles lookup fails
+      const { data: u } = await assertSupabase().from('users').select('auth_user_id,email').eq('email', email).maybeSingle();
+      if (u && (u as any).auth_user_id) return (u as any).auth_user_id as string;
       return null;
     } catch { return null; }
   };
@@ -82,7 +136,7 @@ export default function PrincipalSeatManagementScreen() {
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
       <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}>
         <Text style={styles.title}>Manage Seats</Text>
-        <Text style={styles.subtitle}>School: {schoolId || '—'}</Text>
+        <Text style={styles.subtitle}>School: {effectiveSchoolId || '—'}</Text>
         <Text style={styles.subtitle}>Seats: {seats ? `${seats.used}/${seats.total}` : '—'}</Text>
 
         {loading ? <Text style={styles.info}>Loading subscription…</Text> : null}
