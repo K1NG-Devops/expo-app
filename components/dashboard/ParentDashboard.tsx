@@ -96,6 +96,8 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const showBanner = isAndroid && adsEnabled && tier === 'free';
 
   // Load dashboard data
+  const [childrenCards, setChildrenCards] = useState<any[]>([]);
+
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
@@ -112,6 +114,102 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
           .limit(5);
         const realChildren = studentsData || [];
         setChildren(realChildren);
+
+        // Derive child cards with real metrics (attendance-based progress, homework pending, upcoming events)
+        const nowIso = new Date().toISOString();
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        async function buildCard(child: any) {
+          let lastActivity: Date = new Date();
+          let status: 'active' | 'absent' | 'late' = 'active';
+          let progressScore = 75;
+          let homeworkPending = 0;
+          let upcomingEvents = 0;
+
+          try {
+            // Attendance: latest record and 30-day rate
+            const { data: latestAtt } = await client
+              .from('attendance_records')
+              .select('status, date, created_at')
+              .eq('student_id', child.id)
+              .order('date', { ascending: false })
+              .limit(1);
+            if (latestAtt && latestAtt[0]) {
+              lastActivity = new Date(latestAtt[0].created_at || latestAtt[0].date);
+              const st = String(latestAtt[0].status || '').toLowerCase();
+              status = st === 'late' ? 'late' : st === 'absent' ? 'absent' : 'active';
+            }
+            const { data: windowAtt } = await client
+              .from('attendance_records')
+              .select('status')
+              .eq('student_id', child.id)
+              .gte('date', thirtyDaysAgo)
+              .limit(1000);
+            if (windowAtt && windowAtt.length > 0) {
+              const present = windowAtt.filter((a: any) => String(a.status).toLowerCase() === 'present').length;
+              const ratio = present / windowAtt.length; // 0..1
+              progressScore = Math.max(60, Math.min(100, Math.round(60 + ratio * 40)));
+            }
+          } catch {}
+
+          try {
+            // Homework pending: assignments for class not yet submitted by this child
+            if (child.class_id) {
+              const { data: assignments } = await client
+                .from('homework_assignments')
+                .select('id, due_date')
+                .eq('class_id', child.class_id)
+                .gte('due_date', new Date(Date.now() - 7*24*60*60*1000).toISOString())
+                .lte('due_date', new Date(Date.now() + 14*24*60*60*1000).toISOString());
+              const assignmentIds = (assignments || []).map((a: any) => a.id);
+              if (assignmentIds.length > 0) {
+                const { data: subs } = await client
+                  .from('homework_submissions')
+                  .select('assignment_id')
+                  .eq('student_id', child.id)
+                  .in('assignment_id', assignmentIds);
+                const submittedSet = new Set((subs || []).map((s: any) => s.assignment_id));
+                homeworkPending = assignmentIds.filter((id: string) => !submittedSet.has(id)).length;
+              } else {
+                homeworkPending = 0;
+              }
+            }
+          } catch {
+            homeworkPending = 0;
+          }
+
+          try {
+            // Upcoming events: attempt class_events, fallback to 0
+            if (child.class_id) {
+              const { data: events } = await client
+                .from('class_events')
+                .select('id, start_time')
+                .eq('class_id', child.class_id)
+                .gte('start_time', nowIso)
+                .limit(3);
+              upcomingEvents = (events || []).length;
+            }
+          } catch {
+            upcomingEvents = 0;
+          }
+
+          return {
+            id: child.id,
+            firstName: child.first_name,
+            lastName: child.last_name,
+            age: 5,
+            grade: t('students.preschool'),
+            className: child.class_id ? `Class ${String(child.class_id).slice(-4)}` : undefined,
+            lastActivity,
+            homeworkPending,
+            upcomingEvents,
+            progressScore,
+            status,
+          };
+        }
+
+        const cards = await Promise.all(realChildren.map(buildCard));
+        setChildrenCards(cards);
 
         // Load AI usage for this month
         const startOfMonth = new Date();
@@ -136,7 +234,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, t]);
 
   useEffect(() => {
     loadDashboardData();
@@ -769,19 +867,7 @@ case 'homework':
 
         {/* Enhanced Children Grid */}
         <EnhancedChildrenGrid
-          childrenData={children.map(child => ({
-            id: child.id,
-            firstName: child.first_name,
-            lastName: child.last_name,
-            age: 5, // Default preschool age
-            grade: t('students.preschool'),
-            className: child.class_id ? `Class ${child.class_id.slice(-4)}` : undefined,
-            lastActivity: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000), // Mock recent activity
-            homeworkPending: Math.floor(Math.random() * 4), // Mock homework count
-            upcomingEvents: Math.floor(Math.random() * 3), // Mock events
-            progressScore: Math.floor(60 + Math.random() * 40), // Mock progress 60-100%
-            status: Math.random() > 0.8 ? 'absent' : Math.random() > 0.9 ? 'late' : 'active'
-          }))}
+          childrenData={childrenCards}
           loading={loading}
           onChildPress={(child) => {
             track('child_details_view', { child_id: child.id, source: 'dashboard_grid' });

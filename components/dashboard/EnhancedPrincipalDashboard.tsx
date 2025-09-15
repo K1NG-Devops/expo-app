@@ -441,7 +441,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#059669' + '10' }]}
-            onPress={() => router.push('/screens/financial-transactions')}
+onPress={() => router.push('/screens/financial-dashboard')}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#059669' }]}>
               <Ionicons name="list" size={20} color="white" />
