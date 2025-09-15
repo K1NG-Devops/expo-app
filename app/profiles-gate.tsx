@@ -18,7 +18,7 @@ import { fetchEnhancedUserProfile, type Role } from '@/lib/rbac';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 const ROLES = [
   {
@@ -121,8 +121,8 @@ export default function ProfilesGateScreen() {
       // First, try to update the user's profile/metadata with selected role
       try {
         // Update user metadata to persist the selected role
-        if (supabase) {
-          const { error: updateError } = await supabase.auth.updateUser({
+        try {
+          const { error: updateError } = await assertSupabase().auth.updateUser({
             data: { 
               role: selectedRole,
               profile_completed: true,
@@ -135,7 +135,7 @@ export default function ProfilesGateScreen() {
           } else {
             console.log('Successfully updated user metadata with role:', selectedRole);
           }
-        }
+        } catch {}
 
       } catch (metadataError) {
         console.error('Error updating user metadata:', metadataError);

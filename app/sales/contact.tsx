@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, View, Text, TextInput, Touc
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
@@ -51,10 +51,10 @@ export default function SalesContactScreen() {
       }
       setSubmitting(true);
       track('enterprise_cta_submitted', { plan: form.plan_interest, role: roleNorm });
-      const { error } = await supabase!.from('enterprise_leads').insert({ ...form });
+      const { error } = await assertSupabase().from('enterprise_leads').insert({ ...form });
       if (error) throw error;
       try {
-        await supabase!.functions.invoke('send-email', {
+        await assertSupabase().functions.invoke('send-email', {
           body: {
             to: process.env.EXPO_PUBLIC_SALES_EMAIL || process.env.EXPO_PUBLIC_SUPPORT_EMAIL,
             template: 'enterprise_lead',

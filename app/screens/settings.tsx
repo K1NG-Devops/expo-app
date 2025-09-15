@@ -13,7 +13,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
 import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
-import { supabase } from "@/lib/supabase";
+import { assertSupabase } from "@/lib/supabase";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
@@ -190,7 +190,7 @@ export default function SettingsScreen() {
     }
 
     try {
-      const { data } = await supabase!.auth.getUser();
+      const { data } = await assertSupabase().auth.getUser();
       const user = data.user;
 
       if (!user) {
@@ -302,6 +302,11 @@ export default function SettingsScreen() {
               style={[styles.settingItem]}
               onPress={() => {
                 if (biometricSupported && biometricEnrolled) {
+                  // Open switch account picker quickly from settings if biometrics enabled
+                  if (biometricEnabled) {
+                    router.push('/(auth)/sign-in?switch=1');
+                    return;
+                  }
                   // Toggle biometric authentication
                   toggleBiometric();
                 } else {

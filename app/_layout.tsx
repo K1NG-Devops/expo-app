@@ -8,7 +8,7 @@ import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 // Initialize i18n
@@ -35,7 +35,7 @@ export default function RootLayout() {
           // Determine if a session exists
           let hasSession = false;
           try {
-            const { data } = await supabase!.auth.getSession();
+            const { data } = await assertSupabase().auth.getSession();
             hasSession = !!data.session?.user;
     } catch (error) {
             hasSession = false;
@@ -141,19 +141,26 @@ export default function RootLayout() {
 
   const validateEnvironment = () => {
     const flags = getFeatureFlagsSync();
-    const requiredEnvVars = [
+
+    const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true';
+    const sentryEnabled = process.env.EXPO_PUBLIC_SENTRY_ENABLED !== 'false' && !telemetryDisabled;
+    const posthogEnabled = process.env.EXPO_PUBLIC_POSTHOG_ENABLED !== 'false' && !telemetryDisabled;
+
+    const alwaysRequired = [
       'EXPO_PUBLIC_SUPABASE_URL',
       'EXPO_PUBLIC_SUPABASE_ANON_KEY',
-      'EXPO_PUBLIC_SENTRY_DSN',
-      'EXPO_PUBLIC_POSTHOG_KEY',
     ];
-    
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    
+
+    const maybeRequired: string[] = [];
+    if (sentryEnabled) maybeRequired.push('EXPO_PUBLIC_SENTRY_DSN');
+    if (posthogEnabled) maybeRequired.push('EXPO_PUBLIC_POSTHOG_KEY');
+
+    const missingVars = [...alwaysRequired, ...maybeRequired].filter(varName => !process.env[varName]);
+
     if (missingVars.length > 0) {
       console.warn('⚠️  Missing environment variables:', missingVars);
     }
-    
+
     // Validate Android-only testing configuration
     if (flags.android_only_mode) {
       console.log('📋 Android-only testing mode validated:');
@@ -161,6 +168,7 @@ export default function RootLayout() {
       console.log('  - Production DB as dev:', flags.production_db_dev_mode);
       console.log('  - AdMob test IDs only:', flags.admob_test_ids);
       console.log('  - PII scrubbing enabled:', process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED);
+      console.log('  - Telemetry disabled:', telemetryDisabled);
     }
   };
 
@@ -283,7 +291,7 @@ function ThemedErrorScreen({ error }: { error: string }) {
 // Themed Lock Screen Component  
 function ThemedLockScreen({ onUnlock }: { onUnlock: () => void }) {
   const { theme, isDark } = useTheme();
-  const { t } = require('react-i18next').useTranslation();
+  const { t } = require('react-i18next').useTranslation('common');
   
   const styles = StyleSheet.create({
     overlay: {

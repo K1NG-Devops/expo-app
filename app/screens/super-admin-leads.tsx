@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, T
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
 const STATUSES = ['new','contacted','qualified','proposal','closed-won','closed-lost'] as const;
@@ -22,7 +22,7 @@ export default function SuperAdminLeadsScreen() {
   const fetchLeads = useCallback(async () => {
     try {
       setLoading(true);
-      let q = supabase!.from('enterprise_leads').select('*').order('created_at', { ascending: false });
+      let q = assertSupabase().from('enterprise_leads').select('*').order('created_at', { ascending: false });
       if (filter !== 'all') {
         q = q.eq('status', filter);
       }
@@ -40,7 +40,7 @@ export default function SuperAdminLeadsScreen() {
 
   const updateStatus = async (id: string, status: typeof STATUSES[number]) => {
     try {
-      const { error } = await supabase!.from('enterprise_leads').update({ status }).eq('id', id);
+      const { error } = await assertSupabase().from('enterprise_leads').update({ status }).eq('id', id);
       if (!error) {
         track('lead_status_changed', { id, status });
         setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, status } : l)));
@@ -109,22 +109,22 @@ export default function SuperAdminLeadsScreen() {
                     try {
                       const seatsNum = Math.max(1, parseInt(convertForm.seats || '1', 10) || 1);
                       // Create school
-                      const { data: schoolIns, error: schoolErr } = await supabase!.from('preschools').insert({ name: convertForm.org || lead.organization_name, country: convertForm.country || lead.country }).select('id').maybeSingle();
+                      const { data: schoolIns, error: schoolErr } = await assertSupabase().from('preschools').insert({ name: convertForm.org || lead.organization_name, country: convertForm.country || lead.country }).select('id').maybeSingle();
                       if (schoolErr) throw schoolErr;
                       const schoolId = (schoolIns as any)?.id;
                       if (!schoolId) throw new Error('No school id');
                       // Create enterprise subscription
-                      const { error: subErr } = await supabase!.from('subscriptions').insert({ owner_type: 'school', school_id: schoolId, plan: 'enterprise', seats_total: seatsNum, seats_used: 0 });
+                      const { error: subErr } = await assertSupabase().from('subscriptions').insert({ owner_type: 'school', school_id: schoolId, plan: 'enterprise', seats_total: seatsNum, seats_used: 0 });
                       if (subErr) throw subErr;
                       // Optionally link principal
                       if (convertForm.principalEmail) {
-                        const { data: prof } = await supabase!.from('profiles').select('id,role').eq('email', convertForm.principalEmail).maybeSingle();
+                        const { data: prof } = await assertSupabase().from('profiles').select('id,role').eq('email', convertForm.principalEmail).maybeSingle();
                         if (prof && (prof as any).id) {
-                          await supabase!.from('profiles').update({ preschool_id: schoolId, role: (prof as any).role === 'superadmin' ? (prof as any).role : 'principal' }).eq('id', (prof as any).id);
+                          await assertSupabase().from('profiles').update({ preschool_id: schoolId, role: (prof as any).role === 'superadmin' ? (prof as any).role : 'principal' }).eq('id', (prof as any).id);
                         }
                       }
                       // Mark lead as closed-won
-                      await supabase!.from('enterprise_leads').update({ status: 'closed-won' }).eq('id', lead.id);
+                      await assertSupabase().from('enterprise_leads').update({ status: 'closed-won' }).eq('id', lead.id);
                       track('lead_converted_to_school', { lead_id: lead.id, school_id: schoolId, seats: seatsNum });
                       Alert.alert('Success', 'School and subscription provisioned.');
                       setConvertOpenFor(null);

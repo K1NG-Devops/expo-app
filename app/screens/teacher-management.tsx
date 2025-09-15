@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { navigateBack } from '@/lib/navigation';
 
@@ -116,225 +116,13 @@ export default function TeacherManagement() {
     return user?.user_metadata?.preschool_id || null;
   }, [profile, user]);
 
-  const mockTeachers: Teacher[] = [
-    {
-      id: '1',
-      employeeId: 'EMP001',
-      firstName: 'Sarah',
-      lastName: 'Johnson',
-      email: 'sarah.johnson@school.com',
-      phone: '+27 82 123 4567',
-      address: '123 Oak Street, Cape Town, 7700',
-      idNumber: '8501234567089',
-      status: 'active',
-      contractType: 'permanent',
-      classes: ['Grade R-A', 'Grade R-B'],
-      subjects: ['Early Childhood Development', 'Numeracy', 'Literacy'],
-      qualifications: ['B.Ed Early Childhood', 'TEFL Certificate'],
-      hireDate: '2023-01-15',
-      emergencyContact: {
-        name: 'John Johnson',
-        phone: '+27 82 765 4321',
-        relationship: 'Spouse'
-      },
-      salary: {
-        basic: 28000,
-        allowances: 2000,
-        deductions: 4500,
-        net: 25500,
-        payScale: 'Level 3'
-      },
-      performance: {
-        rating: 4.5,
-        lastReviewDate: '2024-08-15',
-        strengths: ['Excellent classroom management', 'Creative lesson planning'],
-        improvementAreas: ['Technology integration'],
-        goals: ['Complete digital literacy course', 'Mentor new teachers']
-      },
-      documents: {
-        cv: true,
-        qualifications: true,
-        idCopy: true,
-        criminalRecord: true,
-        medicalCertificate: true,
-        contracts: true
-      },
-      attendance: {
-        daysPresent: 180,
-        daysAbsent: 5,
-        lateArrivals: 2,
-        leaveBalance: 15
-      },
-      workload: {
-        teachingHours: 25,
-        adminDuties: ['Grade coordinator', 'Parent-teacher conference lead'],
-        extraCurricular: ['Art club', 'School garden']
-      }
-    },
-    {
-      id: '2',
-      employeeId: 'EMP002',
-      firstName: 'Michael',
-      lastName: 'Davis',
-      email: 'michael.davis@school.com',
-      phone: '+27 83 987 6543',
-      address: '456 Pine Avenue, Johannesburg, 2001',
-      idNumber: '7803156789012',
-      status: 'active',
-      contractType: 'permanent',
-      classes: ['Grade 1-A', 'Grade 1-B'],
-      subjects: ['Mathematics', 'Natural Sciences', 'Life Skills'],
-      qualifications: ['B.Sc Mathematics', 'PGCE', 'Honours in Education'],
-      hireDate: '2022-08-20',
-      emergencyContact: {
-        name: 'Linda Davis',
-        phone: '+27 83 555 7890',
-        relationship: 'Sister'
-      },
-      salary: {
-        basic: 32000,
-        allowances: 2500,
-        deductions: 5200,
-        net: 29300,
-        payScale: 'Level 4'
-      },
-      performance: {
-        rating: 4.8,
-        lastReviewDate: '2024-07-20',
-        strengths: ['Strong subject knowledge', 'Student engagement', 'Innovation'],
-        improvementAreas: ['Time management'],
-        goals: ['Lead STEM program', 'Publish educational research']
-      },
-      documents: {
-        cv: true,
-        qualifications: true,
-        idCopy: true,
-        criminalRecord: true,
-        medicalCertificate: true,
-        contracts: true
-      },
-      attendance: {
-        daysPresent: 190,
-        daysAbsent: 3,
-        lateArrivals: 1,
-        leaveBalance: 18
-      },
-      workload: {
-        teachingHours: 28,
-        adminDuties: ['HOD Mathematics', 'Curriculum committee'],
-        extraCurricular: ['Chess club', 'Math Olympiad coaching']
-      }
-    },
-    {
-      id: '3',
-      employeeId: 'EMP003',
-      firstName: 'Priya',
-      lastName: 'Patel',
-      email: 'priya.patel@school.com',
-      phone: '+27 84 444 5555',
-      address: '789 Elm Road, Durban, 4001',
-      idNumber: '9205187654321',
-      status: 'probation',
-      contractType: 'probationary',
-      classes: ['Grade 2-A'],
-      subjects: ['English', 'Life Skills', 'Arts & Crafts'],
-      qualifications: ['BA English Literature', 'PGCE', 'ESL Certificate'],
-      hireDate: '2024-09-01',
-      contractEndDate: '2025-02-28',
-      emergencyContact: {
-        name: 'Raj Patel',
-        phone: '+27 84 123 9876',
-        relationship: 'Father'
-      },
-      salary: {
-        basic: 24000,
-        allowances: 1000,
-        deductions: 3600,
-        net: 21400,
-        payScale: 'Level 2 (Probationary)'
-      },
-      performance: {
-        rating: 3.8,
-        lastReviewDate: '2024-09-15',
-        strengths: ['Enthusiasm', 'Creativity'],
-        improvementAreas: ['Classroom discipline', 'Lesson pacing'],
-        goals: ['Complete probation successfully', 'Build stronger parent relationships']
-      },
-      documents: {
-        cv: true,
-        qualifications: true,
-        idCopy: true,
-        criminalRecord: true,
-        medicalCertificate: false,
-        contracts: true
-      },
-      attendance: {
-        daysPresent: 15,
-        daysAbsent: 1,
-        lateArrivals: 0,
-        leaveBalance: 5
-      },
-      workload: {
-        teachingHours: 20,
-        adminDuties: ['Library assistant'],
-        extraCurricular: ['Reading club']
-      }
-    }
-  ];
 
-  const mockCandidates: HiringCandidate[] = [
-    {
-      id: 'c1',
-      firstName: 'Jennifer',
-      lastName: 'Williams',
-      email: 'jennifer.williams@email.com',
-      phone: '+27 81 234 5678',
-      appliedFor: 'Grade 3 Teacher',
-      applicationDate: '2024-09-10',
-      status: 'interview',
-      qualifications: ['B.Ed Foundation Phase', 'Diploma in Remedial Education'],
-      experience: 5,
-      expectedSalary: 30000,
-      availableFrom: '2024-10-01',
-      notes: 'Excellent references from previous school. Strong in differentiated instruction.'
-    },
-    {
-      id: 'c2',
-      firstName: 'David',
-      lastName: 'Brown',
-      email: 'david.brown@email.com',
-      phone: '+27 82 876 5432',
-      appliedFor: 'Physical Education Teacher',
-      applicationDate: '2024-09-05',
-      status: 'offer',
-      qualifications: ['B.Sc Sports Science', 'Coaching Certificate'],
-      experience: 8,
-      expectedSalary: 35000,
-      availableFrom: '2024-09-20',
-      notes: 'Former provincial sports player. Great with team building and fitness programs.'
-    },
-    {
-      id: 'c3',
-      firstName: 'Lisa',
-      lastName: 'Thompson',
-      email: 'lisa.thompson@email.com',
-      phone: '+27 83 345 6789',
-      appliedFor: 'Art Teacher',
-      applicationDate: '2024-08-28',
-      status: 'screening',
-      qualifications: ['BA Fine Arts', 'Art Education Certificate'],
-      experience: 3,
-      expectedSalary: 26000,
-      availableFrom: '2024-11-01',
-      notes: 'Portfolio shows strong artistic skills. Limited classroom experience but enthusiastic.'
-    }
-  ];
 
   // Fetch real teachers from database
   const fetchTeachers = useCallback(async () => {
     const preschoolId = getPreschoolId();
     
-    if (!preschoolId || !supabase) {
+if (!preschoolId) {
       console.warn('No preschool ID available or Supabase not initialized');
       setLoading(false);
       return;
@@ -345,7 +133,7 @@ export default function TeacherManagement() {
       console.log('🔍 Fetching real teachers for preschool:', preschoolId);
       
       // Query users table for teachers (matching the working dashboard query)
-      const { data: teachersData, error: teachersError } = await supabase
+const { data: teachersData, error: teachersError } = await assertSupabase()
         .from('users')
         .select(`
           id,
@@ -434,9 +222,7 @@ export default function TeacherManagement() {
       
       setTeachers(transformedTeachers);
       
-      // Keep mock candidates for now (until we have a candidates table)
-      setCandidates(mockCandidates);
-      
+      // No mock candidates in production; leave empty until real data source is available
     } catch (error) {
       console.error('Failed to fetch teachers:', error);
       Alert.alert('Error', 'Failed to load teacher data. Please check your connection.');

@@ -11,6 +11,7 @@ import { reportError } from '@/lib/monitoring';
 import { shouldAllowFallback, trackFallbackUsage } from '@/lib/security-config';
 import { getCurrentSession } from '@/lib/sessionManager';
 import type { UserProfile } from './sessionManager';
+import { log, warn, debug, error as logError } from '@/lib/debug';
 
 // Core role definitions with hierarchy (higher number = more permissions)
 export const ROLES = {
@@ -523,7 +524,7 @@ export function createPermissionChecker(profile: EnhancedUserProfile | null): Pe
  */
 export async function fetchEnhancedUserProfile(userId: string): Promise<EnhancedUserProfile | null> {
   try {
-    console.log('Attempting to fetch profile for authenticated user');
+    log('Attempting to fetch profile for authenticated user');
     
     // SECURITY: Validate the requester identity as best as possible
     // Try multiple sources for current authenticated identity
@@ -536,7 +537,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         const { data: { user } } = await assertSupabase().auth.getUser();
         if (user?.id) sessionUserId = user.id;
       } catch (e) {
-        console.debug('auth.getUser() failed while fetching profile', e);
+        debug('auth.getUser() failed while fetching profile', e);
       }
     }
 
@@ -547,13 +548,13 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         storedSession = await getCurrentSession();
         if (storedSession?.user_id) sessionUserId = storedSession.user_id;
       } catch (e) {
-        console.debug('getCurrentSession() failed while fetching profile', e);
+        debug('getCurrentSession() failed while fetching profile', e);
       }
     }
 
     // If we have an authenticated identity and it mismatches, block
     if (sessionUserId && sessionUserId !== userId) {
-      console.error('User ID mismatch - cannot fetch profile for different user');
+      logError('User ID mismatch - cannot fetch profile for different user');
       reportError(new Error('Profile fetch attempted for different user'), {
         requestedUserId: userId,
         sessionUserId,
@@ -575,37 +576,37 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
 
     if (rpcProfile && (rpcProfile as any).id) {
       profile = rpcProfile as any;
-      console.log('RPC get_my_profile succeeded');
+      debug('RPC get_my_profile succeeded');
     } else {
       profileError = rpcError;
-      console.log('RPC get_my_profile failed or returned null');
+      debug('RPC get_my_profile failed or returned null');
       
       // Try the direct bypass function as a test
       try {
         const { data: directProfile } = await assertSupabase()
           .rpc('debug_get_profile_direct', { target_auth_id: userId })
           .maybeSingle();
-        console.log('Direct profile fetch completed');
+        debug('Direct profile fetch completed');
         if (directProfile && (directProfile as any).id) {
           profile = directProfile as any;
-          console.log('Using direct profile as fallback');
+          debug('Using direct profile as fallback');
         }
       } catch (directError) {
-        console.log('Direct profile fetch failed:', directError);
+        debug('Direct profile fetch failed:', directError);
       }
     }
     
     if (!profile) {
       // Only log an error if it's not the common "no rows" case
       if (!(profileError && (profileError as any).code === 'PGRST116')) {
-        console.error('Failed to fetch basic user profile:', profileError);
+        logError('Failed to fetch basic user profile:', profileError);
       }
       
       // SECURITY: Check if fallback is allowed for this session
       const sessionToken = session?.access_token || storedSession?.access_token || '';
       const sessionId = sessionToken ? sessionToken.substring(0, 32) : '';
       if (!sessionId || !shouldAllowFallback(sessionId)) {
-        console.error('SECURITY: Fallback profile not allowed - returning null');
+        logError('SECURITY: Fallback profile not allowed - returning null');
         return null;
       }
       
@@ -649,11 +650,11 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         timestamp: new Date().toISOString(),
       });
       
-      console.warn('SECURITY: Using fallback profile with minimal permissions');
+      warn('SECURITY: Using fallback profile with minimal permissions');
       return enhancedFallback;
     }
     
-    console.log('Successfully fetched profile');
+    debug('Successfully fetched profile');
     
     // Process the real profile data
     // Resolve organization identifier (UUID id or tenant slug)
@@ -712,7 +713,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
               resolvedOrgId = presBySlug.id;
             }
           } catch (e) {
-            console.debug('preschools by tenant_slug lookup failed', e);
+            debug('preschools by tenant_slug lookup failed', e);
           }
 
           if (!resolvedOrgId) {
@@ -733,7 +734,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
           }
         }
       } catch (e) {
-        console.warn('Organization resolution failed:', e);
+        warn('Organization resolution failed:', e);
       }
     }
 
@@ -747,7 +748,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
           orgMember = memberData as any;
         }
       } catch (e) {
-        console.debug('get_my_org_member RPC failed', e);
+        debug('get_my_org_member RPC failed', e);
       }
 
       // If org details not loaded yet (e.g., organizations table), try preschools by id to get name
@@ -760,7 +761,7 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
             .maybeSingle();
           if (orgData) org = orgData;
         } catch (e) {
-          console.debug('preschools by id lookup failed', e);
+          debug('preschools by id lookup failed', e);
         }
       }
     }
@@ -817,12 +818,12 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         session_source: 'profile_fetch'
       });
       
-      console.warn('SECURITY: Super admin profile accessed - monitoring enabled');
+      warn('SECURITY: Super admin profile accessed - monitoring enabled');
     }
     
     return enhancedProfile;
   } catch (error) {
-    console.error('Error in fetchEnhancedUserProfile:', error);
+    logError('Error in fetchEnhancedUserProfile:', error);
     reportError(new Error('Failed to fetch enhanced user profile'), {
       userId,
       error,
@@ -839,12 +840,12 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
         storedSession = await getCurrentSession();
         if (storedSession?.user_id) sessionUserId = storedSession.user_id;
       } catch (e) {
-        console.debug('getCurrentSession() failed in error fallback', e);
+        debug('getCurrentSession() failed in error fallback', e);
       }
     }
 
     if (!sessionUserId || sessionUserId !== userId) {
-      console.error('Authentication validation failed in error handler');
+      logError('Authentication validation failed in error handler');
       return null; // No fallback for unauthenticated users
     }
 
@@ -913,7 +914,7 @@ export async function auditPermissionChange(
     });
     
     // Could also log to a dedicated audit table if needed
-    console.log('Permission audit:', { userId, action, details });
+    log('Permission audit:', { userId, action, details });
   } catch (error) {
     reportError(new Error('Failed to audit permission change'), {
       userId,

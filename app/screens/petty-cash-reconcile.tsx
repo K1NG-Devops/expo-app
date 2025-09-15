@@ -23,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface CashCount {
@@ -81,13 +81,13 @@ export default function PettyCashReconcileScreen() {
   const [isReconciling, setIsReconciling] = useState(false);
 
   const loadReconciliationData = async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
 
     try {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -104,7 +104,7 @@ export default function PettyCashReconcileScreen() {
       currentMonth.setHours(0, 0, 0, 0);
 
       // Get approved transactions for current month
-      const { data: transactions } = await supabase!
+      const { data: transactions } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount, type')
         .eq('preschool_id', userProfile.preschool_id)
@@ -120,7 +120,7 @@ export default function PettyCashReconcileScreen() {
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Get opening balance from school settings
-      const { data: settings } = await supabase!
+      const { data: settings } = await assertSupabase()
         .from('school_settings')
         .select('opening_balance')
         .eq('preschool_id', userProfile.preschool_id)
@@ -130,7 +130,7 @@ export default function PettyCashReconcileScreen() {
       const systemBalance = openingBalance + replenishments - expenses;
 
       // Get last reconciliation
-      const { data: lastRecon } = await supabase!
+      const { data: lastRecon } = await assertSupabase()
         .from('petty_cash_reconciliations')
         .select('created_at, physical_amount')
         .eq('preschool_id', userProfile.preschool_id)
@@ -175,12 +175,12 @@ export default function PettyCashReconcileScreen() {
   };
 
   const performReconciliation = async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
 
     try {
       setIsReconciling(true);
 
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -192,7 +192,7 @@ export default function PettyCashReconcileScreen() {
       }
 
       // Save reconciliation record
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('petty_cash_reconciliations')
         .insert({
           preschool_id: userProfile.preschool_id,

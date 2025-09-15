@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Refres
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getEffectiveLimits } from '@/lib/ai/limits';
 import { router } from 'expo-router';
@@ -23,7 +23,7 @@ export default function PrincipalSeatManagementScreen() {
     if (!schoolId) return;
     try {
       setLoading(true); setError(null);
-      const { data, error } = await supabase!.from('subscriptions').select('id').eq('owner_type','school').eq('school_id', schoolId).maybeSingle();
+      const { data, error } = await assertSupabase().from('subscriptions').select('id').eq('owner_type','school').eq('school_id', schoolId).maybeSingle();
       if (!error && data) setSubscriptionId((data as any).id);
     } catch (e: any) { setError(e?.message || 'Load failed'); }
     finally { setLoading(false); }
@@ -34,9 +34,9 @@ export default function PrincipalSeatManagementScreen() {
   const loadTeachers = useCallback(async () => {
     if (!schoolId || !subscriptionId) return;
     try {
-      const { data: profs } = await supabase!.from('profiles').select('id,email,role,preschool_id').eq('preschool_id', schoolId).eq('role', 'teacher');
+      const { data: profs } = await assertSupabase().from('profiles').select('id,email,role,preschool_id').eq('preschool_id', schoolId).eq('role', 'teacher');
       const teacherList: { id: string; email: string; hasSeat: boolean }[] = (profs || []).map((p: any) => ({ id: p.id, email: p.email, hasSeat: false }));
-      const { data: seatsRows } = await supabase!.from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
+      const { data: seatsRows } = await assertSupabase().from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
       const seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
       setTeachers(teacherList.map(t => ({ ...t, hasSeat: seatSet.has(t.id) })));
     } catch (e) {
@@ -50,7 +50,7 @@ export default function PrincipalSeatManagementScreen() {
 
   const findTeacherIdByEmail = async (email: string): Promise<string | null> => {
     try {
-      const { data } = await supabase!.from('profiles').select('id,role,preschool_id').eq('email', email).maybeSingle();
+      const { data } = await assertSupabase().from('profiles').select('id,role,preschool_id').eq('email', email).maybeSingle();
       if (data && (data as any).id) return (data as any).id as string;
       return null;
     } catch { return null; }

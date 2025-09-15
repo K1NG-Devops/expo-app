@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 type Tier = 'free' | 'pro' | 'enterprise';
 
@@ -31,7 +31,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     
     (async () => {
       try {
-        const { data: userRes, error: userError } = await supabase!.auth.getUser();
+        const { data: userRes, error: userError } = await assertSupabase().auth.getUser();
         if (userError || !userRes.user) {
           console.debug('Failed to get user for subscription detection:', userError);
           if (mounted) setReady(true);
@@ -58,7 +58,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           // If not in metadata, query profiles table
           if (!schoolId && user.id) {
             try {
-              const { data: profileData, error: profileError } = await supabase!
+              const { data: profileData, error: profileError } = await assertSupabase()
                 .from('profiles')
                 .select('preschool_id')
                 .eq('id', user.id)
@@ -75,7 +75,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           // Now query subscriptions with correct schema columns
           if (schoolId && mounted) {
             try {
-              const { data: sub, error: subError } = await supabase!
+              const { data: sub, error: subError } = await assertSupabase()
                 .from('subscriptions')
                 .select('id, plan_id, owner_type, seats_total, seats_used, status')
                 .eq('owner_type', 'school')
@@ -129,7 +129,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const assignSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await supabase!.rpc('assign_teacher_seat', { 
+      const { error } = await assertSupabase().rpc('assign_teacher_seat', { 
         p_subscription_id: subscriptionId, 
         p_user_id: userId 
       });
@@ -147,7 +147,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const revokeSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await supabase!.rpc('revoke_teacher_seat', { 
+      const { error } = await assertSupabase().rpc('revoke_teacher_seat', { 
         p_subscription_id: subscriptionId, 
         p_user_id: userId 
       });

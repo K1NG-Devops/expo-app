@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
+import { log, warn, debug, error as logError } from '@/lib/debug';
 
 /**
  * AdMob Test IDs for development - Google's official test IDs
@@ -70,7 +71,7 @@ export async function initializeAdMob(): Promise<boolean> {
     
     // Skip initialization on non-Android platforms during Android-only testing
     if (flags.android_only_mode && Platform.OS !== 'android') {
-      console.log('AdMob initialization skipped: Android-only mode active');
+      log('AdMob initialization skipped: Android-only mode active');
       return false;
     }
     
@@ -84,12 +85,12 @@ export async function initializeAdMob(): Promise<boolean> {
       stub_implementation: true,
     });
     
-    console.log('AdMob stub initialized - ready for production implementation');
+    debug('AdMob stub initialized - ready for production implementation');
     return true;
     
   } catch (error) {
     reportError(new Error('AdMob initialization failed'), { error });
-    console.error('Failed to initialize AdMob:', error);
+    logError('Failed to initialize AdMob:', error);
     return false;
   }
 }
@@ -108,7 +109,7 @@ export async function showInterstitialAd(): Promise<boolean> {
     return false;
   }
   
-  console.log('AdMob Stub: Would show interstitial ad');
+  debug('AdMob Stub: Would show interstitial ad');
   track('edudash.ads.interstitial_stub_shown', {
     platform: Platform.OS,
   });
@@ -130,7 +131,7 @@ export async function showRewardedAd(): Promise<{
     return { shown: false, rewarded: false };
   }
   
-  console.log('AdMob Stub: Would show rewarded ad');
+  debug('AdMob Stub: Would show rewarded ad');
   track('edudash.ads.rewarded_stub_shown', {
     platform: Platform.OS,
   });
@@ -162,6 +163,6 @@ export function getBannerAdUnitId(): string {
  * Clean up AdMob resources - Stub implementation
  */
 export function cleanupAdMob(): void {
-  console.log('AdMob Stub: Cleanup called');
+  debug('AdMob Stub: Cleanup called');
   isInitialized = false;
 }

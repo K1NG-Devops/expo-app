@@ -5,9 +5,10 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, assertSupabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
+import { log, warn, debug, error as logError } from '@/lib/debug';
 
 // Helper functions for business logic
 const formatTimeAgo = (dateString: string): string => {
@@ -30,14 +31,14 @@ const calculateEstimatedRevenue = (studentCount: number): number => {
 };
 
 const calculateAttendanceRate = async (schoolId: string): Promise<number> => {
-  if (!supabase) return 0;
+  // Supabase is guaranteed by assertSupabase(); proceed safely
   
   try {
     // Get attendance records from the last 30 days
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const { data: attendanceData } = await supabase
+    const { data: attendanceData } = await assertSupabase()
       .from('attendance')
       .select('present, student_id')
       .eq('school_id', schoolId)
@@ -196,7 +197,7 @@ export const usePrincipalDashboard = () => {
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     const startTime = Date.now();
-    console.log('🏫 Loading Principal Dashboard data...');
+    log('🏫 Loading Principal Dashboard data...');
     
     try {
       setLoading(true);
@@ -212,7 +213,7 @@ export const usePrincipalDashboard = () => {
         );
         
         if (cachedData) {
-          console.log('📱 Loading from cache...');
+          log('📱 Loading from cache...');
           setData(cachedData);
           setLoading(false);
           setIsLoadingFromCache(false);
@@ -227,16 +228,12 @@ export const usePrincipalDashboard = () => {
         throw new Error('User not authenticated');
       }
 
-      if (!supabase) {
-        console.error('❌ Supabase client not available');
-        setError('Database connection not available');
-        setData(createEmptyPrincipalData('Database Error'));
-        return;
-      }
+      // Use assertSupabase() which throws if not configured
+      assertSupabase();
 
       // Enhanced principal data fetch with comprehensive error handling
       // Use the existing profile system instead of direct query
-      console.log('Using profile from auth context for organization lookup');
+      log('Using profile from auth context for organization lookup');
       const userProfile = profile; // Use the existing profile from useAuth hook
       
       if (!userProfile) {
@@ -266,7 +263,7 @@ export const usePrincipalDashboard = () => {
       }
 
       if (!orgIdentifier) {
-        console.warn('⚠️ No organization identifier found in profile, checking organization membership');
+        warn('⚠️ No organization identifier found in profile, checking organization membership');
         // Try alternative lookup via organization_members table  
         const { data: alternativeOrg } = await assertSupabase()
           .from('organization_members')
@@ -275,10 +272,10 @@ export const usePrincipalDashboard = () => {
           .maybeSingle();
         
         if (alternativeOrg?.organization_id) {
-          console.log('✅ Found organization via organization_members table');
+          log('✅ Found organization via organization_members table');
           orgIdentifier = alternativeOrg.organization_id as string;
         } else {
-          console.warn('⚠️ No organization found via organization_members - trying self users row');
+          warn('⚠️ No organization found via organization_members - trying self users row');
           // Final fallback with RLS-friendly self read on public.users
           try {
             const { data: selfUser, error: selfErr } = await assertSupabase()
@@ -287,20 +284,20 @@ export const usePrincipalDashboard = () => {
               .eq('auth_user_id', user.id)
               .maybeSingle();
             if (selfErr) {
-              console.warn('Self users row lookup error:', selfErr?.message);
+              warn('Self users row lookup error:', selfErr?.message);
             }
             if (selfUser?.preschool_id) {
-              console.log('✅ Resolved organization from self users row (preschool_id)');
+              log('✅ Resolved organization from self users row (preschool_id)');
               orgIdentifier = selfUser.preschool_id as string;
             } else {
-              console.warn('⚠️ Self users row did not contain preschool_id');
+              warn('⚠️ Self users row did not contain preschool_id');
             }
           } catch (e) {
             console.warn('Self users row lookup threw:', e);
           }
         }
       } else {
-        console.log('✅ Found organization identifier in profile:', orgIdentifier);
+        log('✅ Found organization identifier in profile:', orgIdentifier);
       }
 
       // Fetch organization data from either organizations or preschools table by ID or slug
@@ -356,7 +353,7 @@ export const usePrincipalDashboard = () => {
               .maybeSingle();
             if (preschoolBySlug) return preschoolBySlug;
           } catch (e) {
-            console.warn('preschools.tenant_slug lookup failed:', e);
+            warn('preschools.tenant_slug lookup failed:', e);
           }
 
           // Organizations by name (no tenant_slug in organizations table)
@@ -370,7 +367,7 @@ export const usePrincipalDashboard = () => {
               return { id: orgByName.id, name: orgByName.name, subscription_status: 'active', address: null, phone: null, email: null };
             }
           } catch (e) {
-            console.warn('organizations name lookup failed:', e);
+            warn('organizations name lookup failed:', e);
           }
 
           // As a last resort, try preschools name ilike
@@ -382,7 +379,7 @@ export const usePrincipalDashboard = () => {
               .maybeSingle();
             return preschoolByName || null;
           } catch (e) {
-            console.warn('preschools name lookup failed:', e);
+            warn('preschools name lookup failed:', e);
             return null;
           }
         };
@@ -399,14 +396,14 @@ export const usePrincipalDashboard = () => {
         }
 
         if (!principalData) {
-          console.warn('⚠️ No organization found by identifier (id/slug):', orgIdentifier);
+          warn('⚠️ No organization found by identifier (id/slug):', orgIdentifier);
         } else {
-          console.log('✅ Resolved organization from identifier:', principalData?.id, principalData?.name);
+          log('✅ Resolved organization from identifier:', principalData?.id, principalData?.name);
         }
       }
 
       if (principalError && principalError.code !== 'PGRST116') {
-        console.error('❌ Principal school fetch error:', principalError);
+        logError('❌ Principal school fetch error:', principalError);
         throw new Error(`Database error: ${principalError.message}`);
       }
 
@@ -415,7 +412,7 @@ export const usePrincipalDashboard = () => {
       if (principalData) {
         const schoolId = principalData.id;
         const schoolName = principalData.name || 'Unknown School';
-        console.log(`📚 Loading data for ${schoolName} (ID: ${schoolId})`);
+        log(`📚 Loading data for ${schoolName} (ID: ${schoolId})`);
 
         // Helper function to map database activity types to dashboard types
         const mapActivityType = (actionType: string): string => {
@@ -434,7 +431,7 @@ export const usePrincipalDashboard = () => {
         };
 
         // Parallel data fetching with correct schema
-        console.log('🔍 DEBUG: Starting parallel data fetch for schoolId:', schoolId);
+        debug('🔍 DEBUG: Starting parallel data fetch for schoolId:', schoolId);
         
         // Use authenticated Supabase client for all queries to work with RLS
         const authenticatedClient = assertSupabase();
@@ -442,9 +439,9 @@ export const usePrincipalDashboard = () => {
         // Extra debug: confirm auth identity for RLS
         try {
           const { data: me } = await authenticatedClient.auth.getUser();
-          console.log('🔐 RLS DEBUG - auth user id:', me?.user?.id);
+          debug('🔐 RLS DEBUG - auth user id:', me?.user?.id);
         } catch (e) {
-          console.debug('RLS auth getUser failed', e);
+          debug('RLS auth getUser failed', e);
         }
         
         const dataPromises = [
@@ -560,22 +557,22 @@ export const usePrincipalDashboard = () => {
         }
 
         // Enhanced logging with actual data counts and sample records
-        console.log('🔍 DEBUG DATA RESULTS:');
-        console.log('- Students:', studentsData.length, studentsData.length > 0 ? studentsData[0] : 'No students found');
-        console.log('- Teacher Members:', teacherMembersData.length, teacherMembersData.length > 0 ? teacherMembersData[0] : 'No teacher members found');
-        console.log('- Parent Members:', parentMembersData.length, parentMembersData.length > 0 ? parentMembersData[0] : 'No parent members found');
-        console.log('- Teacher Users:', teacherUsersData.length, teacherUsersData.length > 0 ? teacherUsersData[0] : 'No teacher users found');
-        console.log('- Parent Users:', parentUsersData.length, parentUsersData.length > 0 ? parentUsersData[0] : 'No parent users found');
-        console.log('- Payments:', paymentsData.length);
-        console.log('- Applications:', applicationsData.length);
-        console.log('- Events:', eventsData.length);
-        console.log('- Activities:', activitiesData.length);
+        debug('🔍 DEBUG DATA RESULTS:');
+        debug('- Students:', studentsData.length, studentsData.length > 0 ? studentsData[0] : 'No students found');
+        debug('- Teacher Members:', teacherMembersData.length, teacherMembersData.length > 0 ? teacherMembersData[0] : 'No teacher members found');
+        debug('- Parent Members:', parentMembersData.length, parentMembersData.length > 0 ? parentMembersData[0] : 'No parent members found');
+        debug('- Teacher Users:', teacherUsersData.length, teacherUsersData.length > 0 ? teacherUsersData[0] : 'No teacher users found');
+        debug('- Parent Users:', parentUsersData.length, parentUsersData.length > 0 ? parentUsersData[0] : 'No parent users found');
+        debug('- Payments:', paymentsData.length);
+        debug('- Applications:', applicationsData.length);
+        debug('- Events:', eventsData.length);
+        debug('- Activities:', activitiesData.length);
 
         // Log any failed requests for debugging
         results.forEach((result, index) => {
           if (result.status === 'rejected') {
             const queries = ['students', 'teacher_members', 'parent_members', 'payments', 'applications', 'events', 'activities'];
-            console.error(`❌ ${queries[index]} query failed:`, result.reason);
+            logError(`❌ ${queries[index]} query failed:`, result.reason);
           }
         });
 
@@ -599,18 +596,18 @@ export const usePrincipalDashboard = () => {
           : parentMembersData.map((m: any) => m.user_id).slice(0, 3)
         ).join(', ');
         
-        console.log('👥 STAFF DETAILS:');
-        console.log('- Teacher names:', teacherNames || 'None');
-        console.log('- Parent names:', parentNames || 'None');
-        console.log('- Teacher member count:', teacherMembersData.length);
-        console.log('- Parent member count:', parentMembersData.length);
+        debug('👥 STAFF DETAILS:');
+        debug('- Teacher names:', teacherNames || 'None');
+        debug('- Parent names:', parentNames || 'None');
+        debug('- Teacher member count:', teacherMembersData.length);
+        debug('- Parent member count:', parentMembersData.length);
 
         // Calculate real attendance rate with error handling
         let attendanceRate = 0;
         try {
           attendanceRate = await calculateAttendanceRate(schoolId);
         } catch (error) {
-          console.warn('Failed to calculate attendance rate:', error);
+          warn('Failed to calculate attendance rate:', error);
           // Keep as 0 rather than throwing
         }
 
@@ -703,7 +700,7 @@ export const usePrincipalDashboard = () => {
         };
 
         const loadTime = Date.now() - startTime;
-        console.log(`✅ Dashboard data loaded successfully in ${loadTime}ms:`, {
+        log(`✅ Dashboard data loaded successfully in ${loadTime}ms:`, {
           school: schoolName,
           students: totalStudents,
           teachers: totalTeachers,
@@ -719,12 +716,12 @@ export const usePrincipalDashboard = () => {
             schoolId,
             dashboardData
           );
-          console.log('💾 Dashboard data cached for offline use');
+          log('💾 Dashboard data cached for offline use');
         }
 
       } else {
         // No school found for this principal
-        console.warn('⚠️ No school found for this principal');
+        warn('⚠️ No school found for this principal');
         dashboardData = {
           ...createEmptyPrincipalData('No School Assigned'),
           schoolId: undefined,
@@ -743,7 +740,7 @@ export const usePrincipalDashboard = () => {
 
       setData(dashboardData);
     } catch (err) {
-      console.error('❌ Failed to fetch principal dashboard data:', err);
+      logError('❌ Failed to fetch principal dashboard data:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
       
@@ -772,7 +769,7 @@ export const usePrincipalDashboard = () => {
   }, [fetchData]);
 
   const refresh = useCallback(() => {
-    console.log('🔄 Refreshing Principal Dashboard data...');
+    log('🔄 Refreshing Principal Dashboard data...');
     fetchData(true); // Force refresh from server
   }, [fetchData]);
 
@@ -781,7 +778,7 @@ export const usePrincipalDashboard = () => {
     if (!data || loading) return;
 
     const interval = setInterval(() => {
-      console.log('⏰ Auto-refreshing Principal Dashboard');
+      log('⏰ Auto-refreshing Principal Dashboard');
       fetchData();
     }, 5 * 60 * 1000); // 5 minutes
 
@@ -822,7 +819,7 @@ export const useTeacherDashboard = () => {
         );
         
         if (cachedData) {
-          console.log('📱 Loading teacher data from cache...');
+          log('📱 Loading teacher data from cache...');
           setData(cachedData);
           setLoading(false);
           setIsLoadingFromCache(false);
@@ -837,12 +834,8 @@ export const useTeacherDashboard = () => {
         throw new Error('User not authenticated');
       }
 
-      if (!supabase) {
-        throw new Error('Supabase client not available');
-      }
-
       // Fetch teacher user row from public.users (teachers table is not populated)
-      const { data: teacherUser, error: teacherError } = await supabase
+      const { data: teacherUser, error: teacherError } = await assertSupabase()
         .from('users')
         .select('id, auth_user_id, preschool_id, first_name, last_name, role')
         .eq('auth_user_id', user.id)
@@ -850,7 +843,7 @@ export const useTeacherDashboard = () => {
         .maybeSingle();
 
       if (teacherError) {
-        console.error('Teacher user fetch error:', teacherError);
+        logError('Teacher user fetch error:', teacherError);
       }
 
       let dashboardData: TeacherDashboardData;
@@ -859,7 +852,7 @@ export const useTeacherDashboard = () => {
         const teacherId = teacherUser.id; // references users.id in your schema
         let schoolName = 'Unknown School';
         if (teacherUser.preschool_id) {
-          const { data: school } = await supabase
+const { data: school } = await assertSupabase()
             .from('preschools')
             .select('id, name')
             .eq('id', teacherUser.preschool_id)
@@ -868,7 +861,7 @@ export const useTeacherDashboard = () => {
         }
 
         // Fetch teacher's classes with student and attendance data
-        const { data: classesData } = await supabase
+const { data: classesData } = await assertSupabase()
           .from('classes')
           .select(`
             id,
@@ -887,7 +880,7 @@ export const useTeacherDashboard = () => {
         
         let todayAttendanceData: any[] = [];
         if (allStudentIds.length > 0) {
-          const { data: attendanceData } = await supabase
+const { data: attendanceData } = await assertSupabase()
             .from('attendance_records')
             .select('student_id, status')
             .in('student_id', allStudentIds)
@@ -897,7 +890,7 @@ export const useTeacherDashboard = () => {
           todayAttendanceData = attendanceData || [];
         }
 
-        const myClasses = classesData?.map(classItem => {
+const myClasses = (classesData || []).map((classItem: any) => {
           const classStudents = classItem.students || [];
           const classStudentIds = classStudents.map((s: any) => s.id);
           const classAttendance = todayAttendanceData.filter(a => 
@@ -921,10 +914,10 @@ export const useTeacherDashboard = () => {
         }) || [];
 
         // Calculate total students
-        const totalStudents = myClasses.reduce((sum, cls) => sum + cls.studentCount, 0);
+const totalStudents = myClasses.reduce((sum: number, cls: any) => sum + cls.studentCount, 0);
 
         // Fetch assignments
-        const { data: assignmentsData } = await supabase
+const { data: assignmentsData } = await assertSupabase()
           .from('assignments')
           .select(`
             id,
@@ -941,7 +934,7 @@ export const useTeacherDashboard = () => {
           .limit(3);
 
         // Fetch upcoming events for teacher's school
-        const { data: eventsData } = await supabase
+const { data: eventsData } = await assertSupabase()
           .from('events')
           .select('id, title, event_date, event_type, description')
           .eq('preschool_id', teacherUser.preschool_id)
@@ -949,9 +942,9 @@ export const useTeacherDashboard = () => {
           .order('event_date', { ascending: true })
           .limit(5);
 
-        const recentAssignments = assignmentsData?.map(assignment => {
+const recentAssignments = (assignmentsData || []).map((assignment: any) => {
           const submissions = assignment.assignment_submissions || [];
-          const submittedCount = submissions.filter(s => s.status === 'submitted').length;
+const submittedCount = (submissions || []).filter((s: any) => s.status === 'submitted').length;
           const totalCount = submissions.length;
           
           return {
@@ -966,11 +959,11 @@ export const useTeacherDashboard = () => {
 
         // Calculate pending grading
         const pendingGrading = recentAssignments
-          .filter(a => a.status === 'pending')
-          .reduce((sum, a) => sum + a.submitted, 0);
+ .filter((a: any) => a.status === 'pending')
+.reduce((sum: number, a: any) => sum + a.submitted, 0);
 
         // Process upcoming events
-        const upcomingEvents = eventsData?.map(event => {
+const upcomingEvents = (eventsData || []).map((event: any) => {
           const eventDate = new Date(event.event_date);
           const now = new Date();
           const diffInHours = Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60));
@@ -1009,7 +1002,7 @@ export const useTeacherDashboard = () => {
             teacherUser.preschool_id,
             dashboardData
           );
-          console.log('💾 Teacher dashboard data cached for offline use');
+          log('💾 Teacher dashboard data cached for offline use');
         }
       } else {
         // No teacher record found, use empty data
@@ -1018,7 +1011,7 @@ export const useTeacherDashboard = () => {
 
       setData(dashboardData);
     } catch (err) {
-      console.error('Failed to fetch teacher dashboard data:', err);
+      logError('Failed to fetch teacher dashboard data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
       // Fallback to empty data on error
       setData({
@@ -1064,12 +1057,12 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
     try {
       setLoading(true);
 
-      if (!user?.id || !supabase) {
+if (!user?.id) {
         throw new Error('User not authenticated or Supabase not available');
       }
 
       // Get user's organization/school for analytics
-      const { data: userProfile } = await supabase
+const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id, role')
         .eq('auth_user_id', user.id)
@@ -1082,7 +1075,7 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
       if (userProfile?.preschool_id) {
         // Get AI usage data if available
         try {
-          const { data: aiUsage } = await supabase
+const { data: aiUsage } = await assertSupabase()
             .from('ai_usage_logs')
             .select('id')
             .eq('organization_id', userProfile.preschool_id)
@@ -1090,12 +1083,12 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
           
           aiUsageData.current = aiUsage?.length || 0;
         } catch (error) {
-          console.warn('AI usage data not available:', error);
+          warn('AI usage data not available:', error);
         }
 
         // Get subscription status from school data
         try {
-          const { data: schoolData } = await supabase
+const { data: schoolData } = await assertSupabase()
             .from('preschools')
             .select('subscription_status')
             .eq('id', userProfile.preschool_id)
@@ -1103,12 +1096,12 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
           
           subscriptionStatus = schoolData?.subscription_status || 'active';
         } catch (error) {
-          console.warn('Subscription status not available:', error);
+          warn('Subscription status not available:', error);
         }
 
         // Get recent login activity (approximate)
         try {
-          const { data: activityLogs } = await supabase
+const { data: activityLogs } = await assertSupabase()
             .from('activity_logs')
             .select('id')
             .eq('organization_id', userProfile.preschool_id)
@@ -1116,7 +1109,7 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
           
           recentLogins = activityLogs?.length || 0;
         } catch (error) {
-          console.warn('Activity logs not available:', error);
+          warn('Activity logs not available:', error);
         }
       }
       
@@ -1126,7 +1119,7 @@ export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
         recentLogins
       });
     } catch (err) {
-      console.error('Failed to fetch dashboard analytics:', err);
+      logError('Failed to fetch dashboard analytics:', err);
       // Set default analytics on error
       setAnalytics({
         aiUsage: { current: 0, limit: 100 },

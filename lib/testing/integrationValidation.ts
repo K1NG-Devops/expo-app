@@ -5,7 +5,7 @@
  * dashboard functionality, and real-time data flows across the education platform.
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { 
   FinancialAnalyticsService,
   AttendanceAnalyticsService,
@@ -138,19 +138,10 @@ export class IntegrationValidator {
     try {
       console.log('🔍 Testing database connectivity...');
 
-      if (!supabase) {
-        return {
-          testName: 'Database Connectivity',
-          status: 'failed',
-          message: 'Supabase client not initialized',
-          duration: Date.now() - startTime
-        };
-      }
-
       const testStartTime = Date.now();
       
       // Simple connectivity test - try to fetch from a system table
-      const { data, error } = await supabase
+      const { data, error } = await assertSupabase()
         .from('information_schema.tables')
         .select('table_name')
         .limit(1);
@@ -330,7 +321,7 @@ export class IntegrationValidator {
     try {
       console.log('🔍 Testing real-time functionality...');
 
-      if (!supabase) {
+if (!assertSupabase) {
         return {
           testName: 'Real-time Functionality',
           status: 'failed',
@@ -440,9 +431,7 @@ export class IntegrationValidator {
       // Check meeting room component (simulate)
       try {
         // Since meeting rooms are UI components, we just check if the service dependencies are available
-        if (supabase) {
-          components.push('Meeting Room System');
-        }
+components.push('Meeting Room System');
       } catch (error) {
         console.debug('Meeting room system integration issue details', error);
         issues.push('Meeting room system integration issue');

@@ -137,27 +137,36 @@ export function startMonitoring() {
     return;
   }
 
-  // Initialize Sentry
+  // Initialize Sentry (guarded)
   const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
-  if (SENTRY_DSN) {
+  const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true';
+  const sentryExplicitlyDisabled = process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false' || process.env.EXPO_PUBLIC_ENABLE_SENTRY === 'false';
+  const SENTRY_ENABLED = !telemetryDisabled && !sentryExplicitlyDisabled;
+  if (SENTRY_ENABLED && SENTRY_DSN) {
     try {
       const sentryConfig = configureSentryForAndroid();
       Sentry.init(sentryConfig);
-      
-      // Add Android-specific context (with fallback if Native is not available)
-      try {
-        Sentry.Native.setContext('testing_environment', {
+
+      // Add Android-specific context only if Native API exists (no warning logs)
+      const Native = (Sentry as any).Native;
+      if (Native && typeof Native.setContext === 'function') {
+        Native.setContext('testing_environment', {
           android_only: flags.android_only_mode,
           production_db_dev: flags.production_db_dev_mode,
           admob_test_ids: flags.admob_test_ids,
         });
-      } catch {
-        console.warn('Sentry Native context not available, using JS-only mode');
       }
-      
-      console.log('Sentry initialized for Android testing');
+
+      console.log('Sentry initialized');
     } catch (error) {
-      console.error('Failed to initialize Sentry:', error);
+      // Keep quiet unless debug mode is explicitly enabled
+      if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+        console.warn('Sentry initialization skipped or failed:', error);
+      }
+    }
+  } else {
+    if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.log('Sentry disabled (missing DSN or disabled by env).');
     }
   }
 
@@ -190,32 +199,48 @@ export function startMonitoring() {
  */
 export function reportError(error: Error, context?: Record<string, any>) {
   try {
-    const scrubbed = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true' 
-      ? scrubPII(context) 
+    const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true' || process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false' || process.env.EXPO_PUBLIC_ENABLE_SENTRY === 'false';
+    if (telemetryDisabled || !process.env.EXPO_PUBLIC_SENTRY_DSN) {
+      if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+        console.log('reportError() noop: telemetry disabled');
+      }
+      return;
+    }
+
+    const scrubbed = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true'
+      ? scrubPII(context)
       : context;
-    
-    try {
-      Sentry.Native.captureException(error, {
+
+    const Native = (Sentry as any).Native;
+    if (Native && typeof Native.captureException === 'function') {
+      Native.captureException(error, {
         extra: scrubbed,
         tags: {
           component: 'app_error',
           platform: Platform.OS,
         },
       });
-    } catch {
-      // Fallback to browser captureException if native is not available
-      if (Sentry.Browser) {
-        Sentry.Browser.captureException(error, {
-          extra: scrubbed,
-          tags: {
-            component: 'app_error',
-            platform: Platform.OS,
-          },
-        });
-      }
+    } else if ((Sentry as any).Browser && typeof (Sentry as any).Browser.captureException === 'function') {
+      (Sentry as any).Browser.captureException(error, {
+        extra: scrubbed,
+        tags: {
+          component: 'app_error',
+          platform: Platform.OS,
+        },
+      });
+    } else if (typeof (Sentry as any).captureException === 'function') {
+      (Sentry as any).captureException(error, {
+        extra: scrubbed,
+        tags: {
+          component: 'app_error',
+          platform: Platform.OS,
+        },
+      } as any);
     }
   } catch (reportingError) {
-    console.error('Failed to report error:', reportingError);
+    if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.error('Failed to report error:', reportingError);
+    }
   }
 }
 
@@ -224,22 +249,43 @@ export function reportError(error: Error, context?: Record<string, any>) {
  */
 export function trackPerformance(eventName: string, duration: number, context?: Record<string, any>) {
   try {
-    const scrubbed = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true' 
-      ? scrubPII(context) 
+    const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true' || process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false' || process.env.EXPO_PUBLIC_ENABLE_SENTRY === 'false';
+    if (telemetryDisabled || !process.env.EXPO_PUBLIC_SENTRY_DSN) {
+      return;
+    }
+
+    const scrubbed = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true'
+      ? scrubPII(context)
       : context;
-    
-    Sentry.Native.addBreadcrumb({
-      category: 'performance',
-      message: eventName,
-      level: 'info',
-      data: {
-        duration_ms: duration,
-        platform: Platform.OS,
-        ...scrubbed,
-      },
-    });
+
+    const Native = (Sentry as any).Native;
+    if (Native && typeof Native.addBreadcrumb === 'function') {
+      Native.addBreadcrumb({
+        category: 'performance',
+        message: eventName,
+        level: 'info',
+        data: {
+          duration_ms: duration,
+          platform: Platform.OS,
+          ...scrubbed,
+        },
+      });
+    } else if (typeof (Sentry as any).addBreadcrumb === 'function') {
+      (Sentry as any).addBreadcrumb({
+        category: 'performance',
+        message: eventName,
+        level: 'info',
+        data: {
+          duration_ms: duration,
+          platform: Platform.OS,
+          ...scrubbed,
+        },
+      });
+    }
   } catch (error) {
-    console.error('Failed to track performance:', error);
+    if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.error('Failed to track performance:', error);
+    }
   }
 }
 

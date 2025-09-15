@@ -27,7 +27,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 // import * as DocumentPicker from 'expo-document-picker';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 // Removed Picker import to fix ViewManager error
@@ -100,13 +100,13 @@ export default function PettyCashScreen() {
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const loadPettyCashData = async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
 
     try {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -118,7 +118,7 @@ export default function PettyCashScreen() {
       }
 
       // Load petty cash transactions
-      const { data: transactionsData, error: transError } = await supabase!
+      const { data: transactionsData, error: transError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('*')
         .eq('preschool_id', userProfile.preschool_id)
@@ -153,7 +153,7 @@ export default function PettyCashScreen() {
         .reduce((sum, t) => sum + t.amount, 0);
 
       // Get opening balance (this would typically be set by admin)
-      const { data: settingsData } = await supabase!
+      const { data: settingsData } = await assertSupabase()
         .from('school_settings')
         .select('petty_cash_limit, opening_balance')
         .eq('preschool_id', userProfile.preschool_id)
@@ -199,14 +199,14 @@ export default function PettyCashScreen() {
     try {
       setUploadingReceipt(true);
       
-      const { data: userProfile } = await supabase!
+const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
       // First, insert the transaction
-      const { data: transactionData, error: transactionError } = await supabase!
+const { data: transactionData, error: transactionError } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,
@@ -233,7 +233,7 @@ export default function PettyCashScreen() {
         
         if (receiptPath) {
           // Update transaction with receipt path
-          await supabase!
+await assertSupabase()
             .from('petty_cash_transactions')
             .update({ receipt_image_path: receiptPath })
             .eq('id', transactionData.id);
@@ -269,19 +269,19 @@ export default function PettyCashScreen() {
       return;
     }
 
-    if (!supabase) {
+if (!assertSupabase) {
       Alert.alert('Error', 'Database connection not available');
       return;
     }
 
     try {
-      const { data: userProfile } = await supabase!
+const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
-      const { error } = await supabase!
+const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,
@@ -345,7 +345,7 @@ export default function PettyCashScreen() {
   };
 
   const uploadReceiptImage = async (imageUri: string, transactionId: string) => {
-    if (!supabase) return null;
+    
     
     try {
       const response = await fetch(imageUri);
@@ -354,7 +354,7 @@ export default function PettyCashScreen() {
       const fileExt = imageUri.split('.').pop();
       const fileName = `receipt_${transactionId}_${Date.now()}.${fileExt}`;
       
-      const { data, error } = await supabase!.storage
+      const { data, error } = await assertSupabase().storage
         .from('receipts')
         .upload(fileName, blob, {
           contentType: `image/${fileExt}`,
@@ -450,7 +450,7 @@ export default function PettyCashScreen() {
   // Helpers for cancel/delete/reverse
   const canDelete = async (): Promise<boolean> => {
     try {
-      const { data } = await supabase!
+      const { data } = await assertSupabase()
         .from('users')
         .select('role')
         .eq('auth_user_id', user?.id)
@@ -463,7 +463,7 @@ export default function PettyCashScreen() {
 
   const handleCancelTransaction = async (transactionId: string) => {
     try {
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .update({ status: 'rejected' })
         .eq('id', transactionId)
@@ -482,7 +482,7 @@ export default function PettyCashScreen() {
         Alert.alert('Not allowed', 'Only principals can delete transactions');
         return;
       }
-      const { error } = await supabase!
+const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .delete()
         .eq('id', transactionId);
@@ -495,14 +495,14 @@ export default function PettyCashScreen() {
 
   const handleReverseTransaction = async (t: PettyCashTransaction) => {
     try {
-      const { data: userProfile } = await supabase!
+const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
       const oppositeType = t.type === 'expense' ? 'replenishment' : 'expense';
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           preschool_id: userProfile?.preschool_id,

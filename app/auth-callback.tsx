@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 export default function AuthCallback() {
   const handled = useRef(false);
@@ -19,7 +19,7 @@ export default function AuthCallback() {
         const access_token = h.get('access_token');
         const refresh_token = h.get('refresh_token');
         if (access_token && refresh_token) {
-          const { error } = await supabase!.auth.setSession({ access_token, refresh_token });
+const { error } = await assertSupabase().auth.setSession({ access_token, refresh_token });
           if (error) throw error;
           router.replace('/profiles-gate');
           return;
@@ -34,7 +34,7 @@ export default function AuthCallback() {
           const token_hash = q.get('token_hash');
           const type = (q.get('type') || 'magiclink') as any;
           if (token_hash) {
-            const { error } = await supabase!.auth.verifyOtp({ token_hash, type });
+const { error } = await assertSupabase().auth.verifyOtp({ token_hash, type });
             if (error) throw error;
             router.replace('/profiles-gate');
             return;

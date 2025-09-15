@@ -20,11 +20,13 @@ export default function AdBanner() {
     return null;
   }
 
-  const TEST_BANNER_ID = TestIds.BANNER; // 'ca-app-pub-3940256099942544/6300978111'
+  const isTest = (__DEV__ as boolean) || process.env.EXPO_PUBLIC_ENABLE_TEST_ADS === 'true';
+  const PROD_UNIT_ID = process.env.EXPO_PUBLIC_ADMOB_BANNER_ANDROID as string | undefined;
+  const unitId = isTest ? TestIds.BANNER : (PROD_UNIT_ID || TestIds.BANNER);
 
   return (
     <View style={{ alignItems: 'center', marginTop: 8 }}>
-      <BannerAd unitId={TEST_BANNER_ID} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
+      <BannerAd unitId={unitId} size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER} />
     </View>
   );
 }

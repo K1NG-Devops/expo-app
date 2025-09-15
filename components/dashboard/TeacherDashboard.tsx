@@ -544,8 +544,8 @@ export const TeacherDashboard: React.FC = () => {
               dashboardData.myClasses.map(renderClassCard)
             ) : (
               <EmptyClassesState onCreateClass={() => {
-                // Navigate to class creation screen
-                router.push('/screens/create-class');
+                // Navigate to class & teacher management (create class modal inside)
+                router.push('/screens/class-teacher-management');
               }} />
             )}
           </View>
@@ -589,8 +589,8 @@ export const TeacherDashboard: React.FC = () => {
               ))
             ) : (
               <EmptyEventsState onCreateEvent={() => {
-                // Navigate to event creation screen
-                router.push('/screens/create-event');
+                // Navigate to teacher reports as a placeholder for event creation
+                router.push('/screens/teacher-reports');
               }} />
             )}
           </View>

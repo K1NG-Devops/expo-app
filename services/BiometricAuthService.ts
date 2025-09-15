@@ -9,6 +9,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert, Platform } from "react-native";
 import * as Device from "expo-device";
+import { log, warn, debug, error as logError } from '@/lib/debug';
 
 // Dynamically import SecureStore to avoid web issues
 let SecureStore: any = null;
@@ -17,7 +18,7 @@ try {
     SecureStore = require('expo-secure-store');
   }
 } catch (e) {
-  console.debug('SecureStore import failed (web or unsupported platform)', e);
+  debug('SecureStore import failed (web or unsupported platform)', e);
 }
 
 const BIOMETRIC_STORAGE_KEY = "biometric_enabled"; // canonical flag ("true"/"false")
@@ -67,7 +68,7 @@ export class BiometricAuthService {
     try {
       // Skip migration on web or if SecureStore unavailable
       if (!SecureStore) {
-        console.log('BiometricAuthService.init: SecureStore unavailable, skipping migration');
+        log('BiometricAuthService.init: SecureStore unavailable, skipping migration');
         return;
       }
       // Migrate legacy enable flag if present and canonical not set
@@ -79,7 +80,7 @@ export class BiometricAuthService {
         await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => {});
       }
     } catch (e) {
-      console.warn("BiometricAuthService.init migration skipped:", e);
+      warn("BiometricAuthService.init migration skipped:", e);
     }
   }
 
@@ -94,7 +95,7 @@ export class BiometricAuthService {
       const enableWebBiometricTesting = process.env.EXPO_PUBLIC_ENABLE_WEB_BIOMETRIC_TESTING === 'true';
       
       if (isDevelopment && isWeb && enableWebBiometricTesting) {
-        console.log('[DEV] Using mock biometric capabilities for web testing');
+        debug('[DEV] Using mock biometric capabilities for web testing');
         return {
           isAvailable: true,
           supportedTypes: [LocalAuthentication.AuthenticationType.FINGERPRINT],
@@ -117,7 +118,7 @@ export class BiometricAuthService {
         platform: Platform.OS
       };
 
-      console.log('Biometric capabilities check:', {
+      debug('Biometric capabilities check:', {
         deviceInfo,
         isAvailable,
         supportedTypes,
@@ -145,7 +146,7 @@ export class BiometricAuthService {
         securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
         isSecure = securityLevel === LocalAuthentication.SecurityLevel.BIOMETRIC_STRONG;
       } catch (securityError) {
-        console.warn('Could not get security level, assuming weak but allowing biometrics:', securityError);
+        warn('Could not get security level, assuming weak but allowing biometrics:', securityError);
         // On some Android devices, this call fails but biometrics still work
         isSecure = false;
       }
@@ -157,14 +158,14 @@ export class BiometricAuthService {
       } else if (hasStrongBiometrics && (deviceInfo.brand?.toLowerCase().includes('oppo') || isAvailable)) {
         // For OPPO and similar devices, be more permissive about security levels
         effectiveSecurityLevel = "strong";
-        console.log('Using permissive security assessment for OPPO/Android device');
+        debug('Using permissive security assessment for OPPO/Android device');
       }
 
       // If no supported types but hardware is available and enrolled, 
       // this might be an API detection issue (common on some Android devices)
       let effectiveSupportedTypes = supportedTypes;
       if (supportedTypes.length === 0 && isAvailable && isEnrolled) {
-        console.warn('No supported types detected despite available hardware - adding FINGERPRINT as fallback');
+        warn('No supported types detected despite available hardware - adding FINGERPRINT as fallback');
         effectiveSupportedTypes = [LocalAuthentication.AuthenticationType.FINGERPRINT];
       }
 
@@ -175,7 +176,7 @@ export class BiometricAuthService {
         securityLevel: effectiveSecurityLevel,
       };
     } catch (error) {
-      console.error("Error checking biometric capabilities:", error);
+      logError("Error checking biometric capabilities:", error);
       return {
         isAvailable: false,
         supportedTypes: [],
@@ -215,7 +216,7 @@ export class BiometricAuthService {
   static async getAvailableBiometricOptions(): Promise<string[]> {
     const capabilities = await this.checkCapabilities();
     
-    console.log('Getting available biometric options:', {
+    debug('Getting available biometric options:', {
       isAvailable: capabilities.isAvailable,
       isEnrolled: capabilities.isEnrolled,
       supportedTypes: capabilities.supportedTypes,
@@ -223,17 +224,17 @@ export class BiometricAuthService {
     });
 
     if (!capabilities.isAvailable || !capabilities.isEnrolled) {
-      console.log('No biometric options available - not available or not enrolled');
+      debug('No biometric options available - not available or not enrolled');
       return [];
     }
 
     const options = capabilities.supportedTypes.map((type) => {
       const typeName = this.getBiometricTypeName(type);
-      console.log(`Mapping biometric type ${type} to "${typeName}"`);
+      debug(`Mapping biometric type ${type} to "${typeName}"`);
       return typeName;
     });
     
-    console.log('Available biometric options:', options);
+    debug('Available biometric options:', options);
     return options;
   }
 
@@ -249,7 +250,7 @@ export class BiometricAuthService {
       }
       return false;
     } catch (error) {
-      console.error("Error checking lockout status:", error);
+      logError("Error checking lockout status:", error);
       return false;
     }
   }
@@ -264,7 +265,7 @@ export class BiometricAuthService {
       );
       return stateData ? JSON.parse(stateData) : { failedAttempts: 0 };
     } catch (error) {
-      console.error("Error getting security state:", error);
+      logError("Error getting security state:", error);
       return { failedAttempts: 0 };
     }
   }
@@ -302,7 +303,7 @@ export class BiometricAuthService {
         );
       }
     } catch (error) {
-      console.error("Error updating security state:", error);
+      logError("Error updating security state:", error);
     }
   }
 
@@ -591,6 +592,14 @@ export class BiometricAuthService {
           } else {
             await AsyncStorage.setItem(BIOMETRIC_REFRESH_TOKEN_KEY, refreshToken);
           }
+          // Also store per-user refresh for multi-account support
+          try {
+            const { EnhancedBiometricAuth } = await import('./EnhancedBiometricAuth');
+            await (EnhancedBiometricAuth as any).setActiveUserId?.(userId);
+            await (EnhancedBiometricAuth as any).setRefreshTokenForUser?.(userId, refreshToken);
+          } catch (e2) {
+            console.debug('Per-user refresh token store fallback failed (will still use global):', e2);
+          }
         }
       } catch (e) {
         console.warn('Could not persist biometric refresh token during enablement:', e);
@@ -617,8 +626,11 @@ export class BiometricAuthService {
         SecureStore.deleteItemAsync(BIOMETRIC_LOCK_SECRET_KEY).catch(() => {}),
         SecureStore.deleteItemAsync(LAST_UNLOCKED_AT_KEY).catch(() => {}),
         SecureStore.deleteItemAsync(LAST_USER_ID_KEY).catch(() => {}),
+        // Also remove stored refresh token used for session restoration
+        SecureStore.deleteItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY).catch(() => {}),
         AsyncStorage.removeItem(BIOMETRIC_STORAGE_KEY),
         AsyncStorage.removeItem(BIOMETRIC_USER_KEY),
+        AsyncStorage.removeItem(BIOMETRIC_REFRESH_TOKEN_KEY),
       ]);
     } catch (error) {
       console.error("Error disabling biometric authentication:", error);

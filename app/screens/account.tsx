@@ -14,6 +14,7 @@ import {
 import { Colors } from '@/constants/Colors';
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 
 // Safe icon component that handles potential undefined icons
 const SafeIcon = ({ name, size, color, fallback = "●" }: { 
@@ -40,7 +41,7 @@ import {
 } from "@/lib/biometrics";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
 import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
-import { supabase } from "@/lib/supabase";
+import { assertSupabase } from "@/lib/supabase";
 import { signOutAndRedirect } from "@/lib/authActions";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
@@ -363,7 +364,7 @@ export default function AccountScreen() {
   }));
 
   const load = useCallback(async () => {
-    const { data } = await supabase!.auth.getUser();
+    const { data } = await assertSupabase().auth.getUser();
     const u = data.user;
     setEmail(u?.email ?? null);
 
@@ -376,7 +377,7 @@ export default function AccountScreen() {
 
     if (u?.id) {
       try {
-        const { data: p } = await supabase!
+        const { data: p } = await assertSupabase()
           .from("profiles")
           .select("role,preschool_id,first_name,last_name,avatar_url")
           .eq("id", u.id)
@@ -509,7 +510,7 @@ export default function AccountScreen() {
   const uploadProfileImage = async (uri: string) => {
     try {
       setUploadingImage(true);
-      const { data } = await supabase!.auth.getUser();
+      const { data } = await assertSupabase().auth.getUser();
       const user = data.user;
 
       if (!user?.id) {
@@ -526,7 +527,7 @@ export default function AccountScreen() {
       let publicUrl = null;
       try {
         // Upload to Supabase Storage
-        const { error: uploadError } = await supabase!.storage
+        const { error: uploadError } = await assertSupabase().storage
           .from("avatars")
           .upload(filename, blob, {
             contentType: "image/jpeg",
@@ -541,7 +542,7 @@ export default function AccountScreen() {
         // Get public URL
         const {
           data: { publicUrl: url },
-        } = supabase!.storage.from("avatars").getPublicUrl(filename);
+        } = assertSupabase().storage.from("avatars").getPublicUrl(filename);
 
         publicUrl = url;
       } catch (storageError) {
@@ -551,7 +552,7 @@ export default function AccountScreen() {
       }
 
       // Update profile with new avatar URL
-      const { error: updateError } = await supabase!
+      const { error: updateError } = await assertSupabase()
         .from("profiles")
         .update({ avatar_url: publicUrl })
         .eq("id", user.id);
@@ -563,7 +564,7 @@ export default function AccountScreen() {
 
       // Also update user metadata to ensure persistence
       try {
-        const { error: metaError } = await supabase!.auth.updateUser({
+        const { error: metaError } = await assertSupabase().auth.updateUser({
           data: { 
             avatar_url: publicUrl
           }
@@ -616,7 +617,7 @@ export default function AccountScreen() {
     }
 
     try {
-      const { data } = await supabase!.auth.getUser();
+      const { data } = await assertSupabase().auth.getUser();
       const user = data.user;
 
       if (!user) {
@@ -659,7 +660,7 @@ export default function AccountScreen() {
   const saveProfileChanges = async () => {
     try {
       setSavingProfile(true);
-      const { data } = await supabase!.auth.getUser();
+      const { data } = await assertSupabase().auth.getUser();
       const user = data.user;
 
       if (!user?.id) {
@@ -668,7 +669,7 @@ export default function AccountScreen() {
       }
 
       // Update profile in database
-      const { error: profileError } = await supabase!
+      const { error: profileError } = await assertSupabase()
         .from("profiles")
         .update({
           first_name: editFirstName.trim() || null,
@@ -837,9 +838,17 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {/* Sign Out Button */}
+        {/* Switch Account and Sign Out Buttons */}
         <TouchableOpacity
-          onPress={signOutAndRedirect}
+          onPress={() => router.push('/(auth)/sign-in?switch=1')}
+          style={[styles.signOutButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border }]}
+        >
+          <SafeIcon name="swap-horizontal" size={20} color={theme.primary} fallback="🔄" />
+          <Text style={[styles.signOutText, { color: theme.primary }]}>Switch account</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}
           style={styles.signOutButton}
         >
           <SafeIcon name="log-out-outline" size={20} color={theme.onError} fallback="🚪" />

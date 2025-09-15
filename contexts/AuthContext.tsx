@@ -7,8 +7,9 @@ import { routeAfterLogin } from '@/lib/routeAfterLogin';
 import { 
   fetchEnhancedUserProfile, 
   createPermissionChecker,
+  createEnhancedProfile,
   type EnhancedUserProfile,
-  type PermissionChecker 
+  type PermissionChecker
 } from '@/lib/rbac';
 import { initializeSession, signOut } from '@/lib/sessionManager';
 import { securityAuditor } from '@/lib/security-audit';
@@ -34,6 +35,41 @@ const AuthContext = createContext<AuthContextValue>({
   refreshProfile: async () => {},
   signOut: async () => {},
 });
+
+function toEnhancedProfile(p: any | null): EnhancedUserProfile | null {
+  if (!p) return null;
+  
+  // If already an enhanced profile, return as is
+  if (typeof p.hasRole === 'function' && typeof p.hasCapability === 'function') {
+    return p as EnhancedUserProfile;
+  }
+  
+  // Create enhanced profile using the same logic as createEnhancedProfile
+  const baseProfile = {
+    id: p.id,
+    email: p.email,
+    role: p.role,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    avatar_url: p.avatar_url,
+    organization_id: p.organization_id,
+    organization_name: p.organization_name,
+    seat_status: p.seat_status || 'active',
+    capabilities: p.capabilities || [],
+    created_at: p.created_at,
+    last_login_at: p.last_login_at,
+  } as any;
+  
+  // Use createEnhancedProfile from rbac to ensure all methods are attached
+  return createEnhancedProfile(baseProfile, {
+    organization_id: p.organization_id,
+    organization_name: p.organization_name,
+    plan_tier: p.plan_tier || 'free',
+    seat_status: p.seat_status || 'active',
+    invited_by: p.invited_by,
+    created_at: p.created_at,
+  });
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthContextValue['user']>(null);
@@ -165,8 +201,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: { id: storedSession.user_id, email: storedSession.email } 
           } as any);
           setUser({ id: storedSession.user_id, email: storedSession.email } as any);
-          setProfile(storedProfile as any);
-          setPermissions(createPermissionChecker(storedProfile as any));
+          const enhanced = toEnhancedProfile(storedProfile as any);
+          setProfile(enhanced);
+          setPermissions(createPermissionChecker(enhanced));
         }
 
         // Get current auth session

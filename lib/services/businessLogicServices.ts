@@ -5,7 +5,7 @@
  * reporting, analytics, and data processing across the education platform.
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 // Types for business logic services
 export interface FinancialMetrics {
@@ -90,11 +90,8 @@ class FinancialAnalyticsService {
    * Calculate comprehensive financial metrics for a school
    */
   static async calculateFinancialMetrics(schoolId: string, period: 'month' | 'quarter' | 'year' = 'month'): Promise<FinancialMetrics> {
-    if (!supabase) {
-      return this.getEmptyFinancialMetrics();
-    }
-
     try {
+      const supabase = assertSupabase();
       const dateRange = this.getDateRange(period);
       
       // Fetch revenue data
@@ -161,11 +158,9 @@ class FinancialAnalyticsService {
    */
   static async projectRevenue(schoolId: string, months: number = 6): Promise<RevenueProjection> {
     void months;
-    if (!supabase) {
-      return this.getEmptyRevenueProjection();
-    }
 
     try {
+      const supabase = assertSupabase();
       // Fetch historical revenue data for the past 12 months
       const twelveMonthsAgo = new Date();
       twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
@@ -341,16 +336,12 @@ class AttendanceAnalyticsService {
    * Calculate comprehensive attendance metrics
    */
   static async calculateAttendanceMetrics(schoolId: string): Promise<AttendanceMetrics> {
-    if (!supabase) {
-      return this.getEmptyAttendanceMetrics();
-    }
-
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       // Fetch attendance data
-      const { data: attendanceData } = await supabase
+const { data: attendanceData } = await assertSupabase()
         .from('attendance')
         .select(`
           present,
@@ -482,27 +473,23 @@ class PerformanceAnalyticsService {
    * Calculate comprehensive performance metrics
    */
   static async calculatePerformanceMetrics(schoolId: string): Promise<PerformanceMetrics> {
-    if (!supabase) {
-      return this.getEmptyPerformanceMetrics();
-    }
-
     try {
       // Fetch student grades
-      const { data: gradesData } = await supabase
+const { data: gradesData } = await assertSupabase()
         .from('student_grades')
         .select('grade_value, subject')
         .eq('school_id', schoolId)
         .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()); // Last 90 days
 
       // Fetch teacher ratings
-      const { data: teacherRatings } = await supabase
+const { data: teacherRatings } = await assertSupabase()
         .from('teacher_evaluations')
         .select('rating, evaluation_type')
         .eq('school_id', schoolId)
         .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString());
 
       // Fetch enrollment data
-      const { data: enrollmentData } = await supabase
+const { data: enrollmentData } = await assertSupabase()
         .from('students')
         .select('created_at, status')
         .eq('school_id', schoolId);
@@ -656,13 +643,9 @@ class StudentAnalyticsService {
    * Calculate comprehensive student analytics
    */
   static async calculateStudentAnalytics(schoolId: string): Promise<StudentAnalytics> {
-    if (!supabase) {
-      return this.getEmptyStudentAnalytics();
-    }
-
     try {
       // Fetch student data
-      const { data: studentsData } = await supabase
+const { data: studentsData } = await assertSupabase()
         .from('students')
         .select('created_at, date_of_birth, gender, grade_level, special_needs, status')
         .eq('school_id', schoolId);
@@ -766,13 +749,9 @@ class TeacherAnalyticsService {
    * Calculate comprehensive teacher analytics
    */
   static async calculateTeacherAnalytics(schoolId: string): Promise<TeacherAnalytics> {
-    if (!supabase) {
-      return this.getEmptyTeacherAnalytics();
-    }
-
     try {
       // Fetch teacher data
-      const { data: teachersData } = await supabase
+const { data: teachersData } = await assertSupabase()
         .from('teachers')
         .select('created_at, years_experience, qualification_level, performance_rating, status, date_left')
         .eq('school_id', schoolId);

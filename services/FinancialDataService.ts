@@ -5,7 +5,7 @@
  * for financial dashboard display
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 export interface UnifiedTransaction {
   id: string;
@@ -48,7 +48,7 @@ export class FinancialDataService {
       const nextMonthStart = `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`;
 
       // Get monthly revenue from completed payments
-      const { data: revenuePayments, error: revenueError } = await supabase!
+      const { data: revenuePayments, error: revenueError } = await assertSupabase()
         .from('payments')
         .select('amount')
         .eq('preschool_id', preschoolId)
@@ -63,7 +63,7 @@ export class FinancialDataService {
       const monthlyRevenue = revenuePayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
       // Get outstanding payments
-      const { data: outstandingPayments, error: outstandingError } = await supabase!
+      const { data: outstandingPayments, error: outstandingError } = await assertSupabase()
         .from('payments')
         .select('amount')
         .eq('preschool_id', preschoolId)
@@ -76,7 +76,7 @@ export class FinancialDataService {
       const totalOutstanding = outstandingPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
       // Get monthly expenses from petty cash
-      const { data: expenseTransactions, error: expenseError } = await supabase!
+      const { data: expenseTransactions, error: expenseError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount')
         .eq('preschool_id', preschoolId)
@@ -92,7 +92,7 @@ export class FinancialDataService {
       const monthlyExpenses = expenseTransactions?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
 
       // Get student count
-      const { count: studentCount } = await supabase!
+      const { count: studentCount } = await assertSupabase()
         .from('students')
         .select('*', { count: 'exact', head: true })
         .eq('preschool_id', preschoolId)
@@ -146,7 +146,7 @@ export class FinancialDataService {
         const nextMonthStart = `${year}-${(month + 1).toString().padStart(2, '0')}-01`;
 
         // Get revenue for this month
-        const { data: monthlyRevenue } = await supabase!
+        const { data: monthlyRevenue } = await assertSupabase()
           .from('payments')
           .select('amount')
           .eq('preschool_id', preschoolId)
@@ -155,7 +155,7 @@ export class FinancialDataService {
           .lt('created_at', nextMonthStart);
 
         // Get expenses for this month
-        const { data: monthlyExpenses } = await supabase!
+        const { data: monthlyExpenses } = await assertSupabase()
           .from('petty_cash_transactions')
           .select('amount')
           .eq('preschool_id', preschoolId)
@@ -200,7 +200,7 @@ export class FinancialDataService {
       const transactions: UnifiedTransaction[] = [];
 
       // Get recent payments
-      const { data: payments, error: paymentsError } = await supabase!
+const { data: payments, error: paymentsError } = await assertSupabase()
         .from('payments')
         .select(`
           id,
@@ -217,7 +217,7 @@ export class FinancialDataService {
         .limit(Math.ceil(limit / 2));
 
       if (!paymentsError && payments) {
-        payments.forEach(payment => {
+(payments || []).forEach((payment: any) => {
           const studentData = Array.isArray(payment.students) ? payment.students[0] : payment.students;
           const studentName = studentData 
             ? `${studentData.first_name} ${studentData.last_name}`
@@ -238,7 +238,7 @@ export class FinancialDataService {
       }
 
       // Get recent petty cash transactions
-      const { data: pettyCash, error: pettyCashError } = await supabase!
+const { data: pettyCash, error: pettyCashError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('id, amount, description, status, created_at, receipt_number, category, type')
         .eq('preschool_id', preschoolId)
@@ -246,7 +246,7 @@ export class FinancialDataService {
         .limit(Math.ceil(limit / 2));
 
       if (!pettyCashError && pettyCash) {
-        pettyCash.forEach(transaction => {
+(pettyCash || []).forEach((transaction: any) => {
           transactions.push({
             id: transaction.id,
             type: 'expense',

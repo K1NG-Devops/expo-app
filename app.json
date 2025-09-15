@@ -2,22 +2,21 @@
   "expo": {
     "name": "EduDashPro",
     "slug": "edudashpro",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "scheme": "edudashpro",
-    "newArchEnabled": true,
-    "splash": {
+    "owner": "edudashpro",
+      "version": "1.0.0",
+      "runtimeVersion": { "policy": "appVersion" },
+      "orientation": "portrait",
+      "icon": "./assets/icon.png",
+      "userInterfaceStyle": "light",
+      "scheme": "edudashpro",
+      "newArchEnabled": true,
+      "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-      "runtimeVersion": {
-        "policy": "appVersion"
-      },
       "bundleIdentifier": "com.k1ngdevops.edudashpro"
     },
     "android": {
@@ -26,8 +25,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "runtimeVersion": "1.0.0",
-      "package": "com.k1ngdevops.edudashpro"
+      "package": "com.edudashpro",
+      "googleServicesFile": "./google-services.json"
     },
     "plugins": [
       "expo-router",
@@ -44,9 +43,10 @@
         }
       ],
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-notifications"
     ],
-"experiments": {
+    "experiments": {
       "typedRoutes": false
     },
     "developmentClient": {
@@ -82,15 +82,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "57d5bed1-4674-4caa-a0ed-d0d14a21becb"
+        "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
       }
-    },
-    "react-native-google-mobile-ads": {
-      "android_app_id": "ca-app-pub-3940256099942544~3347511713",
-      "ios_app_id": "ca-app-pub-3940256099942544~1458002511"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/57d5bed1-4674-4caa-a0ed-d0d14a21becb"
     }
   }
 }

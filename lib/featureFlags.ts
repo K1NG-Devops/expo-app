@@ -73,6 +73,7 @@ export interface FeatureFlags {
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
 const AI_DEFAULT = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true') || (process.env.NODE_ENV === 'production')
 const SA_TENANT_DEFAULT = process.env.EXPO_PUBLIC_COUNTRY === 'ZA' || process.env.EXPO_PUBLIC_SA_TENANT === 'true'
+const TENANT_SLUG_DEFAULT = !!process.env.EXPO_PUBLIC_TENANT_SLUG
 const DEFAULT_FLAGS: FeatureFlags = {
   // Core features
   ai_gateway_enabled: process.env.EXPO_PUBLIC_AI_GATEWAY_ENABLED === 'true',
@@ -115,7 +116,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   
   // Parent Dashboard Features (NEW) - Strategic Roadmap Implementation
   parent_hub_enabled: process.env.EXPO_PUBLIC_PARENT_HUB_ENABLED !== 'false', // enabled by default
-  whatsapp_integration: SA_TENANT_DEFAULT, // enabled for SA tenants
+  whatsapp_integration: SA_TENANT_DEFAULT || TENANT_SLUG_DEFAULT, // enabled for SA tenants or explicit tenant slug
   offline_homework: process.env.EXPO_PUBLIC_OFFLINE_HOMEWORK !== 'false', // beta feature
   voice_notes: true, // core feature enabled
   progress_tracking: true, // core feature enabled

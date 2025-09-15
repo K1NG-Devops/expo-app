@@ -3,7 +3,7 @@
  * Uses existing 'announcements' table from database schema
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { AnnouncementData } from '@/components/modals/AnnouncementModal';
 
 export interface DatabaseAnnouncement {
@@ -48,7 +48,7 @@ export class AnnouncementService {
           null,
       };
 
-      const { data, error } = await supabase!
+      const { data, error } = await assertSupabase()
         .from('announcements')
         .insert(dbAnnouncement)
         .select()
@@ -78,7 +78,7 @@ export class AnnouncementService {
     limit: number = 10
   ): Promise<{ success: boolean; data?: DatabaseAnnouncement[]; error?: string }> {
     try {
-      const { data, error } = await supabase!
+      const { data, error } = await assertSupabase()
         .from('announcements')
         .select('*')
         .eq('preschool_id', preschoolId)
@@ -111,7 +111,7 @@ export class AnnouncementService {
     try {
       const dateThreshold = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
       
-      const { count, error } = await supabase!
+      const { count, error } = await assertSupabase()
         .from('announcements')
         .select('id', { count: 'exact', head: true })
         .eq('preschool_id', preschoolId)
@@ -181,7 +181,7 @@ export class AnnouncementService {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       // Only allow deletion by author or principals
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('announcements')
         .delete()
         .eq('id', announcementId)

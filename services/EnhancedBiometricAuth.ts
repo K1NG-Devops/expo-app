@@ -5,7 +5,7 @@
  * secure session tokens and bypassing email-based OTP flows for returning users.
  */
 
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { BiometricAuthService } from './BiometricAuthService';
 import { Alert, Platform } from 'react-native';
 
@@ -104,6 +104,9 @@ const storage = chooseStorage();
 const BIOMETRIC_SESSION_KEY = 'biometric_session_token';
 const BIOMETRIC_USER_PROFILE_KEY = 'biometric_user_profile';
 const BIOMETRIC_REFRESH_TOKEN_KEY = 'biometric_refresh_token';
+// V2 multi-account support
+const BIOMETRIC_SESSIONS_KEY = 'biometric_sessions_v2';
+const BIOMETRIC_ACTIVE_USER_ID_KEY = 'biometric_active_user_id_v2';
 
 export interface BiometricSessionData {
   userId: string;
@@ -116,7 +119,95 @@ export interface BiometricSessionData {
 
 export class EnhancedBiometricAuth {
   /**
-   * Store secure session data for biometric users
+   * Internal: get sessions map for v2 multi-account store
+   */
+  private static async getSessionsMap(): Promise<Record<string, BiometricSessionData>> {
+    try {
+      const raw = await storage.getItem(BIOMETRIC_SESSIONS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private static async setSessionsMap(map: Record<string, BiometricSessionData>): Promise<void> {
+    await storage.setItem(BIOMETRIC_SESSIONS_KEY, JSON.stringify(map));
+  }
+
+  private static async getActiveUserId(): Promise<string | null> {
+    try {
+      if (SecureStore) {
+        return await SecureStore.getItemAsync(BIOMETRIC_ACTIVE_USER_ID_KEY);
+      } else if (AsyncStorage) {
+        return await AsyncStorage.getItem(BIOMETRIC_ACTIVE_USER_ID_KEY);
+      }
+    } catch {}
+    return null;
+  }
+
+  public static async setActiveUserId(userId: string): Promise<void> {
+    try {
+      if (SecureStore) {
+        await SecureStore.setItemAsync(BIOMETRIC_ACTIVE_USER_ID_KEY, userId);
+      } else if (AsyncStorage) {
+        await AsyncStorage.setItem(BIOMETRIC_ACTIVE_USER_ID_KEY, userId);
+      }
+    } catch {}
+  }
+
+  private static makeRefreshKey(userId: string): string {
+    return `biometric_refresh_token_${userId}`;
+  }
+
+  private static async setRefreshTokenForUser(userId: string, token: string): Promise<void> {
+    try {
+      if (SecureStore) {
+        await SecureStore.setItemAsync(this.makeRefreshKey(userId), token);
+      } else if (AsyncStorage) {
+        await AsyncStorage.setItem(this.makeRefreshKey(userId), token);
+      }
+    } catch {}
+  }
+
+  private static async getRefreshTokenForUser(userId: string): Promise<string | null> {
+    try {
+      if (SecureStore) {
+        return await SecureStore.getItemAsync(this.makeRefreshKey(userId));
+      } else if (AsyncStorage) {
+        return await AsyncStorage.getItem(this.makeRefreshKey(userId));
+      }
+    } catch {}
+    return null;
+  }
+
+  private static async clearRefreshTokenForUser(userId: string): Promise<void> {
+    try {
+      if (SecureStore) {
+        await SecureStore.deleteItemAsync(this.makeRefreshKey(userId));
+      } else if (AsyncStorage) {
+        await AsyncStorage.removeItem(this.makeRefreshKey(userId));
+      }
+    } catch {}
+  }
+
+  /**
+   * Ensure a given session is present in the v2 sessions map and set active user id.
+   */
+  private static async ensureSessionInMap(session: BiometricSessionData): Promise<void> {
+    try {
+      const sessions = await this.getSessionsMap();
+      if (!sessions[session.userId]) {
+        sessions[session.userId] = session;
+        await this.setSessionsMap(sessions);
+      }
+      await this.setActiveUserId(session.userId);
+    } catch (e) {
+      console.warn('ensureSessionInMap failed:', e);
+    }
+  }
+
+  /**
+   * Store secure session data for biometric users (supports multi-account)
    */
   static async storeBiometricSession(userId: string, email: string, profile?: any, refreshToken?: string): Promise<boolean> {
     try {
@@ -153,14 +244,27 @@ export class EnhancedBiometricAuth {
           tokenToStore = current?.refresh_token;
         }
         if (tokenToStore) {
+          // Global fallback (legacy)
           if (SecureStore) {
             await SecureStore.setItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY, tokenToStore);
           } else if (AsyncStorage) {
             await AsyncStorage.setItem(BIOMETRIC_REFRESH_TOKEN_KEY, tokenToStore);
           }
+          // Per-user token for multi-account support
+          await this.setRefreshTokenForUser(userId, tokenToStore);
         }
       } catch (storeTokenErr) {
         console.warn('Could not store biometric refresh token:', storeTokenErr);
+      }
+
+      // V2 multi-account: store in sessions map and set active user
+      try {
+        const sessions = await this.getSessionsMap();
+        sessions[userId] = sessionData;
+        await this.setSessionsMap(sessions);
+        await this.setActiveUserId(userId);
+      } catch (e) {
+        console.warn('Could not persist v2 biometric sessions map:', e);
       }
 
       console.log('Stored biometric session data for user:', email);
@@ -176,6 +280,23 @@ export class EnhancedBiometricAuth {
    */
   static async getBiometricSession(): Promise<BiometricSessionData | null> {
     try {
+      // Prefer v2 active user session
+      const activeId = await this.getActiveUserId();
+      if (activeId) {
+        const sessions = await this.getSessionsMap();
+        const sessionData = sessions[activeId];
+        if (sessionData) {
+          const expirationTime = new Date(sessionData.expiresAt);
+          if (expirationTime < new Date()) {
+            console.log('Biometric session expired for active user, clearing');
+            await this.removeBiometricSession(activeId);
+            return null;
+          }
+          return sessionData;
+        }
+      }
+
+      // Legacy single-session fallback
       const sessionDataString = await storage.getItem(BIOMETRIC_SESSION_KEY);
       if (!sessionDataString) {
         return null;
@@ -203,8 +324,35 @@ export class EnhancedBiometricAuth {
    */
   static async clearBiometricSession(): Promise<void> {
     try {
+      // Legacy single-session cleanup
       await storage.removeItem(BIOMETRIC_SESSION_KEY);
       await storage.removeItem(BIOMETRIC_USER_PROFILE_KEY);
+
+      // V2 multi-account cleanup: remove all sessions and per-user refresh tokens
+      try {
+        const sessions = await this.getSessionsMap();
+        const userIds = Object.keys(sessions);
+        for (const uid of userIds) {
+          await this.clearRefreshTokenForUser(uid);
+        }
+        await storage.removeItem(BIOMETRIC_SESSIONS_KEY);
+        if (SecureStore) {
+          await SecureStore.deleteItemAsync(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => {});
+        } else if (AsyncStorage) {
+          await AsyncStorage.removeItem(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => {});
+        }
+      } catch {}
+
+      // Also remove global stored biometric refresh token
+      try {
+        if (SecureStore) {
+          await SecureStore.deleteItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY);
+        } else if (AsyncStorage) {
+          await AsyncStorage.removeItem(BIOMETRIC_REFRESH_TOKEN_KEY);
+        }
+      } catch {
+        // ignore
+      }
     } catch (error) {
       console.error('Error clearing biometric session:', error);
     }
@@ -229,7 +377,7 @@ export class EnhancedBiometricAuth {
         };
       }
 
-      // Get stored session data
+      // Get stored session data (active user)
       const sessionData = await this.getBiometricSession();
       if (!sessionData) {
         return {
@@ -253,63 +401,44 @@ export class EnhancedBiometricAuth {
       // Try to restore Supabase session if needed
       let sessionRestored = false;
       try {
-        const { supabase } = await import('@/lib/supabase');
-        if (supabase) {
+        const { assertSupabase } = await import('@/lib/supabase');
+        {
           // Check if current session is valid
-          const { data } = await supabase.auth.getSession();
+          const { data } = await assertSupabase().auth.getSession();
           
           if (!data.session?.user) {
             console.log('No active Supabase session, attempting to restore');
-            // Try to get stored session and refresh it (uses refresh flow if expired)
-            const { getCurrentSession } = await import('@/lib/sessionManager');
-            const storedSession = await getCurrentSession();
-            
-            // Try stored session first
-            if (storedSession) {
-              console.log('Found stored session, setting Supabase session via refresh');
-              const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession({
+
+            // Prefer per-user biometric refresh token for active user
+            let perUserRefresh: string | null = await this.getRefreshTokenForUser(sessionData.userId);
+
+            if (perUserRefresh) {
+              const { data: refreshed, error: refreshErr } = await assertSupabase().auth.refreshSession({
+                refresh_token: perUserRefresh,
+              });
+              if (!refreshErr && refreshed?.session?.user) {
+                console.log('Restored Supabase session using per-user biometric refresh token');
+                sessionRestored = true;
+              }
+            }
+
+            if (!sessionRestored) {
+              // Fallback to sessionManager stored session (if any)
+              const { getCurrentSession } = await import('@/lib/sessionManager');
+              const storedSession = await getCurrentSession();
+              if (storedSession) {
+              const { data: refreshed2, error: refreshErr2 } = await assertSupabase().auth.refreshSession({
                 refresh_token: storedSession.refresh_token,
               });
-
-              if (!refreshErr && refreshed?.session?.user) {
-                console.log('Successfully refreshed and restored Supabase session');
-                sessionRestored = true;
-              } else {
-                console.warn('Refresh failed from stored session, trying biometric refresh token');
-                // Try biometric-stored refresh token
-                let biometricRefresh: string | null = null;
-                try {
-                  biometricRefresh = SecureStore 
-                    ? await SecureStore.getItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY)
-                    : await AsyncStorage.getItem(BIOMETRIC_REFRESH_TOKEN_KEY);
-                } catch {}
-
-                if (biometricRefresh) {
-                  const { data: refreshed2, error: refreshErr2 } = await supabase.auth.refreshSession({
-                    refresh_token: biometricRefresh,
-                  });
-                  if (!refreshErr2 && refreshed2?.session?.user) {
-                    console.log('Restored Supabase session using biometric refresh token');
-                    sessionRestored = true;
-                  } else {
-                    console.warn('Biometric refresh token restore failed, falling back to setSession');
-                    const { error: sessionError } = await supabase.auth.setSession({
-                      access_token: storedSession.access_token,
-                      refresh_token: storedSession.refresh_token,
-                    });
-                    if (!sessionError) {
-                      console.log('Successfully restored Supabase session via setSession');
-                      sessionRestored = true;
-                    } else {
-                      console.error('Failed to restore Supabase session:', sessionError || refreshErr2 || refreshErr);
-                    }
-                  }
-                } else {
-                  console.warn('No biometric refresh token available');
+                if (!refreshErr2 && refreshed2?.session?.user) {
+                  console.log('Successfully refreshed and restored Supabase session from stored session');
+                  sessionRestored = true;
                 }
               }
-            } else {
-              // No stored session at all (likely after sign out). Try biometric refresh token directly.
+            }
+
+            if (!sessionRestored) {
+              // Last resort: global biometric refresh token
               let biometricRefresh: string | null = null;
               try {
                 biometricRefresh = SecureStore 
@@ -317,17 +446,16 @@ export class EnhancedBiometricAuth {
                   : await AsyncStorage.getItem(BIOMETRIC_REFRESH_TOKEN_KEY);
               } catch {}
               if (biometricRefresh) {
-                const { data: refreshed, error: refreshErr } = await supabase.auth.refreshSession({
+                const { data: refreshed3, error: refreshErr3 } = await assertSupabase().auth.refreshSession({
                   refresh_token: biometricRefresh,
                 });
-                if (!refreshErr && refreshed?.session?.user) {
-                  console.log('Restored Supabase session using biometric refresh token (no stored session)');
+                if (!refreshErr3 && refreshed3?.session?.user) {
+                  console.log('Restored Supabase session using global biometric refresh token');
                   sessionRestored = true;
-                } else {
-                  console.error('Failed to restore session using biometric refresh token:', refreshErr);
                 }
               }
             }
+
           } else {
             console.log('Valid Supabase session already exists');
             sessionRestored = true;
@@ -344,6 +472,9 @@ export class EnhancedBiometricAuth {
         BIOMETRIC_SESSION_KEY,
         JSON.stringify(sessionData)
       );
+
+      // Migration: ensure this active user exists in v2 sessions map and set active
+      await this.ensureSessionInMap(sessionData);
 
       console.log('Enhanced biometric authentication successful for:', sessionData.email);
       
@@ -378,6 +509,115 @@ export class EnhancedBiometricAuth {
         success: false,
         error: 'Authentication failed due to an error'
       };
+    }
+  }
+
+  /**
+   * Get a list of biometric accounts stored on device (multi-account)
+   */
+  static async getBiometricAccounts(): Promise<Array<{ userId: string; email: string; lastUsed: string; expiresAt: string }>> {
+    try {
+      const sessions = await this.getSessionsMap();
+      const accountsMap: Record<string, { userId: string; email: string; lastUsed: string; expiresAt: string }> = {};
+      Object.values(sessions).forEach(s => {
+        accountsMap[s.userId] = { userId: s.userId, email: s.email, lastUsed: s.lastUsed, expiresAt: s.expiresAt };
+      });
+
+      // Also include legacy single-session if present and not already in map
+      try {
+        const legacy = await storage.getItem(BIOMETRIC_SESSION_KEY);
+        if (legacy) {
+          const s: BiometricSessionData = JSON.parse(legacy);
+          if (s?.userId && !accountsMap[s.userId]) {
+            accountsMap[s.userId] = { userId: s.userId, email: s.email, lastUsed: s.lastUsed, expiresAt: s.expiresAt };
+          }
+        }
+      } catch {}
+
+      const accounts = Object.values(accountsMap);
+      // Sort by lastUsed desc
+      accounts.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
+      return accounts;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Remove a specific biometric session by user id
+   */
+  static async removeBiometricSession(userId: string): Promise<void> {
+    try {
+      const sessions = await this.getSessionsMap();
+      if (sessions[userId]) {
+        delete sessions[userId];
+        await this.setSessionsMap(sessions);
+      }
+      await this.clearRefreshTokenForUser(userId);
+      // Clear legacy active id if it matches
+      const active = await this.getActiveUserId();
+      if (active === userId) {
+        await this.setActiveUserId('');
+      }
+    } catch (e) {
+      console.warn('removeBiometricSession error:', e);
+    }
+  }
+
+  /**
+   * Authenticate and restore session for a specific user (switch account)
+   */
+  static async authenticateWithBiometricForUser(userId: string): Promise<{
+    success: boolean;
+    userData?: BiometricSessionData;
+    sessionRestored?: boolean;
+    error?: string;
+  }> {
+    try {
+      const capabilities = await BiometricAuthService.checkCapabilities();
+      if (!capabilities.isAvailable || !capabilities.isEnrolled) {
+        return { success: false, error: 'Biometric not available or not enrolled' };
+      }
+
+      const sessions = await this.getSessionsMap();
+      const sessionData = sessions[userId];
+      if (!sessionData) {
+        return { success: false, error: 'No biometric session found for selected account' };
+      }
+
+      const authResult = await BiometricAuthService.authenticate('Confirm to switch account');
+      if (!authResult.success) {
+        return { success: false, error: authResult.error || 'Authentication failed' };
+      }
+
+      // Restore Supabase session using per-user refresh token
+      let sessionRestored = false;
+      try {
+        const { assertSupabase } = await import('@/lib/supabase');
+        {
+          const refresh = await this.getRefreshTokenForUser(userId);
+          if (refresh) {
+            const { data: refreshed, error: refreshErr } = await assertSupabase().auth.refreshSession({ refresh_token: refresh });
+            if (!refreshErr && refreshed?.session?.user) {
+              sessionRestored = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Switch account session restore error:', e);
+      }
+
+      // Update active user and last used
+      sessionData.lastUsed = new Date().toISOString();
+      const newMap = await this.getSessionsMap();
+      newMap[userId] = sessionData;
+      await this.setSessionsMap(newMap);
+      await this.setActiveUserId(userId);
+
+      return { success: true, userData: sessionData, sessionRestored };
+    } catch (error) {
+      console.error('authenticateWithBiometricForUser error:', error);
+      return { success: false, error: 'Authentication failed due to an error' };
     }
   }
 

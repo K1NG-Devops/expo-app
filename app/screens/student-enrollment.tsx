@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 interface Grade {
   id: string;
@@ -235,7 +235,7 @@ export default function StudentEnrollment() {
     }
 
     const preschoolId = getPreschoolId();
-    if (!preschoolId || !supabase) {
+    if (!preschoolId) {
       Alert.alert('Error', 'Unable to enroll student. Please try again later.');
       return;
     }
@@ -260,7 +260,7 @@ export default function StudentEnrollment() {
               });
               
               // **INSERT REAL STUDENT INTO DATABASE**
-              const { data: newStudent, error: insertError } = await supabase!
+              const { data: newStudent, error: insertError } = await assertSupabase()
                 .from('students')
                 .insert({
                   first_name: studentInfo.firstName,

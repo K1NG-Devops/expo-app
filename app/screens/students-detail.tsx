@@ -28,7 +28,7 @@ import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
 import { EmptyStudentsState } from '@/components/ui/EmptyState';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 interface Student {
   id: string;
@@ -88,161 +88,6 @@ export default function StudentsDetailScreen() {
     search: '',
   });
 
-  // Mock student data with proper hierarchy consideration
-  const generateMockStudents = (): Student[] => {
-    const userRole = profile?.role || 'parent';
-    const schoolId = profile?.organization_id || 'school-123';
-    const userId = user?.id || 'user-123'; // eslint-disable-line @typescript-eslint/no-unused-vars
-    
-    const baseStudents: Student[] = [
-      {
-        id: '1',
-        studentId: 'STU2024001',
-        firstName: 'Sarah',
-        lastName: 'Johnson',
-        grade: 'Grade R-A',
-        dateOfBirth: '2019-05-15',
-        guardianName: 'Jennifer Johnson',
-        guardianPhone: '+27 82 123 4567',
-        guardianEmail: 'jennifer@email.com',
-        emergencyContact: 'Mark Johnson',
-        emergencyPhone: '+27 83 987 6543',
-        medicalConditions: 'Asthma',
-        allergies: 'Nuts',
-        enrollmentDate: '2024-01-15',
-        status: 'active',
-        profilePhoto: 'https://images.unsplash.com/photo-1494790108755-2616c57ac7cd?w=150&h=150&fit=crop&crop=face',
-        attendanceRate: 92,
-        lastAttendance: new Date().toISOString(),
-        assignedTeacher: 'Ms. Davis',
-        fees: {
-          outstanding: 0,
-          lastPayment: '2024-09-01',
-          paymentStatus: 'current',
-        },
-        schoolId,
-        classId: 'class-r-a',
-      },
-      {
-        id: '2',
-        studentId: 'STU2024002',
-        firstName: 'Michael',
-        lastName: 'Chen',
-        grade: 'Grade 1-B',
-        dateOfBirth: '2018-08-22',
-        guardianName: 'Lisa Chen',
-        guardianPhone: '+27 84 567 8901',
-        guardianEmail: 'lisa@email.com',
-        emergencyContact: 'David Chen',
-        emergencyPhone: '+27 85 234 5678',
-        enrollmentDate: '2023-08-10',
-        status: 'active',
-        attendanceRate: 88,
-        lastAttendance: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        assignedTeacher: 'Mr. Thompson',
-        fees: {
-          outstanding: 1200,
-          lastPayment: '2024-08-01',
-          paymentStatus: 'overdue',
-        },
-        schoolId,
-        classId: 'class-1-b',
-      },
-      {
-        id: '3',
-        studentId: 'STU2024003',
-        firstName: 'Emma',
-        lastName: 'Williams',
-        grade: 'Grade R-A',
-        dateOfBirth: '2019-11-03',
-        guardianName: 'Sophie Williams',
-        guardianPhone: '+27 86 345 6789',
-        guardianEmail: 'sophie@email.com',
-        emergencyContact: 'James Williams',
-        emergencyPhone: '+27 87 890 1234',
-        allergies: 'Dairy',
-        enrollmentDate: '2024-02-01',
-        status: 'active',
-        attendanceRate: 95,
-        lastAttendance: new Date().toISOString(),
-        assignedTeacher: 'Ms. Davis',
-        fees: {
-          outstanding: 0,
-          lastPayment: '2024-09-01',
-          paymentStatus: 'current',
-        },
-        schoolId,
-        classId: 'class-r-a',
-      },
-      {
-        id: '4',
-        studentId: 'STU2024004',
-        firstName: 'Liam',
-        lastName: 'Brown',
-        grade: 'Grade 2-A',
-        dateOfBirth: '2017-12-15',
-        guardianName: 'Rachel Brown',
-        guardianPhone: '+27 88 123 4567',
-        guardianEmail: 'rachel@email.com',
-        emergencyContact: 'Tom Brown',
-        emergencyPhone: '+27 89 456 7890',
-        enrollmentDate: '2022-09-05',
-        status: 'active',
-        attendanceRate: 90,
-        lastAttendance: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-        assignedTeacher: 'Mrs. Johnson',
-        fees: {
-          outstanding: 600,
-          lastPayment: '2024-08-15',
-          paymentStatus: 'pending',
-        },
-        schoolId,
-        classId: 'class-2-a',
-      },
-      {
-        id: '5',
-        studentId: 'STU2024005',
-        firstName: 'Zoe',
-        lastName: 'Taylor',
-        grade: 'Grade R-B',
-        dateOfBirth: '2019-04-20',
-        guardianName: 'Amy Taylor',
-        guardianPhone: '+27 90 234 5678',
-        guardianEmail: 'amy@email.com',
-        emergencyContact: 'Ben Taylor',
-        emergencyPhone: '+27 91 567 8901',
-        medicalConditions: 'ADHD',
-        enrollmentDate: '2024-01-22',
-        status: 'active',
-        attendanceRate: 85,
-        lastAttendance: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        assignedTeacher: 'Ms. Rodriguez',
-        fees: {
-          outstanding: 0,
-          lastPayment: '2024-09-01',
-          paymentStatus: 'current',
-        },
-        schoolId,
-        classId: 'class-r-b',
-      },
-    ];
-
-    // Filter based on user role and permissions
-    if (userRole === 'principal_admin') {
-      return baseStudents; // Principals see all school students
-    } else if (userRole === 'teacher') {
-      // Teachers see their assigned students (mock: Ms. Davis sees Grade R-A students)
-      return baseStudents.filter(student => 
-        student.assignedTeacher === 'Ms. Davis' || 
-        student.grade.includes('Grade R') // Example: teacher assigned to Grade R
-      );
-    } else {
-      // Parents see only their children (mock: parent sees Sarah Johnson)
-      return baseStudents.filter(student => 
-        student.guardianEmail === 'jennifer@email.com' // Example: parent's email
-      );
-    }
-  };
 
   // Get preschool ID from user context
   const getPreschoolId = useCallback((): string | null => {
@@ -255,7 +100,7 @@ export default function StudentsDetailScreen() {
   const loadStudents = async (forceRefresh = false) => {
     const preschoolId = getPreschoolId();
     
-    if (!preschoolId || !supabase) {
+if (!preschoolId) {
       console.warn('No preschool ID available or Supabase not initialized');
       setLoading(false);
       return;
@@ -293,7 +138,7 @@ export default function StudentsDetailScreen() {
       console.log('🔍 Fetching real students for preschool:', preschoolId);
       
       // **FETCH REAL STUDENTS FROM DATABASE**
-      const { data: studentsData, error: studentsError } = await supabase
+const { data: studentsData, error: studentsError } = await assertSupabase()
         .from('students')
         .select(`
           id,

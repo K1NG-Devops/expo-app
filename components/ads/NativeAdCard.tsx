@@ -12,6 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../contexts/ThemeContext'
 import { track } from '../../lib/analytics'
+import { error as logError } from '../../lib/debug'
 
 interface NativeAdProps {
   placement: 'quick-actions' | 'activity-feed' | 'children-list'
@@ -78,7 +79,12 @@ export const NativeAdCard: React.FC<NativeAdProps> = ({
   const [ad, setAd] = useState<any>(null)
   const [dismissed, setDismissed] = useState(false)
 
+  // Only show mock native ads in dev or if explicitly enabled
+  const adsEnabled = Platform.OS !== 'web' && process.env.EXPO_PUBLIC_ENABLE_ADS !== '0'
+  const allowMock = (__DEV__ as boolean) || process.env.EXPO_PUBLIC_ENABLE_MOCK_ADS === 'true'
+
   useEffect(() => {
+    if (!adsEnabled || !allowMock) return
     // Simulate ad loading
     const ads = MOCK_ADS[placement]
     if (ads && ads.length > 0) {
@@ -93,8 +99,9 @@ export const NativeAdCard: React.FC<NativeAdProps> = ({
         platform: Platform.OS
       })
     }
-  }, [placement])
+  }, [placement, adsEnabled, allowMock])
 
+  if (!adsEnabled || !allowMock) return null
   if (!ad || dismissed) return null
 
   const handleAdPress = async () => {
@@ -111,7 +118,7 @@ export const NativeAdCard: React.FC<NativeAdProps> = ({
         await Linking.openURL(ad.url)
       }
     } catch (error) {
-      console.error('Failed to open ad URL:', error)
+      logError('Failed to open ad URL:', error)
     }
   }
 

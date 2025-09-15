@@ -9,7 +9,7 @@ import {
   Alert,
   Modal,
 } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import * as Linking from "expo-linking";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -23,6 +23,7 @@ import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
 import { EnhancedBiometricAuth } from "@/services/EnhancedBiometricAuth";
 import BiometricDebugger from "../../utils/biometricDebug";
 import { Ionicons } from "@expo/vector-icons";
+import { registerForPushNotificationsAsync, onNotificationReceived, scheduleLocalNotification } from "@/lib/notifications";
 
 export default function SignIn() {
   const { theme } = useTheme();
@@ -44,12 +45,40 @@ export default function SignIn() {
   const [biometricType, setBiometricType] = useState<string | null>(null);
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
   const hasPromptedRef = React.useRef(false);
+  // Multi-account biometric support
+  const [biometricAccounts, setBiometricAccounts] = useState<Array<{ userId: string; email: string; lastUsed: string; expiresAt: string }>>([]);
+  const [showAccountPicker, setShowAccountPicker] = useState(false);
+  const [switchLoadingUserId, setSwitchLoadingUserId] = useState<string | null>(null);
 
   const canUseSupabase = !!supabase;
+
+  // Read query params (e.g., switch=1 to open account picker)
+  const params = useLocalSearchParams<{ switch?: string }>();
 
   // Check biometric availability on component mount
   useEffect(() => {
     checkBiometricStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Register for push notifications when the sign-in screen mounts
+  useEffect(() => {
+    let unsubscribe: undefined | (() => void);
+    (async () => {
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          console.log('Expo push token:', token);
+          // TODO: send token to your backend if you want server-initiated pushes
+        }
+        unsubscribe = onNotificationReceived((n) => {
+          console.log('Notification received:', n);
+        });
+      } catch (e) {
+        console.warn('Push registration failed:', e);
+      }
+    })();
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
   const checkBiometricStatus = async () => {
@@ -102,6 +131,24 @@ export default function SignIn() {
       // Pre-populate email if we have stored biometric data
       if (effectiveUserData?.email) {
         setEmail(effectiveUserData.email);
+      }
+
+      // Load any stored biometric accounts (multi-account)
+      try {
+        const accounts = await EnhancedBiometricAuth.getBiometricAccounts();
+        setBiometricAccounts(accounts);
+
+        // If we were routed here to switch accounts, open picker or auto-login
+        if (params?.switch === '1') {
+          if (accounts.length > 1) {
+            setShowAccountPicker(true);
+          } else if (accounts.length === 1) {
+            // Auto-login to the single stored account
+            onBiometricLoginForUser(accounts[0].userId);
+          }
+        }
+      } catch (accErr) {
+        console.warn('Could not load biometric accounts:', accErr);
       }
 
       // Auto-open biometric prompt modal if conditions are met and not prompted yet
@@ -206,7 +253,7 @@ export default function SignIn() {
     }
     setLoading(true);
     const redirectTo = Linking.createURL("/auth-callback");
-    const { error: err } = await supabase!.auth.signInWithOtp({
+    const { error: err } = await (await import('@/lib/supabase')).assertSupabase().auth.signInWithOtp({
       email: email.trim(),
       options: { shouldCreateUser: true, emailRedirectTo: redirectTo },
     });
@@ -231,7 +278,7 @@ export default function SignIn() {
       return;
     }
     setLoading(true);
-    const { data, error: err } = await supabase!.auth.verifyOtp({
+    const { data, error: err } = await (await import('@/lib/supabase')).assertSupabase().auth.verifyOtp({
       email: email.trim(),
       token: code.trim(),
       type: "email",
@@ -260,6 +307,21 @@ export default function SignIn() {
     try {
       setLoading(true);
       setError(null);
+
+      // Clarify messaging when device supports biometrics but it is turned off in-app
+      if (!biometricAvailable) {
+        Alert.alert(t("settings.biometric.title"), t("settings.biometric.notAvailable"));
+        setLoading(false);
+        return;
+      }
+      if (!biometricEnabled) {
+        Alert.alert(
+          t("settings.biometric.title"),
+          t("settings.biometric.enableToUse", { defaultValue: "Biometric sign-in is turned off. Enable it in your Account settings to use quick sign-in." })
+        );
+        setLoading(false);
+        return;
+      }
 
       console.log('Starting enhanced biometric authentication');
       
@@ -314,6 +376,68 @@ export default function SignIn() {
     }
   }
 
+  async function onBiometricLoginForUser(userId: string) {
+    // Close any modals
+    setShowBiometricPrompt(false);
+    setShowAccountPicker(false);
+    if (!biometricAvailable) {
+      Alert.alert(t("settings.biometric.title"), t("settings.biometric.notAvailable"));
+      return;
+    }
+    if (!biometricEnabled) {
+      Alert.alert(
+        t("settings.biometric.title"),
+        t("settings.biometric.enableToUse", { defaultValue: "Biometric sign-in is turned off. Enable it in your Account settings to use quick sign-in." })
+      );
+      return;
+    }
+
+    try {
+      setSwitchLoadingUserId(userId);
+      setError(null);
+      const result = await EnhancedBiometricAuth.authenticateWithBiometricForUser(userId);
+      setSwitchLoadingUserId(null);
+      
+      if (!result.success) {
+        setError(result.error || "Biometric authentication failed");
+        return;
+      }
+
+      if (result.sessionRestored && result.userData) {
+        // Same routing approach as default biometric login
+        const enhanced = result.userData;
+        if (enhanced?.profileSnapshot?.role) {
+          const mockUser = { id: enhanced.userId, email: enhanced.email };
+          const cachedProfile = {
+            id: enhanced.userId,
+            role: enhanced.profileSnapshot.role,
+            organization_id: enhanced.profileSnapshot.organization_id,
+            seat_status: enhanced.profileSnapshot.seat_status,
+            hasCapability: () => true,
+            organization_membership: { plan_tier: 'basic' }
+          };
+          try {
+            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+            await routeAfterLogin(mockUser as any, cachedProfile as any);
+            return;
+          } catch (e) {
+            console.warn('Routing with cached profile failed, going to profiles gate:', e);
+          }
+        }
+        router.replace("/profiles-gate");
+      } else {
+        setError("Session expired. Please sign in with your password to re-enable biometric login.");
+        await EnhancedBiometricAuth.clearBiometricSession();
+        await BiometricAuthService.disableBiometric();
+      }
+
+    } catch (err) {
+      console.error('Biometric switch account error:', err);
+      setError("Biometric login failed. Please try password login.");
+      setSwitchLoadingUserId(null);
+    }
+  }
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen
@@ -352,8 +476,44 @@ export default function SignIn() {
                 <Text style={styles.modalPrimaryBtnText}>Use biometrics</Text>
               )}
             </TouchableOpacity>
+            {biometricAccounts.length > 1 && (
+              <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowAccountPicker(true)}>
+                <Text style={styles.modalSecondaryBtnText}>Switch account</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowBiometricPrompt(false)}>
               <Text style={styles.modalSecondaryBtnText}>Use password instead</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Account Picker Modal */}
+      <Modal
+        visible={showAccountPicker}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowAccountPicker(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Choose an account</Text>
+            {biometricAccounts.map((acc) => (
+              <TouchableOpacity
+                key={acc.userId}
+                style={[styles.modalPrimaryBtn, { marginBottom: 8, backgroundColor: '#0ea5e9' }]}
+                onPress={() => onBiometricLoginForUser(acc.userId)}
+                disabled={switchLoadingUserId === acc.userId}
+              >
+                {switchLoadingUserId === acc.userId ? (
+                  <ActivityIndicator color="#0b1220" />
+                ) : (
+                  <Text style={styles.modalPrimaryBtnText}>{acc.email}</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowAccountPicker(false)}>
+              <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -391,6 +551,15 @@ export default function SignIn() {
                 </>
               )}
             </TouchableOpacity>
+
+            {biometricAccounts.length > 1 && (
+              <TouchableOpacity
+                style={styles.fallbackLink}
+                onPress={() => setShowAccountPicker(true)}
+              >
+                <Text style={styles.fallbackLinkText}>Switch account</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Fallback Authentication Link */}
             <TouchableOpacity

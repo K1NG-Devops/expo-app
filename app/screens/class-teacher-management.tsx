@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import { Ionicons } from '@expo/vector-icons';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Picker } from '@react-native-picker/picker';
 
@@ -80,13 +80,13 @@ export default function ClassTeacherManagementScreen() {
   });
 
   const loadData = async () => {
-    if (!user || !supabase) return;
+    if (!user) return;
 
     try {
       setLoading(true);
 
       // Get user's preschool
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user.id)
@@ -98,7 +98,7 @@ export default function ClassTeacherManagementScreen() {
       }
 
       // Load classes with teacher and enrollment information
-      const { data: classesData } = await supabase!
+      const { data: classesData } = await assertSupabase()
         .from('classes')
         .select(`
           *,
@@ -130,7 +130,7 @@ export default function ClassTeacherManagementScreen() {
       setClasses(processedClasses);
 
       // Load teachers with their class assignments from users table
-      const { data: teachersData } = await supabase!
+      const { data: teachersData } = await assertSupabase()
         .from('users')
         .select(`
           *,
@@ -175,13 +175,13 @@ export default function ClassTeacherManagementScreen() {
     }
 
     try {
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('classes')
         .insert({
           name: classForm.name.trim(),
@@ -217,7 +217,7 @@ export default function ClassTeacherManagementScreen() {
     if (!selectedClass || !classForm.teacher_id) return;
 
     try {
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('classes')
         .update({ teacher_id: classForm.teacher_id })
         .eq('id', selectedClass.id);
@@ -248,7 +248,7 @@ export default function ClassTeacherManagementScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const { error } = await supabase!
+              const { error } = await assertSupabase()
                 .from('classes')
                 .update({ teacher_id: null })
                 .eq('id', classInfo.id);
@@ -271,7 +271,7 @@ export default function ClassTeacherManagementScreen() {
 
   const handleToggleClassStatus = async (classInfo: ClassInfo) => {
     try {
-      const { error } = await supabase!
+      const { error } = await assertSupabase()
         .from('classes')
         .update({ is_active: !classInfo.is_active })
         .eq('id', classInfo.id);

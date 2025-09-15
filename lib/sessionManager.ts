@@ -210,14 +210,35 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         preschool_id
       `)
       .eq('id', userId)
-      .single();
+      .maybeSingle();
 
     if (profileError) {
       console.error('Failed to fetch user profile:', profileError);
       return null;
     }
 
-    // Extract organization info
+    if (!profile) {
+      // No profile row; construct a minimal placeholder to avoid crashes
+      console.warn('No profile row found for user:', userId);
+      const planTier = undefined;
+      const capabilities = await getUserCapabilities('parent', planTier);
+      return {
+        id: userId,
+        email: '',
+        role: 'parent',
+        first_name: '',
+        last_name: '',
+        avatar_url: '',
+        organization_id: undefined,
+        organization_name: undefined,
+        seat_status: 'active',
+        capabilities,
+        created_at: new Date().toISOString(),
+        last_login_at: null as any,
+      };
+    }
+
+    // Extract organization info (placeholders retained)
     const orgMember = null as any;
     const org = null as any;
 

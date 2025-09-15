@@ -7,7 +7,7 @@
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { EnhancedBiometricAuth } from '@/services/EnhancedBiometricAuth';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 
 export class BiometricDebugExtended {
   /**
@@ -63,12 +63,12 @@ export class BiometricDebugExtended {
 
       // Test 6: Check Supabase session
       console.log('\n6️⃣ Testing Supabase Session...');
-      if (supabase) {
-        const { data, error } = await supabase.auth.getSession();
+      try {
+        const { data, error } = await assertSupabase().auth.getSession();
         console.log('Supabase Session:', data.session ? 'Active' : 'None');
         console.log('Supabase User:', data.session?.user?.email || 'None');
         if (error) console.log('Supabase Error:', error);
-      }
+      } catch {}
 
       console.log('\n✅ All tests completed!');
       
@@ -168,8 +168,8 @@ export class BiometricDebugExtended {
       console.log('Session Manager Session:', currentSession ? 'Present' : 'Missing');
       console.log('Enhanced Biometric Session:', enhancedSession ? 'Present' : 'Missing');
       
-      if (supabase) {
-        let { data } = await supabase.auth.getSession();
+      try {
+        let { data } = await assertSupabase().auth.getSession();
         console.log('Initial Supabase Session:', data.session ? 'Active' : 'None');
 
         // If no active session, try to restore
@@ -181,14 +181,14 @@ export class BiometricDebugExtended {
             expiresAt: new Date(currentSession.expires_at * 1000).toISOString()
           });
           
-          const { error } = await supabase.auth.setSession({
+          const { error } = await assertSupabase().auth.setSession({
             access_token: currentSession.access_token,
             refresh_token: currentSession.refresh_token
           });
           
           if (!error) {
             console.log('✅ Session restoration successful!');
-            const { data: newData } = await supabase.auth.getSession();
+            const { data: newData } = await assertSupabase().auth.getSession();
             console.log('Restored Session User:', newData.session?.user?.email);
             console.log('Session expires at:', new Date((newData.session?.expires_at || 0) * 1000).toISOString());
           } else {
@@ -199,6 +199,8 @@ export class BiometricDebugExtended {
         } else {
           console.log('❌ No stored session available for restoration');
         }
+      } catch (e) {
+        console.warn('Supabase session check failed:', e);
       }
 
     } catch (error) {

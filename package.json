@@ -5,7 +5,7 @@
   "scripts": {
     "start": "npx expo start --dev-client --host localhost",
     "start:clear": "npx expo start --dev-client --host localhost --clear",
-    "open:android": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8083 tcp:8083 && adb shell am start -n com.k1ngdevops.edudashpro/expo.modules.devlauncher.launcher.DevLauncherActivity -a android.intent.action.VIEW -d \"exp://expo-development-client/?url=http://127.0.0.1:8081\"",
+    "open:android": "adb reverse tcp:8081 tcp:8081 && adb reverse tcp:8083 tcp:8083 && adb shell am start -n com.edudashpro/expo.modules.devlauncher.launcher.DevLauncherActivity -a android.intent.action.VIEW -d \"exp://expo-development-client/?url=http://127.0.0.1:8081\"",
     "dev:android": "npm run start:clear & sleep 5 && npm run open:android",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -28,6 +28,7 @@
     "@tanstack/react-query": "^5.87.4",
     "@tanstack/react-query-persist-client": "^5.87.4",
     "expo": "~53.0.22",
+    "expo-crypto": "~14.1.5",
     "expo-dev-client": "^5.2.4",
     "expo-document-picker": "~13.1.6",
     "expo-file-system": "~18.1.11",
@@ -54,11 +55,16 @@
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
-    "react-native-svg": "^15.13.0",
+    "react-native-svg": "15.11.2",
     "react-native-web": "^0.20.0",
     "sentry-expo": "~7.0.0",
     "tslib": "^2.8.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "expo-constants": "~17.1.7",
+    "expo-linking": "~7.1.7",
+    "expo-application": "~6.1.5",
+    "expo-device": "~7.1.4",
+    "expo-notifications": "~0.31.4"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

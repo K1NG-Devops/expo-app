@@ -8,20 +8,32 @@ export default function NotFound() {
   const pathname = usePathname();
   
   useEffect(() => {
-    console.log('🚨 [NOT-FOUND] Unmatched route detected!');
-    console.log('🚨 [NOT-FOUND] Pathname:', pathname);
-    console.log('🚨 [NOT-FOUND] Segments:', segments);
-    console.log('🚨 [NOT-FOUND] Router state:', router);
-    console.log('🚨 [NOT-FOUND] Full router object keys:', Object.keys(router));
-    console.log('🚨 [NOT-FOUND] Router.canGoBack:', router.canGoBack?.());
-    console.log('🚨 [NOT-FOUND] Window location:', typeof window !== 'undefined' ? window.location : 'N/A');
-    
-    // Try to extract more debugging info
-    try {
-      console.log('🚨 [NOT-FOUND] Router push function:', typeof router.push);
-      console.log('🚨 [NOT-FOUND] Process.env.NODE_ENV:', process.env.NODE_ENV);
-    } catch (error) {
-      console.log('🚨 [NOT-FOUND] Error getting router debug info:', error);
+    if (__DEV__) {
+      // Gate debug logs to development only to avoid leaking routing internals
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Unmatched route detected!');
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Pathname:', pathname);
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Segments:', segments);
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Router state:', router);
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Full router object keys:', Object.keys(router));
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Router.canGoBack:', router.canGoBack?.());
+      // eslint-disable-next-line no-console
+      console.log('🚨 [NOT-FOUND] Window location:', typeof window !== 'undefined' ? window.location : 'N/A');
+      
+      try {
+        // eslint-disable-next-line no-console
+        console.log('🚨 [NOT-FOUND] Router push function:', typeof router.push);
+        // eslint-disable-next-line no-console
+        console.log('🚨 [NOT-FOUND] Process.env.NODE_ENV:', process.env.NODE_ENV);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.log('🚨 [NOT-FOUND] Error getting router debug info:', error);
+      }
     }
   }, []);
   

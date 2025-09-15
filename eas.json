@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.8.0"
+    "version": ">= 5.8.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -10,10 +11,29 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "credentialsSource": "remote",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://lvvvjywrmpcqrpvuptdi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2dnZqeXdybXBjcXJwdnVwdGRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwMzc4MzgsImV4cCI6MjA2ODYxMzgzOH0.mjXejyRHPzEJfMlhW46TlYI0qw9mtoSRJZhGsCkuvd8",
+        "EXPO_PUBLIC_TENANT_SLUG": "preview",
+        "EXPO_PUBLIC_WHATSAPP_API_ENABLED": "true",
+        "EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER": "+27674770975",
+        "EXPO_PUBLIC_API_BASE": "https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1"
+      }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "env": {
+        "NODE_ENV": "production",
+        "EXPO_PUBLIC_ENABLE_CONSOLE": "false",
+        "EXPO_PUBLIC_ENABLE_ADS": "1",
+        "EXPO_PUBLIC_ENABLE_TEST_ADS": "false",
+        "EXPO_PUBLIC_ENABLE_MOCK_ADS": "false"
+      }
     }
   },
   "submit": {

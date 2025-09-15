@@ -57,7 +57,7 @@ export const useWhatsAppConnection = () => {
           .eq('id', profile.organization_id)
           .single()
 
-        const schoolWhatsAppNumber = preschool?.settings?.whatsapp_number || preschool?.phone
+        const schoolWhatsAppNumber = preschool?.settings?.whatsapp_number || preschool?.phone || process.env.EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER
 
         return {
           isConnected: contact?.consent_status === 'opted_in',

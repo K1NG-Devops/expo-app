@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
@@ -32,7 +32,7 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
   // Use provided user or fetch from auth
   let authUser = user;
   if (!authUser) {
-    const { data: { user: fetchedUser } } = await supabase!.auth.getUser();
+    const { data: { user: fetchedUser } } = await assertSupabase().auth.getUser();
     authUser = fetchedUser;
   }
   
@@ -43,7 +43,7 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
   // First fallback: check consolidated users table by auth_user_id
   if (id && (!role || school === null)) {
     try {
-      const { data: udata, error: uerror } = await supabase!
+      const { data: udata, error: uerror } = await assertSupabase()
         .from('users')
         .select('role,preschool_id')
         .eq('auth_user_id', id)
@@ -61,9 +61,9 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
   if (id && (!role || school === null)) {
     try {
       let data: any = null; let error: any = null;
-      ({ data, error } = await supabase!.from('profiles').select('role,preschool_id').eq('id', id).maybeSingle());
+      ({ data, error } = await assertSupabase().from('profiles').select('role,preschool_id').eq('id', id).maybeSingle());
       if ((!data || error) && id) {
-        ({ data, error } = await supabase!.from('profiles').select('role,preschool_id').eq('user_id', id).maybeSingle());
+        ({ data, error } = await assertSupabase().from('profiles').select('role,preschool_id').eq('user_id', id).maybeSingle());
       }
       if (!error && data) {
         role = normalizeRole((data as any).role ?? role);

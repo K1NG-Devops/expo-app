@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 
 interface Student {
@@ -90,7 +90,7 @@ export default function StudentManagementScreen() {
       setLoading(true);
 
       // Get user's preschool ID
-      const { data: userProfile } = await supabase!
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
@@ -104,7 +104,7 @@ export default function StudentManagementScreen() {
       const preschoolId = userProfile.preschool_id;
 
       // Get school information
-      const { data: school } = await supabase!
+      const { data: school } = await assertSupabase()
         .from('preschools')
         .select('id, name, school_type, grade_levels')
         .eq('id', preschoolId)
@@ -113,7 +113,7 @@ export default function StudentManagementScreen() {
       setSchoolInfo(school);
 
       // Get age groups appropriate for this school type
-      const { data: ageGroupsData } = await supabase!
+      const { data: ageGroupsData } = await assertSupabase()
         .from('age_groups')
         .select('id, name, min_age_months, max_age_months, age_min, age_max, school_type, description')
         .eq('school_type', school?.school_type || 'preschool')
@@ -123,7 +123,7 @@ export default function StudentManagementScreen() {
       setAgeGroups(ageGroupsData || []);
 
       // Get classes for this school
-      const { data: classesData } = await supabase!
+      const { data: classesData } = await assertSupabase()
         .from('classes')
         .select('id, name, grade_level, teacher_id')
         .eq('preschool_id', preschoolId)
@@ -133,7 +133,7 @@ export default function StudentManagementScreen() {
       setClasses(classesData || []);
 
       // Get students with comprehensive information
-      const { data: studentsData } = await supabase!
+      const { data: studentsData } = await assertSupabase()
         .from('students')
         .select(`
           id,

@@ -662,7 +662,7 @@ export default function AccountScreen() {
 
         {/* Sign Out Button */}
         <TouchableOpacity
-          onPress={signOutAndRedirect}
+          onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}
           style={styles.signOutButton}
         >
           <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />

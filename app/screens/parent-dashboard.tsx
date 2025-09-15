@@ -20,8 +20,9 @@ export default function ParentDashboardScreen() {
   const { ready: subscriptionReady, tier } = useSubscription();
 
   // Enforce RBAC: must be parent role with dashboard access
-  const canView = permissions.hasRole('parent') && permissions.can('view_dashboard');
-  const hasAccess = permissions.can('access_mobile_app');
+  // Add defensive checks to handle initialization states
+  const canView = permissions?.hasRole ? permissions.hasRole('parent') && permissions.can('view_dashboard') : false;
+  const hasAccess = permissions?.can ? permissions.can('access_mobile_app') : false;
 
   // Features enabled based on tier
   const featuresEnabled = [

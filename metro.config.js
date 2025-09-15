@@ -9,6 +9,16 @@ config.resolver.platforms = ['ios', 'android', 'web'];
 
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 
+// Exclude debug/test/mock files from production bundle
+const exclusionList = require('metro-config/src/defaults/exclusionList');
+config.resolver.blockList = exclusionList([
+  /\/(scripts\/.*test.*|scripts\/.*debug.*|utils\/.*test.*|utils\/.*debug.*|.*mock.*)\//,
+  /\/components\/debug\//,
+  /\/app\/.*debug.*\.tsx?$/,
+  /\/app\/biometric-test\.tsx$/,
+  /\/app\/debug-user\.tsx$/,
+]);
+
 
 // Block native-only modules on web platform
 const originalResolver = config.resolver.resolveRequest;
