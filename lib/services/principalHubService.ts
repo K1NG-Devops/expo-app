@@ -92,9 +92,58 @@ export class PrincipalHubService {
         Promise.resolve({ count: 3 }) // Mock data for now
       ]);
 
-      // Attendance rate and revenue should come from real data; use conservative defaults if missing
-      const attendanceRate = 0; // Use 0 if not computed from records
-      const monthlyRevenue = Math.round((studentsResult.count || 0) * 1200); // Fallback estimation only
+      // Attendance rate over last 30 days
+      let attendanceRate = 0;
+      try {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const { data: att } = await assertSupabase()
+          .from('attendance_records')
+          .select('status')
+          .eq('preschool_id', preschoolId)
+          .gte('date', thirtyDaysAgo)
+          .limit(5000);
+        if (att && att.length > 0) {
+          const present = att.filter((a: any) => String(a.status).toLowerCase() === 'present').length;
+          attendanceRate = Math.round((present / att.length) * 100);
+        }
+      } catch {}
+
+      // Monthly revenue from transactions; fallback to estimate if none
+      let monthlyRevenue = 0;
+      try {
+        const now = new Date();
+        const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,'0')}-01`;
+        const nextMonthStart = `${now.getFullYear()}-${String(now.getMonth() + 2).padStart(2,'0')}-01`;
+        const { data: tx } = await assertSupabase()
+          .from('financial_transactions')
+          .select('amount, type, status')
+          .eq('preschool_id', preschoolId)
+          .eq('type', 'fee_payment')
+          .eq('status', 'completed')
+          .gte('created_at', monthStart)
+          .lt('created_at', nextMonthStart);
+        monthlyRevenue = (tx || []).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
+      } catch {}
+      if (!monthlyRevenue) {
+        monthlyRevenue = Math.round((studentsResult.count || 0) * 1200);
+      }
+
+      // Pending applications from enrollment_applications
+      const pendingApplications = applicationsResult.count || 0;
+
+      // Upcoming events (best-effort): sum of next 2 weeks class events
+      let upcomingEvents = 0;
+      try {
+        const twoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+        const { data: ev } = await assertSupabase()
+          .from('class_events')
+          .select('id')
+          .eq('preschool_id', preschoolId)
+          .gt('start_time', new Date().toISOString())
+          .lt('start_time', twoWeeks)
+          .limit(50);
+        upcomingEvents = (ev || []).length;
+      } catch {}
 
       return {
         totalStudents: studentsResult.count || 0,
@@ -102,8 +151,8 @@ export class PrincipalHubService {
         totalClasses: classesResult.count || 0,
         attendanceRate,
         monthlyRevenue,
-        pendingApplications: applicationsResult.count || 0,
-        upcomingEvents: 2 // Mock data
+        pendingApplications,
+        upcomingEvents
       };
     } catch (error) {
       console.error('Failed to fetch school stats:', error);

@@ -593,6 +593,16 @@ onPress={() => router.push('/screens/financial-dashboard')}
             <Text style={styles.actionText}>Send Announcement</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={[styles.actionsGrid, { marginTop: 8 }]}>
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/screens/principal-parent-requests')}
+          >
+            <Ionicons name="people-circle" size={24} color={theme.primary} />
+            <Text style={styles.actionText}>Parent Requests</Text>
+          </TouchableOpacity>
+        </View>
         
         <View style={styles.actionsGrid}>
           <TouchableOpacity 

@@ -865,6 +865,14 @@ case 'homework':
           onUpgradePress={() => handleQuickAction('upgrade')}
         />
 
+        {/* Link Child CTA */}
+        <View style={styles.section}>
+          <TouchableOpacity onPress={() => router.push('/screens/parent-link-child')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
+            <Text style={{ color: theme.text, fontWeight: '600' }}>Link your child to this account</Text>
+            <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Submit a request to your school to link your child</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Enhanced Children Grid */}
         <EnhancedChildrenGrid
           childrenData={childrenCards}

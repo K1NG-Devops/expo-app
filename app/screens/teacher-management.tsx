@@ -235,6 +235,9 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
     fetchTeachers();
   }, [fetchTeachers]);
 
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+
   const handleAddTeacher = () => {
     Alert.alert(
       '👨‍🏫 Add New Teacher',
@@ -249,6 +252,10 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
               [{ text: 'Great!', style: 'default' }]
             );
           }
+        },
+        {
+          text: 'Invite by Email',
+          onPress: () => setShowInviteModal(true)
         },
         {
           text: 'Add Directly',
@@ -422,6 +429,47 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
 
   return (
     <View style={styles.container}>
+      {/* Invite Teacher Modal */}
+      {showInviteModal && (
+        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 50, justifyContent: 'center', padding: 16 }}>
+          <View style={{ backgroundColor: 'white', borderRadius: 12, padding: 16 }}>
+            <Text style={{ fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Invite Teacher</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 12, marginBottom: 12 }}
+              placeholder="teacher@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={inviteEmail}
+              onChangeText={setInviteEmail}
+            />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={[styles.btn, styles.btnDanger]} onPress={() => setShowInviteModal(false)}>
+                <Text style={styles.btnDangerText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btn, styles.btnPrimary]}
+                onPress={async () => {
+                  try {
+                    const schoolId = getPreschoolId();
+                    if (!schoolId) { Alert.alert('Error', 'No school associated'); return; }
+                    const invitedBy = user?.id || '';
+                    const { TeacherInviteService } = await import('@/lib/services/teacherInviteService');
+                    const invite = await TeacherInviteService.createInvite({ schoolId, email: inviteEmail.trim(), invitedBy });
+                    setShowInviteModal(false);
+                    setInviteEmail('');
+                    Alert.alert('Invite created', `Share this invite token with the teacher:\n\n${invite.token}`);
+                  } catch (e: any) {
+                    Alert.alert('Error', e?.message || 'Failed to create invite');
+                  }
+                }}
+              >
+                <Text style={styles.btnPrimaryText}>Send Invite</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Header */}
       <RoleBasedHeader 
         title="Teacher Management" 
