@@ -337,21 +337,39 @@ export default function SignIn() {
       console.log('Enhanced biometric authentication successful');
       
       if (result.sessionRestored && result.userData) {
-        // Use cached profile snapshot if present to route faster, else go to profiles gate
-        const enhanced = result.userData;
-        if (enhanced?.profileSnapshot?.role) {
-          const mockUser = { id: enhanced.userId, email: enhanced.email };
-          const cachedProfile = {
-            id: enhanced.userId,
-            role: enhanced.profileSnapshot.role,
-            organization_id: enhanced.profileSnapshot.organization_id,
-            seat_status: enhanced.profileSnapshot.seat_status,
-            hasCapability: () => true,
-            organization_membership: { plan_tier: 'basic' }
+        // Session restored successfully - get current authenticated user
+        const { assertSupabase } = await import('@/lib/supabase');
+        const supabase = assertSupabase();
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (currentUser && result.userData?.profileSnapshot?.role) {
+          // Use actual authenticated user object instead of mock
+          const authenticatedUser = {
+            id: currentUser.id,
+            email: currentUser.email || result.userData.email,
+            user_metadata: currentUser.user_metadata
           };
+          
+          // Create proper enhanced profile from cached snapshot
+          const { createEnhancedProfile } = await import('@/lib/rbac');
+          const cachedProfile = createEnhancedProfile(
+            {
+              id: result.userData.userId,
+              role: result.userData.profileSnapshot.role,
+              organization_id: result.userData.profileSnapshot.organization_id,
+              seat_status: result.userData.profileSnapshot.seat_status,
+            },
+            {
+              organization_id: result.userData.profileSnapshot.organization_id,
+              organization_name: result.userData.profileSnapshot.organization_name,
+              plan_tier: result.userData.profileSnapshot.plan_tier || 'basic',
+              seat_status: result.userData.profileSnapshot.seat_status || 'active'
+            }
+          );
+          
           try {
             const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-            await routeAfterLogin(mockUser as any, cachedProfile as any);
+            await routeAfterLogin(authenticatedUser, cachedProfile);
             setLoading(false);
             return;
           } catch (e) {
@@ -380,15 +398,11 @@ export default function SignIn() {
     // Close any modals
     setShowBiometricPrompt(false);
     setShowAccountPicker(false);
-    if (!biometricAvailable) {
-      Alert.alert(t("settings.biometric.title"), t("settings.biometric.notAvailable"));
-      return;
-    }
-    if (!biometricEnabled) {
-      Alert.alert(
-        t("settings.biometric.title"),
-        t("settings.biometric.enableToUse", { defaultValue: "Biometric sign-in is turned off. Enable it in your Account settings to use quick sign-in." })
-      );
+    // If biometric not available or disabled, just pre-fill email for the selected account
+    if (!biometricAvailable || !biometricEnabled) {
+      const acc = biometricAccounts.find(a => a.userId === userId);
+      if (acc?.email) setEmail(acc.email);
+      setShowAccountPicker(false);
       return;
     }
 
@@ -404,21 +418,39 @@ export default function SignIn() {
       }
 
       if (result.sessionRestored && result.userData) {
-        // Same routing approach as default biometric login
-        const enhanced = result.userData;
-        if (enhanced?.profileSnapshot?.role) {
-          const mockUser = { id: enhanced.userId, email: enhanced.email };
-          const cachedProfile = {
-            id: enhanced.userId,
-            role: enhanced.profileSnapshot.role,
-            organization_id: enhanced.profileSnapshot.organization_id,
-            seat_status: enhanced.profileSnapshot.seat_status,
-            hasCapability: () => true,
-            organization_membership: { plan_tier: 'basic' }
+        // Session restored for specific user - get current authenticated user
+        const { assertSupabase } = await import('@/lib/supabase');
+        const supabase = assertSupabase();
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        
+        if (currentUser && result.userData?.profileSnapshot?.role) {
+          // Use actual authenticated user object instead of mock
+          const authenticatedUser = {
+            id: currentUser.id,
+            email: currentUser.email || result.userData.email,
+            user_metadata: currentUser.user_metadata
           };
+          
+          // Create proper enhanced profile from cached snapshot
+          const { createEnhancedProfile } = await import('@/lib/rbac');
+          const cachedProfile = createEnhancedProfile(
+            {
+              id: result.userData.userId,
+              role: result.userData.profileSnapshot.role,
+              organization_id: result.userData.profileSnapshot.organization_id,
+              seat_status: result.userData.profileSnapshot.seat_status,
+            },
+            {
+              organization_id: result.userData.profileSnapshot.organization_id,
+              organization_name: result.userData.profileSnapshot.organization_name,
+              plan_tier: result.userData.profileSnapshot.plan_tier || 'basic',
+              seat_status: result.userData.profileSnapshot.seat_status || 'active'
+            }
+          );
+          
           try {
             const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-            await routeAfterLogin(mockUser as any, cachedProfile as any);
+            await routeAfterLogin(authenticatedUser, cachedProfile);
             return;
           } catch (e) {
             console.warn('Routing with cached profile failed, going to profiles gate:', e);

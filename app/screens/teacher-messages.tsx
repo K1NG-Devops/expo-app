@@ -8,6 +8,9 @@ import { useQuery } from '@tanstack/react-query'
 import { track } from '@/lib/analytics'
 
 export default function TeacherMessagesScreen() {
+  const { profile } = require('@/contexts/AuthContext') as any
+  const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
+  const canMessage = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('communicate_with_parents' as any))
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
 
   const [classId, setClassId] = useState<string | null>(null)
@@ -31,14 +34,20 @@ export default function TeacherMessagesScreen() {
 
     setSending(true)
     try {
-      // Best-effort: try cloud function or db insert; ignore if unavailable
-      try {
-        await assertSupabase().functions.invoke('send-message', { body: { class_id: classId, subject, message } as any })
-      } catch {
-        try {
-          await assertSupabase().from('teacher_messages').insert({ class_id: classId, subject, message } as any)
-        } catch { /* noop */ }
-      }
+      // Get current user info
+      const { data: authUser } = await assertSupabase().auth.getUser()
+      const teacherId = authUser?.user?.id
+      
+      // Use direct database insert - more reliable than cloud function
+      await assertSupabase().from('teacher_messages').insert({
+        class_id: classId,
+        subject,
+        message,
+        teacher_id: teacherId,
+        created_at: new Date().toISOString(),
+        sent_at: new Date().toISOString()
+      } as any)
+      
       track('edudash.messages.sent', { classId, subject, length: message.length })
       Alert.alert('Message sent', 'Parents will receive this in their app or email (where configured).')
       setMessage('')
@@ -53,10 +62,23 @@ export default function TeacherMessagesScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Message Parents', headerStyle: { backgroundColor: palette.background }, headerTitleStyle: { color: '#fff' }, headerTintColor: palette.primary }} />
+      <Stack.Screen options={{ 
+        title: 'Message Parents', 
+        headerStyle: { backgroundColor: palette.background }, 
+        headerTitleStyle: { color: '#fff' }, 
+        headerTintColor: palette.primary,
+        headerBackTitleVisible: false,
+        headerBackVisible: true
+      }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
         <ScrollView contentContainerStyle={styles.container}>
+          {!canMessage && (
+            <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+              <Text style={styles.cardTitle}>Access Restricted</Text>
+              <Text style={styles.label}>Your seat does not allow messaging yet. Please contact your administrator.</Text>
+            </View>
+          )}
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
             <Text style={styles.cardTitle}>Class</Text>
             {classesQuery.isLoading ? (

@@ -79,6 +79,15 @@ function detectLanguage(): string {
       return 'en'; // Default to English if feature is disabled
     }
 
+    // First check persisted language
+    try {
+      // Use a synchronous-ish access pattern; in RN this is async, so we use a fallback
+      const persisted = (global as any).__EDUDASH_LANG__ as string | undefined;
+      if (persisted && persisted in SUPPORTED_LANGUAGES) {
+        return persisted;
+      }
+    } catch {}
+
     // Get device locale
     const locales = getLocales();
     const deviceLanguage = locales[0]?.languageCode || 'en';
@@ -166,6 +175,15 @@ export const isRTL = (lang?: SupportedLanguage): boolean => {
 export const changeLanguage = async (language: SupportedLanguage): Promise<void> => {
   try {
     await i18n.changeLanguage(language);
+
+    // Persist language selection
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('@edudash_language', language);
+      if (__DEV__) console.log('[i18n] Persisted language:', language);
+    } catch (e) {
+      console.warn('[i18n] Failed to persist language', e);
+    }
     
     // Track language change
     const { track } = await import('@/lib/analytics');

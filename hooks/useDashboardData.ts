@@ -495,7 +495,7 @@ export const usePrincipalDashboard = () => {
           // Activity logs - use organization_id
           authenticatedClient
             .from('activity_logs')
-            .select('id, action_type, description, created_at, user_name, table_name, organization_id')
+            .select('id, activity_type, description, created_at, user_name, table_name, organization_id')
             .eq('organization_id', schoolId)
             .not('id', 'is', null)
             .order('created_at', { ascending: false })
@@ -799,7 +799,7 @@ export const usePrincipalDashboard = () => {
  * Hook for fetching Teacher dashboard data
  */
 export const useTeacherDashboard = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<TeacherDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -809,6 +809,13 @@ export const useTeacherDashboard = () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Wait for auth to complete loading before proceeding
+      if (authLoading) {
+        log('🔄 Waiting for auth to complete...');
+        setLoading(false);
+        return;
+      }
 
       // Try to load from cache first (unless forced refresh)
       if (!forceRefresh && user?.id) {
@@ -831,37 +838,86 @@ export const useTeacherDashboard = () => {
       }
 
       if (!user?.id) {
-        throw new Error('User not authenticated');
+        if (!authLoading) {
+          // Auth has completed but no user - this is a real auth error
+          throw new Error('User not authenticated');
+        }
+        // Auth still loading, just return
+        setLoading(false);
+        return;
+      }
+      
+      // Ensure we have Supabase configured
+      const supabase = assertSupabase();
+      
+      // Verify authentication state
+      const { data: authCheck } = await supabase.auth.getUser();
+      if (!authCheck.user) {
+        throw new Error('Authentication session invalid');
       }
 
       // Fetch teacher user row from public.users (teachers table is not populated)
-      const { data: teacherUser, error: teacherError } = await assertSupabase()
+      const { data: teacherUser, error: teacherError } = await supabase
         .from('users')
         .select('id, auth_user_id, preschool_id, first_name, last_name, role')
         .eq('auth_user_id', user.id)
-        .eq('role', 'teacher')
         .maybeSingle();
 
       if (teacherError) {
         logError('Teacher user fetch error:', teacherError);
       }
 
+      // Resolve teacher organization and role with robust fallbacks (profiles table)
+      let resolvedTeacherUser: any = teacherUser || null;
+      if (!resolvedTeacherUser || !resolvedTeacherUser.preschool_id || !(String(resolvedTeacherUser.role || '').toLowerCase().includes('teacher'))) {
+        const { data: prof, error: profErr } = await supabase
+          .from('profiles')
+          .select('id, preschool_id, role, first_name, last_name, organization_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (!profErr && prof) {
+          const roleStr = String((prof as any).role || '').toLowerCase();
+          if (!resolvedTeacherUser || roleStr.includes('teacher')) {
+            resolvedTeacherUser = {
+              id: teacherUser?.id || user.id,
+              auth_user_id: user.id,
+              preschool_id: (prof as any).preschool_id || (prof as any).organization_id || teacherUser?.preschool_id || null,
+              first_name: (prof as any).first_name || teacherUser?.first_name || null,
+              last_name: (prof as any).last_name || teacherUser?.last_name || null,
+              role: (prof as any).role || teacherUser?.role || 'teacher'
+            };
+          }
+        }
+      }
+
       let dashboardData: TeacherDashboardData;
 
-      if (teacherUser) {
-        const teacherId = teacherUser.id; // references users.id in your schema
+      if (resolvedTeacherUser) {
+        const teacherId = resolvedTeacherUser.id; // references users.id or profiles.id
         let schoolName = 'Unknown School';
-        if (teacherUser.preschool_id) {
-const { data: school } = await assertSupabase()
+        const schoolIdToUse = resolvedTeacherUser.preschool_id;
+        if (schoolIdToUse) {
+          const { data: school } = await supabase
             .from('preschools')
             .select('id, name')
-            .eq('id', teacherUser.preschool_id)
+            .eq('id', schoolIdToUse)
             .maybeSingle();
-          schoolName = school?.name || schoolName;
+          
+          // If not found in preschools, try organizations
+          if (!school) {
+            const { data: org } = await supabase
+              .from('organizations')
+              .select('id, name')
+              .eq('id', schoolIdToUse)
+              .maybeSingle();
+            schoolName = org?.name || schoolName;
+          } else {
+            schoolName = school.name || schoolName;
+          }
         }
 
         // Fetch teacher's classes with student and attendance data
-const { data: classesData } = await assertSupabase()
+        const { data: classesData } = await supabase
           .from('classes')
           .select(`
             id,
@@ -880,7 +936,7 @@ const { data: classesData } = await assertSupabase()
         
         let todayAttendanceData: any[] = [];
         if (allStudentIds.length > 0) {
-const { data: attendanceData } = await assertSupabase()
+          const { data: attendanceData } = await supabase
             .from('attendance_records')
             .select('student_id, status')
             .in('student_id', allStudentIds)
@@ -916,15 +972,15 @@ const myClasses = (classesData || []).map((classItem: any) => {
         // Calculate total students
 const totalStudents = myClasses.reduce((sum: number, cls: any) => sum + cls.studentCount, 0);
 
-        // Fetch assignments
-const { data: assignmentsData } = await assertSupabase()
-          .from('assignments')
+        // Fetch assignments (use homework_assignments + homework_submissions relationship)
+        const { data: assignmentsData } = await supabase
+          .from('homework_assignments')
           .select(`
             id,
             title,
             due_date,
-            status,
-            assignment_submissions!left(
+            is_published,
+            homework_submissions!left(
               id,
               status
             )
@@ -934,18 +990,27 @@ const { data: assignmentsData } = await assertSupabase()
           .limit(3);
 
         // Fetch upcoming events for teacher's school
-const { data: eventsData } = await assertSupabase()
+        const { data: eventsData } = await supabase
           .from('events')
           .select('id, title, event_date, event_type, description')
-          .eq('preschool_id', teacherUser.preschool_id)
+          .eq('preschool_id', resolvedTeacherUser.preschool_id)
           .gte('event_date', new Date().toISOString())
           .order('event_date', { ascending: true })
           .limit(5);
 
 const recentAssignments = (assignmentsData || []).map((assignment: any) => {
-          const submissions = assignment.assignment_submissions || [];
-const submittedCount = (submissions || []).filter((s: any) => s.status === 'submitted').length;
+          const submissions = assignment.homework_submissions || [];
+          const submittedCount = (submissions || []).filter((s: any) => s.status === 'submitted').length;
           const totalCount = submissions.length;
+
+          // Derive a simple status from due date and submissions since homework_assignments has no status column
+          const derivedStatus = (() => {
+            const now = new Date();
+            const due = new Date(assignment.due_date);
+            if (totalCount > 0 && submissions.every((s: any) => s.status === 'graded')) return 'graded';
+            if (due < now) return 'overdue';
+            return 'pending';
+          })() as 'pending' | 'graded' | 'overdue';
           
           return {
             id: assignment.id,
@@ -953,7 +1018,7 @@ const submittedCount = (submissions || []).filter((s: any) => s.status === 'subm
             dueDate: formatDueDate(assignment.due_date),
             submitted: submittedCount,
             total: totalCount,
-            status: getAssignmentStatus(assignment.due_date, assignment.status)
+            status: derivedStatus
           };
         }) || [];
 
@@ -996,10 +1061,10 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
         };
 
         // Cache the fresh data for offline use
-        if (user?.id && teacherUser.preschool_id) {
+        if (user?.id && resolvedTeacherUser.preschool_id) {
           await offlineCacheService.cacheTeacherDashboard(
             user.id,
-            teacherUser.preschool_id,
+            resolvedTeacherUser.preschool_id,
             dashboardData
           );
           log('💾 Teacher dashboard data cached for offline use');
@@ -1028,11 +1093,14 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, authLoading]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Only fetch data if auth is not loading
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [fetchData, authLoading]);
 
   const refresh = useCallback(() => {
     fetchData(true); // Force refresh from server

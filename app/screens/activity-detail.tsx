@@ -27,6 +27,9 @@ import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
 import { EmptyActivityState } from '@/components/ui/EmptyState';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
+import { assertSupabase } from '@/lib/supabase';
+
+type Activity = ActivityItem;
 
 interface ActivityItem {
   id: string;
@@ -67,115 +70,172 @@ export default function ActivityDetailScreen() {
   });
 
   // Mock activity data with proper hierarchy consideration
-  const generateMockActivities = (): ActivityItem[] => {
+  const loadActivitiesFromDatabase = async (): Promise<Activity[]> => {
     const userRole = profile?.role || 'parent';
-    const schoolId = profile?.organization_id || 'school-123';
+    const schoolId = profile?.organization_id;
+    const userId = user?.id;
     
-    const baseActivities: ActivityItem[] = [
-      {
-        id: '1',
-        type: 'enrollment',
-        title: 'New Student Enrolled',
-        description: 'Sarah Johnson enrolled in Grade R-A',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        priority: 'high',
-        icon: 'person-add',
-        color: '#4F46E5',
-        actorName: 'Principal Smith',
-        actorRole: 'principal',
-        schoolId,
-        metadata: { studentName: 'Sarah Johnson', grade: 'Grade R-A' }
-      },
-      {
-        id: '2',
-        type: 'payment',
-        title: 'Payment Received',
-        description: 'Monthly fee payment of R1,200 received',
-        timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-        priority: 'medium',
-        icon: 'card',
-        color: '#059669',
-        actorName: 'Financial System',
-        actorRole: 'system',
-        schoolId,
-        metadata: { amount: 1200, currency: 'ZAR' }
-      },
-      {
-        id: '3',
-        type: 'teacher',
-        title: 'Teacher Assignment Updated',
-        description: 'Ms. Davis assigned to Grade 1-B',
-        timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
-        priority: 'medium',
-        icon: 'school',
-        color: '#DC2626',
-        actorName: 'Principal Smith',
-        actorRole: 'principal',
-        schoolId,
-        metadata: { teacherName: 'Ms. Davis', class: 'Grade 1-B' }
-      },
-      {
-        id: '4',
-        type: 'announcement',
-        title: 'School Announcement',
-        description: 'Sports Day scheduled for next Friday',
-        timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
-        priority: 'high',
-        icon: 'megaphone',
-        color: '#7C3AED',
-        actorName: 'Principal Smith',
-        actorRole: 'principal',
-        schoolId,
-        metadata: { eventDate: '2025-09-18', eventType: 'Sports Day' }
-      },
-      {
-        id: '5',
-        type: 'meeting',
-        title: 'Parent-Teacher Meeting',
-        description: 'Scheduled meeting for Grade R parents',
-        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
-        priority: 'medium',
-        icon: 'people',
-        color: '#EA580C',
-        actorName: 'Ms. Johnson',
-        actorRole: 'teacher',
-        schoolId,
-        metadata: { grade: 'Grade R', meetingType: 'Parent-Teacher Conference' }
-      },
-      {
-        id: '6',
-        type: 'attendance',
-        title: 'Attendance Report',
-        description: '95% attendance rate for this week',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
-        priority: 'low',
-        icon: 'checkmark-circle',
-        color: '#059669',
-        actorName: 'Attendance System',
-        actorRole: 'system',
-        schoolId,
-        metadata: { attendanceRate: 95, period: 'week' }
+    if (!schoolId || !userId) {
+      console.warn('Missing schoolId or userId for activity feed');
+      return [];
+    }
+    
+    const supabase = assertSupabase();
+    const activities: Activity[] = [];
+    
+    try {
+      // Get recent activities from activity_feed table
+      const { data: activityFeed, error: feedError } = await supabase
+        .from('activity_feed')
+        .select(`
+          id,
+          action,
+          target_type,
+          target_id,
+          metadata,
+          created_at,
+          actor_id,
+          users!activity_feed_actor_id_fkey(
+            name,
+            role
+          )
+        `)
+        .eq('preschool_id', schoolId)
+        .order('created_at', { ascending: false })
+        .limit(20);
+        
+      if (feedError) {
+        console.error('Error loading activity feed:', feedError);
+      } else if (activityFeed) {
+        // Transform activity feed data to Activity format
+        activityFeed.forEach(feed => {
+          const actor = Array.isArray(feed.users) ? feed.users[0] : feed.users;
+          activities.push({
+            id: feed.id,
+            type: feed.target_type || 'system',
+            title: feed.action || 'Activity',
+            description: feed.metadata?.description || `${feed.action} performed`,
+            timestamp: feed.created_at,
+            priority: feed.metadata?.priority || 'medium',
+            icon: getIconForActivityType(feed.target_type || 'system'),
+            color: getColorForActivityType(feed.target_type || 'system'),
+            actorName: actor?.name || 'System',
+            actorRole: actor?.role || 'system',
+            schoolId,
+            metadata: feed.metadata || {}
+          });
+        });
       }
-    ];
-
-    // Filter based on user role and permissions
-    if (userRole === 'principal_admin') {
-      return baseActivities; // Principals see everything
-    } else if (userRole === 'teacher') {
-      // Teachers see classroom-specific activities
-      return baseActivities.filter(activity => 
-        activity.type === 'attendance' || 
-        activity.type === 'meeting' || 
-        activity.actorRole === 'teacher' ||
-        activity.metadata?.grade?.includes('Grade R') // Example: teacher's assigned grade
+      
+      // Add recent announcements
+      const { data: announcements, error: announcementError } = await supabase
+        .from('announcements')
+        .select(`
+          id,
+          title,
+          content,
+          priority,
+          created_at,
+          author_id,
+          users!announcements_author_id_fkey(
+            name,
+            role
+          )
+        `)
+        .eq('preschool_id', schoolId)
+        .eq('is_published', true)
+        .order('created_at', { ascending: false })
+        .limit(10);
+        
+      if (announcementError) {
+        console.error('Error loading announcements:', announcementError);
+      } else if (announcements) {
+        announcements.forEach(announcement => {
+          const author = Array.isArray(announcement.users) ? announcement.users[0] : announcement.users;
+          activities.push({
+            id: `announcement-${announcement.id}`,
+            type: 'announcement',
+            title: announcement.title,
+            description: announcement.content,
+            timestamp: announcement.created_at,
+            priority: announcement.priority || 'medium',
+            icon: 'megaphone',
+            color: '#7C3AED',
+            actorName: author?.name || 'Administration',
+            actorRole: author?.role || 'principal',
+            schoolId,
+            metadata: {}
+          });
+        });
+      }
+      
+      // Filter based on user role and permissions
+      let filteredActivities = activities;
+      
+      if (userRole === 'parent') {
+        // Parents see announcements and activities related to their children
+        const { data: studentIds } = await supabase
+          .from('students')
+          .select('id')
+          .eq('parent_id', userId)
+          .eq('preschool_id', schoolId);
+          
+        const myStudentIds = studentIds?.map(s => s.id) || [];
+        
+        filteredActivities = activities.filter(activity => 
+          activity.type === 'announcement' ||
+          (activity.metadata?.student_id && myStudentIds.includes(activity.metadata.student_id))
+        );
+      } else if (userRole === 'teacher') {
+        // Teachers see classroom-specific activities
+        const { data: myClasses } = await supabase
+          .from('classes')
+          .select('id')
+          .eq('teacher_id', userId)
+          .eq('preschool_id', schoolId);
+          
+        const myClassIds = myClasses?.map(c => c.id) || [];
+        
+        filteredActivities = activities.filter(activity => 
+          activity.type === 'announcement' ||
+          activity.actorRole === 'teacher' ||
+          (activity.metadata?.class_id && myClassIds.includes(activity.metadata.class_id))
+        );
+      }
+      // Principals see all activities (no additional filtering)
+      
+      // Sort by timestamp (newest first)
+      return filteredActivities.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
-    } else {
-      // Parents see student-specific activities
-      return baseActivities.filter(activity => 
-        activity.type === 'announcement' ||
-        activity.type === 'meeting' ||
-        activity.metadata?.studentName === 'Sarah Johnson' // Example: parent's child
-      );
+      
+    } catch (error) {
+      console.error('Error loading activities from database:', error);
+      return [];
+    }
+  };
+  
+  const getIconForActivityType = (type: string): string => {
+    switch (type) {
+      case 'payment': return 'card';
+      case 'enrollment': return 'person-add';
+      case 'teacher': return 'time';
+      case 'announcement': return 'megaphone';
+      case 'meeting': return 'people';
+      case 'attendance': return 'checkmark-circle';
+      default: return 'information-circle';
+    }
+  };
+  
+  const getColorForActivityType = (type: string): string => {
+    switch (type) {
+      case 'payment': return '#059669';
+      case 'enrollment': return '#3B82F6';
+      case 'teacher': return '#8B5CF6';
+      case 'announcement': return '#7C3AED';
+      case 'meeting': return '#EA580C';
+      case 'attendance': return '#059669';
+      default: return '#6B7280';
     }
   };
 
@@ -206,18 +266,16 @@ export default function ActivityDetailScreen() {
         setIsLoadingFromCache(false);
       }
 
-      // In production, this would be a real Supabase query with proper RLS
-      // For now, using mock data with proper hierarchy
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      const mockActivities = generateMockActivities();
-      setActivities(mockActivities);
+      // Load activities from database (no more mock data)
+      const realActivities = await loadActivitiesFromDatabase();
+      setActivities(realActivities);
 
       // Cache the fresh data
       if (user?.id) {
         await offlineCacheService.cacheActivityFeed(
           schoolId,
           user.id,
-          mockActivities,
+          realActivities,
           userRole === 'principal_admin' ? 'school' : 'class'
         );
       }

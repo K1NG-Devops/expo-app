@@ -8,13 +8,13 @@ import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
-import * as Updates from 'expo-updates';
 import { assertSupabase } from '@/lib/supabase';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 // Initialize i18n
 import i18n from '@/lib/i18n';
 import { I18nextProvider } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryProvider } from '@/lib/query/queryClient';
@@ -85,7 +85,17 @@ export default function RootLayout() {
 
       // Initialize i18n (internationalization)
       console.log('🌍 Initializing internationalization...');
-      // i18n is already initialized via import
+      // Hydrate persisted language before rendering
+      try {
+        const persistedLang = await AsyncStorage.getItem('@edudash_language');
+        if (persistedLang) {
+          (global as any).__EDUDASH_LANG__ = persistedLang;
+          await i18n.changeLanguage(persistedLang);
+          if (__DEV__) console.log('[i18n] Hydrated language:', persistedLang);
+        }
+      } catch (e) {
+        console.warn('[i18n] Language hydration skipped', e);
+      }
       
       // Initialize session management
       console.log('🔐 Initializing session management...');
@@ -200,8 +210,6 @@ export default function RootLayout() {
             {/* Wrap in SubscriptionProvider so screens can access subscription data */}
             <SubscriptionProvider>
               <ThemedStackWrapper />
-              {/* OTA update banner */}
-              <UpdateBanner />
               {/* Small badge to confirm OTA visually */}
               <PreviewBadge />
               {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
@@ -242,7 +250,7 @@ function ThemedLoadingScreen() {
   
   return (
     <View style={styles.container}>
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <StatusBar style={isDark ? "light" : "dark"} hidden />
       <ActivityIndicator size="large" color={theme.primary} />
       <Text style={styles.loadingText}>Initializing EduDash Pro...</Text>
       <Text style={styles.subText}>Setting up monitoring, session management, and feature flags</Text>
@@ -250,80 +258,6 @@ function ThemedLoadingScreen() {
   );
 }
 
-// OTA Update Banner Component
-function UpdateBanner() {
-  const { theme } = useTheme();
-  const [available, setAvailable] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [updating, setUpdating] = useState(false);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return; // updates not relevant on web
-    let mounted = true;
-    (async () => {
-      try {
-        setChecking(true);
-        const res = await Updates.checkForUpdateAsync();
-        if (mounted && res?.isAvailable) setAvailable(true);
-      } catch {
-        // ignore
-      } finally {
-        if (mounted) setChecking(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  const onUpdateNow = async () => {
-    try {
-      setUpdating(true);
-      await Updates.fetchUpdateAsync();
-      await Updates.reloadAsync();
-    } catch {
-      setUpdating(false);
-    }
-  };
-
-  if (Platform.OS === 'web' || !available) return null;
-
-  const styles = StyleSheet.create({
-    container: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: theme.primary,
-      paddingVertical: 10,
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    text: {
-      color: '#fff',
-      fontWeight: '600',
-    },
-    button: {
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 6,
-    },
-    buttonText: {
-      color: '#fff',
-      fontWeight: '700',
-    },
-  });
-
-  return (
-    <View style={styles.container} accessibilityRole="alert">
-      <Text style={styles.text}>{checking ? 'Checking for updates…' : 'An update is available'}</Text>
-      <TouchableOpacity style={styles.button} onPress={onUpdateNow} disabled={updating}>
-        <Text style={styles.buttonText}>{updating ? 'Updating…' : 'Update now'}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 // Small floating badge to visually confirm OTA
 function PreviewBadge() {
@@ -387,7 +321,7 @@ function ThemedErrorScreen({ error }: { error: string }) {
   
   return (
     <View style={styles.container}>
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <StatusBar style={isDark ? "light" : "dark"} hidden />
       <Text style={styles.errorTitle}>⚠️ Initialization Error</Text>
       <Text style={styles.errorText}>{error}</Text>
       <Text style={styles.subText}>Check console for details</Text>
@@ -463,7 +397,7 @@ function ThemedLockScreen({ onUnlock }: { onUnlock: () => void }) {
   
   return (
     <View style={styles.overlay} pointerEvents="auto">
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.primary} hidden />
+      <StatusBar style={isDark ? "light" : "dark"} hidden />
       <View style={styles.card}>
         <View style={styles.iconContainer}>
           <Ionicons name="finger-print" size={32} color={theme.onPrimary} />

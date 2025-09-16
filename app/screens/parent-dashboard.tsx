@@ -15,22 +15,23 @@ import { track } from '@/lib/analytics';
 export default function ParentDashboardScreen() {
   const { t } = useTranslation();
   const { theme, isDark } = useTheme();
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading, profileLoading } = useAuth();
   const permissions = usePermissions();
   const { ready: subscriptionReady, tier } = useSubscription();
+  const isAuthMissing = !user?.id;
 
   // Enforce RBAC: must be parent role with dashboard access
   // Add defensive checks to handle initialization states
-  const canView = permissions?.hasRole ? permissions.hasRole('parent') && permissions.can('view_dashboard') : false;
+  const canView = permissions?.hasRole ? permissions.hasRole('parent') : false;
   const hasAccess = permissions?.can ? permissions.can('access_mobile_app') : false;
 
-  // Features enabled based on tier
-  const featuresEnabled = [
+  // Features enabled based on tier (memoized to avoid effect loops)
+  const featuresEnabled = React.useMemo(() => [
     'homework_help',
     'language_switching',
     ...(tier === 'pro' || tier === 'enterprise' ? ['advanced_analytics'] : []),
     ...(tier === 'free' && Platform.OS === 'android' ? ['ads'] : []),
-  ];
+  ], [tier]);
 
   // Track dashboard view - MUST be called before any early returns
   React.useEffect(() => {
@@ -44,6 +45,31 @@ export default function ParentDashboardScreen() {
       });
     }
   }, [canView, hasAccess, subscriptionReady, tier, user?.id, featuresEnabled]);
+
+  // Safe redirect effect (top-level) to avoid rule-of-hooks violations and loops
+  const hasRedirectedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hasRedirectedRef.current) return;
+    if (!authLoading && !profileLoading) {
+      if (isAuthMissing) {
+        hasRedirectedRef.current = true;
+        track('edudash.auth.redirect_to_sign_in', {
+          reason: 'missing_session',
+        });
+        router.replace('/sign-in');
+        return;
+      }
+      if (!canView || !hasAccess) {
+        hasRedirectedRef.current = true;
+        track('edudash.dashboard.access_denied_redirect', {
+          user_id: user?.id,
+          role: profile?.role,
+          reason: !hasAccess ? 'no_mobile_access' : 'role_mismatch',
+        });
+        router.replace('/profiles-gate');
+      }
+    }
+  }, [authLoading, profileLoading, isAuthMissing, canView, hasAccess, user?.id, profile?.role]);
 
   // Create styles hook before any conditional returns
   const deniedStyles = React.useMemo(() => StyleSheet.create({
@@ -91,12 +117,18 @@ export default function ParentDashboardScreen() {
   }), [theme]);
 
   // Early return after all hooks are called
-  if (!canView || !hasAccess) {
+  if (isAuthMissing || !canView || !hasAccess) {
+    const buttonAction = () => router.replace(isAuthMissing ? '/sign-in' : '/profiles-gate');
+    const buttonText = isAuthMissing ? 'Go to Sign in' : 'Go to Profiles';
+    const titleText = isAuthMissing ? 'Redirecting to sign in...' : 'Redirecting...';
+    const subtitleText = isAuthMissing
+      ? 'Your session is missing or expired'
+      : 'You will be redirected shortly. If this screen stays, tap below.';
 
     return (
       <View style={{ flex: 1 }}>
         <Stack.Screen options={{ title: t('dashboard.parentDashboard'), headerStyle: { backgroundColor: theme.background }, headerTitleStyle: { color: theme.text }, headerTintColor: theme.primary, headerBackVisible: false }} />
-        <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.background} />
+        <StatusBar style={isDark ? "light" : "dark"} />
         <SafeAreaView edges={['top']} style={deniedStyles.deniedContainer}>
           <LinearGradient
             colors={isDark 
@@ -105,31 +137,13 @@ export default function ParentDashboardScreen() {
             }
             style={deniedStyles.deniedGradient}
           >
-            <IconSymbol name="shield.slash" size={64} color="#EF4444" />
-            <Text style={deniedStyles.deniedTitle}>{t('dashboard.accessDenied')}</Text>
-            <Text style={deniedStyles.deniedText}>
-              {!hasAccess 
-                ? t('dashboard.mobileAppAccessRequired')
-                : t('dashboard.parentRoleRequired')
-              }
-            </Text>
-            <TouchableOpacity 
-              style={deniedStyles.accountButton}
-              onPress={() => {
-                track('edudash.dashboard.access_denied_redirect', {
-                  user_id: user?.id,
-                  role: profile?.role,
-                  reason: !hasAccess ? 'no_mobile_access' : 'not_parent_role',
-                });
-                router.push('/screens/account');
-              }}
-            >
-              <LinearGradient
-                colors={[theme.primary, theme.primary + 'CC']}
-                style={deniedStyles.accountButtonGradient}
-              >
-                <Text style={deniedStyles.accountButtonText}>{t('dashboard.goToAccount')}</Text>
-                <IconSymbol name="arrow.right" size={16} color="#000000" />
+            <IconSymbol name="person-add" size={64} color="#00f5ff" />
+            <Text style={deniedStyles.deniedTitle}>{titleText}</Text>
+            <Text style={deniedStyles.deniedText}>{subtitleText}</Text>
+            <TouchableOpacity style={deniedStyles.accountButton} onPress={buttonAction}>
+              <LinearGradient colors={["#00f5ff", "#0080ff"]} style={deniedStyles.accountButtonGradient}>
+                <Text style={deniedStyles.accountButtonText}>{buttonText}</Text>
+                <IconSymbol name="chevron-forward" size={18} color="#000" />
               </LinearGradient>
             </TouchableOpacity>
           </LinearGradient>
@@ -141,7 +155,7 @@ export default function ParentDashboardScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style={isDark ? "light" : "dark"} backgroundColor={theme.background} />
+      <StatusBar style={isDark ? "light" : "dark"} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
         <ParentDashboard />
       </SafeAreaView>

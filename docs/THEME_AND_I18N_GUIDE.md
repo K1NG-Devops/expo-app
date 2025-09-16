@@ -10,6 +10,12 @@ This guide explains how to implement and use the comprehensive theme and interna
 
 ## Theme System
 
+Note:
+- Theme mode is persisted under @edudash_theme_mode
+- Language selection is persisted under @edudash_language and hydrated at app init to prevent flicker
+- Use useTheme() for colors. Do not hardcode color values; use theme tokens.
+- Use changeLanguage(code) to switch languages, and getCurrentLanguage() for current code.
+
 ### Overview
 The app supports light and dark themes with automatic system theme detection. All UI components automatically adapt to the selected theme.
 

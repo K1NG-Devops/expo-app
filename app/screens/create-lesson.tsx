@@ -6,8 +6,12 @@ import { Stack, router } from 'expo-router'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function CreateLessonScreen() {
+  const { profile } = useAuth()
+  const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
+  const canCreate = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('create_assignments' as any))
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
 
   const [mode, setMode] = useState<'manual' | 'ai'>('manual')
@@ -62,7 +66,14 @@ export default function CreateLessonScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Create Lesson', headerStyle: { backgroundColor: palette.background }, headerTitleStyle: { color: '#fff' }, headerTintColor: palette.primary }} />
+      <Stack.Screen options={{ 
+        title: 'Create Lesson', 
+        headerStyle: { backgroundColor: palette.background }, 
+        headerTitleStyle: { color: '#fff' }, 
+        headerTintColor: palette.primary,
+        headerBackVisible: true,
+        headerBackTitleVisible: false
+      }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
         <ScrollView contentContainerStyle={styles.container}>
@@ -75,7 +86,12 @@ export default function CreateLessonScreen() {
             </TouchableOpacity>
           </View>
 
-          {mode === 'ai' ? (
+          {!canCreate ? (
+            <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+              <Text style={styles.cardTitle}>Access Restricted</Text>
+              <Text style={{ color: palette.textSecondary }}>Your teacher seat is not active or you lack permission to create lessons. Please contact your administrator.</Text>
+            </View>
+          ) : mode === 'ai' ? (
             <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
               <Text style={styles.cardTitle}>AI Lesson Generator</Text>
               <Text style={{ color: palette.textSecondary, marginBottom: 8 }}>Use the AI generator to draft a CAPS-aligned lesson.</Text>

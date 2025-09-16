@@ -1,0 +1,22 @@
+Need to install the following packages:
+  depcheck@1.4.7
+Ok to proceed? (y) (node:2944502) [DEP0128] DeprecationWarning: Invalid 'main' field in '/home/king/Desktop/edudashpro/package.json' of 'expo-router/entry'. Please either fix that or report it to the module author
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Unused dependencies
+* @expo/ngrok
+* @react-native-community/datetimepicker
+* expo-dev-client
+* expo-document-picker
+* expo-updates
+* i18next-browser-languagedetector
+* react-dom
+* react-native-gesture-handler
+* react-native-web
+* tslib
+Missing dependencies
+* dotenv: ./check-plans.js
+* metro-config: ./metro.config.js
+* express: ./server-examples/ai-proxy-example.js
+* cors: ./server-examples/ai-proxy-example.js
+* @expo/vector-icons: ./screens/financial-dashboard.tsx
+* @react-navigation/native: ./components/RoleBasedHeader.tsx

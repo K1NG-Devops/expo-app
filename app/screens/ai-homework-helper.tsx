@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { assertSupabase } from '@/lib/supabase'
+import { Ionicons } from '@expo/vector-icons'
+// import { assertSupabase } from '@/lib/supabase'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
 import { Colors } from '@/constants/Colors'
-import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { getCombinedUsage } from '@/lib/ai/usage'
+import { useHomeworkGenerator } from '@/hooks/useHomeworkGenerator'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
+import { ScreenHeader } from '@/components/ui/ScreenHeader'
 
 export default function AIHomeworkHelperScreen() {
   const [question, setQuestion] = useState('Explain how to solve long division: 156 ÷ 12 step by step for a Grade 4 learner.')
   const [subject, setSubject] = useState('Mathematics')
-  const [loading, setLoading] = useState(false)
+  const { loading, generate } = useHomeworkGenerator()
   const [answer, setAnswer] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
   const [models, setModels] = useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
@@ -77,30 +80,16 @@ export default function AIHomeworkHelperScreen() {
     }
 
     try {
-      setLoading(true)
       setAnswer('')
       track('edudash.ai.helper.started', { subject })
-
-      const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
-        body: {
-          feature: 'homework_help',
-          model: selectedModel,
-          prompt: question,
-          subject,
-          locale: 'en-ZA',
-          policy: {
-            child_safe: true,
-            show_steps: true,
-            do_not_give_final_answer_without_explanation: true,
-          }
-        }
+      const text = await generate({
+        question: question,
+        subject,
+        gradeLevel: 4,
+        difficulty: 'medium',
+        model: selectedModel,
       })
-      if (error) throw error
-
-      const content = (data && (data.content || data.answer || data.explanation)) || 'No response.'
-      setAnswer(typeof content === 'string' ? content : JSON.stringify(content, null, 2))
-      await incrementUsage('homework_help', 1)
-      try { await logUsageEvent({ feature: 'homework_help', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
+      setAnswer(typeof text === 'string' ? text : String(text || ''))
       setUsage(await getCombinedUsage())
       track('edudash.ai.helper.completed', { subject })
     } catch (e: any) {
@@ -112,13 +101,16 @@ export default function AIHomeworkHelperScreen() {
         Alert.alert('Error', msg)
         track('edudash.ai.helper.failed', { error: msg })
       }
-    } finally {
-      setLoading(false)
     }
   }
 
   return (
     <SafeAreaView style={styles.root}>
+      <ScreenHeader 
+        title="AI Homework Helper" 
+        subtitle="Child-safe, step-by-step guidance" 
+      />
+      
       <ScrollView 
         contentContainerStyle={styles.container}
         refreshControl={
@@ -130,8 +122,6 @@ export default function AIHomeworkHelperScreen() {
           />
         }
       >
-        <Text style={styles.title}>AI Homework Helper</Text>
-        <Text style={styles.subtitle}>Child-safe, step-by-step guidance. No direct answers without explanation.</Text>
 
         {!aiHelperEnabled && (
           <Text style={styles.disabledBanner}>AI Homework Helper is currently disabled by feature flags or build configuration.</Text>

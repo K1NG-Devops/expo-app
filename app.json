@@ -3,14 +3,16 @@
     "name": "EduDashPro",
     "slug": "edudashpro",
     "owner": "edudashpro",
-      "version": "1.0.0",
-      "runtimeVersion": { "policy": "appVersion" },
-      "orientation": "portrait",
-      "icon": "./assets/icon.png",
-      "userInterfaceStyle": "light",
-      "scheme": "edudashpro",
-      "newArchEnabled": true,
-      "splash": {
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "edudashpro",
+    "newArchEnabled": true,
+    "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
@@ -84,6 +86,9 @@
       "eas": {
         "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
     }
   }
 }

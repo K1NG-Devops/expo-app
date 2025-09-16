@@ -214,7 +214,7 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
 };
 
 // Plan tier capability additions
-const TIER_CAPABILITIES: Record<PlanTier, Capability[]> = {
+const TIER_CAPABILITIES: Record<PlanTier | 'basic' | 'pro', Capability[]> = {
   free: [
     'ai_homework_helper', // Limited usage (10 requests/month per roadmap)
     'view_engagement_metrics', // Basic engagement tracking
@@ -225,6 +225,23 @@ const TIER_CAPABILITIES: Record<PlanTier, Capability[]> = {
     'view_engagement_metrics',
     'whatsapp_voice_messages', // Voice messages in WhatsApp
     'access_ai_insights', // Basic AI insights
+  ],
+  basic: [
+    'ai_homework_helper',
+    'ai_lesson_generation',
+    'view_engagement_metrics',
+    'access_ai_insights',
+  ],
+  pro: [
+    'ai_homework_helper',
+    'ai_lesson_generation',
+    'ai_grading_assistance',
+    'ai_stem_activities',
+    'advanced_analytics',
+    'view_engagement_metrics',
+    'whatsapp_voice_messages',
+    'access_ai_insights',
+    'use_whatsapp',
   ],
   premium: [
     'ai_homework_helper',
@@ -312,9 +329,20 @@ export async function getUserCapabilities(
   if (normalizedRole && ROLE_CAPABILITIES[normalizedRole]) {
     ROLE_CAPABILITIES[normalizedRole].forEach(cap => capabilities.add(cap));
   }
+
+  // Determine if seat is effectively active (case-insensitive, with common synonyms)
+  const seatActive = typeof seatStatus === 'string' && ['active','approved','assigned','enabled','granted']
+    .includes(String(seatStatus).toLowerCase());
+
+  // If teacher without an active seat, remove core teaching capabilities but allow basic app access
+  if (normalizedRole === 'teacher' && !seatActive) {
+    ['manage_classes','create_assignments','grade_assignments','view_class_analytics'].forEach((cap) => {
+      capabilities.delete(cap as Capability);
+    });
+  }
   
   // Add tier-based capabilities (only if seat is active)
-  if (planTier && seatStatus === 'active') {
+  if (planTier && seatActive) {
     const tier = planTier as PlanTier;
     if (TIER_CAPABILITIES[tier]) {
       TIER_CAPABILITIES[tier].forEach(cap => capabilities.add(cap));
@@ -391,7 +419,9 @@ export function createEnhancedProfile(
   };
   
   profile.hasActiveSeat = (): boolean => {
-    return profile.organization_membership?.seat_status === 'active';
+    // Check both organization_membership.seat_status and direct seat_status property
+    return profile.organization_membership?.seat_status === 'active' || 
+           profile.seat_status === 'active';
   };
   
   return profile;
@@ -480,7 +510,10 @@ export class PermissionChecker {
    * Check if user has active seat in their organization
    */
   hasActiveSeat(): boolean {
-    return this.profile?.hasActiveSeat() || false;
+    if (!this.profile) return false;
+    // Check both organization_membership.seat_status and direct seat_status
+    return this.profile.organization_membership?.seat_status === 'active' || 
+           (this.profile as any).seat_status === 'active';
   }
   
   /**

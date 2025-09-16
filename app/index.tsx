@@ -81,16 +81,9 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
-    // If a session exists, route to the appropriate dashboard
-    (async () => {
-      try {
-        const { assertSupabase } = await import('@/lib/supabase');
-        const { data } = await assertSupabase().auth.getSession();
-        if (data.session) {
-          router.replace('/profiles-gate');
-        }
-      } catch { /* noop */ }
-    })();
+    // Always default to explicit sign-in screen on app start
+    // (Do not auto-route to parent/principal based on any stale session.)
+    router.replace('/(auth)/sign-in');
   }, []);
 
 

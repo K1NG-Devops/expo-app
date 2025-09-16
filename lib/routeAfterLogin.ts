@@ -20,8 +20,8 @@ function normalizeRole(r?: string | null): string | null {
     return s;
   }
   
-  console.warn('Unrecognized role:', r, '-> normalized to parent');
-  return 'parent'; // Default fallback
+  console.warn('Unrecognized role:', r, '-> normalized to null');
+  return null; // Default to null so we can route to sign-in/profile setup
 }
 
 /**
@@ -85,7 +85,7 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     const userId = user?.id;
     if (!userId) {
       console.error('No user ID provided for post-login routing');
-      router.replace('/landing');
+      router.replace('/(auth)/sign-in');
       return;
     }
 
@@ -101,7 +101,7 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
         user_id: userId,
         reason: 'no_profile',
       });
-      router.replace('/profiles-gate'); // Route to profile setup
+      router.replace('/(auth)/sign-in'); // Send to sign-in by default
       return;
     }
 
@@ -139,7 +139,7 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     });
     
     // Fallback to safe route
-    router.replace('/landing');
+    router.replace('/(auth)/sign-in');
   }
 }
 
@@ -147,12 +147,12 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
  * Determine the appropriate route for a user based on their enhanced profile
  */
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
-  let role = normalizeRole(profile.role) as Role;
+  let role = normalizeRole(profile.role) as Role | null;
   
-  // Safeguard: If role is null/undefined, default to parent
+  // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
-    console.warn('User role is null, defaulting to parent for routing');
-    role = 'parent';
+    console.warn('User role is null, routing to sign-in');
+    return { path: '/(auth)/sign-in' };
   }
   
   // Check if user has active access
@@ -163,7 +163,7 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   // Route based on role and capabilities
   switch (role) {
     case 'super_admin':
-      return { path: '/screens/super-admin-leads' };
+      return { path: '/screens/super-admin-dashboard' };
     
     case 'principal_admin':
       // Check if they have school association
@@ -173,19 +173,17 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
           params: { school: profile.organization_id }
         };
       } else {
-        // No school associated, route to setup or contact support
-        return { path: '/screens/account' };
+        // No school associated, route to principal onboarding
+        return { path: '/screens/principal-onboarding' };
       }
     
     case 'teacher':
-      // Check seat status for teachers
-      if (profile.seat_status === 'active') {
+      // Allow pending/null seat to proceed; dashboard can show a banner if needed
+      if (!profile.seat_status || profile.seat_status === 'active' || profile.seat_status === 'pending') {
         return { path: '/screens/teacher-dashboard' };
-      } else if (profile.seat_status === 'pending') {
-        return { path: '/screens/account' }; // Show pending seat activation
-      } else {
-        return { path: '/screens/account' }; // Show seat issues
       }
+      // For 'inactive' or any other unexpected status, send to account to resolve
+      return { path: '/screens/account' };
     
     case 'parent':
       return { path: '/screens/parent-dashboard' };
@@ -223,14 +221,15 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
 
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
-  if (role === 'teacher' && profile.seat_status !== 'active') {
-    return {
-      hasAccess: false,
-      reason: `Teacher seat is ${profile.seat_status}`,
-      suggestedAction: profile.seat_status === 'pending' 
-        ? 'Wait for seat activation by your administrator'
-        : 'Contact your administrator to activate your seat',
-    };
+  if (role === 'teacher') {
+    // Only block if explicitly inactive or revoked; allow pending/null
+    if (profile.seat_status === 'inactive' || (profile as any).seat_status === 'revoked') {
+      return {
+        hasAccess: false,
+        reason: `Teacher seat is ${profile.seat_status}`,
+        suggestedAction: 'Contact your administrator to activate your seat',
+      };
+    }
   }
 
   return { hasAccess: true };
@@ -244,7 +243,7 @@ export function getRouteForRole(role: Role | string | null): string {
   
   switch (normalizedRole) {
     case 'super_admin':
-      return '/screens/super-admin-leads';
+      return '/screens/super-admin-dashboard';
     case 'principal_admin':
       return '/screens/principal-dashboard';
     case 'teacher':

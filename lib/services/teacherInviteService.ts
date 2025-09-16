@@ -67,9 +67,8 @@ export class TeacherInviteService {
       .update({ status: 'accepted', accepted_by: params.authUserId, accepted_at: new Date().toISOString() })
       .eq('id', invite.id);
 
-    // Ensure teacher profile linkage to school
+    // Ensure teacher profile linkage and active seat membership
     try {
-      // upsert into users table or profiles depending on schema
       // Attempt users table
       const { data: existing } = await assertSupabase()
         .from('users')
@@ -83,6 +82,22 @@ export class TeacherInviteService {
         await assertSupabase()
           .from('profiles')
           .upsert({ id: params.authUserId, role: 'teacher', preschool_id: invite.school_id, email: params.email });
+      }
+      // Ensure organization membership with active seat
+      try {
+        // Upsert into organization_members (some envs may not have it; ignore errors)
+        await assertSupabase()
+          .from('organization_members')
+          .upsert({
+            id: crypto?.randomUUID ? crypto.randomUUID() : undefined,
+            organization_id: invite.school_id,
+            user_id: params.authUserId,
+            role: 'teacher',
+            seat_status: 'active',
+            invited_by: invite.invited_by || null,
+          } as any, { onConflict: 'organization_id,user_id' } as any);
+      } catch (e) {
+        // ignore if table not present
       }
     } catch {}
   }

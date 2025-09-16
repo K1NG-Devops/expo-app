@@ -29,13 +29,16 @@ module.exports = ({ config }) => {
   // Only include expo-dev-client for development builds
   if (isDevBuild) plugins.push('expo-dev-client');
 
+  const isEasBuild = !!process.env.EAS_BUILD;
+  const runtimeVersion = isEasBuild ? { policy: 'appVersion' } : '1.0.0';
+
   return {
     ...config,
     name: 'EduDashPro',
     slug: 'edudashpro',
     owner: 'edudashpro',
     version: '1.0.0',
-    runtimeVersion: { policy: 'appVersion' },
+    runtimeVersion,
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',

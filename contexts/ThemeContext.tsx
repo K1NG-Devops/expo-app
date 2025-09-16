@@ -312,8 +312,9 @@ interface ThemeContextType {
 // Create context
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// Storage key
+// Storage keys
 const THEME_STORAGE_KEY = '@edudash_theme_mode';
+const LANGUAGE_STORAGE_KEY = '@edudash_language';
 
 // Theme provider props
 interface ThemeProviderProps {
@@ -337,6 +338,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const savedMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       if (savedMode && ['light', 'dark', 'system'].includes(savedMode)) {
         setModeState(savedMode as ThemeMode);
+        if (__DEV__) console.log('[Theme] Loaded persisted mode:', savedMode);
+      } else if (__DEV__) {
+        console.log('[Theme] No persisted mode found, defaulting to system');
       }
     } catch (error) {
       console.error('Failed to load theme mode:', error);

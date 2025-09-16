@@ -71,9 +71,9 @@ export default function ProfilesGateScreen() {
               'parent': '/screens/parent-dashboard',
               'teacher': '/screens/teacher-dashboard', 
               'principal_admin': '/screens/principal-dashboard',
-              'super_admin': '/screens/super-admin-leads'
+              'super_admin': '/screens/super-admin-dashboard'
             };
-            const targetRoute = routes[role as keyof typeof routes] || '/screens/parent-dashboard';
+            const targetRoute = routes[role as keyof typeof routes] || '/(auth)/sign-in';
             router.replace(targetRoute as any);
             return;
           }
@@ -174,14 +174,9 @@ export default function ProfilesGateScreen() {
         router.replace(targetRoute as any);
         return;
       }
-
-      // Last resort: Show contact support message
-      Alert.alert(
-        'Profile Setup Required',
-        'We need to set up your profile. Please contact your organization administrator or our support team.',
-        [{ text: 'OK' }]
-      );
-      
+      // Default fallback to sign-in
+      router.replace('/(auth)/sign-in' as any);
+      return;
     } catch (error) {
       console.error('Profile gate: Continue failed:', error);
       reportError(new Error('Profile setup failed'), {
@@ -246,12 +241,15 @@ export default function ProfilesGateScreen() {
             <Ionicons name="warning-outline" size={64} color="#FF9500" />
           </View>
           
-          <Text style={styles.title}>Access Restricted</Text>
-          <Text style={styles.description}>{accessValidation.reason}</Text>
+          <Text style={styles.title}>Account Setup Required</Text>
+          <Text style={styles.description}>
+            Your account needs to be configured with the correct role and permissions.
+            Please contact your administrator or select your role below.
+          </Text>
           
-          {accessValidation.suggestedAction && (
-            <Text style={styles.suggestion}>{accessValidation.suggestedAction}</Text>
-          )}
+          <Text style={styles.suggestion}>
+            If you're unsure of your role, please contact support for assistance.
+          </Text>
           
           <TouchableOpacity 
             style={styles.primaryButton} 

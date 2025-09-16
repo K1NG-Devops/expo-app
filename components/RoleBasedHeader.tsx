@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, Modal, Image } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
+import { isSuperAdmin } from '@/lib/roleUtils';
+
+// Helper function to get the appropriate settings route based on user role
+function getSettingsRoute(role?: string | null): string {
+  if (!role) return '/screens/settings';
+  
+  if (isSuperAdmin(role)) {
+    return '/screens/super-admin-settings';
+  }
+  
+  // For other roles, use the general settings
+  return '/screens/settings';
+}
 
 interface RoleBasedHeaderProps {
   title?: string;
@@ -38,7 +51,6 @@ export function RoleBasedHeader({
   const [menuVisible, setMenuVisible] = useState(false);
   const [languageVisible, setLanguageVisible] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const navigation = useNavigation();
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -270,7 +282,7 @@ export function RoleBasedHeader({
                 {roleChip}
               </View>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/screens/settings'); }}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push(getSettingsRoute(permissions?.enhancedProfile?.role)); }}>
                 <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Settings</Text>
               </TouchableOpacity>

@@ -1,22 +1,29 @@
 import React, { useState, useEffect } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { getCombinedUsage } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useLessonGenerator } from '@/hooks/useLessonGenerator'
+import { ScreenHeader } from '@/components/ui/ScreenHeader'
 
 export default function AILessonGeneratorScreen() {
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
   const [generated, setGenerated] = useState<any | null>({ title: 'New Lesson', description: 'AI generated lesson', content: { sections: [] }, activities: [] })
+  const [topic, setTopic] = useState('Fractions')
+  const [subject, setSubject] = useState('Mathematics')
+  const [gradeLevel, setGradeLevel] = useState('3')
+  const [duration, setDuration] = useState('45')
+  const [objectives, setObjectives] = useState('Understand proper fractions; Compare simple fractions')
   const [saving, setSaving] = useState(false)
-  const [generating, setGenerating] = useState(false)
+  const { loading: generating, generate } = useLessonGenerator()
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
   const [models, setModels] = useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
   const [selectedModel, setSelectedModel] = useState<string>('')
@@ -83,34 +90,25 @@ export default function AILessonGeneratorScreen() {
         )
         return
       }
-      setGenerating(true)
       track('edudash.ai.lesson.generate_started', {})
-      const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
-        body: {
-          feature: 'lesson_generation',
-          model: selectedModel,
-          subject: 'Mathematics',
-          grade: '3',
-          duration_minutes: 45,
-          locale: 'en-ZA',
-          prompt: 'Generate a child-safe, CAPS-aligned Grade 3 fractions lesson (45 minutes) with objectives, warm-up, activities, and assessment.'
-        }
+      const lessonText = await generate({
+        topic: topic || 'Lesson Topic',
+        subject: subject || 'General Studies',
+        gradeLevel: Number(gradeLevel) || 3,
+        duration: Number(duration) || 45,
+        learningObjectives: (objectives || '').split(';').map(s => s.trim()).filter(Boolean),
+        language: 'en',
+        model: selectedModel,
       })
-      if (error) throw error
-      const content = (data && (data.content || data.lesson || data.plan)) || 'No lesson content returned.'
       setGenerated((prev: any) => ({
         ...(prev || {}),
-        description: typeof content === 'string' ? content : JSON.stringify(content),
+        description: lessonText || 'No lesson content returned.',
       }))
-      await incrementUsage('lesson_generation', 1)
-      try { await logUsageEvent({ feature: 'lesson_generation', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
       setUsage(await getCombinedUsage())
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
       track('edudash.ai.lesson.generate_failed', { error: e?.message })
       Alert.alert('Generation failed', e?.message || 'Unable to generate lesson at this time.')
-    } finally {
-      setGenerating(false)
     }
   }
 
@@ -148,9 +146,10 @@ export default function AILessonGeneratorScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
-      <View style={[styles.header, { borderBottomColor: palette.outline }]}>
-        <Text style={[styles.title, { color: palette.text }]}>AI Lesson Generator</Text>
-      </View>
+      <ScreenHeader 
+        title="AI Lesson Generator" 
+        subtitle="Create AI-powered lesson plans" 
+      />
 
       <ScrollView 
         contentContainerStyle={styles.contentPadding}
@@ -164,14 +163,32 @@ export default function AILessonGeneratorScreen() {
         }
       >
         <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Preview</Text>
-          <Text style={{ color: palette.textSecondary }}>
-            Use the AI generator to draft a CAPS-aligned lesson. Review and edit before saving.
-          </Text>
+          <Text style={[styles.cardTitle, { color: palette.text }]}>Lesson Parameters</Text>
+          <Text style={{ color: palette.textSecondary }}>Customize the generation prompt.</Text>
+
+          <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Topic</Text>
+          <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={topic} onChangeText={setTopic} placeholder="e.g., Fractions" />
+
+          <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Subject</Text>
+          <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={subject} onChangeText={setSubject} placeholder="e.g., Mathematics" />
+
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Grade Level</Text>
+              <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={gradeLevel} onChangeText={setGradeLevel} keyboardType="numeric" placeholder="e.g., 3" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Duration (min)</Text>
+              <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={duration} onChangeText={setDuration} keyboardType="numeric" placeholder="e.g., 45" />
+            </View>
+          </View>
+
+          <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Learning Objectives (separate with ;)</Text>
+          <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={objectives} onChangeText={setObjectives} placeholder="Objective A; Objective B" />
+
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
             Monthly usage (local): Lessons generated {usage.lesson_generation}
           </Text>
-          {/* Quota summary (best-effort) */}
           <QuotaSummary feature="lesson_generation" />
         </View>
 
@@ -229,6 +246,8 @@ const styles = StyleSheet.create({
   contentPadding: { padding: 16 },
   card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, marginBottom: 16 },
   cardTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
+  label: { fontSize: 12, fontWeight: '600' },
+  input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'transparent' },
   primaryBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
 })

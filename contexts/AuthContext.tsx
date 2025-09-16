@@ -12,6 +12,7 @@ import {
   type PermissionChecker
 } from '@/lib/rbac';
 import { initializeSession, signOut } from '@/lib/sessionManager';
+import { router } from 'expo-router';
 import { securityAuditor } from '@/lib/security-audit';
 
 export type AuthContextValue = {
@@ -188,6 +189,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
+    // Theme fix: ensure theme provider doesn't flicker on refresh
+    try {
+      const root = (globalThis as any)?.document?.documentElement;
+      if (root && typeof (globalThis as any).matchMedia === 'function') {
+        const prefersDark = (globalThis as any).matchMedia('(prefers-color-scheme: dark)')?.matches;
+        if (prefersDark) root.classList.add('dark'); else root.classList.remove('dark');
+      }
+    } catch {}
+
     (async () => {
       try {
         // Initialize session from storage first
@@ -214,10 +224,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(data.session?.user ?? null);
         }
 
-        // If there's a session and no existing profile, fetch it
+        // Always refresh profile on boot to avoid stale cached roles
         let currentProfile: EnhancedUserProfile | null = storedProfile as any;
-        if (data.session?.user && !currentProfile && mounted) {
-          currentProfile = await fetchProfileLocal(data.session.user.id);
+        if (data.session?.user && mounted) {
+          try {
+            const fresh = await fetchProfileLocal(data.session.user.id);
+            if (fresh) currentProfile = fresh;
+          } catch (e) {
+            console.debug('Initial profile refresh failed', e);
+          }
         }
 
         // If there's a session, identify in monitoring tools
@@ -260,6 +275,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === 'SIGNED_IN' && s?.user) {
             // Fetch enhanced profile on sign in
             const enhancedProfile = await fetchProfileLocal(s.user.id);
+
+            // Register or update push token (best-effort)
+            try {
+              const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
+              const token = await registerForPushNotificationsAsync();
+              if (token) {
+                const platform = (typeof navigator !== 'undefined' && (navigator as any).product === 'ReactNative') ? 'native' : 'web';
+                await assertSupabase().from('push_devices').upsert({
+                  user_id: s.user.id,
+                  expo_push_token: token,
+                  platform: platform === 'web' ? 'web' : (typeof (globalThis as any).Expo !== 'undefined' ? ((globalThis as any).Expo.Constants?.platform?.ios ? 'ios' : 'android') : 'android'),
+                  is_active: true,
+                } as any, { onConflict: 'user_id,expo_push_token' } as any);
+              }
+            } catch (e) {
+              console.debug('Push registration skipped/failed', e);
+            }
             
             // Identify in monitoring tools
             if (mounted) {
@@ -306,6 +338,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try { Sentry.Native.setUser(null as any); } catch (e) { console.debug('Sentry clear user failed', e); }
             
             track('edudash.auth.signed_out', {});
+            
+            // Ensure we fall back to the sign-in screen on sign out or session loss
+            try { router.replace('/sign-in'); } catch (navErr) { console.debug('Navigation to sign-in failed', navErr); }
           }
         } catch (error) {
           console.error('Auth state change handler error:', error);

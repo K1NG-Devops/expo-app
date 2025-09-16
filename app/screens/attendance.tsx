@@ -9,6 +9,9 @@ import { track } from '@/lib/analytics'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 
 export default function AttendanceScreen() {
+  const { profile } = require('@/contexts/AuthContext') as any
+  const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
+  const canManageClasses = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('manage_classes' as any))
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
 
   const [classId, setClassId] = useState<string | null>(null)
@@ -114,7 +117,14 @@ export default function AttendanceScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Take Attendance', headerStyle: { backgroundColor: palette.background }, headerTitleStyle: { color: '#fff' }, headerTintColor: palette.primary }} />
+      <Stack.Screen options={{ 
+        title: 'Take Attendance', 
+        headerStyle: { backgroundColor: palette.background }, 
+        headerTitleStyle: { color: '#fff' }, 
+        headerTintColor: palette.primary,
+        headerBackVisible: true,
+        headerBackTitleVisible: false
+      }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
         <ScrollView 
@@ -128,6 +138,12 @@ export default function AttendanceScreen() {
             />
           }
         >
+          {!canManageClasses && (
+            <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+              <Text style={styles.cardTitle}>Access Restricted</Text>
+              <Text style={{ color: palette.textSecondary }}>Your seat is not active to manage attendance. Please contact your administrator.</Text>
+            </View>
+          )}
           <Text style={styles.subtitle}>Date: {today}</Text>
 
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>

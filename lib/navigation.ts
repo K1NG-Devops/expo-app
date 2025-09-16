@@ -67,25 +67,22 @@ export const navigateTo = {
 
 /**
  * Determine if a back button should be shown based on current route
- * This implements the business rule about hiding back buttons on main screens
+ * Updated to always show back buttons when navigation is possible
  */
 export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean): boolean {
-  // If not signed in, show back button based on navigation state
-  if (!isUserSignedIn) {
-    return router.canGoBack?.() ?? false;
-  }
+  // Always check if we can go back first
+  const canGoBack = router.canGoBack?.() ?? false;
   
-  // If user is signed in, use intelligent logic
-  const isMainScreen = routeName.includes('dashboard') || 
-                      routeName === 'index' || 
-                      routeName === 'landing' || 
-                      routeName.includes('(tabs)');
-  
-  // Hide on main screens per business rule, show on detail screens
-  if (isMainScreen) {
+  // If we can't go back in the stack, don't show the button
+  if (!canGoBack) {
     return false;
   }
   
-  // Show on detail/management screens if we can go back
-  return router.canGoBack?.() ?? false;
+  // Special handling for root/main dashboard screens - still don't show back button
+  if (routeName === 'index' || routeName === 'landing' || routeName === '(tabs)' || routeName === '') {
+    return false;
+  }
+  
+  // For all other screens, show back button if we can go back
+  return true;
 }

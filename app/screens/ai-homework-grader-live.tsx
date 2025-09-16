@@ -2,10 +2,11 @@
 import React, { useRef, useState } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native'
 import { IconSymbol } from '@/components/ui/IconSymbol'
-import { HomeworkService } from '@/lib/services/homeworkService'
+// import { HomeworkService } from '@/lib/services/homeworkService'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { getCombinedUsage } from '@/lib/ai/usage'
+import { useGrader } from '@/hooks/useGrader'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
@@ -25,6 +26,8 @@ export default function AIHomeworkGraderLive() {
   const flags = getFeatureFlagsSync()
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
   const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false
+
+  const { grade } = useGrader()
 
   React.useEffect(() => {
     (async () => {
@@ -68,35 +71,44 @@ export default function AIHomeworkGraderLive() {
       setParsed(null)
       track('edudash.ai.grader.ui_started', {})
 
-      const submissionId = 'temp-local'
-      await HomeworkService.streamGradeHomework(
-        submissionId,
-        submissionContent,
-        assignmentTitle || 'Homework',
-        gradeLevel || 'Age 5',
+      // Use hook for grading (non-streaming for now). We still keep UI notion of streaming.
+      const text = await grade(
+        { submissionText: submissionContent, rubric: ['accuracy', 'completeness'], gradeLevel: 5, language: 'en' },
         {
+          model: selectedModel,
+          streaming: true,
           onDelta: (chunk) => {
-            bufferRef.current += chunk
-            setJsonBuffer(bufferRef.current)
+            bufferRef.current += chunk;
+            setJsonBuffer(bufferRef.current);
           },
-          onFinal: async ({ score, feedback, suggestions, strengths, areasForImprovement }) => {
-            setParsed({ score, feedback, suggestions, strengths, areasForImprovement })
-            setIsStreaming(false)
-            try {
-              await incrementUsage('grading_assistance', 1);
-              try { await logUsageEvent({ feature: 'grading_assistance', model: selectedModel, timestamp: new Date().toISOString() }) } catch { /* noop */ void 0; }
-              setUsage(await getCombinedUsage());
-            } catch { /* noop */ void 0; }
-            track('edudash.ai.grader.ui_completed', { score })
-          },
-          onError: (err) => {
-            setIsStreaming(false)
-            track('edudash.ai.grader.ui_failed', { error: err?.message })
-            Alert.alert('Grading failed', err.message || 'Unknown error')
-          },
-        },
-        { model: selectedModel }
+          onFinal: (summary) => {
+            if (summary && summary.feedback) {
+              setParsed({ score: Number(summary.score || 0), feedback: summary.feedback, suggestions: summary.suggestions || [], strengths: summary.strengths || [], areasForImprovement: summary.areasForImprovement || [] });
+            }
+          }
+        }
       )
+
+      // Basic parsing if model returned JSON-ish content in text
+      try {
+        const parsedObj = JSON.parse(text || '{}')
+        if (parsedObj && typeof parsedObj === 'object' && (parsedObj.score || parsedObj.feedback)) {
+          setParsed({
+            score: Number(parsedObj.score || 0),
+            feedback: String(parsedObj.feedback || ''),
+            suggestions: parsedObj.suggestions || [],
+            strengths: parsedObj.strengths || [],
+            areasForImprovement: parsedObj.areasForImprovement || [],
+          })
+        } else {
+          setParsed({ score: 0, feedback: text || '', suggestions: [], strengths: [], areasForImprovement: [] })
+        }
+      } catch {
+        setParsed({ score: 0, feedback: text || '', suggestions: [], strengths: [], areasForImprovement: [] })
+      }
+      setIsStreaming(false)
+      setUsage(await getCombinedUsage())
+      track('edudash.ai.grader.ui_completed', { score: parsed?.score })
     } catch (e: any) {
       setIsStreaming(false)
       track('edudash.ai.grader.ui_failed', { error: e?.message })

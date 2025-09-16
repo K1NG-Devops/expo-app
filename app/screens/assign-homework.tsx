@@ -8,6 +8,8 @@ import { TeacherDataService } from '@/lib/services/teacherDataService'
 import { router } from 'expo-router'
 
 export default function AssignHomeworkScreen() {
+  const { profile } = require('@/contexts/AuthContext') as any
+  const canAssign = !!profile?.hasCapability && profile.hasCapability('create_assignments' as any)
   const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
 
   const [mode, setMode] = useState<'class' | 'students'>('class')
@@ -92,6 +94,12 @@ export default function AssignHomeworkScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.contentPadding}>
+        {!canAssign && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+            <Text style={[styles.cardTitle, { color: palette.text }]}>Access Restricted</Text>
+            <Text style={{ color: palette.textSecondary }}>Your teacher seat is not active or you lack permission to assign homework. Please contact your administrator.</Text>
+          </View>
+        )}
         {!lessonId && (
           <Text style={styles.errorText}>No lesson selected.</Text>
         )}

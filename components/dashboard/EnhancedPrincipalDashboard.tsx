@@ -392,6 +392,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </View>
       )}
 
+
       {/* AI Insights Banner */}
       <View style={styles.section}>
         <TouchableOpacity 
@@ -1096,18 +1097,58 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
-  // AI Insights Banner Styles
-  aiInsightsBanner: {
-    backgroundColor: theme.cardBackground,
-    borderRadius: 16,
+  // Contact Admin Banner Styles
+  contactAdminBanner: {
+    backgroundColor: '#059669' + '10',
+    borderRadius: 12,
     padding: 16,
+    borderWidth: 1,
+    borderColor: '#059669' + '20',
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.accent,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  contactAdminHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  contactAdminIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#059669' + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  contactAdminContent: {
+    flex: 1,
+  },
+  contactAdminTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 2,
+  },
+  contactAdminSubtitle: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '500',
+  },
+  // AI Insights Banner Styles
+  aiInsightsBanner: {
+    backgroundColor: theme.accentLight,
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: theme.accent + '20',
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   aiInsightsHeader: {
     flexDirection: 'row',

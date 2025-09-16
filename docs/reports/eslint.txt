@@ -1,0 +1,305 @@
+
+> edudash-pro@1.0.0 lint
+> eslint . --ext .ts,.tsx --max-warnings 200
+
+
+/home/king/Desktop/edudashpro/app/(auth)/sign-in.tsx
+  26:69  warning  'scheduleLocalNotification' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/+not-found.tsx
+  38:6  warning  React Hook useEffect has missing dependencies: 'pathname', 'router', and 'segments'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/_layout.tsx
+   28:6   warning  React Hook useEffect has a missing dependency: 'initializeApp'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   40:14  warning  'error' is defined but never used                                                                                 @typescript-eslint/no-unused-vars
+  253:11  warning  'theme' is assigned a value but never used                                                                        @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/debug-user.tsx
+  16:6  warning  React Hook useEffect has a missing dependency: 'loadDebugData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/index.tsx
+  128:6  warning  React Hook useEffect has a missing dependency: 'floatingY'. Either include it or remove the dependency array                                                                                                                                                                         react-hooks/exhaustive-deps
+  257:6  warning  React Hook useEffect has missing dependencies: 'setActiveTestimonial' and 'testimonials.length'. Either include them or remove the dependency array. If 'setActiveTestimonial' changes too often, find the parent component that defines it and wrap that definition in useCallback  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/marketing/pricing.tsx
+  168:30  warning  'index' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/profiles-gate.tsx
+  138:17  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/app/screens/account.tsx
+   14:10  warning  'Colors' is defined but never used                       @typescript-eslint/no-unused-vars
+   65:10  warning  'biometricTypes' is assigned a value but never used      @typescript-eslint/no-unused-vars
+   66:10  warning  'biometricLastUsed' is assigned a value but never used   @typescript-eslint/no-unused-vars
+   75:10  warning  'showBackupSetup' is assigned a value but never used     @typescript-eslint/no-unused-vars
+   75:27  warning  'setShowBackupSetup' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   76:10  warning  'backupPin' is assigned a value but never used           @typescript-eslint/no-unused-vars
+   76:21  warning  'setBackupPin' is assigned a value but never used        @typescript-eslint/no-unused-vars
+   77:10  warning  'confirmPin' is assigned a value but never used          @typescript-eslint/no-unused-vars
+   77:22  warning  'setConfirmPin' is assigned a value but never used       @typescript-eslint/no-unused-vars
+   78:10  warning  'hasBackupMethods' is assigned a value but never used    @typescript-eslint/no-unused-vars
+   81:42  warning  'isDark' is defined but never used                       @typescript-eslint/no-unused-vars
+  730:61  warning  Empty block statement                                    no-empty
+
+/home/king/Desktop/edudashpro/app/screens/activity-detail.tsx
+  236:6  warning  React Hook useEffect has a missing dependency: 'loadActivities'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  240:6  warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/admin/school-settings.tsx
+   26:10  warning  'useThemedStyles' is defined but never used                                                                      @typescript-eslint/no-unused-vars
+  191:6   warning  React Hook useEffect has a missing dependency: 'loadSettings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/class-teacher-management.tsx
+  305:6  warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/financial-reports.tsx
+  45:10  warning  'loading' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
+  52:6   warning  React Hook useEffect has a missing dependency: 'loadReportData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/financial-transactions.tsx
+  46:10  warning  'loading' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
+  63:6   warning  React Hook useEffect has a missing dependency: 'loadTransactions'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  67:6   warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array      react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/parent-link-child.tsx
+  21:13  warning  'reqId' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/screens/petty-cash-reconcile.tsx
+  249:6  warning  React Hook useEffect has a missing dependency: 'loadReconciliationData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/petty-cash.tsx
+  448:6   warning  React Hook useEffect has a missing dependency: 'loadPettyCashData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  473:14  warning  'e' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+  491:14  warning  'e' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+  519:14  warning  'e' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/screens/principal-seat-management.tsx
+   91:35   warning  'profErr' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  152:15   warning  Empty block statement                         no-empty
+  223:27   warning  Empty block statement                         no-empty
+  316:142  warning  Empty block statement                         no-empty
+
+/home/king/Desktop/edudashpro/app/screens/student-detail.tsx
+  301:6  warning  React Hook useEffect has a missing dependency: 'loadStudentData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/student-enrollment.tsx
+  123:21  warning  'setDocuments' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  124:25  warning  'setAgreedToTerms' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  175:9   warning  'goToNextStep' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  182:9   warning  'goToPreviousStep' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  189:9   warning  'validateCurrentStep' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  210:9   warning  'getStepTitle' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  223:9   warning  'calculateTotalFees' is assigned a value but never used   @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/screens/student-management.tsx
+  281:6  warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/students-detail.tsx
+  246:6  warning  React Hook useEffect has a missing dependency: 'loadStudents'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  250:6  warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/subscription-setup.tsx
+  43:6  warning  React Hook useEffect has a missing dependency: 'checkExistingSubscription'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/super-admin-leads.tsx
+   53:13  warning  Empty block statement          no-empty
+  102:47  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/screens/super-admin-subscriptions.tsx
+  289:15  warning  Empty block statement  no-empty
+  309:76  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/app/screens/teacher-management.tsx
+   21:10  warning  'router' is defined but never used                                                                              @typescript-eslint/no-unused-vars
+  102:11  warning  'HiringCandidate' is defined but never used                                                                     @typescript-eslint/no-unused-vars
+  124:10  warning  'selectedTeacher' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
+  126:23  warning  'setSearchQuery' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
+  127:24  warning  'setFilterStatus' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
+  255:6   warning  React Hook useEffect has a missing dependency: 'loadInvites'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  311:9   warning  'handleCandidateAction' is assigned a value but never used                                                      @typescript-eslint/no-unused-vars
+  397:9   warning  'renderNavigationTabs' is assigned a value but never used                                                       @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/app/screens/teachers-detail.tsx
+  139:6  warning  React Hook useEffect has a missing dependency: 'loadTeachers'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  143:6  warning  React Hook useEffect has a missing dependency: 'applyFilters'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/app/screens/whatsapp-demo.tsx
+  2:10  warning  'View' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/RoleBasedHeader.tsx
+  41:9  warning  'navigation' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/ads/NativeAdCard.tsx
+  78:18  warning  'isDark' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/auth/BiometricSetup.tsx
+  38:10  warning  'securityLevel' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  91:81  warning  Empty block statement                               no-empty
+
+/home/king/Desktop/edudashpro/components/dashboard/EnhancedChildrenGrid.tsx
+  91:6  warning  React Hook useMemo has unnecessary dependencies: 'height' and 'width'. Either exclude them or remove the dependency array. Outer scope values like 'height' aren't valid dependencies because mutating them doesn't re-render the component  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/components/dashboard/EnhancedHeader.tsx
+  47:6  warning  React Hook useEffect has a missing dependency: 't'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/components/dashboard/EnhancedPrincipalDashboard.tsx
+  53:17  warning  'profile' is assigned a value but never used         @typescript-eslint/no-unused-vars
+  55:18  warning  'toggleTheme' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  84:9   warning  'changeLanguage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/dashboard/ParentDashboard.tsx
+  148:19  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/components/dashboard/RealtimeActivityFeed.tsx
+  171:6  warning  React Hook useCallback has missing dependencies: 'colors.attendance', 'colors.enrollment', 'colors.meeting', 'colors.payment', 'colors.system', and 'colors.teacher'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  275:6  warning  React Hook useCallback has a missing dependency: 'colors.system'. Either include it or remove the dependency array                                                                                                        react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/components/dashboard/SimpleEnhancedHeader.tsx
+  17:3  warning  'userRole' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/dashboard/TeacherDashboard.tsx
+  161:9   warning  'openRequestFeatureEmail' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  397:9   warning  'seatPendingBanner' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  438:9   warning  'showSeatPending' is assigned a value but never used          @typescript-eslint/no-unused-vars
+  669:99  warning  Empty block statement                                         no-empty
+  695:99  warning  Empty block statement                                         no-empty
+
+/home/king/Desktop/edudashpro/components/features/MeetingRoomSystem.tsx
+  110:6  warning  React Hook useEffect has missing dependencies: 'loadMeetingRooms' and 'loadMeetings'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/components/sync/OfflineBanner.tsx
+  5:10  warning  'queryKeys' is defined but never used       @typescript-eslint/no-unused-vars
+  9:11  warning  'theme' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/ui/SkeletonLoader.tsx
+  18:11  warning  'theme' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/ui/ThemedButton.tsx
+  75:9  warning  'textColor' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/components/whatsapp/WhatsAppOptInModal.tsx
+   44:5   warning  'optInError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  219:14  warning  'error' is defined but never used                @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/contexts/AuthContext.tsx
+  115:6  warning  React Hook useCallback has a missing dependency: 'fetchProfile'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/hooks/useDashboardData.ts
+   765:6  warning  React Hook useCallback has a missing dependency: 'profile'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+  1132:6  warning  React Hook useCallback has an unnecessary dependency: 'role'. Either exclude it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/hooks/usePrincipalHub.ts
+   85:7   warning  'apiCall' is assigned a value but never used        @typescript-eslint/no-unused-vars
+   85:42  warning  'user' is defined but never used                    @typescript-eslint/no-unused-vars
+  184:40  warning  'forceRefresh' is assigned a value but never used   @typescript-eslint/no-unused-vars
+  347:17  warning  'workloadScore' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/hooks/usePullToRefresh.ts
+  60:3  warning  'loadingMessage' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/hooks/useWhatsAppConnection.ts
+    1:20  warning  'useEffect' is defined but never used  @typescript-eslint/no-unused-vars
+  204:16  warning  'e' is defined but never used          @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/lib/adMob.ts
+  14:15  warning  'warn' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/lib/ads.ts
+  2:10  warning  'log' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/lib/navigation/router-utils.ts
+  74:19  warning  '_reportName' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/lib/services/parentJoinService.ts
+  89:13  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/lib/services/principalHubService.ts
+    2:10  warning  'User' is defined but never used  @typescript-eslint/no-unused-vars
+  113:15  warning  Empty block statement             no-empty
+  130:15  warning  Empty block statement             no-empty
+  150:15  warning  Empty block statement             no-empty
+
+/home/king/Desktop/edudashpro/lib/services/teacherInviteService.ts
+  87:13  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/lib/sessionManager.ts
+  242:11  warning  'orgMember' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  243:11  warning  'org' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/screens/financial-dashboard.tsx
+  29:10  warning  'school' is assigned a value but never used                                                                           @typescript-eslint/no-unused-vars
+  88:6   warning  React Hook useEffect has a missing dependency: 'loadFinancialData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/screens/principal-analytics.tsx
+  215:6  warning  React Hook useEffect has a missing dependency: 'loadAnalytics'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/screens/principal-approval-dashboard.tsx
+   45:18  warning  'isDark' is assigned a value but never used                                                                          @typescript-eslint/no-unused-vars
+  126:6   warning  React Hook useEffect has a missing dependency: 'loadApprovalData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/services/BiometricAuthService.ts
+  463:65  warning  Empty block statement          no-empty
+  801:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  816:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+  835:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/services/EnhancedBiometricAuth.ts
+    8:10  warning  'assertSupabase' is defined but never used  @typescript-eslint/no-unused-vars
+  144:13  warning  Empty block statement                       no-empty
+  155:13  warning  Empty block statement                       no-empty
+  169:13  warning  Empty block statement                       no-empty
+  179:13  warning  Empty block statement                       no-empty
+  190:13  warning  Empty block statement                       no-empty
+  344:15  warning  Empty block statement                       no-empty
+  447:23  warning  Empty block statement                       no-empty
+  535:15  warning  Empty block statement                       no-empty
+
+/home/king/Desktop/edudashpro/services/aiInsightsService.ts
+  170:77  warning  'endDate' is defined but never used                 @typescript-eslint/no-unused-vars
+  172:38  warning  'totalStudents' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  219:38  warning  'totalTeachers' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/supabase/components/Account.tsx
+  16:6  warning  React Hook useEffect has a missing dependency: 'getProfile'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+/home/king/Desktop/edudashpro/supabase/functions/compute-progress-metrics/index.ts
+  582:43  warning  'request' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/supabase/functions/notifications-dispatcher/index.ts
+    1:10  warning  'serve' is defined but never used                    @typescript-eslint/no-unused-vars
+  652:16  warning  '_' is defined but never used                        @typescript-eslint/no-unused-vars
+  846:45  warning  'request' is defined but never used                  @typescript-eslint/no-unused-vars
+  880:33  warning  'trialsNotified' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  948:16  warning  'handleRequest' is defined but never used            @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/supabase/functions/payments-webhook/index.ts
+   38:14  warning  '_e' is defined but never used  @typescript-eslint/no-unused-vars
+   87:18  warning  '_n' is defined but never used  @typescript-eslint/no-unused-vars
+   87:22  warning  Empty block statement           no-empty
+  143:16  warning  '_n' is defined but never used  @typescript-eslint/no-unused-vars
+  143:20  warning  Empty block statement           no-empty
+
+/home/king/Desktop/edudashpro/supabase/functions/transcribe-audio/index.ts
+  368:21  warning  'old_record' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/supabase/functions/whatsapp-send/index.ts
+  417:21  warning  'old_record' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/supabase/functions/whatsapp-webhook/index.ts
+    8:7   warning  'WHATSAPP_ACCESS_TOKEN' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  153:17  warning  'waMessage' is assigned a value but never used              @typescript-eslint/no-unused-vars
+  246:63  warning  'contact' is defined but never used                         @typescript-eslint/no-unused-vars
+  314:31  warning  'contacts' is assigned a value but never used               @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/utils/biometricDebugExtended.ts
+  71:15  warning  Empty block statement  no-empty
+
+/home/king/Desktop/edudashpro/utils/biometricTest.ts
+  8:10  warning  'getBiometricInfo' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/king/Desktop/edudashpro/utils/crypto.ts
+   33:14  warning  'cryptoError' is defined but never used  @typescript-eslint/no-unused-vars
+  147:12  warning  'e' is defined but never used            @typescript-eslint/no-unused-vars
+
+✖ 158 problems (0 errors, 158 warnings)
+

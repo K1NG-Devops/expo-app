@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
 
-type Tier = 'free' | 'pro' | 'enterprise';
+type Tier = 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise';
 
 type Seats = { total: number; used: number } | null;
 
@@ -44,7 +44,9 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         
         let t: Tier = 'free';
         const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
-        if (metaTier === 'pro' || metaTier === 'enterprise') t = metaTier as Tier;
+        if (metaTier && ['free','starter','basic','premium','pro','enterprise'].includes(metaTier)) {
+          t = metaTier as Tier;
+        }
 
         // Try to detect school-owned subscription using correct schema
         let seatsData: Seats = null;
@@ -84,17 +86,27 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                 .maybeSingle();
               
               if (!subError && sub && mounted) {
-                // Check if this is an enterprise subscription based on plan_id
-                const planId = sub.plan_id?.toLowerCase() || '';
-                const isEnterprise = planId.includes('enterprise') || planId.includes('pro');
-                
-                if (isEnterprise) {
-                  seatsData = { 
-                    total: sub.seats_total ?? 0, 
-                    used: sub.seats_used ?? 0 
-                  };
-                  if (t === 'free') t = 'enterprise';
+                // Resolve plan tier from subscription_plans by plan_id (robust)
+                try {
+                  const { data: planRow } = await assertSupabase()
+                    .from('subscription_plans')
+                    .select('tier')
+                    .eq('id', sub.plan_id)
+                    .maybeSingle();
+                  const tierStr = (planRow?.tier || '').toLowerCase();
+                  const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                  if (knownTiers.includes(tierStr as Tier)) {
+                    t = tierStr as Tier;
+                  }
+                } catch (e) {
+                  // fallback ignored, t remains previous or 'free'
                 }
+
+                // Seats are available for any school-owned subscription (including free)
+                seatsData = {
+                  total: sub.seats_total ?? 0,
+                  used: sub.seats_used ?? 0,
+                };
               } else if (subError) {
                 console.debug('Subscription query error:', subError);
               }
@@ -129,13 +141,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const assignSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await assertSupabase().rpc('assign_teacher_seat', { 
+      console.debug('[assignSeat] payload', { subscriptionId, userId });
+      const { data, error } = await assertSupabase().rpc('assign_teacher_seat', { 
         p_subscription_id: subscriptionId, 
         p_user_id: userId 
       });
+      console.debug('[assignSeat] rpc response', { data, error });
       
       if (error) {
-        console.debug('Seat assignment RPC error:', error);
+        console.debug('Seat assignment RPC error:', error?.message || error);
         return false;
       }
       return true;
@@ -147,13 +161,15 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   const revokeSeat = async (subscriptionId: string, userId: string) => {
     try {
-      const { error } = await assertSupabase().rpc('revoke_teacher_seat', { 
+      console.debug('[revokeSeat] payload', { subscriptionId, userId });
+      const { data, error } = await assertSupabase().rpc('revoke_teacher_seat', { 
         p_subscription_id: subscriptionId, 
         p_user_id: userId 
       });
+      console.debug('[revokeSeat] rpc response', { data, error });
       
       if (error) {
-        console.debug('Seat revocation RPC error:', error);
+        console.debug('Seat revocation RPC error:', error?.message || error);
         return false;
       }
       return true;
