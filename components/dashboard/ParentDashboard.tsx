@@ -799,22 +799,6 @@ case 'homework':
       {/* Offline Banner */}
       <OfflineBanner />
 
-      {/* PoP Upload (Proof of Payment) - OTA preview feature */}
-      <View style={styles.section}>
-        <TouchableOpacity onPress={() => router.push('/screens/parent-pop-upload')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
-          <Text style={{ color: theme.text, fontWeight: '600' }}>Upload Proof of Payment</Text>
-          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Securely upload a receipt or POP for school fees</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Child Registration - OTA preview feature */}
-      <View style={styles.section}>
-        <TouchableOpacity onPress={() => router.push('/screens/parent-child-registration')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
-          <Text style={{ color: theme.text, fontWeight: '600' }}>Register a Child</Text>
-          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Create a child profile and link to your account</Text>
-        </TouchableOpacity>
-      </View>
-      
       {/* Fixed Header */}
       <RoleBasedHeader 
         title={t('dashboard.parentDashboard')}
@@ -849,6 +833,74 @@ case 'homework':
           onWhatsAppPress={() => setShowWhatsAppModal(true)}
         />
 
+        {/* Key Parent Actions - Prominently placed below header */}
+        <View style={styles.section}>
+          <View style={{
+            flexDirection: 'row',
+            gap: 12,
+            marginBottom: 8,
+          }}>
+            {/* Upload Proof of Payment - Primary action */}
+            <TouchableOpacity 
+              onPress={() => router.push('/screens/parent-pop-upload')} 
+              style={{
+                flex: 1,
+                backgroundColor: theme.primary + '10',
+                borderColor: theme.primary + '30',
+                borderWidth: 1,
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                minHeight: 80,
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ 
+                color: theme.primary, 
+                fontWeight: '600', 
+                fontSize: 16,
+                textAlign: 'center',
+                marginBottom: 4 
+              }}>📄 Upload Proof</Text>
+              <Text style={{ 
+                color: theme.primary, 
+                fontSize: 12,
+                textAlign: 'center',
+                opacity: 0.8
+              }}>Payment Receipt</Text>
+            </TouchableOpacity>
+
+            {/* Register a Child - Secondary action */}
+            <TouchableOpacity 
+              onPress={() => router.push('/screens/parent-child-registration')} 
+              style={{
+                flex: 1,
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                borderWidth: 1,
+                padding: 16,
+                borderRadius: 12,
+                alignItems: 'center',
+                minHeight: 80,
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ 
+                color: theme.text, 
+                fontWeight: '600', 
+                fontSize: 16,
+                textAlign: 'center',
+                marginBottom: 4 
+              }}>👶 Register Child</Text>
+              <Text style={{ 
+                color: theme.textSecondary, 
+                fontSize: 12,
+                textAlign: 'center'
+              }}>Add New Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Enhanced Usage Stats */}
         <EnhancedStatsRow
           aiHelp={usage.ai_help}
@@ -866,11 +918,35 @@ case 'homework':
           onUpgradePress={() => { /* removed in OTA preview */ }}
         />
 
-        {/* Link Child CTA */}
+        {/* Link Existing Child CTA - For children already enrolled */}
         <View style={styles.section}>
-          <TouchableOpacity onPress={() => router.push('/screens/parent-link-child')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
-            <Text style={{ color: theme.text, fontWeight: '600' }}>Link your child to this account</Text>
-          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Submit a request to your school to link your child or use the registration form</Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/screens/parent-link-child')} 
+            style={{
+              backgroundColor: theme.warning + '10',
+              borderColor: theme.warning + '30',
+              borderWidth: 1,
+              padding: 16,
+              borderRadius: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <Text style={{ fontSize: 20 }}>🔗</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ 
+                color: theme.text, 
+                fontWeight: '600',
+                fontSize: 15,
+                marginBottom: 2
+              }}>Link Existing Child</Text>
+              <Text style={{ 
+                color: theme.textSecondary, 
+                fontSize: 13,
+                lineHeight: 18
+              }}>If your child is already enrolled, request to link them to your account</Text>
+            </View>
           </TouchableOpacity>
         </View>
 
