@@ -39,6 +39,17 @@ revoke all on function public.public_list_schools from public;
 grant execute on function public.public_list_schools() to authenticated;
 
 -- 3) Admin RPC to create a school-owned subscription safely (checks role)
+-- Ensure only one canonical signature exists by dropping possible overloads first
+-- Variations that may have been created previously (varchar/uuid variations etc.)
+drop function if exists public.admin_create_school_subscription(uuid, text, text, int);
+drop function if exists public.admin_create_school_subscription(uuid, text, text, integer);
+drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar, int);
+drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar, integer);
+drop function if exists public.admin_create_school_subscription(uuid, text, text);
+drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar);
+drop function if exists public.admin_create_school_subscription(uuid, uuid, text, int);
+drop function if exists public.admin_create_school_subscription(uuid, uuid, text, integer);
+
 create or replace function public.admin_create_school_subscription(
   p_school_id uuid,
   p_plan_id text,
