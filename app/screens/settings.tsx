@@ -22,7 +22,7 @@ import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import Constants from 'expo-constants';
-import { useAppUpdates } from '@/hooks/useAppUpdates';
+import { useUpdates } from '@/contexts/UpdatesProvider';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SettingsScreen() {
@@ -37,7 +37,7 @@ export default function SettingsScreen() {
   const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(null);
   const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { checking, available, error, check, apply } = useAppUpdates();
+  const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useUpdates();
   
   // Push testing state
   const [testNotificationTitle, setTestNotificationTitle] = useState('Test Notification');
@@ -553,27 +553,33 @@ export default function SettingsScreen() {
             <Text style={styles.sectionTitle}>Updates</Text>
             <View style={styles.settingsCard}>
               <TouchableOpacity
-                style={[styles.settingItem]}
+                style={[styles.settingItem, styles.lastSettingItem]}
                 onPress={async () => {
-                  try {
-                    const result = await check(true);
-                    if (available) {
+                  if (isUpdateDownloaded) {
+                    Alert.alert(
+                      t('updates.Restart App'),
+                      t('updates.The app will restart to apply the update. Any unsaved changes will be lost.'),
+                      [
+                        { text: t('cancel'), style: 'cancel' },
+                        { text: t('updates.Restart Now'), onPress: applyUpdate }
+                      ]
+                    );
+                  } else {
+                    try {
+                      await checkForUpdates();
+                      // The global banner will show if an update is available
                       Alert.alert(
-                        'Update Ready',
-                        'A new version has been downloaded. Restart now to apply the update?',
-                        [
-                          { text: 'Later', style: 'cancel' },
-                          { text: 'Restart Now', onPress: apply }
-                        ]
+                        'Updates',
+                        isUpdateDownloaded 
+                          ? 'Update downloaded! Use the banner to restart.' 
+                          : 'Checked for updates. You\'ll be notified if one is available.'
                       );
-                    } else {
-                      Alert.alert('Up to Date', 'You have the latest version.');
+                    } catch (err) {
+                      Alert.alert('Error', 'Failed to check for updates. Please try again.');
                     }
-                  } catch (err) {
-                    Alert.alert('Error', 'Failed to check for updates. Please try again.');
                   }
                 }}
-                disabled={checking}
+                disabled={isDownloading}
               >
                 <View style={styles.settingLeft}>
                   <Ionicons
@@ -585,37 +591,23 @@ export default function SettingsScreen() {
                   <View style={styles.settingContent}>
                     <Text style={styles.settingTitle}>Check for updates</Text>
                     <Text style={styles.settingSubtitle}>
-                      {checking ? 'Checking…' : available ? 'Update ready to install' : `Current version: ${Constants.expoConfig?.version ?? 'n/a'}`}
+                      {isDownloading 
+                        ? 'Downloading update…' 
+                        : isUpdateDownloaded 
+                        ? 'Update ready to install' 
+                        : updateError 
+                        ? 'Check failed - tap to retry' 
+                        : `Current version: ${Constants.expoConfig?.version ?? 'n/a'}`}
                     </Text>
                   </View>
                 </View>
-                {checking ? (
+                {isDownloading ? (
                   <ActivityIndicator color={theme.primary} />
                 ) : (
                   <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
                 )}
               </TouchableOpacity>
 
-              {available && (
-                <TouchableOpacity
-                  style={[styles.settingItem, styles.lastSettingItem]}
-                  onPress={apply}
-                >
-                  <View style={styles.settingLeft}>
-                    <Ionicons
-                      name="refresh-circle"
-                      size={24}
-                      color={theme.textSecondary}
-                      style={styles.settingIcon}
-                    />
-                    <View style={styles.settingContent}>
-                      <Text style={styles.settingTitle}>Restart to apply update</Text>
-                      <Text style={styles.settingSubtitle}>An update has been downloaded</Text>
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-                </TouchableOpacity>
-              )}
             </View>
           </View>
         )}

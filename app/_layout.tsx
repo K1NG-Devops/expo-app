@@ -18,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryProvider } from '@/lib/query/queryClient';
+import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -207,13 +209,17 @@ export default function RootLayout() {
       <ThemeProvider>
         <QueryProvider>
           <AuthProvider>
-            {/* Wrap in SubscriptionProvider so screens can access subscription data */}
-            <SubscriptionProvider>
-              <ThemedStackWrapper />
-              {/* Small badge to confirm OTA visually */}
-              <PreviewBadge />
-              {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
-            </SubscriptionProvider>
+            <UpdatesProvider>
+              {/* Wrap in SubscriptionProvider so screens can access subscription data */}
+              <SubscriptionProvider>
+                <ThemedStackWrapper />
+                {/* Global update banner appears across all screens */}
+                <GlobalUpdateBanner />
+                {/* Small badge to confirm OTA visually */}
+                <PreviewBadge />
+                {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+              </SubscriptionProvider>
+            </UpdatesProvider>
           </AuthProvider>
         </QueryProvider>
       </ThemeProvider>

@@ -298,5 +298,24 @@
     "enable": "Skakel in",
     "disable": "Skakel af",
     "viewAll": "Wys Alles"
+  },
+  "updates": {
+    "Update Ready": "Opdatering Gereed",
+    "Tap to restart and apply the latest version": "Tik om te herbegin en die nuutste weergawe toe te pas",
+    "Later": "Later",
+    "Restart": "Herbegin",
+    "Restart App": "Herbegin Toepassing",
+    "The app will restart to apply the update. Any unsaved changes will be lost.": "Die toepassing sal herbegin om die opdatering toe te pas. Enige onggestoor veranderinge sal verlore gaan.",
+    "Restart Now": "Herbegin Nou",
+    "Update Error": "Opdatering Fout",
+    "Failed to check for updates": "Kon nie vir opdaterings kontroleer nie",
+    "App update downloaded": "Toepassing opdatering afgelaai",
+    "Dismiss update notification": "Wys opdatering kennisgewing weg",
+    "Hides this notification until the next update": "Steek hierdie kennisgewing weg tot die volgende opdatering",
+    "Restart app to apply update": "Herbegin toepassing om opdatering toe te pas",
+    "Restarts the app to apply the downloaded update": "Herbegin die toepassing om die afgelaaide opdatering toe te pas",
+    "Update error occurred": "Opdatering fout het voorgekom",
+    "Dismiss error notification": "Wys fout kennisgewing weg",
+    "Closes this error message": "Maak hierdie foutboodskap toe"
   }
 }

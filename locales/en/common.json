@@ -378,6 +378,25 @@
     "usage": "Usage",
     "limits": "Plan Limits"
   },
+  "updates": {
+    "Update Ready": "Update Ready",
+    "Tap to restart and apply the latest version": "Tap to restart and apply the latest version",
+    "Later": "Later",
+    "Restart": "Restart",
+    "Restart App": "Restart App",
+    "The app will restart to apply the update. Any unsaved changes will be lost.": "The app will restart to apply the update. Any unsaved changes will be lost.",
+    "Restart Now": "Restart Now",
+    "Update Error": "Update Error",
+    "Failed to check for updates": "Failed to check for updates",
+    "App update downloaded": "App update downloaded",
+    "Dismiss update notification": "Dismiss update notification",
+    "Hides this notification until the next update": "Hides this notification until the next update",
+    "Restart app to apply update": "Restart app to apply update",
+    "Restarts the app to apply the downloaded update": "Restarts the app to apply the downloaded update",
+    "Update error occurred": "Update error occurred",
+    "Dismiss error notification": "Dismiss error notification",
+    "Closes this error message": "Closes this error message"
+  },
   "empty": {
     "no_classes_title": "No Classes Yet",
     "no_classes_description": "You haven't created any classes yet. Start by creating your first class to manage students and lessons.",
