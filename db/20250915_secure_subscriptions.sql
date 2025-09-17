@@ -88,7 +88,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_create_school_subscription from public;
+revoke all on function public.admin_create_school_subscription(uuid, text, text, int) from public;
 grant execute on function public.admin_create_school_subscription(uuid, text, text, int) to authenticated;
 
 -- 4) Optional: RLS policies for read-only access if not present

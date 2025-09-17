@@ -82,6 +82,7 @@ END;
 $$;
 
 -- Grant execute permissions
+REVOKE ALL ON FUNCTION public.admin_create_school_subscription(uuid, text, text, int) FROM public;
 GRANT EXECUTE ON FUNCTION public.admin_create_school_subscription(uuid, text, text, int) TO authenticated;
 
 COMMIT;
