@@ -122,16 +122,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
                 </Text>
               </View>
               
-              {tier === 'free' && (
-                <TouchableOpacity 
-                  style={styles.upgradeHint}
-                  onPress={() => {/* Navigate to pricing */}}
-                >
-                  <Text style={styles.upgradeText}>
-                    {t('dashboard.upgradeHint')}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Upgrade hint removed for OTA preview test */}
             </View>
 
             {/* Children Count */}

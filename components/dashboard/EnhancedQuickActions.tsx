@@ -83,13 +83,7 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
           onPress={onWhatsAppPress}
         />
         
-        <EnhancedQuickAction
-          icon="diamond"
-          title="Upgrade to Pro"
-          description="Unlimited AI help & more"
-          gradientColors={['#ff8000', '#ff0080']}
-          onPress={onUpgradePress}
-        />
+        {/* Upgrade action removed for OTA preview test */}
         
         <EnhancedQuickAction
           icon="library"

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
+import { usePettyCashDashboard } from './usePettyCashDashboard';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
@@ -37,6 +38,9 @@ export interface FinancialSummary {
   netProfit: number;
   revenueGrowth: number;
   profitMargin: number;
+  pettyCashBalance: number;
+  pettyCashExpenses: number;
+  pendingApprovals: number;
   timestamp: string;
 }
 
@@ -140,6 +144,7 @@ const apiCall = async (endpoint: string, user?: any) => {
 
 export const usePrincipalHub = () => {
   const { user, profile } = useAuth();
+  const { metrics: pettyCashMetrics } = usePettyCashDashboard();
   const [data, setData] = useState<PrincipalHubData>({
     stats: null,
     teachers: null,
@@ -480,22 +485,13 @@ export const usePrincipalHub = () => {
       
       const teachers = processedTeachers;
       
-      // Get real expense data from petty cash and other expenses
-      const { data: expenseTransactions } = await assertSupabase()
-        .from('petty_cash_transactions')
-        .select('amount')
-        .eq('preschool_id', preschoolId)
-        .eq('type', 'expense')
-        .eq('status', 'approved')
-        .gte('created_at', `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`)
-        .lt('created_at', `${currentYear}-${(currentMonth + 1).toString().padStart(2, '0')}-01`) || { data: [] };
+      // Use real petty cash data if available, otherwise fall back to basic estimates
+      const realPettyCashExpenses = pettyCashMetrics?.monthlyExpenses || 0;
       
-      const realExpenses = (expenseTransactions || []).reduce((sum: number, expense: any) => {
-        return sum + (expense.amount || 0);
-      }, 0);
-      
-      // Use real expenses or estimate at 65% of revenue (more conservative)
-      const totalExpenses = realExpenses > 0 ? realExpenses : Math.round(estimatedMonthlyRevenue * 0.65);
+      // For total expenses, include petty cash and estimate other operational costs
+      // This is more accurate than using a blanket percentage
+      const estimatedOperationalCosts = Math.round(estimatedMonthlyRevenue * 0.55); // Staff, utilities, materials
+      const totalExpenses = realPettyCashExpenses + estimatedOperationalCosts;
       const netProfit = estimatedMonthlyRevenue - totalExpenses;
       const profitMargin = estimatedMonthlyRevenue > 0 ? Math.round((netProfit / estimatedMonthlyRevenue) * 100) : 0;
       
@@ -506,6 +502,9 @@ export const usePrincipalHub = () => {
         netProfit,
         revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((estimatedMonthlyRevenue - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
         profitMargin,
+        pettyCashBalance: pettyCashMetrics?.currentBalance || 0,
+        pettyCashExpenses: realPettyCashExpenses,
+        pendingApprovals: pettyCashMetrics?.pendingTransactionsCount || 0,
         timestamp: new Date().toISOString()
       };
       

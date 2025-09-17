@@ -808,6 +808,22 @@ case 'homework':
     <View style={styles.container}>
       {/* Offline Banner */}
       <OfflineBanner />
+
+      {/* PoP Upload (Proof of Payment) - OTA preview feature */}
+      <View style={styles.section}>
+        <TouchableOpacity onPress={() => router.push('/screens/parent-pop-upload')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Upload Proof of Payment</Text>
+          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Securely upload a receipt or POP for school fees</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Child Registration - OTA preview feature */}
+      <View style={styles.section}>
+        <TouchableOpacity onPress={() => router.push('/screens/parent-child-registration')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Register a Child</Text>
+          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Create a child profile and link to your account</Text>
+        </TouchableOpacity>
+      </View>
       
       {/* Fixed Header */}
       <RoleBasedHeader 
@@ -857,14 +873,14 @@ case 'homework':
           aiHelpLimit={limits.ai_help}
           onHomeworkPress={() => handleQuickAction('homework')}
           onWhatsAppPress={() => handleQuickAction('whatsapp')}
-          onUpgradePress={() => handleQuickAction('upgrade')}
+          onUpgradePress={() => { /* removed in OTA preview */ }}
         />
 
         {/* Link Child CTA */}
         <View style={styles.section}>
           <TouchableOpacity onPress={() => router.push('/screens/parent-link-child')} style={{ backgroundColor: theme.surface, padding: 12, borderRadius: 10 }}>
             <Text style={{ color: theme.text, fontWeight: '600' }}>Link your child to this account</Text>
-            <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Submit a request to your school to link your child</Text>
+          <Text style={{ color: theme.textSecondary, marginTop: 4 }}>Submit a request to your school to link your child or use the registration form</Text>
           </TouchableOpacity>
         </View>
 

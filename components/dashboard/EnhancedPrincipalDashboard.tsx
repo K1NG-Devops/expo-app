@@ -31,6 +31,7 @@ import { changeLanguage as changeAppLanguage } from '@/lib/i18n';
 import AnnouncementService from '@/lib/services/announcementService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useTheme } from '@/contexts/ThemeContext';
+import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -53,6 +54,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
+  const { metricCards: pettyCashCards, hasData: hasPettyCashData } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
 
@@ -238,6 +240,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
+  
+  // Combine standard metrics with petty cash metrics when available
+  const allMetrics = [...metrics, ...(hasPettyCashData ? pettyCashCards : [])];
 
   return (
     <>
@@ -263,7 +268,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('dashboard.school_overview')}</Text>
         <View style={styles.metricsGrid}>
-          {metrics.slice(0, 6).map((metric, index) => (
+          {allMetrics.slice(0, 6).map((metric, index) => (
             <MetricCard
               key={index}
               {...metric}
@@ -277,6 +282,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   router.push('/screens/financial-dashboard');
                 } else if (metric.title.includes('Applications')) {
                   router.push('/screens/student-enrollment'); // Enrollment for applications
+                } else if (metric.title.includes('Petty Cash') || metric.title.includes('Cash') || metric.title.includes('Expenses')) {
+                  router.push('/screens/petty-cash'); // Petty cash management
+                } else if (metric.title.includes('Pending') && metric.title.includes('Approval')) {
+                  router.push('/screens/petty-cash'); // For pending approvals
                 }
               }}
             />
@@ -389,6 +398,24 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               </Text>
             </View>
           </View>
+          
+          {/* Real Petty Cash Balance */}
+          {data.financialSummary.pettyCashBalance > 0 && (
+            <View style={styles.financialGrid}>
+              <View style={styles.financialCard}>
+                <Text style={styles.financialLabel}>Petty Cash Balance</Text>
+                <Text style={[styles.financialValue, { color: '#F59E0B' }]}>
+                  {formatCurrency(data.financialSummary.pettyCashBalance)}
+                </Text>
+              </View>
+              <View style={styles.financialCard}>
+                <Text style={styles.financialLabel}>Monthly Expenses</Text>
+                <Text style={[styles.financialValue, { color: '#DC2626' }]}>
+                  {formatCurrency(data.financialSummary.pettyCashExpenses)}
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
