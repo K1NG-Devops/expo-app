@@ -100,5 +100,6 @@ returns boolean language sql stable as $$
   );
 $$;
 
-create policy if not exists subscriptions_admin_read on public.subscriptions
+drop policy if exists subscriptions_admin_read on public.subscriptions;
+create policy subscriptions_admin_read on public.subscriptions
 for select using (public.app_is_super_admin());

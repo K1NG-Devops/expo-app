@@ -12,7 +12,8 @@ TO public
 USING (is_active = true);
 
 -- Also allow authenticated users to read all plans (for admin interfaces)
-CREATE POLICY IF NOT EXISTS "subscription_plans_authenticated_read"
+DROP POLICY IF EXISTS "subscription_plans_authenticated_read" ON public.subscription_plans;
+CREATE POLICY "subscription_plans_authenticated_read"
 ON public.subscription_plans
 FOR SELECT
 TO authenticated
