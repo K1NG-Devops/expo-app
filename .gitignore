@@ -39,3 +39,13 @@ yarn-error.*
 # Ignore local supabase artifacts
 supabase/
 .env.migration
+
+# Large binaries and build artifacts
+artifacts/
+*.apk
+*.aab
+build-*.apk
+
+# Personal/history folders accidentally committed
+memory_cleanup_*/
+backups/
