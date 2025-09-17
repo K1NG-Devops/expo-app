@@ -41,34 +41,40 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Check for updates manually
   const checkForUpdates = async () => {
     if (!Updates.isEnabled) {
+      console.log('[Updates] Updates are disabled - skipping check');
       return;
     }
 
     try {
       updateState({ isDownloading: true, updateError: null });
+      console.log('[Updates] Checking for updates...');
       
       const update = await Updates.checkForUpdateAsync();
+      console.log('[Updates] Update check result:', { isAvailable: update.isAvailable, manifest: update.manifest?.id });
       
       if (update.isAvailable) {
+        console.log('[Updates] Update available, starting download...');
         // Start downloading
-        await Updates.fetchUpdateAsync();
+        const result = await Updates.fetchUpdateAsync();
+        console.log('[Updates] Update downloaded:', { isNew: result.isNew });
         // Download complete - this will also trigger the UPDATE_DOWNLOADED event
         updateState({ isDownloading: false, isUpdateDownloaded: true });
       } else {
+        console.log('[Updates] No update available');
         updateState({ isDownloading: false, lastCheckTime: new Date() });
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to check for updates';
+      console.warn('[Updates] Update check failed:', errorMessage, error);
+      
+      // Don't show error for common network issues in dev
+      const shouldShowError = !__DEV__ || !errorMessage.includes('rejected');
+      
       updateState({ 
         isDownloading: false, 
-        updateError: errorMessage,
+        updateError: shouldShowError ? errorMessage : null,
         lastCheckTime: new Date()
       });
-      
-      // Log to Sentry in production (no PII)
-      if (__DEV__) {
-        console.warn('Update check failed:', errorMessage);
-      }
     }
   };
 
@@ -99,20 +105,27 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Background update checking
   const backgroundCheck = useCallback(async () => {
     if (!Updates.isEnabled) {
+      console.log('[Updates] Updates disabled - skipping background check');
       return;
     }
 
     try {
+      console.log('[Updates] Background check for updates...');
       const update = await Updates.checkForUpdateAsync();
+      console.log('[Updates] Background check result:', { isAvailable: update.isAvailable });
+      
       if (update.isAvailable) {
+        console.log('[Updates] Background update available, downloading...');
         updateState({ isDownloading: true, updateError: null });
-        await Updates.fetchUpdateAsync();
+        const result = await Updates.fetchUpdateAsync();
+        console.log('[Updates] Background update downloaded:', { isNew: result.isNew });
         updateState({ 
           isDownloading: false, 
           isUpdateDownloaded: true,
           lastCheckTime: new Date()
         });
       } else {
+        console.log('[Updates] No background update available');
         updateState({ 
           isDownloading: false, 
           lastCheckTime: new Date()
@@ -120,25 +133,30 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Background update check failed';
+      console.warn('[Updates] Background update check failed:', errorMessage);
+      
+      // Don't set error state for background checks to avoid spam
       updateState({ 
-        isDownloading: false, 
-        updateError: errorMessage,
+        isDownloading: false,
         lastCheckTime: new Date()
       });
-      
-      if (__DEV__) {
-        console.warn('Background update check failed:', errorMessage);
-      }
     }
   }, []);
 
   // Set up background checking on app state changes
   useEffect(() => {
     if (!Updates.isEnabled) {
+      console.log('[Updates] Updates disabled - skipping background setup');
       return;
     }
 
-    // Initial background check
+    // Skip automatic background checks in development to avoid errors
+    if (__DEV__) {
+      console.log('[Updates] Skipping automatic background checks in development');
+      return;
+    }
+
+    // Initial background check (only in production)
     backgroundCheck();
     
     // Check on app state changes
