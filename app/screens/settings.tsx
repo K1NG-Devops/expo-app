@@ -8,6 +8,8 @@ import {
   Alert,
   Switch,
   ActivityIndicator,
+  Platform,
+  TextInput,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,10 +21,15 @@ import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import Constants from 'expo-constants';
+import { useAppUpdates } from '@/hooks/useAppUpdates';
+import { useAuth } from '@/contexts/AuthContext';
+import { assertSupabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user, profile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
@@ -31,6 +38,12 @@ export default function SettingsScreen() {
   const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(null);
   const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { checking, available, error, check, apply } = useAppUpdates();
+  
+  // Push testing state
+  const [testNotificationTitle, setTestNotificationTitle] = useState('Test Notification');
+  const [testNotificationMessage, setTestNotificationMessage] = useState('This is a test notification from EduDash Pro');
+  const [sendingTest, setSendingTest] = useState(false);
 
   const styles = useThemedStyles((theme) => ({
     container: {
@@ -265,6 +278,55 @@ export default function SettingsScreen() {
     return t('settings.biometric.title');
   };
 
+  // Check if push testing should be shown (dev tools or superadmin)
+  const showPushTesting = Boolean(
+    process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === '1' ||
+    profile?.role === 'superadmin'
+  );
+
+  const sendTestNotification = async () => {
+    if (!user || !testNotificationTitle.trim() || !testNotificationMessage.trim()) return;
+    
+    try {
+      setSendingTest(true);
+      
+      const { data, error } = await assertSupabase().functions.invoke('notifications-dispatcher', {
+        body: {
+          event_type: 'custom',
+          user_ids: [user.id],
+          template_override: {
+            title: testNotificationTitle.trim(),
+            body: testNotificationMessage.trim(),
+            data: { 
+              screen: 'settings',
+              test: true 
+            }
+          },
+          send_immediately: true
+        }
+      });
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
+      Alert.alert(
+        'Test Sent', 
+        `Test notification sent successfully. Recipients: ${data?.recipients || 0}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Test notification failed:', error);
+      Alert.alert(
+        'Test Failed', 
+        'Failed to send test notification. Check your connection and try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -486,6 +548,161 @@ export default function SettingsScreen() {
           <ThemeLanguageSettings />
         </View>
 
+        {/* Updates */}
+        {Platform.OS !== 'web' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Updates</Text>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity
+                style={[styles.settingItem]}
+                onPress={async () => {
+                  try {
+                    const result = await check(true);
+                    if (available) {
+                      Alert.alert(
+                        'Update Ready',
+                        'A new version has been downloaded. Restart now to apply the update?',
+                        [
+                          { text: 'Later', style: 'cancel' },
+                          { text: 'Restart Now', onPress: apply }
+                        ]
+                      );
+                    } else {
+                      Alert.alert('Up to Date', 'You have the latest version.');
+                    }
+                  } catch (err) {
+                    Alert.alert('Error', 'Failed to check for updates. Please try again.');
+                  }
+                }}
+                disabled={checking}
+              >
+                <View style={styles.settingLeft}>
+                  <Ionicons
+                    name="cloud-download"
+                    size={24}
+                    color={theme.textSecondary}
+                    style={styles.settingIcon}
+                  />
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>Check for updates</Text>
+                    <Text style={styles.settingSubtitle}>
+                      {checking ? 'Checking…' : available ? 'Update ready to install' : `Current version: ${Constants.expoConfig?.version ?? 'n/a'}`}
+                    </Text>
+                  </View>
+                </View>
+                {checking ? (
+                  <ActivityIndicator color={theme.primary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                )}
+              </TouchableOpacity>
+
+              {available && (
+                <TouchableOpacity
+                  style={[styles.settingItem, styles.lastSettingItem]}
+                  onPress={apply}
+                >
+                  <View style={styles.settingLeft}>
+                    <Ionicons
+                      name="refresh-circle"
+                      size={24}
+                      color={theme.textSecondary}
+                      style={styles.settingIcon}
+                    />
+                    <View style={styles.settingContent}>
+                      <Text style={styles.settingTitle}>Restart to apply update</Text>
+                      <Text style={styles.settingSubtitle}>An update has been downloaded</Text>
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Push Testing Section (Development/Superadmin Only) */}
+        {showPushTesting && Platform.OS !== 'web' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Push Testing</Text>
+            <View style={styles.settingsCard}>
+              <View style={[styles.settingItem, { flexDirection: 'column', alignItems: 'stretch', paddingVertical: 20 }]}>
+                <Text style={[styles.settingTitle, { marginBottom: 12 }]}>Test Notification</Text>
+                
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={[styles.settingSubtitle, { marginBottom: 4 }]}>Title:</Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      color: theme.text,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      fontSize: 16
+                    }}
+                    value={testNotificationTitle}
+                    onChangeText={setTestNotificationTitle}
+                    placeholder="Enter notification title"
+                    placeholderTextColor={theme.textTertiary}
+                  />
+                </View>
+                
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.settingSubtitle, { marginBottom: 4 }]}>Message:</Text>
+                  <TextInput
+                    style={{
+                      borderWidth: 1,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      color: theme.text,
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      fontSize: 16,
+                      minHeight: 80
+                    }}
+                    value={testNotificationMessage}
+                    onChangeText={setTestNotificationMessage}
+                    placeholder="Enter notification message"
+                    placeholderTextColor={theme.textTertiary}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+                
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: theme.primary,
+                    borderRadius: 8,
+                    paddingVertical: 12,
+                    paddingHorizontal: 20,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    opacity: sendingTest ? 0.7 : 1
+                  }}
+                  onPress={sendTestNotification}
+                  disabled={sendingTest || !testNotificationTitle.trim() || !testNotificationMessage.trim()}
+                >
+                  {sendingTest ? (
+                    <ActivityIndicator color={theme.onPrimary} size="small" style={{ marginRight: 8 }} />
+                  ) : (
+                    <Ionicons name="paper-plane" size={16} color={theme.onPrimary} style={{ marginRight: 8 }} />
+                  )}
+                  <Text style={{ color: theme.onPrimary, fontWeight: '600', fontSize: 16 }}>
+                    {sendingTest ? 'Sending...' : 'Send Test Notification'}
+                  </Text>
+                </TouchableOpacity>
+                
+                <Text style={[styles.settingSubtitle, { marginTop: 8, fontSize: 12, fontStyle: 'italic' }]}>  
+                  This will send a test notification to your device only. Ensure you have notifications enabled.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.aboutSupport')}</Text>

@@ -39,6 +39,9 @@ module.exports = ({ config }) => {
     owner: 'edudashpro',
     version: '1.0.0',
     runtimeVersion,
+    updates: {
+      url: 'https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298',
+    },
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',

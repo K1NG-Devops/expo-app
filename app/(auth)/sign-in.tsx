@@ -23,7 +23,6 @@ import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
 import { EnhancedBiometricAuth } from "@/services/EnhancedBiometricAuth";
 import BiometricDebugger from "../../utils/biometricDebug";
 import { Ionicons } from "@expo/vector-icons";
-import { registerForPushNotificationsAsync, onNotificationReceived, scheduleLocalNotification } from "@/lib/notifications";
 
 export default function SignIn() {
   const { theme } = useTheme();
@@ -61,25 +60,6 @@ export default function SignIn() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Register for push notifications when the sign-in screen mounts
-  useEffect(() => {
-    let unsubscribe: undefined | (() => void);
-    (async () => {
-      try {
-        const token = await registerForPushNotificationsAsync();
-        if (token) {
-          console.log('Expo push token:', token);
-          // TODO: send token to your backend if you want server-initiated pushes
-        }
-        unsubscribe = onNotificationReceived((n) => {
-          console.log('Notification received:', n);
-        });
-      } catch (e) {
-        console.warn('Push registration failed:', e);
-      }
-    })();
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, []);
 
   const checkBiometricStatus = async () => {
     try {

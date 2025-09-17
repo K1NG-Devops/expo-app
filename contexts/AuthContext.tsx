@@ -278,19 +278,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // Register or update push token (best-effort)
             try {
-              const { registerForPushNotificationsAsync } = await import('@/lib/notifications');
-              const token = await registerForPushNotificationsAsync();
-              if (token) {
-                const platform = (typeof navigator !== 'undefined' && (navigator as any).product === 'ReactNative') ? 'native' : 'web';
-                await assertSupabase().from('push_devices').upsert({
-                  user_id: s.user.id,
-                  expo_push_token: token,
-                  platform: platform === 'web' ? 'web' : (typeof (globalThis as any).Expo !== 'undefined' ? ((globalThis as any).Expo.Constants?.platform?.ios ? 'ios' : 'android') : 'android'),
-                  is_active: true,
-                } as any, { onConflict: 'user_id,expo_push_token' } as any);
+              const { registerPushDevice } = await import('@/lib/notifications');
+              const result = await registerPushDevice(assertSupabase(), s.user);
+              
+              // Log result for debugging (no sensitive data)
+              if (result.status === 'error') {
+                console.debug('Push registration failed:', result.reason);
+              } else if (result.status === 'denied') {
+                console.debug('Push permissions denied');
+                // Could surface a non-blocking UI hint here in the future
+              } else if (result.status === 'registered') {
+                console.debug('Push registration successful');
               }
             } catch (e) {
-              console.debug('Push registration skipped/failed', e);
+              console.debug('Push registration exception:', e);
             }
             
             // Identify in monitoring tools
@@ -333,6 +334,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === 'SIGNED_OUT' && mounted) {
             setProfile(null);
             setPermissions(createPermissionChecker(null));
+            
+            // Deregister push device
+            try {
+              const { deregisterPushDevice } = await import('@/lib/notifications');
+              await deregisterPushDevice(assertSupabase(), { id: s?.user?.id || user?.id });
+            } catch (e) {
+              console.debug('Push deregistration failed', e);
+            }
             
             try { await getPostHog()?.reset(); } catch (e) { console.debug('PostHog reset failed', e); }
             try { Sentry.Native.setUser(null as any); } catch (e) { console.debug('Sentry clear user failed', e); }
