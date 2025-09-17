@@ -7,7 +7,11 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_ENABLE_TEST_TOOLS": "1",
+        "EXPO_PUBLIC_ENABLE_CONSOLE": "true"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -24,7 +28,8 @@
         "EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER": "+27674770975",
         "EXPO_PUBLIC_API_BASE": "https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1",
         "EXPO_PUBLIC_ENABLE_TEST_ADS": "true",
-        "EXPO_PUBLIC_ENABLE_ADS": "1"
+        "EXPO_PUBLIC_ENABLE_ADS": "1",
+        "EXPO_PUBLIC_ENABLE_TEST_TOOLS": "1"
       }
     },
     "production": {
