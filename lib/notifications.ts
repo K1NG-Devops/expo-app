@@ -68,6 +68,8 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
 
     // Get device metadata
     console.log('[Push Registration] Getting device metadata...')
+    const rawLanguageTag = Localization.getLocales?.()?.[0]?.languageTag || 'en'
+    console.log('[Push Registration] Raw language tag:', rawLanguageTag)
     // Generate a simple device identifier since Application methods vary by Expo version
     const installationId = Constants.deviceId || Constants.sessionId || `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const deviceMetadata = {
@@ -77,11 +79,15 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
       osVersion: Device.osVersion,
       appVersion: Constants.expoConfig?.version,
       appBuild: Constants.expoConfig?.runtimeVersion,
-      locale: Localization.getLocales?.()?.[0]?.languageTag || 'en',
+      locale: rawLanguageTag.split('-')[0].toLowerCase(),
       timezone: Localization.getCalendars?.()?.[0]?.timeZone || 'UTC',
       installationId,
     }
-    console.log('[Push Registration] Device metadata:', { installationId, platform: Platform.OS, model: Device.modelName })
+    
+    // Validate and normalize language for database constraint
+    const supportedLanguages = ['en', 'af', 'zu', 'st'];
+    const normalizedLanguage = supportedLanguages.includes(deviceMetadata.locale) ? deviceMetadata.locale : 'en';
+    console.log('[Push Registration] Device metadata:', { installationId, platform: Platform.OS, model: Device.modelName, locale: deviceMetadata.locale, normalizedLanguage })
 
     // Get push token
     console.log('[Push Registration] Getting push token...')
@@ -103,7 +109,7 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
         is_active: true,
         device_installation_id: installationId,
         device_metadata: deviceMetadata,
-        language: deviceMetadata.locale,
+        language: normalizedLanguage,
         timezone: deviceMetadata.timezone,
         last_seen_at: new Date().toISOString(),
       }, {
