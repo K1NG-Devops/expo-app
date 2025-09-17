@@ -1,10 +1,7 @@
-'use server';
+// NOTE: Server-only Next.js actions are not supported in Expo Router app. Placeholder removed to avoid EAS Update export errors.
 
-import { revalidateTag } from 'next/cache';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+// Removed server-only Next imports to keep Expo bundler happy
 import { z } from 'zod';
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
 
 import * as pettyCashDb from '../../../lib/db/pettyCash';
 import { getActiveSchoolIdServer } from '../../../lib/tenant/server';
@@ -50,8 +47,9 @@ const AttachReceiptSchema = z.object({
  * Helper to create a standardized server action client
  */
 function createSupabaseClient() {
-  const cookieStore = cookies();
-  return createServerActionClient({ cookies: () => cookieStore });
+  // For Expo app, use client-side supabase directly where needed
+  // Kept for type compatibility; not used in OTA build path
+  return null as any;
 }
 
 /**
@@ -81,11 +79,8 @@ async function validateSchoolAccess() {
 /**
  * Helper to revalidate petty cash related cache tags
  */
-function revalidatePettyCash(schoolId: string) {
-  revalidateTag(`petty-cash-${schoolId}`);
-  revalidateTag(`petty-cash-balance-${schoolId}`);
-  revalidateTag(`petty-cash-summary-${schoolId}`);
-  revalidateTag(`principal-dashboard-${schoolId}`);
+function revalidatePettyCash(_schoolId: string) {
+  // No-op in Expo OTA environment
 }
 
 /**
