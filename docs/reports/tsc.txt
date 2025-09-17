@@ -1,5 +1,0 @@
-
-> edudash-pro@1.0.0 typecheck
-> tsc --noEmit
-
-app/screens/super-admin-subscriptions.tsx(305,21): error TS2322: Type 'string' is not assignable to type '"annual" | "monthly"'.

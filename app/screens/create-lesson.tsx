@@ -71,8 +71,7 @@ export default function CreateLessonScreen() {
         headerStyle: { backgroundColor: palette.background }, 
         headerTitleStyle: { color: '#fff' }, 
         headerTintColor: palette.primary,
-        headerBackVisible: true,
-        headerBackTitleVisible: false
+        headerBackVisible: true
       }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>

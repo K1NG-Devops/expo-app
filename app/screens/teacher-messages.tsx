@@ -6,9 +6,10 @@ import { Stack } from 'expo-router'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { track } from '@/lib/analytics'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function TeacherMessagesScreen() {
-  const { profile } = require('@/contexts/AuthContext') as any
+  const { profile } = useAuth()
   const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
   const canMessage = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('communicate_with_parents' as any))
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
@@ -19,18 +20,25 @@ export default function TeacherMessagesScreen() {
   const [sending, setSending] = useState(false)
 
   const classesQuery = useQuery({
-    queryKey: ['teacher_classes_for_messages'],
+    queryKey: ['teacher_classes_for_messages', profile?.id],
     queryFn: async () => {
-      const { data, error } = await assertSupabase().from('classes').select('id,name').eq('is_active', true)
+      // Restrict to teacher's org if available, to avoid cross-tenant data
+      const query = assertSupabase().from('classes').select('id,name').eq('is_active', true)
+      if ((profile as any)?.organization_id) {
+        query.eq('preschool_id', (profile as any).organization_id)
+      }
+      const { data, error } = await query
       if (error) throw error
       return (data || []) as { id: string; name: string }[]
     },
+    enabled: !!profile?.id,
     staleTime: 60_000,
   })
 
   const onSend = async () => {
     if (!classId) { Alert.alert('Select class', 'Please select a class.'); return }
     if (!message.trim()) { Alert.alert('Enter message', 'Please write a message.'); return }
+    if (!canMessage) { Alert.alert('No access', 'Your seat or plan does not allow messaging.'); return }
 
     setSending(true)
     try {
@@ -39,14 +47,19 @@ export default function TeacherMessagesScreen() {
       const teacherId = authUser?.user?.id
       
       // Use direct database insert - more reliable than cloud function
-      await assertSupabase().from('teacher_messages').insert({
+      const payload: any = {
         class_id: classId,
         subject,
         message,
         teacher_id: teacherId,
         created_at: new Date().toISOString(),
         sent_at: new Date().toISOString()
-      } as any)
+      }
+      // Include org for RLS when present
+      if ((profile as any)?.organization_id) payload.preschool_id = (profile as any).organization_id
+
+      const { error } = await assertSupabase().from('teacher_messages').insert(payload as any)
+      if (error) throw error
       
       track('edudash.messages.sent', { classId, subject, length: message.length })
       Alert.alert('Message sent', 'Parents will receive this in their app or email (where configured).')
@@ -67,8 +80,9 @@ export default function TeacherMessagesScreen() {
         headerStyle: { backgroundColor: palette.background }, 
         headerTitleStyle: { color: '#fff' }, 
         headerTintColor: palette.primary,
-        headerBackTitleVisible: false,
-        headerBackVisible: true
+        headerBackVisible: true,
+        presentation: 'card',
+        headerShown: true,
       }} />
       <StatusBar style="light" backgroundColor={palette.background} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>

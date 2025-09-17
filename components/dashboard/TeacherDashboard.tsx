@@ -79,18 +79,25 @@ export const TeacherDashboard: React.FC = () => {
     (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES !== "false");
   const { user, profile, refreshProfile } = useAuth();
 
+  // Seat and plan status must be computed before capability gating
+  const seatStatus = profile?.seat_status || "inactive";
+  const hasActiveSeat = profile?.hasActiveSeat?.() || seatStatus === "active";
+  const planTier = (profile as any)?.organization_membership?.plan_tier || (profile as any)?.plan_tier || 'unknown';
+
   // Capability-driven AI gating (seat + plan tier via capabilities)
   const aiLessonCap = !!profile?.hasCapability?.("ai_lesson_generation" as any);
   const aiGradingCap = !!profile?.hasCapability?.(
     "ai_grading_assistance" as any,
   );
   const aiHelperCap = !!profile?.hasCapability?.("ai_homework_helper" as any);
+
+  // Fallback: if teacher has an active seat, enable core AI tools even if plan tier is unknown
   const aiLessonEnabled =
-    aiLessonCap && AI_ENABLED && flags.ai_lesson_generation !== false;
+    (aiLessonCap || hasActiveSeat) && AI_ENABLED && flags.ai_lesson_generation !== false;
   const aiGradingEnabled =
-    aiGradingCap && AI_ENABLED && flags.ai_grading_assistance !== false;
+    (aiGradingCap || hasActiveSeat) && AI_ENABLED && flags.ai_grading_assistance !== false;
   const aiHelperEnabled =
-    aiHelperCap && AI_ENABLED && flags.ai_homework_help !== false;
+    (aiHelperCap || hasActiveSeat) && AI_ENABLED && flags.ai_homework_help !== false;
   const { t } = useTranslation();
   const { theme, isDark } = useTheme();
   const styles = getStyles(theme, isDark);
@@ -102,9 +109,6 @@ export const TeacherDashboard: React.FC = () => {
       ? user.user_metadata.first_name
       : profile?.email?.split("@")[0] || "Teacher";
   const schoolName = profile?.organization_name || "School";
-  const seatStatus = profile?.seat_status || "inactive";
-  const hasActiveSeat = profile?.hasActiveSeat?.() || seatStatus === "active";
-  const planTier = (profile as any)?.organization_membership?.plan_tier || (profile as any)?.plan_tier || 'unknown';
 
   // Dev console debug for capabilities / seat / tier
   React.useEffect(() => {

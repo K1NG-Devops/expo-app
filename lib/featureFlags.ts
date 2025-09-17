@@ -15,6 +15,7 @@ export interface FeatureFlags {
   ai_homework_help: boolean;
   ai_grading_assistance: boolean;
   ai_stem_activities: boolean;
+  ai_progress_analysis: boolean;
   ai_streaming_enabled: boolean;
   
   // Collaboration Features
@@ -71,7 +72,7 @@ export interface FeatureFlags {
 }
 
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
-const AI_DEFAULT = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true') || (process.env.NODE_ENV === 'production')
+const AI_DEFAULT = (process.env.EXPO_PUBLIC_AI_ENABLED !== 'false') && (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES !== 'false')
 const SA_TENANT_DEFAULT = process.env.EXPO_PUBLIC_COUNTRY === 'ZA' || process.env.EXPO_PUBLIC_SA_TENANT === 'true'
 const TENANT_SLUG_DEFAULT = !!process.env.EXPO_PUBLIC_TENANT_SLUG
 const DEFAULT_FLAGS: FeatureFlags = {
@@ -84,14 +85,15 @@ const DEFAULT_FLAGS: FeatureFlags = {
   advanced_grading_enabled: process.env.EXPO_PUBLIC_ADVANCED_GRADING_ENABLED === 'true',
   contact_sales_enabled: process.env.EXPO_PUBLIC_CONTACT_SALES_ENABLED === 'true',
   
-  // AI Features - default to enabled when AI env toggles are true or in production
+  // AI Features - default to enabled unless explicitly disabled via env
   ai_lesson_generation: AI_DEFAULT,
   ai_homework_help: AI_DEFAULT,
   ai_grading_assistance: AI_DEFAULT,
   ai_stem_activities: AI_DEFAULT,
+  ai_progress_analysis: AI_DEFAULT,
   ai_streaming_enabled: false,
   
-  // Collaboration Features - enterprise tier
+  // Collaboration Features
   principal_meeting_rooms: false,
   real_time_whiteboard: false,
   meeting_recordings: false,
@@ -190,6 +192,7 @@ export async function getFeatureFlags(userId?: string): Promise<FeatureFlags> {
       ai_homework_help: flags.ai_homework_help ?? DEFAULT_FLAGS.ai_homework_help,
       ai_grading_assistance: flags.ai_grading_assistance ?? DEFAULT_FLAGS.ai_grading_assistance,
       ai_stem_activities: flags.ai_stem_activities ?? DEFAULT_FLAGS.ai_stem_activities,
+      ai_progress_analysis: flags.ai_progress_analysis ?? DEFAULT_FLAGS.ai_progress_analysis,
       ai_streaming_enabled: flags.ai_streaming ?? DEFAULT_FLAGS.ai_streaming_enabled,
       
       // Collaboration Features

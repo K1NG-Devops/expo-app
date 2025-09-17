@@ -54,10 +54,10 @@ export default function AIProgressAnalysisScreen() {
         throw new Error('User not authenticated');
       }
 
-      // Check quota before proceeding
-      const gate = await canUseFeature('progress_analysis', 1);
+      // Check quota before proceeding (use grading assistance quota as proxy)
+      const gate = await canUseFeature('grading_assistance', 1);
       if (!gate.allowed) {
-        const status = await getQuotaStatus('progress_analysis');
+        const status = await getQuotaStatus('grading_assistance');
         Alert.alert(
           'Monthly limit reached',
           `You have used ${status.used} of ${status.limit} progress analyses this month.`,
@@ -107,15 +107,15 @@ export default function AIProgressAnalysisScreen() {
       const classAnalytics: ClassAnalytics[] = [];
 
       for (const classInfo of classes) {
-        const students = classInfo.students || [];
+        const students = (classInfo as any).students || [];
         const classGrades: number[] = [];
         
-        for (const student of students) {
-          const submissions = student.assignment_submissions || [];
+        for (const student of students as any[]) {
+          const submissions: any[] = student.assignment_submissions || [];
           const grades = submissions
-            .filter(s => s.grade != null)
-            .map(s => parseFloat(s.grade))
-            .filter(g => !isNaN(g));
+            .filter((s: any) => s.grade != null)
+            .map((s: any) => parseFloat(s.grade))
+            .filter((g: number) => !isNaN(g));
 
           if (grades.length > 0) {
             const averageGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
@@ -124,24 +124,29 @@ export default function AIProgressAnalysisScreen() {
               ? ((recentGrades[recentGrades.length - 1] - recentGrades[0]) / recentGrades[0]) * 100
               : 0;
 
-            // Group by subject
-            const subjects: { [key: string]: number } = {};
-            submissions.forEach(sub => {
-              if (sub.assignment?.subject && sub.grade != null) {
-                const subject = sub.assignment.subject;
-                if (!subjects[subject]) subjects[subject] = [];
-                subjects[subject].push(parseFloat(sub.grade));
+            // Group by subject (collect arrays then compute averages)
+            const subjectsGrades: Record<string, number[]> = {};
+            submissions.forEach((sub: any) => {
+              const assignmentMeta = Array.isArray(sub.assignment) ? sub.assignment[0] : sub.assignment;
+              const subj = assignmentMeta?.subject;
+              if (subj && sub.grade != null) {
+                if (!subjectsGrades[subj]) subjectsGrades[subj] = [];
+                subjectsGrades[subj].push(parseFloat(sub.grade));
               }
             });
 
-            // Average by subject
-            Object.keys(subjects).forEach(subject => {
-              subjects[subject] = subjects[subject].reduce((a: number, b: number) => a + b, 0) / subjects[subject].length;
+            const subjects: { [key: string]: number } = {};
+            Object.keys(subjectsGrades).forEach((subj) => {
+              const arr = subjectsGrades[subj];
+              subjects[subj] = arr.reduce((a: number, b: number) => a + b, 0) / arr.length;
             });
 
-            const lastAssignment = submissions
-              .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())[0]
-              ?.assignment?.title || 'No recent assignments';
+            const sorted = [...submissions].sort(
+              (a: any, b: any) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
+            );
+            const latest = sorted[0];
+            const latestAssignmentMeta = latest ? (Array.isArray(latest.assignment) ? latest.assignment[0] : latest.assignment) : null;
+            const lastAssignment = latestAssignmentMeta?.title || 'No recent assignments';
 
             studentProgress.push({
               id: student.id,
