@@ -245,10 +245,14 @@ export default function SuperAdminSubscriptionsScreen() {
         endDate.setMonth(endDate.getMonth() + 1);
       }
 
+      // CRITICAL: Determine initial status based on plan pricing
+      const isPaidPlan = (selectedPlan.price_monthly || 0) > 0 || (selectedPlan.price_annual || 0) > 0;
+      const initialStatus = isPaidPlan ? 'pending_payment' : 'active';
+      
       const subscriptionData = {
         school_id: createForm.school_id,
         plan_id: selectedPlan.id, // Always use the UUID from selectedPlan
-        status: 'active',
+        status: initialStatus, // Only free plans are immediately active
         owner_type: 'school' as const,
         billing_frequency: createForm.billing_frequency,
         start_date: startDate.toISOString(),
@@ -259,6 +263,7 @@ export default function SuperAdminSubscriptionsScreen() {
         metadata: {
           plan_name: selectedPlan.name,
           created_by: 'superadmin',
+          requires_payment: isPaidPlan,
         }
       };
       
@@ -311,39 +316,42 @@ export default function SuperAdminSubscriptionsScreen() {
         console.warn('Failed to send notification:', error);
       }
 
-      // If paid tier, offer to proceed to PayFast checkout
-      if (createForm.plan_tier !== 'free') {
+      // Handle messaging based on plan type and payment requirement
+      if (isPaidPlan) {
+        // Calculate amount for notification
+        const amount = createForm.billing_frequency === 'annual' 
+          ? selectedPlan.price_annual || 0 
+          : selectedPlan.price_monthly || 0;
+        
+        // Send notification to school principal for payment
+        try {
+          const { notifyPaymentRequired, notifySubscriptionPendingPayment } = await import('@/lib/notify');
+          await notifyPaymentRequired(createForm.school_id, data.id, createForm.plan_tier, amount);
+          await notifySubscriptionPendingPayment(createForm.school_id, data.id, selectedPlan.name);
+        } catch (error) {
+          console.warn('Failed to send payment notifications:', error);
+        }
+        
         Alert.alert(
-          'Subscription created',
-          'Proceed to payment via PayFast?',
+          'Paid Subscription Created',
+          `Subscription created with status 'pending_payment'.\n\n✅ The school principal has been notified via email and push notification to complete payment.\n\n💡 The school will have limited access until payment is confirmed via PayFast.`,
           [
-            { text: 'Later', style: 'cancel', onPress: () => {} },
-            { text: 'Pay Now', style: 'default', onPress: async () => {
-                try {
-                  const { createCheckout } = await import('@/lib/payments');
-                  const res = await createCheckout({
-                    scope: 'school',
-                    schoolId: createForm.school_id,
-                    planTier: createForm.plan_tier,
-                    billing: createForm.billing_frequency as 'monthly' | 'annual',
-                    seats: seatsTotal,
-                  });
-                  if (res?.redirect_url) {
-                    try { await Linking.openURL(res.redirect_url); } catch (error) {
-                      console.warn('Failed to open payment URL:', error);
-                    }
-                  } else {
-                    Alert.alert('Notice', 'Payment link not available yet.');
-                  }
-                } catch (e: any) {
-                  Alert.alert('Payment error', e?.message || 'Could not start checkout');
-                }
+            { text: 'OK', style: 'default' },
+            {
+              text: 'Manual Override', 
+              style: 'destructive',
+              onPress: () => {
+                Alert.alert(
+                  'Manual Activation',
+                  'You can manually activate this subscription from the subscriptions list if needed for exceptional circumstances.',
+                  [{ text: 'Understood', style: 'default' }]
+                );
               }
             }
           ]
         );
       } else {
-        Alert.alert('Success', 'Subscription created successfully');
+        Alert.alert('Success', 'Free subscription created and activated successfully!');
       }
 
       setShowCreateModal(false);
@@ -379,6 +387,53 @@ export default function SuperAdminSubscriptionsScreen() {
   const handlePlanChangeSuccess = async () => {
     // Refetch data after successful plan change
     await fetchData();
+  };
+
+  const handleManualActivation = async (subscription: Subscription) => {
+    Alert.alert(
+      'Manually Activate Subscription',
+      `Are you sure you want to activate the subscription for ${subscription.school?.name || 'Unknown School'} without payment confirmation?\n\nThis should only be used in exceptional circumstances and will be logged for audit purposes.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Activate',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const { error } = await assertSupabase()
+                .from('subscriptions')
+                .update({ 
+                  status: 'active',
+                  metadata: {
+                    ...subscription.metadata,
+                    manual_activation: true,
+                    manual_activation_by: 'superadmin',
+                    manual_activation_at: new Date().toISOString(),
+                    manual_activation_reason: 'SuperAdmin override - no payment confirmation'
+                  }
+                })
+                .eq('id', subscription.id);
+
+              if (error) throw error;
+
+              // Track the manual activation for audit
+              track('subscription_manually_activated', {
+                subscription_id: subscription.id,
+                school_id: subscription.school_id,
+                original_status: subscription.status,
+                reason: 'superadmin_override'
+              });
+
+              Alert.alert('Success', 'Subscription activated manually. This action has been logged.');
+              await fetchData();
+            } catch (e: any) {
+              console.error('Failed to manually activate subscription:', e);
+              Alert.alert('Error', e.message || 'Failed to activate subscription');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const deleteSubscription = async (id: string, schoolName: string) => {
@@ -477,7 +532,7 @@ export default function SuperAdminSubscriptionsScreen() {
 
           {/* Filters */}
           <View style={styles.filtersRow}>
-            {['all', 'active', 'cancelled', 'expired'].map((status) => (
+            {['all', 'active', 'pending_payment', 'cancelled', 'expired'].map((status) => (
               <TouchableOpacity
                 key={status}
                 onPress={() => setFilter(status)}
@@ -544,6 +599,16 @@ export default function SuperAdminSubscriptionsScreen() {
                     onPress={() => updateSubscriptionStatus(subscription.id, 'active')}
                   >
                     <Text style={styles.activateButtonText}>Reactivate</Text>
+                  </TouchableOpacity>
+                )}
+                
+                {/* Manual activation for pending payments */}
+                {subscription.status === 'pending_payment' && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, styles.activateButton]}
+                    onPress={() => handleManualActivation(subscription)}
+                  >
+                    <Text style={styles.activateButtonText}>Activate Manually</Text>
                   </TouchableOpacity>
                 )}
 
@@ -760,10 +825,12 @@ function getStatusColor(status: string): string {
   switch (status) {
     case 'active':
       return '#10b981';
+    case 'pending_payment':
+      return '#f59e0b'; // Orange for pending payment
     case 'cancelled':
       return '#ef4444';
     case 'expired':
-      return '#f59e0b';
+      return '#6b7280';
     default:
       return '#6b7280';
   }

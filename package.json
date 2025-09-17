@@ -50,6 +50,7 @@
     "expo-sharing": "~13.1.5",
     "expo-status-bar": "~2.2.3",
     "expo-updates": "~0.28.17",
+    "expo-web-browser": "^15.0.7",
     "i18next": "^25.5.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "posthog-react-native": "^4.3.2",

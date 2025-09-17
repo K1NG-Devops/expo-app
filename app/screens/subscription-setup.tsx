@@ -8,12 +8,15 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { createCheckout } from '@/lib/payments';
+import { navigateTo } from '@/lib/navigation/router-utils';
+import * as WebBrowser from 'expo-web-browser';
 
 interface SubscriptionPlan {
   id: string;
@@ -27,20 +30,41 @@ interface SubscriptionPlan {
   is_active: boolean;
 }
 
+interface RouteParams {
+  planId?: string;
+  billing?: 'monthly' | 'annual';
+}
+
 export default function SubscriptionSetupScreen() {
   const { profile } = useAuth();
+  const params = useLocalSearchParams<RouteParams>();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const [annual, setAnnual] = useState(false);
+  const [annual, setAnnual] = useState(params.billing === 'annual');
   const [creating, setCreating] = useState(false);
   const [existingSubscription, setExistingSubscription] = useState<any>(null);
 
   useEffect(() => {
-    console.log('Profile context:', profile);
     loadPlans();
     checkExistingSubscription();
   }, [profile]);
+  
+  // Handle preselected plan from route params
+  useEffect(() => {
+    if (params.planId && plans.length > 0) {
+      // Find and preselect the plan
+      const matchingPlan = plans.find(p => p.id === params.planId || p.tier === params.planId);
+      if (matchingPlan) {
+        setSelectedPlan(matchingPlan.id);
+        
+        track('subscription_setup_preselected', {
+          plan_id: matchingPlan.tier,
+          billing: params.billing || 'monthly',
+        });
+      }
+    }
+  }, [params.planId, plans]);
 
   async function loadPlans() {
     try {
@@ -51,11 +75,10 @@ export default function SubscriptionSetupScreen() {
         .order('price_monthly', { ascending: true });
 
       if (error) throw error;
-      console.log('Loaded subscription plans:', data);
       setPlans(data || []);
-    } catch (error) {
-      console.error('Error loading plans:', error);
+    } catch (error: any) {
       Alert.alert('Error', 'Failed to load subscription plans');
+      track('subscription_setup_load_failed', { error: error.message });
     } finally {
       setLoading(false);
     }
@@ -78,117 +101,157 @@ export default function SubscriptionSetupScreen() {
   }
 
   async function createSubscription(planId: string) {
-    console.log('createSubscription called with:', { planId, profileOrgId: profile?.organization_id, annual });
-    
-    if (!profile?.organization_id) {
-      Alert.alert('Error', 'School information not found');
-      return;
-    }
-
     const plan = plans.find(p => p.id === planId);
-    console.log('Found plan:', plan);
     
     if (!plan) {
       Alert.alert('Error', 'Selected plan not found');
       return;
     }
+    
+    const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
+    const isFree = plan.tier.toLowerCase() === 'free';
+    const price = annual ? plan.price_annual : plan.price_monthly;
 
     setCreating(true);
+    
     try {
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      
-      // Fix date calculation - use proper date arithmetic
-      if (annual) {
-        endDate.setFullYear(endDate.getFullYear() + 1);
-      } else {
-        endDate.setMonth(endDate.getMonth() + 1);
-      }
-      
-      console.log('Date calculation:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
-
-      const subscriptionData = {
-        school_id: profile.organization_id,
-        plan_id: plan.id, // keep actual plan row id for display; RPC maps tier to school_tier
-        status: 'active',
-        owner_type: 'school' as const,
-        billing_frequency: annual ? 'annual' : 'monthly',
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        next_billing_date: endDate.toISOString(),
-        seats_total: plan.max_teachers || 10,
-        seats_used: 0,
-        metadata: {
-          plan_name: plan.name,
-          price: annual ? plan.price_annual : plan.price_monthly,
-          billing_cycle: annual ? 'annual' : 'monthly'
-        }
-      };
-      
-      console.log('Attempting to create subscription with data:', subscriptionData);
-
-      // For principals, allow immediate FREE plan via secure RPC; paid plans require admin flow
-      let data: any = null;
-      let error: any = null;
-      if ((plan.tier || '').toLowerCase() === 'free') {
-        // Use ensure_school_free_subscription which is granted to authenticated
-        const res = await assertSupabase().rpc('ensure_school_free_subscription', {
-          p_school_id: profile.organization_id,
-          p_seats: subscriptionData.seats_total,
-        });
-        data = { id: res.data };
-        error = res.error || null;
-      } else {
-        // Non-free: guide to Super-Admin or Sales instead of inserting directly (avoids RLS and auth issues)
+      if (isEnterprise) {
+        // Enterprise tier - redirect to Contact Sales
         Alert.alert(
-          'Contact Sales',
-          'Paid plans require administrator setup. We will redirect you to pricing/sales.',
+          'Enterprise Plan',
+          'Enterprise plans require custom setup. Our sales team will contact you to configure your solution.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'View Pricing', onPress: () => router.push('/pricing' as any) },
+            { 
+              text: 'Contact Sales', 
+              onPress: () => {
+                track('enterprise_redirect_from_setup', {
+                  plan_tier: plan.tier,
+                  user_role: profile?.role,
+                });
+                navigateTo.contact();
+              }
+            },
           ]
         );
-        setCreating(false);
         return;
       }
-
-      console.log('Supabase response:', { data, error });
       
-      if (error) {
-        console.error('Supabase error details:', error);
-        throw error;
-      }
+      if (isFree) {
+        // Free plan - use existing RPC
+        if (!profile?.organization_id) {
+          Alert.alert('Error', 'School information not found for free plan setup');
+          return;
+        }
+        
+        const { data, error } = await assertSupabase().rpc('ensure_school_free_subscription', {
+          p_school_id: profile.organization_id,
+          p_seats: plan.max_teachers || 1,
+        });
+        
+        if (error) {
+          throw error;
+        }
+        
+        // Update school subscription tier
+        try {
+          await assertSupabase()
+            .from('preschools')
+            .update({ subscription_tier: plan.tier })
+            .eq('id', profile.organization_id);
+        } catch (e) {
+          // Non-blocking
+        }
 
-      // Update school subscription tier to match
-      try {
-        await assertSupabase()
-          .from('preschools')
-          .update({ subscription_tier: (plan.tier || 'free') })
-          .eq('id', profile.organization_id);
-      } catch (e) {
-        console.debug('Update school tier failed (non-blocking):', e);
-      }
+        track('subscription_created', {
+          plan_id: plan.tier,
+          billing_cycle: 'free',
+          school_id: profile.organization_id
+        });
 
-      track('subscription_created', {
-        plan_id: plan.tier,
-        billing_cycle: annual ? 'annual' : 'monthly',
-        school_id: profile.organization_id
+        Alert.alert(
+          'Success!', 
+          `Your ${plan.name} subscription has been created. You can now manage teacher seats.`,
+          [
+            {
+              text: 'Continue',
+              onPress: () => router.push('/screens/principal-seat-management')
+            }
+          ]
+        );
+        return;
+      }
+      
+      // Paid plans - use checkout flow
+      track('checkout_started', {
+        plan_tier: plan.tier,
+        plan_name: plan.name,
+        billing: annual ? 'annual' : 'monthly',
+        price: price,
+        user_role: profile?.role,
+        school_id: profile?.organization_id,
       });
-
-      Alert.alert(
-        'Success!', 
-        `Your ${plan.name} subscription has been created. You can now manage teacher seats.`,
-        [
-          {
-            text: 'Manage Seats',
-            onPress: () => router.push('/screens/principal-seat-management')
-          }
-        ]
-      );
-
+      
+      const checkoutInput = {
+        scope: profile?.organization_id ? 'school' : 'user' as const,
+        schoolId: profile?.organization_id,
+        userId: profile?.id,
+        planTier: plan.tier,
+        billing: annual ? 'annual' : 'monthly' as const,
+        seats: plan.max_teachers,
+        return_url: 'edudashpro://screens/payments/return',
+        cancel_url: 'edudashpro://screens/subscription-setup',
+      };
+      
+      const result = await createCheckout(checkoutInput);
+      
+      if (result.error) {
+        if (result.error.includes('contact_sales_required')) {
+          Alert.alert(
+            'Contact Required',
+            'This plan requires sales contact for setup.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Contact Sales', onPress: () => navigateTo.contact() },
+            ]
+          );
+          return;
+        }
+        
+        throw new Error(result.error);
+      }
+      
+      if (!result.redirect_url) {
+        throw new Error('No payment URL received');
+      }
+      
+      // Track checkout redirect
+      track('checkout_redirected', {
+        plan_tier: plan.tier,
+        billing: annual ? 'annual' : 'monthly',
+      });
+      
+      // Open payment URL
+      const browserResult = await WebBrowser.openBrowserAsync(result.redirect_url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        showTitle: true,
+        toolbarColor: '#0b1220',
+      });
+      
+      // Handle browser result if needed
+      if (browserResult.type === 'dismiss' || browserResult.type === 'cancel') {
+        track('checkout_cancelled', {
+          plan_tier: plan.tier,
+          browser_result: browserResult.type,
+        });
+      }
+      
     } catch (error: any) {
-      console.error('Error creating subscription:', error);
-      Alert.alert('Error', error.message || 'Failed to create subscription');
+      Alert.alert('Error', error.message || 'Failed to start checkout');
+      track('checkout_failed', {
+        plan_tier: plan.tier,
+        error: error.message,
+      });
     } finally {
       setCreating(false);
     }
@@ -292,11 +355,9 @@ export default function SubscriptionSetupScreen() {
                 annual={annual}
                 selected={selectedPlan === plan.id}
                 onSelect={() => {
-                  console.log('Plan selected:', plan.id);
                   setSelectedPlan(plan.id);
                 }}
                 onSubscribe={() => {
-                  console.log('onSubscribe called for plan:', plan.id);
                   createSubscription(plan.id);
                 }}
                 creating={creating}
@@ -365,10 +426,7 @@ function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating }: P
       {selected && (
         <TouchableOpacity 
           style={[styles.subscribeButton, creating && styles.subscribeButtonDisabled]}
-          onPress={() => {
-            console.log('Subscribe button pressed for plan:', plan.id);
-            onSubscribe();
-          }}
+          onPress={onSubscribe}
           disabled={creating}
           testID={`subscribe-${plan.id}`}
         >

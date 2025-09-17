@@ -8,6 +8,25 @@ export const navigateTo = {
   // Marketing routes
   contact: () => router.push('/sales/contact' as any),
   
+  // Plan selection helpers
+  signUpWithPlan: ({ tier, billing }: { tier: string; billing: 'monthly' | 'annual' }) => {
+    router.push({ 
+      pathname: '/(auth)/sign-up' as any, 
+      params: { planTier: tier, billing } 
+    } as any);
+  },
+  
+  subscriptionSetup: ({ planId, billing }: { planId?: string; billing?: 'monthly' | 'annual' }) => {
+    const params: any = {};
+    if (planId) params.planId = planId;
+    if (billing) params.billing = billing;
+    
+    router.push({
+      pathname: '/screens/subscription-setup' as any,
+      params
+    } as any);
+  },
+  
   // Screen routes with dynamic parameters (mapped to existing screens)
   classStudents: (classId: string) => 
     router.push({ pathname: '/screens/class-teacher-management' as any, params: { classId } } as any),

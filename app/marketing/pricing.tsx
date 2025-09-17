@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   ColorValue,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -16,12 +17,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { DesignSystem } from '@/constants/DesignSystem';
 import { setPageMetadata, pricingSEO } from '@/lib/webSEO';
+import { assertSupabase } from '@/lib/supabase';
+import { track } from '@/lib/analytics';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 const isDesktop = width >= 1024;
 
-interface PricingTier {
+interface SubscriptionPlan {
+  id: string;
   name: string;
+  tier: string;
+  price_monthly: number;
+  price_annual: number | null;
+  max_teachers: number;
+  max_students: number;
+  features: any; // Could be string[], jsonb, or null
+  is_active: boolean;
+  [key: string]: any; // Allow for any additional fields from DB
+}
+
+interface PricingTier {
+  id: string;
+  name: string;
+  tier: string;
   price: string;
   period: string;
   description: string;
@@ -29,68 +48,174 @@ interface PricingTier {
   recommended?: boolean;
   cta: string;
   color: readonly ColorValue[];
+  isEnterprise: boolean;
 }
 
-const pricingTiers: PricingTier[] = [
-  {
-    name: 'Starter',
-    price: 'Free',
-    period: '',
-    description: 'Perfect for small preschools getting started',
-    features: [
-      'Up to 50 students',
-      '2 teacher accounts',
-      'Basic lesson templates',
-      'Parent communication',
-      'Mobile app access',
-      'Email support'
-    ],
-    cta: 'Start Free',
-    color: ['#00f5ff', '#0080ff'],
-  },
-  {
-    name: 'Professional',
-    price: 'R299',
-    period: '/month',
-    description: 'Advanced features for growing schools',
-    features: [
-      'Up to 200 students',
-      'Unlimited teachers',
-      'AI lesson generation',
-      'Advanced analytics',
-      'Parent portal',
-      'Priority support',
-      'Custom branding',
-      'Bulk operations'
-    ],
-    recommended: true,
-    cta: 'Start Professional',
-    color: ['#8000ff', '#ff0080'],
-  },
-  {
-    name: 'Enterprise',
-    price: 'Custom',
-    period: '',
-    description: 'Complete solution for large organizations',
-    features: [
-      'Unlimited students',
-      'Multi-school management',
-      'Advanced AI features',
-      'Custom integrations',
-      'Dedicated success manager',
-      'SLA guarantee',
-      'White-label solution',
-      'On-premise deployment'
-    ],
-    cta: 'Contact Sales',
-    color: ['#ff8000', '#ff0080'],
-  },
-];
-
 export default function PricingPage() {
+  const { profile } = useAuth();
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAnnual, setIsAnnual] = useState(false);
+
   useEffect(() => {
     setPageMetadata(pricingSEO);
-  }, []);
+    loadPlans();
+    
+    // Track pricing page view
+    track('pricing_viewed', {
+      user_authenticated: !!profile,
+      user_role: profile?.role || 'guest',
+    });
+  }, [profile]);
+
+  const loadPlans = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Try to fetch via public RPC first (preferred)
+      let { data, error } = await assertSupabase().rpc('public_list_plans');
+      
+      // Fallback to direct table access if RPC fails
+      if (error || !data) {
+        const response = await assertSupabase()
+          .from('subscription_plans')
+          .select('*')
+          .eq('is_active', true)
+          .order('price_monthly', { ascending: true });
+        
+        data = response.data;
+        error = response.error;
+      }
+      
+      if (error) {
+        throw error;
+      }
+      
+      setPlans(data || []);
+      
+    } catch (err: any) {
+      console.error('Failed to load pricing plans:', err);
+      setError('Unable to load pricing information. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const convertToDisplayTier = (plan: SubscriptionPlan): PricingTier => {
+    const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
+    const price = isAnnual ? (plan.price_annual || plan.price_monthly * 10) : plan.price_monthly;
+    
+    // Get tier-specific colors and descriptions
+    const tierConfig = getTierConfig(plan.tier);
+    
+    // Handle features - could be JSON array, string array, or null
+    let planFeatures: string[] = [];
+    try {
+      if (Array.isArray(plan.features)) {
+        planFeatures = plan.features;
+      } else if (typeof plan.features === 'string') {
+        planFeatures = JSON.parse(plan.features);
+      } else if (plan.features && typeof plan.features === 'object') {
+        planFeatures = plan.features;
+      }
+    } catch {
+      planFeatures = [];
+    }
+    
+    return {
+      id: plan.id,
+      name: plan.name,
+      tier: plan.tier,
+      price: price === 0 ? 'Free' : (isEnterprise ? 'Custom' : `R${price}`),
+      period: price === 0 || isEnterprise ? '' : `/${isAnnual ? 'year' : 'month'}`,
+      description: tierConfig.description,
+      features: planFeatures.length > 0 ? planFeatures : tierConfig.defaultFeatures,
+      recommended: tierConfig.recommended,
+      cta: isEnterprise ? 'Contact Sales' : (price === 0 ? 'Start Free' : `Choose ${plan.name}`),
+      color: tierConfig.color,
+      isEnterprise,
+    };
+  };
+  
+  const getTierConfig = (tier: string) => {
+    const tierLower = tier.toLowerCase();
+    const configs: Record<string, any> = {
+      free: {
+        description: 'Perfect for small preschools getting started',
+        defaultFeatures: ['Basic dashboard', 'Student management', 'Parent communication'],
+        recommended: false,
+        color: ['#00f5ff', '#0080ff'],
+      },
+      starter: {
+        description: 'Essential features for growing schools',
+        defaultFeatures: ['Advanced dashboard', 'AI-powered insights', 'Priority support'],
+        recommended: true,
+        color: ['#8000ff', '#ff0080'],
+      },
+      basic: {
+        description: 'Comprehensive tools for active schools',
+        defaultFeatures: ['Full feature set', 'Advanced analytics', 'Multi-teacher support'],
+        recommended: false,
+        color: ['#00f5ff', '#8000ff'],
+      },
+      premium: {
+        description: 'Professional features for established schools',
+        defaultFeatures: ['Premium features', 'Advanced reporting', 'Priority support'],
+        recommended: false,
+        color: ['#ff0080', '#8000ff'],
+      },
+      pro: {
+        description: 'Advanced solution for large schools',
+        defaultFeatures: ['All features', 'Custom integrations', 'Dedicated support'],
+        recommended: false,
+        color: ['#ff8000', '#ff0080'],
+      },
+      enterprise: {
+        description: 'Complete solution for large organizations',
+        defaultFeatures: ['Unlimited features', 'Custom integrations', 'Dedicated success manager'],
+        recommended: false,
+        color: ['#ff8000', '#ff0080'],
+      },
+    };
+    
+    return configs[tierLower] || configs.basic;
+  };
+  
+  const pricingTiers = plans.map(convertToDisplayTier);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00f5ff" />
+            <Text style={styles.loadingText}>Loading pricing plans...</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
+  
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
+          <View style={styles.errorContainer}>
+            <IconSymbol name="exclamationmark.triangle" size={48} color="#ef4444" />
+            <Text style={styles.errorTitle}>Unable to Load Pricing</Text>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -107,6 +232,7 @@ export default function PricingPage() {
           >
             <Header />
             <PricingHeader />
+            <BillingToggle isAnnual={isAnnual} onToggle={setIsAnnual} />
           </LinearGradient>
           
           <View style={styles.pricingSection}>
@@ -114,7 +240,7 @@ export default function PricingPage() {
               colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]}
               style={styles.pricingSectionGradient}
             >
-              <PricingGrid />
+              <PricingGrid tiers={pricingTiers} />
               <EnterpriseSection />
               <FAQSection />
             </LinearGradient>
@@ -157,13 +283,68 @@ const PricingHeader = () => (
   </View>
 );
 
-const PricingGrid = () => (
+const BillingToggle = ({ isAnnual, onToggle }: { isAnnual: boolean; onToggle: (value: boolean) => void }) => (
+  <View style={styles.billingToggle}>
+    <TouchableOpacity 
+      style={[styles.toggleOption, !isAnnual && styles.toggleOptionActive]}
+      onPress={() => onToggle(false)}
+    >
+      <Text style={[styles.toggleOptionText, !isAnnual && styles.toggleOptionTextActive]}>Monthly</Text>
+    </TouchableOpacity>
+    <TouchableOpacity 
+      style={[styles.toggleOption, isAnnual && styles.toggleOptionActive]}
+      onPress={() => onToggle(true)}
+    >
+      <Text style={[styles.toggleOptionText, isAnnual && styles.toggleOptionTextActive]}>Annual</Text>
+      <Text style={[styles.toggleOptionSavings, isAnnual && styles.toggleOptionSavingsActive]}>Save 10%</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+const PricingGrid = ({ tiers }: { tiers: PricingTier[] }) => (
   <View style={styles.pricingGrid}>
-    {pricingTiers.map((tier, index) => (
-      <PricingCard key={tier.name} tier={tier} index={index} />
+    {tiers.map((tier, index) => (
+      <PricingCard key={tier.id} tier={tier} index={index} />
     ))}
   </View>
 );
+
+const handlePlanCTA = (tier: PricingTier) => {
+  // Track the CTA click
+  track('plan_cta_clicked', {
+    plan_tier: tier.tier,
+    plan_name: tier.name,
+    is_enterprise: tier.isEnterprise,
+    user_authenticated: !!profile,
+    user_role: profile?.role || 'guest',
+  });
+
+  if (tier.isEnterprise) {
+    // Enterprise tier always goes to contact sales
+    navigateTo.contact();
+  } else {
+    // Non-enterprise tiers
+    if (!profile) {
+      // Not authenticated - go to sign up with plan context
+      navigateTo.signUpWithPlan({
+        tier: tier.tier,
+        billing: isAnnual ? 'annual' : 'monthly'
+      });
+    } else if (profile.organization_id) {
+      // Authenticated with organization - go to subscription setup
+      navigateTo.subscriptionSetup({
+        planId: tier.id,
+        billing: isAnnual ? 'annual' : 'monthly'
+      });
+    } else {
+      // Authenticated individual user - go to subscription setup
+      navigateTo.subscriptionSetup({
+        planId: tier.id,
+        billing: isAnnual ? 'annual' : 'monthly'
+      });
+    }
+  }
+};
 
 const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => (
   <View style={[
@@ -209,13 +390,7 @@ const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => 
           styles.ctaButton,
           tier.recommended && styles.recommendedButton
         ]}
-        onPress={() => {
-          if (tier.cta === 'Contact Sales') {
-            navigateTo.contact();
-          } else {
-            router.push('/(auth)/sign-up');
-          }
-        }}
+        onPress={() => handlePlanCTA(tier)}
       >
         <LinearGradient
           colors={tier.recommended 
@@ -312,6 +487,88 @@ const FAQItem = ({ question, answer }: { question: string; answer: string }) => 
 };
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    color: '#9CA3AF',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  errorTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '700',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    color: '#9CA3AF',
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: '#00f5ff',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginTop: 24,
+  },
+  retryButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  billingToggle: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 12,
+    padding: 4,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
+  toggleOption: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  toggleOptionActive: {
+    backgroundColor: '#00f5ff',
+  },
+  toggleOptionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  toggleOptionTextActive: {
+    color: '#000000',
+    fontWeight: '700',
+  },
+  toggleOptionSavings: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  toggleOptionSavingsActive: {
+    color: '#000000',
+    opacity: 0.7,
+  },
   container: {
     flex: 1,
     backgroundColor: DesignSystem.colors.background,
