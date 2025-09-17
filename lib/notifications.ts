@@ -58,13 +58,17 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
 export async function registerPushDevice(supabase: any, user: any): Promise<PushRegistrationResult> {
   try {
+    console.log('[Push Registration] Starting registration for user:', user?.id)
+    
     // Skip registration on web or emulators
     if (Platform.OS === 'web' || !Device.isDevice) {
+      console.log('[Push Registration] Skipping - unsupported platform')
       return { status: 'skipped', reason: 'unsupported_platform' }
     }
 
     // Get device metadata
-    const installationId = await Application.getInstallReferrerAsync().catch(() => `${Platform.OS}-${Date.now()}`)
+    console.log('[Push Registration] Getting device metadata...')
+    const installationId = await Application.getInstallationIdAsync().catch(() => `${Platform.OS}-${Date.now()}`)
     const deviceMetadata = {
       platform: Platform.OS,
       brand: Device.brand,
@@ -76,14 +80,19 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
       timezone: Localization.getCalendars?.()?.[0]?.timeZone || 'UTC',
       installationId,
     }
+    console.log('[Push Registration] Device metadata:', { installationId, platform: Platform.OS, model: Device.modelName })
 
     // Get push token
+    console.log('[Push Registration] Getting push token...')
     const token = await registerForPushNotificationsAsync()
     if (!token) {
+      console.log('[Push Registration] Failed to get push token - permissions denied')
       return { status: 'denied', reason: 'permissions_denied', message: 'Push notifications not permitted' }
     }
+    console.log('[Push Registration] Got push token:', token.substring(0, 20) + '...')
 
     // Upsert to database
+    console.log('[Push Registration] Saving to database...')
     const { error } = await supabase
       .from('push_devices')
       .upsert({
@@ -101,10 +110,11 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
       })
 
     if (error) {
-      console.error('Push device registration failed:', error)
+      console.error('[Push Registration] Database error:', error)
       return { status: 'error', reason: 'database_error', message: error.message }
     }
 
+    console.log('[Push Registration] Successfully registered device')
     return { status: 'registered', token }
   } catch (error: any) {
     console.error('Push registration exception:', error)
@@ -116,7 +126,7 @@ export async function deregisterPushDevice(supabase: any, user: any): Promise<vo
   try {
     if (Platform.OS === 'web' || !Device.isDevice) return
     
-    const installationId = await Application.getInstallReferrerAsync().catch(() => `${Platform.OS}-${Date.now()}`)
+    const installationId = await Application.getInstallationIdAsync().catch(() => `${Platform.OS}-${Date.now()}`)
     
     await supabase
       .from('push_devices')
