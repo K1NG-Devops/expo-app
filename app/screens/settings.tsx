@@ -24,7 +24,6 @@ import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import Constants from 'expo-constants';
 import { useAppUpdates } from '@/hooks/useAppUpdates';
 import { useAuth } from '@/contexts/AuthContext';
-import { assertSupabase } from '@/lib/supabase';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
@@ -281,7 +280,7 @@ export default function SettingsScreen() {
   // Check if push testing should be shown (dev tools or superadmin)
   const showPushTesting = Boolean(
     process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === '1' ||
-    profile?.role === 'superadmin'
+    profile?.role === 'super_admin'
   );
 
   const sendTestNotification = async () => {

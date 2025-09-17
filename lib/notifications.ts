@@ -64,7 +64,7 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
     }
 
     // Get device metadata
-    const installationId = await Application.getInstallationIdAsync()
+    const installationId = await Application.getInstallReferrerAsync().catch(() => `${Platform.OS}-${Date.now()}`)
     const deviceMetadata = {
       platform: Platform.OS,
       brand: Device.brand,
@@ -116,7 +116,7 @@ export async function deregisterPushDevice(supabase: any, user: any): Promise<vo
   try {
     if (Platform.OS === 'web' || !Device.isDevice) return
     
-    const installationId = await Application.getInstallationIdAsync()
+    const installationId = await Application.getInstallReferrerAsync().catch(() => `${Platform.OS}-${Date.now()}`)
     
     await supabase
       .from('push_devices')
