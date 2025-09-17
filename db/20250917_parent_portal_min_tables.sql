@@ -49,21 +49,26 @@ as $$
   );
 $$;
 
--- Policies
-create policy if not exists parent_payments_select_own_or_admin
+-- Policies (drop if exist to avoid IF NOT EXISTS incompatibilities)
+-- SELECT own or super admin
+drop policy if exists parent_payments_select_own_or_admin on public.parent_payments;
+create policy parent_payments_select_own_or_admin
 on public.parent_payments for select
 using (
   parent_id = auth.uid() or public.app_is_super_admin()
 );
 
-create policy if not exists parent_payments_insert_self
+-- INSERT self
+drop policy if exists parent_payments_insert_self on public.parent_payments;
+create policy parent_payments_insert_self
 on public.parent_payments for insert to authenticated
 with check (
   parent_id is null or parent_id = auth.uid()
 );
 
--- Optional: allow parent to update only their pending record
-create policy if not exists parent_payments_update_pending_own
+-- UPDATE pending (own)
+drop policy if exists parent_payments_update_pending_own on public.parent_payments;
+create policy parent_payments_update_pending_own
 on public.parent_payments for update to authenticated
 using (
   parent_id = auth.uid() and status = 'pending_review'
@@ -105,20 +110,24 @@ create trigger trg_set_child_reg_parent_id
 before insert on public.child_registration_requests
 for each row execute function public.set_child_reg_parent_id();
 
-create policy if not exists child_reg_select_own_or_admin
+drop policy if exists child_reg_select_own_or_admin on public.child_registration_requests;
+create policy child_reg_select_own_or_admin
 on public.child_registration_requests for select
 using (
   parent_id = auth.uid() or public.app_is_super_admin()
 );
 
-create policy if not exists child_reg_insert_self
+-- INSERT self
+drop policy if exists child_reg_insert_self on public.child_registration_requests;
+create policy child_reg_insert_self
 on public.child_registration_requests for insert to authenticated
 with check (
   parent_id is null or parent_id = auth.uid()
 );
 
--- Optional: allow parent to update only while pending
-create policy if not exists child_reg_update_pending_own
+-- UPDATE pending (own)
+drop policy if exists child_reg_update_pending_own on public.child_registration_requests;
+create policy child_reg_update_pending_own
 on public.child_registration_requests for update to authenticated
 using (
   parent_id = auth.uid() and status = 'pending'
