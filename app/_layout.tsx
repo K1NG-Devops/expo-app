@@ -19,7 +19,6 @@ import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
-import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -213,10 +212,6 @@ export default function RootLayout() {
               {/* Wrap in SubscriptionProvider so screens can access subscription data */}
               <SubscriptionProvider>
                 <ThemedStackWrapper />
-                {/* Global update banner appears across all screens */}
-                <GlobalUpdateBanner />
-                {/* Small badge to confirm OTA visually */}
-                <PreviewBadge />
                 {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
               </SubscriptionProvider>
             </UpdatesProvider>
@@ -265,33 +260,6 @@ function ThemedLoadingScreen() {
 }
 
 
-// Small floating badge to visually confirm OTA
-function PreviewBadge() {
-  const { theme } = useTheme();
-  const styles = StyleSheet.create({
-    container: {
-      position: 'absolute',
-      top: 8,
-      right: 8,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 6,
-    },
-    text: {
-      color: '#fff',
-      fontSize: 11,
-      fontWeight: '600',
-    }
-  })
-  // Show only on native platforms for clarity
-  if (Platform.OS === 'web') return null;
-  return (
-    <View style={[styles.container, { pointerEvents: 'none' as any }]}>
-      <Text style={styles.text}>Preview OTA test</Text>
-    </View>
-  );
-}
 
 // Themed Error Screen Component
 function ThemedErrorScreen({ error }: { error: string }) {
