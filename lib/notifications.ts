@@ -68,7 +68,8 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
 
     // Get device metadata
     console.log('[Push Registration] Getting device metadata...')
-    const installationId = await Application.getInstallationIdAsync().catch(() => `${Platform.OS}-${Date.now()}`)
+    // Generate a simple device identifier since Application methods vary by Expo version
+    const installationId = Constants.deviceId || Constants.sessionId || `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const deviceMetadata = {
       platform: Platform.OS,
       brand: Device.brand,
@@ -126,7 +127,7 @@ export async function deregisterPushDevice(supabase: any, user: any): Promise<vo
   try {
     if (Platform.OS === 'web' || !Device.isDevice) return
     
-    const installationId = await Application.getInstallationIdAsync().catch(() => `${Platform.OS}-${Date.now()}`)
+    const installationId = Constants.deviceId || Constants.sessionId || `${Platform.OS}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
     await supabase
       .from('push_devices')
