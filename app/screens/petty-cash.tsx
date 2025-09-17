@@ -80,6 +80,7 @@ export default function PettyCashScreen() {
     total_replenishments: 0,
     pending_approval: 0,
   });
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // const [selectedPeriod, setSelectedPeriod] = useState('current_month'); // For future period filtering
@@ -117,11 +118,27 @@ export default function PettyCashScreen() {
         return;
       }
 
+      // Ensure petty cash account exists and capture account id
+      try {
+        const { data: ensuredId } = await assertSupabase()
+          .rpc('ensure_petty_cash_account', { school_uuid: userProfile.preschool_id });
+        if (ensuredId) setAccountId(String(ensuredId));
+      } catch (e) {
+        // Fallback: try fetch an active account
+        const { data: acct } = await assertSupabase()
+          .from('petty_cash_accounts')
+          .select('id')
+          .eq('school_id', userProfile.preschool_id)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (acct?.id) setAccountId(String(acct.id));
+      }
+
       // Load petty cash transactions
       const { data: transactionsData, error: transError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('*')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -152,15 +169,15 @@ export default function PettyCashScreen() {
         .filter(t => t.status === 'pending')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Get opening balance (this would typically be set by admin)
-      const { data: settingsData } = await assertSupabase()
-        .from('school_settings')
-        .select('petty_cash_limit, opening_balance')
-        .eq('preschool_id', userProfile.preschool_id)
-        .single();
+      // Get balances from view (preferred over school_settings)
+      const { data: balanceRow } = await assertSupabase()
+        .from('petty_cash_account_balances')
+        .select('opening_balance, current_balance')
+        .eq('school_id', userProfile.preschool_id)
+        .maybeSingle();
 
-      const openingBalance = settingsData?.opening_balance ?? 0; // No mock fallback
-      const currentBalance = openingBalance + replenishments - expenses;
+      const openingBalance = Number(balanceRow?.opening_balance ?? 0);
+      const currentBalance = Number(balanceRow?.current_balance ?? (openingBalance + replenishments - expenses));
 
       setSummary({
         opening_balance: openingBalance,
@@ -209,12 +226,13 @@ const { data: userProfile } = await assertSupabase()
 const { data: transactionData, error: transactionError } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          preschool_id: userProfile?.preschool_id,
+          school_id: userProfile?.preschool_id,
+          account_id: accountId,
           amount,
           description: expenseForm.description.trim(),
           category: expenseForm.category,
           type: 'expense',
-          receipt_number: expenseForm.receipt_number.trim() || null,
+          reference_number: expenseForm.receipt_number.trim() || null,
           created_by: user?.id,
           status: 'approved', // In a real system, this might need approval
         })
@@ -230,14 +248,6 @@ const { data: transactionData, error: transactionError } = await assertSupabase(
       let receiptPath = null;
       if (receiptImage && transactionData) {
         receiptPath = await uploadReceiptImage(receiptImage, transactionData.id);
-        
-        if (receiptPath) {
-          // Update transaction with receipt path
-await assertSupabase()
-            .from('petty_cash_transactions')
-            .update({ receipt_image_path: receiptPath })
-            .eq('id', transactionData.id);
-        }
       }
 
       Alert.alert('Success', `Expense added successfully${receiptPath ? ' with receipt' : ''}`);
@@ -284,7 +294,8 @@ const { data: userProfile } = await assertSupabase()
 const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          preschool_id: userProfile?.preschool_id,
+          school_id: userProfile?.preschool_id,
+          account_id: accountId,
           amount,
           description: `Petty cash replenishment - ${new Date().toLocaleDateString()}`,
           category: 'Replenishment',
@@ -345,23 +356,45 @@ const { error } = await assertSupabase()
   };
 
   const uploadReceiptImage = async (imageUri: string, transactionId: string) => {
-    
-    
     try {
+      // Determine school for path prefix
+      const { data: userProfile } = await assertSupabase()
+        .from('users')
+        .select('preschool_id')
+        .eq('auth_user_id', user?.id)
+        .single();
+
+      const schoolId = userProfile?.preschool_id;
+
       const response = await fetch(imageUri);
       const blob = await response.blob();
-      
-      const fileExt = imageUri.split('.').pop();
+      const fileExt = String(imageUri.split('.').pop() || 'jpg').toLowerCase();
       const fileName = `receipt_${transactionId}_${Date.now()}.${fileExt}`;
-      
+      const storagePath = `${schoolId}/${transactionId}/${fileName}`;
+
       const { data, error } = await assertSupabase().storage
-        .from('receipts')
-        .upload(fileName, blob, {
+        .from('petty-cash-receipts')
+        .upload(storagePath, blob, {
           contentType: `image/${fileExt}`,
           cacheControl: '3600',
         });
       
       if (error) throw error;
+
+      try {
+        await assertSupabase()
+          .from('petty_cash_receipts')
+          .insert({
+            school_id: schoolId,
+            transaction_id: transactionId,
+            storage_path: data.path,
+            file_name: fileName,
+            created_by: user?.id,
+          });
+      } catch (e) {
+        // Non-blocking: log and continue
+        console.warn('Failed to record petty cash receipt row:', e);
+      }
       
       return data.path;
     } catch (error) {
@@ -502,10 +535,11 @@ const { data: userProfile } = await assertSupabase()
         .single();
 
       const oppositeType = t.type === 'expense' ? 'replenishment' : 'expense';
-      const { error } = await assertSupabase()
+const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          preschool_id: userProfile?.preschool_id,
+          school_id: userProfile?.preschool_id,
+          account_id: accountId,
           amount: t.amount,
           description: `Reversal of ${t.type} (${t.id}) - ${t.description}`,
           category: 'Other',

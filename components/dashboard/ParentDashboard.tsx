@@ -13,7 +13,8 @@ import OfflineBanner from '@/components/sync/OfflineBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentLanguage, changeLanguage, getAvailableLanguages } from '@/lib/i18n';
-import claudeService from '@/lib/ai-gateway/claude-service';
+// import claudeService from '@/lib/ai-gateway/claude-service';
+import { useHomeworkGenerator } from '@/hooks/useHomeworkGenerator';
 import { track } from '@/lib/analytics';
 // Colors import removed - now using theme colors
 import EnhancedHeader from './EnhancedHeader';
@@ -332,45 +333,34 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
 
   const HomeworkModal: React.FC<HomeworkModalProps> = ({ visible, onClose }) => {
     const [question, setQuestion] = useState('');
-    const [loading, setLoading] = useState(false);
     const [response, setResponse] = useState('');
+    const { loading: aiLoading, generate } = useHomeworkGenerator();
   
     const handleSubmit = async () => {
       if (!question.trim()) return;
   
-      setLoading(true);
       try {
         const start = Date.now();
-        const aiResponse = await claudeService.generateResponse({
-          id: `homework-${Date.now()}`,
-          userId: user?.id || '',
-          serviceType: 'homework_help',
-          provider: 'claude',
-          prompt: question,
-          metadata: {
-            studentAge: children.length > 0 ? 8 : 10, // Default age based on preschool range
-            subject: 'General Education',
-            difficulty: 'beginner', // More appropriate for preschool level
-            childrenCount: children.length
-          },
-          requestedAt: new Date(),
+        const text = await generate({
+          question,
+          subject: 'General Education',
+          gradeLevel: children.length > 0 ? 8 : 10,
+          difficulty: 'easy',
         });
 
-        setResponse(aiResponse.content);
+        const content = typeof text === 'string' ? text : String(text ?? '');
+        setResponse(content);
         track('edudash.ai.homework_help_completed', {
           user_id: user?.id,
           question_length: question.length,
-          tokens_used: aiResponse.tokensUsed,
           success: true,
           duration_ms: Date.now() - start,
           source: 'parent_dashboard',
-          response_length: aiResponse.content.length,
+          response_length: content.length,
         });
       } catch (error) {
         Alert.alert(t('common.error'), t('ai.homework.error'));
         console.error('Homework help error:', error);
-      } finally {
-        setLoading(false);
       }
     };
   
@@ -397,15 +387,15 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             />
   
             <TouchableOpacity
-              style={[styles.submitButton, (!question.trim() || loading) && styles.disabledButton]}
+              style={[styles.submitButton, (!question.trim() || aiLoading) && styles.disabledButton]}
               onPress={handleSubmit}
-              disabled={!question.trim() || loading}
+              disabled={!question.trim() || aiLoading}
             >
               <LinearGradient
                 colors={loading ? ['#6B7280', '#9CA3AF'] : ['#00f5ff', '#0080ff']}
                 style={styles.submitGradient}
               >
-                {loading ? (
+                {aiLoading ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <Text style={styles.submitText}>{t('ai.homework.getHelp')}</Text>

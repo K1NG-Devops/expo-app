@@ -20,8 +20,8 @@ export function ThemedStackWrapper() {
       {/* Use translucent status bar and render our own underlay to control background */}
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View
-        pointerEvents="none"
         style={{
+          pointerEvents: 'none' as any,
           position: 'absolute',
           top: 0,
           left: 0,

@@ -26,9 +26,9 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 
-import { FinancialDataService } from '@/lib/services/finance/FinancialDataService';
+import { FinancialDataService } from '@/services/FinancialDataService';
 import { ExportService } from '@/lib/services/finance/ExportService';
-import type { TransactionRecord, DateRange } from '@/lib/services/finance/FinancialDataService';
+import type { TransactionRecord, DateRange } from '@/services/FinancialDataService';
 
 interface FilterOptions {
   type: 'all' | 'income' | 'expense';

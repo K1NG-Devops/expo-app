@@ -281,7 +281,7 @@ function PreviewBadge() {
   // Show only on native platforms for clarity
   if (Platform.OS === 'web') return null;
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={[styles.container, { pointerEvents: 'none' as any }]}>
       <Text style={styles.text}>Preview OTA test</Text>
     </View>
   );
@@ -396,7 +396,7 @@ function ThemedLockScreen({ onUnlock }: { onUnlock: () => void }) {
   });
   
   return (
-    <View style={styles.overlay} pointerEvents="auto">
+    <View style={[styles.overlay, { pointerEvents: 'auto' as any }]}>
       <StatusBar style={isDark ? "light" : "dark"} hidden />
       <View style={styles.card}>
         <View style={styles.iconContainer}>

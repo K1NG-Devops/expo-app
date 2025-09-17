@@ -26,10 +26,10 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 
-import { FinancialDataService } from '@/lib/services/finance/FinancialDataService';
+import { FinancialDataService } from '@/services/FinancialDataService';
 import { ChartDataService } from '@/lib/services/finance/ChartDataService';
 import { ExportService } from '@/lib/services/finance/ExportService';
-import type { FinanceOverviewData, TransactionRecord } from '@/lib/services/finance/FinancialDataService';
+import type { FinanceOverviewData, TransactionRecord } from '@/services/FinancialDataService';
 import type { ExportFormat } from '@/lib/services/finance/ExportService';
 
 const { width: screenWidth } = Dimensions.get('window');

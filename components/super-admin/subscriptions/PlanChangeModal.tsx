@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -158,7 +159,8 @@ export default function PlanChangeModal({
 
   const handlePlanSelect = (plan: SubscriptionPlan) => {
     const oldPlan = getCurrentPlan();
-    setSelectedPlanId(plan.tier || plan.id);
+    // Always store the plan UUID as the selected plan id for updates
+    setSelectedPlanId(plan.id);
     setSeatsTotal(String(plan.max_teachers || 1));
     
     // Track plan selection
@@ -170,7 +172,7 @@ export default function PlanChangeModal({
     });
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!subscription || !school) return;
     
     const currentPlan = getCurrentPlan();
@@ -181,7 +183,24 @@ export default function PlanChangeModal({
       return;
     }
 
-    // Show confirmation dialog
+    // On web, React Native Alert doesn't support multi-button confirm properly.
+    // Bypass the dialog and proceed directly.
+    if (Platform.OS === 'web') {
+      track('sa_subs_upgrade_confirmed', {
+        subscription_id: subscription.id,
+        target_plan: newPlan.tier || newPlan.id,
+        freq: billingFrequency,
+        seats: parseInt(seatsTotal) || 1,
+      });
+      if (isPaymentRequired()) {
+        await handlePaymentFlow();
+      } else {
+        await handleDirectUpdate();
+      }
+      return;
+    }
+
+    // Native: show confirmation dialog
     const currentPlanName = currentPlan.name;
     const newPlanName = newPlan.name;
     const paymentNote = isPaymentRequired() 
@@ -196,7 +215,7 @@ export default function PlanChangeModal({
         {
           text: 'Confirm',
           style: 'default',
-          onPress: () => {
+          onPress: async () => {
             track('sa_subs_upgrade_confirmed', {
               subscription_id: subscription.id,
               target_plan: newPlan.tier || newPlan.id,
@@ -205,9 +224,9 @@ export default function PlanChangeModal({
             });
             
             if (isPaymentRequired()) {
-              handlePaymentFlow();
+              await handlePaymentFlow();
             } else {
-              handleDirectUpdate();
+              await handleDirectUpdate();
             }
           }
         }

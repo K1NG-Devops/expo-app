@@ -9,8 +9,9 @@ import {
   TextInput,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Linking } from 'react-native';
@@ -18,6 +19,8 @@ import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useTheme } from '@/contexts/ThemeContext';
 import PlanChangeModal from '@/components/super-admin/subscriptions/PlanChangeModal';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { Ionicons } from '@expo/vector-icons';
 
 interface School {
   id: string;
@@ -418,14 +421,46 @@ export default function SuperAdminSubscriptionsScreen() {
       <Stack.Screen 
         options={{ 
           title: 'Manage Subscriptions',
-          headerBackVisible: false 
+          headerBackVisible: true,
+          headerShown: true,
+          headerStyle: { backgroundColor: '#0b1220' },
+          headerTitleStyle: { color: '#ffffff', fontWeight: '700' },
+          headerTintColor: '#00f5ff',
+          headerShadowVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  if (Platform.OS === 'web') {
+                    // Use browser history if available; otherwise fall back to dashboard
+                    // @ts-ignore
+                    if (typeof window !== 'undefined' && window.history && window.history.length > 1) {
+                      // @ts-ignore
+                      window.history.back();
+                      return;
+                    }
+                    router.replace('/screens/super-admin-dashboard' as any);
+                    return;
+                  }
+                  router.back();
+                } catch {
+                  router.replace('/screens/super-admin-dashboard' as any);
+                }
+              }}
+              accessibilityLabel="Go back"
+              style={{ paddingHorizontal: 8 }}
+            >
+              <Ionicons name="arrow-back" size={22} color="#00f5ff" />
+            </TouchableOpacity>
+          ),
         }} 
       />
-      <StatusBar style="light" />
-      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
+      <StatusBar style="light" backgroundColor="#0b1220" />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
         <ScrollView
           contentContainerStyle={styles.container}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}
+          style={{ backgroundColor: '#0b1220' }}
         >
           {/* Header Actions */}
           <View style={styles.headerActions}>
@@ -590,27 +625,16 @@ export default function SuperAdminSubscriptionsScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        {console.log('Modal rendering with showCreateModal:', showCreateModal)}
         <View style={styles.modalContainer}>
-          {/* Fixed Back Button */}
-          <View style={styles.modalHeader}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => {
-                console.log('Back button pressed, closing modal');
-                setShowCreateModal(false);
-              }}
-            >
-              <Text style={styles.backButtonText}>← Back</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Create New Subscription</Text>
-            <TouchableOpacity 
-              style={styles.closeButton}
-              onPress={() => setShowCreateModal(false)}
-            >
-              <Text style={styles.closeButtonText}>✕</Text>
-            </TouchableOpacity>
-          </View>
+          <ScreenHeader
+            title="Create Subscription"
+            onBackPress={() => setShowCreateModal(false)}
+            rightAction={
+              <TouchableOpacity onPress={() => setShowCreateModal(false)} accessibilityLabel="Close modal">
+                <Ionicons name="close" size={24} color={theme?.text || '#ffffff'} />
+              </TouchableOpacity>
+            }
+          />
 
           <ScrollView style={styles.modalContent} contentContainerStyle={{ paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
             {/* School Selection */}
