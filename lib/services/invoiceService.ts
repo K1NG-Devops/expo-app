@@ -33,6 +33,31 @@ export class InvoiceService {
   private static readonly supabase = assertSupabase();
 
   // ================================================
+  // Invoice Notification Helper
+  // ================================================
+
+  /**
+   * Helper to invoke the notifications-dispatcher edge function for invoice events
+   */
+  private static async notifyInvoiceEvent(
+    event: 'new_invoice' | 'invoice_sent' | 'overdue_reminder' | 'payment_confirmed' | 'invoice_viewed',
+    invoiceId: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase.functions.invoke('notifications-dispatcher', {
+        body: { event_type: event, invoice_id: invoiceId }
+      });
+      if (error) {
+        console.error('Failed to trigger invoice notification:', error);
+      }
+      track('edudash.invoice.notification_triggered', { invoice_id: invoiceId, event });
+    } catch (error) {
+      console.error('Error triggering invoice notification:', error);
+      // Don't throw here - notifications are optional and shouldn't break the main flow
+    }
+  }
+
+  // ================================================
   // Invoice CRUD Operations
   // ================================================
 
@@ -103,6 +128,9 @@ export class InvoiceService {
         has_student: !!data.student_id,
       });
 
+      // Trigger invoice notification
+      await this.notifyInvoiceEvent('new_invoice', invoice.id);
+
       return invoice;
     } catch (error) {
       const invoiceError: InvoiceError = {
@@ -163,6 +191,11 @@ export class InvoiceService {
         invoice_id: id,
         status: updateData.status,
       });
+
+      // Trigger overdue notification if status changed to overdue
+      if (updateData.status === 'overdue') {
+        await this.notifyInvoiceEvent('overdue_reminder', id);
+      }
 
       return invoice;
     } catch (error) {
@@ -312,6 +345,9 @@ export class InvoiceService {
         status: invoice.status,
       });
 
+      // Trigger invoice viewed notification
+      await this.notifyInvoiceEvent('invoice_viewed', id);
+
       return invoice;
     } catch (error) {
       const invoiceError: InvoiceError = {
@@ -444,6 +480,9 @@ export class InvoiceService {
         payment_amount: remainingAmount,
         payment_method: paymentMethod,
       });
+
+      // Trigger payment confirmation notification
+      await this.notifyInvoiceEvent('payment_confirmed', invoiceId);
     } catch (error) {
       const invoiceError: InvoiceError = {
         code: 'MARK_PAID_FAILED',
@@ -771,6 +810,9 @@ export class InvoiceService {
         invoice_id: invoiceId,
         recipient_provided: !!recipientEmail,
       });
+
+      // Trigger invoice sent notification
+      await this.notifyInvoiceEvent('invoice_sent', invoiceId);
     } catch (error) {
       const invoiceError: InvoiceError = {
         code: 'SEND_EMAIL_FAILED',
