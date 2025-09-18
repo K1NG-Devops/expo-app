@@ -1241,7 +1241,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme?.border || '#f3f4f6',
   },
   transactionLeft: {
     flexDirection: 'row',
@@ -1366,12 +1366,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   uploadReceiptText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: theme?.text || '#333',
     marginTop: 8,
   },
   uploadReceiptSubtext: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginTop: 4,
     textAlign: 'center',
   },

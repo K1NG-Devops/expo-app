@@ -661,17 +661,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
           
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => {
-              Alert.alert(
-                '🔐 Security & Access Control',
-                'Manage user permissions, access levels, and security settings for your school.\n\n• User role management\n• Access permissions\n• Security audit logs\n• Two-factor authentication',
-                [
-                  { text: 'Manage Users', onPress: () => router.push('/screens/teacher-management') },
-                  { text: 'School Settings', onPress: () => router.push('/screens/admin/school-settings') },
-                  { text: 'Later', style: 'cancel' },
-                ]
-              )
-            }}
+            onPress={() => router.push('/screens/teacher-management')}
           >
             <Ionicons name="shield-checkmark" size={24} color={theme.success} />
             <Text style={styles.actionText}>User Access</Text>
@@ -679,22 +669,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
           
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => {
-              Alert.alert(
-                '📥 Data Backup & Export',
-                'Backup and export your school data for safekeeping and compliance.\n\n• Export student records\n• Financial data backup\n• Attendance records\n• Academic reports\n\nChoose your backup option:',
-                [
-                  { 
-                    text: 'Export Data', 
-                    onPress: () => {
-                      Alert.alert('Export Started', 'Your data export has been queued. You will receive an email with the download link within 24 hours.');
-                    }
-                  },
-                  { text: 'Backup Settings', onPress: () => router.push('/screens/admin/school-settings') },
-                  { text: 'Cancel', style: 'cancel' },
-                ]
-              )
-            }}
+            onPress={() => router.push('/screens/admin/school-settings')}
           >
             <Ionicons name="cloud-upload" size={24} color={theme.accent} />
             <Text style={styles.actionText}>Export Data</Text>
@@ -1151,11 +1126,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   // Contact Admin Banner Styles
   contactAdminBanner: {
-    backgroundColor: '#059669' + '10',
+    backgroundColor: (theme.success || '#059669') + '10',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#059669' + '20',
+    borderColor: (theme.success || '#059669') + '20',
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1170,7 +1145,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#059669' + '15',
+    backgroundColor: (theme.success || '#059669') + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1186,7 +1161,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   contactAdminSubtitle: {
     fontSize: 14,
-    color: '#059669',
+    color: theme.success || '#059669',
     fontWeight: '500',
   },
   // AI Insights Banner Styles

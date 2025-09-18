@@ -25,6 +25,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface CashCount {
   denomination: number;
@@ -58,6 +59,8 @@ const CASH_DENOMINATIONS = [
 export default function PettyCashReconcileScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -131,7 +134,7 @@ export default function PettyCashReconcileScreen() {
         .eq('is_active', true)
         .single();
 
-      const openingBalance = account?.opening_balance || 5000;
+      const openingBalance = Number(account?.opening_balance || 0);
       const systemBalance = openingBalance + replenishments - expenses - adjustments;
 
       // Get last reconciliation
@@ -141,7 +144,7 @@ export default function PettyCashReconcileScreen() {
         .eq('preschool_id', userProfile.preschool_id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       setReconciliationData({
         systemBalance,
@@ -427,10 +430,10 @@ onPress={() => router.push('/screens/petty-cash')}
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.background || '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
@@ -440,7 +443,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: theme?.textSecondary || '#666',
   },
   header: {
     flexDirection: 'row',
@@ -448,24 +451,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.surface || '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme?.border || '#e1e5e9',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -474,7 +477,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 16,
   },
   balanceRow: {
@@ -487,7 +490,7 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 4,
   },
   systemBalance: {
@@ -502,7 +505,7 @@ const styles = StyleSheet.create({
   },
   varianceSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: theme?.border || '#f3f4f6',
     paddingTop: 16,
   },
   varianceHeader: {
@@ -517,17 +520,17 @@ const styles = StyleSheet.create({
   },
   varianceNote: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     textAlign: 'center',
     marginTop: 4,
   },
   countingCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -535,7 +538,7 @@ const styles = StyleSheet.create({
   },
   countingInstructions: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 16,
   },
   denominationRow: {
@@ -544,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme?.border || '#f3f4f6',
   },
   denominationChip: {
     paddingHorizontal: 12,
@@ -565,37 +568,38 @@ const styles = StyleSheet.create({
   },
   countInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 6,
     padding: 8,
     minWidth: 50,
     textAlign: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
+    color: theme?.inputText || '#333',
   },
   multiplySign: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginHorizontal: 8,
   },
   denominationValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme?.text || '#333',
     flex: 1,
   },
   lineTotal: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     minWidth: 80,
     textAlign: 'right',
   },
   notesCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -603,29 +607,30 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
+    color: theme?.inputText || '#333',
     textAlignVertical: 'top',
   },
   infoCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
     borderRadius: 12,
     padding: 16,
   },
   infoTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   actionsSection: {
     margin: 16,
@@ -643,7 +648,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   cancelButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme?.surfaceVariant || '#f3f4f6',
   },
   actionButtonText: {
     fontSize: 16,

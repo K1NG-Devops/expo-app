@@ -2,10 +2,13 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { EnhancedPrincipalDashboard } from '@/components/dashboard/EnhancedPrincipalDashboard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 
 export default function PrincipalDashboardScreen() {
   const { profile, profileLoading, loading } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   // Handle both organization_id (new RBAC) and preschool_id (legacy) fields
   const orgId = profile?.organization_id || (profile as any)?.preschool_id;
@@ -56,7 +59,7 @@ export default function PrincipalDashboardScreen() {
   return <EnhancedPrincipalDashboard />;
 }
 
-const styles = StyleSheet.create({
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1220' },
-  text: { color: '#E5E7EB' },
+const createStyles = (theme: any) => StyleSheet.create({
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme?.background || '#0b1220' },
+  text: { color: theme?.text || '#E5E7EB' },
 });
