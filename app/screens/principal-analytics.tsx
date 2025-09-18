@@ -21,13 +21,23 @@ import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 export default function PrincipalAnalyticsScreen() {
   useTranslation(); // For future internationalization
+  const { theme } = useTheme();
+  const { profile } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'financial' | 'teachers'>('overview');
+  
+  // Check if user has premium analytics access
+  const hasAdvancedAnalytics = profile?.subscription_tier === 'enterprise' || profile?.subscription_tier === 'pro' || profile?.role === 'superadmin';
+  
+  // Create theme-aware styles
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   // Refresh function for analytics data
   const handleRefresh = async () => {
@@ -58,14 +68,22 @@ export default function PrincipalAnalyticsScreen() {
       color: '#10B981',
       description: 'Academic performance analytics and predictions',
       onPress: () => {
-        Alert.alert(
-          'Student Performance Analytics',
-          'Comprehensive student performance insights:\n\n• Grade trends and predictions\n• Subject-wise performance analysis\n• Attendance correlation with grades\n• Early intervention recommendations\n• Parent engagement impact\n\nUpgrade to Enterprise for advanced analytics!',
-          [
-            { text: 'Upgrade Now', onPress: () => router.push('/pricing' as any) },
-            { text: 'Close', style: 'cancel' },
-          ]
-        );
+        if (hasAdvancedAnalytics) {
+          Alert.alert(
+            'Student Performance Analytics',
+            'Detailed performance insights:\n\n📊 Current Statistics:\n• Overall Grade Average: 85.4%\n• Top Performing Subject: Mathematics (92%)\n• Improvement Needed: Science (78%)\n• Attendance Impact: +12% on grades\n\n🔍 Key Insights:\n• 23 students showing improvement\n• Early intervention needed for 5 students\n• Parent engagement correlates +15% with grades',
+            [{ text: 'View Detailed Report', onPress: () => router.push('/screens/ai-progress-analysis' as any) }, { text: 'Close', style: 'cancel' }]
+          );
+        } else {
+          Alert.alert(
+            'Student Performance Analytics',
+            'Comprehensive student performance insights:\n\n• Grade trends and predictions\n• Subject-wise performance analysis\n• Attendance correlation with grades\n• Early intervention recommendations\n• Parent engagement impact\n\nUpgrade to Enterprise for advanced analytics!',
+            [
+              { text: 'Upgrade Now', onPress: () => router.push('/pricing' as any) },
+              { text: 'Close', style: 'cancel' },
+            ]
+          );
+        }
       },
     },
     {
@@ -162,12 +180,12 @@ export default function PrincipalAnalyticsScreen() {
       <Stack.Screen
         options={{
           title: 'Analytics Dashboard',
-          headerStyle: { backgroundColor: '#4F46E5' },
-          headerTitleStyle: { color: '#ffffff' },
-          headerTintColor: '#ffffff',
+          headerStyle: { backgroundColor: theme.primary },
+          headerTitleStyle: { color: theme.onPrimary },
+          headerTintColor: theme.onPrimary,
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="chevron-back" size={24} color="#ffffff" />
+              <Ionicons name="chevron-back" size={24} color={theme.onPrimary} />
             </TouchableOpacity>
           ),
         }}
@@ -180,7 +198,7 @@ export default function PrincipalAnalyticsScreen() {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefreshHandler}
-            tintColor="#4F46E5"
+            tintColor={theme.primary}
             title="Refreshing analytics..."
           />
         }
@@ -193,13 +211,21 @@ export default function PrincipalAnalyticsScreen() {
               Data-driven insights for better decision making
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.upgradeButton}
-            onPress={() => router.push('/pricing' as any)}
-          >
-            <Ionicons name="sparkles" size={16} color="#8B5CF6" />
-            <Text style={styles.upgradeButtonText}>Upgrade for Full Analytics</Text>
-          </TouchableOpacity>
+          {!hasAdvancedAnalytics && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              onPress={() => router.push('/pricing' as any)}
+            >
+              <Ionicons name="sparkles" size={16} color={theme.accent || '#8B5CF6'} />
+              <Text style={styles.upgradeButtonText}>Upgrade for Full Analytics</Text>
+            </TouchableOpacity>
+          )}
+          {hasAdvancedAnalytics && (
+            <View style={styles.premiumBadge}>
+              <Ionicons name="diamond" size={16} color="#8B5CF6" />
+              <Text style={styles.premiumBadgeText}>Premium Analytics</Text>
+            </View>
+          )}
         </View>
 
         {/* Period Selector */}
@@ -298,10 +324,18 @@ export default function PrincipalAnalyticsScreen() {
                   <View style={[styles.analyticsIcon, { backgroundColor: card.color + '15' }]}>
                     <Ionicons name={card.icon as any} size={24} color={card.color} />
                   </View>
-                  <View style={styles.upgradeIndicator}>
-                    <Ionicons name="diamond" size={12} color="#8B5CF6" />
-                    <Text style={styles.upgradeText}>PRO</Text>
-                  </View>
+                  {!hasAdvancedAnalytics && (
+                    <View style={styles.upgradeIndicator}>
+                      <Ionicons name="diamond" size={12} color="#8B5CF6" />
+                      <Text style={styles.upgradeText}>PRO</Text>
+                    </View>
+                  )}
+                  {hasAdvancedAnalytics && (
+                    <View style={styles.activeIndicator}>
+                      <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                      <Text style={styles.activeText}>ACTIVE</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.analyticsCardTitle}>{card.title}</Text>
                 <Text style={styles.analyticsCardDescription}>{card.description}</Text>
@@ -348,10 +382,10 @@ export default function PrincipalAnalyticsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.background,
   },
   backButton: {
     padding: 8,
@@ -361,10 +395,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.cardBackground,
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.border,
   },
   headerContent: {
     marginBottom: 16,
@@ -372,18 +406,18 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
     lineHeight: 24,
   },
   upgradeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -392,17 +426,17 @@ const styles = StyleSheet.create({
   upgradeButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8B5CF6',
+    color: theme.accent || '#8B5CF6',
     marginLeft: 8,
   },
   section: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.cardBackground,
     marginTop: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 16,
@@ -416,19 +450,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.surface,
     marginRight: 12,
   },
   periodButtonActive: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
   },
   periodButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   periodButtonTextActive: {
-    color: '#ffffff',
+    color: theme.onPrimary,
   },
   tabBar: {
     flexDirection: 'row',
@@ -444,16 +478,16 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   tabActive: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: theme.primaryLight + '20',
   },
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginLeft: 8,
   },
   tabTextActive: {
-    color: '#4F46E5',
+    color: theme.primary,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -463,22 +497,22 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: (width - 64) / 2,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     margin: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   statLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   statValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 8,
   },
   statTrend: {
@@ -495,13 +529,13 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   analyticsCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     marginHorizontal: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   analyticsCardHeader: {
     flexDirection: 'row',
@@ -519,7 +553,7 @@ const styles = StyleSheet.create({
   upgradeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3E8FF',
+    backgroundColor: (theme.accent || '#8B5CF6') + '20',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -527,18 +561,18 @@ const styles = StyleSheet.create({
   upgradeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#8B5CF6',
+    color: theme.accent || '#8B5CF6',
     marginLeft: 4,
   },
   analyticsCardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 8,
   },
   analyticsCardDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -550,16 +584,16 @@ const styles = StyleSheet.create({
   analyticsCardAction: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4F46E5',
+    color: theme.primary,
   },
   aiInsightsCard: {
-    backgroundColor: 'rgba(139, 92, 246, 0.05)',
+    backgroundColor: (theme.accent || '#8B5CF6') + '10',
     borderRadius: 16,
     padding: 20,
     marginHorizontal: 24,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.2)',
+    borderColor: (theme.accent || '#8B5CF6') + '30',
   },
   aiInsightsHeader: {
     flexDirection: 'row',
@@ -569,7 +603,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    backgroundColor: (theme.accent || '#8B5CF6') + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -580,12 +614,40 @@ const styles = StyleSheet.create({
   aiInsightsTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 4,
   },
   aiInsightsSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     lineHeight: 20,
+  },
+  premiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8B5CF6' + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+  },
+  premiumBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8B5CF6',
+  },
+  activeIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10B981' + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  activeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#10B981',
   },
 });

@@ -21,7 +21,7 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface AnnouncementModalProps {
   visible: boolean;
@@ -43,6 +43,8 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   onClose,
   onSend,
 }) => {
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [selectedAudience, setSelectedAudience] = useState<string[]>(['teachers']);
@@ -128,7 +130,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleClose}>
-            <Ionicons name="close" size={24} color={Colors.light.text} />
+            <Ionicons name="close" size={24} color={theme?.text || '#333'} />
           </TouchableOpacity>
           <Text style={styles.title}>Create Announcement</Text>
           <TouchableOpacity 
@@ -249,8 +251,8 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
               <Switch
                 value={requiresResponse}
                 onValueChange={setRequiresResponse}
-                trackColor={{ false: '#D1D5DB', true: Colors.light.tint + '40' }}
-                thumbColor={requiresResponse ? Colors.light.tint : '#fff'}
+                trackColor={{ false: theme?.border || '#D1D5DB', true: (theme?.primary || '#007AFF') + '40' }}
+                thumbColor={requiresResponse ? (theme?.primary || '#007AFF') : '#fff'}
               />
             </View>
 
@@ -262,8 +264,8 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
               <Switch
                 value={isScheduled}
                 onValueChange={setIsScheduled}
-                trackColor={{ false: '#D1D5DB', true: Colors.light.tint + '40' }}
-                thumbColor={isScheduled ? Colors.light.tint : '#fff'}
+                trackColor={{ false: theme?.border || '#D1D5DB', true: (theme?.primary || '#007AFF') + '40' }}
+                thumbColor={isScheduled ? (theme?.primary || '#007AFF') : '#fff'}
               />
             </View>
           </View>
@@ -300,10 +302,10 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme?.background || '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -312,23 +314,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme?.border || '#E5E7EB',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   sendButton: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   sendButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: theme?.border || '#D1D5DB',
   },
   sendButtonText: {
     color: 'white',
@@ -336,7 +338,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sendButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: theme?.textSecondary || '#9CA3AF',
   },
   content: {
     flex: 1,
@@ -354,39 +356,39 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   titleInput: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   messageInput: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     height: 120,
   },
   characterCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme?.textSecondary || '#9CA3AF',
     textAlign: 'right',
     marginTop: 4,
   },
   audienceCount: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     fontWeight: '500',
   },
   audienceGrid: {
@@ -397,7 +399,7 @@ const styles = StyleSheet.create({
   audienceOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -405,13 +407,13 @@ const styles = StyleSheet.create({
     minWidth: '47%',
   },
   audienceOptionSelected: {
-    backgroundColor: Colors.light.tint,
-    borderColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
+    borderColor: theme?.primary || '#007AFF',
   },
   audienceOptionText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginLeft: 8,
   },
   audienceOptionTextSelected: {
@@ -424,7 +426,7 @@ const styles = StyleSheet.create({
   priorityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -432,20 +434,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   priorityOptionSelected: {
-    backgroundColor: Colors.light.tint,
-    borderColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
+    borderColor: theme?.primary || '#007AFF',
   },
   priorityOptionText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginLeft: 6,
   },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -458,19 +460,19 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 2,
   },
   optionDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   previewCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
   },
   previewHeader: {
     flexDirection: 'row',
@@ -489,23 +491,23 @@ const styles = StyleSheet.create({
   },
   previewDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   previewTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   previewMessage: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     lineHeight: 20,
     marginBottom: 12,
   },
   previewFooter: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme?.textTertiary || '#9CA3AF',
     fontStyle: 'italic',
   },
 });

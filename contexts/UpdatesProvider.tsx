@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import * as Updates from 'expo-updates';
-import { Platform, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import { trackOTAUpdateCheck, trackOTAUpdateFetch, trackOTAUpdateApply, trackOTAError } from '@/lib/otaObservability';
 
 // Types for update state
@@ -45,6 +45,8 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       console.log('[Updates] Updates are disabled - skipping check');
       return;
     }
+    
+    console.log('[Updates] Manual update check initiated');
 
     try {
       updateState({ isDownloading: true, updateError: null });
@@ -176,11 +178,16 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       return;
     }
 
-    // Skip automatic background checks in development to avoid errors
-    if (__DEV__) {
+    // Skip automatic background checks in development (but allow preview/production)
+    const environment = process.env.EXPO_PUBLIC_ENVIRONMENT;
+    const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
+    
+    if (__DEV__ && environment === 'development' && !enableOTAUpdates) {
       console.log('[Updates] Skipping automatic background checks in development');
       return;
     }
+    
+    console.log(`[Updates] Environment: ${environment}, OTA enabled: ${enableOTAUpdates}, DEV: ${__DEV__}`);
 
     // Initial background check (only in production)
     backgroundCheck();

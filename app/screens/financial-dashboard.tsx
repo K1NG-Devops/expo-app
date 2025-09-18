@@ -24,6 +24,7 @@ import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 
 import { FinancialDataService } from '@/services/FinancialDataService';
@@ -37,6 +38,8 @@ const chartWidth = screenWidth - 32;
 
 export default function FinanceDashboard() {
   const { profile } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [overview, setOverview] = useState<FinanceOverviewData | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -57,8 +60,14 @@ export default function FinanceDashboard() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
+      const preschoolId = profile?.preschool?.id;
+      if (!preschoolId) {
+        Alert.alert('Error', 'No preschool associated with your account');
+        return;
+      }
+
       // Load financial overview
-      const overviewData = await FinancialDataService.getOverview();
+      const overviewData = await FinancialDataService.getOverview(preschoolId);
       setOverview(overviewData);
 
       // Load recent transactions (last 30 days)
@@ -68,7 +77,7 @@ export default function FinanceDashboard() {
       const transactionData = await FinancialDataService.getTransactions({
         from: thirtyDaysAgo.toISOString(),
         to: new Date().toISOString(),
-      });
+      }, preschoolId);
       setTransactions(transactionData);
 
     } catch (error) {
@@ -201,7 +210,7 @@ export default function FinanceDashboard() {
           <Ionicons 
             name={icon as any} 
             size={16} 
-            color={activeChart === key ? Colors.light.tint : Colors.light.tabIconDefault} 
+            color={activeChart === key ? (theme?.primary || Colors.light.tint) : (theme?.textSecondary || Colors.light.tabIconDefault)} 
           />
           <Text 
             style={[
@@ -224,7 +233,7 @@ export default function FinanceDashboard() {
           style={styles.exportButton}
           onPress={() => handleExport('csv')}
         >
-          <Ionicons name="document-text" size={20} color={Colors.light.tint} />
+          <Ionicons name="document-text" size={20} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.exportButtonText}>CSV</Text>
         </TouchableOpacity>
         
@@ -232,7 +241,7 @@ export default function FinanceDashboard() {
           style={styles.exportButton}
           onPress={() => handleExport('excel')}
         >
-          <Ionicons name="grid" size={20} color={Colors.light.tint} />
+          <Ionicons name="grid" size={20} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.exportButtonText}>Excel</Text>
         </TouchableOpacity>
         
@@ -240,7 +249,7 @@ export default function FinanceDashboard() {
           style={styles.exportButton}
           onPress={() => handleExport('pdf')}
         >
-          <Ionicons name="document" size={20} color={Colors.light.tint} />
+          <Ionicons name="document" size={20} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.exportButtonText}>PDF</Text>
         </TouchableOpacity>
       </View>
@@ -255,7 +264,7 @@ export default function FinanceDashboard() {
           style={styles.actionButton}
           onPress={() => router.push('/screens/financial-transactions')}
         >
-          <Ionicons name="list" size={24} color={Colors.light.tint} />
+          <Ionicons name="list" size={24} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.actionText}>View Transactions</Text>
         </TouchableOpacity>
         
@@ -263,7 +272,7 @@ export default function FinanceDashboard() {
           style={styles.actionButton}
           onPress={() => router.push('/screens/financial-reports')}
         >
-          <Ionicons name="analytics" size={24} color={Colors.light.tint} />
+          <Ionicons name="analytics" size={24} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.actionText}>Detailed Reports</Text>
         </TouchableOpacity>
       </View>
@@ -273,7 +282,7 @@ export default function FinanceDashboard() {
   if (!canAccessFinances()) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color={Colors.light.tabIconDefault} />
+        <Ionicons name="lock-closed" size={64} color={theme?.textSecondary || Colors.light.tabIconDefault} />
         <Text style={styles.accessDeniedTitle}>Access Denied</Text>
         <Text style={styles.accessDeniedText}>
           Only school principals can access the financial dashboard.
@@ -299,11 +308,11 @@ export default function FinanceDashboard() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
+          <Ionicons name="arrow-back" size={24} color={theme?.text || Colors.light.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Finance Dashboard</Text>
         <TouchableOpacity onPress={() => loadDashboardData(true)}>
-          <Ionicons name="refresh" size={24} color={Colors.light.text} />
+          <Ionicons name="refresh" size={24} color={theme?.text || Colors.light.text} />
         </TouchableOpacity>
       </View>
 
@@ -364,10 +373,10 @@ export default function FinanceDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -376,14 +385,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: theme?.border || '#e2e8f0',
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || Colors.light.text,
   },
   content: {
     flex: 1,
@@ -395,10 +404,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   metricCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -411,7 +420,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || Colors.light.tabIconDefault,
     marginLeft: 8,
   },
   cardValue: {
@@ -421,15 +430,15 @@ const styles = StyleSheet.create({
   },
   cardSubtitle: {
     fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || Colors.light.tabIconDefault,
   },
   chartContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     margin: 16,
     marginTop: 0,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -438,7 +447,7 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || Colors.light.text,
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -448,11 +457,11 @@ const styles = StyleSheet.create({
   },
   chartSelector: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     margin: 16,
     borderRadius: 8,
     padding: 4,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -468,14 +477,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   chartTabActive: {
-    backgroundColor: Colors.light.tint + '20',
+    backgroundColor: (theme?.primary || Colors.light.tint) + '20',
   },
   chartTabText: {
     fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || Colors.light.tabIconDefault,
   },
   chartTabTextActive: {
-    color: Colors.light.tint,
+    color: theme?.primary || Colors.light.tint,
     fontWeight: '600',
   },
   exportContainer: {

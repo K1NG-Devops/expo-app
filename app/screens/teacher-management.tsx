@@ -17,9 +17,9 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { assertSupabase } from '@/lib/supabase';
 import { TeacherInviteService } from '@/lib/services/teacherInviteService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
@@ -117,6 +117,8 @@ interface HiringCandidate {
 
 export default function TeacherManagement() {
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [invites, setInvites] = useState<Array<{ id: string; email: string; status: string; created_at: string }>>([]);
@@ -410,7 +412,7 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
           <Ionicons 
             name={getViewIcon(view) as any} 
             size={18} 
-            color={currentView === view ? Colors.light.tint : Colors.light.tabIconDefault} 
+            color={currentView === view ? (theme?.primary || '#007AFF') : (theme?.textSecondary || '#666')}
           />
           <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
             {view.charAt(0).toUpperCase() + view.slice(1)}
@@ -453,7 +455,7 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
+        <Ionicons name="chevron-forward" size={20} color={theme?.textSecondary || '#666'} />
       </View>
     </TouchableOpacity>
   );
@@ -532,7 +534,7 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
               <Ionicons 
                 name={getViewIcon(view) as any} 
                 size={18} 
-                color={currentView === view ? Colors.light.tint : Colors.light.tabIconDefault} 
+                color={currentView === view ? (theme?.primary || '#007AFF') : (theme?.textSecondary || '#666')}
               />
               <Text style={[styles.tabText, currentView === view && styles.activeTabText]}>
                 {view.charAt(0).toUpperCase() + view.slice(1)}
@@ -563,7 +565,7 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
               }
               ListEmptyComponent={
                 <View style={styles.emptyState}>
-                  <Ionicons name="people-outline" size={64} color={Colors.light.tabIconDefault} />
+                  <Ionicons name="people-outline" size={64} color={theme?.textSecondary || '#666'} />
                   <Text style={styles.emptyTitle}>No Teachers Yet</Text>
                   <Text style={styles.emptyText}>
                     Start building your teaching team by adding your first teacher.
@@ -826,19 +828,19 @@ style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   contentContainer: {
     flex: 1,
   },
   // Tab Navigation
   tabsContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme?.border || '#e5e7eb',
     paddingVertical: 8,
   },
   tabsContent: {
@@ -851,16 +853,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginRight: 8,
     borderRadius: 20,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme?.surfaceVariant || '#f9fafb',
   },
   activeTab: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
   },
   tabText: {
     marginLeft: 6,
     fontSize: 13,
     fontWeight: '600',
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
   },
   activeTabText: {
     color: 'white',
@@ -868,7 +870,7 @@ const styles = StyleSheet.create({
   // Section Containers
   sectionContainer: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   overviewContainer: {
     flex: 1,
@@ -876,19 +878,19 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingHorizontal: 20,
     paddingVertical: 20,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme?.border || '#f3f4f6',
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
   },
   // List Content
   listContent: {
@@ -900,23 +902,23 @@ const styles = StyleSheet.create({
   teacherCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: theme?.border || '#f3f4f6',
   },
   teacherAvatar: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -932,21 +934,21 @@ const styles = StyleSheet.create({
   teacherName: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginBottom: 4,
   },
   teacherClasses: {
     fontSize: 13,
-    color: '#9ca3af',
+    color: theme?.textTertiary || '#9ca3af',
   },
   teacherRole: {
     fontSize: 13,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginBottom: 2,
   },
   teacherStatus: {
@@ -973,19 +975,19 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 24,
   },
   emptyButton: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 12,
@@ -997,17 +999,17 @@ const styles = StyleSheet.create({
   },
   // Candidate Cards
   candidateCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: theme?.border || '#f3f4f6',
   },
   candidateHeader: {
     flexDirection: 'row',
@@ -1021,35 +1023,35 @@ const styles = StyleSheet.create({
   candidateName: {
     fontSize: 17,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   candidateEmail: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
   },
   candidatePosition: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   candidateDetails: {
     fontSize: 13,
-    color: '#9ca3af',
+    color: theme?.textTertiary || '#9ca3af',
   },
   // Performance Cards
   performanceCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: theme?.border || '#f3f4f6',
   },
   performanceHeader: {
     flexDirection: 'row',
@@ -1059,7 +1061,7 @@ const styles = StyleSheet.create({
   },
   ratingContainer: {
     alignItems: 'center',
-    backgroundColor: '#f0f9ff',
+    backgroundColor: theme?.primary + '10' || '#f0f9ff',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
@@ -1067,11 +1069,11 @@ const styles = StyleSheet.create({
   ratingScore: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.light.tint,
+    color: theme?.primary || '#007AFF',
   },
   ratingLabel: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginTop: -2,
   },
   // Floating Action Button
@@ -1082,10 +1084,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1096,7 +1098,7 @@ const styles = StyleSheet.create({
   },
   lastReview: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginBottom: 12,
   },
   strengthsContainer: {
@@ -1105,18 +1107,18 @@ const styles = StyleSheet.create({
   strengthsLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   strengthsText: {
     fontSize: 13,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     lineHeight: 18,
   },
   reviewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -1130,24 +1132,24 @@ const styles = StyleSheet.create({
   },
   // Payroll Cards
   payrollCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: theme?.border || '#f3f4f6',
   },
   payrollHeader: {
     marginBottom: 16,
   },
   payScale: {
     fontSize: 13,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginTop: 2,
   },
   salaryBreakdown: {
@@ -1160,36 +1162,36 @@ const styles = StyleSheet.create({
   },
   salaryLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
   },
   salaryAmount: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   deduction: {
-    color: '#dc2626',
+    color: theme?.error || '#dc2626',
   },
   netRow: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: theme?.border || '#f3f4f6',
     paddingTop: 8,
     marginTop: 4,
   },
   netLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   netAmount: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#059669',
+    color: theme?.success || '#059669',
   },
   payrollButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#059669',
+    backgroundColor: theme?.success || '#059669',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
@@ -1203,17 +1205,17 @@ const styles = StyleSheet.create({
   },
   // Document Cards
   documentCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 16,
     padding: 20,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: theme?.border || '#f3f4f6',
   },
   documentHeader: {
     flexDirection: 'row',
@@ -1223,21 +1225,21 @@ const styles = StyleSheet.create({
   },
   documentProgress: {
     fontSize: 13,
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginTop: 2,
   },
   progressCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#f0f9ff',
+    backgroundColor: theme?.primary + '10' || '#f0f9ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   progressText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.light.tint,
+    color: theme?.primary || '#007AFF',
   },
   documentGrid: {
     flexDirection: 'row',
@@ -1250,27 +1252,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme?.surfaceVariant || '#f9fafb',
     marginRight: 8,
     marginBottom: 8,
     minWidth: '45%',
     flex: 1,
   },
   docComplete: {
-    backgroundColor: '#d1fae5',
+    backgroundColor: theme?.success + '20' || '#d1fae5',
   },
   docText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
+    color: theme?.textSecondary || '#6b7280',
     marginLeft: 6,
   },
   btn: { alignItems: 'center', padding: 12, borderRadius: 12 },
-  btnPrimary: { backgroundColor: '#00f5ff' },
+  btnPrimary: { backgroundColor: theme?.primary || '#00f5ff' },
   btnPrimaryText: { color: '#000', fontWeight: '800' },
-  btnDanger: { backgroundColor: '#ff0080' },
+  btnDanger: { backgroundColor: theme?.error || '#ff0080' },
   btnDangerText: { color: '#000', fontWeight: '800' },
   docCompleteText: {
-    color: '#065f46',
+    color: theme?.success || '#065f46',
   },
 });

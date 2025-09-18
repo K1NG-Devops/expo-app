@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useThemedStyles } from '@/hooks/useThemedStyles';
+// import { useThemedStyles } from '@/hooks/useThemedStyles'; // TODO: Use for theme-aware styles
 import { Colors } from '@/constants/Colors';
 
 interface SchoolSettings {
@@ -188,6 +188,7 @@ export default function SchoolSettingsScreen() {
 
   useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const canAccessSettings = (): boolean => {

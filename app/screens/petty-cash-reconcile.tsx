@@ -26,6 +26,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { navigateBack } from '@/lib/navigation';
 
 interface CashCount {
   denomination: number;
@@ -221,7 +222,7 @@ export default function PettyCashReconcileScreen() {
         `Cash reconciliation has been recorded.\n\nVariance: ${formatCurrency(reconciliationData.variance)}`,
         [
 { text: 'View History', onPress: () => router.push('/screens/petty-cash') },
-          { text: 'Done', onPress: () => router.back() },
+          { text: 'Done', onPress: () => navigateBack('/screens/petty-cash') },
         ]
       );
 
@@ -241,9 +242,9 @@ export default function PettyCashReconcileScreen() {
   };
 
   const getVarianceColor = (variance: number) => {
-    if (variance === 0) return '#10B981'; // Perfect match
-    if (Math.abs(variance) <= 5) return '#F59E0B'; // Small variance
-    return '#EF4444'; // Large variance
+    if (variance === 0) return theme?.success || '#10B981'; // Perfect match
+    if (Math.abs(variance) <= 5) return theme?.warning || '#F59E0B'; // Small variance
+    return theme?.error || '#EF4444'; // Large variance
   };
 
   const getVarianceIcon = (variance: number) => {
@@ -265,7 +266,7 @@ export default function PettyCashReconcileScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="calculator-outline" size={48} color="#6B7280" />
+          <Ionicons name="calculator-outline" size={48} color={theme?.textSecondary || '#6B7280'} />
           <Text style={styles.loadingText}>Loading reconciliation data...</Text>
         </View>
       </SafeAreaView>
@@ -276,15 +277,15 @@ export default function PettyCashReconcileScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={() => navigateBack('/screens/petty-cash')}>
+          <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Cash Reconciliation</Text>
         <TouchableOpacity 
 onPress={() => router.push('/screens/petty-cash')}
           disabled={loading}
         >
-          <Ionicons name="time-outline" size={24} color="#007AFF" />
+          <Ionicons name="time-outline" size={24} color={theme?.primary || '#007AFF'} />
         </TouchableOpacity>
       </View>
 
@@ -415,10 +416,10 @@ onPress={() => router.push('/screens/petty-cash')}
 
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => router.back()}
+            onPress={() => navigateBack('/screens/petty-cash')}
           >
-            <Ionicons name="close-circle" size={20} color="#666" />
-            <Text style={[styles.actionButtonText, { color: '#666' }]}>
+            <Ionicons name="close-circle" size={20} color={theme?.textSecondary || '#666'} />
+            <Text style={[styles.actionButtonText, { color: theme?.textSecondary || '#666' }]}>
               Cancel
             </Text>
           </TouchableOpacity>
@@ -496,12 +497,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   systemBalance: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: theme?.primary || '#4F46E5',
   },
   physicalBalance: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#059669',
+    color: theme?.success || '#059669',
   },
   varianceSection: {
     borderTopWidth: 1,
@@ -645,7 +646,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 12,
   },
   reconcileButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: theme?.success || '#10B981',
   },
   cancelButton: {
     backgroundColor: theme?.surfaceVariant || '#f3f4f6',

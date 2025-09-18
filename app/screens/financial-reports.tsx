@@ -22,9 +22,10 @@ import {
 } from 'react-native';
 import { LineChart, PieChart, BarChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { navigateBack } from '@/lib/navigation';
 
 import { FinancialDataService } from '@/services/FinancialDataService';
 import { ChartDataService } from '@/lib/services/finance/ChartDataService';
@@ -39,6 +40,8 @@ type ReportType = 'overview' | 'trends' | 'categories' | 'comparison';
 
 export default function FinancialReportsScreen() {
   const { profile } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [overview, setOverview] = useState<FinanceOverviewData | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -229,7 +232,7 @@ export default function FinancialReportsScreen() {
           <Ionicons
             name={icon as any}
             size={16}
-            color={activeReport === key ? Colors.light.tint : Colors.light.tabIconDefault}
+            color={activeReport === key ? (theme?.primary || '#007AFF') : (theme?.textSecondary || '#666')}
           />
           <Text
             style={[
@@ -252,7 +255,7 @@ export default function FinancialReportsScreen() {
       <View style={styles.summaryCards}>
         <View style={[styles.summaryCard, { width: (screenWidth - 48) / 2 }]}>
           <Text style={styles.summaryCardTitle}>Total Income</Text>
-          <Text style={[styles.summaryCardValue, { color: '#059669' }]}>
+          <Text style={[styles.summaryCardValue, { color: theme?.success || '#059669' }]}>
             {formatCurrency(stats.totalIncome)}
           </Text>
           <Text style={styles.summaryCardSubtitle}>
@@ -262,7 +265,7 @@ export default function FinancialReportsScreen() {
 
         <View style={[styles.summaryCard, { width: (screenWidth - 48) / 2 }]}>
           <Text style={styles.summaryCardTitle}>Total Expenses</Text>
-          <Text style={[styles.summaryCardValue, { color: '#DC2626' }]}>
+          <Text style={[styles.summaryCardValue, { color: theme?.error || '#DC2626' }]}>
             {formatCurrency(stats.totalExpenses)}
           </Text>
           <Text style={styles.summaryCardSubtitle}>
@@ -274,7 +277,7 @@ export default function FinancialReportsScreen() {
           <Text style={styles.summaryCardTitle}>Net Cash Flow</Text>
           <Text style={[
             styles.summaryCardValue,
-            { color: stats.netCashFlow >= 0 ? '#059669' : '#DC2626' }
+            { color: stats.netCashFlow >= 0 ? (theme?.success || '#059669') : (theme?.error || '#DC2626') }
           ]}>
             {formatCurrency(stats.netCashFlow)}
           </Text>
@@ -285,7 +288,7 @@ export default function FinancialReportsScreen() {
 
         <View style={[styles.summaryCard, { width: (screenWidth - 48) / 2 }]}>
           <Text style={styles.summaryCardTitle}>Transactions</Text>
-          <Text style={[styles.summaryCardValue, { color: '#4F46E5' }]}>
+          <Text style={[styles.summaryCardValue, { color: theme?.primary || '#4F46E5' }]}>
             {stats.transactionCount}
           </Text>
           <Text style={styles.summaryCardSubtitle}>
@@ -368,12 +371,12 @@ export default function FinancialReportsScreen() {
   if (!canAccessFinances()) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color={Colors.light.tabIconDefault} />
+        <Ionicons name="lock-closed" size={64} color={theme?.textSecondary || '#666'} />
         <Text style={styles.accessDeniedTitle}>Access Denied</Text>
         <Text style={styles.accessDeniedText}>
           Only school principals can access financial reports.
         </Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigateBack()}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -384,12 +387,12 @@ export default function FinancialReportsScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
+        <TouchableOpacity onPress={() => navigateBack()}>
+          <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
         <Text style={styles.title}>Financial Reports</Text>
         <TouchableOpacity onPress={handleExportReport}>
-          <Ionicons name="download" size={24} color={Colors.light.text} />
+          <Ionicons name="download" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
       </View>
 
@@ -414,19 +417,19 @@ export default function FinancialReportsScreen() {
           <Text style={styles.insightsTitle}>Key Insights</Text>
           <View style={styles.insightsList}>
             <View style={styles.insightItem}>
-              <Ionicons name="trending-up" size={20} color="#059669" />
+              <Ionicons name="trending-up" size={20} color={theme?.success || '#059669'} />
               <Text style={styles.insightText}>
                 Revenue is {(overview?.keyMetrics?.cashFlow ?? 0) >= 0 ? 'exceeding' : 'below'} expenses this period
               </Text>
             </View>
             <View style={styles.insightItem}>
-              <Ionicons name="pie-chart" size={20} color="#4F46E5" />
+              <Ionicons name="pie-chart" size={20} color={theme?.primary || '#4F46E5'} />
               <Text style={styles.insightText}>
                 Largest expense category: {overview?.categoriesBreakdown[0]?.name || 'N/A'}
               </Text>
             </View>
             <View style={styles.insightItem}>
-              <Ionicons name="analytics" size={20} color="#EA580C" />
+              <Ionicons name="analytics" size={20} color={theme?.warning || '#EA580C'} />
               <Text style={styles.insightText}>
                 {transactions.length} transactions processed in selected period
               </Text>
@@ -438,10 +441,10 @@ export default function FinancialReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -450,25 +453,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: theme?.border || '#e2e8f0',
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   content: {
     flex: 1,
   },
   periodSelector: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     margin: 16,
     borderRadius: 8,
     padding: 4,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -481,24 +484,24 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   periodOptionActive: {
-    backgroundColor: Colors.light.tint + '20',
+    backgroundColor: (theme?.primary || '#007AFF') + '20',
   },
   periodOptionText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   periodOptionTextActive: {
-    color: Colors.light.tint,
+    color: theme?.primary || '#007AFF',
     fontWeight: '600',
   },
   reportTabs: {
     flexDirection: 'row',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     margin: 16,
     marginTop: 0,
     borderRadius: 8,
     padding: 4,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -514,14 +517,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reportTabActive: {
-    backgroundColor: Colors.light.tint + '20',
+    backgroundColor: (theme?.primary || '#007AFF') + '20',
   },
   reportTabText: {
     fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   reportTabTextActive: {
-    color: Colors.light.tint,
+    color: theme?.primary || '#007AFF',
     fontWeight: '600',
   },
   summaryCards: {
@@ -531,10 +534,10 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -542,7 +545,7 @@ const styles = StyleSheet.create({
   },
   summaryCardTitle: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
     marginBottom: 8,
   },
   summaryCardValue: {
@@ -552,15 +555,15 @@ const styles = StyleSheet.create({
   },
   summaryCardSubtitle: {
     fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   chartContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     margin: 16,
     marginTop: 0,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -569,7 +572,7 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 12,
     textAlign: 'center',
   },
@@ -578,12 +581,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   insightsContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     margin: 16,
     marginTop: 0,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -592,7 +595,7 @@ const styles = StyleSheet.create({
   insightsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 12,
   },
   insightsList: {
@@ -605,7 +608,7 @@ const styles = StyleSheet.create({
   },
   insightText: {
     fontSize: 14,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     flex: 1,
   },
   accessDenied: {
@@ -617,18 +620,18 @@ const styles = StyleSheet.create({
   accessDeniedTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginTop: 16,
     marginBottom: 8,
   },
   accessDeniedText: {
     fontSize: 16,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
     textAlign: 'center',
     marginBottom: 24,
   },
   backButton: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

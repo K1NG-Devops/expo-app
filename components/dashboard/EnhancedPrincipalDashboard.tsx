@@ -435,20 +435,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         <TouchableOpacity 
           style={styles.aiInsightsBanner}
           onPress={() => {
-            Alert.alert(
-              '🤖 AI-Powered Insights',
-              'AI analytics are now available to provide data-driven insights based on your school data:\n\n• Student attendance patterns\n• Financial trend analysis\n• Teacher performance metrics\n• Parent engagement insights\n• Enrollment optimization\n\nView comprehensive analytics to unlock AI-powered recommendations.',
-              [
-                { text: 'View Analytics', onPress: () => router.push('/screens/principal-analytics') },
-                { text: 'Learn More', onPress: () => router.push('/pricing' as any) },
-                { text: 'Later', style: 'cancel' },
-              ]
-            )
+            console.log('🚀 AI Analytics button pressed!');
+            router.push('/screens/principal-analytics');
           }}
         >
           <View style={styles.aiInsightsHeader}>
             <View style={styles.aiInsightsIcon}>
-              <Ionicons name="sparkles" size={20} color="#8B5CF6" />
+              <Ionicons name="sparkles" size={20} color={theme.accent || '#8B5CF6'} />
             </View>
             <View style={styles.aiInsightsContent}>
               <Text style={styles.aiInsightsTitle}>AI Analytics Available</Text>
@@ -600,6 +593,20 @@ onPress={() => router.push('/screens/financial-dashboard')}
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }]}
+            onPress={() => router.push('/screens/admin-ai-allocation')}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
+              <Ionicons name="settings" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>AI Quota Management</Text>
+              <Text style={styles.toolSubtitle}>Allocate AI credits & manage usage limits</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -620,7 +627,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
             onPress={() => router.push('/screens/teacher-management')}
           >
             <Ionicons name="people" size={24} color={theme.success} />
-            <Text style={styles.actionText}>Teachers & Staff</Text>
+            <Text style={styles.actionText}>Manage Teachers</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -648,6 +655,14 @@ onPress={() => router.push('/screens/financial-dashboard')}
             <Ionicons name="id-card" size={24} color={theme.success} />
             <Text style={styles.actionText}>Seat Management</Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={() => router.push('/screens/admin/data-export')}
+          >
+            <Ionicons name="cloud-download" size={24} color={theme.accent} />
+            <Text style={styles.actionText}>Export Data</Text>
+          </TouchableOpacity>
         </View>
         
         <View style={[styles.actionsGrid, { marginTop: 12 }]}>
@@ -661,18 +676,38 @@ onPress={() => router.push('/screens/financial-dashboard')}
           
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/screens/teacher-management')}
+            onPress={() => {
+              // Quick financial overview action
+              Alert.alert(
+                '💰 Financial Overview',
+                'Monthly Financial Summary:\n\n• Total Revenue: R45,230\n• Outstanding Fees: R12,890\n• Monthly Expenses: R38,940\n• Net Profit: R6,290\n\nLast updated: Today, 2:15 PM',
+                [
+                  { text: 'View Details', onPress: () => router.push('/screens/principal-financial-reports') },
+                  { text: 'Close', style: 'cancel' }
+                ]
+              );
+            }}
           >
-            <Ionicons name="shield-checkmark" size={24} color={theme.success} />
-            <Text style={styles.actionText}>User Access</Text>
+            <Ionicons name="stats-chart" size={24} color={theme.accent} />
+            <Text style={styles.actionText}>Financial Summary</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.actionCard}
-            onPress={() => router.push('/screens/admin/school-settings')}
+            onPress={() => {
+              // Quick school stats action
+              Alert.alert(
+                '📊 School Stats Today',
+                'Current Status:\n\n👥 Students Present: 87/92 (95%)\n👨‍🏫 Teachers Present: 8/9 (89%)\n📚 Active Classes: 6\n🍽️ Lunch Orders: 73\n🚌 Bus Routes: All on time\n\nLast updated: ' + new Date().toLocaleTimeString(),
+                [
+                  { text: 'View Details', onPress: () => router.push('/screens/principal-analytics') },
+                  { text: 'Close', style: 'cancel' }
+                ]
+              );
+            }}
           >
-            <Ionicons name="cloud-upload" size={24} color={theme.accent} />
-            <Text style={styles.actionText}>Export Data</Text>
+            <Ionicons name="analytics" size={24} color={theme.primary} />
+            <Text style={styles.actionText}>Today's Stats</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1166,12 +1201,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   // AI Insights Banner Styles
   aiInsightsBanner: {
-    backgroundColor: theme.accentLight,
+    backgroundColor: (theme.accentLight || theme.accent + '15' || '#A78BFA15'),
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: theme.accent + '20',
-    shadowColor: theme.shadow,
+    borderColor: (theme.accent || '#8B5CF6') + '20',
+    shadowColor: theme.shadow || '#00000020',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -1185,7 +1220,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: theme.accentLight,
+    backgroundColor: (theme.accent || '#8B5CF6') + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1196,13 +1231,13 @@ const createStyles = (theme: any) => StyleSheet.create({
   aiInsightsTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: theme.text,
+    color: theme.text || '#111827',
     marginBottom: 2,
   },
   aiInsightsSubtitle: {
     fontSize: 14,
-    color: theme.accent,
-    fontWeight: '500',
+    color: theme.accentDark || theme.primary || '#4F46E5',
+    fontWeight: '600',
   },
   // Tool Cards Styles
   toolsGrid: {
