@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface ProgressBarProps {
   progress: number; // 0 to 1
@@ -19,21 +20,25 @@ export interface ProgressBarProps {
 
 export function ProgressBar({
   progress,
-  color = '#007AFF',
-  backgroundColor = '#E5E5EA',
+  color,
+  backgroundColor,
   height = 4,
   style,
   animated = true,
   testID,
   ...props
 }: ProgressBarProps) {
+  const { theme } = useTheme();
   const progressPercent = Math.max(0, Math.min(1, progress)) * 100;
+  
+  const fillColor = color || theme.primary;
+  const trackColor = backgroundColor || theme.border;
   
   return (
     <View
       style={[
         styles.container,
-        { height, backgroundColor },
+        { height, backgroundColor: trackColor },
         style,
       ]}
       testID={testID}
@@ -50,7 +55,7 @@ export function ProgressBar({
           styles.fill,
           {
             width: `${progressPercent}%`,
-            backgroundColor: color,
+            backgroundColor: fillColor,
           },
         ]}
       />

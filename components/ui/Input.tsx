@@ -7,6 +7,7 @@
 import React from 'react';
 import { View, TextInput, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface InputProps {
   value: string;
@@ -50,13 +51,54 @@ export function Input({
   accessibilityHint,
   ...props
 }: InputProps) {
+  const { theme } = useTheme();
+  
+  const styles = StyleSheet.create({
+    container: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.inputBorder,
+      borderRadius: 10,
+      backgroundColor: theme.inputBackground,
+      minHeight: 44,
+    },
+    input: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: theme.inputText,
+    },
+    inputWithLeftIcon: {
+      paddingLeft: 8,
+    },
+    inputWithRightIcon: {
+      paddingRight: 8,
+    },
+    multilineInput: {
+      paddingTop: 12,
+      paddingBottom: 12,
+      textAlignVertical: 'top',
+    },
+    disabledInput: {
+      backgroundColor: theme.surfaceVariant,
+      color: theme.textDisabled,
+    },
+    leftIcon: {
+      marginLeft: 16,
+    },
+    rightIcon: {
+      marginRight: 16,
+    },
+  });
   return (
     <View style={[styles.container, style]}>
       {leftIcon && (
         <Ionicons
           name={leftIcon}
           size={20}
-          color="#6D6D80"
+          color={theme.textSecondary}
           style={styles.leftIcon}
         />
       )}
@@ -72,7 +114,7 @@ export function Input({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#C7C7CC"
+        placeholderTextColor={theme.inputPlaceholder}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
@@ -89,7 +131,7 @@ export function Input({
         <Ionicons
           name={rightIcon}
           size={20}
-          color="#6D6D80"
+          color={theme.textSecondary}
           style={styles.rightIcon}
           onPress={onRightIconPress}
         />
@@ -97,43 +139,3 @@ export function Input({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    minHeight: 44,
-  },
-  input: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#000000',
-  },
-  inputWithLeftIcon: {
-    paddingLeft: 8,
-  },
-  inputWithRightIcon: {
-    paddingRight: 8,
-  },
-  multilineInput: {
-    paddingTop: 12,
-    paddingBottom: 12,
-    textAlignVertical: 'top',
-  },
-  disabledInput: {
-    backgroundColor: '#F2F2F7',
-    color: '#6D6D80',
-  },
-  leftIcon: {
-    marginLeft: 16,
-  },
-  rightIcon: {
-    marginRight: 16,
-  },
-});

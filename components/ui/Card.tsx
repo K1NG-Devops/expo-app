@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface CardProps {
   children: React.ReactNode;
@@ -54,6 +55,17 @@ export function Card({
   testID,
   ...props
 }: CardProps) {
+  const { theme } = useTheme();
+  
+  const styles = StyleSheet.create({
+    base: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+  });
+  
   return (
     <View
       style={[
@@ -73,11 +85,3 @@ export function Card({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
-});

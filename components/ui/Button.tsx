@@ -8,6 +8,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, ViewStyle, ActivityIndicator, View } from 'react-native';
 import { Text } from './Text';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface ButtonProps {
   children: React.ReactNode;
@@ -21,26 +22,6 @@ export interface ButtonProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }
-
-const colors = {
-  primary: '#007AFF',
-  primaryPressed: '#0056CC',
-  secondary: '#5856D6',
-  secondaryPressed: '#4B44C4',
-  outline: '#007AFF',
-  outlinePressed: '#0056CC',
-  ghost: 'transparent',
-  ghostPressed: '#F2F2F7',
-  disabled: '#C7C7CC',
-  surface: '#FFFFFF',
-  text: {
-    primary: '#FFFFFF',
-    secondary: '#FFFFFF', 
-    outline: '#007AFF',
-    ghost: '#007AFF',
-    disabled: '#6D6D80',
-  },
-};
 
 const sizes = {
   small: {
@@ -76,38 +57,45 @@ export function Button({
   accessibilityHint,
   ...props
 }: ButtonProps) {
+  const { theme } = useTheme();
   const isDisabled = disabled || loading;
   
   const getBackgroundColor = (pressed: boolean) => {
-    if (isDisabled) return colors.disabled;
+    if (isDisabled) return theme.textDisabled;
     if (pressed) {
       switch (variant) {
-        case 'primary': return colors.primaryPressed;
-        case 'secondary': return colors.secondaryPressed;
-        case 'outline': return colors.outlinePressed;
-        case 'ghost': return colors.ghostPressed;
-        default: return colors.primaryPressed;
+        case 'primary': return theme.primaryDark;
+        case 'secondary': return theme.secondaryDark;
+        case 'outline': return theme.surfaceVariant;
+        case 'ghost': return theme.surfaceVariant;
+        default: return theme.primaryDark;
       }
     }
     switch (variant) {
-      case 'primary': return colors.primary;
-      case 'secondary': return colors.secondary;
+      case 'primary': return theme.primary;
+      case 'secondary': return theme.secondary;
       case 'outline': return 'transparent';
-      case 'ghost': return colors.ghost;
-      default: return colors.primary;
+      case 'ghost': return 'transparent';
+      default: return theme.primary;
     }
   };
   
   const getTextColor = () => {
-    if (isDisabled) return colors.text.disabled;
-    return colors.text[variant] || colors.text.primary;
+    if (isDisabled) return theme.textDisabled;
+    switch (variant) {
+      case 'primary': return theme.onPrimary;
+      case 'secondary': return theme.onSecondary;
+      case 'outline': return theme.primary;
+      case 'ghost': return theme.primary;
+      default: return theme.onPrimary;
+    }
   };
   
   const getBorderStyle = () => {
     if (variant === 'outline') {
       return {
         borderWidth: 1,
-        borderColor: isDisabled ? colors.disabled : colors.outline,
+        borderColor: isDisabled ? theme.textDisabled : theme.primary,
       };
     }
     return {};

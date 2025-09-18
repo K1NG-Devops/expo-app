@@ -543,7 +543,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
                   { text: 'Create Lessons with AI', onPress: () => router.push('/screens/ai-lesson-generator') },
                   { text: 'Later', style: 'cancel' },
                 ]
-              )
+              );
             }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#8B5CF6' }]}>
@@ -551,7 +551,21 @@ onPress={() => router.push('/screens/financial-dashboard')}
             </View>
             <View style={styles.toolContent}>
               <Text style={styles.toolTitle}>AI Insights</Text>
-              <Text style={styles.toolSubtitle}>Data-driven recommendations & analytics</Text>
+              <Text style={styles.toolSubtitle}>Smart analytics & recommendations</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.toolCard, { backgroundColor: '#10B981' + '10' }]}
+            onPress={() => router.push('/screens/whatsapp-demo')}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#10B981' }]}>
+              <Ionicons name="logo-whatsapp" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>WhatsApp Business</Text>
+              <Text style={styles.toolSubtitle}>Connect with parents via WhatsApp</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>

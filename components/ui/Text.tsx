@@ -7,26 +7,18 @@
 
 import React from 'react';
 import { Text as RNText, StyleSheet, TextStyle } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export interface TextProps {
   children: React.ReactNode;
   variant?: 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'callout' | 'caption1' | 'caption2' | 'footnote';
-  color?: 'primary' | 'secondary' | 'tertiary' | 'error' | 'success' | 'warning';
+  color?: 'primary' | 'secondary' | 'tertiary' | 'error' | 'success' | 'warning' | 'white';
   style?: TextStyle;
   numberOfLines?: number;
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
   testID?: string;
   accessibilityLabel?: string;
 }
-
-const colors = {
-  primary: '#000000',
-  secondary: '#6D6D80',
-  tertiary: '#C7C7CC',
-  error: '#FF3B30',
-  success: '#34C759',
-  warning: '#FF9500',
-};
 
 const typography = {
   title1: {
@@ -92,10 +84,33 @@ export function Text({
   accessibilityLabel,
   ...props
 }: TextProps) {
+  const { theme } = useTheme();
+  
+  const getTextColor = () => {
+    switch (color) {
+      case 'primary':
+        return theme.text;
+      case 'secondary':
+        return theme.textSecondary;
+      case 'tertiary':
+        return theme.textTertiary;
+      case 'error':
+        return theme.error;
+      case 'success':
+        return theme.success;
+      case 'warning':
+        return theme.warning;
+      case 'white':
+        return theme.onPrimary;
+      default:
+        return theme.text;
+    }
+  };
+  
   const textStyle = [
     styles.base,
     typography[variant],
-    { color: colors[color] },
+    { color: getTextColor() },
     style,
   ];
 

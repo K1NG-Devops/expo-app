@@ -20,6 +20,8 @@ import {
   RefreshControl,
   Pressable,
   Modal,
+  TextInput,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
@@ -43,41 +45,26 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { useAIAllocationManagement } from '@/lib/ai/hooks/useAIAllocation';
 import { useProfile } from '@/lib/auth/useProfile';
 import { formatDistanceToNow } from 'date-fns';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { TeacherAIAllocation } from '@/lib/ai/allocation';
-import type { AIQuotaFeature } from '@/lib/ai/limits';
 
-const colors = {
-  primary: '#007AFF',
-  secondary: '#5856D6',
-  success: '#34C759',
-  warning: '#FF9500',
-  error: '#FF3B30',
-  background: '#F2F2F7',
-  surface: '#FFFFFF',
-  border: '#E5E5EA',
-  text: {
-    primary: '#000000',
-    secondary: '#6D6D80',
-    tertiary: '#C7C7CC',
-  },
-};
+// Colors will be replaced with theme
 
 interface AllocationFormData {
-  teacherId: string;
-  teacherName: string;
-  quotas: Partial<Record<AIQuotaFeature, number>>;
+  teacher_id: string;
+  allocated_quotas: Record<string, number>;
+  priority_level: 'low' | 'normal' | 'high';
+  auto_renewal: boolean;
   reason: string;
-  priority: 'low' | 'normal' | 'high';
-  autoRenew: boolean;
 }
 
 export default function AllocationManagementScreen() {
+  const { theme } = useTheme();
   const { profile } = useProfile();
   const {
     schoolSubscription,
     teacherAllocations,
     canManageAllocations,
-    optimizationSuggestions,
     isLoading,
     errors,
     allocateQuotas,
@@ -102,17 +89,22 @@ export default function AllocationManagementScreen() {
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      refetch.schoolSubscription(),
-      refetch.teacherAllocations(),
-      refetch.suggestions(),
-    ]);
+      refetch.schoolSubscription?.(),
+      refetch.teacherAllocations?.(),
+    ].filter(Boolean));
     setRefreshing(false);
+  };
+
+  // Create base container style first for early returns
+  const baseContainerStyle = {
+    flex: 1,
+    backgroundColor: theme.background,
   };
 
   // Check permissions - Temporarily bypass for principals
   if (!canManageAllocations && !profile?.role?.includes('principal')) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={baseContainerStyle}>
         <EmptyState
           icon="lock-closed-outline"
           title="Access Restricted"
@@ -125,7 +117,7 @@ export default function AllocationManagementScreen() {
   // Loading state
   if (isLoading.schoolSubscription || isLoading.teacherAllocations) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={baseContainerStyle}>
         <LoadingState message="Loading allocation data..." />
       </SafeAreaView>
     );
@@ -140,7 +132,7 @@ export default function AllocationManagementScreen() {
     });
     
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={baseContainerStyle}>
         <EmptyState
           icon="alert-circle-outline"
           title="Failed to Load AI Data"
@@ -155,6 +147,229 @@ export default function AllocationManagementScreen() {
     );
   }
 
+  // Create styles with theme inside component scope
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    content: {
+      flex: 1,
+    },
+    header: {
+      padding: 16,
+      paddingBottom: 16,
+    },
+    title: {
+      marginBottom: 4,
+    },
+    fallbackCard: {
+      marginHorizontal: 16,
+      marginVertical: 20,
+      padding: 28,
+      alignItems: 'center',
+    },
+    fallbackHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    fallbackTitle: {
+      marginLeft: 12,
+    },
+    fallbackDescription: {
+      textAlign: 'center',
+      marginBottom: 20,
+      lineHeight: 20,
+    },
+    featureList: {
+      width: '100%',
+      marginBottom: 20,
+    },
+    featureItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingLeft: 8,
+    },
+    featureText: {
+      marginLeft: 8,
+      flex: 1,
+    },
+    comingSoonText: {
+      textAlign: 'center',
+      fontStyle: 'italic',
+    },
+    subscriptionCard: {
+      marginHorizontal: 16,
+      marginVertical: 16,
+      padding: 24,
+    },
+    subscriptionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    subscriptionTitle: {
+      flex: 1,
+    },
+    quotaOverview: {
+      marginBottom: 16,
+    },
+    quotaRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    progressBar: {
+      marginVertical: 8,
+    },
+    utilizationText: {
+      textAlign: 'center',
+    },
+    quotaDetails: {
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+      paddingTop: 12,
+    },
+    quotaDetailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    serviceName: {
+      flex: 1,
+    },
+    actionsContainer: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      marginBottom: 16,
+      gap: 12,
+    },
+    primaryAction: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    secondaryAction: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonIcon: {
+      marginRight: 8,
+    },
+    searchContainer: {
+      paddingHorizontal: 16,
+      marginBottom: 24,
+      marginTop: 12,
+    },
+    searchInput: {
+      backgroundColor: theme.surface,
+    },
+    listContainer: {
+      flex: 1,
+    },
+    sectionTitle: {
+      marginBottom: 16,
+      paddingHorizontal: 16,
+    },
+    listContent: {
+      paddingBottom: 32,
+      paddingTop: 12,
+    },
+    teacherCard: {
+      marginBottom: 48,
+      marginTop: 12,
+      marginHorizontal: 16,
+    },
+    teacherCardContent: {
+      padding: 24,
+    },
+    teacherHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 16,
+    },
+    teacherInfo: {
+      flex: 1,
+      marginRight: 12,
+    },
+    teacherName: {
+      marginBottom: 2,
+    },
+    teacherStatus: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    priorityBadge: {
+      marginLeft: 4,
+    },
+    usageOverview: {
+      marginBottom: 16,
+    },
+    usageLabel: {
+      marginBottom: 4,
+    },
+    usageProgress: {
+      marginVertical: 4,
+    },
+    allocationDetails: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 12,
+      gap: 16,
+    },
+    serviceRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      minWidth: 80,
+    },
+    serviceLabel: {
+      textTransform: 'capitalize',
+    },
+    serviceQuota: {
+      fontWeight: '500',
+    },
+    lastUpdated: {
+      marginTop: 8,
+      fontStyle: 'italic',
+    },
+    sectionSeparator: {
+      height: 1,
+      backgroundColor: theme.divider,
+      marginVertical: 24,
+      marginHorizontal: 16,
+      opacity: 0.5,
+    },
+    modalContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    modalContent: {
+      flex: 1,
+      padding: 16,
+    },
+    modalButton: {
+      marginTop: 16,
+    },
+  });
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -163,7 +378,7 @@ export default function AllocationManagementScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.primary}
+            tintColor={theme.primary}
           />
         }
       >
@@ -180,7 +395,7 @@ export default function AllocationManagementScreen() {
         {/* Fallback UI when APIs aren't available */}
         <Card style={styles.fallbackCard}>
           <View style={styles.fallbackHeader}>
-            <Ionicons name="construct" size={32} color={colors.warning} />
+            <Ionicons name="construct" size={32} color={theme.warning} />
             <Text variant="title2" style={styles.fallbackTitle}>
               AI Quota Management
             </Text>
@@ -192,19 +407,19 @@ export default function AllocationManagementScreen() {
           
           <View style={styles.featureList}>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
               <Text variant="caption1" style={styles.featureText}>Allocate AI credits to individual teachers</Text>
             </View>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
               <Text variant="caption1" style={styles.featureText}>Monitor usage across your school</Text>
             </View>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
               <Text variant="caption1" style={styles.featureText}>Set usage limits and priorities</Text>
             </View>
             <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
               <Text variant="caption1" style={styles.featureText}>View allocation history and analytics</Text>
             </View>
           </View>
@@ -216,7 +431,10 @@ export default function AllocationManagementScreen() {
 
         {/* School Subscription Overview */}
         {schoolSubscription && (
-          <SchoolSubscriptionCard subscription={schoolSubscription} />
+          <>
+            <SchoolSubscriptionCard subscription={schoolSubscription} theme={theme} styles={styles} />
+            <View style={styles.sectionSeparator} />
+          </>
         )}
 
         {/* Search */}
@@ -254,6 +472,8 @@ export default function AllocationManagementScreen() {
               renderItem={({ item }) => (
                 <TeacherAllocationCard
                   allocation={item}
+                  theme={theme}
+                  styles={styles}
                   onEdit={() => {
                     setSelectedTeacher(item);
                     setShowAllocationModal(true);
@@ -281,12 +501,12 @@ export default function AllocationManagementScreen() {
         onSubmit={async (formData) => {
           try {
             await allocateQuotas({
-              teacherId: formData.teacherId,
-              quotas: formData.quotas,
+              teacherId: formData.teacher_id,
+              quotas: formData.allocated_quotas,
               options: {
                 reason: formData.reason,
-                priority_level: formData.priority,
-                auto_renew: formData.autoRenew,
+                priority_level: formData.priority_level,
+                auto_renew: formData.auto_renewal,
               },
             });
             
@@ -295,13 +515,13 @@ export default function AllocationManagementScreen() {
             
             Alert.alert(
               'Success',
-              `AI quotas allocated to ${formData.teacherName}`,
+              `AI quotas allocated to ${selectedTeacher?.full_name || 'teacher'}`,
               [{ text: 'OK' }]
             );
           } catch (error) {
             Alert.alert(
               'Error',
-              error.message || 'Failed to allocate quotas',
+              error instanceof Error ? error.message : 'Failed to allocate quotas',
               [{ text: 'OK' }]
             );
           }
@@ -313,7 +533,7 @@ export default function AllocationManagementScreen() {
 }
 
 // School Subscription Card Component
-function SchoolSubscriptionCard({ subscription }: { subscription: any }) {
+function SchoolSubscriptionCard({ subscription, theme, styles }: { subscription: any; theme: any; styles: any }) {
   const totalAllocated = Object.values(subscription?.allocated_quotas || {}).reduce(
     (sum: number, quota: number) => sum + quota,
     0
@@ -330,8 +550,8 @@ function SchoolSubscriptionCard({ subscription }: { subscription: any }) {
         <Text variant="headline" style={styles.subscriptionTitle}>
           Subscription Overview
         </Text>
-        <Badge variant={subscription.subscription_tier === 'enterprise' ? 'success' : 'primary'}>
-          {subscription.subscription_tier.toUpperCase()}
+        <Badge variant={subscription?.subscription_tier === 'enterprise' ? 'success' : 'primary'}>
+          {subscription?.subscription_tier?.toUpperCase() || 'BASIC'}
         </Badge>
       </View>
 
@@ -347,7 +567,7 @@ function SchoolSubscriptionCard({ subscription }: { subscription: any }) {
         
         <ProgressBar
           progress={utilization / 100}
-          color={utilization > 90 ? colors.error : utilization > 70 ? colors.warning : colors.success}
+          color={utilization > 90 ? theme.error : utilization > 70 ? theme.warning : theme.success}
           style={styles.progressBar}
         />
         
@@ -380,9 +600,13 @@ function SchoolSubscriptionCard({ subscription }: { subscription: any }) {
 // Teacher Allocation Card Component
 function TeacherAllocationCard({
   allocation,
+  theme,
+  styles,
   onEdit,
 }: {
   allocation: TeacherAIAllocation;
+  theme: any;
+  styles: any;
   onEdit: () => void;
 }) {
   const totalAllocated = Object.values(allocation?.allocated_quotas || {}).reduce(
@@ -406,10 +630,10 @@ function TeacherAllocationCard({
         <View style={styles.teacherHeader}>
           <View style={styles.teacherInfo}>
             <Text variant="headline" style={styles.teacherName}>
-              {allocation.teacher_name}
+              {allocation.teacher_name || 'Unknown Teacher'}
             </Text>
             <Text variant="caption1" color="secondary">
-              {allocation.teacher_email}
+              {allocation.teacher_email || 'No email'}
             </Text>
           </View>
           
@@ -420,7 +644,7 @@ function TeacherAllocationCard({
             >
               {allocation.is_active ? 'Active' : 'Inactive'}
             </Badge>
-            {allocation.priority_level !== 'normal' && (
+            {allocation.priority_level !== 'normal' && allocation.priority_level && (
               <Badge
                 variant={allocation.priority_level === 'high' ? 'error' : 'warning'}
                 size="small"
@@ -438,7 +662,7 @@ function TeacherAllocationCard({
           </Text>
           <ProgressBar
             progress={utilization / 100}
-            color={utilization > 90 ? colors.error : utilization > 70 ? colors.warning : colors.success}
+            color={utilization > 90 ? theme.error : utilization > 70 ? theme.warning : theme.success}
             style={styles.usageProgress}
           />
           <Text variant="caption2" color="secondary">
@@ -469,21 +693,21 @@ function TeacherAllocationCard({
         </View>
 
         <Text variant="caption2" color="secondary" style={styles.lastUpdated}>
-          Updated {formatDistanceToNow(new Date(allocation.updated_at), { addSuffix: true })}
+          Updated {allocation.updated_at ? formatDistanceToNow(new Date(allocation.updated_at), { addSuffix: true }) : 'recently'}
         </Text>
       </Pressable>
     </Card>
   );
 }
 
-// Allocation Modal Component (simplified for brevity)
+// Allocation Modal Component
 function AllocationModal({
   visible,
   teacher,
-  // schoolSubscription, // TODO: Use for validation
+  schoolSubscription,
   onClose,
-  // onSubmit, // TODO: Implement form submission
-  // loading, // TODO: Show loading state during form submission
+  onSubmit,
+  loading,
 }: {
   visible: boolean;
   teacher?: TeacherAIAllocation | null;
@@ -492,36 +716,294 @@ function AllocationModal({
   onSubmit: (data: AllocationFormData) => void;
   loading: boolean;
 }) {
-  // This would contain the full allocation form
-  // For brevity, showing simplified structure
+  const { theme } = useTheme();
+  
+  // Form state
+  const [quotas, setQuotas] = useState<Record<string, number>>({
+    'chat_completions': teacher?.allocated_quotas?.['chat_completions'] || 0,
+    'image_generation': teacher?.allocated_quotas?.['image_generation'] || 0,
+    'text_to_speech': teacher?.allocated_quotas?.['text_to_speech'] || 0,
+    'speech_to_text': teacher?.allocated_quotas?.['speech_to_text'] || 0,
+  });
+  const [priorityLevel, setPriorityLevel] = useState<string>(teacher?.priority_level || 'normal');
+  const [autoRenewal, setAutoRenewal] = useState<boolean>(teacher?.auto_renewal || false);
+  const [reason, setReason] = useState<string>('');
+  
+  // Available services and their max allocations based on subscription
+  const availableServices = [
+    { key: 'chat_completions', label: 'Chat Completions', max: schoolSubscription?.ai_services_quota || 1000 },
+    { key: 'image_generation', label: 'Image Generation', max: schoolSubscription?.image_generation_quota || 100 },
+    { key: 'text_to_speech', label: 'Text to Speech', max: schoolSubscription?.tts_quota || 500 },
+    { key: 'speech_to_text', label: 'Speech to Text', max: schoolSubscription?.stt_quota || 500 },
+  ];
+  
+  const handleSubmit = () => {
+    const formData: AllocationFormData = {
+      teacherId: teacher?.teacher_id || '',
+      teacherName: teacher?.teacher_name || teacher?.full_name || '',
+      quotas,
+      priority: priorityLevel as 'low' | 'normal' | 'high',
+      autoRenew: autoRenewal,
+      reason,
+    };
+    
+    onSubmit(formData);
+  };
+  
+  const updateQuota = (service: string, value: number) => {
+    setQuotas(prev => ({ ...prev, [service]: Math.max(0, value) }));
+  };
+  
+  const modalStyles = StyleSheet.create({
+    modalContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    modalContent: {
+      flex: 1,
+      padding: 16,
+    },
+    scrollContent: {
+      flexGrow: 1,
+    },
+    teacherInfo: {
+      backgroundColor: theme.surface,
+      padding: 16,
+      borderRadius: 12,
+      marginBottom: 24,
+    },
+    sectionTitle: {
+      marginBottom: 16,
+      marginTop: 24,
+    },
+    serviceRow: {
+      marginBottom: 20,
+    },
+    serviceHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    quotaControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    quotaButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    quotaInput: {
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      padding: 12,
+      minWidth: 80,
+      textAlign: 'center',
+      marginHorizontal: 16,
+      color: theme.text,
+    },
+    priorityContainer: {
+      marginBottom: 24,
+    },
+    priorityOptions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginTop: 8,
+    },
+    priorityOption: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginHorizontal: 4,
+      alignItems: 'center',
+    },
+    priorityOptionSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    switchRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    reasonInput: {
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      padding: 12,
+      minHeight: 100,
+      textAlignVertical: 'top',
+      color: theme.text,
+      marginBottom: 24,
+    },
+    buttonContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+    },
+    button: {
+      flex: 1,
+    },
+  });
+  
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={styles.modalContainer}>
-        <View style={styles.modalHeader}>
+      <SafeAreaView style={modalStyles.modalContainer}>
+        <View style={modalStyles.modalHeader}>
           <Text variant="title2">
             {teacher ? 'Edit Allocation' : 'New Allocation'}
           </Text>
           <Pressable onPress={onClose} accessibilityLabel="Close modal">
-            <Ionicons name="close" size={24} color={colors.text.primary} />
+            <Ionicons name="close" size={24} color={theme.text} />
           </Pressable>
         </View>
         
-        <View style={styles.modalContent}>
-          <Text variant="body">
-            Allocation form would go here with inputs for:
-            - Teacher selection
-            - Quota amounts per service
-            - Priority level
-            - Auto-renewal settings
-            - Reason/justification
+        <ScrollView style={modalStyles.modalContent} contentContainerStyle={modalStyles.scrollContent}>
+          {teacher && (
+            <View style={modalStyles.teacherInfo}>
+              <Text variant="title3" style={{ marginBottom: 4 }}>
+                {teacher.teacher_name || teacher.full_name || 'Unknown Teacher'}
+              </Text>
+              <Text variant="caption1" color="secondary">
+                {teacher.teacher_email || teacher.email || 'No email'}
+              </Text>
+              <Text variant="caption2" color="secondary">
+                Current Status: {teacher.is_active ? 'Active' : 'Inactive'}
+              </Text>
+            </View>
+          )}
+          
+          <Text variant="title3" style={modalStyles.sectionTitle}>
+            Service Quotas
           </Text>
           
+          {availableServices.map(service => (
+            <View key={service.key} style={modalStyles.serviceRow}>
+              <View style={modalStyles.serviceHeader}>
+                <Text variant="body" style={{ fontWeight: '600' }}>
+                  {service.label}
+                </Text>
+                <Text variant="caption2" color="secondary">
+                  Max: {service.max}
+                </Text>
+              </View>
+              
+              <View style={modalStyles.quotaControls}>
+                <Pressable
+                  style={modalStyles.quotaButton}
+                  onPress={() => updateQuota(service.key, quotas[service.key] - 10)}
+                >
+                  <Ionicons name="remove" size={20} color="white" />
+                </Pressable>
+                
+                <TextInput
+                  style={modalStyles.quotaInput}
+                  value={quotas[service.key].toString()}
+                  onChangeText={(text) => {
+                    const value = parseInt(text) || 0;
+                    updateQuota(service.key, Math.min(value, service.max));
+                  }}
+                  keyboardType="numeric"
+                  selectTextOnFocus
+                />
+                
+                <Pressable
+                  style={modalStyles.quotaButton}
+                  onPress={() => updateQuota(service.key, Math.min(quotas[service.key] + 10, service.max))}
+                >
+                  <Ionicons name="add" size={20} color="white" />
+                </Pressable>
+              </View>
+            </View>
+          ))}
+          
+          <Text variant="title3" style={modalStyles.sectionTitle}>
+            Priority Level
+          </Text>
+          
+          <View style={modalStyles.priorityContainer}>
+            <View style={modalStyles.priorityOptions}>
+              {[{ key: 'low', label: 'Low' }, { key: 'normal', label: 'Normal' }, { key: 'high', label: 'High' }].map(priority => (
+                <Pressable
+                  key={priority.key}
+                  style={[
+                    modalStyles.priorityOption,
+                    priorityLevel === priority.key && modalStyles.priorityOptionSelected
+                  ]}
+                  onPress={() => setPriorityLevel(priority.key)}
+                >
+                  <Text
+                    variant="body"
+                    color={priorityLevel === priority.key ? 'white' : 'primary'}
+                    style={{ fontWeight: '600' }}
+                  >
+                    {priority.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          
+          <View style={modalStyles.switchRow}>
+            <Text variant="body" style={{ fontWeight: '600' }}>
+              Auto-Renewal
+            </Text>
+            <Switch
+              value={autoRenewal}
+              onValueChange={setAutoRenewal}
+              trackColor={{ false: theme.border, true: theme.primary }}
+            />
+          </View>
+          
+          <Text variant="title3" style={modalStyles.sectionTitle}>
+            Reason (Optional)
+          </Text>
+          
+          <TextInput
+            style={modalStyles.reasonInput}
+            value={reason}
+            onChangeText={setReason}
+            placeholder="Enter reason for this allocation..."
+            placeholderTextColor={theme.textSecondary}
+            multiline
+            numberOfLines={4}
+          />
+        </ScrollView>
+        
+        <View style={modalStyles.buttonContainer}>
           <Button
             onPress={onClose}
             variant="outline"
-            style={styles.modalButton}
+            style={modalStyles.button}
+            disabled={loading}
           >
             Cancel
+          </Button>
+          
+          <Button
+            onPress={handleSubmit}
+            style={modalStyles.button}
+            loading={loading}
+            disabled={loading}
+          >
+            {teacher ? 'Update Allocation' : 'Create Allocation'}
           </Button>
         </View>
       </SafeAreaView>
@@ -529,215 +1011,4 @@ function AllocationModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-  },
-  header: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  title: {
-    marginBottom: 4,
-  },
-  subscriptionCard: {
-    margin: 16,
-    padding: 16,
-  },
-  subscriptionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  subscriptionTitle: {
-    flex: 1,
-  },
-  quotaOverview: {
-    marginBottom: 16,
-  },
-  quotaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressBar: {
-    marginVertical: 8,
-  },
-  utilizationText: {
-    textAlign: 'center',
-  },
-  quotaDetails: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 12,
-  },
-  quotaDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  serviceName: {
-    flex: 1,
-  },
-  actionsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 12,
-  },
-  primaryAction: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryAction: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonIcon: {
-    marginRight: 8,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  searchInput: {
-    backgroundColor: colors.surface,
-  },
-  listContainer: {
-    paddingHorizontal: 16,
-    flex: 1,
-  },
-  sectionTitle: {
-    marginBottom: 12,
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
-  teacherCard: {
-    marginBottom: 12,
-  },
-  teacherCardContent: {
-    padding: 16,
-  },
-  teacherHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  teacherInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  teacherName: {
-    marginBottom: 2,
-  },
-  teacherStatus: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  priorityBadge: {
-    marginLeft: 4,
-  },
-  usageOverview: {
-    marginBottom: 12,
-  },
-  usageLabel: {
-    marginBottom: 4,
-  },
-  usageProgress: {
-    marginVertical: 4,
-  },
-  allocationDetails: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-    gap: 12,
-  },
-  serviceRow: {
-    minWidth: '30%',
-  },
-  serviceLabel: {
-    textTransform: 'capitalize',
-    marginBottom: 2,
-  },
-  serviceQuota: {
-    fontWeight: '600',
-  },
-  lastUpdated: {
-    textAlign: 'right',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  modalContent: {
-    flex: 1,
-    padding: 16,
-  },
-  modalButton: {
-    marginTop: 16,
-  },
-  // Fallback UI styles
-  fallbackCard: {
-    margin: 16,
-    padding: 20,
-  },
-  fallbackHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  fallbackTitle: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  fallbackDescription: {
-    marginBottom: 20,
-    lineHeight: 22,
-    color: colors.text.secondary,
-  },
-  featureList: {
-    marginBottom: 20,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  featureText: {
-    marginLeft: 12,
-    flex: 1,
-    lineHeight: 20,
-  },
-  comingSoonText: {
-    textAlign: 'center',
-    fontStyle: 'italic',
-    color: colors.text.tertiary,
-    backgroundColor: colors.warning + '20',
-    padding: 12,
-    borderRadius: 8,
-  },
-});
-
-export { AllocationManagementScreen };
 export default AllocationManagementScreen;
