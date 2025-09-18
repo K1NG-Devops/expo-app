@@ -75,7 +75,13 @@ export default function TransactionsScreen() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
-      const data = await FinancialDataService.getTransactions(filters.dateRange);
+      const preschoolId = profile?.preschool?.id;
+      if (!preschoolId) {
+        Alert.alert('Error', 'No preschool associated with your account');
+        return;
+      }
+
+      const data = await FinancialDataService.getTransactions(filters.dateRange, preschoolId);
       setTransactions(data);
 
     } catch (error) {

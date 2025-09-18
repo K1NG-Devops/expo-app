@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { Colors } from '@/constants/Colors';
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -41,7 +40,6 @@ import {
   isEnrolled,
 } from "@/lib/biometrics";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
-import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
 import { assertSupabase } from "@/lib/supabase";
 import { signOutAndRedirect } from "@/lib/authActions";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -65,23 +63,15 @@ export default function AccountScreen() {
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
-  const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(
-    null,
-  );
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-  const [showBackupSetup, setShowBackupSetup] = useState(false);
-  const [backupPin, setBackupPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
 
-  const styles = useThemedStyles((theme, isDark) => ({
+  const styles = useThemedStyles((theme) => ({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -443,15 +433,6 @@ export default function AccountScreen() {
         setBiometricSupported(securityInfo.capabilities.isAvailable);
         setBiometricEnrolled(securityInfo.capabilities.isEnrolled);
         setBiometricEnabled(securityInfo.isEnabled);
-        setBiometricTypes(securityInfo.availableTypes);
-        setBiometricLastUsed(securityInfo.lastUsed || null);
-
-        // Check for backup methods
-        const backupMethods =
-          await BiometricBackupManager.getAvailableFallbackMethods();
-        setHasBackupMethods(
-          backupMethods.hasPin || backupMethods.hasSecurityQuestions,
-        );
       } catch (error) {
         console.error("Error loading biometric info:", error);
         // Fallback to original method
@@ -717,7 +698,12 @@ export default function AccountScreen() {
     <View style={styles.container}>
       <RoleBasedHeader title={t('navigation.account')} showBackButton onBackPress={() => {
         // Prefer router back when available, fall back to navigation
-        try { require('expo-router').router.back(); } catch {}
+        try { 
+          require('expo-router').router.back(); 
+        } catch (error) {
+          // Fallback handled by router
+          console.log('Router back fallback', error);
+        }
       }} />
 
       <ScrollView

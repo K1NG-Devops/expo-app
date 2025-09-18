@@ -129,12 +129,13 @@ export function InvoiceFilters({
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
         break;
-      case 'this_week':
+      case 'this_week': {
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay());
         startDate = startOfWeek;
         endDate = new Date();
         break;
+      }
       case 'this_month':
         startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         endDate = new Date();
@@ -143,11 +144,12 @@ export function InvoiceFilters({
         startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
         endDate = new Date();
         break;
-      case 'this_quarter':
+      case 'this_quarter': {
         const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
         startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
         endDate = new Date();
         break;
+      }
       case 'this_year':
         startDate = new Date(now.getFullYear(), 0, 1);
         endDate = new Date();

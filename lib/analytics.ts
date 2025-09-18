@@ -25,7 +25,16 @@ export interface AnalyticsEvent {
   'edudash.dashboard.view': { role: string; features_enabled: string[] };
   'edudash.dashboard.refresh': { role: string; load_time_ms: number };
   
-  // AI events
+  // AI events - Comprehensive taxonomy as per WARP.md compliance
+  'edudash.ai.tool.opened': { tool_type: 'lesson_generator' | 'homework_helper' | 'grader' | 'progress_analysis' | 'insights'; source: string; user_role: string };
+  'edudash.ai.request.started': { service_type: 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'progress_analysis' | 'insights'; model: string; quota_remaining: number };
+  'edudash.ai.request.succeeded': { service_type: string; duration_ms: number; tokens_used: number; cost_cents: number };
+  'edudash.ai.request.failed': { service_type: string; error_code: string; duration_ms: number; retry_count: number };
+  'edudash.ai.quota.blocked': { service_type: string; quota_used: number; quota_limit: number; user_tier: string; upgrade_shown: boolean };
+  'edudash.ai.insights.viewed': { scope: 'teacher' | 'principal' | 'parent'; insights_count: number; generated_at: string; confidence_score?: number };
+  'edudash.ai.onboarding.shown': { feature: string; user_role: string; first_time_user: boolean };
+  'edudash.ai.upsell.shown': { trigger: string; current_tier: string; target_tier: string; quota_percentage: number };
+  // Legacy AI events - for backward compatibility
   'edudash.ai.lesson_generation_started': { subject: string; grade_level: string; duration_minutes: number };
   'edudash.ai.lesson_generation_completed': { success: boolean; duration_ms: number; model_used: string };
   'edudash.ai.homework_help_requested': { subject: string; attachment_count: number };

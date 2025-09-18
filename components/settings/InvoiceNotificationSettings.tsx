@@ -30,15 +30,12 @@ import {
 } from '@/lib/hooks/useProfileSettings';
 import { useTheme } from '@/contexts/ThemeContext';
 
-// Types
+// Types and labels
 import type {
   NotificationEvent,
   NotificationChannel,
-  NOTIFICATION_EVENT_LABELS,
-  NOTIFICATION_CHANNEL_LABELS,
 } from '@/lib/types/profile';
 
-// Import labels
 import {
   NOTIFICATION_EVENT_LABELS,
   NOTIFICATION_CHANNEL_LABELS,

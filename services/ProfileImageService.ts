@@ -189,6 +189,30 @@ class ProfileImageService {
   }
 
   /**
+   * Validate that a URL is safe for web display and not a local file URI
+   */
+  static isValidWebUrl(url: string): boolean {
+    if (!url) return false;
+    
+    // Allow data URIs and HTTP/HTTPS URLs
+    if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+      return true;
+    }
+    
+    // Reject local file URIs that cause security errors on web
+    if (url.startsWith('file:') || url.includes('/data/') || url.includes('/cache/') || url.includes('ImageManipulator')) {
+      return false;
+    }
+    
+    // Allow blob URLs (they work on web)
+    if (url.startsWith('blob:')) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
    * Convert local image URI to web-compatible data URI for preview
    * This fixes the 'Not allowed to load local resource' error on web
    */

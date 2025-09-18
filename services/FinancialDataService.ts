@@ -36,6 +36,21 @@ export interface MonthlyTrendData {
   netIncome: number;
 }
 
+export interface DateRange {
+  from: string; // ISO
+  to: string;   // ISO
+}
+
+export interface TransactionRecord {
+  id: string;
+  type: 'income' | 'expense';
+  category: string;
+  amount: number;
+  description: string;
+  date: string; // ISO
+  status: 'completed' | 'pending' | 'overdue' | 'approved' | 'rejected';
+}
+
 export class FinancialDataService {
   /**
    * Get financial metrics for a preschool
@@ -79,7 +94,7 @@ export class FinancialDataService {
       const { data: expenseTransactions, error: expenseError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount')
-        .eq('preschool_id', preschoolId)
+        .eq('school_id', preschoolId)
         .eq('type', 'expense')
         .in('status', ['approved', 'pending']) // Include pending for current spending
         .gte('created_at', monthStart)
@@ -158,7 +173,7 @@ export class FinancialDataService {
         const { data: monthlyExpenses } = await assertSupabase()
           .from('petty_cash_transactions')
           .select('amount')
-          .eq('preschool_id', preschoolId)
+          .eq('school_id', preschoolId)
           .eq('type', 'expense')
           .eq('status', 'approved')
           .gte('created_at', monthStart)
@@ -212,7 +227,7 @@ const { data: payments, error: paymentsError } = await assertSupabase()
           metadata,
           students!inner(first_name, last_name)
         `)
-        .eq('preschool_id', preschoolId)
+        .eq('school_id', preschoolId)
         .order('created_at', { ascending: false })
         .limit(Math.ceil(limit / 2));
 
@@ -278,6 +293,134 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
         date: new Date().toISOString(),
         source: 'payment'
       }];
+    }
+  }
+
+  /**
+   * Get transactions within a date range (for financial transactions screen)
+   */
+  static async getTransactions(dateRange: DateRange, preschoolId?: string): Promise<TransactionRecord[]> {
+    try {
+      const transactions: TransactionRecord[] = [];
+
+      // Get payments within date range
+      let paymentsQuery = assertSupabase()
+        .from('payments')
+        .select(`
+          id,
+          amount,
+          description,
+          status,
+          created_at,
+          payment_reference,
+          students!inner(first_name, last_name)
+        `)
+        .gte('created_at', dateRange.from)
+        .lte('created_at', dateRange.to)
+        .order('created_at', { ascending: false });
+
+      if (preschoolId) {
+        paymentsQuery = paymentsQuery.eq('preschool_id', preschoolId);
+      }
+
+      const { data: payments, error: paymentsError } = await paymentsQuery;
+
+      if (paymentsError) {
+        console.error('Error fetching payments for transactions:', paymentsError);
+      } else if (payments) {
+        payments.forEach((payment: any) => {
+          const studentData = Array.isArray(payment.students) ? payment.students[0] : payment.students;
+          const studentName = studentData 
+            ? `${studentData.first_name} ${studentData.last_name}`
+            : 'Student';
+          
+          transactions.push({
+            id: payment.id,
+            type: 'income',
+            category: 'Tuition',
+            amount: payment.amount || 0,
+            description: payment.description || `Payment from ${studentName}`,
+            date: payment.created_at,
+            status: this.mapPaymentStatus(payment.status),
+          });
+        });
+      }
+
+      // Get petty cash transactions within date range
+      let pettyCashQuery = assertSupabase()
+        .from('petty_cash_transactions')
+        .select('id, amount, description, status, created_at, category, type')
+        .gte('created_at', dateRange.from)
+        .lte('created_at', dateRange.to)
+        .order('created_at', { ascending: false });
+
+      if (preschoolId) {
+        pettyCashQuery = pettyCashQuery.eq('school_id', preschoolId);
+      }
+
+      const { data: pettyCash, error: pettyCashError } = await pettyCashQuery;
+
+      if (pettyCashError) {
+        console.error('Error fetching petty cash for transactions:', pettyCashError);
+      } else if (pettyCash) {
+        pettyCash.forEach((transaction: any) => {
+          transactions.push({
+            id: transaction.id,
+            type: 'expense',
+            category: transaction.category || 'Other',
+            amount: Math.abs(transaction.amount),
+            description: transaction.description,
+            date: transaction.created_at,
+            status: this.mapPettyCashStatus(transaction.status),
+          });
+        });
+      }
+
+      // Sort by date (newest first)
+      transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return transactions;
+
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Map payment status to transaction status
+   */
+  private static mapPaymentStatus(status: string): 'completed' | 'pending' | 'overdue' | 'approved' | 'rejected' {
+    switch (status) {
+      case 'completed':
+      case 'approved':
+        return 'completed';
+      case 'pending':
+      case 'proof_submitted':
+      case 'under_review':
+        return 'pending';
+      case 'failed':
+      case 'rejected':
+        return 'rejected';
+      case 'overdue':
+        return 'overdue';
+      default:
+        return 'pending';
+    }
+  }
+
+  /**
+   * Map petty cash status to transaction status
+   */
+  private static mapPettyCashStatus(status: string): 'completed' | 'pending' | 'overdue' | 'approved' | 'rejected' {
+    switch (status) {
+      case 'approved':
+        return 'completed';
+      case 'pending':
+        return 'pending';
+      case 'rejected':
+        return 'rejected';
+      default:
+        return 'pending';
     }
   }
 
