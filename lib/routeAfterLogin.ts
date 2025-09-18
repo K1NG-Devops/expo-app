@@ -92,16 +92,24 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     // Fetch enhanced profile if not provided
     let enhancedProfile = profile;
     if (!enhancedProfile) {
+      console.log('[ROUTE DEBUG] Fetching enhanced profile for user:', userId);
       enhancedProfile = await fetchEnhancedUserProfile(userId);
+      console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
+      if (enhancedProfile) {
+        console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
+        console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+      }
     }
 
     if (!enhancedProfile) {
-      console.error('Failed to fetch user profile for routing');
+      console.error('Failed to fetch user profile for routing - routing to profiles-gate for setup');
       track('edudash.auth.route_failed', {
         user_id: userId,
         reason: 'no_profile',
       });
-      router.replace('/(auth)/sign-in'); // Send to sign-in by default
+      // Route to profiles-gate instead of sign-in to avoid redirect loop
+      // User is authenticated but needs profile setup
+      router.replace('/profiles-gate');
       return;
     }
 
