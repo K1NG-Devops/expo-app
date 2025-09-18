@@ -231,7 +231,8 @@ export async function getBalance(schoolId: string): Promise<number> {
     const totalSigned = approved.reduce((sum, t: any) => {
       const amt = Number(t.amount || 0);
       if (t.type === 'expense') return sum - amt;
-      if (t.type === 'replenishment' || t.type === 'adjustment') return sum + amt;
+      if (t.type === 'replenishment') return sum + amt;
+      if (t.type === 'adjustment') return sum - amt; // Adjustments reduce balance
       return sum;
     }, 0);
 
@@ -259,7 +260,7 @@ export async function getSummary(
     try {
       const response = await assertSupabase()
         .rpc('get_petty_cash_summary', {
-          preschool_uuid: schoolId,
+          school_uuid: schoolId,
           start_date: validatedOptions.from?.toISOString(),
           end_date: validatedOptions.to?.toISOString(),
         });
@@ -350,7 +351,8 @@ export async function getSummary(
         const totalSignedAll = (allApproved || []).reduce((sum, t: any) => {
           const amt = Number(t.amount || 0);
           if (t.type === 'expense') return sum - amt;
-          if (t.type === 'replenishment' || t.type === 'adjustment') return sum + amt;
+          if (t.type === 'replenishment') return sum + amt;
+          if (t.type === 'adjustment') return sum - amt; // Adjustments reduce balance
           return sum;
         }, 0);
         const current_balance = openingBalance + totalSignedAll;

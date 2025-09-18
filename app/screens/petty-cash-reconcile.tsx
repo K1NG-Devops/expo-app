@@ -107,7 +107,7 @@ export default function PettyCashReconcileScreen() {
       const { data: transactions } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount, type')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .eq('status', 'approved')
         .gte('created_at', currentMonth.toISOString());
 
@@ -119,15 +119,20 @@ export default function PettyCashReconcileScreen() {
         .filter(t => t.type === 'replenishment')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Get opening balance from school settings
-      const { data: settings } = await assertSupabase()
-        .from('school_settings')
+      const adjustments = (transactions || [])
+        .filter(t => t.type === 'adjustment')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Get opening balance from petty cash account
+      const { data: account } = await assertSupabase()
+        .from('petty_cash_accounts')
         .select('opening_balance')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
+        .eq('is_active', true)
         .single();
 
-      const openingBalance = settings?.opening_balance || 5000;
-      const systemBalance = openingBalance + replenishments - expenses;
+      const openingBalance = account?.opening_balance || 5000;
+      const systemBalance = openingBalance + replenishments - expenses - adjustments;
 
       // Get last reconciliation
       const { data: lastRecon } = await assertSupabase()

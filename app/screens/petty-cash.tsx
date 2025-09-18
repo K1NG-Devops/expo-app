@@ -37,7 +37,7 @@ interface PettyCashTransaction {
   amount: number;
   description: string;
   category: string;
-  type: 'expense' | 'replenishment';
+  type: 'expense' | 'replenishment' | 'adjustment';
   receipt_number?: string;
   created_at: string;
   created_by: string;
@@ -88,6 +88,7 @@ export default function PettyCashScreen() {
   // Modals
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReplenishment, setShowReplenishment] = useState(false);
+  const [showWithdrawal, setShowWithdrawal] = useState(false);
   
   // Form states
   const [expenseForm, setExpenseForm] = useState({
@@ -188,7 +189,8 @@ export default function PettyCashScreen() {
       const totalSignedAll = (approvedAll || []).reduce((sum, t: any) => {
         const amt = Number(t.amount || 0);
         if (t.type === 'expense') return sum - amt;
-        if (t.type === 'replenishment' || t.type === 'adjustment') return sum + amt;
+        if (t.type === 'replenishment') return sum + amt;
+        if (t.type === 'adjustment') return sum - amt; // Adjustments reduce balance
         return sum;
       }, 0);
       const currentBalance = openingBalance + totalSignedAll;
@@ -337,6 +339,75 @@ const { error } = await assertSupabase()
     }
   };
 
+  const handleWithdrawal = async () => {
+    if (!expenseForm.amount || !expenseForm.description) {
+      Alert.alert('Error', 'Please enter amount and description');
+      return;
+    }
+
+    const amount = parseFloat(expenseForm.amount);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+
+    if (amount > summary.current_balance) {
+      Alert.alert('Error', 'Withdrawal amount exceeds current balance');
+      return;
+    }
+
+    // Confirm withdrawal
+    Alert.alert(
+      'Confirm Withdrawal',
+      `Are you sure you want to withdraw ${formatCurrency(amount)} from petty cash?\n\nThis will reduce the available balance.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Withdraw', style: 'destructive', onPress: performWithdrawal }
+      ]
+    );
+
+    async function performWithdrawal() {
+      try {
+        const { data: userProfile } = await assertSupabase()
+          .from('users')
+          .select('preschool_id')
+          .eq('auth_user_id', user?.id)
+          .single();
+
+        const { error } = await assertSupabase()
+          .from('petty_cash_transactions')
+          .insert({
+            school_id: userProfile?.preschool_id,
+            account_id: accountId,
+            amount,
+            description: expenseForm.description.trim(),
+            category: 'Withdrawal/Adjustment',
+            type: 'adjustment',
+            reference_number: expenseForm.receipt_number.trim() || null,
+            created_by: user?.id,
+            status: 'approved',
+          });
+
+        if (error) {
+          Alert.alert('Error', 'Failed to record withdrawal');
+          return;
+        }
+
+        Alert.alert('Success', 'Withdrawal recorded successfully');
+        setShowWithdrawal(false);
+        setExpenseForm({
+          amount: '',
+          description: '',
+          category: '',
+          receipt_number: '',
+        });
+        loadPettyCashData();
+      } catch {
+        Alert.alert('Error', 'Failed to record withdrawal');
+      }
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
       style: 'currency',
@@ -365,6 +436,7 @@ const { error } = await assertSupabase()
       case 'Utilities (small amounts)': return 'flash';
       case 'Emergency Expenses': return 'alert-circle';
       case 'Replenishment': return 'add-circle';
+      case 'Withdrawal/Adjustment': return 'arrow-down-circle';
       default: return 'receipt';
     }
   };
@@ -673,18 +745,18 @@ const { error } = await assertSupabase()
             
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push('/screens/petty-cash-reconcile')}
+              onPress={() => setShowWithdrawal(true)}
             >
-              <Ionicons name="calculator" size={24} color="#8B5CF6" />
-              <Text style={styles.actionText}>Reconcile</Text>
+              <Ionicons name="arrow-down-circle" size={24} color="#F59E0B" />
+              <Text style={styles.actionText}>Withdraw Cash</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={styles.actionButton}
-onPress={() => router.push('/screens/petty-cash-reconcile')}
+              onPress={() => router.push('/screens/petty-cash-reconcile')}
             >
-              <Ionicons name="bar-chart" size={24} color="#007AFF" />
-              <Text style={styles.actionText}>View Report</Text>
+              <Ionicons name="calculator" size={24} color="#8B5CF6" />
+              <Text style={styles.actionText}>Reconcile</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -717,7 +789,7 @@ onPress={() => router.push('/screens/petty-cash-reconcile')}
                   <Ionicons
                     name={getCategoryIcon(transaction.category) as any}
                     size={20}
-                    color={transaction.type === 'expense' ? '#EF4444' : '#10B981'}
+                    color={(transaction.type === 'expense' || transaction.type === 'adjustment') ? '#EF4444' : '#10B981'}
                   />
                   <View style={styles.transactionDetails}>
                     <Text style={styles.transactionDescription}>
@@ -735,9 +807,9 @@ onPress={() => router.push('/screens/petty-cash-reconcile')}
                 <View style={styles.transactionRight}>
                   <Text style={[
                     styles.transactionAmount,
-                    { color: transaction.type === 'expense' ? '#EF4444' : '#10B981' }
+                    { color: (transaction.type === 'expense' || transaction.type === 'adjustment') ? '#EF4444' : '#10B981' }
                   ]}>
-                    {transaction.type === 'expense' ? '-' : '+'}
+                    {(transaction.type === 'expense' || transaction.type === 'adjustment') ? '-' : '+'}
                     {formatCurrency(transaction.amount)}
                   </Text>
                   <View style={[
@@ -926,6 +998,71 @@ onPress={() => router.push('/screens/petty-cash-reconcile')}
               </Text>
               <Text style={styles.infoText}>
                 Recommended replenishment when balance falls below R1,000
+              </Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Withdrawal Modal */}
+      <Modal
+        visible={showWithdrawal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowWithdrawal(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowWithdrawal(false)}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Withdraw Cash</Text>
+            <TouchableOpacity onPress={handleWithdrawal}>
+              <Text style={styles.modalSave}>Withdraw</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Withdrawal Amount (ZAR) *</Text>
+              <TextInput
+                style={styles.formInput}
+                value={expenseForm.amount}
+                onChangeText={(text) => setExpenseForm(prev => ({ ...prev, amount: text }))}
+                placeholder="0.00"
+                keyboardType="decimal-pad"
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Reason for Withdrawal *</Text>
+              <TextInput
+                style={[styles.formInput, { height: 80 }]}
+                value={expenseForm.description}
+                onChangeText={(text) => setExpenseForm(prev => ({ ...prev, description: text }))}
+                placeholder="Why are you withdrawing this cash?"
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Reference Number (Optional)</Text>
+              <TextInput
+                style={styles.formInput}
+                value={expenseForm.receipt_number}
+                onChangeText={(text) => setExpenseForm(prev => ({ ...prev, receipt_number: text }))}
+                placeholder="Bank deposit slip, reference number, etc."
+              />
+            </View>
+
+            <View style={styles.replenishmentInfo}>
+              <Text style={styles.infoTitle}>⚠️ Important</Text>
+              <Text style={styles.infoText}>
+                Current Balance: {formatCurrency(summary.current_balance)}
+              </Text>
+              <Text style={styles.infoText}>
+                This withdrawal will reduce your petty cash balance. Use this when cash needs to be deposited back to the main account or removed for other reasons.
               </Text>
             </View>
           </View>
