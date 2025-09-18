@@ -177,6 +177,9 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
                 <LinearGradient colors={['#00f5ff', '#0080ff', '#8000ff']} style={styles.ctaGradient}>
                   <IconSymbol name="bolt" size={20} color="#000000" />
                   <Text style={styles.ctaText}>ACTIVATE NEURAL LINK</Text>
+                  {process.env.EXPO_PUBLIC_ENVIRONMENT === 'preview' && (
+                    <Text style={{ fontSize: 10, color: '#000000', marginLeft: 4 }}>OTA✓</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
 

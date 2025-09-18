@@ -11,7 +11,7 @@ function normalizeRole(r?: string | null): string | null {
   
   // Map potential variants to canonical Role types
   if (s.includes('super') || s === 'superadmin') return 'super_admin';
-  if (s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
+  if (s === 'principal' || s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
   if (s.includes('teacher')) return 'teacher';
   if (s.includes('parent')) return 'parent';
   
@@ -40,20 +40,20 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
   let role: string | null = normalizeRole((authUser?.user_metadata as any)?.role ?? null);
   let school: string | null = (authUser?.user_metadata as any)?.preschool_id ?? null;
 
-  // First fallback: check consolidated users table by auth_user_id
+  // First fallback: check profiles table by id (auth.users.id)
   if (id && (!role || school === null)) {
     try {
       const { data: udata, error: uerror } = await assertSupabase()
-        .from('users')
+        .from('profiles')
         .select('role,preschool_id')
-        .eq('auth_user_id', id)
+        .eq('id', id)
         .maybeSingle();
       if (!uerror && udata) {
         role = normalizeRole((udata as any).role ?? role);
         school = (udata as any).preschool_id ?? school;
       }
     } catch (e) {
-      console.debug('Fallback #1 (users table) lookup failed', e);
+      console.debug('Fallback #1 (profiles table) lookup failed', e);
     }
   }
   
@@ -149,6 +149,10 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
   let role = normalizeRole(profile.role) as Role | null;
   
+  console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
+  console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
+  console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
+  
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
     console.warn('User role is null, routing to sign-in');
@@ -157,6 +161,7 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   
   // Check if user has active access
     if (!profile.hasCapability('access_mobile_app')) {
+      console.log('[ROUTE DEBUG] User lacks access_mobile_app capability');
       return { path: '/screens/account' }; // Route to account settings to resolve access issues
     }
 
@@ -166,13 +171,19 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       return { path: '/screens/super-admin-dashboard' };
     
     case 'principal_admin':
-      // Check if they have school association
+      console.log('[ROUTE DEBUG] Principal admin routing - organization_id:', profile.organization_id);
+      console.log('[ROUTE DEBUG] Principal seat_status:', profile.seat_status);
+      
+      // Principals with inactive seats can still access their dashboard (unlike teachers)
+      // They may need to manage billing or school setup
       if (profile.organization_id) {
+        console.log('[ROUTE DEBUG] Routing principal to dashboard with school:', profile.organization_id);
         return { 
           path: '/screens/principal-dashboard',
           params: { school: profile.organization_id }
         };
       } else {
+        console.log('[ROUTE DEBUG] No organization_id, routing to principal onboarding');
         // No school associated, route to principal onboarding
         return { path: '/screens/principal-onboarding' };
       }

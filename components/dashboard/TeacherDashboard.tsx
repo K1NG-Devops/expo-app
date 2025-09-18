@@ -41,6 +41,8 @@ import { CacheIndicator } from "@/components/ui/CacheIndicator";
 import { assertSupabase } from "@/lib/supabase";
 import { createCheckout } from "@/lib/payments";
 import { RoleBasedHeader } from "../RoleBasedHeader";
+import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
+import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
 
 const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2;
@@ -170,6 +172,10 @@ export const TeacherDashboard: React.FC = () => {
   const [showOptionsMenu, setShowOptionsMenu] = React.useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = React.useState(false);
   const [upgrading, setUpgrading] = React.useState(false);
+  
+  // WhatsApp integration
+  const { connectionStatus, isWhatsAppEnabled } = useWhatsAppConnection();
+  const [showWhatsAppModal, setShowWhatsAppModal] = React.useState(false);
   React.useEffect(() => {
     const isTeacher = String(profile?.role || "")
       .toLowerCase()
@@ -443,7 +449,22 @@ export const TeacherDashboard: React.FC = () => {
       },
       requiredCap: "view_class_analytics",
     },
-  ].filter((action: any) => !action.requiredCap || hasCap(action.requiredCap));
+    {
+      id: "whatsapp-connect",
+      title: connectionStatus.isConnected ? "WhatsApp Connected" : "Connect WhatsApp",
+      icon: "logo-whatsapp",
+      color: "#25D366",
+      onPress: () => {
+        track('edudash.whatsapp.quick_action_pressed', {
+          connected: connectionStatus.isConnected,
+          timestamp: new Date().toISOString()
+        });
+        setShowWhatsAppModal(true);
+      },
+      // Show only if WhatsApp integration is enabled
+      show: isWhatsAppEnabled(),
+    },
+  ].filter((action: any) => (!action.requiredCap || hasCap(action.requiredCap)) && (action.show !== false));
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -1360,6 +1381,16 @@ export const TeacherDashboard: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* WhatsApp Modal */}
+      <WhatsAppOptInModal
+        visible={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        onSuccess={() => {
+          setShowWhatsAppModal(false);
+          Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
+        }}
+      />
     </>
   );
 };

@@ -29,18 +29,21 @@ module.exports = ({ config }) => {
   // Only include expo-dev-client for development builds
   if (isDevBuild) plugins.push('expo-dev-client');
 
-  const isEasBuild = !!process.env.EAS_BUILD;
-  const runtimeVersion = isEasBuild ? { policy: 'appVersion' } : '1.0.0';
+  // Use consistent runtimeVersion policy to avoid OTA compatibility issues
+  // appVersion works with remote version source and couples OTA compatibility to app version
+  const runtimeVersion = { policy: 'appVersion' };
 
   return {
     ...config,
     name: 'EduDashPro',
     slug: 'edudashpro',
     owner: 'edudashpro',
-    version: '1.0.0',
+    version: '1.0.2',
     runtimeVersion,
     updates: {
       url: 'https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298',
+      checkAutomatically: isDevBuild ? 'ON_ERROR_RECOVERY' : 'ON_LOAD',
+      fallbackToCacheTimeout: isDevBuild ? 0 : 5000,
     },
     orientation: 'portrait',
     icon: './assets/icon.png',

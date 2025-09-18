@@ -4,7 +4,7 @@
  * Provides UI for switching between themes and languages
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,10 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { useTheme, ThemeMode } from '@/contexts/ThemeContext';
 import { useTranslation } from 'react-i18next';
@@ -24,12 +28,21 @@ import {
 } from '@/lib/i18n';
 import { Ionicons } from '@expo/vector-icons';
 
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
 export function ThemeLanguageSettings() {
   const { theme, mode, setMode, isDark } = useTheme();
   const { t } = useTranslation();
   const currentLanguage = getCurrentLanguage();
   const availableLanguages = getAvailableLanguages();
   const comingSoonLanguages = getComingSoonLanguages();
+  
+  // State for collapsible sections
+  const [isLanguageExpanded, setIsLanguageExpanded] = useState(false);
+  const [isComingSoonExpanded, setIsComingSoonExpanded] = useState(false);
 
   const themeModes: { mode: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { mode: 'light', label: t('settings.theme.light'), icon: 'sunny' },
@@ -43,6 +56,16 @@ export function ThemeLanguageSettings() {
 
   const handleLanguageChange = async (language: SupportedLanguage) => {
     await changeLanguage(language);
+  };
+
+  const toggleLanguageExpansion = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsLanguageExpanded(!isLanguageExpanded);
+  };
+
+  const toggleComingSoonExpansion = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsComingSoonExpanded(!isComingSoonExpanded);
   };
 
   return (
@@ -109,75 +132,125 @@ export function ThemeLanguageSettings() {
 
       {/* Language Section */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          {t('settings.language.title')}
-        </Text>
+        <TouchableOpacity
+          style={styles.collapsibleHeader}
+          onPress={toggleLanguageExpansion}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            {t('settings.language.title')}
+          </Text>
+          <Ionicons
+            name={isLanguageExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color={theme.textSecondary}
+          />
+        </TouchableOpacity>
 
-        {/* Available Languages */}
+        {/* Current Language Preview */}
         <View style={[styles.card, { backgroundColor: theme.surface }]}>
-          {availableLanguages.map((lang, index) => (
-            <TouchableOpacity
-              key={lang.code}
-              style={[
-                styles.languageOption,
-                index < availableLanguages.length - 1 && [styles.borderBottom, { borderBottomColor: theme.divider }],
-              ]}
-              onPress={() => handleLanguageChange(lang.code)}
-            >
-              <View style={styles.languageInfo}>
-                <Text
-                  style={[
-                    styles.languageName,
-                    {
-                      color: currentLanguage === lang.code ? theme.primary : theme.text,
-                      fontWeight: currentLanguage === lang.code ? '600' : '400',
-                    },
-                  ]}
-                >
-                  {lang.nativeName}
-                </Text>
-                <Text style={[styles.languageSubtext, { color: theme.textTertiary }]}>
-                  {lang.name}
-                </Text>
-              </View>
-              {currentLanguage === lang.code && (
-                <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
-              )}
-            </TouchableOpacity>
-          ))}
+          <View style={styles.languageOption}>
+            <View style={styles.languageInfo}>
+              <Text style={[styles.currentLanguageLabel, { color: theme.textSecondary }]}>
+                {t('settings.language.current')}
+              </Text>
+              <Text style={[styles.languageName, { color: theme.primary, fontWeight: '600' }]}>
+                {availableLanguages.find(lang => lang.code === currentLanguage)?.nativeName || 'English'}
+              </Text>
+              <Text style={[styles.languageSubtext, { color: theme.textTertiary }]}>
+                {availableLanguages.find(lang => lang.code === currentLanguage)?.name || 'English'}
+              </Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
+          </View>
         </View>
 
-        {/* Coming Soon Languages */}
-        {comingSoonLanguages.length > 0 && (
-          <>
-            <Text style={[styles.subsectionTitle, { color: theme.textSecondary }]}>
-              {t('settings.language.comingSoon')}
+        {/* Available Languages (Collapsible) */}
+        {isLanguageExpanded && (
+          <View style={[styles.card, styles.expandedCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.expandedSectionTitle, { color: theme.textSecondary }]}>
+              {t('settings.language.available')}
             </Text>
-            <View style={[styles.card, { backgroundColor: theme.surface, opacity: 0.7 }]}>
-              {comingSoonLanguages.map((lang, index) => (
-                <View
-                  key={lang.code}
-                  style={[
-                    styles.languageOption,
-                    index < comingSoonLanguages.length - 1 && [styles.borderBottom, { borderBottomColor: theme.divider }],
-                  ]}
-                >
-                  <View style={styles.languageInfo}>
-                    <Text style={[styles.languageName, { color: theme.textDisabled }]}>
-                      {lang.nativeName}
-                    </Text>
-                    <Text style={[styles.languageSubtext, { color: theme.textDisabled }]}>
-                      {lang.name}
-                    </Text>
-                  </View>
-                  <View style={[styles.badge, { backgroundColor: theme.surfaceVariant }]}>
-                    <Text style={[styles.badgeText, { color: theme.textTertiary }]}>
-                      {t('settings.language.soon')}
-                    </Text>
-                  </View>
+            {availableLanguages.map((lang, index) => (
+              <TouchableOpacity
+                key={lang.code}
+                style={[
+                  styles.languageOption,
+                  currentLanguage === lang.code && styles.currentLanguageOption,
+                  index < availableLanguages.length - 1 && [styles.borderBottom, { borderBottomColor: theme.divider }],
+                ]}
+                onPress={() => handleLanguageChange(lang.code)}
+                disabled={currentLanguage === lang.code}
+              >
+                <View style={styles.languageInfo}>
+                  <Text
+                    style={[
+                      styles.languageName,
+                      {
+                        color: currentLanguage === lang.code ? theme.primary : theme.text,
+                        fontWeight: currentLanguage === lang.code ? '600' : '400',
+                      },
+                    ]}
+                  >
+                    {lang.nativeName}
+                  </Text>
+                  <Text style={[styles.languageSubtext, { color: theme.textTertiary }]}>
+                    {lang.name}
+                  </Text>
                 </View>
-              ))}
-            </View>
+                {currentLanguage === lang.code && (
+                  <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Coming Soon Languages (Collapsible) */}
+        {comingSoonLanguages.length > 0 && isLanguageExpanded && (
+          <>
+            <TouchableOpacity
+              style={styles.collapsibleSubheader}
+              onPress={toggleComingSoonExpansion}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.subsectionTitle, { color: theme.textSecondary }]}>
+                {t('settings.language.comingSoon')}
+              </Text>
+              <Ionicons
+                name={isComingSoonExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={theme.textTertiary}
+              />
+            </TouchableOpacity>
+            
+            {isComingSoonExpanded && (
+              <View style={[styles.card, styles.expandedCard, { backgroundColor: theme.surface, opacity: 0.7 }]}>
+                {comingSoonLanguages.map((lang, index) => (
+                  <View
+                    key={lang.code}
+                    style={[
+                      styles.languageOption,
+                      index < comingSoonLanguages.length - 1 && [styles.borderBottom, { borderBottomColor: theme.divider }],
+                    ]}
+                  >
+                    <View style={styles.languageInfo}>
+                      <Text style={[styles.languageName, { color: theme.textDisabled }]}>
+                        {lang.nativeName}
+                      </Text>
+                      <Text style={[styles.languageSubtext, { color: theme.textDisabled }]}>
+                        {lang.name}
+                      </Text>
+                    </View>
+                    <View style={[styles.badge, { backgroundColor: theme.surfaceVariant }]}>
+                      <Text style={[styles.badgeText, { color: theme.textTertiary }]}>
+                        {t('settings.language.soon')}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
           </>
         )}
       </View>
@@ -315,5 +388,36 @@ const styles = StyleSheet.create({
   },
   preferenceDescription: {
     fontSize: 14,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  collapsibleSubheader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+    paddingTop: 16,
+  },
+  expandedCard: {
+    marginTop: 8,
+  },
+  expandedSectionTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    padding: 16,
+    paddingBottom: 8,
+  },
+  currentLanguageLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  currentLanguageOption: {
+    opacity: 0.6,
   },
 });

@@ -4,10 +4,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   Alert,
   useColorScheme,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUpdates } from '@/contexts/UpdatesProvider';
 import { useTranslation } from 'react-i18next';
@@ -55,7 +55,7 @@ export function GlobalUpdateBanner() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={[styles.container, dynamicStyles.container]}>
         {isUpdateDownloaded ? (
           // Update downloaded banner

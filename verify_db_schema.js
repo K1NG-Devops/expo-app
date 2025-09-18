@@ -26,7 +26,7 @@ async function checkTables() {
     'profiles', 'users', 'preschools', 'classes', 'subscriptions', 'seats',
     'homework_assignments', 'homework_submissions', 'lessons', 'lesson_activities',
     'activity_attempts', 'parent_child_links', 'child_registration_requests',
-    'parent_payments', 'billing_plans', 'subscription_invoices', 'payfast_itn_logs',
+    'parent_payments', 'subscription_plans', 'subscription_invoices', 'payfast_itn_logs',
     'ai_generations', 'ai_usage_logs', 'ai_services', 'push_devices', 
     'push_notifications', 'config_kv', 'ad_impressions', 'org_invites'
   ];
@@ -207,29 +207,28 @@ async function checkRLSStatus() {
   return unprotectedTables;
 }
 
-async function checkBillingPlans() {
-  console.log('\n💰 CHECKING BILLING PLANS...\n');
+async function checkSubscriptionPlans() {
+  console.log('\n💰 CHECKING SUBSCRIPTION PLANS...\n');
   
   const { data: plans, error } = await supabase
-    .from('billing_plans')
-    .select('name, display_name, price_cents, active, max_teachers, max_students')
-    .eq('active', true)
-    .order('sort_order');
+    .from('subscription_plans')
+    .select('name, price_monthly, is_active, max_teachers, max_students, ai_quota_monthly')
+    .eq('is_active', true)
+    .order('price_monthly');
 
   if (error) {
-    console.error('❌ Error checking billing plans:', error.message);
-    return;
-  }
-
-  if (!plans || plans.length === 0) {
-    console.log('❌ NO BILLING PLANS FOUND - SUBSCRIPTION SYSTEM WILL NOT WORK');
+    console.error('❌ Error checking subscription plans:', error.message);
     return false;
   }
 
-  console.log('✅ ACTIVE BILLING PLANS:');
+  if (!plans || plans.length === 0) {
+    console.log('❌ NO ACTIVE SUBSCRIPTION PLANS FOUND - SUBSCRIPTION SYSTEM WILL NOT WORK');
+    return false;
+  }
+
+  console.log('✅ ACTIVE SUBSCRIPTION PLANS:');
   plans.forEach(plan => {
-    const price = plan.price_cents / 100;
-    console.log(`  • ${plan.display_name} - R${price} (${plan.max_teachers} teachers, ${plan.max_students} students)`);
+    console.log(`  • ${plan.name} - R${plan.price_monthly}/month (${plan.max_teachers} teachers, ${plan.max_students} students, ${plan.ai_quota_monthly} AI/month)`);
   });
 
   return true;
@@ -326,8 +325,8 @@ async function performHealthCheck() {
     // Check security (RLS)
     results.security = await checkRLSStatus();
     
-    // Check billing setup
-    results.billing = await checkBillingPlans();
+    // Check subscription plans setup
+    results.billing = await checkSubscriptionPlans();
     
     // Check push notifications
     results.pushNotifications = await checkPushNotifications();
@@ -342,14 +341,14 @@ async function performHealthCheck() {
     const authStatus = results.authentication ? '✅ WORKING' : '❌ BROKEN';
     const tablesStatus = results.tables?.missingTables?.length === 0 ? '✅ COMPLETE' : '⚠️ INCOMPLETE';
     const securityStatus = results.security?.length === 0 ? '✅ SECURE' : '⚠️ SECURITY GAPS';
-    const billingStatus = results.billing ? '✅ CONFIGURED' : '❌ MISSING';
+    const subscriptionStatus = results.billing ? '✅ CONFIGURED' : '❌ MISSING';
     const pushStatus = results.pushNotifications ? '✅ READY' : '⚠️ ISSUES';
     const functionsStatus = results.functions ? '✅ DEPLOYED' : '❌ MISSING';
     
     console.log(`🔐 Authentication:      ${authStatus}`);
     console.log(`📋 Core Tables:         ${tablesStatus}`);
     console.log(`🔒 Security (RLS):      ${securityStatus}`);
-    console.log(`💰 Billing Plans:       ${billingStatus}`);
+    console.log(`💰 Subscription Plans:  ${subscriptionStatus}`);
     console.log(`📱 Push Notifications:  ${pushStatus}`);
     console.log(`🚀 Edge Functions:      ${functionsStatus}`);
     

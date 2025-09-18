@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import * as Updates from 'expo-updates';
 import { Platform, AppState } from 'react-native';
+import { trackOTAUpdateCheck, trackOTAUpdateFetch, trackOTAUpdateApply, trackOTAError } from '@/lib/otaObservability';
 
 // Types for update state
 export interface UpdateState {
@@ -52,11 +53,17 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       const update = await Updates.checkForUpdateAsync();
       console.log('[Updates] Update check result:', { isAvailable: update.isAvailable, manifest: update.manifest?.id });
       
+      // Track update check
+      trackOTAUpdateCheck(update);
+      
       if (update.isAvailable) {
         console.log('[Updates] Update available, starting download...');
         // Start downloading
         const result = await Updates.fetchUpdateAsync();
         console.log('[Updates] Update downloaded:', { isNew: result.isNew });
+        
+        // Track update fetch
+        trackOTAUpdateFetch(result);
         // Download complete - this will also trigger the UPDATE_DOWNLOADED event
         updateState({ isDownloading: false, isUpdateDownloaded: true });
       } else {
@@ -66,6 +73,11 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to check for updates';
       console.warn('[Updates] Update check failed:', errorMessage, error);
+      
+      // Track error
+      if (error instanceof Error) {
+        trackOTAError('check', error);
+      }
       
       // Don't show error for common network issues in dev
       const shouldShowError = !__DEV__ || !errorMessage.includes('rejected');
@@ -81,10 +93,18 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Apply the downloaded update
   const applyUpdate = async () => {
     try {
+      // Track before applying (since app will restart)
+      trackOTAUpdateApply();
+      
       await Updates.reloadAsync();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to apply update';
       updateState({ updateError: errorMessage });
+      
+      // Track error
+      if (error instanceof Error) {
+        trackOTAError('apply', error);
+      }
       
       if (__DEV__) {
         console.warn('Update apply failed:', errorMessage);
@@ -114,11 +134,17 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       const update = await Updates.checkForUpdateAsync();
       console.log('[Updates] Background check result:', { isAvailable: update.isAvailable });
       
+      // Track background update check
+      trackOTAUpdateCheck(update);
+      
       if (update.isAvailable) {
         console.log('[Updates] Background update available, downloading...');
         updateState({ isDownloading: true, updateError: null });
         const result = await Updates.fetchUpdateAsync();
         console.log('[Updates] Background update downloaded:', { isNew: result.isNew });
+        
+        // Track background update fetch
+        trackOTAUpdateFetch(result);
         updateState({ 
           isDownloading: false, 
           isUpdateDownloaded: true,

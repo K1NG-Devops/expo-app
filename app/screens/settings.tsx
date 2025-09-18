@@ -20,6 +20,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
+import { PushNotificationTester } from '@/components/settings/PushNotificationTester';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import Constants from 'expo-constants';
 import { useUpdates } from '@/contexts/UpdatesProvider';
@@ -612,86 +613,10 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Push Testing Section (Development/Superadmin Only) */}
+        {/* Comprehensive Push Notification Testing */}
         {showPushTesting && Platform.OS !== 'web' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Push Testing</Text>
-            <View style={styles.settingsCard}>
-              <View style={[styles.settingItem, { flexDirection: 'column', alignItems: 'stretch', paddingVertical: 20 }]}>
-                <Text style={[styles.settingTitle, { marginBottom: 12 }]}>Test Notification</Text>
-                
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={[styles.settingSubtitle, { marginBottom: 4 }]}>Title:</Text>
-                  <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      backgroundColor: theme.surface,
-                      color: theme.text,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      fontSize: 16
-                    }}
-                    value={testNotificationTitle}
-                    onChangeText={setTestNotificationTitle}
-                    placeholder="Enter notification title"
-                    placeholderTextColor={theme.textTertiary}
-                  />
-                </View>
-                
-                <View style={{ marginBottom: 16 }}>
-                  <Text style={[styles.settingSubtitle, { marginBottom: 4 }]}>Message:</Text>
-                  <TextInput
-                    style={{
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      backgroundColor: theme.surface,
-                      color: theme.text,
-                      borderRadius: 8,
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      fontSize: 16,
-                      minHeight: 80
-                    }}
-                    value={testNotificationMessage}
-                    onChangeText={setTestNotificationMessage}
-                    placeholder="Enter notification message"
-                    placeholderTextColor={theme.textTertiary}
-                    multiline
-                    numberOfLines={3}
-                  />
-                </View>
-                
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: theme.primary,
-                    borderRadius: 8,
-                    paddingVertical: 12,
-                    paddingHorizontal: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    opacity: sendingTest ? 0.7 : 1
-                  }}
-                  onPress={sendTestNotification}
-                  disabled={sendingTest || !testNotificationTitle.trim() || !testNotificationMessage.trim()}
-                >
-                  {sendingTest ? (
-                    <ActivityIndicator color={theme.onPrimary} size="small" style={{ marginRight: 8 }} />
-                  ) : (
-                    <Ionicons name="paper-plane" size={16} color={theme.onPrimary} style={{ marginRight: 8 }} />
-                  )}
-                  <Text style={{ color: theme.onPrimary, fontWeight: '600', fontSize: 16 }}>
-                    {sendingTest ? 'Sending...' : 'Send Test Notification'}
-                  </Text>
-                </TouchableOpacity>
-                
-                <Text style={[styles.settingSubtitle, { marginTop: 8, fontSize: 12, fontStyle: 'italic' }]}>  
-                  This will send a test notification to your device only. Ensure you have notifications enabled.
-                </Text>
-              </View>
-            </View>
+          <View>
+            <PushNotificationTester />
           </View>
         )}
         

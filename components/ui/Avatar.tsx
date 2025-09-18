@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet, Platform } from 'react-native';
 
 export function Avatar({ name, imageUri, size = 48 }: { name: string; imageUri?: string | null; size?: number }) {
   const initials = (name || '?')
@@ -9,7 +9,18 @@ export function Avatar({ name, imageUri, size = 48 }: { name: string; imageUri?:
     .slice(0, 2)
     .toUpperCase();
 
-  if (imageUri) {
+  // Guard against local file URIs on web which cannot be loaded by the browser
+  const isLocalFileUri = !!(imageUri && (
+    Platform.OS === 'web' && (
+      imageUri.startsWith('file://') ||
+      imageUri.startsWith('/data/') ||
+      imageUri.includes('ImageManipulator') ||
+      imageUri.includes('cache/') ||
+      !imageUri.startsWith('http')
+    )
+  ));
+
+  if (imageUri && !isLocalFileUri) {
     return <Image source={{ uri: imageUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   }
 

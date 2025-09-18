@@ -6,6 +6,7 @@ import { initializeAdMob } from '@/lib/adMob';
 import { initializeSession } from '@/lib/sessionManager';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { track } from '@/lib/analytics';
+import { trackAppLaunch } from '@/lib/otaObservability';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -19,6 +20,8 @@ import { ThemedStackWrapper } from '@/components/navigation/ThemedStackWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
+import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -134,6 +137,9 @@ export default function RootLayout() {
         feature_flags_loaded: true,
       });
       
+      // Track app launch with OTA context
+      trackAppLaunch();
+      
     } catch (error) {
       console.error('❌ App initialization failed:', error);
       
@@ -212,6 +218,8 @@ export default function RootLayout() {
               {/* Wrap in SubscriptionProvider so screens can access subscription data */}
               <SubscriptionProvider>
                 <ThemedStackWrapper />
+                <GlobalUpdateBanner />
+                <UpdateDebugPanel />
                 {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
               </SubscriptionProvider>
             </UpdatesProvider>

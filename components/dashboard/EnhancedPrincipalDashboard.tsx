@@ -27,11 +27,13 @@ import { useTranslation } from 'react-i18next';
 import { usePrincipalHub } from '@/hooks/usePrincipalHub';
 import { router } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
-import { changeLanguage as changeAppLanguage } from '@/lib/i18n';
 import AnnouncementService from '@/lib/services/announcementService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
+import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
+import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -51,12 +53,16 @@ interface TeacherCardProps {
 }
 
 export const EnhancedPrincipalDashboard: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { t } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
-  const { metricCards: pettyCashCards, hasData: hasPettyCashData } = usePettyCashMetricCards();
+  const { theme } = useTheme();
+  const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  
+  // WhatsApp integration
+  const { connectionStatus, isWhatsAppEnabled } = useWhatsAppConnection();
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   // Create theme-aware styles
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -83,9 +89,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     setShowAnnouncementModal(true);
   };
 
-  const changeLanguage = async (languageCode: string) => {
-    await changeAppLanguage(languageCode as any);
-  };
 
   const handleSendAnnouncement = async (announcement: AnnouncementData) => {
     const preschoolId = data.schoolId;
@@ -241,8 +244,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
   
-  // Combine standard metrics with petty cash metrics when available
-  const allMetrics = [...metrics, ...(hasPettyCashData ? pettyCashCards : [])];
+  // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
+  const allMetrics = [...metrics, ...pettyCashCards];
 
   return (
     <>
@@ -259,9 +262,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       >
         {/* Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.greeting}>
-            {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
-          </Text>
+          <View style={styles.welcomeHeader}>
+            <Text style={styles.greeting}>
+              {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
+            </Text>
+            {isWhatsAppEnabled() && (
+              <TouchableOpacity onPress={() => setShowWhatsAppModal(true)}>
+                <WhatsAppStatusChip size="small" showText={false} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
       {/* Quick Stats */}
@@ -399,8 +409,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             </View>
           </View>
           
-          {/* Real Petty Cash Balance */}
-          {data.financialSummary.pettyCashBalance > 0 && (
+          {/* Real Petty Cash Balance - Only show when meaningful */}
+          {data.financialSummary.pettyCashBalance > 50 && (
             <View style={styles.financialGrid}>
               <View style={styles.financialCard}>
                 <Text style={styles.financialLabel}>Petty Cash Balance</Text>
@@ -411,7 +421,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <View style={styles.financialCard}>
                 <Text style={styles.financialLabel}>Monthly Expenses</Text>
                 <Text style={[styles.financialValue, { color: '#DC2626' }]}>
-                  {formatCurrency(data.financialSummary.pettyCashExpenses)}
+                  {formatCurrency(data.financialSummary.pettyCashExpenses || 0)}
                 </Text>
               </View>
             </View>
@@ -622,7 +632,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.actionsGrid, { marginTop: 8 }]}>
+        <View style={[styles.actionsGrid, { marginTop: 12 }]}>
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => router.push('/screens/principal-parent-requests')}
@@ -640,7 +650,7 @@ onPress={() => router.push('/screens/financial-dashboard')}
           </TouchableOpacity>
         </View>
         
-        <View style={styles.actionsGrid}>
+        <View style={[styles.actionsGrid, { marginTop: 12 }]}>
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={() => router.push('/screens/admin/school-settings')}
@@ -790,6 +800,16 @@ onPress={() => router.push('/screens/financial-dashboard')}
         onClose={() => setShowAnnouncementModal(false)}
         onSend={handleSendAnnouncement}
       />
+      
+      {/* WhatsApp Modal */}
+      <WhatsAppOptInModal
+        visible={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        onSuccess={() => {
+          setShowWhatsAppModal(false);
+          Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
+        }}
+      />
     </>
   );
 };
@@ -804,6 +824,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginBottom: 8,
+  },
+  welcomeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   greeting: {
     fontSize: 18,

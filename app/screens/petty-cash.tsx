@@ -138,7 +138,7 @@ export default function PettyCashScreen() {
       const { data: transactionsData, error: transError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('*')
-        .eq('school_id', userProfile.preschool_id)
+        .eq('preschool_id', userProfile.preschool_id)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -169,15 +169,29 @@ export default function PettyCashScreen() {
         .filter(t => t.status === 'pending')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Get balances from view (preferred over school_settings)
-      const { data: balanceRow } = await assertSupabase()
-        .from('petty_cash_account_balances')
-        .select('opening_balance, current_balance')
-        .eq('school_id', userProfile.preschool_id)
+      // Compute balances directly from accounts + approved transactions
+      const { data: accountRow } = await assertSupabase()
+        .from('petty_cash_accounts')
+        .select('opening_balance, low_balance_threshold')
+        .eq('preschool_id', userProfile.preschool_id)
+        .eq('is_active', true)
         .maybeSingle();
 
-      const openingBalance = Number(balanceRow?.opening_balance ?? 0);
-      const currentBalance = Number(balanceRow?.current_balance ?? (openingBalance + replenishments - expenses));
+      const openingBalance = Number(accountRow?.opening_balance ?? 0);
+
+      const { data: approvedAll } = await assertSupabase()
+        .from('petty_cash_transactions')
+        .select('amount, type, status')
+        .eq('preschool_id', userProfile.preschool_id)
+        .eq('status', 'approved')
+        .limit(1000);
+      const totalSignedAll = (approvedAll || []).reduce((sum, t: any) => {
+        const amt = Number(t.amount || 0);
+        if (t.type === 'expense') return sum - amt;
+        if (t.type === 'replenishment' || t.type === 'adjustment') return sum + amt;
+        return sum;
+      }, 0);
+      const currentBalance = openingBalance + totalSignedAll;
 
       setSummary({
         opening_balance: openingBalance,
@@ -226,7 +240,7 @@ const { data: userProfile } = await assertSupabase()
 const { data: transactionData, error: transactionError } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          school_id: userProfile?.preschool_id,
+          preschool_id: userProfile?.preschool_id,
           account_id: accountId,
           amount,
           description: expenseForm.description.trim(),
@@ -294,7 +308,7 @@ const { data: userProfile } = await assertSupabase()
 const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          school_id: userProfile?.preschool_id,
+          preschool_id: userProfile?.preschool_id,
           account_id: accountId,
           amount,
           description: `Petty cash replenishment - ${new Date().toLocaleDateString()}`,
@@ -366,8 +380,24 @@ const { error } = await assertSupabase()
 
       const schoolId = userProfile?.preschool_id;
 
-      const response = await fetch(imageUri);
-      const blob = await response.blob();
+      // Handle different URI formats for web/mobile compatibility
+      let blob: Blob;
+      try {
+        if (imageUri.startsWith('file://') && typeof window !== 'undefined') {
+          // Web environment with file:// URI - this shouldn't happen but handle gracefully
+          console.warn('File URI detected in web environment, cannot process:', imageUri);
+          return null;
+        }
+        
+        const response = await fetch(imageUri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+        blob = await response.blob();
+      } catch (fetchError) {
+        console.error('Error fetching image:', fetchError);
+        return null;
+      }
       const fileExt = String(imageUri.split('.').pop() || 'jpg').toLowerCase();
       const fileName = `receipt_${transactionId}_${Date.now()}.${fileExt}`;
       const storagePath = `${schoolId}/${transactionId}/${fileName}`;
@@ -385,7 +415,7 @@ const { error } = await assertSupabase()
         await assertSupabase()
           .from('petty_cash_receipts')
           .insert({
-            school_id: schoolId,
+            preschool_id: schoolId,
             transaction_id: transactionId,
             storage_path: data.path,
             file_name: fileName,

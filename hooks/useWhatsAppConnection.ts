@@ -100,7 +100,7 @@ export const useWhatsAppConnection = () => {
         ? data.phoneNumber 
         : `+27${data.phoneNumber.replace(/^0/, '')}` // Assume SA number if no country code
 
-      // Create or update WhatsApp contact
+      // Create or update WhatsApp contact (idempotent via onConflict)
       const { data: contact, error } = await assertSupabase()
         .from('whatsapp_contacts')
         .upsert({
@@ -109,7 +109,7 @@ export const useWhatsAppConnection = () => {
           phone_e164: phoneE164,
           consent_status: data.consent ? 'opted_in' : 'opted_out',
           last_opt_in_at: data.consent ? new Date().toISOString() : null
-        })
+        }, { onConflict: 'preschool_id,user_id' })
         .select()
         .single()
 
@@ -130,10 +130,22 @@ export const useWhatsAppConnection = () => {
       // Invalidate and refetch connection status
       queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
       
-      console.log('WhatsApp opt-in successful:', contact.consent_status)
+      // Track success via analytics (no console logs per WARP rules)
+      track('edudash.whatsapp.opt_in_success', {
+        user_id: user.id,
+        preschool_id: profile?.organization_id,
+        consent_status: contact.consent_status,
+        timestamp: new Date().toISOString()
+      })
     },
     onError: (error) => {
-      console.error('WhatsApp opt-in failed:', error)
+      // Track error via analytics (no console logs per WARP rules)
+      track('edudash.whatsapp.opt_in_error', {
+        user_id: user?.id || '',
+        preschool_id: profile?.organization_id,
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
     }
   })
 
@@ -163,10 +175,16 @@ export const useWhatsAppConnection = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
-      console.log('WhatsApp opt-out successful')
+      // Success tracked via analytics
     },
     onError: (error) => {
-      console.error('WhatsApp opt-out failed:', error)
+      // Track error via analytics
+      track('edudash.whatsapp.opt_out_error', {
+        user_id: user?.id || '',
+        preschool_id: profile?.organization_id,
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
     }
   })
 
@@ -230,7 +248,13 @@ export const useWhatsAppConnection = () => {
       return txt.data
     },
     onError: (error) => {
-      console.error('Test message failed:', error)
+      // Track error via analytics (console.error removed per WARP rules)
+      track('edudash.whatsapp.test_message_error', {
+        user_id: user?.id || '',
+        preschool_id: profile?.organization_id,
+        error_message: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      })
     }
   })
 

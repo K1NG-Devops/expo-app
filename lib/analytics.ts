@@ -54,8 +54,12 @@ export interface AnalyticsEvent {
   // WhatsApp Integration events
   'edudash.whatsapp.quick_action_pressed': { connected: boolean; timestamp: string };
   'edudash.whatsapp.opt_in': { user_id: string; preschool_id: string; phone_number_hash: string; consent_given: boolean; timestamp: string };
+  'edudash.whatsapp.opt_in_success': { user_id: string; preschool_id?: string; consent_status: string; timestamp: string };
+  'edudash.whatsapp.opt_in_error': { user_id: string; preschool_id?: string; error_message: string; timestamp: string };
   'edudash.whatsapp.opt_out': { user_id: string; preschool_id?: string; timestamp: string };
+  'edudash.whatsapp.opt_out_error': { user_id: string; preschool_id?: string; error_message: string; timestamp: string };
   'edudash.whatsapp.test_message_sent': { user_id?: string; preschool_id?: string; timestamp: string };
+  'edudash.whatsapp.test_message_error': { user_id: string; preschool_id?: string; error_message: string; timestamp: string };
   'edudash.whatsapp.deep_link_opened': { user_id: string; preschool_id?: string; has_school_number: boolean };
   'edudash.whatsapp.modal_opened': { current_status: 'connected' | 'disconnected'; timestamp: string };
   'edudash.whatsapp.modal_closed': { final_status: 'connected' | 'disconnected'; session_duration_ms: number };

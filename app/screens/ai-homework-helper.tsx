@@ -133,13 +133,19 @@ export default function AIHomeworkHelperScreen() {
             <View style={{ marginBottom: 8 }}>
               <Text style={styles.label}>Model</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {models.map(m => (
-              <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'homework_help') } catch { /* noop */ void 0; } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? Colors.light.text : '#E5E7EB', backgroundColor: selectedModel === m.id ? Colors.light.text : 'transparent' }}>
-                    <Text style={{ color: selectedModel === m.id ? '#fff' : Colors.light.text }}>
-                      {`${m.name} · x${m.relativeCost} · ${m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'}${(m as any).notes ? ` · ${(m as any).notes}` : ''}`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {models.map(m => {
+                  const costIndicator = m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$';
+                  const notes = (m as any).notes ? ` · ${(m as any).notes}` : '';
+                  const modelText = `${m.name} · x${m.relativeCost} · ${costIndicator}${notes}`;
+                  
+                  return (
+                    <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'homework_help') } catch { /* noop */ void 0; } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? Colors.light.text : '#E5E7EB', backgroundColor: selectedModel === m.id ? Colors.light.text : 'transparent' }}>
+                      <Text style={{ color: selectedModel === m.id ? '#fff' : Colors.light.text }}>
+                        {modelText}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           )}

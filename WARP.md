@@ -258,6 +258,7 @@ Empower every educator, engage every parent, and inspire every student through t
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution workflow and standards
 - **[README.md](README.md)**: Project overview and setup
 - **[SECURITY.md](SECURITY.md)**: Security policies and procedures
+- **[Supabase Database Advisors](https://supabase.com/docs/guides/database/database-advisors)**: Official documentation for database security best practices, RLS policies, and security advisor compliance
 
 ---
 

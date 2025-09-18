@@ -32,6 +32,8 @@ interface RoleBasedHeaderProps {
   backgroundColor?: string;
   textColor?: string;
   onBackPress?: () => void;
+  onSubtitleTap?: () => void; // Tap handler for subtitle
+  canCycleChildren?: boolean; // Shows visual indicator for cycling
 }
 
 /**
@@ -47,6 +49,8 @@ export function RoleBasedHeader({
   backgroundColor,
   textColor,
   onBackPress,
+  onSubtitleTap,
+  canCycleChildren = false,
 }: RoleBasedHeaderProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [languageVisible, setLanguageVisible] = useState(false);
@@ -91,8 +95,8 @@ export function RoleBasedHeader({
     loadAvatarUrl();
   }, [user?.id, user?.user_metadata?.avatar_url]);
 
-  // Use centralized navigation logic
-  const shouldShowBack = shouldShowBackButton(route.name, !!user) && showBackButton;
+  // Use centralized navigation logic - but allow explicit override
+  const shouldShowBack = showBackButton === true ? true : (shouldShowBackButton(route.name, !!user) && showBackButton);
 
   const handleBackPress = () => {
     if (onBackPress) {
@@ -236,9 +240,25 @@ export function RoleBasedHeader({
             {displayTitle}
           </Text>
           {displaySubtitle && (
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-              {displaySubtitle}
-            </Text>
+            canCycleChildren && onSubtitleTap ? (
+              <TouchableOpacity onPress={onSubtitleTap} activeOpacity={0.7}>
+                <View style={styles.subtitleTouchable}>
+                  <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {displaySubtitle}
+                  </Text>
+                  <Ionicons 
+                    name="swap-horizontal" 
+                    size={12} 
+                    color={theme.textSecondary} 
+                    style={{ marginLeft: 4 }}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                {displaySubtitle}
+              </Text>
+            )
           )}
         </View>
 
@@ -375,6 +395,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     textAlign: 'center',
     marginTop: 2,
+  },
+  subtitleTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
   },
   rightSection: {
     width: 88, // Increased width to fit both buttons

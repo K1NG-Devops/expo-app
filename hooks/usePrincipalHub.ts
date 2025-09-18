@@ -224,6 +224,9 @@ export const usePrincipalHub = () => {
         teachersResult,
         classesResult,
         applicationsResult,
+        approvedAppsResult,
+        rejectedAppsResult,
+        waitlistedAppsResult,
         attendanceResult,
         capacityResult,
         preschoolResult
@@ -266,6 +269,23 @@ export const usePrincipalHub = () => {
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
           .in('status', ['pending', 'under_review', 'interview_scheduled']),
+
+        // Approved/Rejected/Waitlisted - real counts
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'approved'),
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'rejected'),
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'waitlisted'),
           
         // Get recent attendance records for attendance rate
         assertSupabase()
@@ -278,7 +298,7 @@ export const usePrincipalHub = () => {
         // Get preschool capacity info
         assertSupabase()
           .from('preschools')
-          .select('capacity, name')
+          .select('capacity:max_students, name')
           .eq('id', preschoolId)
           .single(),
           
@@ -295,6 +315,9 @@ export const usePrincipalHub = () => {
       const teachersData = teachersResult.status === 'fulfilled' ? (teachersResult.value.data || []) : [];
       const classesCount = classesResult.status === 'fulfilled' ? (classesResult.value.count || 0) : 0;
       const applicationsCount = applicationsResult.status === 'fulfilled' ? (applicationsResult.value.count || 0) : 0;
+      const approvedCount = approvedAppsResult.status === 'fulfilled' ? (approvedAppsResult.value.count || 0) : 0;
+      const rejectedCount = rejectedAppsResult.status === 'fulfilled' ? (rejectedAppsResult.value.count || 0) : 0;
+      const waitlistedCount = waitlistedAppsResult.status === 'fulfilled' ? (waitlistedAppsResult.value.count || 0) : 0;
       const attendanceData = attendanceResult.status === 'fulfilled' ? (attendanceResult.value.data || []) : [];
       const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
       const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
@@ -450,9 +473,9 @@ export const usePrincipalHub = () => {
         return sum + (transaction.amount || 0);
       }, 0);
       
-      // Only use estimation as fallback if no real data exists
-      const estimatedMonthlyRevenue = currentMonthRevenue > 0 ? currentMonthRevenue : studentsCount * 1200;
-      const finalPreviousRevenue = previousMonthRevenue > 0 ? previousMonthRevenue : Math.round(estimatedMonthlyRevenue * 0.9);
+      // No estimates in production path per rules: use only real figures
+      const monthlyRevenueTotal = currentMonthRevenue;
+      const finalPreviousRevenue = previousMonthRevenue;
       
       // Build real stats object
       const stats = {
@@ -473,8 +496,8 @@ export const usePrincipalHub = () => {
           trend: applicationsCount > 5 ? 'high' : applicationsCount > 2 ? 'up' : 'stable' 
         },
         monthlyRevenue: { 
-          total: estimatedMonthlyRevenue, 
-          trend: estimatedMonthlyRevenue > finalPreviousRevenue ? 'up' : estimatedMonthlyRevenue < finalPreviousRevenue ? 'down' : 'stable' 
+          total: monthlyRevenueTotal, 
+          trend: monthlyRevenueTotal > finalPreviousRevenue ? 'up' : monthlyRevenueTotal < finalPreviousRevenue ? 'down' : 'stable' 
         },
         attendanceRate: { 
           percentage: attendanceRate || 0, 
@@ -488,19 +511,17 @@ export const usePrincipalHub = () => {
       // Use real petty cash data if available, otherwise fall back to basic estimates
       const realPettyCashExpenses = pettyCashMetrics?.monthlyExpenses || 0;
       
-      // For total expenses, include petty cash and estimate other operational costs
-      // This is more accurate than using a blanket percentage
-      const estimatedOperationalCosts = Math.round(estimatedMonthlyRevenue * 0.55); // Staff, utilities, materials
-      const totalExpenses = realPettyCashExpenses + estimatedOperationalCosts;
-      const netProfit = estimatedMonthlyRevenue - totalExpenses;
-      const profitMargin = estimatedMonthlyRevenue > 0 ? Math.round((netProfit / estimatedMonthlyRevenue) * 100) : 0;
+      // Expenses: Use only real petty cash expenses for now (no estimates)
+      const totalExpenses = realPettyCashExpenses;
+      const netProfit = monthlyRevenueTotal - totalExpenses;
+      const profitMargin = monthlyRevenueTotal > 0 ? Math.round((netProfit / monthlyRevenueTotal) * 100) : 0;
       
       const financialSummary = {
-        monthlyRevenue: estimatedMonthlyRevenue,
+        monthlyRevenue: monthlyRevenueTotal,
         previousMonthRevenue: finalPreviousRevenue,
-        estimatedExpenses: totalExpenses,
+        operationalExpenses: totalExpenses,
         netProfit,
-        revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((estimatedMonthlyRevenue - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
+        revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((monthlyRevenueTotal - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
         profitMargin,
         pettyCashBalance: pettyCashMetrics?.currentBalance || 0,
         pettyCashExpenses: realPettyCashExpenses,
@@ -525,10 +546,10 @@ export const usePrincipalHub = () => {
       
       const enrollmentPipeline = {
         pending: applicationsCount,
-        approved: Math.round(applicationsCount * 0.6),
-        rejected: Math.round(applicationsCount * 0.2),
-        waitlisted: Math.round(applicationsCount * 0.2),
-        total: applicationsCount + Math.round(applicationsCount * 0.8)
+        approved: approvedCount,
+        rejected: rejectedCount,
+        waitlisted: waitlistedCount,
+        total: applicationsCount + approvedCount + rejectedCount + waitlistedCount,
       };
       
       // Get real recent activities from database
