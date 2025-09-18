@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useCreatePOPUpload, CreatePOPUploadData } from '@/hooks/usePOPUploads';
 import { formatFileSize } from '@/lib/popUpload';
+import ProfileImageService from '@/services/ProfileImageService';
 
 // Subject options (common subjects for early childhood)
 const SUBJECTS = [
@@ -67,8 +69,34 @@ export default function PictureOfProgressScreen() {
   const [achievementLevel, setAchievementLevel] = useState<string>('');
   const [learningArea, setLearningArea] = useState('');
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const [showSubjects, setShowSubjects] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
+
+  // Convert local image URIs to data URIs for web compatibility
+  useEffect(() => {
+    const convertImageUri = async () => {
+      if (selectedFile?.uri) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (selectedFile.uri.startsWith('blob:') || selectedFile.uri.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(selectedFile.uri);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(selectedFile.uri);
+          }
+        } catch (error) {
+          console.error('Failed to convert image URI:', error);
+          setDisplayUri(selectedFile.uri); // Fallback to original URI
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertImageUri();
+  }, [selectedFile]);
   
   const styles = StyleSheet.create({
     container: {
@@ -498,7 +526,7 @@ export default function PictureOfProgressScreen() {
             </View>
           ) : (
             <View style={styles.selectedFileContainer}>
-              <Image source={{ uri: selectedFile.uri }} style={styles.imagePreview} />
+              <Image source={{ uri: displayUri || selectedFile.uri }} style={styles.imagePreview} />
               
               <View style={styles.fileInfo}>
                 <View style={{ flex: 1 }}>
@@ -510,7 +538,10 @@ export default function PictureOfProgressScreen() {
                 
                 <TouchableOpacity 
                   style={styles.removeFileButton}
-                  onPress={() => setSelectedFile(null)}
+                  onPress={() => {
+                    setSelectedFile(null);
+                    setDisplayUri(null);
+                  }}
                 >
                   <Ionicons name="close-circle" size={24} color={theme.error} />
                 </TouchableOpacity>

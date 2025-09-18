@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Platform } from 'react-native';
+import ProfileImageService from '@/services/ProfileImageService';
 
 export function Avatar({ name, imageUri, size = 48 }: { name: string; imageUri?: string | null; size?: number }) {
+  const [displayUri, setDisplayUri] = useState<string | null>(imageUri || null);
+  
   const initials = (name || '?')
     .split(' ')
     .map((p) => p[0])
@@ -9,19 +12,33 @@ export function Avatar({ name, imageUri, size = 48 }: { name: string; imageUri?:
     .slice(0, 2)
     .toUpperCase();
 
-  // Guard against local file URIs on web which cannot be loaded by the browser
-  const isLocalFileUri = !!(imageUri && (
-    Platform.OS === 'web' && (
-      imageUri.startsWith('file://') ||
-      imageUri.startsWith('/data/') ||
-      imageUri.includes('ImageManipulator') ||
-      imageUri.includes('cache/') ||
-      !imageUri.startsWith('http')
-    )
-  ));
+  // Convert local image URIs to data URIs for web compatibility
+  useEffect(() => {
+    const convertImageUri = async () => {
+      if (imageUri) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (imageUri.startsWith('blob:') || imageUri.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(imageUri);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(imageUri);
+          }
+        } catch (error) {
+          console.error('Failed to convert avatar URI:', error);
+          setDisplayUri(null); // Fallback to initials
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertImageUri();
+  }, [imageUri]);
 
-  if (imageUri && !isLocalFileUri) {
-    return <Image source={{ uri: imageUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
+  if (displayUri) {
+    return <Image source={{ uri: displayUri }} style={{ width: size, height: size, borderRadius: size / 2 }} />;
   }
 
   return (

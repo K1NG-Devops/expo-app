@@ -19,6 +19,7 @@ import { useTheme } from '../../contexts/ThemeContext'
 import { useTranslation } from 'react-i18next'
 import { track } from '../../lib/analytics'
 import { useAuth } from '../../contexts/AuthContext'
+import { convertToE164, formatAsUserTypes, validatePhoneNumber, EXAMPLE_PHONE_NUMBERS } from '../../lib/utils/phoneUtils'
 
 interface WhatsAppOptInModalProps {
   visible: boolean
@@ -88,31 +89,26 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
     prevVisibleRef.current = visible
   }, [visible, connectionStatus.isConnected, connectionStatus.contact])
 
-  const validatePhoneNumber = (phone: string) => {
-    // Remove all non-digits for validation
-    const digitsOnly = phone.replace(/\D/g, '')
-    
-    // SA mobile numbers: 10 digits starting with 0, or 11 digits starting with 27
-    if (digitsOnly.length === 10 && digitsOnly.startsWith('0')) {
-      return true
-    }
-    if (digitsOnly.length === 11 && digitsOnly.startsWith('27')) {
-      return true
-    }
-    if (phone.startsWith('+27') && digitsOnly.length === 11) {
-      return true
-    }
-    
-    return false
+  // Use the new phone validation utility
+  const validatePhone = (phone: string) => {
+    return validatePhoneNumber(phone).isValid;
+  }
+
+  // Handle phone number input with auto-formatting
+  const handlePhoneChange = (text: string) => {
+    const formatted = formatAsUserTypes(text);
+    setPhoneNumber(formatted);
   }
 
   const handlePhoneSubmit = () => {
-    if (!validatePhoneNumber(phoneNumber)) {
+    const validation = validatePhoneNumber(phoneNumber);
+    
+    if (!validation.isValid) {
       // Track validation failure
       const digitsOnly = phoneNumber.replace(/\D/g, '')
       let errorType: 'format' | 'length' | 'country' = 'format'
       
-      if (digitsOnly.length < 10) {
+      if (digitsOnly.length < 9) {
         errorType = 'length'
       } else if (!digitsOnly.startsWith('0') && !digitsOnly.startsWith('27')) {
         errorType = 'country'
@@ -124,12 +120,19 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       })
       
       Alert.alert(
-        t('whatsapp:invalidPhone'),
-        t('whatsapp:invalidPhoneMessage'),
+        'Invalid Phone Number',
+        validation.message || 'Please enter a valid South African mobile number',
         [{ text: t('common.ok') }]
       )
       return
     }
+    
+    // Convert to E.164 format for storage
+    const e164Result = convertToE164(phoneNumber);
+    if (e164Result.isValid && e164Result.e164) {
+      setPhoneNumber(e164Result.e164); // Update to E.164 format
+    }
+    
     setStep('consent')
   }
 
@@ -466,12 +469,13 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       <TextInput
         style={styles.phoneInput}
         value={phoneNumber}
-        onChangeText={setPhoneNumber}
-        placeholder="081 234 5678"
+        onChangeText={handlePhoneChange}
+        placeholder={EXAMPLE_PHONE_NUMBERS.local}
         placeholderTextColor={theme.textSecondary}
         keyboardType="phone-pad"
         autoComplete="tel"
         textContentType="telephoneNumber"
+        maxLength={13} // Allow for formatted input
       />
       <Text style={styles.phoneHint}>
         {t('whatsapp:phoneHint')}
@@ -490,10 +494,10 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         <TouchableOpacity
           style={[
             styles.button,
-            !validatePhoneNumber(phoneNumber) && styles.buttonDisabled
+            !validatePhone(phoneNumber) && styles.buttonDisabled
           ]}
           onPress={handlePhoneSubmit}
-          disabled={!validatePhoneNumber(phoneNumber)}
+          disabled={!validatePhone(phoneNumber)}
         >
           <Text style={styles.buttonText}>
             {t('common.continue')}

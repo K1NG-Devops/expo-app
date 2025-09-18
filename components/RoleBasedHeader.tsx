@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
+import ProfileImageService from '@/services/ProfileImageService';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -55,6 +56,7 @@ export function RoleBasedHeader({
   const [menuVisible, setMenuVisible] = useState(false);
   const [languageVisible, setLanguageVisible] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -89,11 +91,42 @@ export function RoleBasedHeader({
         }
       }
       
+      // Check if URL is a local file:// URI on web platform - don't use these
+      if (Platform.OS === 'web' && url && url.startsWith('file://')) {
+        console.debug('Skipping local file:// URI on web platform:', url);
+        url = null;
+      }
+      
       setAvatarUrl(url || null);
     };
 
     loadAvatarUrl();
   }, [user?.id, user?.user_metadata?.avatar_url]);
+
+  // Convert avatar URL to data URI for web compatibility
+  useEffect(() => {
+    const convertAvatarUri = async () => {
+      if (avatarUrl) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (avatarUrl.startsWith('blob:') || avatarUrl.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(avatarUrl);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(avatarUrl);
+          }
+        } catch (error) {
+          console.error('Failed to convert avatar URI in header:', error);
+          setDisplayUri(null); // Fallback to initials
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertAvatarUri();
+  }, [avatarUrl]);
 
   // Use centralized navigation logic - explicit false prop overrides, otherwise defer to shouldShowBackButton
   const shouldShowBack = (showBackButton !== false) && shouldShowBackButton(route.name, !!user);
@@ -218,8 +251,8 @@ export function RoleBasedHeader({
               onPress={() => router.push('/screens/account')}
               accessibilityLabel="Go to account settings"
             >
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              {displayUri ? (
+                <Image source={{ uri: displayUri }} style={styles.avatarImage} />
               ) : (
                 <View style={[styles.avatarFallback, { 
                   backgroundColor: theme.primary, 

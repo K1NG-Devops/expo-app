@@ -189,6 +189,56 @@ class ProfileImageService {
   }
 
   /**
+   * Convert local image URI to web-compatible data URI for preview
+   * This fixes the 'Not allowed to load local resource' error on web
+   */
+  static async convertToDataUri(uri: string): Promise<string | null> {
+    try {
+      if (Platform.OS === 'web') {
+        // On web, if it's already a data URI or http URL, return as-is
+        if (uri.startsWith('data:') || uri.startsWith('http')) {
+          return uri;
+        }
+        
+        // For blob URLs, we can try to fetch them
+        if (uri.startsWith('blob:')) {
+          try {
+            const response = await fetch(uri);
+            const blob = await response.blob();
+            
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => {
+                console.warn('FileReader error for blob URL');
+                resolve(null);
+              };
+              reader.readAsDataURL(blob);
+            });
+          } catch (fetchError) {
+            console.warn('Could not fetch blob URL:', fetchError);
+            return null;
+          }
+        }
+        
+        // For local file URIs on web (file:// or /data/), we cannot access them due to security restrictions
+        // The browser simply won't allow it. Return null so components can handle this gracefully.
+        if (uri.startsWith('file:') || uri.includes('/data/') || uri.includes('/cache/') || uri.includes('ImageManipulator')) {
+          console.warn('Cannot access local file URI on web platform - this suggests an upload failure:', uri);
+          console.warn('💡 Check that the Supabase "avatars" bucket exists and is properly configured');
+          return null;
+        }
+      }
+      
+      // On native, return the URI as-is since it should work
+      return uri;
+    } catch (error) {
+      console.error('Error converting URI to data URI:', error);
+      return null;
+    }
+  }
+
+  /**
    * Convert image URI to a binary body for upload that works reliably on native and web
    */
   private static async createBodyFromUri(
@@ -402,3 +452,27 @@ class ProfileImageService {
 }
 
 export default ProfileImageService;
+
+// Debug function to check storage status (useful for development)
+if (__DEV__) {
+  (global as any).debugAvatarStorage = async () => {
+    console.log('🔍 Avatar Storage Debug Info:');
+    const bucketStatus = await ProfileImageService.checkBucketStatus();
+    console.log('Bucket Status:', bucketStatus);
+    
+    if (!bucketStatus.exists) {
+      console.log('❌ ISSUE FOUND: Avatars bucket does not exist!');
+      console.log('📋 To fix: Create the "avatars" bucket in Supabase Dashboard');
+      console.log('   1. Go to Supabase Dashboard > Storage');
+      console.log('   2. Create new bucket: "avatars"');
+      console.log('   3. Set as public bucket');
+      console.log('   4. Set file size limit: 5MB');
+    } else {
+      console.log('✅ Avatars bucket exists and is accessible');
+    }
+    
+    return bucketStatus;
+  };
+  
+  console.log('🛠️ Avatar storage debug function available: debugAvatarStorage()');
+}

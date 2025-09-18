@@ -72,7 +72,7 @@ export type SummaryOptions = z.infer<typeof SummaryOptionsSchema>;
 
 export interface PettyCashAccount {
   id: string;
-  preschool_id: string;
+  school_id: string;
   opening_balance: number;
   currency: string;
   low_balance_threshold: number;
@@ -84,7 +84,7 @@ export interface PettyCashAccount {
 
 export interface PettyCashTransaction {
   id: string;
-  preschool_id: string;
+  school_id: string;
   account_id: string;
   amount: number;
   type: z.infer<typeof TransactionType>;
@@ -104,7 +104,7 @@ export interface PettyCashTransaction {
 
 export interface PettyCashReceipt {
   id: string;
-  preschool_id: string;
+  school_id: string;
   transaction_id: string;
   storage_path: string;
   file_name: string;
@@ -147,7 +147,7 @@ export async function getAccountForSchool(schoolId: string): Promise<PettyCashAc
     const { data: existing, error } = await assertSupabase()
       .from('petty_cash_accounts')
       .select('*')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('is_active', true)
       .single();
 
@@ -201,21 +201,31 @@ export async function getAccountForSchool(schoolId: string): Promise<PettyCashAc
 export async function getBalance(schoolId: string): Promise<number> {
   try {
     // Prefer direct computation to avoid dependency on RPC/view availability
-    const { data: account } = await assertSupabase()
+    const { data: account, error: accountError } = await assertSupabase()
       .from('petty_cash_accounts')
       .select('opening_balance')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('is_active', true)
       .maybeSingle();
 
+    if (accountError) {
+      console.warn('Failed to fetch petty cash account:', accountError);
+      return 0;
+    }
+
     const openingBalance = Number(account?.opening_balance || 0);
 
-    const { data: txns } = await assertSupabase()
+    const { data: txns, error: txnsError } = await assertSupabase()
       .from('petty_cash_transactions')
       .select('amount, type, status')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('status', 'approved')
       .limit(1000);
+
+    if (txnsError) {
+      console.warn('Failed to fetch transactions for balance calculation:', txnsError);
+      return openingBalance; // Return at least the opening balance
+    }
 
     const approved = txns || [];
     const totalSigned = approved.reduce((sum, t: any) => {
@@ -242,32 +252,48 @@ export async function getSummary(
   try {
     const validatedOptions = SummaryOptionsSchema.parse(options);
 
-    // Get summary from RPC
-    const { data: summaryData, error: summaryError } = await assertSupabase()
-      .rpc('get_petty_cash_summary', {
-        preschool_uuid: schoolId,
-        start_date: validatedOptions.from?.toISOString(),
-        end_date: validatedOptions.to?.toISOString(),
-      });
+    // Get summary from RPC - handle potential RPC function not existing
+    let summaryData = null;
+    let summaryError = null;
+    
+    try {
+      const response = await assertSupabase()
+        .rpc('get_petty_cash_summary', {
+          preschool_uuid: schoolId,
+          start_date: validatedOptions.from?.toISOString(),
+          end_date: validatedOptions.to?.toISOString(),
+        });
+      summaryData = response.data;
+      summaryError = response.error;
+    } catch (rpcError) {
+      console.warn('RPC function get_petty_cash_summary not available, using fallback:', rpcError);
+      summaryError = rpcError;
+    }
 
     // Fetch petty cash account info; compute balance directly if needed
-    const { data: accountData } = await assertSupabase()
+    const { data: accountData, error: accountError } = await assertSupabase()
       .from('petty_cash_accounts')
       .select('opening_balance, low_balance_threshold')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('is_active', true)
       .maybeSingle();
+
+    if (accountError) {
+      console.warn('Failed to fetch petty cash account for summary:', accountError);
+    }
     const openingBalance = Number(accountData?.opening_balance || 0);
     const lowThreshold = Number(accountData?.low_balance_threshold || 1000);
 
     // Fallback path if RPC is missing (PGRST202) or returned no data
     if (summaryError || !summaryData) {
+      console.debug('Using petty cash summary fallback due to:', summaryError?.message || 'No RPC data');
+      
       // Attempt to compute summary via direct queries (limited scope)
       try {
         let txQuery = assertSupabase()
           .from('petty_cash_transactions')
           .select('amount, type, status, created_at')
-          .eq('preschool_id', schoolId);
+          .eq('school_id', schoolId);
 
         if (validatedOptions.from) {
           txQuery = txQuery.gte('created_at', validatedOptions.from.toISOString());
@@ -278,7 +304,22 @@ export async function getSummary(
 
         const { data: txns, error: txErr } = await txQuery.limit(1000);
         if (txErr) {
-          console.error('Error fetching transactions for summary fallback:', txErr);
+          console.warn('Error fetching transactions for summary fallback:', txErr);
+          
+          // If it's an RLS policy error or table doesn't exist, return minimal data
+          if (txErr.code === 'PGRST301' || txErr.code === 'PGRST116' || txErr.message?.includes('relation') || txErr.message?.includes('policy')) {
+            console.debug('Petty cash tables/policies not accessible, returning default summary');
+            return {
+              total_expenses: 0,
+              total_replenishments: 0, 
+              total_adjustments: 0,
+              transaction_count: 0,
+              pending_count: 0,
+              current_balance: openingBalance,
+              is_low_balance: false,
+              low_balance_threshold: lowThreshold,
+            } as PettyCashSummary;
+          }
         }
 
         const list = txns || [];
@@ -296,12 +337,16 @@ export async function getSummary(
         const pending_count = list.filter(t => t.status === 'pending').length;
 
         // Compute overall signed total for balance across ALL time
-        const { data: allApproved } = await assertSupabase()
+        const { data: allApproved, error: allApprovedError } = await assertSupabase()
           .from('petty_cash_transactions')
           .select('amount, type, status')
-          .eq('preschool_id', schoolId)
+          .eq('school_id', schoolId)
           .eq('status', 'approved')
           .limit(1000);
+
+        if (allApprovedError) {
+          console.warn('Failed to fetch all approved transactions:', allApprovedError);
+        }
         const totalSignedAll = (allApproved || []).reduce((sum, t: any) => {
           const amt = Number(t.amount || 0);
           if (t.type === 'expense') return sum - amt;
@@ -349,7 +394,7 @@ export async function getSummary(
     const { data: allApproved } = await assertSupabase()
       .from('petty_cash_transactions')
       .select('amount, type, status')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('status', 'approved')
       .limit(1000);
     const totalSignedAll = (allApproved || []).reduce((sum, t: any) => {
@@ -394,7 +439,7 @@ export async function listTransactions(
     let query = assertSupabase()
       .from('petty_cash_transactions')
       .select('*')
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .order('created_at', { ascending: false });
 
     // Apply filters
@@ -493,7 +538,7 @@ export async function createTransaction(
     }
 
     const transactionData = {
-      preschool_id: schoolId,
+      school_id: schoolId,
       account_id: account.id,
       amount: validatedPayload.amount,
       type: validatedPayload.type,
@@ -552,7 +597,7 @@ export async function approveTransaction(schoolId: string, transactionId: string
       .from('petty_cash_transactions')
       .update(updateData)
       .eq('id', transactionId)
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('status', 'pending')
       .select('*')
       .single();
@@ -598,7 +643,7 @@ export async function rejectTransaction(
       .from('petty_cash_transactions')
       .update(updateData)
       .eq('id', transactionId)
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .eq('status', 'pending')
       .select('*')
       .single();
@@ -683,7 +728,7 @@ export async function attachReceiptRecord(
 
   return withTenantContext(schoolId, async (context) => {
     const receiptData = {
-      preschool_id: schoolId,
+      school_id: schoolId,
       transaction_id: transactionId,
       storage_path: storagePath,
       file_name: validatedFileMeta.fileName,
@@ -765,7 +810,7 @@ export async function deleteReceipt(schoolId: string, receiptId: string): Promis
       .from('petty_cash_receipts')
       .select('storage_path, transaction_id')
       .eq('id', receiptId)
-      .eq('preschool_id', schoolId)
+      .eq('school_id', schoolId)
       .single();
 
     if (fetchError || !receipt) {
@@ -789,7 +834,7 @@ export async function deleteReceipt(schoolId: string, receiptId: string): Promis
       .from('petty_cash_receipts')
       .delete()
       .eq('id', receiptId)
-      .eq('preschool_id', schoolId);
+      .eq('school_id', schoolId);
 
     if (dbError) {
       console.error('Error deleting receipt record:', dbError);

@@ -22,7 +22,12 @@ These rules are absolute and cannot be overridden without formal approval proces
 ### 1. Production Database Integrity
 - **NEVER** reset, reseed, or otherwise alter the production database state outside the approved migration pipeline
 - **NEVER** run `supabase db reset` on production or staging environments  
-- **ALWAYS** use Supabase migrations for schema changes
+- **NEVER** execute direct SQL queries via Supabase Dashboard SQL Editor - this breaks migration history
+- **NEVER** use raw SQL scripts outside the migration system - leads to schema drift
+- **ALWAYS** use Supabase migrations for ALL schema changes (tables, policies, functions, triggers)
+- **ALWAYS** use `supabase migration new` to create new migration files
+- **ALWAYS** use `supabase db push` to apply migrations consistently
+- **ALWAYS** use `supabase migration repair` to fix migration history issues
 - **CURRENT STATE**: Production-ready with live superadmin accounts
   - Primary: superadmin@edudashpro.org.za / #Olivia@17
   - Secondary: admin@edudashpro.com / Secure123!
@@ -163,6 +168,16 @@ Empower every educator, engage every parent, and inspire every student through t
 - [ ] Use TanStack Query for server state
 - [ ] Implement proper error handling
 
+### Database Changes (CRITICAL)
+- [ ] **NEVER** run SQL directly in Supabase Dashboard
+- [ ] Create migration with `supabase migration new <descriptive-name>`
+- [ ] Write SQL in migration file under `supabase/migrations/`
+- [ ] Test migration locally first with `supabase db reset --local`
+- [ ] Apply to remote with `supabase db push --linked`
+- [ ] Verify migration history with `supabase migration list`
+- [ ] Use `supabase migration repair` if history gets corrupted
+- [ ] Document breaking changes in migration comments
+
 ### Before Committing
 - [ ] TypeScript strict mode passing
 - [ ] Unit tests for business logic
@@ -253,7 +268,7 @@ Empower every educator, engage every parent, and inspire every student through t
 
 ## 📚 REFERENCE DOCUMENTS
 
-- **[rules.md](rules.md)**: Detailed development principles and acceptance criteria
+- **[rules.md](rules.md)**: Detailed development principles, database migration rules, and acceptance criteria
 - **[.cursorrules](.cursorrules)**: Component and service-specific guidance
 - **[CONTRIBUTING.md](CONTRIBUTING.md)**: Contribution workflow and standards
 - **[README.md](README.md)**: Project overview and setup

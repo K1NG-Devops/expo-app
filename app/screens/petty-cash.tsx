@@ -135,10 +135,10 @@ export default function PettyCashScreen() {
       }
 
       // Load petty cash transactions
-      const { data: transactionsData, error: transError } = await assertSupabase()
+        const { data: transactionsData, error: transError } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('*')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -173,7 +173,7 @@ export default function PettyCashScreen() {
       const { data: accountRow } = await assertSupabase()
         .from('petty_cash_accounts')
         .select('opening_balance, low_balance_threshold')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .eq('is_active', true)
         .maybeSingle();
 
@@ -182,7 +182,7 @@ export default function PettyCashScreen() {
       const { data: approvedAll } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount, type, status')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .eq('status', 'approved')
         .limit(1000);
       const totalSignedAll = (approvedAll || []).reduce((sum, t: any) => {
@@ -240,7 +240,7 @@ const { data: userProfile } = await assertSupabase()
 const { data: transactionData, error: transactionError } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          preschool_id: userProfile?.preschool_id,
+          school_id: userProfile?.preschool_id,
           account_id: accountId,
           amount,
           description: expenseForm.description.trim(),
@@ -308,7 +308,7 @@ const { data: userProfile } = await assertSupabase()
 const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
-          preschool_id: userProfile?.preschool_id,
+          school_id: userProfile?.preschool_id,
           account_id: accountId,
           amount,
           description: `Petty cash replenishment - ${new Date().toLocaleDateString()}`,
@@ -415,7 +415,7 @@ const { error } = await assertSupabase()
         await assertSupabase()
           .from('petty_cash_receipts')
           .insert({
-            preschool_id: schoolId,
+            school_id: schoolId,
             transaction_id: transactionId,
             storage_path: data.path,
             file_name: fileName,

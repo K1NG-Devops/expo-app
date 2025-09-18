@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { Colors } from '@/constants/Colors';
 import * as ImagePicker from "expo-image-picker";
@@ -60,6 +61,7 @@ export default function AccountScreen() {
   const [firstName, setFirstName] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -408,6 +410,31 @@ export default function AccountScreen() {
     load();
   }, [load]);
 
+  // Convert profile image URI to data URI for web compatibility
+  useEffect(() => {
+    const convertImageUri = async () => {
+      if (profileImage) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (profileImage.startsWith('blob:') || profileImage.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(profileImage);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(profileImage);
+          }
+        } catch (error) {
+          console.error('Failed to convert profile image URI:', error);
+          setDisplayUri(profileImage); // Fallback to original URI
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertImageUri();
+  }, [profileImage]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -539,7 +566,11 @@ export default function AccountScreen() {
         setProfileImage(result.publicUrl);
         Alert.alert("Success", "Profile picture updated!");
       } else {
-        Alert.alert("Upload Failed", result.error || "Failed to update profile picture. Please try again.");
+        // Provide specific error message for missing bucket
+        const errorMessage = result.error?.includes('Bucket not found') || result.error?.includes('not found') 
+          ? "Avatar storage is not set up. Please contact support."
+          : result.error || "Failed to update profile picture. Please try again.";
+        Alert.alert("Upload Failed", errorMessage);
       }
     } catch (error) {
       console.error("Upload error:", error);
@@ -707,8 +738,8 @@ export default function AccountScreen() {
             onPress={showImageOptions}
             disabled={uploadingImage}
           >
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            {displayUri || profileImage ? (
+              <Image source={{ uri: (displayUri || profileImage) ?? '' }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{getInitials()}</Text>
