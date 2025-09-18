@@ -95,8 +95,8 @@ export function RoleBasedHeader({
     loadAvatarUrl();
   }, [user?.id, user?.user_metadata?.avatar_url]);
 
-  // Use centralized navigation logic - but allow explicit override
-  const shouldShowBack = showBackButton === true ? true : (shouldShowBackButton(route.name, !!user) && showBackButton);
+  // Use centralized navigation logic - explicit false prop overrides, otherwise defer to shouldShowBackButton
+  const shouldShowBack = (showBackButton !== false) && shouldShowBackButton(route.name, !!user);
 
   const handleBackPress = () => {
     if (onBackPress) {

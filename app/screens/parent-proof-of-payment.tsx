@@ -347,7 +347,7 @@ export default function ProofOfPaymentScreen() {
     <View style={styles.container}>
       <RoleBasedHeader 
         title={t('pop.uploadProofOfPayment')} 
-        showBack 
+        showBackButton
       />
       
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>

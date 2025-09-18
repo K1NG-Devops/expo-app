@@ -66,20 +66,44 @@ export const navigateTo = {
 };
 
 /**
+ * Helper function to identify main dashboard and root routes where back buttons should be hidden
+ */
+function isMainDashboardRoute(routeName: string): boolean {
+  const n = (routeName || '').toLowerCase();
+  
+  // Root/landing routes
+  if (n === 'index' || n === 'landing' || n === '(tabs)' || n === '' || n === 'home') {
+    return true;
+  }
+  
+  // Dashboard routes - covers parent-dashboard, teacher-dashboard, principal-dashboard, super-admin-dashboard, etc.
+  if (n.includes('dashboard')) {
+    return true;
+  }
+  
+  // Screens-based dashboard routes
+  if (n.startsWith('screens/') && (n.endsWith('-dashboard') || n.endsWith('/dashboard'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Determine if a back button should be shown based on current route
- * Updated to always show back buttons when navigation is possible
+ * Updated to treat all dashboards as main screens (no back button)
  */
 export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean): boolean {
+  // Never show back button on main dashboard routes
+  if (isMainDashboardRoute(routeName)) {
+    return false;
+  }
+  
   // Always check if we can go back first
   const canGoBack = router.canGoBack?.() ?? false;
   
   // If we can't go back in the stack, don't show the button
   if (!canGoBack) {
-    return false;
-  }
-  
-  // Special handling for root/main dashboard screens - still don't show back button
-  if (routeName === 'index' || routeName === 'landing' || routeName === '(tabs)' || routeName === '') {
     return false;
   }
   

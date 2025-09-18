@@ -362,7 +362,7 @@ export default function PictureOfProgressScreen() {
     <View style={styles.container}>
       <RoleBasedHeader 
         title={t('pop.uploadPictureOfProgress')} 
-        showBack 
+        showBackButton
       />
       
       <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>

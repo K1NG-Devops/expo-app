@@ -646,7 +646,7 @@ export default function POPHistoryScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <RoleBasedHeader title={t('pop.popHistory')} showBack />
+        <RoleBasedHeader title={t('pop.popHistory')} showBackButton />
         <View style={styles.loadingContainer}>
           <SkeletonLoader width="100%" height={120} borderRadius={12} style={{ marginBottom: 12 }} />
           <SkeletonLoader width="100%" height={120} borderRadius={12} style={{ marginBottom: 12 }} />
@@ -658,7 +658,7 @@ export default function POPHistoryScreen() {
   
   return (
     <View style={styles.container}>
-      <RoleBasedHeader title={t('pop.popHistory')} showBack />
+      <RoleBasedHeader title={t('pop.popHistory')} showBackButton />
       
       {/* Filter controls */}
       <View style={styles.headerActions}>

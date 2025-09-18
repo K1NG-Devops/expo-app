@@ -277,7 +277,7 @@ export default function ParentMessageThreadScreen() {
       <View style={styles.container}>
         <RoleBasedHeader 
           title={title ? decodeURIComponent(title) : t('parent.messages')} 
-          showBack 
+          showBackButton 
         />
         <View style={styles.messagesContainer}>
           <View style={[styles.skeletonMessage, { alignSelf: 'flex-start' }]}>
@@ -300,7 +300,7 @@ export default function ParentMessageThreadScreen() {
       <View style={styles.container}>
         <RoleBasedHeader 
           title={title ? decodeURIComponent(title) : t('parent.messages')} 
-          showBack 
+          showBackButton 
         />
         <View style={styles.errorContainer}>
           <Ionicons name="warning-outline" size={48} color={theme.error} />
@@ -322,7 +322,7 @@ export default function ParentMessageThreadScreen() {
     >
       <RoleBasedHeader 
         title={title ? decodeURIComponent(title) : t('parent.messages')} 
-        showBack 
+        showBackButton 
       />
       
       <View style={styles.content}>
