@@ -8,8 +8,12 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getEffectiveLimits } from '@/lib/ai/limits';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { navigateBack } from '@/lib/navigation';
 
 export default function PrincipalSeatManagementScreen() {
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const params = useLocalSearchParams<{ school?: string }>();
   const routeSchoolId = (params?.school ? String(params.school) : null);
   const { seats, assignSeat, revokeSeat } = useSubscription();
@@ -184,8 +188,8 @@ export default function PrincipalSeatManagementScreen() {
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
       <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}>
         <View style={styles.backRow}>
-          <TouchableOpacity style={styles.backLink} onPress={() => router.replace('/screens/principal-dashboard')}>
-            <Ionicons name="chevron-back" size={20} color="#00f5ff" />
+          <TouchableOpacity style={styles.backLink} onPress={() => navigateBack('/screens/principal-dashboard')}>
+            <Ionicons name="chevron-back" size={20} color={styles.accentColor} />
             <Text style={styles.backText}>Back to Dashboard</Text>
           </TouchableOpacity>
         </View>
@@ -345,7 +349,7 @@ export default function PrincipalSeatManagementScreen() {
 
           {teachers.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color="#9CA3AF" />
+              <Ionicons name="people-outline" size={48} color={styles.subtitle.color} />
               <Text style={styles.emptyStateTitle}>No Teachers Found</Text>
               <Text style={styles.emptyStateSubtitle}>Add teachers to your school to manage seat assignments</Text>
             </View>
@@ -356,14 +360,14 @@ export default function PrincipalSeatManagementScreen() {
                 <>
                   <View style={styles.categoryHeader}>
                     <View style={styles.categoryIndicator}>
-                      <View style={[styles.statusDot, { backgroundColor: '#10b981' }]} />
+                      <View style={[styles.statusDot, { backgroundColor: styles.successColor }]} />
                       <Text style={styles.categoryTitle}>Teachers with Seats ({teachers.filter(t => t.hasSeat).length})</Text>
                     </View>
                   </View>
                   {teachers.filter(t => t.hasSeat).map((t) => (
                     <View key={t.id} style={[styles.teacherRow, styles.teacherRowWithSeat]}>
                       <View style={styles.teacherInfo}>
-                        <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                        <Ionicons name="checkmark-circle" size={20} color={styles.successColor} />
                         <Text style={styles.teacherEmail}>{t.email}</Text>
                       </View>
                       <TouchableOpacity
@@ -398,14 +402,14 @@ export default function PrincipalSeatManagementScreen() {
                 <>
                   <View style={[styles.categoryHeader, { marginTop: teachers.filter(t => t.hasSeat).length > 0 ? 20 : 0 }]}>
                     <View style={styles.categoryIndicator}>
-                      <View style={[styles.statusDot, { backgroundColor: '#f59e0b' }]} />
+                      <View style={[styles.statusDot, { backgroundColor: styles.warningColor }]} />
                       <Text style={styles.categoryTitle}>Teachers without Seats ({teachers.filter(t => !t.hasSeat).length})</Text>
                     </View>
                   </View>
                   {teachers.filter(t => !t.hasSeat).map((t) => (
                     <View key={t.id} style={[styles.teacherRow, styles.teacherRowWithoutSeat]}>
                       <View style={styles.teacherInfo}>
-                        <Ionicons name="alert-circle-outline" size={20} color="#f59e0b" />
+                        <Ionicons name="alert-circle-outline" size={20} color={styles.warningColor} />
                         <Text style={styles.teacherEmail}>{t.email}</Text>
                       </View>
                       <TouchableOpacity
@@ -444,32 +448,52 @@ export default function PrincipalSeatManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12, backgroundColor: '#0b1220' },
-  title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-  subtitle: { fontSize: 14, color: '#9CA3AF' },
-  info: { color: '#9CA3AF' },
-  error: { color: '#ff6b6b' },
-  success: { color: '#10b981' },
-  banner: { color: '#f59e0b' },
-  bannerCard: { backgroundColor: '#111827', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#f59e0b' },
-  bannerTitle: { color: '#f59e0b', fontWeight: '800', fontSize: 16, marginBottom: 8 },
-  bannerText: { color: '#9CA3AF', fontSize: 14, lineHeight: 20, marginBottom: 8 },
-  bannerSubtext: { color: '#9CA3AF', fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
-  contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
-  contactBtnEmail: { backgroundColor: '#00f5ff' },
-  contactBtnWhatsApp: { backgroundColor: '#25D366' },
-  contactBtnText: { color: '#000', fontWeight: '800' },
-  inputGroup: { gap: 6 },
-  label: { color: '#FFFFFF' },
-  input: { backgroundColor: '#111827', color: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#1f2937', padding: 12 },
-  row: { flexDirection: 'row', gap: 12 },
-  btn: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 12 },
-  btnPrimary: { backgroundColor: '#00f5ff' },
-  btnPrimaryText: { color: '#000', fontWeight: '800' },
-  btnDanger: { backgroundColor: '#ff0080' },
-  btnDangerText: { color: '#000', fontWeight: '800' },
+const createStyles = (theme: any) => {
+  // Define the beautiful seat management theme colors
+  const darkBg = theme?.isDark !== false ? '#0b1220' : '#f8fafc';
+  const cardBg = theme?.isDark !== false ? '#111827' : '#ffffff';
+  const borderColor = theme?.isDark !== false ? '#1f2937' : '#e2e8f0';
+  const textPrimary = theme?.isDark !== false ? '#FFFFFF' : '#333333';
+  const textSecondary = theme?.isDark !== false ? '#9CA3AF' : '#666666';
+  const accentColor = theme?.primary || '#00f5ff';
+  const successColor = theme?.success || '#10b981';
+  const warningColor = theme?.warning || '#f59e0b';
+  const errorColor = theme?.error || '#ff6b6b';
+  const dangerColor = theme?.error || '#ff0080';
+
+  return StyleSheet.create({
+    // Expose theme colors for use in components
+    accentColor,
+    successColor,
+    warningColor,
+    errorColor,
+    dangerColor,
+    
+    container: { padding: 16, gap: 12, backgroundColor: darkBg },
+    title: { fontSize: 22, fontWeight: '800', color: textPrimary },
+    subtitle: { fontSize: 14, color: textSecondary },
+    info: { color: textSecondary },
+    error: { color: errorColor },
+    success: { color: successColor },
+    banner: { color: warningColor },
+    bannerCard: { backgroundColor: cardBg, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: warningColor },
+    bannerTitle: { color: warningColor, fontWeight: '800', fontSize: 16, marginBottom: 8 },
+    bannerText: { color: textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    bannerSubtext: { color: textSecondary, fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
+    contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
+    contactBtnEmail: { backgroundColor: accentColor },
+    contactBtnWhatsApp: { backgroundColor: '#25D366' },
+    contactBtnText: { color: '#000', fontWeight: '800' },
+    inputGroup: { gap: 6 },
+    label: { color: textPrimary },
+    input: { backgroundColor: cardBg, color: textPrimary, borderRadius: 10, borderWidth: 1, borderColor: borderColor, padding: 12 },
+    row: { flexDirection: 'row', gap: 12 },
+    btn: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 12 },
+    btnPrimary: { backgroundColor: accentColor },
+    btnPrimaryText: { color: '#000', fontWeight: '800' },
+    btnDanger: { backgroundColor: dangerColor },
+    btnDangerText: { color: '#000', fontWeight: '800' },
   
   // New teacher management section styles
   teachersSection: {
@@ -483,39 +507,39 @@ const styles = StyleSheet.create({
     gap: 16,
     marginTop: 8,
   },
-  seatsAssigned: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  seatsUnassigned: {
-    color: '#f59e0b',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+    seatsAssigned: {
+      color: successColor,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    seatsUnassigned: {
+      color: warningColor,
+      fontSize: 14,
+      fontWeight: '600',
+    },
   
   // Empty state
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  emptyStateTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptyStateSubtitle: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-  },
+    emptyState: {
+      alignItems: 'center',
+      padding: 32,
+      backgroundColor: cardBg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    emptyStateTitle: {
+      color: textPrimary,
+      fontSize: 18,
+      fontWeight: '600',
+      marginTop: 16,
+    },
+    emptyStateSubtitle: {
+      color: textSecondary,
+      fontSize: 14,
+      textAlign: 'center',
+      marginTop: 8,
+      lineHeight: 20,
+    },
   
   // Teacher list styles
   teachersList: {
@@ -534,52 +558,53 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  categoryTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // Teacher row styles
-  teacherRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#111827',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  teacherRowWithSeat: {
-    borderColor: '#10b981',
-    backgroundColor: '#111827',
-  },
-  teacherRowWithoutSeat: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#111827',
-  },
-  teacherInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  teacherEmail: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  
-  smallBtn: { 
-    paddingVertical: 8, 
-    paddingHorizontal: 12, 
-    borderRadius: 10,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  btnDisabled: { opacity: 0.5 },
-  backRow: { marginBottom: 8 },
-  backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backText: { color: '#00f5ff', fontWeight: '800' },
-});
+    categoryTitle: {
+      color: textPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    
+    // Teacher row styles
+    teacherRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: cardBg,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      marginBottom: 8,
+    },
+    teacherRowWithSeat: {
+      borderColor: successColor,
+      backgroundColor: cardBg,
+    },
+    teacherRowWithoutSeat: {
+      borderColor: warningColor,
+      backgroundColor: cardBg,
+    },
+    teacherInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    teacherEmail: {
+      color: textPrimary,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    
+    smallBtn: { 
+      paddingVertical: 8, 
+      paddingHorizontal: 12, 
+      borderRadius: 10,
+      minWidth: 80,
+      alignItems: 'center',
+    },
+    btnDisabled: { opacity: 0.5 },
+    backRow: { marginBottom: 8 },
+    backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    backText: { color: accentColor, fontWeight: '800' },
+  });
+};

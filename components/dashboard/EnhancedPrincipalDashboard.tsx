@@ -61,7 +61,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   
   // WhatsApp integration
-  const { connectionStatus, isWhatsAppEnabled } = useWhatsAppConnection();
+  const { isWhatsAppEnabled } = useWhatsAppConnection();
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
 
   // Create theme-aware styles
