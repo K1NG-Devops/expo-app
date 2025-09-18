@@ -48,34 +48,100 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
     }
     
     // Fetch profile with preschool details
-    const { data: profile, error: profileError } = await client
-      .from('users')
-      .select(`
-        id,
-        auth_user_id,
-        preschool_id,
-        role,
-        name,
-        email,
-        phone,
-        avatar_url,
-        is_active,
-        created_at,
-        updated_at,
-        preschool:preschools(
+    // Try different query approaches for compatibility
+    let profile = null;
+    let profileError = null;
+    
+    // First try with auth_user_id field
+    try {
+      const { data, error } = await client
+        .from('users')
+        .select(`
           id,
-          name,
-          subscription_tier
-        )
-      `)
-      .eq('auth_user_id', user.id)
-      .single();
+          auth_user_id,
+          preschool_id,
+          role,
+          first_name,
+          last_name,
+          email,
+          phone,
+          avatar_url,
+          is_active,
+          created_at,
+          updated_at,
+          preschool:preschools(
+            id,
+            name,
+            subscription_tier
+          )
+        `)
+        .eq('auth_user_id', user.id)
+        .single();
+      
+      if (!error && data) {
+        profile = data;
+      } else {
+        profileError = error;
+      }
+    } catch (authUserIdError) {
+      profileError = authUserIdError;
+    }
+    
+    // Fallback: try with id field directly
+    if (!profile) {
+      try {
+        const { data, error } = await client
+          .from('users')
+          .select(`
+            id,
+            preschool_id,
+            role,
+            first_name,
+            last_name,
+            email,
+            phone,
+            avatar_url,
+            is_active,
+            created_at,
+            updated_at,
+            preschool:preschools(
+              id,
+              name,
+              subscription_tier
+            )
+          `)
+          .eq('id', user.id)
+          .single();
+        
+        if (!error && data) {
+          profile = data;
+          profileError = null;
+        } else if (!profileError) {
+          profileError = error;
+        }
+      } catch (idError) {
+        if (!profileError) {
+          profileError = idError;
+        }
+      }
+    }
     
     if (profileError) {
       throw profileError;
     }
     
-    return profile as UserProfile;
+    if (profile) {
+      // Normalize the profile data
+      const normalizedProfile = {
+        ...profile,
+        name: profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || null,
+        auth_user_id: profile.auth_user_id || profile.id,
+      };
+      
+      return normalizedProfile as UserProfile;
+    }
+    
+    return null;
     
   } catch (error) {
     reportError(error instanceof Error ? error : new Error('Unknown error'), {

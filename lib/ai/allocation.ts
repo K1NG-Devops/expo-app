@@ -14,6 +14,12 @@ import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { getOrgType, canUseAllocation, type OrgType, type Tier } from '@/lib/subscriptionRules';
 import type { AIQuotaFeature } from './limits';
+import { 
+  getSchoolAISubscriptionDirect, 
+  getTeacherAllocationsDirect, 
+  canManageAllocationsDirect,
+  allocateAIQuotasDirect 
+} from './allocation-direct';
 
 export interface SchoolAISubscription {
   preschool_id: string;
@@ -107,25 +113,36 @@ export async function getSchoolAISubscription(preschoolId: string): Promise<Scho
   try {
     const client = assertSupabase();
     
-    const { data, error } = await client.functions.invoke('ai-usage', {
-      body: {
-        action: 'school_subscription_details',
-        preschool_id: preschoolId,
-      },
-    });
+    // Try Edge Function first
+    try {
+      const { data, error } = await client.functions.invoke('ai-usage', {
+        body: {
+          action: 'school_subscription_details',
+          preschool_id: preschoolId,
+        },
+      });
 
-    if (error || !data) {
-      throw new Error(error?.message || 'Failed to fetch school subscription');
+      if (!error && data) {
+        return data as SchoolAISubscription;
+      }
+    } catch (functionError) {
+      console.log('Edge function not available, using direct database fallback');
     }
-
-    return data as SchoolAISubscription;
+    
+    // Fallback to direct database implementation
+    return await getSchoolAISubscriptionDirect(preschoolId);
     
   } catch (error) {
-    reportError(error instanceof Error ? error : new Error('Unknown error'), {
-      context: 'getSchoolAISubscription',
-      preschool_id: preschoolId,
-    });
-    return null;
+    console.warn('Both function and direct approaches failed, trying direct as final fallback');
+    try {
+      return await getSchoolAISubscriptionDirect(preschoolId);
+    } catch (fallbackError) {
+      reportError(error instanceof Error ? error : new Error('Unknown error'), {
+        context: 'getSchoolAISubscription',
+        preschool_id: preschoolId,
+      });
+      return null;
+    }
   }
 }
 
@@ -136,25 +153,36 @@ export async function getTeacherAllocations(preschoolId: string): Promise<Teache
   try {
     const client = assertSupabase();
     
-    const { data, error } = await client.functions.invoke('ai-usage', {
-      body: {
-        action: 'teacher_allocations',
-        preschool_id: preschoolId,
-      },
-    });
+    // Try Edge Function first
+    try {
+      const { data, error } = await client.functions.invoke('ai-usage', {
+        body: {
+          action: 'teacher_allocations',
+          preschool_id: preschoolId,
+        },
+      });
 
-    if (error) {
-      throw new Error(error.message || 'Failed to fetch teacher allocations');
+      if (!error && data?.allocations) {
+        return data.allocations;
+      }
+    } catch (functionError) {
+      console.log('Edge function not available for teacher allocations, using direct database fallback');
     }
-
-    return data?.allocations || [];
+    
+    // Fallback to direct database implementation
+    return await getTeacherAllocationsDirect(preschoolId);
     
   } catch (error) {
-    reportError(error instanceof Error ? error : new Error('Unknown error'), {
-      context: 'getTeacherAllocations',
-      preschool_id: preschoolId,
-    });
-    return [];
+    console.warn('Teacher allocations function failed, trying direct fallback');
+    try {
+      return await getTeacherAllocationsDirect(preschoolId);
+    } catch (fallbackError) {
+      reportError(error instanceof Error ? error : new Error('Unknown error'), {
+        context: 'getTeacherAllocations',
+        preschool_id: preschoolId,
+      });
+      return [];
+    }
   }
 }
 
@@ -197,36 +225,55 @@ export async function allocateAIQuotas(
       org_type: orgType,
     });
     
-    const { data, error } = await client.functions.invoke('ai-usage', {
-      body: {
-        action: 'allocate_teacher_quotas',
+    // Try Edge Function first
+    try {
+      const { data, error } = await client.functions.invoke('ai-usage', {
+        body: {
+          action: 'allocate_teacher_quotas',
+          preschool_id: preschoolId,
+          teacher_id: teacherId,
+          quotas,
+          allocated_by: user.id,
+          reason: options.reason || 'Quota allocation by admin',
+          auto_renew: options.auto_renew || false,
+          priority_level: options.priority_level || 'normal',
+        },
+      });
+
+      if (!error && data) {
+        track('edudash.ai.allocation.success', {
+          preschool_id: preschoolId,
+          teacher_id: teacherId,
+          allocated_by: user.id,
+          quotas_allocated: data.allocation.allocated_quotas,
+        });
+        return { success: true, allocation: data.allocation };
+      }
+    } catch (functionError) {
+      console.log('Edge function not available for allocation, using direct fallback');
+    }
+    
+    // Fallback to direct implementation
+    const fallbackResult = await allocateAIQuotasDirect(preschoolId, teacherId, quotas, options);
+    
+    if (fallbackResult.success) {
+      track('edudash.ai.allocation.success', {
         preschool_id: preschoolId,
         teacher_id: teacherId,
-        quotas,
         allocated_by: user.id,
-        reason: options.reason || 'Quota allocation by admin',
-        auto_renew: options.auto_renew || false,
-        priority_level: options.priority_level || 'normal',
-      },
-    });
-
-    if (error) {
+        quotas_allocated: quotas,
+        method: 'direct_fallback',
+      });
+    } else {
       track('edudash.ai.allocation.failed', {
         preschool_id: preschoolId,
         teacher_id: teacherId,
-        error: error.message,
+        error: fallbackResult.error,
+        method: 'direct_fallback',
       });
-      return { success: false, error: error.message };
     }
 
-    track('edudash.ai.allocation.success', {
-      preschool_id: preschoolId,
-      teacher_id: teacherId,
-      allocated_by: user.id,
-      quotas_allocated: data.allocation.allocated_quotas,
-    });
-
-    return { success: true, allocation: data.allocation };
+    return fallbackResult;
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -351,35 +398,49 @@ export async function getTeacherAllocation(
  */
 export async function canManageAllocations(userId: string, preschoolId: string): Promise<boolean> {
   try {
-    const client = assertSupabase();
-    
-    // Get user's profile and role
-    const { data: profile } = await client
-      .from('users')
-      .select('role, preschool_id')
-      .eq('auth_user_id', userId)
-      .single();
-
-    if (!profile || profile.preschool_id !== preschoolId) {
-      return false;
-    }
-
-    // Check if user has allocation management permissions
-    const canManage = ['principal', 'principal_admin', 'super_admin'].includes(profile.role);
-    
-    if (canManage) {
-      // Verify school subscription supports allocation
-      const orgType = await getOrgType();
-      const subscription = await getSchoolAISubscription(preschoolId);
-      
-      return subscription ? canUseAllocation(subscription.subscription_tier, orgType) : false;
-    }
-    
-    return false;
+    // Try direct database approach first since it's simpler
+    return await canManageAllocationsDirect(userId, preschoolId);
     
   } catch (error) {
     console.warn('Error checking allocation permissions:', error);
-    return false;
+    
+    // Fallback to basic role check
+    try {
+      const client = assertSupabase();
+      
+      // Try with both id and auth_user_id for compatibility
+      let profile = null;
+      
+      // First try with id field
+      const { data: profileById } = await client
+        .from('users')
+        .select('role, preschool_id')
+        .eq('id', userId)
+        .single();
+        
+      if (profileById) {
+        profile = profileById;
+      } else {
+        // Fallback to auth_user_id
+        const { data: profileByAuth } = await client
+          .from('users')
+          .select('role, preschool_id')
+          .eq('auth_user_id', userId)
+          .single();
+        profile = profileByAuth;
+      }
+
+      if (!profile || profile.preschool_id !== preschoolId) {
+        return false;
+      }
+
+      // Check if user has allocation management permissions
+      return ['principal', 'principal_admin', 'super_admin'].includes(profile.role);
+      
+    } catch (fallbackError) {
+      console.warn('Fallback permission check also failed:', fallbackError);
+      return false;
+    }
   }
 }
 
