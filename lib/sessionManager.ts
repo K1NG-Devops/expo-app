@@ -195,9 +195,13 @@ async function clearStoredData(): Promise<void> {
  */
 async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   try {
-    // First get user profile
-    const { data: profile, error: profileError } = await assertSupabase()
-      .from('profiles')
+    // Try both auth_user_id and id fields for compatibility
+    let profile = null;
+    let profileError = null;
+    
+    // First try with auth_user_id (the correct field)
+    const { data: profileByAuth, error: authError } = await assertSupabase()
+      .from('users')
       .select(`
         id,
         email,
@@ -207,12 +211,41 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         avatar_url,
         created_at,
         last_login_at,
-        preschool_id
+        preschool_id,
+        is_active
       `)
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .maybeSingle();
+      
+    if (!authError && profileByAuth) {
+      profile = profileByAuth;
+    } else {
+      // Fallback to id field
+      const { data: profileById, error: idError } = await assertSupabase()
+        .from('users')
+        .select(`
+          id,
+          email,
+          role,
+          first_name,
+          last_name,
+          avatar_url,
+          created_at,
+          last_login_at,
+          preschool_id,
+          is_active
+        `)
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (!idError && profileById) {
+        profile = profileById;
+      } else {
+        profileError = authError || idError;
+      }
+    }
 
-    if (profileError) {
+    if (profileError && !profile) {
       console.error('Failed to fetch user profile:', profileError);
       return null;
     }
@@ -238,10 +271,6 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       };
     }
 
-    // Extract organization info (placeholders retained)
-    const orgMember = null as any;
-    const org = null as any;
-
     // Get user capabilities based on role and subscription
     const planTier = undefined;
     const capabilities = await getUserCapabilities(profile.role, planTier);
@@ -255,7 +284,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       avatar_url: profile.avatar_url,
       organization_id: profile.preschool_id,
       organization_name: undefined,
-      seat_status: 'active',
+      seat_status: profile.is_active !== false ? 'active' : 'inactive',
       capabilities,
       created_at: profile.created_at,
       last_login_at: profile.last_login_at,
@@ -523,11 +552,29 @@ export async function signInWithSession(
       storeProfile(profile),
     ]);
 
-    // Update last login
-    await assertSupabase()
-      .from('profiles')
-      .update({ last_login_at: new Date().toISOString() })
-      .eq('id', data.user.id);
+    // Update last login - try both auth_user_id and id fields for compatibility
+    try {
+      let updateResult = await assertSupabase()
+        .from('users')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('auth_user_id', data.user.id);
+        
+      if (updateResult.error) {
+        // Fallback to id field
+        updateResult = await assertSupabase()
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+      }
+      
+      if (updateResult.error) {
+        console.warn('Could not update last_login_at:', updateResult.error);
+        // Continue anyway - this is not critical for login success
+      }
+    } catch (updateError) {
+      console.warn('Error updating last_login_at:', updateError);
+      // Continue anyway - this is not critical for login success
+    }
 
     // Set up monitoring and feature flags
     identifyUser(data.user.id, {

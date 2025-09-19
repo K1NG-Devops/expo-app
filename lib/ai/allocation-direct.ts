@@ -309,6 +309,151 @@ function getBaseQuotasByTier(tier: string): Record<string, number> {
 }
 
 /**
+ * Get optimal allocation suggestions - direct implementation fallback
+ */
+export async function getOptimalAllocationSuggestionsDirect(
+  preschoolId: string
+): Promise<{
+  suggestions: Array<{
+    teacher_id: string;
+    teacher_name: string;
+    current_quotas: Record<string, number>;
+    suggested_quotas: Record<string, number>;
+    reasoning: string;
+    priority: 'low' | 'medium' | 'high';
+    potential_savings: number;
+  }>;
+  school_summary: {
+    total_quota_utilization: number;
+    underused_quotas: number;
+    overdemand_teachers: number;
+    optimization_potential: number;
+  };
+}> {
+  try {
+    // Get current teacher allocations
+    const allocations = await getTeacherAllocationsDirect(preschoolId);
+    
+    if (allocations.length === 0) {
+      return {
+        suggestions: [],
+        school_summary: {
+          total_quota_utilization: 0,
+          underused_quotas: 0,
+          overdemand_teachers: 0,
+          optimization_potential: 0,
+        },
+      };
+    }
+
+    // Generate suggestions based on usage patterns
+    const suggestions = allocations.map((allocation) => {
+      const usage = allocation.used_quotas;
+      const allocated = allocation.allocated_quotas;
+      
+      // Calculate utilization rates for each quota type
+      const utilizationRates = {
+        chat_completions: allocated.chat_completions > 0 ? usage.chat_completions / allocated.chat_completions : 0,
+        image_generation: allocated.image_generation > 0 ? usage.image_generation / allocated.image_generation : 0,
+        text_to_speech: allocated.text_to_speech > 0 ? usage.text_to_speech / allocated.text_to_speech : 0,
+        speech_to_text: allocated.speech_to_text > 0 ? usage.speech_to_text / allocated.speech_to_text : 0,
+      };
+
+      // Calculate suggested quotas based on usage patterns
+      const suggested = {
+        chat_completions: Math.ceil(usage.chat_completions * 1.2), // 20% buffer
+        image_generation: Math.ceil(usage.image_generation * 1.3), // 30% buffer for images
+        text_to_speech: Math.ceil(usage.text_to_speech * 1.25), // 25% buffer
+        speech_to_text: Math.ceil(usage.speech_to_text * 1.25), // 25% buffer
+      };
+
+      // Determine priority and reasoning
+      const avgUtilization = Object.values(utilizationRates).reduce((a, b) => a + b, 0) / 4;
+      let priority: 'low' | 'medium' | 'high' = 'medium';
+      let reasoning = 'Optimized allocation based on usage patterns';
+      
+      if (avgUtilization > 0.8) {
+        priority = 'high';
+        reasoning = 'High usage detected - increase allocation to prevent limits';
+      } else if (avgUtilization < 0.3) {
+        priority = 'low';
+        reasoning = 'Low usage detected - consider reducing allocation';
+        // For low usage, suggest reducing by 20%
+        suggested.chat_completions = Math.max(50, Math.ceil(allocated.chat_completions * 0.8));
+        suggested.image_generation = Math.max(5, Math.ceil(allocated.image_generation * 0.8));
+        suggested.text_to_speech = Math.max(25, Math.ceil(allocated.text_to_speech * 0.8));
+        suggested.speech_to_text = Math.max(25, Math.ceil(allocated.speech_to_text * 0.8));
+      }
+
+      // Calculate potential savings
+      const currentTotal = Object.values(allocated).reduce((a, b) => a + b, 0);
+      const suggestedTotal = Object.values(suggested).reduce((a, b) => a + b, 0);
+      const potentialSavings = Math.max(0, currentTotal - suggestedTotal);
+
+      return {
+        teacher_id: allocation.user_id,
+        teacher_name: allocation.teacher_name,
+        current_quotas: allocated,
+        suggested_quotas: suggested,
+        reasoning,
+        priority,
+        potential_savings: potentialSavings,
+      };
+    });
+
+    // Calculate school summary
+    const totalQuotas = allocations.reduce((acc, allocation) => {
+      Object.entries(allocation.allocated_quotas).forEach(([key, value]) => {
+        acc[key] = (acc[key] || 0) + value;
+      });
+      return acc;
+    }, {} as Record<string, number>);
+
+    const totalUsage = allocations.reduce((acc, allocation) => {
+      Object.entries(allocation.used_quotas).forEach(([key, value]) => {
+        acc[key] = (acc[key] || 0) + value;
+      });
+      return acc;
+    }, {} as Record<string, number>);
+
+    const totalQuotaSum = Object.values(totalQuotas).reduce((a, b) => a + b, 0);
+    const totalUsageSum = Object.values(totalUsage).reduce((a, b) => a + b, 0);
+    const utilization = totalQuotaSum > 0 ? totalUsageSum / totalQuotaSum : 0;
+
+    const underusedTeachers = suggestions.filter(s => s.priority === 'low').length;
+    const overdemandTeachers = suggestions.filter(s => s.priority === 'high').length;
+    const totalPotentialSavings = suggestions.reduce((acc, s) => acc + s.potential_savings, 0);
+    const optimizationPotential = totalQuotaSum > 0 ? totalPotentialSavings / totalQuotaSum : 0;
+
+    return {
+      suggestions,
+      school_summary: {
+        total_quota_utilization: Math.round(utilization * 100) / 100,
+        underused_quotas: totalQuotaSum - totalUsageSum,
+        overdemand_teachers: overdemandTeachers,
+        optimization_potential: Math.round(optimizationPotential * 100) / 100,
+      },
+    };
+    
+  } catch (error) {
+    reportError(error instanceof Error ? error : new Error('Unknown error'), {
+      context: 'getOptimalAllocationSuggestionsDirect',
+      preschool_id: preschoolId,
+    });
+    
+    return {
+      suggestions: [],
+      school_summary: {
+        total_quota_utilization: 0,
+        underused_quotas: 0,
+        overdemand_teachers: 0,
+        optimization_potential: 0,
+      },
+    };
+  }
+}
+
+/**
  * Get default teacher quotas by role
  */
 function getDefaultTeacherQuotas(role: string): Record<string, number> {

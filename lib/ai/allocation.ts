@@ -18,7 +18,8 @@ import {
   getSchoolAISubscriptionDirect, 
   getTeacherAllocationsDirect, 
   canManageAllocationsDirect,
-  allocateAIQuotasDirect 
+  allocateAIQuotasDirect,
+  getOptimalAllocationSuggestionsDirect
 } from './allocation-direct';
 
 export interface SchoolAISubscription {
@@ -509,41 +510,62 @@ export async function getOptimalAllocationSuggestions(
   try {
     const client = assertSupabase();
     
-    const { data, error } = await client.functions.invoke('ai-insights', {
-      body: {
-        scope: 'school_allocation',
-        preschool_id: preschoolId,
-        analysis_type: 'optimal_allocation',
-      },
-    });
+    // Try Edge Function first
+    try {
+      const { data, error } = await client.functions.invoke('ai-insights', {
+        body: {
+          scope: 'school_allocation',
+          preschool_id: preschoolId,
+          analysis_type: 'optimal_allocation',
+        },
+      });
 
-    if (error) {
-      throw new Error(error.message || 'Failed to generate allocation suggestions');
+      if (!error && data) {
+        track('edudash.ai.allocation.optimization_viewed', {
+          preschool_id: preschoolId,
+          suggestions_count: data.suggestions?.length || 0,
+          utilization: data.school_summary?.total_quota_utilization,
+          method: 'edge_function',
+        });
+
+        return data;
+      }
+    } catch (functionError) {
+      console.log('AI insights Edge Function not available, using direct database fallback');
     }
-
+    
+    // Fallback to direct database implementation
+    const fallbackResult = await getOptimalAllocationSuggestionsDirect(preschoolId);
+    
     track('edudash.ai.allocation.optimization_viewed', {
       preschool_id: preschoolId,
-      suggestions_count: data.suggestions?.length || 0,
-      utilization: data.school_summary?.total_quota_utilization,
+      suggestions_count: fallbackResult.suggestions?.length || 0,
+      utilization: fallbackResult.school_summary?.total_quota_utilization,
+      method: 'direct_fallback',
     });
-
-    return data;
+    
+    return fallbackResult;
     
   } catch (error) {
-    reportError(error instanceof Error ? error : new Error('Unknown error'), {
-      context: 'getOptimalAllocationSuggestions',
-      preschool_id: preschoolId,
-    });
-    
-    return {
-      suggestions: [],
-      school_summary: {
-        total_quota_utilization: 0,
-        underused_quotas: 0,
-        overdemand_teachers: 0,
-        optimization_potential: 0,
-      },
-    };
+    console.warn('Both function and direct approaches failed for AI insights, trying direct as final fallback');
+    try {
+      return await getOptimalAllocationSuggestionsDirect(preschoolId);
+    } catch (fallbackError) {
+      reportError(error instanceof Error ? error : new Error('Unknown error'), {
+        context: 'getOptimalAllocationSuggestions',
+        preschool_id: preschoolId,
+      });
+      
+      return {
+        suggestions: [],
+        school_summary: {
+          total_quota_utilization: 0,
+          underused_quotas: 0,
+          overdemand_teachers: 0,
+          optimization_potential: 0,
+        },
+      };
+    }
   }
 }
 
