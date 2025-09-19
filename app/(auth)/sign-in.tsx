@@ -158,6 +158,7 @@ export default function SignIn() {
     }
   };
 
+
   async function onSignInWithPassword() {
     setError(null);
     if (!canUseSupabase) {
@@ -599,6 +600,7 @@ export default function SignIn() {
             </View>
           </View>
         )}
+
 
         <View style={styles.toggleRow}>
           <TouchableOpacity

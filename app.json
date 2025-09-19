@@ -3,7 +3,7 @@
     "name": "EduDashPro",
     "slug": "edudashpro",
     "owner": "edudashpro",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -45,7 +45,7 @@
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "minSdkVersion": 21,
-      "versionCode": 1
+      "versionCode": 3
     },
     "plugins": [
       "expo-router",
