@@ -541,9 +541,12 @@ export default function SuperAdminSettingsScreen() {
 
         {/* Version Info */}
         <View style={styles.versionInfo}>
-          <Text style={styles.versionText}>EduDash Pro v2.1.0</Text>
-          <Text style={styles.versionText}>Super Admin Panel v1.0.0</Text>
-          <Text style={styles.versionText}>Last updated: Dec 16, 2024</Text>
+          <Text style={styles.versionText}>EduDash Pro v1.0.2</Text>
+          <Text style={styles.versionText}>Super Admin Panel v1.0.2</Text>
+          <Text style={styles.versionText}>Last updated: Dec 19, 2024</Text>
+          <Text style={styles.versionText}>• WhatsApp integration</Text>
+          <Text style={styles.versionText}>• Mobile-first design improvements</Text>
+          <Text style={styles.versionText}>• Advanced admin management</Text>
         </View>
       </ScrollView>
     </View>

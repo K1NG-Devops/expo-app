@@ -37,8 +37,20 @@ export async function getOrgType(): Promise<OrgType> {
  * - Preschools: available starting from Pro (R599 package and up)
  * - K-12 Schools: Enterprise only (special pricing)
  * - Individuals: not applicable
+ * - Principals: always allowed regardless of tier (core management capability)
  */
-export function canUseAllocation(tier: Tier, orgType: OrgType): boolean {
+export async function canUseAllocation(tier: Tier, orgType: OrgType): Promise<boolean> {
+  // Check if user is a principal or principal_admin - they should always have access
+  try {
+    const { data } = await assertSupabase().auth.getUser()
+    const userRole = (data?.user?.user_metadata as any)?.role
+    if (userRole === 'principal' || userRole === 'principal_admin') {
+      return true
+    }
+  } catch {
+    // Continue with tier-based checks if role check fails
+  }
+
   if (orgType === 'preschool') {
     return tier === 'pro' || tier === 'enterprise'
   }

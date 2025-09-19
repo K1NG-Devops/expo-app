@@ -7,7 +7,7 @@ BEGIN;
 
 -- Helper function to get current user's organization/preschool ID
 CREATE OR REPLACE FUNCTION public.current_user_org_id()
-RETURNS uuid 
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER -- This is intentional for helper function only
 SET search_path = public
@@ -202,7 +202,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticated;
 
 -- Create a function to verify all views are now security_invoker
 CREATE OR REPLACE FUNCTION public.verify_view_security_mode()
-RETURNS TABLE(view_name text, security_invoker boolean, security_definer boolean)
+RETURNS TABLE (view_name text, security_invoker boolean, security_definer boolean)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -246,10 +246,10 @@ VALUES (
   json_build_object(
     'version', '1.0.0',
     'completed_at', now()::text,
-    'views_fixed', array[
+    'views_fixed', ARRAY[
       'school_daily_ai_usage',
       'template_performance_metrics',
-      'delivery_analytics', 
+      'delivery_analytics',
       'daily_ai_usage_rollup',
       'monthly_ai_usage_rollup'
     ],
@@ -257,12 +257,16 @@ VALUES (
   ),
   'Security definer views fix completion log',
   false
-) ON CONFLICT (key) DO UPDATE SET 
-  value = EXCLUDED.value,
+) ON CONFLICT (key) DO UPDATE SET
+  value = excluded.value,
   updated_at = now();
 
 -- Final verification
-SELECT 'SECURITY DEFINER VIEWS FIXED' as status;
-SELECT * FROM verify_view_security_mode();
+SELECT 'SECURITY DEFINER VIEWS FIXED' AS status;
+SELECT
+  view_name,
+  security_invoker,
+  security_definer
+FROM verify_view_security_mode();
 
 COMMIT;

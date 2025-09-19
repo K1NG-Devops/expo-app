@@ -63,6 +63,7 @@ export default function InvoiceNotificationSettings({ onClose }: InvoiceNotifica
   // Local state
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['events']));
   const [testingNotification, setTestingNotification] = useState<{event: NotificationEvent; channel: NotificationChannel} | null>(null);
+  const showTestSection = process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === '1';
 
   const preferences = settings?.preferences;
   const signature = settings?.signature;
@@ -495,29 +496,30 @@ export default function InvoiceNotificationSettings({ onClose }: InvoiceNotifica
         </View>
       )}
 
-      {/* Test Notifications Section */}
-      <View style={styles.section}>
-        <TouchableOpacity 
-          style={styles.sectionHeader} 
-          onPress={() => toggleSection('test')}
-        >
-          <Text style={styles.sectionTitle}>Test Notifications</Text>
-          <Ionicons 
-            name={expandedSections.has('test') ? 'chevron-up' : 'chevron-down'} 
-            size={20} 
-            color={theme.textSecondary} 
-          />
-        </TouchableOpacity>
+      {/* Test Notifications Section (hidden by default) */}
+      {showTestSection && (
+        <View style={styles.section}>
+          <TouchableOpacity 
+            style={styles.sectionHeader} 
+            onPress={() => toggleSection('test')}
+          >
+            <Text style={styles.sectionTitle}>Test Notifications</Text>
+            <Ionicons 
+              name={expandedSections.has('test') ? 'chevron-up' : 'chevron-down'} 
+              size={20} 
+              color={theme.textSecondary} 
+            />
+          </TouchableOpacity>
 
-        {expandedSections.has('test') && (
-          <View style={styles.sectionContent}>
-            <Text style={styles.testDescription}>
-              Send test notifications to verify your settings work correctly.
-            </Text>
-            
-            <View style={styles.testButtons}>
-              {(['new_invoice', 'invoice_sent', 'payment_confirmed', 'overdue_reminder'] as NotificationEvent[]).map((event) => (
-                <TouchableOpacity
+          {expandedSections.has('test') && (
+            <View style={styles.sectionContent}>
+              <Text style={styles.testDescription}>
+                Send test notifications to verify your settings work correctly.
+              </Text>
+              
+              <View style={styles.testButtons}>
+                {(['new_invoice', 'invoice_sent', 'payment_confirmed', 'overdue_reminder'] as NotificationEvent[]).map((event) => (
+                  <TouchableOpacity
                   key={event}
                   style={styles.testButton}
                   onPress={() => handleTestNotification(event, 'email')}
@@ -538,7 +540,8 @@ export default function InvoiceNotificationSettings({ onClose }: InvoiceNotifica
             </View>
           </View>
         )}
-      </View>
+        </View>
+      )}
 
       {/* Bottom Padding */}
       <View style={styles.bottomPadding} />

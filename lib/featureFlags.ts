@@ -120,7 +120,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   
   // Parent Dashboard Features (NEW) - Strategic Roadmap Implementation
   parent_hub_enabled: process.env.EXPO_PUBLIC_PARENT_HUB_ENABLED !== 'false', // enabled by default
-  whatsapp_integration: SA_TENANT_DEFAULT || TENANT_SLUG_DEFAULT, // enabled for SA tenants or explicit tenant slug
+  whatsapp_integration: false, // EMERGENCY KILL SWITCH - client credentials exposed
   offline_homework: process.env.EXPO_PUBLIC_OFFLINE_HOMEWORK !== 'false', // beta feature
   voice_notes: true, // core feature enabled
   progress_tracking: true, // core feature enabled
@@ -132,10 +132,10 @@ const DEFAULT_FLAGS: FeatureFlags = {
   multilingual_auto_translate: SA_TENANT_DEFAULT, // for SA multi-language support
   parent_engagement_metrics: true, // basic engagement tracking
   
-  // WhatsApp Specific Features
-  whatsapp_opt_in: SA_TENANT_DEFAULT, // SA has 90%+ WhatsApp penetration
-  whatsapp_webhook: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_WEBHOOK_ENABLED === 'true',
-  whatsapp_send_receive: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_API_ENABLED === 'true',
+  // WhatsApp Specific Features - SECURITY: DISABLED DUE TO CLIENT-SIDE SECRET EXPOSURE
+  whatsapp_opt_in: false, // EMERGENCY KILL SWITCH - client credentials exposed
+  whatsapp_webhook: false, // EMERGENCY KILL SWITCH - client credentials exposed
+  whatsapp_send_receive: false, // EMERGENCY KILL SWITCH - client credentials exposed
   
   // Offline Features - Strategic "Offline-First" Architecture
   offline_sync_engine: process.env.EXPO_PUBLIC_OFFLINE_SYNC !== 'false', // core offline feature

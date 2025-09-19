@@ -203,7 +203,7 @@ export default function PrincipalAnalyticsScreen() {
           />
         }
       >
-        {/* Header */}
+        {/* Simple Header */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>School Analytics</Text>
@@ -211,21 +211,6 @@ export default function PrincipalAnalyticsScreen() {
               Data-driven insights for better decision making
             </Text>
           </View>
-          {!hasAdvancedAnalytics && (
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={() => router.push('/pricing' as any)}
-            >
-              <Ionicons name="sparkles" size={16} color={theme.accent || '#8B5CF6'} />
-              <Text style={styles.upgradeButtonText}>Upgrade for Full Analytics</Text>
-            </TouchableOpacity>
-          )}
-          {hasAdvancedAnalytics && (
-            <View style={styles.premiumBadge}>
-              <Ionicons name="diamond" size={16} color="#8B5CF6" />
-              <Text style={styles.premiumBadgeText}>Premium Analytics</Text>
-            </View>
-          )}
         </View>
 
         {/* Period Selector */}

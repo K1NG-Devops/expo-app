@@ -63,7 +63,17 @@
       ],
       "expo-localization",
       "expo-secure-store",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#00f5ff",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false

@@ -28,17 +28,40 @@ interface SubscriptionPlan {
   max_students: number;
   features: string[];
   is_active: boolean;
+  school_types: string[];
 }
 
 interface RouteParams {
   planId?: string;
   billing?: 'monthly' | 'annual';
+  schoolType?: 'preschool' | 'k12_school' | 'hybrid';
+}
+
+// Helper functions for school type labels
+function getSchoolTypeLabel(schoolType: string): string {
+  switch (schoolType) {
+    case 'preschool': return 'Preschool';
+    case 'k12_school': return 'K-12 School';
+    case 'hybrid': return 'Hybrid Institution';
+    default: return 'School';
+  }
+}
+
+function getSchoolTypeDescription(schoolType: string): string {
+  switch (schoolType) {
+    case 'preschool': return 'Plans optimized for early childhood education';
+    case 'k12_school': return 'Plans designed for primary and secondary schools';
+    case 'hybrid': return 'Comprehensive plans for combined educational institutions';
+    default: return 'Educational institution plans';
+  }
 }
 
 export default function SubscriptionSetupScreen() {
   const { profile } = useAuth();
   const params = useLocalSearchParams<RouteParams>();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [allPlans, setAllPlans] = useState<SubscriptionPlan[]>([]);
+  const [schoolInfo, setSchoolInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [annual, setAnnual] = useState(params.billing === 'annual');
@@ -47,6 +70,7 @@ export default function SubscriptionSetupScreen() {
 
   useEffect(() => {
     loadPlans();
+    loadSchoolInfo();
     checkExistingSubscription();
   }, [profile]);
   
@@ -75,6 +99,8 @@ export default function SubscriptionSetupScreen() {
         .order('price_monthly', { ascending: true });
 
       if (error) throw error;
+      setAllPlans(data || []);
+      // Initial filter - will be updated when school info loads
       setPlans(data || []);
     } catch (error: any) {
       Alert.alert('Error', 'Failed to load subscription plans');
@@ -83,6 +109,48 @@ export default function SubscriptionSetupScreen() {
       setLoading(false);
     }
   }
+
+  async function loadSchoolInfo() {
+    try {
+      if (profile?.organization_id) {
+        const { data, error } = await assertSupabase()
+          .from('preschools')
+          .select('school_type, name')
+          .eq('id', profile.organization_id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        setSchoolInfo(data);
+      }
+    } catch (error) {
+      console.error('Error loading school info:', error);
+    }
+  }
+
+  // Filter plans based on school type
+  useEffect(() => {
+    if (allPlans.length > 0) {
+      const schoolType = params.schoolType || schoolInfo?.school_type || 'preschool';
+      
+      const filteredPlans = allPlans.filter(plan => {
+        // If plan doesn't have school_types specified, show to all
+        if (!plan.school_types || plan.school_types.length === 0) {
+          return true;
+        }
+        // Check if plan supports this school type or 'hybrid' (which supports all)
+        return plan.school_types.includes(schoolType) || plan.school_types.includes('hybrid');
+      });
+      
+      setPlans(filteredPlans);
+      
+      // Track the filtering
+      track('subscription_plans_filtered', {
+        school_type: schoolType,
+        total_plans: allPlans.length,
+        filtered_plans: filteredPlans.length
+      });
+    }
+  }, [allPlans, schoolInfo, params.schoolType]);
 
   async function checkExistingSubscription() {
     try {
@@ -323,8 +391,21 @@ export default function SubscriptionSetupScreen() {
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <Text style={styles.title}>Choose Your Subscription Plan</Text>
           <Text style={styles.subtitle}>
-            Select a plan to enable teacher seat management for your school
+            {schoolInfo ? (
+              `Select a plan for ${schoolInfo.name} (${getSchoolTypeLabel(schoolInfo.school_type)})`
+            ) : (
+              'Select a plan to enable teacher seat management for your school'
+            )}
           </Text>
+          
+          {schoolInfo?.school_type && (
+            <View style={styles.schoolTypeInfo}>
+              <Text style={styles.schoolTypeLabel}>School Type: {getSchoolTypeLabel(schoolInfo.school_type)}</Text>
+              <Text style={styles.schoolTypeDescription}>
+                {getSchoolTypeDescription(schoolInfo.school_type)}
+              </Text>
+            </View>
+          )}
 
           {/* Billing toggle */}
           <View style={styles.toggleRow}>
@@ -361,6 +442,7 @@ export default function SubscriptionSetupScreen() {
                   createSubscription(plan.id);
                 }}
                 creating={creating}
+                schoolType={schoolInfo?.school_type || params.schoolType}
               />
             ))}
           </View>
@@ -386,11 +468,16 @@ interface PlanCardProps {
   onSelect: () => void;
   onSubscribe: () => void;
   creating: boolean;
+  schoolType?: string;
 }
 
-function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating }: PlanCardProps) {
+function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating, schoolType }: PlanCardProps) {
   const price = annual ? plan.price_annual : plan.price_monthly;
   const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) : 0;
+  
+  // Check if this plan is specifically optimized for the school type
+  const isRecommended = schoolType && plan.school_types && 
+    (plan.school_types.includes(schoolType) && plan.school_types.length === 1);
 
   return (
     <TouchableOpacity 
@@ -398,8 +485,15 @@ function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating }: P
       onPress={onSelect}
     >
       <View style={styles.planHeader}>
-        <Text style={styles.planName}>{plan.name}</Text>
-        <Text style={styles.planTier}>({plan.tier})</Text>
+        <View style={styles.planTitleRow}>
+          <Text style={styles.planName}>{plan.name}</Text>
+          <Text style={styles.planTier}>({plan.tier})</Text>
+        </View>
+        {isRecommended && (
+          <View style={styles.recommendedBadge}>
+            <Text style={styles.recommendedText}>Recommended</Text>
+          </View>
+        )}
       </View>
       
       <View style={styles.priceContainer}>
@@ -512,10 +606,13 @@ const styles = StyleSheet.create({
     borderColor: '#00f5ff',
   },
   planHeader: {
+    marginBottom: 12,
+  },
+  planTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   planName: {
     fontSize: 18,
@@ -634,5 +731,39 @@ const styles = StyleSheet.create({
     color: '#000',
     fontWeight: '800',
     fontSize: 16,
+  },
+  // School type info styles
+  schoolTypeInfo: {
+    backgroundColor: '#111827',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#1f2937',
+  },
+  schoolTypeLabel: {
+    color: '#00f5ff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  schoolTypeDescription: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  // Recommendation badge styles
+  recommendedBadge: {
+    backgroundColor: '#10b981',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  recommendedText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });

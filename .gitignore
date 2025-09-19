@@ -40,12 +40,56 @@ yarn-error.*
 supabase/
 .env.migration
 
-# Large binaries and build artifacts
+# Development and debugging artifacts
+debug/
+temp/
+archive/
 artifacts/
+tools/
+
+# Test artifacts that aren't part of core tests
+tests/temp/
+tests/artifacts/
+
+# SQL development files
+sql/temp/
+sql/debug/
+
+# Script artifacts and logs
+scripts/logs/
+scripts/temp/
+
+# Large binaries and build artifacts
 *.apk
 *.aab
 build-*.apk
+*.jks
+*.keystore
+
+# Logs and temporary files
+*.log
+*.pid
+*.tmp
+database-*.json
+expo_logs.txt
+.device.log
+.trigger
+
+# Policy and configuration artifacts
+policy_manifest*.yaml
+.sqlfluff
+.pre-commit-config.yaml
 
 # Personal/history folders accidentally committed
 memory_cleanup_*/
 backups/
+migration_backup_*/
+
+# Environment files (keep main .env)
+.env.local
+.env.migration
+.env.temp
+
+# Development images and screenshots
+.*.png
+*.screenshot.png

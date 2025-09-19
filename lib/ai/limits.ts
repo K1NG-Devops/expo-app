@@ -70,16 +70,29 @@ async function getServerLimits(): Promise<Partial<EffectiveLimits> | null> {
   }
 }
 
+async function getUserRole(): Promise<string | null> {
+  try {
+    const { data } = await assertSupabase().auth.getUser()
+    return (data?.user?.user_metadata as any)?.role || null
+  } catch {
+    return null
+  }
+}
+
 export async function getEffectiveLimits(): Promise<EffectiveLimits> {
   const tier = await getUserTier()
   const server = await getServerLimits()
   const orgType = await getOrgType()
+  const userRole = await getUserRole()
 
   const quotas = server?.quotas || DEFAULT_MONTHLY_QUOTAS[tier]
   const overageRequiresPrepay = server?.overageRequiresPrepay !== false
   const modelOptions = server?.modelOptions || getDefaultModels()
   const source: EffectiveLimits['source'] = server?.source || 'default'
-  const canOrgAllocate = canUseAllocation(tier, orgType)
+  
+  // Allow principals and principal_admins to manage AI quota allocation regardless of tier
+  const isPrincipalRole = userRole === 'principal' || userRole === 'principal_admin'
+  const canOrgAllocate = isPrincipalRole || await canUseAllocation(tier, orgType)
 
   return { tier, quotas, overageRequiresPrepay, modelOptions, source, orgType, canOrgAllocate }
 }

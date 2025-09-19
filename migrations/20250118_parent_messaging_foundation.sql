@@ -4,138 +4,146 @@
 
 -- Message Threads Table
 CREATE TABLE IF NOT EXISTS message_threads (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    preschool_id UUID NOT NULL REFERENCES preschools(id) ON DELETE CASCADE,
-    type TEXT NOT NULL CHECK (type IN ('parent-teacher', 'parent-principal', 'general')),
-    student_id UUID REFERENCES students(id) ON DELETE SET NULL,
-    subject TEXT NOT NULL,
-    created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    last_message_at TIMESTAMPTZ DEFAULT NOW(),
-    is_archived BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  preschool_id UUID NOT NULL REFERENCES preschools (id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('parent-teacher', 'parent-principal', 'general')),
+  student_id UUID REFERENCES students (id) ON DELETE SET NULL,
+  subject TEXT NOT NULL,
+  created_by UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  last_message_at TIMESTAMPTZ DEFAULT now(),
+  is_archived BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Message Participants Table
 CREATE TABLE IF NOT EXISTS message_participants (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    thread_id UUID NOT NULL REFERENCES message_threads(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    role TEXT NOT NULL CHECK (role IN ('parent', 'teacher', 'principal', 'admin')),
-    joined_at TIMESTAMPTZ DEFAULT NOW(),
-    is_muted BOOLEAN DEFAULT FALSE,
-    last_read_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(thread_id, user_id)
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  thread_id UUID NOT NULL REFERENCES message_threads (id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('parent', 'teacher', 'principal', 'admin')),
+  joined_at TIMESTAMPTZ DEFAULT now(),
+  is_muted BOOLEAN DEFAULT false,
+  last_read_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (thread_id, user_id)
 );
 
 -- Messages Table
 CREATE TABLE IF NOT EXISTS messages (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    thread_id UUID NOT NULL REFERENCES message_threads(id) ON DELETE CASCADE,
-    sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    content TEXT NOT NULL,
-    content_type TEXT DEFAULT 'text' CHECK (content_type IN ('text', 'system')),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    edited_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  thread_id UUID NOT NULL REFERENCES message_threads (id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  content_type TEXT DEFAULT 'text' CHECK (content_type IN ('text', 'system')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  edited_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_message_threads_preschool_id ON message_threads(preschool_id);
-CREATE INDEX IF NOT EXISTS idx_message_threads_student_id ON message_threads(student_id);
-CREATE INDEX IF NOT EXISTS idx_message_threads_last_message_at ON message_threads(last_message_at DESC);
-CREATE INDEX IF NOT EXISTS idx_message_participants_user_id ON message_participants(user_id);
-CREATE INDEX IF NOT EXISTS idx_message_participants_thread_id ON message_participants(thread_id);
-CREATE INDEX IF NOT EXISTS idx_messages_thread_id_created_at ON messages(thread_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_message_threads_preschool_id ON message_threads (preschool_id);
+CREATE INDEX IF NOT EXISTS idx_message_threads_student_id ON message_threads (student_id);
+CREATE INDEX IF NOT EXISTS idx_message_threads_last_message_at ON message_threads (last_message_at DESC);
+CREATE INDEX IF NOT EXISTS idx_message_participants_user_id ON message_participants (user_id);
+CREATE INDEX IF NOT EXISTS idx_message_participants_thread_id ON message_participants (thread_id);
+CREATE INDEX IF NOT EXISTS idx_messages_thread_id_created_at ON messages (thread_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_sender_id ON messages (sender_id);
 
 -- RLS Policies
 
 -- Message Threads: Users can see threads they participate in within their preschool
 ALTER TABLE message_threads ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "message_threads_select_policy" ON message_threads
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM message_participants mp 
-            WHERE mp.thread_id = message_threads.id 
-            AND mp.user_id = auth.uid()
-        )
-    );
+CREATE POLICY message_threads_select_policy ON message_threads
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM message_participants AS mp
+    WHERE
+      mp.thread_id = message_threads.id
+      AND mp.user_id = auth.uid()
+  )
+);
 
-CREATE POLICY "message_threads_insert_policy" ON message_threads
-    FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM profiles p 
-            WHERE p.id = auth.uid() 
-            AND p.preschool_id = message_threads.preschool_id
-            AND p.role IN ('parent', 'teacher', 'principal', 'admin')
-        )
-    );
+CREATE POLICY message_threads_insert_policy ON message_threads
+FOR INSERT WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles AS p
+    WHERE
+      p.id = auth.uid()
+      AND p.preschool_id = message_threads.preschool_id
+      AND p.role IN ('parent', 'teacher', 'principal', 'admin')
+  )
+);
 
-CREATE POLICY "message_threads_update_policy" ON message_threads
-    FOR UPDATE USING (
-        EXISTS (
-            SELECT 1 FROM message_participants mp 
-            WHERE mp.thread_id = message_threads.id 
-            AND mp.user_id = auth.uid()
-        )
-    );
+CREATE POLICY message_threads_update_policy ON message_threads
+FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM message_participants AS mp
+    WHERE
+      mp.thread_id = message_threads.id
+      AND mp.user_id = auth.uid()
+  )
+);
 
 -- Message Participants: Users can see participants in threads they're part of
 ALTER TABLE message_participants ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "message_participants_select_policy" ON message_participants
-    FOR SELECT USING (
-        user_id = auth.uid() OR
-        EXISTS (
-            SELECT 1 FROM message_participants mp2 
-            WHERE mp2.thread_id = message_participants.thread_id 
-            AND mp2.user_id = auth.uid()
-        )
-    );
+CREATE POLICY message_participants_select_policy ON message_participants
+FOR SELECT USING (
+  user_id = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM message_participants AS mp2
+    WHERE
+      mp2.thread_id = message_participants.thread_id
+      AND mp2.user_id = auth.uid()
+  )
+);
 
-CREATE POLICY "message_participants_insert_policy" ON message_participants
-    FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM message_participants mp 
-            WHERE mp.thread_id = message_participants.thread_id 
-            AND mp.user_id = auth.uid()
-        ) OR
-        EXISTS (
-            SELECT 1 FROM message_threads mt
-            WHERE mt.id = message_participants.thread_id
-            AND mt.created_by = auth.uid()
-        )
-    );
+CREATE POLICY message_participants_insert_policy ON message_participants
+FOR INSERT WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM message_participants AS mp
+    WHERE
+      mp.thread_id = message_participants.thread_id
+      AND mp.user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1 FROM message_threads AS mt
+    WHERE
+      mt.id = message_participants.thread_id
+      AND mt.created_by = auth.uid()
+  )
+);
 
 -- Messages: Users can see messages in threads they participate in
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "messages_select_policy" ON messages
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM message_participants mp 
-            WHERE mp.thread_id = messages.thread_id 
-            AND mp.user_id = auth.uid()
-        )
-    );
+CREATE POLICY messages_select_policy ON messages
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM message_participants AS mp
+    WHERE
+      mp.thread_id = messages.thread_id
+      AND mp.user_id = auth.uid()
+  )
+);
 
-CREATE POLICY "messages_insert_policy" ON messages
-    FOR INSERT WITH CHECK (
-        sender_id = auth.uid() AND
-        EXISTS (
-            SELECT 1 FROM message_participants mp 
-            WHERE mp.thread_id = messages.thread_id 
-            AND mp.user_id = auth.uid()
-        )
-    );
+CREATE POLICY messages_insert_policy ON messages
+FOR INSERT WITH CHECK (
+  sender_id = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM message_participants AS mp
+    WHERE
+      mp.thread_id = messages.thread_id
+      AND mp.user_id = auth.uid()
+  )
+);
 
-CREATE POLICY "messages_update_policy" ON messages
-    FOR UPDATE USING (
-        sender_id = auth.uid() AND
-        deleted_at IS NULL
-    );
+CREATE POLICY messages_update_policy ON messages
+FOR UPDATE USING (
+  sender_id = auth.uid()
+  AND deleted_at IS null
+);
 
 -- Triggers to maintain last_message_at
 CREATE OR REPLACE FUNCTION update_thread_last_message_at()
@@ -152,14 +160,14 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trigger_update_thread_last_message_at ON messages;
 CREATE TRIGGER trigger_update_thread_last_message_at
-    AFTER INSERT ON messages
-    FOR EACH ROW
-    EXECUTE FUNCTION update_thread_last_message_at();
+AFTER INSERT ON messages
+FOR EACH ROW
+EXECUTE FUNCTION update_thread_last_message_at();
 
 -- Function to get or create a parent-teacher thread for a student
 CREATE OR REPLACE FUNCTION get_or_create_parent_teacher_thread(
-    p_student_id UUID,
-    p_parent_id UUID
+  p_student_id UUID,
+  p_parent_id UUID
 )
 RETURNS UUID AS $$
 DECLARE

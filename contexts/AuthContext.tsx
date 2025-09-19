@@ -3,6 +3,7 @@ import * as Sentry from 'sentry-expo';
 import { assertSupabase } from '@/lib/supabase';
 import { getPostHog } from '@/lib/posthogClient';
 import { track } from '@/lib/analytics';
+import { Platform } from 'react-native';
 import { routeAfterLogin } from '@/lib/routeAfterLogin';
 import { 
   fetchEnhancedUserProfile, 
@@ -14,6 +15,7 @@ import {
 import { initializeSession, signOut } from '@/lib/sessionManager';
 import { router } from 'expo-router';
 import { securityAuditor } from '@/lib/security-audit';
+import { initializeVisibilityHandler, destroyVisibilityHandler } from '@/lib/visibilityHandler';
 
 export type AuthContextValue = {
   user: import('@supabase/supabase-js').User | null;
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [permissions, setPermissions] = useState<PermissionChecker>(createPermissionChecker(null));
+  const [lastRefreshAttempt, setLastRefreshAttempt] = useState<number>(0);
 
   // Fetch enhanced user profile
   const fetchProfile = useCallback(async (userId: string) => {
@@ -113,6 +116,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetchProfile(user.id);
     }
   }, [user?.id]);
+
+  // Enhanced refresh for visibility handler
+  const handleVisibilityRefresh = useCallback(async () => {
+    const now = Date.now();
+    // Avoid rapid successive refreshes
+    if (now - lastRefreshAttempt < 2000) {
+      return;
+    }
+    
+    setLastRefreshAttempt(now);
+    
+    try {
+      // Check if session is still valid
+      const { data: { session: currentSession }, error } = await assertSupabase().auth.getSession();
+      
+      if (error || !currentSession) {
+        console.log('Session invalid on visibility change, clearing auth state');
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+        setPermissions(createPermissionChecker(null));
+        return;
+      }
+      
+      // Update session if it's different
+      if (currentSession && (!session || session.access_token !== currentSession.access_token)) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+      }
+      
+      // Refresh profile if we have a user
+      if (currentSession.user) {
+        console.log('Refreshing profile on visibility change');
+        const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
+        if (enhancedProfile) {
+          setProfile(enhancedProfile);
+          setPermissions(createPermissionChecker(enhancedProfile));
+        }
+      }
+    } catch (error) {
+      console.error('Visibility refresh failed:', error);
+    }
+  }, [session, lastRefreshAttempt]);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {
@@ -264,6 +310,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Initialize visibility handler for browser tab focus/blur handling
+      try {
+        const allowWebFocusRefresh = process.env.EXPO_PUBLIC_WEB_FOCUS_REFRESH === 'true';
+        const isWeb = Platform.OS === 'web';
+        if (!isWeb || allowWebFocusRefresh) {
+          initializeVisibilityHandler({
+            onSessionRefresh: handleVisibilityRefresh,
+            onVisibilityChange: (isVisible) => {
+              if (isVisible && mounted) {
+                // Get current state at the time of visibility change
+                assertSupabase().auth.getSession().then(({ data: currentSessionData }) => {
+                  track('auth.tab_focused', {
+                    has_session: !!currentSessionData.session,
+                    has_profile: !!profile,
+                    timestamp: new Date().toISOString(),
+                  });
+                }).catch(() => {
+                  // Fallback tracking if session check fails
+                  track('auth.tab_focused', {
+                    has_session: false,
+                    has_profile: !!profile,
+                    timestamp: new Date().toISOString(),
+                  });
+                });
+              }
+            },
+            refreshDelay: 1000, // 1 second delay for superadmin dashboard
+          });
+        } else {
+          console.log('[Visibility] Web focus refresh disabled by EXPO_PUBLIC_WEB_FOCUS_REFRESH');
+        }
+      } catch (e) {
+        console.debug('Visibility handler initialization failed (mobile platform?)', e);
+      }
+
       // Subscribe to auth changes
       const { data: listener } = assertSupabase().auth.onAuthStateChange(async (event, s) => {
         if (!mounted) return;
@@ -361,6 +442,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
       try { unsub?.subscription?.unsubscribe(); } catch (e) { console.debug('Auth listener unsubscribe failed', e); }
+      try { destroyVisibilityHandler(); } catch (e) { console.debug('Visibility handler cleanup failed', e); }
     };
   }, []);
 

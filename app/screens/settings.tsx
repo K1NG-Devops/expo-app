@@ -20,11 +20,14 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
-import { PushNotificationTester } from '@/components/settings/PushNotificationTester';
+import InvoiceNotificationSettings from '@/components/settings/InvoiceNotificationSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import Constants from 'expo-constants';
 import { useUpdates } from '@/contexts/UpdatesProvider';
 import { useAuth } from '@/contexts/AuthContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Vibration } from 'react-native';
+import Feedback from '@/lib/feedback';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
@@ -40,10 +43,9 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(true);
   const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useUpdates();
   
-  // Push testing state
-  const [testNotificationTitle, setTestNotificationTitle] = useState('Test Notification');
-  const [testNotificationMessage, setTestNotificationMessage] = useState('This is a test notification from EduDash Pro');
-  const [sendingTest, setSendingTest] = useState(false);
+  // Feedback preferences
+  const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(true);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
   const styles = useThemedStyles((theme) => ({
     container: {
@@ -147,6 +149,28 @@ export default function SettingsScreen() {
     },
   }));
 
+  // Load feedback preferences
+  const loadFeedbackPrefs = useCallback(async () => {
+    try {
+      const [h, s] = await Promise.all([
+        AsyncStorage.getItem('pref_haptics_enabled'),
+        AsyncStorage.getItem('pref_sound_enabled'),
+      ]);
+      setHapticsEnabled(h !== 'false');
+      setSoundEnabled(s !== 'false');
+    } catch {}
+  }, []);
+
+  const saveHapticsPref = async (val: boolean) => {
+    setHapticsEnabled(val);
+    try { await AsyncStorage.setItem('pref_haptics_enabled', val ? 'true' : 'false'); } catch {}
+  };
+
+  const saveSoundPref = async (val: boolean) => {
+    setSoundEnabled(val);
+    try { await AsyncStorage.setItem('pref_sound_enabled', val ? 'true' : 'false'); } catch {}
+  };
+
   // Load user settings and biometric information
   const loadSettings = useCallback(async () => {
     try {
@@ -184,7 +208,8 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    loadFeedbackPrefs();
+  }, [loadSettings, loadFeedbackPrefs]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -278,54 +303,7 @@ export default function SettingsScreen() {
     return t('settings.biometric.title');
   };
 
-  // Check if push testing should be shown (dev tools or superadmin)
-  const showPushTesting = Boolean(
-    process.env.EXPO_PUBLIC_ENABLE_TEST_TOOLS === '1' ||
-    profile?.role === 'super_admin'
-  );
-
-  const sendTestNotification = async () => {
-    if (!user || !testNotificationTitle.trim() || !testNotificationMessage.trim()) return;
-    
-    try {
-      setSendingTest(true);
-      
-      const { data, error } = await assertSupabase().functions.invoke('notifications-dispatcher', {
-        body: {
-          event_type: 'custom',
-          user_ids: [user.id],
-          template_override: {
-            title: testNotificationTitle.trim(),
-            body: testNotificationMessage.trim(),
-            data: { 
-              screen: 'settings',
-              test: true 
-            }
-          },
-          send_immediately: true
-        }
-      });
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-      
-      Alert.alert(
-        'Test Sent', 
-        `Test notification sent successfully. Recipients: ${data?.recipients || 0}`,
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('Test notification failed:', error);
-      Alert.alert(
-        'Test Failed', 
-        'Failed to send test notification. Check your connection and try again.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setSendingTest(false);
-    }
-  };
+  // Testing and debug UI removed from Settings screen
 
   if (loading) {
     return (
@@ -483,54 +461,76 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* Notifications */}
+        {/* Notifications & Alerts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
           
+          {/* Feedback toggles */}
           <View style={styles.settingsCard}>
-            <TouchableOpacity
-              style={[styles.settingItem]}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Push notification settings will be available in the next update.",
-                )
-              }
-            >
+            {/* Haptic feedback */}
+            <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
-                <Ionicons
-                  name="notifications"
-                  size={24}
-                  color={theme.textSecondary}
-                  style={styles.settingIcon}
-                />
+<Ionicons name="pulse" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>{t('settings.pushNotifications')}</Text>
-                  <Text style={styles.settingSubtitle}>{t('settings.manageAlerts')}</Text>
+                  <Text style={styles.settingTitle}>Vibration on actions</Text>
+                  <Text style={styles.settingSubtitle}>Use vibration feedback on important actions</Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
+              <Switch
+                value={hapticsEnabled}
+                onValueChange={saveHapticsPref}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={hapticsEnabled ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
 
+            {/* Sound alerts */}
+            <View style={[styles.settingItem, styles.lastSettingItem] }>
+              <View style={styles.settingLeft}>
+                <Ionicons name="volume-high" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Sound alerts</Text>
+                  <Text style={styles.settingSubtitle}>Play a short sound on success or important alerts</Text>
+                </View>
+              </View>
+              <Switch
+                value={soundEnabled}
+                onValueChange={saveSoundPref}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={soundEnabled ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Invoice Notification Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Billing notifications</Text>
+          <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: 'hidden' }}>
+            <InvoiceNotificationSettings />
+          </View>
+        </View>
+
+        {/* Feedback test actions */}
+        <View style={styles.section}>
+          <View style={styles.settingsCard}>
             <TouchableOpacity
               style={[styles.settingItem, styles.lastSettingItem]}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Email notification preferences will be available in the next update.",
-                )
-              }
+              onPress={async () => {
+                try {
+                  if (hapticsEnabled) Vibration.vibrate(40);
+                  if (soundEnabled) await Feedback.playSuccess();
+                  Alert.alert('Test', 'Feedback played successfully');
+                } catch (e) {
+                  Alert.alert('Note', 'Sound feedback is unavailable. Install expo-av to enable sound.');
+                }
+              }}
             >
               <View style={styles.settingLeft}>
-                <Ionicons
-                  name="mail"
-                  size={24}
-                  color={theme.textSecondary}
-                  style={styles.settingIcon}
-                />
+                <Ionicons name="play" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>{t('settings.emailNotifications')}</Text>
-                  <Text style={styles.settingSubtitle}>{t('settings.configureEmails')}</Text>
+                  <Text style={styles.settingTitle}>Test vibration & sound</Text>
+                  <Text style={styles.settingSubtitle}>Quickly test your feedback preferences</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -613,13 +613,6 @@ export default function SettingsScreen() {
           </View>
         )}
 
-        {/* Comprehensive Push Notification Testing */}
-        {showPushTesting && Platform.OS !== 'web' && (
-          <View>
-            <PushNotificationTester />
-          </View>
-        )}
-        
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.aboutSupport')}</Text>
           
@@ -629,7 +622,7 @@ export default function SettingsScreen() {
               onPress={() =>
                 Alert.alert(
                   "EduDash Pro",
-                  "Version 1.0.0\nBuilt with ❤️ for educators and parents",
+                  "Version 1.0.2\nBuilt with ❤️ for educators and parents\n\nWhat's New:\n• WhatsApp notifications integration\n• Enhanced superadmin controls\n• Improved mobile-first responsive design\n• Push notifications system",
                   [{ text: "OK" }]
                 )
               }
@@ -654,7 +647,7 @@ export default function SettingsScreen() {
               onPress={() =>
                 Alert.alert(
                   "Help & Support",
-                  "For support, please contact us at support@edudashrpo.com",
+                  "For support, please contact us at support@edudashpro.com",
                   [{ text: "OK" }]
                 )
               }

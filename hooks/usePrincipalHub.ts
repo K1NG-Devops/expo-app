@@ -236,7 +236,7 @@ export const usePrincipalHub = () => {
           .from('students')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
         // Get teachers from users table with real data (CORRECTED)
         assertSupabase()
@@ -252,7 +252,7 @@ export const usePrincipalHub = () => {
             is_active,
             created_at
           `)
-          .eq('preschool_id', preschoolId)
+          .or(`preschool_id.eq.${preschoolId},organization_id.eq.${preschoolId}`)
           .eq('role', 'teacher')
           .eq('is_active', true),
           
@@ -261,7 +261,7 @@ export const usePrincipalHub = () => {
           .from('classes')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
         // Get pending applications from enrollment_applications
         assertSupabase()

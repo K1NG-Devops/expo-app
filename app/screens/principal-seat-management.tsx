@@ -13,7 +13,9 @@ import { navigateBack } from '@/lib/navigation';
 
 export default function PrincipalSeatManagementScreen() {
   const { theme } = useTheme();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  // Fix for "Invalid value used as weak map key" error - ensure theme is stable
+  const memoizedTheme = React.useMemo(() => theme, [theme]);
+  const styles = React.useMemo(() => createStyles(memoizedTheme), [memoizedTheme]);
   const params = useLocalSearchParams<{ school?: string }>();
   const routeSchoolId = (params?.school ? String(params.school) : null);
   const { seats, assignSeat, revokeSeat } = useSubscription();
@@ -263,27 +265,6 @@ export default function PrincipalSeatManagementScreen() {
                 <Text style={styles.contactBtnText}>Start Free Trial (14 days)</Text>
               </TouchableOpacity>
             </View>
-            <View style={[styles.contactButtonsRow, { marginTop: 8 }]}>
-              <TouchableOpacity
-                style={[styles.contactBtn, styles.contactBtnWhatsApp]}
-                onPress={async () => {
-                  const message = encodeURIComponent('Hello, I need help with my school subscription on EduDash Pro.');
-                  const waUrl = `whatsapp://send?phone=27674770975&text=${message}`;
-                  const webUrl = `https://wa.me/27674770975?text=${message}`;
-                  try {
-                    const supported = await Linking.canOpenURL('whatsapp://send');
-                    if (supported) {
-                      await Linking.openURL(waUrl);
-                    } else {
-                      await Linking.openURL(webUrl);
-                    }
-                  } catch {}
-                }}
-              >
-                <Ionicons name="logo-whatsapp" size={16} color="#000" />
-                <Text style={styles.contactBtnText}>Contact Support</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -483,7 +464,6 @@ const createStyles = (theme: any) => {
     contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
     contactBtnEmail: { backgroundColor: accentColor },
-    contactBtnWhatsApp: { backgroundColor: '#25D366' },
     contactBtnText: { color: '#000', fontWeight: '800' },
     inputGroup: { gap: 6 },
     label: { color: textPrimary },

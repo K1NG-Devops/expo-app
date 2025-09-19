@@ -68,43 +68,43 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
     {
       id: 'instant_messages',
       icon: 'flash' as const,
-      title: t('whatsapp.features.instantMessages'),
-      description: t('whatsapp.features.instantMessagesDesc'),
+      title: t('whatsapp.features.instantMessages', { defaultValue: 'Instant Messages' }),
+      description: t('whatsapp.features.instantMessagesDesc', { defaultValue: 'Get school updates delivered instantly to WhatsApp' }),
       color: '#25D366',
     },
     {
       id: 'direct_chat',
       icon: 'chatbubbles' as const,
-      title: t('whatsapp.features.directChat'),
-      description: t('whatsapp.features.directChatDesc'),
+      title: t('whatsapp.features.directChat', { defaultValue: 'Direct Teacher Chat' }),
+      description: t('whatsapp.features.directChatDesc', { defaultValue: 'Chat directly with your child\'s teacher via WhatsApp' }),
       color: '#007AFF',
     },
     {
       id: 'homework_reminders',
       icon: 'notifications' as const,
-      title: t('whatsapp.features.homeworkReminders'),
-      description: t('whatsapp.features.homeworkRemindersDesc'),
+      title: t('whatsapp.features.homeworkReminders', { defaultValue: 'Homework Reminders' }),
+      description: t('whatsapp.features.homeworkRemindersDesc', { defaultValue: 'Never miss homework deadlines with WhatsApp reminders' }),
       color: '#FF9500',
     },
     {
       id: 'voice_messages',
       icon: 'mic' as const,
-      title: t('whatsapp.features.voiceMessages'),
-      description: t('whatsapp.features.voiceMessagesDesc'),
+      title: t('whatsapp.features.voiceMessages', { defaultValue: 'Voice Messages' }),
+      description: t('whatsapp.features.voiceMessagesDesc', { defaultValue: 'Send voice messages in your preferred language' }),
       color: '#34C759',
     },
     {
       id: 'media_sharing',
       icon: 'image' as const,
-      title: t('whatsapp.features.mediaSharing'),
-      description: t('whatsapp.features.mediaSharingDesc'),
+      title: t('whatsapp.features.mediaSharing', { defaultValue: 'Photo & Document Sharing' }),
+      description: t('whatsapp.features.mediaSharingDesc', { defaultValue: 'Share homework photos and documents easily' }),
       color: '#AF52DE',
     },
     {
       id: 'works_offline',
       icon: 'cloud-offline' as const,
-      title: t('whatsapp.features.workOffline'),
-      description: t('whatsapp.features.workOfflineDesc'),
+      title: t('whatsapp.features.workOffline', { defaultValue: 'Works Offline' }),
+      description: t('whatsapp.features.workOfflineDesc', { defaultValue: 'WhatsApp works even with poor internet connection' }),
       color: '#FF6B6B',
     },
   ]
@@ -327,14 +327,6 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
           </View>
         </View>
 
-        {/* Quick Action */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Action</Text>
-          <View style={styles.quickActionContainer}>
-            <WhatsAppQuickAction size="large" />
-          </View>
-        </View>
-
         {/* Features */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>WhatsApp Features</Text>
@@ -377,9 +369,9 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
           </View>
         </View>
 
-        {/* Demo Actions */}
+        {/* Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Try It Out</Text>
+          <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.demoActions}>
             <TouchableOpacity
               style={[styles.demoButton, styles.demoButtonSecondary]}
@@ -387,20 +379,6 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
             >
               <Text style={[styles.demoButtonText, styles.demoButtonTextSecondary]}>
                 {connectionStatus.isConnected ? 'Manage Connection' : 'Connect WhatsApp'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.demoButton}
-              onPress={() => {
-                // Demo the quick action
-                track('edudash.whatsapp.demo_quick_action', {
-                  timestamp: new Date().toISOString()
-                })
-              }}
-            >
-              <Text style={styles.demoButtonText}>
-                Demo Quick Action
               </Text>
             </TouchableOpacity>
           </View>

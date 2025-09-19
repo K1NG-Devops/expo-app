@@ -8,20 +8,20 @@
 -- ============================================================================
 
 -- First, let's see what constraints exist
-SELECT 
-    tc.table_name, 
-    kcu.column_name, 
-    ccu.table_name AS foreign_table_name,
-    ccu.column_name AS foreign_column_name,
-    tc.constraint_name
-FROM 
-    information_schema.table_constraints tc 
-    JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
-    JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
-WHERE 
-    tc.constraint_type = 'FOREIGN KEY' 
-    AND tc.table_name = 'announcements'
-    AND kcu.column_name = 'author_id';
+SELECT
+  tc.table_name,
+  kcu.column_name,
+  ccu.table_name AS foreign_table_name,
+  ccu.column_name AS foreign_column_name,
+  tc.constraint_name
+FROM
+  information_schema.table_constraints AS tc
+INNER JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+INNER JOIN information_schema.constraint_column_usage AS ccu ON tc.constraint_name = ccu.constraint_name
+WHERE
+  tc.constraint_type = 'FOREIGN KEY'
+  AND tc.table_name = 'announcements'
+  AND kcu.column_name = 'author_id';
 
 -- ============================================================================
 -- 2. DROP AND RECREATE FOREIGN KEY CONSTRAINT
@@ -54,18 +54,18 @@ END $$;
 
 -- Create announcements table if it doesn't exist
 CREATE TABLE IF NOT EXISTS announcements (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    preschool_id UUID NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    author_id UUID NOT NULL,
-    target_audience TEXT NOT NULL CHECK (target_audience IN ('all', 'teachers', 'parents', 'students')),
-    priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-    is_published BOOLEAN NOT NULL DEFAULT true,
-    published_at TIMESTAMPTZ,
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  preschool_id UUID NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  author_id UUID NOT NULL,
+  target_audience TEXT NOT NULL CHECK (target_audience IN ('all', 'teachers', 'parents', 'students')),
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
+  is_published BOOLEAN NOT NULL DEFAULT true,
+  published_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ============================================================================
@@ -105,20 +105,20 @@ END $$;
 -- ============================================================================
 
 -- Index on preschool_id for faster queries
-CREATE INDEX IF NOT EXISTS idx_announcements_preschool_id 
-ON announcements(preschool_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_preschool_id
+ON announcements (preschool_id);
 
 -- Index on author_id for faster queries
-CREATE INDEX IF NOT EXISTS idx_announcements_author_id 
-ON announcements(author_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_author_id
+ON announcements (author_id);
 
 -- Index on published_at for sorting
-CREATE INDEX IF NOT EXISTS idx_announcements_published_at 
-ON announcements(published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_announcements_published_at
+ON announcements (published_at DESC);
 
 -- Composite index for common queries
-CREATE INDEX IF NOT EXISTS idx_announcements_preschool_published 
-ON announcements(preschool_id, is_published, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_announcements_preschool_published
+ON announcements (preschool_id, is_published, published_at DESC);
 
 -- ============================================================================
 -- 6. ENABLE RLS ON ANNOUNCEMENTS TABLE
@@ -128,56 +128,60 @@ ON announcements(preschool_id, is_published, published_at DESC);
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can view announcements from their preschool
-DROP POLICY IF EXISTS "announcements_select_policy" ON announcements;
-CREATE POLICY "announcements_select_policy" ON announcements
-  FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.auth_user_id = auth.uid()
-        AND u.preschool_id = announcements.preschool_id
-    )
-  );
+DROP POLICY IF EXISTS announcements_select_policy ON announcements;
+CREATE POLICY announcements_select_policy ON announcements
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM users AS u
+    WHERE
+      u.auth_user_id = auth.uid()
+      AND u.preschool_id = announcements.preschool_id
+  )
+);
 
 -- Policy: Principals and admins can create announcements
-DROP POLICY IF EXISTS "announcements_insert_policy" ON announcements;
-CREATE POLICY "announcements_insert_policy" ON announcements
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.auth_user_id = auth.uid()
-        AND u.preschool_id = announcements.preschool_id
-        AND u.role IN ('principal_admin', 'super_admin')
-    )
-    AND author_id = auth.uid()
-  );
+DROP POLICY IF EXISTS announcements_insert_policy ON announcements;
+CREATE POLICY announcements_insert_policy ON announcements
+FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM users AS u
+    WHERE
+      u.auth_user_id = auth.uid()
+      AND u.preschool_id = announcements.preschool_id
+      AND u.role IN ('principal_admin', 'super_admin')
+  )
+  AND author_id = auth.uid()
+);
 
 -- Policy: Authors can update their own announcements
-DROP POLICY IF EXISTS "announcements_update_policy" ON announcements;
-CREATE POLICY "announcements_update_policy" ON announcements
-  FOR UPDATE
-  USING (
-    author_id = auth.uid()
-    AND EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.auth_user_id = auth.uid()
-        AND u.preschool_id = announcements.preschool_id
-    )
-  );
+DROP POLICY IF EXISTS announcements_update_policy ON announcements;
+CREATE POLICY announcements_update_policy ON announcements
+FOR UPDATE
+USING (
+  author_id = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM users AS u
+    WHERE
+      u.auth_user_id = auth.uid()
+      AND u.preschool_id = announcements.preschool_id
+  )
+);
 
 -- Policy: Authors and super admins can delete announcements
-DROP POLICY IF EXISTS "announcements_delete_policy" ON announcements;
-CREATE POLICY "announcements_delete_policy" ON announcements
-  FOR DELETE
-  USING (
-    author_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.auth_user_id = auth.uid()
-        AND u.role = 'super_admin'
-    )
-  );
+DROP POLICY IF EXISTS announcements_delete_policy ON announcements;
+CREATE POLICY announcements_delete_policy ON announcements
+FOR DELETE
+USING (
+  author_id = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM users AS u
+    WHERE
+      u.auth_user_id = auth.uid()
+      AND u.role = 'super_admin'
+  )
+);
 
 -- ============================================================================
 -- 7. CREATE UPDATED_AT TRIGGER
@@ -195,9 +199,9 @@ $$ LANGUAGE plpgsql;
 -- Create trigger
 DROP TRIGGER IF EXISTS announcements_updated_at_trigger ON announcements;
 CREATE TRIGGER announcements_updated_at_trigger
-  BEFORE UPDATE ON announcements
-  FOR EACH ROW
-  EXECUTE FUNCTION update_announcements_updated_at();
+BEFORE UPDATE ON announcements
+FOR EACH ROW
+EXECUTE FUNCTION update_announcements_updated_at();
 
 -- ============================================================================
 -- 8. GRANT PERMISSIONS
@@ -218,4 +222,4 @@ COMMENT ON COLUMN announcements.target_audience IS 'Who this announcement is int
 COMMENT ON COLUMN announcements.priority IS 'Priority level of the announcement';
 
 -- Success message
-SELECT 'Announcements table and constraints fixed successfully!' as result;
+SELECT 'Announcements table and constraints fixed successfully!' AS result;

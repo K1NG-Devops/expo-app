@@ -20,6 +20,8 @@ import { useTranslation } from 'react-i18next'
 import { track } from '../../lib/analytics'
 import { useAuth } from '../../contexts/AuthContext'
 import { convertToE164, formatAsUserTypes, validatePhoneNumber, EXAMPLE_PHONE_NUMBERS } from '../../lib/utils/phoneUtils'
+import { Vibration } from 'react-native'
+import Feedback from '../../lib/feedback'
 
 interface WhatsAppOptInModalProps {
   visible: boolean
@@ -161,6 +163,8 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
     try {
       await optIn(phoneNumber, true)
+      try { await Feedback.vibrate(30); } catch {}
+      try { await Feedback.playSuccess(); } catch {}
       setStep('success')
       onSuccess?.()
     } catch (error) {
@@ -214,6 +218,8 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
   const handleSendTestMessage = async () => {
     try {
       await sendTestMessage()
+      try { await Feedback.vibrate(30); } catch {}
+      try { await Feedback.playSuccess(); } catch {}
       Alert.alert(
         t('whatsapp:testMessageSent'),
         t('whatsapp:testMessageSentMessage'),

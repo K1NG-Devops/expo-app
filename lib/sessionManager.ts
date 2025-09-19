@@ -210,7 +210,6 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         last_name,
         avatar_url,
         created_at,
-        last_login_at,
         preschool_id,
         is_active
       `)
@@ -231,7 +230,6 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
           last_name,
           avatar_url,
           created_at,
-          last_login_at,
           preschool_id,
           is_active
         `)
@@ -287,7 +285,7 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       seat_status: profile.is_active !== false ? 'active' : 'inactive',
       capabilities,
       created_at: profile.created_at,
-      last_login_at: profile.last_login_at,
+      last_login_at: (profile as any).last_login_at ?? null,
     };
   } catch (error) {
     reportError(new Error('Failed to fetch user profile'), { userId, error });

@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   StyleSheet,
   RefreshControl,
+  Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AnalyticsData {
   enrollment: {
@@ -48,12 +52,17 @@ interface AnalyticsData {
 }
 
 const PrincipalAnalytics: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { theme } = useTheme();
+  const { tier, ready: subscriptionReady } = useSubscription();
   const router = useRouter();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('month');
+  
+  // Check if user has premium analytics access
+  const hasAdvancedAnalytics = tier === 'enterprise' || tier === 'pro' || profile?.role === 'superadmin';
 
   const loadAnalytics = async () => {
     if (!user || !supabase) return;
@@ -101,7 +110,7 @@ const PrincipalAnalytics: React.FC = () => {
         count,
       }));
 
-      // Get attendance data
+      // Get attendance data (current month)
       const { data: attendanceRecords } = await supabase!
         .from('attendance_records')
         .select('status, date')
@@ -111,6 +120,31 @@ const PrincipalAnalytics: React.FC = () => {
       const totalAttendanceRecords = attendanceRecords?.length || 0;
       const presentRecords = attendanceRecords?.filter(a => a.status === 'present').length || 0;
       const averageAttendance = totalAttendanceRecords > 0 ? (presentRecords / totalAttendanceRecords) * 100 : 0;
+
+      // Compute weekly trend (Sun-Sat) from current month's records
+      const dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const weeklyTrend = dayLabels.map((label, idx) => {
+        const recs = (attendanceRecords || []).filter(r => new Date(r.date).getDay() === idx);
+        const present = recs.filter(r => r.status === 'present').length;
+        const rate = recs.length > 0 ? Math.round((present / recs.length) * 100) : 0;
+        return { day: label, rate };
+      });
+
+      // Low attendance alerts in last 7 days (daily rate < 85%)
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(now.getDate() - 7);
+      const recent = (attendanceRecords || []).filter(r => new Date(r.date) >= sevenDaysAgo);
+      const byDay: Record<string, { present: number; total: number }> = {};
+      for (const r of recent) {
+        const key = new Date(r.date).toISOString().split('T')[0];
+        if (!byDay[key]) byDay[key] = { present: 0, total: 0 };
+        byDay[key].total += 1;
+        if (r.status === 'present') byDay[key].present += 1;
+      }
+      const lowAttendanceAlerts = Object.values(byDay).reduce((count, d) => {
+        const rate = d.total > 0 ? (d.present / d.total) * 100 : 0;
+        return count + (rate < 85 ? 1 : 0);
+      }, 0);
 
       // Today's attendance
       const today = new Date().toISOString().split('T')[0];
@@ -160,8 +194,8 @@ const PrincipalAnalytics: React.FC = () => {
       const activeTeachers = teachers?.length || 0;
       const studentTeacherRatio = activeTeachers > 0 ? activeStudents / activeTeachers : 0;
 
-      // Mock some additional metrics that would require more complex calculations
-      const mockAnalytics: AnalyticsData = {
+      // Build analytics object from real data (no mocks)
+      const analyticsData: AnalyticsData = {
         enrollment: {
           totalStudents: totalStudents || 0,
           newEnrollments,
@@ -172,36 +206,30 @@ const PrincipalAnalytics: React.FC = () => {
         attendance: {
           averageAttendance,
           todayAttendance: todayAttendanceRate,
-          weeklyTrend: [
-            { day: 'Mon', rate: 92 },
-            { day: 'Tue', rate: 88 },
-            { day: 'Wed', rate: 95 },
-            { day: 'Thu', rate: 89 },
-            { day: 'Fri', rate: 85 },
-          ],
-          lowAttendanceAlerts: Math.floor(Math.random() * 3),
+          weeklyTrend,
+          lowAttendanceAlerts,
         },
         finance: {
           monthlyRevenue: totalRevenue,
           outstandingFees: totalOutstanding,
           paymentRate,
-          expenseRatio: 0.65,
+          expenseRatio: 0, // Unknown here; can be derived from expenses table later
         },
         staff: {
           totalStaff: totalStaff || 0,
           activeTeachers,
           studentTeacherRatio,
-          performanceScore: 4.2,
+          performanceScore: 0, // Placeholder - performance evaluations not yet configured
         },
         academic: {
-          averageGrade: 3.8,
-          improvingStudents: Math.floor(activeStudents * 0.15),
-          strugglingStudents: Math.floor(activeStudents * 0.08),
-          parentEngagement: 78,
+          averageGrade: 0, // Placeholder - waiting for assessment data
+          improvingStudents: 0, // Placeholder - waiting for assessment data
+          strugglingStudents: 0, // Placeholder - waiting for assessment data 
+          parentEngagement: 0, // Placeholder - waiting for engagement tracking
         },
       };
 
-      setAnalytics(mockAnalytics);
+      setAnalytics(analyticsData);
     } catch {
       console.error('Error loading analytics');
     } finally {
@@ -255,15 +283,20 @@ const PrincipalAnalytics: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Principal Analytics</Text>
-        <TouchableOpacity onPress={() => router.push('/screens/export-analytics')}>
-          <Ionicons name="download" size={24} color="#007AFF" />
-        </TouchableOpacity>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme?.background || '#f8f9fa' }]}>
+      {/* Simple Header with Back Button */}
+      <View style={[styles.header, { backgroundColor: theme?.cardBackground || '#fff' }]}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={[styles.headerTitle, { color: theme?.text || '#333' }]}>School Analytics</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push('/screens/export-analytics')}>
+            <Ionicons name="download" size={24} color={theme?.primary || '#007AFF'} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Period Selection */}
@@ -391,21 +424,43 @@ const PrincipalAnalytics: React.FC = () => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Academic Insights</Text>
           <View style={styles.insightCard}>
-            <Text style={styles.insightTitle}>Student Progress Summary</Text>
+            <Text style={styles.insightTitle}>Assessment Data Coming Soon</Text>
             <Text style={styles.insightText}>
-              • {analytics.academic.improvingStudents} students showing improvement this month
+              • Academic assessments and progress tracking are being set up
             </Text>
             <Text style={styles.insightText}>
-              • {analytics.academic.strugglingStudents} students may need additional support
+              • Parent engagement metrics will be available once configured
             </Text>
             <Text style={styles.insightText}>
-              • {analytics.academic.parentEngagement}% parent engagement rate
+              • Connect with support to enable detailed academic insights
             </Text>
             <TouchableOpacity
               style={styles.insightButton}
-onPress={() => router.push('/screens/principal-analytics')}
+              onPress={() => {
+                Alert.alert(
+                  'Academic Insights Setup',
+                  'Contact our support team to enable detailed academic tracking and assessment analytics for your school.',
+                  [
+                    { text: 'Contact Support', onPress: () => {
+                      const message = encodeURIComponent('Hi, I need help setting up academic insights and assessment tracking for my school.');
+                      const waUrl = `whatsapp://send?phone=27674770975&text=${message}`;
+                      const webUrl = `https://wa.me/27674770975?text=${message}`;
+                      Linking.canOpenURL('whatsapp://send').then(supported => {
+                        if (supported) {
+                          Linking.openURL(waUrl);
+                        } else {
+                          Linking.openURL(webUrl);
+                        }
+                      }).catch(() => {
+                        Alert.alert('Error', 'Unable to open WhatsApp. Please contact support@edudashpro.com');
+                      });
+                    }},
+                    { text: 'Later', style: 'cancel' }
+                  ]
+                );
+              }}
             >
-              <Text style={styles.insightButtonText}>View Detailed Reports</Text>
+              <Text style={styles.insightButtonText}>Contact Support</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -664,6 +719,156 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 14,
     color: '#333',
+  },
+  
+  // Enhanced Header Styles
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  greetingSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
+  greetingContent: {
+    flex: 1,
+  },
+  greetingText: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  greetingSubtext: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  
+  // Subscription Badge Styles
+  subscriptionBadgeContainer: {
+    alignItems: 'flex-end',
+  },
+  subscriptionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  premiumSubscriptionBadge: {
+    backgroundColor: '#8B5CF6' + '15',
+    borderWidth: 1,
+    borderColor: '#8B5CF6' + '30',
+  },
+  basicSubscriptionBadge: {
+    backgroundColor: '#F59E0B' + '15',
+    borderWidth: 1,
+    borderColor: '#F59E0B' + '30',
+  },
+  subscriptionBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  premiumBadgeText: {
+    color: '#8B5CF6',
+  },
+  basicBadgeText: {
+    color: '#F59E0B',
+  },
+  
+  // Enhanced CTA Section
+  ctaSection: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#8B5CF6' + '20',
+  },
+  ctaContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  ctaIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#8B5CF6' + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  ctaTextContainer: {
+    flex: 1,
+  },
+  ctaTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ctaSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  upgradeCTAButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8B5CF6',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  upgradeCTAButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  
+  // Premium Status Section
+  premiumStatusSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#10B981' + '10',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#10B981' + '20',
+  },
+  premiumStatusContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  premiumStatusText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+  manageSubscriptionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  manageSubscriptionButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });
 
