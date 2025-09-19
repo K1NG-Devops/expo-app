@@ -1,0 +1,56 @@
+[sqlfluff]
+# Specify the SQL dialect - PostgreSQL for Supabase
+dialect = postgres
+
+# Template style
+templater = raw
+
+# Line length
+max_line_length = 120
+
+# Rules to exclude (optional)
+# exclude_rules = RF01,RF02
+
+[sqlfluff:indentation]
+# Indentation settings
+indent_unit = space
+tab_space_size = 2
+
+[sqlfluff:rules:capitalisation.keywords]
+# Keywords should be uppercase
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.functions]
+# Function names should be uppercase
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.literals]
+# Literals should be lowercase when possible
+capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.table]
+# Table aliasing rules
+min_alias_length = 1
+
+[sqlfluff:rules:aliasing.column]
+# Column aliasing rules
+min_alias_length = 1
+
+[sqlfluff:rules:ambiguous.column_references]
+# Require explicit column references
+group_by_and_order_by_style = explicit
+
+[sqlfluff:rules:convention.select_trailing_comma]
+# No trailing comma in SELECT
+select_clause_trailing_comma = forbid
+
+[sqlfluff:rules:layout.long_lines]
+# Handle long lines
+ignore_comment_lines = True
+
+[sqlfluff:rules:structure.subquery]
+# Subquery formatting
+forbid_subquery_in_from_clause_without_alias = False
+
+[sqlfluff:templater:raw]
+# Raw templating (no Jinja processing)
