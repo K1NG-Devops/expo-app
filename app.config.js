@@ -21,6 +21,8 @@ module.exports = ({ config }) => {
         },
       },
     ],
+    // RevenueCat native config plugin (requires native rebuild)
+    'react-native-purchases',
     'expo-localization',
     'expo-secure-store',
     'expo-notifications',
