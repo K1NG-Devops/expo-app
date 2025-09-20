@@ -5,6 +5,10 @@ import { reportError } from '@/lib/monitoring';
 import { fetchEnhancedUserProfile, type EnhancedUserProfile, type Role } from '@/lib/rbac';
 import type { User } from '@supabase/supabase-js';
 
+// Optional AsyncStorage for bridging plan selection across auth (no-op on web)
+let AsyncStorage: any = null;
+try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { /* noop */ }
+
 function normalizeRole(r?: string | null): string | null {
   if (!r) return null;
   const s = String(r).trim().toLowerCase();
@@ -111,6 +115,36 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
       // User is authenticated but needs profile setup
       router.replace('/profiles-gate');
       return;
+    }
+
+    // If there is a pending plan selection (from unauthenticated plan click),
+    // prioritize routing to subscription setup and auto-start checkout.
+    try {
+      const raw = await AsyncStorage?.getItem('pending_plan_selection');
+      if (raw) {
+        await AsyncStorage?.removeItem('pending_plan_selection');
+        try {
+          const pending = JSON.parse(raw);
+          const planTier = pending?.planTier;
+          const billing = pending?.billing === 'annual' ? 'annual' : 'monthly';
+          if (planTier) {
+            track('edudash.auth.bridge_to_checkout', {
+              user_id: userId,
+              plan_tier: planTier,
+              billing,
+            });
+            router.replace({
+              pathname: '/screens/subscription-setup' as any,
+              params: { planId: String(planTier), billing, auto: '1' },
+            } as any);
+            return;
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+      }
+    } catch {
+      // best-effort only
     }
 
     // Determine route based on enhanced profile

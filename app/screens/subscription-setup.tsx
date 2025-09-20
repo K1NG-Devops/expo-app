@@ -35,6 +35,7 @@ interface RouteParams {
   planId?: string;
   billing?: 'monthly' | 'annual';
   schoolType?: 'preschool' | 'k12_school' | 'hybrid';
+  auto?: '1';
 }
 
 // Helper functions for school type labels
@@ -67,6 +68,24 @@ export default function SubscriptionSetupScreen() {
   const [annual, setAnnual] = useState(params.billing === 'annual');
   const [creating, setCreating] = useState(false);
   const [existingSubscription, setExistingSubscription] = useState<any>(null);
+  const autoStartedRef = React.useRef(false);
+
+  // Resolve the active school (preschool) id from profile with robust fallbacks
+  const getSchoolId = async (): Promise<string | null> => {
+    const direct = (profile as any)?.organization_id || (profile as any)?.preschool_id;
+    if (direct) return direct;
+    try {
+      if (profile?.id) {
+        const { data } = await assertSupabase()
+          .from('profiles')
+          .select('preschool_id')
+          .eq('id', profile.id)
+          .maybeSingle();
+        return (data as any)?.preschool_id ?? null;
+      }
+    } catch {}
+    return null;
+  };
 
   useEffect(() => {
     loadPlans();
@@ -90,6 +109,21 @@ export default function SubscriptionSetupScreen() {
     }
   }, [params.planId, plans]);
 
+  // Auto-start checkout if requested via params (for paid plans only)
+  useEffect(() => {
+    if (params.auto === '1' && selectedPlan && !creating && !autoStartedRef.current) {
+      const plan = plans.find(p => p.id === selectedPlan || p.tier === selectedPlan);
+      if (!plan) return;
+      const isFree = (plan.tier || '').toLowerCase() === 'free';
+      const price = (annual ? plan.price_annual : plan.price_monthly) || 0;
+      if (isFree || price <= 0) return; // don't auto-run for free plans
+
+      autoStartedRef.current = true;
+      // Fire and forget; UI already handles loading state
+      createSubscription(selectedPlan);
+    }
+  }, [params.auto, selectedPlan, creating, annual, plans]);
+
   async function loadPlans() {
     try {
       const { data, error } = await assertSupabase()
@@ -112,11 +146,12 @@ export default function SubscriptionSetupScreen() {
 
   async function loadSchoolInfo() {
     try {
-      if (profile?.organization_id) {
+      const schoolId = await getSchoolId();
+      if (schoolId) {
         const { data, error } = await assertSupabase()
           .from('preschools')
           .select('school_type, name')
-          .eq('id', profile.organization_id)
+          .eq('id', schoolId)
           .single();
 
         if (error && error.code !== 'PGRST116') throw error;
@@ -154,10 +189,13 @@ export default function SubscriptionSetupScreen() {
 
   async function checkExistingSubscription() {
     try {
+      const schoolId = await getSchoolId();
+      if (!schoolId) return;
+
       const { data, error } = await assertSupabase()
         .from('subscriptions')
         .select('*')
-        .eq('school_id', profile?.organization_id)
+        .eq('school_id', schoolId)
         .eq('status', 'active')
         .maybeSingle();
 
@@ -206,35 +244,67 @@ export default function SubscriptionSetupScreen() {
       }
       
       if (isFree) {
-        // Free plan - use existing RPC
-        if (!profile?.organization_id) {
+        // Free plan - ensure a free subscription exists for the school
+        const schoolId = await getSchoolId();
+        if (!schoolId) {
           Alert.alert('Error', 'School information not found for free plan setup');
           return;
         }
-        
-        const { data, error } = await assertSupabase().rpc('ensure_school_free_subscription', {
-          p_school_id: profile.organization_id,
-          p_seats: plan.max_teachers || 1,
-        });
-        
-        if (error) {
-          throw error;
+
+        // Try RPC if it exists; fall back to direct insertion
+        let rpcError: any | null = null;
+        try {
+          const { error } = await assertSupabase().rpc('ensure_school_free_subscription', {
+            p_school_id: schoolId,
+            p_seats: plan.max_teachers || 1,
+          });
+          rpcError = error || null;
+        } catch (e: any) {
+          rpcError = e;
         }
-        
-        // Update school subscription tier
+
+        if (rpcError) {
+          // Fallback: direct insert/upsert using the new schema
+          try {
+            // Resolve the free plan id
+            const { data: planRow, error: planErr } = await assertSupabase()
+              .from('subscription_plans')
+              .select('id')
+              .eq('tier', 'free')
+              .maybeSingle();
+            if (planErr || !planRow?.id) throw planErr || new Error('Free plan not found');
+
+            // Upsert an active subscription for this school
+            const { error: upsertErr } = await assertSupabase()
+              .from('subscriptions')
+              .insert({
+                school_id: schoolId,
+                plan_id: planRow.id,
+                status: 'active',
+                billing_frequency: 'monthly',
+                seats_total: plan.max_teachers || 1,
+                seats_used: 0,
+              })
+              .select('id')
+              .single();
+            if (upsertErr && !String(upsertErr.message || '').includes('duplicate')) throw upsertErr;
+          } catch (fallbackErr: any) {
+            throw fallbackErr;
+          }
+        }
+
+        // Non-blocking attempt to tag school with tier if column exists
         try {
           await assertSupabase()
             .from('preschools')
-            .update({ subscription_tier: plan.tier })
-            .eq('id', profile.organization_id);
-        } catch (e) {
-          // Non-blocking
-        }
+            .update({ subscription_tier: plan.tier as any })
+            .eq('id', schoolId);
+        } catch {}
 
         track('subscription_created', {
           plan_id: plan.tier,
           billing_cycle: 'free',
-          school_id: profile.organization_id
+          school_id: schoolId
         });
 
         Alert.alert(
@@ -251,18 +321,19 @@ export default function SubscriptionSetupScreen() {
       }
       
       // Paid plans - use checkout flow
+      const schoolId = await getSchoolId();
       track('checkout_started', {
         plan_tier: plan.tier,
         plan_name: plan.name,
         billing: annual ? 'annual' : 'monthly',
         price: price,
         user_role: profile?.role,
-        school_id: profile?.organization_id,
+        school_id: schoolId,
       });
       
       const checkoutInput = {
-        scope: profile?.organization_id ? 'school' : 'user' as const,
-        schoolId: profile?.organization_id,
+        scope: schoolId ? 'school' as const : 'user' as const,
+        schoolId: schoolId || undefined,
         userId: profile?.id,
         planTier: plan.tier,
         billing: annual ? 'annual' : 'monthly' as const,
@@ -474,62 +545,132 @@ interface PlanCardProps {
 function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating, schoolType }: PlanCardProps) {
   const price = annual ? plan.price_annual : plan.price_monthly;
   const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) : 0;
+  const isFree = price === 0;
+  const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
   
   // Check if this plan is specifically optimized for the school type
   const isRecommended = schoolType && plan.school_types && 
     (plan.school_types.includes(schoolType) && plan.school_types.length === 1);
 
+  // Get plan tier color
+  const getPlanColor = () => {
+    switch (plan.tier.toLowerCase()) {
+      case 'free': return '#6b7280';
+      case 'starter': return '#3b82f6';
+      case 'premium': return '#8b5cf6';
+      case 'enterprise': return '#f59e0b';
+      default: return '#00f5ff';
+    }
+  };
+
+  const planColor = getPlanColor();
+
   return (
-    <TouchableOpacity 
-      style={[styles.planCard, selected && styles.planCardSelected]}
-      onPress={onSelect}
-    >
-      <View style={styles.planHeader}>
-        <View style={styles.planTitleRow}>
-          <Text style={styles.planName}>{plan.name}</Text>
-          <Text style={styles.planTier}>({plan.tier})</Text>
+    <View style={[styles.planCard, selected && styles.planCardSelected]}>
+      <TouchableOpacity 
+        style={styles.planCardTouchable}
+        onPress={onSelect}
+        activeOpacity={0.8}
+      >
+        {/* Plan Header */}
+        <View style={styles.planHeader}>
+          <View style={styles.planTitleRow}>
+            <View style={styles.planTitleContainer}>
+              <Text style={styles.planName}>{plan.name}</Text>
+              <View style={[styles.planTierBadge, { backgroundColor: planColor + '20' }]}>
+                <Text style={[styles.planTier, { color: planColor }]}>{plan.tier}</Text>
+              </View>
+            </View>
+            {isRecommended && (
+              <View style={styles.recommendedBadge}>
+                <Text style={styles.recommendedText}>Recommended</Text>
+              </View>
+            )}
+          </View>
         </View>
-        {isRecommended && (
-          <View style={styles.recommendedBadge}>
-            <Text style={styles.recommendedText}>Recommended</Text>
+        
+        {/* Price Section */}
+        <View style={styles.priceSection}>
+          <View style={styles.priceContainer}>
+            {isFree ? (
+              <Text style={styles.freePrice}>Free</Text>
+            ) : isEnterprise ? (
+              <Text style={styles.customPrice}>Custom</Text>
+            ) : (
+              <>
+                <Text style={[styles.price, { color: planColor }]}>R{price}</Text>
+                <Text style={styles.pricePeriod}>/ {annual ? 'year' : 'month'}</Text>
+              </>
+            )}
+          </View>
+          {savings > 0 && (
+            <View style={styles.savingsBadge}>
+              <Text style={styles.savings}>Save R{savings}/mo</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Plan Details */}
+        <View style={styles.planDetailsSection}>
+          <View style={styles.limitsContainer}>
+            <View style={styles.limitRow}>
+              <Text style={styles.limitIcon}>👥</Text>
+              <Text style={styles.limitItem}>Up to {plan.max_teachers} teachers</Text>
+            </View>
+            <View style={styles.limitRow}>
+              <Text style={styles.limitIcon}>🎓</Text>
+              <Text style={styles.limitItem}>Up to {plan.max_students} students</Text>
+            </View>
+          </View>
+
+          {plan.features && plan.features.length > 0 && (
+            <View style={styles.featuresContainer}>
+              <Text style={styles.featuresTitle}>Features included:</Text>
+              {plan.features.slice(0, 4).map((feature, index) => (
+                <View key={index} style={styles.featureRow}>
+                  <Text style={styles.featureIcon}>✓</Text>
+                  <Text style={styles.featureItem}>{feature}</Text>
+                </View>
+              ))}
+              {plan.features.length > 4 && (
+                <Text style={styles.moreFeatures}>+{plan.features.length - 4} more features</Text>
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {/* CTA Section - Now below the content */}
+      <View style={styles.ctaSection}>
+        {selected ? (
+          <TouchableOpacity 
+            style={[styles.subscribeButton, { backgroundColor: planColor }, creating && styles.subscribeButtonDisabled]}
+            onPress={onSubscribe}
+            disabled={creating}
+            testID={`subscribe-${plan.id}`}
+          >
+            {creating ? (
+              <Text style={styles.subscribeButtonText}>Creating...</Text>
+            ) : (
+              <>
+                <Text style={styles.subscribeButtonText}>
+                  {isFree ? 'Get Started Free' : isEnterprise ? 'Contact Sales' : 'Subscribe Now'}
+                </Text>
+                {!isFree && !isEnterprise && (
+                  <Text style={styles.subscribeButtonSubtext}>
+                    Start your {annual ? 'annual' : 'monthly'} plan
+                  </Text>
+                )}
+              </>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.selectPrompt}>
+            <Text style={[styles.selectPromptText, { color: planColor }]}>Tap to select this plan</Text>
           </View>
         )}
       </View>
-      
-      <View style={styles.priceContainer}>
-        <Text style={styles.price}>R{price}</Text>
-        <Text style={styles.pricePeriod}>/ {annual ? 'year' : 'month'}</Text>
-        {savings > 0 && (
-          <Text style={styles.savings}>Save R{savings}/month</Text>
-        )}
-      </View>
-
-      <View style={styles.limitsContainer}>
-        <Text style={styles.limitItem}>• Up to {plan.max_teachers} teachers</Text>
-        <Text style={styles.limitItem}>• Up to {plan.max_students} students</Text>
-      </View>
-
-      {plan.features && plan.features.length > 0 && (
-        <View style={styles.featuresContainer}>
-          {plan.features.slice(0, 3).map((feature, index) => (
-            <Text key={index} style={styles.featureItem}>• {feature}</Text>
-          ))}
-        </View>
-      )}
-
-      {selected && (
-        <TouchableOpacity 
-          style={[styles.subscribeButton, creating && styles.subscribeButtonDisabled]}
-          onPress={onSubscribe}
-          disabled={creating}
-          testID={`subscribe-${plan.id}`}
-        >
-          <Text style={styles.subscribeButtonText}>
-            {creating ? 'Creating...' : 'Subscribe'}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -765,5 +906,97 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
+  },
+  // New redesigned plan card styles
+  planCardTouchable: {
+    flex: 1,
+  },
+  planTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  planTierBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  priceSection: {
+    marginBottom: 16,
+  },
+  freePrice: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#10b981',
+  },
+  customPrice: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#f59e0b',
+  },
+  savingsBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  planDetailsSection: {
+    marginBottom: 16,
+  },
+  limitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  limitIcon: {
+    fontSize: 14,
+  },
+  featuresTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  featureIcon: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  moreFeatures: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  ctaSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#1f2937',
+    paddingTop: 16,
+    marginTop: 8,
+  },
+  subscribeButtonSubtext: {
+    color: '#000',
+    fontSize: 12,
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  selectPrompt: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  selectPromptText: {
+    fontSize: 14,
+    fontWeight: '600',
+    opacity: 0.7,
   },
 });

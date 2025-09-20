@@ -79,8 +79,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
             try {
               const { data: sub, error: subError } = await assertSupabase()
                 .from('subscriptions')
-                .select('id, plan_id, owner_type, seats_total, seats_used, status')
-                .eq('owner_type', 'school')
+                .select('id, plan_id, seats_total, seats_used, status')
                 .eq('school_id', schoolId)
                 .eq('status', 'active') // Only active subscriptions
                 .maybeSingle();

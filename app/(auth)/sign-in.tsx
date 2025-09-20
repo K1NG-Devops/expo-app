@@ -24,6 +24,10 @@ import { EnhancedBiometricAuth } from "@/services/EnhancedBiometricAuth";
 import BiometricDebugger from "../../utils/biometricDebug";
 import { Ionicons } from "@expo/vector-icons";
 
+// Best-effort local persistence for bridging plan selection across auth
+let AsyncStorage: any = null;
+try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { /* noop */ }
+
 export default function SignIn() {
   const { theme } = useTheme();
   console.log('Theme loaded:', theme.background); // Prevent unused warning
@@ -52,13 +56,31 @@ export default function SignIn() {
   const canUseSupabase = !!supabase;
 
   // Read query params (e.g., switch=1 to open account picker)
-  const params = useLocalSearchParams<{ switch?: string }>();
+  const params = useLocalSearchParams<{ switch?: string; planTier?: string; billing?: string }>();
 
   // Check biometric availability on component mount
   useEffect(() => {
     checkBiometricStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If a plan selection was passed in via query params, persist it for post-auth routing
+  useEffect(() => {
+    if (params?.planTier) {
+      (async () => {
+        try {
+          const payload = {
+            planTier: String(params.planTier),
+            billing: params.billing === 'annual' ? 'annual' : 'monthly',
+            ts: Date.now(),
+          };
+          await AsyncStorage?.setItem('pending_plan_selection', JSON.stringify(payload));
+        } catch (e) {
+          // best effort only
+        }
+      })();
+    }
+  }, [params?.planTier, params?.billing]);
 
 
   const checkBiometricStatus = async () => {

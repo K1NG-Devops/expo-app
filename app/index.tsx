@@ -81,9 +81,12 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
-    // Always default to explicit sign-in screen on app start
-    // (Do not auto-route to parent/principal based on any stale session.)
-    router.replace('/(auth)/sign-in');
+    // Default routing behavior:
+    // - Native (iOS/Android): go straight to sign-in for faster access
+    // - Web: keep the marketing landing page
+    if (Platform.OS !== 'web') {
+      router.replace('/(auth)/sign-in');
+    }
   }, []);
 
 

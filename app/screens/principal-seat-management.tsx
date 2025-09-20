@@ -442,14 +442,8 @@ const createStyles = (theme: any) => {
   const errorColor = theme?.error || '#ff6b6b';
   const dangerColor = theme?.error || '#ff0080';
 
-  return StyleSheet.create({
-    // Expose theme colors for use in components
-    accentColor,
-    successColor,
-    warningColor,
-    errorColor,
-    dangerColor,
-    
+  // Create styles object with theme colors accessible separately
+  const styles = StyleSheet.create({
     container: { padding: 16, gap: 12, backgroundColor: darkBg },
     title: { fontSize: 22, fontWeight: '800', color: textPrimary },
     subtitle: { fontSize: 14, color: textSecondary },
@@ -586,5 +580,14 @@ const createStyles = (theme: any) => {
     backRow: { marginBottom: 8 },
     backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     backText: { color: accentColor, fontWeight: '800' },
+  });
+
+  // Return styles object with color properties attached
+  return Object.assign(styles, {
+    accentColor,
+    successColor,
+    warningColor,
+    errorColor,
+    dangerColor,
   });
 };

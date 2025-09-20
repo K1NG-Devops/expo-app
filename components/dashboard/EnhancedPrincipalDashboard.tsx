@@ -97,8 +97,37 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   };
   
   // WhatsApp integration
-  const { isWhatsAppEnabled } = useWhatsAppConnection();
+  const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+
+  // Open WhatsApp using school deep link if available; fallback to support line
+  const openWhatsAppWithFallback = async () => {
+    try { await Feedback.vibrate(15); } catch {}
+    const configuredLink = getWhatsAppDeepLink?.();
+    if (configuredLink) {
+      try {
+        await Linking.openURL(configuredLink);
+        return;
+      } catch (err) {
+        console.error('Failed to open configured WhatsApp link:', err);
+      }
+    }
+
+    const message = encodeURIComponent('Hello, I need help with my school subscription and features on EduDash Pro.');
+    const nativeUrl = `whatsapp://send?phone=27674770975&text=${message}`;
+    const webUrl = `https://wa.me/27674770975?text=${message}`;
+    try {
+      const supported = await Linking.canOpenURL('whatsapp://send');
+      if (supported) {
+        await Linking.openURL(nativeUrl);
+      } else {
+        await Linking.openURL(webUrl);
+      }
+    } catch (error) {
+      console.error('Failed to open WhatsApp:', error);
+      Alert.alert('Error', 'Unable to open WhatsApp. Please contact support at support@edudashpro.com');
+    }
+  };
 
   // Create theme-aware styles
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -345,6 +374,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             <View style={styles.upgradeBanner}>
               {/* Gradient Background Effect */}
               <View style={styles.upgradeBannerGradient}>
+                {/* Header Content */}
                 <View style={styles.upgradeBannerContent}>
                   <View style={styles.upgradeBannerIcon}>
                     <Ionicons name="diamond" size={24} color="#FFD700" />
@@ -354,23 +384,25 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                     <Text style={styles.upgradeBannerSubtitle}>Advanced analytics, AI insights & more • Transform your school today!</Text>
                   </View>
                 </View>
+                
+                {/* CTA Button - Now below the content */}
                 <TouchableOpacity
                   style={styles.upgradeBannerButton}
                   onPress={async () => {
                     try { await Feedback.vibrate(30); } catch {}
                     try { await Feedback.playSuccess(); } catch {}
-                    // Direct navigation to subscription setup for immediate upgrade
-                    router.push('/screens/subscription-setup?planId=pro' as any);
+                    // Navigate to upgrade post screen to show multiple tiers
+                    router.push('/screens/subscription-upgrade-post?currentTier=free&reason=manual_upgrade' as any);
                   }}
                 >
                   <View style={styles.upgradeBannerButtonGlow}>
-                    <Text style={styles.upgradeBannerButtonText}>Upgrade Now</Text>
+                    <Text style={styles.upgradeBannerButtonText}>Choose Your Plan</Text>
                     <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                   </View>
                 </TouchableOpacity>
               </View>
               {/* Subtle pulse animation effect */}
-              <View style={styles.upgradeBannerPulse} />
+              <View style={styles.upgradeBannerPulse} pointerEvents="none" />
             </View>
           )}
         </View>
@@ -557,23 +589,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         {/* WhatsApp Contact Support Banner */}
         <TouchableOpacity 
           style={styles.whatsappContactBanner}
-          onPress={async () => {
-            const message = encodeURIComponent('Hello, I need help with my school subscription and features on EduDash Pro.');
-            const waUrl = `whatsapp://send?phone=27674770975&text=${message}`;
-            const webUrl = `https://wa.me/27674770975?text=${message}`;
-            try {
-              try { await Feedback.vibrate(15); } catch {}
-              const supported = await Linking.canOpenURL('whatsapp://send');
-              if (supported) {
-                await Linking.openURL(waUrl);
-              } else {
-                await Linking.openURL(webUrl);
-              }
-            } catch (error) {
-              console.error('Failed to open WhatsApp:', error);
-              Alert.alert('Error', 'Unable to open WhatsApp. Please contact support at support@edudashpro.com');
-            }
-          }}
+          onPress={openWhatsAppWithFallback}
         >
           <View style={styles.whatsappContactHeader}>
             <View style={styles.whatsappContactIcon}>
@@ -975,7 +991,9 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
   );
 };
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (theme: any) => {
+  const isSmall = width <= 400;
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
@@ -1608,16 +1626,13 @@ const createStyles = (theme: any) => StyleSheet.create({
   upgradeBannerGradient: {
     backgroundColor: '#1a1a2e', // Dark base
     borderRadius: 16,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 215, 0, 0.4)', // Gold border
+    padding: isSmall ? 12 : 14,
+    flexDirection: 'column', // Changed to column for vertical layout
+    gap: isSmall ? 12 : 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.35)', // Gold border
     position: 'relative',
     overflow: 'hidden',
-    flexWrap: 'wrap', // Allow button to wrap below text on small screens
-    rowGap: 10,
   },
   upgradeBannerContent: {
     flex: 1,
@@ -1626,9 +1641,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     gap: 16,
   },
   upgradeBannerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: isSmall ? 40 : 48,
+    height: isSmall ? 40 : 48,
+    borderRadius: isSmall ? 20 : 24,
     backgroundColor: 'rgba(255, 215, 0, 0.2)', // Gold background
     alignItems: 'center',
     justifyContent: 'center',
@@ -1636,26 +1651,26 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderColor: 'rgba(255, 215, 0, 0.4)',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 3,
   },
   upgradeBannerText: {
     flex: 1,
   },
   upgradeBannerTitle: {
-    fontSize: 16,
+    fontSize: isSmall ? 14 : 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    marginBottom: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   upgradeBannerSubtitle: {
-    fontSize: 13,
+    fontSize: isSmall ? 12 : 13,
     color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 18,
+    lineHeight: isSmall ? 16 : 18,
     fontWeight: '500',
   },
   upgradeBannerButton: {
@@ -1665,20 +1680,19 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
-    alignSelf: 'stretch', // allow fill width on wrap
-    marginTop: 8,
+    alignSelf: 'stretch', // Full width button
   },
   upgradeBannerButtonGlow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF6B6B', // Bright red/orange gradient
+    backgroundColor: '#FF6B6B', // Bright red/orange
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: isSmall ? 8 : 10,
     borderRadius: 12,
     gap: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-    minWidth: 110,
+    minWidth: isSmall ? 100 : 110,
     justifyContent: 'center',
     flex: 1,
   },
@@ -1697,9 +1711,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     right: 0,
     bottom: 0,
     borderRadius: 16,
+    zIndex: -1, // ensure it never captures touches
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
     opacity: 0.6,
   },
 });
+};
 
 export default EnhancedPrincipalDashboard;

@@ -485,7 +485,7 @@ export default function SettingsScreen() {
             </View>
 
             {/* Sound alerts */}
-            <View style={[styles.settingItem, styles.lastSettingItem] }>
+            <View style={styles.settingItem}>
               <View style={styles.settingLeft}>
                 <Ionicons name="volume-high" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
@@ -499,6 +499,23 @@ export default function SettingsScreen() {
                 trackColor={{ false: theme.border, true: theme.primary }}
                 thumbColor={soundEnabled ? theme.onPrimary : theme.textTertiary}
               />
+            </View>
+
+            {/* Advanced Sound Alert Settings */}
+            <View style={[styles.settingItem, styles.lastSettingItem]}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                onPress={() => router.push('/screens/sound-alert-settings')}
+              >
+                <View style={styles.settingLeft}>
+                  <Ionicons name="musical-notes" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>Advanced Sound Settings</Text>
+                    <Text style={styles.settingSubtitle}>Configure sounds for different alert types</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
