@@ -9,6 +9,7 @@ import { track } from '@/lib/analytics';
 import { trackAppLaunch } from '@/lib/otaObservability';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
+import { AdsProvider } from '@/contexts/AdsContext';
 import { assertSupabase } from '@/lib/supabase';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
@@ -112,13 +113,10 @@ export default function RootLayout() {
         console.warn('Biometric service init failed (continuing):', e);
       }
 
-      // Initialize AdMob with test IDs only
-      console.log('📱 Initializing AdMob...');
-      const adMobInitialized = await initializeAdMob();
-      
-      if (!adMobInitialized && flags.android_only_mode) {
-        console.warn('AdMob failed to initialize in Android-only mode');
-      }
+      // AdMob initialization now happens in AdsProvider based on subscription tier
+      // We'll remove this direct initialization to prevent duplication
+      console.log('📱 AdMob initialization deferred to AdsProvider...');
+      const adMobInitialized = true; // Assume success since AdsProvider handles actual initialization
 
       // Validate environment configuration
       console.log('⚙️  Validating environment...');
@@ -217,10 +215,13 @@ export default function RootLayout() {
             <UpdatesProvider>
               {/* Wrap in SubscriptionProvider so screens can access subscription data */}
               <SubscriptionProvider>
-                <ThemedStackWrapper />
-                <GlobalUpdateBanner />
-                <UpdateDebugPanel />
-                {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+                {/* Wrap in AdsProvider for ad display gating and control */}
+                <AdsProvider>
+                  <ThemedStackWrapper />
+                  <GlobalUpdateBanner />
+                  <UpdateDebugPanel />
+                  {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+                </AdsProvider>
               </SubscriptionProvider>
             </UpdatesProvider>
           </AuthProvider>

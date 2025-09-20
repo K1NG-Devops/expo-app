@@ -6,6 +6,8 @@ import { router } from 'expo-router';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import AdBanner from '@/components/ui/AdBanner';
+import { NativeAdCard } from '@/components/ads/NativeAdCard';
+import { PLACEMENT_KEYS } from '@/lib/ads/placements';
 import ErrorBanner from '@/components/ui/ErrorBanner';
 // IconSymbol import removed - now using enhanced components
 // Removed unused imports: WhatsAppStatusChip, WhatsAppQuickAction
@@ -1895,6 +1897,17 @@ case 'homework':
           </View>
         </View>
 
+        {/* Native Ad - Inline in content stream */}
+        {showBanner && (
+          <View style={styles.section}>
+            <NativeAdCard 
+              placement={PLACEMENT_KEYS.NATIVE_PARENT_FEED}
+              style={{ alignSelf: 'center' }}
+              itemIndex={1}
+              showFallback={true}
+            />
+          </View>
+        )}
 
         {/* Enhanced Usage Stats */}
         <EnhancedStatsRow
@@ -1976,8 +1989,29 @@ case 'homework':
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
             </TouchableOpacity>
+            
+            {/* Native Ad - List context */}
+            {showBanner && (
+              <NativeAdCard 
+                placement={PLACEMENT_KEYS.NATIVE_PARENT_LIST}
+                style={{ marginVertical: 8 }}
+                itemIndex={3}
+                showFallback={true}
+              />
+            )}
           </View>
         </View>
+        
+        {/* Banner Ad - Messages/Communication context */}
+        {showBanner && (
+          <View style={styles.section}>
+            <AdBanner 
+              placement={PLACEMENT_KEYS.BANNER_PARENT_MESSAGES}
+              style={{ marginVertical: 8 }}
+              showFallback={true}
+            />
+          </View>
+        )}
         
         {/* Recent Activity Timeline */}
         <View style={styles.section}>
@@ -2057,12 +2091,19 @@ case 'homework':
           </View>
         </View>
 
-        {/* Ad Banner for Free Tier - Bottom placement */}
+        {/* Ad Banner for Free Tier - Main Dashboard bottom placement */}
         {showBanner && (
           <View style={styles.section}>
-            <AdBanner />
+            <AdBanner 
+              placement={PLACEMENT_KEYS.BANNER_PARENT_DASHBOARD}
+              style={{ marginBottom: 16 }}
+              showFallback={true}
+            />
           </View>
         )}
+
+        {/* Additional spacing for bottom navigation */}
+        <View style={{ height: 20 }} />
 
       </ScrollView>
 

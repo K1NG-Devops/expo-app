@@ -24,6 +24,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useAds } from '@/contexts/AdsContext';
 import { useTranslation } from 'react-i18next';
 import { usePrincipalHub } from '@/hooks/usePrincipalHub';
 import { router } from 'expo-router';
@@ -35,10 +37,10 @@ import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
-import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Vibration } from 'react-native';
 import Feedback from '@/lib/feedback';
 import { track } from '@/lib/analytics';
+import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -62,9 +64,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady } = useSubscription();
+  const { maybeShowInterstitial, offerRewarded } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  
+  // Ad gating logic
+  const showAds = subscriptionReady && tier === 'free';
   
   // Check if user has premium features
   const hasAdvancedFeatures = tier === 'enterprise' || tier === 'pro';
@@ -461,6 +467,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               {...metric}
               onPress={async () => {
                 try { await Feedback.vibrate(15); } catch {}
+                
+                // Show interstitial ad before navigating (free tier only)
+                await maybeShowInterstitial('principal_metrics_nav');
+                
                 // Navigate to proper management views
                 if (metric.title.includes('Students') || metric.title.includes('Total Students')) {
                   router.push('/screens/student-management'); // Comprehensive student management
@@ -481,7 +491,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </View>
       </View>
 
-      {/* Capacity Status */}
+      {/* Second Ad Placement: After Quick Stats */}
+      {showAds && (
+        <AdBannerWithUpgrade
+          screen="principal_dashboard"
+          showUpgradeCTA={false}
+          margin={10}
+        />
+      )}
+
+      {/* Financial Summary */}
       {data.capacityMetrics && (
         <View style={styles.section}>
           <View style={styles.capacityCard}>
@@ -512,13 +531,25 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </View>
       )}
 
+      {/* First Ad Placement: After Welcome/Upgrade Section */}
+      {showAds && (
+        <AdBannerWithUpgrade
+          screen="principal_dashboard"
+          showUpgradeCTA={true}
+          margin={12}
+        />
+      )}
+
       {/* Teaching Staff */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Teaching Staff</Text>
             <TouchableOpacity
               style={styles.viewAllButton}
-              onPress={() => router.push('/screens/teacher-management')}
+              onPress={async () => {
+                await maybeShowInterstitial('principal_teacher_management_nav');
+                router.push('/screens/teacher-management');
+              }}
             >
               <Text style={styles.viewAllText}>View All</Text>
               <Ionicons name="chevron-forward" size={16} color={theme.primary} />

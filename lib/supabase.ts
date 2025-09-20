@@ -103,7 +103,23 @@ if (url && anon) {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // Add debugging for token refresh issues
+      debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
+      // Increase token refresh threshold to avoid rapid refresh attempts
+      tokenRefreshMargin: 60, // 60 seconds before expiry
     },
+  });
+
+  // Add global error handler for auth errors
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'TOKEN_REFRESHED') {
+      console.log('[Supabase] Token refreshed successfully');
+    } else if (event === 'SIGNED_OUT') {
+      console.log('[Supabase] User signed out');
+      // Clear any stale session data
+      storage.removeItem('edudash_user_session').catch(() => {});
+      storage.removeItem('edudash_user_profile').catch(() => {});
+    }
   });
 }
 

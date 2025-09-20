@@ -26,6 +26,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { useAds } from "@/contexts/AdsContext";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTeacherDashboard } from "@/hooks/useDashboardData";
@@ -43,6 +45,7 @@ import { createCheckout } from "@/lib/payments";
 import { RoleBasedHeader } from "../RoleBasedHeader";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
+import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
 
 const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2;
@@ -80,6 +83,14 @@ export const TeacherDashboard: React.FC = () => {
     (process.env.EXPO_PUBLIC_AI_ENABLED !== "false") &&
     (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES !== "false");
   const { user, profile, refreshProfile } = useAuth();
+  const { ready: subscriptionReady, tier } = useSubscription();
+  const { maybeShowInterstitial, offerRewarded } = useAds();
+  
+  // Ad gating logic
+  const showAds = subscriptionReady && tier === 'free';
+  
+  // Temporary AI tool unlocks via rewarded ads (ephemeral)
+  const [aiTempUnlocks, setAiTempUnlocks] = React.useState<Record<string, number>>({});
 
   // Seat and plan status must be computed before capability gating
   const seatStatus = profile?.seat_status || "inactive";
@@ -434,7 +445,8 @@ export const TeacherDashboard: React.FC = () => {
       title: "Message Parents",
       icon: "chatbubbles",
       color: "#7C3AED",
-      onPress: () => {
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_message_parents');
         router.push("/screens/teacher-messages");
       },
       requiredCap: "communicate_with_parents",
@@ -444,7 +456,8 @@ export const TeacherDashboard: React.FC = () => {
       title: "View Reports",
       icon: "document-text",
       color: "#DC2626",
-      onPress: () => {
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_view_reports');
         router.push("/screens/teacher-reports");
       },
       requiredCap: "view_class_analytics",
@@ -612,16 +625,31 @@ export const TeacherDashboard: React.FC = () => {
             : tool.id === "progress-analysis"
               ? canViewAnalytics
               : true;
+              
+    // Check if tool has temporary unlock from rewarded ad
+    const hasTemporaryUnlock = aiTempUnlocks[tool.id] > 0;
+    const isActuallyEnabled = enabled || hasTemporaryUnlock;
+
+    const handlePress = async () => {
+      if (hasTemporaryUnlock) {
+        // Consume one temporary unlock
+        setAiTempUnlocks(prev => ({
+          ...prev,
+          [tool.id]: Math.max(0, prev[tool.id] - 1)
+        }));
+      }
+      tool.onPress();
+    };
 
     return (
       <TouchableOpacity
         key={tool.id}
         style={[
           styles.aiToolCard,
-          { backgroundColor: tool.color + "10", opacity: enabled ? 1 : 0.5 },
+          { backgroundColor: tool.color + "10", opacity: isActuallyEnabled ? 1 : 0.5 },
         ]}
-        onPress={tool.onPress}
-        disabled={!enabled}
+        onPress={handlePress}
+        disabled={!isActuallyEnabled}
         accessibilityRole="button"
         accessibilityLabel={tool.title}
       >
@@ -631,12 +659,35 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.aiToolContent}>
           <Text style={styles.aiToolTitle}>{tool.title}</Text>
           <Text style={styles.aiToolSubtitle}>{tool.subtitle}</Text>
-          {!enabled && (
+          {!enabled && hasTemporaryUnlock && (
+            <Text style={{ color: "#10B981", marginTop: 4, fontWeight: '600' }}>
+              {aiTempUnlocks[tool.id]} trial use{aiTempUnlocks[tool.id] !== 1 ? 's' : ''} remaining
+            </Text>
+          )}
+          {!enabled && !hasTemporaryUnlock && (
             <Text style={{ color: theme.textSecondary, marginTop: 4 }}>
               {t("dashboard.ai_upgrade_required_cta", {
                 defaultValue: "Upgrade to use",
               })}
             </Text>
+          )}
+          {/* Rewarded ad offer for disabled premium AI tools */}
+          {!enabled && !hasTemporaryUnlock && showAds && ['lesson-generator', 'homework-grader'].includes(tool.id) && (
+            <TouchableOpacity
+              style={{ marginTop: 6, paddingVertical: 4 }}
+              onPress={async (e) => {
+                e.stopPropagation();
+                const { shown, rewarded } = await offerRewarded(`ai_tool_${tool.id}`);
+                if (rewarded) {
+                  setAiTempUnlocks(prev => ({ ...prev, [tool.id]: 1 }));
+                  Alert.alert('Unlocked!', 'You can try this AI tool once for free.');
+                }
+              }}
+            >
+              <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 12 }}>
+                📺 Watch ad to try once
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
         <Ionicons
@@ -958,6 +1009,15 @@ export const TeacherDashboard: React.FC = () => {
           </View>
         </View>
 
+        {/* First Ad Placement: Below Quick Actions */}
+        {showAds && (
+          <AdBannerWithUpgrade
+            screen="teacher_dashboard"
+            showUpgradeCTA={true}
+            margin={12}
+          />
+        )}
+
         {/* AI Tools */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>
@@ -1073,7 +1133,22 @@ export const TeacherDashboard: React.FC = () => {
           <Text style={styles.sectionTitle}>{t("dashboard.my_classes")}</Text>
           <View style={styles.classesContainer}>
             {dashboardData?.myClasses && dashboardData.myClasses.length > 0 ? (
-              dashboardData.myClasses.map(renderClassCard)
+              dashboardData.myClasses.map((classCard, index) => {
+                // Insert mid-feed ad after first 2 classes for scrollers
+                if (showAds && index === 2 && dashboardData.myClasses.length > 2) {
+                  return (
+                    <React.Fragment key={`class-${classCard.id}`}>
+                      {renderClassCard(classCard)}
+                      <AdBannerWithUpgrade
+                        screen="teacher_dashboard"
+                        showUpgradeCTA={false}
+                        margin={8}
+                      />
+                    </React.Fragment>
+                  );
+                }
+                return renderClassCard(classCard);
+              })
             ) : (
               <EmptyClassesState
                 onCreateClass={() => {
@@ -1155,6 +1230,15 @@ export const TeacherDashboard: React.FC = () => {
             )}
           </View>
         </View>
+
+        {/* Bottom Ad Placement: For long sessions */}
+        {showAds && (
+          <AdBannerWithUpgrade
+            screen="teacher_dashboard"
+            showUpgradeCTA={false}
+            margin={16}
+          />
+        )}
 
         {/* Bottom Padding */}
         <View style={{ height: 100 }} />

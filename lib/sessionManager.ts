@@ -369,7 +369,7 @@ function needsRefresh(session: UserSession): boolean {
 }
 
 /**
- * Refresh session token with exponential backoff
+ * Refresh session using refresh token
  */
 async function refreshSession(
   refreshToken: string,
@@ -377,15 +377,27 @@ async function refreshSession(
   maxAttempts: number = 3
 ): Promise<UserSession | null> {
   try {
+    // Validate refresh token before attempting refresh
+    if (!refreshToken || refreshToken.trim() === '') {
+      throw new Error('Invalid refresh token: empty or null');
+    }
+
+    console.log(`[SessionManager] Attempting refresh (attempt ${attempt}/${maxAttempts})`);
+    
     const { data, error } = await assertSupabase().auth.refreshSession({
       refresh_token: refreshToken,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SessionManager] Supabase refresh error:', error.message);
+      throw error;
+    }
 
     if (!data.session) {
       throw new Error('No session returned from refresh');
     }
+
+    console.log('[SessionManager] Session refreshed successfully');
 
     const newSession: UserSession = {
       access_token: data.session.access_token,
@@ -406,9 +418,28 @@ async function refreshSession(
   } catch (error) {
     console.error(`Session refresh attempt ${attempt} failed:`, error);
 
+    // Special handling for specific refresh token errors
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid Refresh Token') || 
+          error.message.includes('Refresh Token Not Found') ||
+          error.message.includes('refresh_token_not_found')) {
+        console.log('[SessionManager] Refresh token is invalid, clearing stored session');
+        await clearStoredData();
+        
+        track('edudash.auth.session_refresh_failed', {
+          attempts: attempt,
+          error: 'invalid_refresh_token',
+          final: true,
+        });
+        
+        return null; // Don't retry for invalid tokens
+      }
+    }
+
     if (attempt < maxAttempts) {
       // Exponential backoff: 1s, 2s, 4s
       const delay = Math.pow(2, attempt - 1) * 1000;
+      console.log(`[SessionManager] Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return refreshSession(refreshToken, attempt + 1, maxAttempts);
     }
@@ -416,6 +447,7 @@ async function refreshSession(
     track('edudash.auth.session_refresh_failed', {
       attempts: attempt,
       error: error instanceof Error ? error.message : 'Unknown error',
+      final: true,
     });
 
     reportError(new Error('Session refresh failed after all attempts'), { 
@@ -423,6 +455,8 @@ async function refreshSession(
       originalError: error 
     });
 
+    // Clear stored session if all attempts failed
+    await clearStoredData();
     return null;
   }
 }
