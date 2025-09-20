@@ -38,6 +38,7 @@ import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Vibration } from 'react-native';
 import Feedback from '@/lib/feedback';
+import { track } from '@/lib/analytics';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -57,7 +58,7 @@ interface TeacherCardProps {
 }
 
 export const EnhancedPrincipalDashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady } = useSubscription();
@@ -391,8 +392,51 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   onPress={async () => {
                     try { await Feedback.vibrate(30); } catch {}
                     try { await Feedback.playSuccess(); } catch {}
-                    // Navigate to upgrade post screen to show multiple tiers
-                    router.push('/screens/subscription-upgrade-post?currentTier=free&reason=manual_upgrade' as any);
+                    
+                    // Track navigation attempt
+                    track('upgrade_cta_tapped', {
+                      current_tier: tier || 'free',
+                      user_role: profile?.role,
+                    });
+                    
+                    // Safer object-based navigation with error handling
+                    const href = {
+                      pathname: '/screens/subscription-upgrade-post' as const,
+                      params: {
+                        currentTier: tier || 'free',
+                        reason: 'manual_upgrade'
+                      }
+                    };
+                    
+                    try {
+                      // Optional prefetch (non-blocking)
+                      if (__DEV__) {
+                        try {
+                          router.prefetch(href as any);
+                        } catch (e: any) {
+                          console.warn('Prefetch failed (non-blocking):', e.message);
+                        }
+                      }
+                      
+                      // Navigate to upgrade screen
+                      router.push(href as any);
+                    } catch (e: any) {
+                      // Log error and provide fallback
+                      if (__DEV__) {
+                        console.error('Upgrade navigation failed:', e);
+                      }
+                      
+                      track('upgrade_nav_failed', {
+                        error: e.message,
+                        current_tier: tier || 'free',
+                      });
+                      
+                      Alert.alert(
+                        'Upgrade Unavailable',
+                        'The upgrade screen is temporarily unavailable. Please try again in a moment.',
+                        [{ text: 'OK' }]
+                      );
+                    }
                   }}
                 >
                   <View style={styles.upgradeBannerButtonGlow}>

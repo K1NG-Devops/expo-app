@@ -36,19 +36,75 @@ interface SubscriptionPlan {
 }
 
 interface RouteParams {
-  currentTier?: string;
-  reason?: 'limit_reached' | 'feature_needed' | 'manual_upgrade';
-  feature?: string;
+  currentTier?: string | string[];
+  reason?: string | string[];
+  feature?: string | string[];
 }
+
+// Utility function to handle array/string params
+const takeFirst = (v: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(v)) return v[0];
+  return v;
+};
+
+// Safe color helper function
+const withAlpha = (hex: string, alpha = 0.125): string => {
+  try {
+    if (/^#([0-9A-Fa-f]{6})$/.test(hex)) {
+      const aa = Math.round(alpha * 255).toString(16).padStart(2, '0');
+      return hex + aa;
+    }
+  } catch {
+    // Fallback on error
+  }
+  return '#1f2937'; // Safe fallback
+};
+
+// Predefined reasons with safe defaults
+const UPGRADE_REASONS: Record<string, { icon: string; color: string; title: string; subtitle: string }> = {
+  limit_reached: {
+    icon: 'warning',
+    color: '#f59e0b',
+    title: 'Upgrade Required',
+    subtitle: 'You\'ve reached your current plan limits'
+  },
+  feature_needed: {
+    icon: 'lock-closed',
+    color: '#8b5cf6',
+    title: 'Unlock Premium Features',
+    subtitle: 'This feature requires a higher tier plan'
+  },
+  manual_upgrade: {
+    icon: 'trending-up',
+    color: '#10b981',
+    title: 'Upgrade Your Plan',
+    subtitle: 'Get access to more features and higher limits'
+  }
+};
+
+const DEFAULT_REASON = UPGRADE_REASONS.manual_upgrade;
 
 export default function SubscriptionUpgradePostScreen() {
   const { profile } = useAuth();
-  const params = useLocalSearchParams<RouteParams>();
+  const rawParams = useLocalSearchParams();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [annual, setAnnual] = useState(true); // Default to annual for better savings
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+
+  // Safely extract parameters
+  const currentTier = (takeFirst(rawParams.currentTier) || 'free').toString();
+  const reasonKey = (takeFirst(rawParams.reason) || 'manual_upgrade').toString();
+  const feature = takeFirst(rawParams.feature);
+  
+  // Get reason with fallback
+  const reason = UPGRADE_REASONS[reasonKey] || DEFAULT_REASON;
+  
+  // If feature is provided and reason is feature_needed, customize subtitle
+  if (feature && reasonKey === 'feature_needed') {
+    reason.subtitle = `${feature} requires a higher tier plan`;
+  }
 
   useEffect(() => {
     loadPlans();
@@ -57,14 +113,19 @@ export default function SubscriptionUpgradePostScreen() {
 
   const trackPageView = () => {
     track('upgrade_post_screen_viewed', {
-      current_tier: params.currentTier || 'unknown',
-      reason: params.reason || 'manual_upgrade',
-      feature: params.feature,
+      current_tier: currentTier,
+      reason: reasonKey,
+      feature: feature,
       user_role: profile?.role,
     });
   };
 
   const loadPlans = async () => {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, 10000); // 10 second timeout
+
     try {
       setLoading(true);
       
@@ -72,21 +133,32 @@ export default function SubscriptionUpgradePostScreen() {
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
-        .order('price_monthly', { ascending: true });
+        .order('price_monthly', { ascending: true })
+        .abortSignal(abortController.signal);
 
-      if (error) throw error;
+      clearTimeout(timeoutId);
+
+      if (error) {
+        console.error('Plans fetch error:', error);
+        throw new Error(error.message || 'Failed to fetch plans');
+      }
+      
+      // Ensure data is an array
+      const plansData = Array.isArray(data) ? data : [];
       
       // Filter out current tier (but allow free users to see paid upgrades)
-      const currentTier = params.currentTier?.toLowerCase() || 'free';
-      const filteredPlans = (data || []).filter(plan => {
+      const currentTierLower = currentTier.toLowerCase();
+      const filteredPlans = plansData.filter(plan => {
+        if (!plan || !plan.tier) return false; // Skip invalid plans
+        
         // If user is on free tier, show all paid tiers
-        if (currentTier === 'free') {
+        if (currentTierLower === 'free') {
           return plan.tier.toLowerCase() !== 'free';
         }
         // For other tiers, show higher tiers only
         const tierOrder = { free: 0, starter: 1, premium: 2, enterprise: 3 };
-        const currentOrder = tierOrder[currentTier as keyof typeof tierOrder] || 0;
-        const planOrder = tierOrder[plan.tier.toLowerCase() as keyof typeof tierOrder] || 0;
+        const currentOrder = tierOrder[currentTierLower as keyof typeof tierOrder] || 0;
+        const planOrder = tierOrder[plan.tier.toLowerCase() as keyof typeof tierOrder] || 999;
         return planOrder > currentOrder;
       });
       
@@ -97,9 +169,30 @@ export default function SubscriptionUpgradePostScreen() {
         setSelectedPlan(filteredPlans[0].id);
       }
       
+      track('upgrade_post_plans_loaded', { 
+        plans_count: filteredPlans.length,
+        current_tier: currentTier 
+      });
+      
     } catch (error: any) {
-      Alert.alert('Error', 'Failed to load subscription plans');
-      track('upgrade_post_load_failed', { error: error.message });
+      clearTimeout(timeoutId);
+      console.error('Plans loading failed:', error);
+      
+      // Set empty array to show empty state UI
+      setPlans([]);
+      
+      // Only show alert for non-abort errors
+      if (error.name !== 'AbortError') {
+        track('upgrade_post_load_failed', { 
+          error: error.message,
+          current_tier: currentTier 
+        });
+        
+        // Don't block the UI with an alert, just log the error
+        if (__DEV__) {
+          console.warn('Failed to load subscription plans:', error.message);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -129,8 +222,8 @@ export default function SubscriptionUpgradePostScreen() {
               text: 'Contact Sales', 
               onPress: () => {
                 track('enterprise_upgrade_contact', {
-                  from_tier: params.currentTier,
-                  reason: params.reason,
+                  from_tier: currentTier,
+                  reason: reasonKey,
                 });
                 navigateTo.contact();
               }
@@ -142,11 +235,11 @@ export default function SubscriptionUpgradePostScreen() {
 
       // Track upgrade attempt
       track('upgrade_attempt', {
-        from_tier: params.currentTier,
+        from_tier: currentTier,
         to_tier: plan.tier,
         billing: annual ? 'annual' : 'monthly',
         price: price,
-        reason: params.reason,
+        reason: reasonKey,
       });
 
       const checkoutInput = {
@@ -154,7 +247,7 @@ export default function SubscriptionUpgradePostScreen() {
         schoolId: profile?.organization_id,
         userId: profile?.id,
         planTier: plan.tier,
-        billing: annual ? 'annual' : 'monthly' as const,
+        billing: (annual ? 'annual' : 'monthly') as 'annual' | 'monthly',
         seats: plan.max_teachers,
         return_url: 'edudashpro://screens/payments/return',
         cancel_url: 'edudashpro://screens/subscription-upgrade-post',
@@ -201,31 +294,6 @@ export default function SubscriptionUpgradePostScreen() {
     }
   };
 
-  const getUpgradeReason = () => {
-    switch (params.reason) {
-      case 'limit_reached':
-        return {
-          title: 'Upgrade Required',
-          subtitle: 'You\'ve reached your current plan limits',
-          icon: 'warning',
-          color: '#f59e0b'
-        };
-      case 'feature_needed':
-        return {
-          title: 'Unlock Premium Features',
-          subtitle: params.feature ? `${params.feature} requires a higher tier plan` : 'This feature requires an upgrade',
-          icon: 'lock-closed',
-          color: '#8b5cf6'
-        };
-      default:
-        return {
-          title: 'Upgrade Your Plan',
-          subtitle: 'Get access to more features and higher limits',
-          icon: 'trending-up',
-          color: '#10b981'
-        };
-    }
-  };
 
   const getPlanColor = (tier: string) => {
     switch (tier.toLowerCase()) {
@@ -236,7 +304,6 @@ export default function SubscriptionUpgradePostScreen() {
     }
   };
 
-  const reason = getUpgradeReason();
 
   if (loading) {
     return (
@@ -262,18 +329,18 @@ export default function SubscriptionUpgradePostScreen() {
           
           {/* Header Section */}
           <View style={styles.headerSection}>
-            <View style={[styles.reasonIcon, { backgroundColor: reason.color + '20' }]}>
-              <Ionicons name={reason.icon as any} size={32} color={reason.color} />
+            <View style={[styles.reasonIcon, { backgroundColor: withAlpha(reason.color, 0.125) }]}>
+              <Ionicons name={(reason.icon || 'trending-up') as any} size={32} color={reason.color} />
             </View>
             <Text style={styles.title}>{reason.title}</Text>
             <Text style={styles.subtitle}>{reason.subtitle}</Text>
           </View>
 
           {/* Current Tier Info */}
-          {params.currentTier && (
+          {currentTier && currentTier !== 'free' && (
             <View style={styles.currentTierCard}>
               <Text style={styles.currentTierLabel}>Your current plan:</Text>
-              <Text style={styles.currentTierName}>{params.currentTier} Plan</Text>
+              <Text style={styles.currentTierName}>{currentTier} Plan</Text>
             </View>
           )}
 
@@ -803,3 +870,43 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+// Error boundary for this screen
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  const { router } = require('expo-router');
+  
+  // Optional: Report error to Sentry in production
+  if (!__DEV__) {
+    try {
+      // Sentry.captureException(error);
+    } catch {
+      // Fail silently if Sentry is not available
+    }
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: '#0b1220' }}>
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+        <Ionicons name="warning" size={48} color="#ef4444" style={{ marginBottom: 16 }} />
+        <Text style={{ fontSize: 18, color: '#fff', textAlign: 'center', marginBottom: 8 }}>
+          Something went wrong
+        </Text>
+        <Text style={{ fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginBottom: 24 }}>
+          The upgrade screen encountered an error and couldn't load.
+        </Text>
+        <TouchableOpacity 
+          style={{ backgroundColor: '#00f5ff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8, marginBottom: 12 }}
+          onPress={retry}
+        >
+          <Text style={{ color: '#000', fontWeight: '700' }}>Try Again</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={{ backgroundColor: '#374151', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    </View>
+  );
+}
