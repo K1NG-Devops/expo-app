@@ -17,7 +17,13 @@
   "exclude": [
     "scripts/**/*",
     "supabase/**/*",
-    "utils/biometricDebugExtended.ts"
+    "utils/biometricDebugExtended.ts",
+    "temp/**/*",
+    "docs/**/*",
+    "check-*.js",
+    "test-*.js",
+    "create-*.sql",
+    "screens/**/*"
   ],
   "include": [
     "types/**/*.d.ts",

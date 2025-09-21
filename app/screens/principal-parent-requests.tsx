@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ParentJoinService, GuardianRequest } from '@/lib/services/parentJoinService';
@@ -54,7 +54,13 @@ export default function PrincipalParentRequestsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Parent Requests' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Parent Requests',
+          headerShown: true,
+          headerBackVisible: true,
+        }} 
+      />
       <FlatList
         data={requests}
         keyExtractor={(item) => item.id}

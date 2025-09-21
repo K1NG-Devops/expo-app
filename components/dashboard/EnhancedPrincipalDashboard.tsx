@@ -63,7 +63,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
-  const { tier, ready: subscriptionReady } = useSubscription();
+  const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
   const { maybeShowInterstitial, offerRewarded } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -72,31 +72,49 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   // Ad gating logic
   const showAds = subscriptionReady && tier === 'free';
   
-  // Check if user has premium features
+  // Check tier capability buckets
   const hasAdvancedFeatures = tier === 'enterprise' || tier === 'pro';
+  const hasStarterAIFeatures = ['starter','pro','enterprise'].includes(tier);
+  const hasPremiumOrHigher = ['premium','pro','enterprise'].includes(tier);
+  const hasAdvancedAnalytics = ['pro','enterprise'].includes(tier);
   
   // Upgrade prompt helper
   const promptUpgrade = () => {
     Alert.alert(
-      '🎆 Upgrade to Premium',
-      'Unlock powerful features for your school:\n\n• Advanced Analytics & Dashboards\n• AI-Powered Insights & Recommendations\n• Custom Reports & Forecasting\n• Real-time Financial Tracking\n• Smart Performance Analytics\n\nTransform your school management today!',
+      t('dashboard.upgrade_to_premium_title'),
+      t('dashboard.upgrade_to_premium_description'),
       [
-        { text: 'Learn More', onPress: () => router.push('/pricing' as any) },
-        { text: 'Upgrade Now 🚀', onPress: () => router.push('/screens/subscription-setup?planId=pro' as any) },
-        { text: 'Later', style: 'cancel' },
+        { text: t('dashboard.learn_more'), onPress: () => router.push('/pricing' as any) },
+        { text: t('dashboard.upgrade_now'), onPress: () => router.push('/screens/subscription-setup?planId=pro' as any) },
+        { text: t('dashboard.later'), style: 'cancel' },
       ]
     );
   };
 
-  // Gate an action behind subscription
-  const gate = (action: () => void, options?: { ai?: boolean }) => () => {
-    const aiFeature = options?.ai === true;
+  // Gate an action behind subscription with web compatibility
+  const gate = (action: () => void, options?: { needs?: 'starter' | 'premium' | 'advanced' }) => () => {
+    const needs = options?.needs ?? 'starter';
+
+    // Optional dev-only bypass on web (set EXPO_PUBLIC_WEB_BYPASS_GATING=true)
+    if (typeof window !== 'undefined' && process.env.EXPO_PUBLIC_WEB_BYPASS_GATING === 'true') {
+      action();
+      return;
+    }
+
     if (!subscriptionReady) {
       // Avoid gating until we know the tier
       action();
       return;
     }
-    if (!hasAdvancedFeatures && aiFeature) {
+    if (needs === 'starter' && !hasStarterAIFeatures) {
+      promptUpgrade();
+      return;
+    }
+    if (needs === 'premium' && !hasPremiumOrHigher) {
+      promptUpgrade();
+      return;
+    }
+    if (needs === 'advanced' && !hasAdvancedAnalytics) {
       promptUpgrade();
       return;
     }
@@ -109,31 +127,15 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   // Open WhatsApp using school deep link if available; fallback to support line
   const openWhatsAppWithFallback = async () => {
-    try { await Feedback.vibrate(15); } catch {}
+    // Prefer the school's configured WhatsApp number via deep link helper
     const configuredLink = getWhatsAppDeepLink?.();
     if (configuredLink) {
       try {
         await Linking.openURL(configuredLink);
         return;
-      } catch (err) {
-        console.error('Failed to open configured WhatsApp link:', err);
-      }
+      } catch {}
     }
-
-    const message = encodeURIComponent('Hello, I need help with my school subscription and features on EduDash Pro.');
-    const nativeUrl = `whatsapp://send?phone=27674770975&text=${message}`;
-    const webUrl = `https://wa.me/27674770975?text=${message}`;
-    try {
-      const supported = await Linking.canOpenURL('whatsapp://send');
-      if (supported) {
-        await Linking.openURL(nativeUrl);
-      } else {
-        await Linking.openURL(webUrl);
-      }
-    } catch (error) {
-      console.error('Failed to open WhatsApp:', error);
-      Alert.alert('Error', 'Unable to open WhatsApp. Please contact support at support@edudashpro.com');
-    }
+    Alert.alert(t('quick_actions.whatsapp_setup'), t('dashboard.whatsapp_not_configured'));
   };
 
   // Create theme-aware styles
@@ -167,7 +169,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     const userId = user?.id;
     
     if (!preschoolId || !userId) {
-      Alert.alert('Error', 'Unable to send announcement. Please try again.');
+      Alert.alert(t('common.error'), t('dashboard.announcement_send_error'));
       return;
     }
     
@@ -184,22 +186,29 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         try { await Feedback.vibrate(40); } catch {}
         try { await Feedback.playSuccess(); } catch {}
         Alert.alert(
-          '📢 Announcement Sent!',
-          `"${announcement.title}" has been sent to ${announcement.audience.join(', ')} (${announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups'}).\n\nPriority: ${announcement.priority.toUpperCase()}${announcement.requiresResponse ? '\n⚠️ Response required' : ''}`,
+          t('dashboard.announcement_send_success'),
+          t('dashboard.announcement_send_details', {
+            title: announcement.title,
+            audience: announcement.audience.join(', '),
+            count: announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups',
+            priority: announcement.priority.toUpperCase(),
+            requiresResponse: announcement.requiresResponse ? t('dashboard.response_required') : ''
+          }),
           [
-{ text: 'View Messages', onPress: () => router.push('/screens/teacher-messages') },
-            { text: 'OK', style: 'default' }
+            { text: t('dashboard.view_messages'), onPress: () => router.push('/screens/teacher-messages') },
+            { text: t('common.ok'), style: 'default' }
           ]
         );
         
-        // Refresh dashboard data to show updated announcement count
+        // Refresh dashboard data and subscription status
         refresh();
+        refreshSubscription();
       } else {
-        Alert.alert('Error', `Failed to send announcement: ${result.error}`);
+        Alert.alert(t('common.error'), t('dashboard.announcement_failed', { error: result.error }));
       }
     } catch (error) {
       console.error('💥 Error sending announcement:', error);
-      Alert.alert('Error', 'An unexpected error occurred while sending the announcement.');
+      Alert.alert(t('common.error'), t('dashboard.announcement_unexpected_error'));
     }
   };
 
@@ -234,16 +243,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </View>
         <View style={styles.teacherInfo}>
           <Text style={styles.teacherName}>{teacher.full_name}</Text>
-          <Text style={styles.teacherSpecialty}>{teacher.subject_specialization || 'General'}</Text>
+          <Text style={styles.teacherSpecialty}>{teacher.subject_specialization || t('dashboard.general')}</Text>
         </View>
         <View style={[styles.statusBadge, getStatusColor(teacher.status)]}>
           <Text style={styles.statusText}>{getStatusIcon(teacher.status)}</Text>
         </View>
       </View>
       <View style={styles.teacherStats}>
-        <Text style={styles.teacherStat}>{teacher.classes_assigned} classes</Text>
+        <Text style={styles.teacherStat}>{teacher.classes_assigned} {t('common.classes')}</Text>
         <Text style={styles.teacherStat}>•</Text>
-        <Text style={styles.teacherStat}>{teacher.students_count} students</Text>
+        <Text style={styles.teacherStat}>{teacher.students_count} {t('common.students')}</Text>
       </View>
       <Text style={styles.performanceIndicator}>{teacher.performance_indicator}</Text>
     </TouchableOpacity>
@@ -306,10 +315,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="warning-outline" size={48} color={theme.error} />
-        <Text style={styles.errorTitle}>Unable to Load Principal Hub</Text>
+        <Text style={styles.errorTitle}>{t('dashboard.principal_hub_load_error')}</Text>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={refresh}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
+          <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -342,7 +351,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
               </Text>
               <Text style={styles.welcomeSubtitle}>
-                Managing {data.schoolName || 'your school'} • Dashboard Overview
+                {t('dashboard.managing_school', { schoolName: data.schoolName || t('dashboard.your_school') })} • {t('dashboard.school_overview')}
               </Text>
             </View>
             <View style={styles.headerActions}>
@@ -376,8 +385,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             </View>
           </View>
           
-          {/* Enhanced Prominent CTA for non-premium users */}
-          {!hasAdvancedFeatures && subscriptionReady && (
+          {/* Enhanced Prominent CTA for Free tier only */}
+          {tier === 'free' && subscriptionReady && (
             <View style={styles.upgradeBanner}>
               {/* Gradient Background Effect */}
               <View style={styles.upgradeBannerGradient}>
@@ -387,66 +396,23 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                     <Ionicons name="diamond" size={24} color="#FFD700" />
                   </View>
                   <View style={styles.upgradeBannerText}>
-                    <Text style={styles.upgradeBannerTitle}>🎆 Unlock Premium Power</Text>
-                    <Text style={styles.upgradeBannerSubtitle}>Advanced analytics, AI insights & more • Transform your school today!</Text>
+                    <Text style={styles.upgradeBannerTitle}>{t('dashboard.upgrade_to_premium_title')}</Text>
+                    <Text style={styles.upgradeBannerSubtitle}>{t('dashboard.unlock_premium_subtitle')}</Text>
                   </View>
                 </View>
                 
                 {/* CTA Button - Now below the content */}
                 <TouchableOpacity
                   style={styles.upgradeBannerButton}
-                  onPress={async () => {
-                    try { await Feedback.vibrate(30); } catch {}
-                    try { await Feedback.playSuccess(); } catch {}
-                    
-                    // Track navigation attempt
-                    track('upgrade_cta_tapped', {
-                      current_tier: tier || 'free',
-                      user_role: profile?.role,
-                    });
-                    
-                    // Safer object-based navigation with error handling
-                    const href = {
-                      pathname: '/screens/subscription-upgrade-post' as const,
-                      params: {
-                        currentTier: tier || 'free',
-                        reason: 'manual_upgrade'
-                      }
-                    };
-                    
-                    try {
-                      // Optional prefetch (non-blocking)
-                      if (__DEV__) {
-                        try {
-                          router.prefetch(href as any);
-                        } catch (e: any) {
-                          console.warn('Prefetch failed (non-blocking):', e.message);
-                        }
-                      }
-                      
-                      // Navigate to upgrade screen
-                      router.push(href as any);
-                    } catch (e: any) {
-                      // Log error and provide fallback
-                      if (__DEV__) {
-                        console.error('Upgrade navigation failed:', e);
-                      }
-                      
-                      track('upgrade_nav_failed', {
-                        error: e.message,
-                        current_tier: tier || 'free',
-                      });
-                      
-                      Alert.alert(
-                        'Upgrade Unavailable',
-                        'The upgrade screen is temporarily unavailable. Please try again in a moment.',
-                        [{ text: 'OK' }]
-                      );
-                    }
+                  onPress={() => {
+                    // Minimal navigation: no haptics, no delays, no fallbacks
+                    const route = `/screens/subscription-upgrade-post?currentTier=${encodeURIComponent(tier || 'free')}&reason=manual_upgrade`;
+                    if (__DEV__) console.log('🧪 Minimal nav to upgrade screen:', route);
+                    try { router.push(route); } catch {}
                   }}
                 >
                   <View style={styles.upgradeBannerButtonGlow}>
-                    <Text style={styles.upgradeBannerButtonText}>Choose Your Plan</Text>
+                    <Text style={styles.upgradeBannerButtonText}>{t('subscription.choose_your_plan')}</Text>
                     <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
                   </View>
                 </TouchableOpacity>
@@ -461,29 +427,57 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('dashboard.school_overview')}</Text>
         <View style={styles.metricsGrid}>
-          {allMetrics.slice(0, 6).map((metric, index) => (
+          {allMetrics.slice(0, 6).map((metric: any, index) => (
             <MetricCard
               key={index}
-              {...metric}
+              title={metric.title}
+              value={metric.value}
+              icon={metric.icon}
+              color={metric.color}
+              trend={metric.trend}
               onPress={async () => {
                 try { await Feedback.vibrate(15); } catch {}
                 
                 // Show interstitial ad before navigating (free tier only)
                 await maybeShowInterstitial('principal_metrics_nav');
                 
-                // Navigate to proper management views
-                if (metric.title.includes('Students') || metric.title.includes('Total Students')) {
-                  router.push('/screens/student-management'); // Comprehensive student management
-                } else if (metric.title.includes('Staff') || metric.title.includes('Teaching Staff')) {
-                  router.push('/screens/teacher-management');
-                } else if (metric.title.includes('Revenue') || metric.title.includes('Monthly Revenue')) {
-                  router.push('/screens/financial-dashboard');
-                } else if (metric.title.includes('Applications')) {
-                  router.push('/screens/student-enrollment'); // Enrollment for applications
-                } else if (metric.title.includes('Petty Cash') || metric.title.includes('Cash') || metric.title.includes('Expenses')) {
-                  router.push('/screens/petty-cash'); // Petty cash management
-                } else if (metric.title.includes('Pending') && metric.title.includes('Approval')) {
-                  router.push('/screens/petty-cash'); // For pending approvals
+                // Navigate via stable metric id when available
+                switch (metric.id) {
+                  case 'students':
+                    router.push('/screens/student-management');
+                    return;
+                  case 'staff':
+                    router.push('/screens/teacher-management');
+                    return;
+                  case 'revenue':
+                    router.push('/screens/financial-dashboard');
+                    return;
+                  case 'applications':
+                    router.push('/screens/student-enrollment');
+                    return;
+                  case 'classes':
+                    router.push('/screens/class-teacher-management');
+                    return;
+                  case 'petty_cash_balance':
+                  case 'monthly_expenses':
+                  case 'pending_approvals':
+                    router.push('/screens/petty-cash');
+                    return;
+                  default:
+                    // Fallback based on title (legacy behavior)
+                    if (metric.title?.includes('Students') || metric.title?.includes('Total Students')) {
+                      router.push('/screens/student-management');
+                    } else if (metric.title?.includes('Staff') || metric.title?.includes('Teaching Staff')) {
+                      router.push('/screens/teacher-management');
+                    } else if (metric.title?.includes('Revenue') || metric.title?.includes('Monthly Revenue')) {
+                      router.push('/screens/financial-dashboard');
+                    } else if (metric.title?.includes('Applications')) {
+                      router.push('/screens/student-enrollment');
+                    } else if (metric.title?.includes('Petty Cash') || metric.title?.includes('Cash') || metric.title?.includes('Expenses')) {
+                      router.push('/screens/petty-cash');
+                    } else if (metric.title?.includes('Pending') && metric.title?.includes('Approval')) {
+                      router.push('/screens/petty-cash');
+                    }
                 }
               }}
             />
@@ -506,14 +500,14 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           <View style={styles.capacityCard}>
             <View style={styles.capacityHeader}>
               <Ionicons name="business" size={20} color="#7C3AED" />
-              <Text style={styles.capacityTitle}>School Capacity</Text>
+              <Text style={styles.capacityTitle}>{t('dashboard.school_capacity')}</Text>
             </View>
             <View style={styles.capacityInfo}>
               <Text style={styles.capacityText}>
-                {data.capacityMetrics.current_enrollment} / {data.capacityMetrics.capacity} students
+                {t('dashboard.capacity_students', { current: data.capacityMetrics.current_enrollment, capacity: data.capacityMetrics.capacity })}
               </Text>
               <Text style={styles.capacityPercentage}>
-                {data.capacityMetrics.utilization_percentage}% utilized
+                {t('dashboard.utilized_percentage', { percentage: data.capacityMetrics.utilization_percentage })}
               </Text>
             </View>
             <View style={styles.capacityBar}>
@@ -543,7 +537,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       {/* Teaching Staff */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Teaching Staff</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.teaching_staff')}</Text>
             <TouchableOpacity
               style={styles.viewAllButton}
               onPress={async () => {
@@ -551,7 +545,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 router.push('/screens/teacher-management');
               }}
             >
-              <Text style={styles.viewAllText}>View All</Text>
+              <Text style={styles.viewAllText}>{t('common.viewAll')}</Text>
               <Ionicons name="chevron-forward" size={16} color={theme.primary} />
             </TouchableOpacity>
         </View>
@@ -566,7 +560,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   onPress={() => {
                     Alert.alert(
                       teacher.full_name,
-                      `Email: ${teacher.email}\nClasses: ${teacher.classes_assigned}\nStudents: ${teacher.students_count}\n\nStatus: ${teacher.performance_indicator}`
+                      `${t('common.email')}: ${teacher.email}\n${t('common.classes')}: ${teacher.classes_assigned}\n${t('common.students')}: ${teacher.students_count}\n\n${t('common.status')}: ${teacher.performance_indicator}`
                     );
                   }}
                 />
@@ -576,12 +570,12 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         ) : (
           <View style={styles.emptyState}>
             <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
-            <Text style={styles.emptyStateText}>No teachers assigned yet</Text>
+            <Text style={styles.emptyStateText}>{t('dashboard.no_teachers_assigned')}</Text>
             <TouchableOpacity
               style={styles.emptyStateButton}
               onPress={() => router.push('/screens/teacher-management')}
             >
-              <Text style={styles.emptyStateButtonText}>Add Teachers</Text>
+              <Text style={styles.emptyStateButtonText}>{t('dashboard.add_teachers')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -591,25 +585,25 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       {data.financialSummary && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Financial Overview</Text>
+            <Text style={styles.sectionTitle}>{t('dashboard.financial_overview')}</Text>
             <TouchableOpacity
               style={styles.viewAllButton}
               onPress={() => router.push('/screens/financial-dashboard')}
             >
-              <Text style={styles.viewAllText}>Details</Text>
+              <Text style={styles.viewAllText}>{t('dashboard.details')}</Text>
               <Ionicons name="chevron-forward" size={16} color={theme.primary} />
             </TouchableOpacity>
           </View>
           
           <View style={styles.financialGrid}>
             <View style={styles.financialCard}>
-              <Text style={styles.financialLabel}>Monthly Revenue</Text>
+              <Text style={styles.financialLabel}>{t('dashboard.monthly_revenue')}</Text>
               <Text style={[styles.financialValue, { color: '#059669' }]}>
                 {formatCurrency(data.financialSummary.monthlyRevenue)}
               </Text>
             </View>
             <View style={styles.financialCard}>
-              <Text style={styles.financialLabel}>Net Profit</Text>
+              <Text style={styles.financialLabel}>{t('dashboard.net_profit')}</Text>
               <Text style={[styles.financialValue, { 
                 color: data.financialSummary.netProfit > 0 ? '#059669' : '#DC2626' 
               }]}>
@@ -622,13 +616,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           {data.financialSummary.pettyCashBalance > 50 && (
             <View style={styles.financialGrid}>
               <View style={styles.financialCard}>
-                <Text style={styles.financialLabel}>Petty Cash Balance</Text>
+                <Text style={styles.financialLabel}>{t('dashboard.petty_cash_balance')}</Text>
                 <Text style={[styles.financialValue, { color: '#F59E0B' }]}>
                   {formatCurrency(data.financialSummary.pettyCashBalance)}
                 </Text>
               </View>
               <View style={styles.financialCard}>
-                <Text style={styles.financialLabel}>Monthly Expenses</Text>
+                <Text style={styles.financialLabel}>{t('dashboard.monthly_expenses')}</Text>
                 <Text style={[styles.financialValue, { color: '#DC2626' }]}>
                   {formatCurrency(data.financialSummary.pettyCashExpenses || 0)}
                 </Text>
@@ -642,22 +636,32 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       {/* AI Insights Banner */}
       <View style={styles.section}>
         <TouchableOpacity 
-          style={[styles.aiInsightsBanner, (subscriptionReady && !hasAdvancedFeatures) ? styles.disabledCard : null]}
+          style={[styles.aiInsightsBanner, (subscriptionReady && !hasPremiumOrHigher) ? styles.disabledCard : null]}
           onPress={gate(async () => {
             console.log('🚀 AI Analytics button pressed!');
             try { await Feedback.vibrate(15); } catch {}
             router.push('/screens/principal-analytics');
-          }, { ai: true })}
+          }, { needs: 'premium' })}
+          disabled={subscriptionReady && !hasPremiumOrHigher}
         >
           <View style={styles.aiInsightsHeader}>
             <View style={styles.aiInsightsIcon}>
-              <Ionicons name="sparkles" size={20} color={theme.accent || '#8B5CF6'} />
+              <Ionicons name="sparkles" size={20} color={'#7C3AED'} />
             </View>
             <View style={styles.aiInsightsContent}>
-              <Text style={styles.aiInsightsTitle}>AI Analytics Available</Text>
-              <Text style={styles.aiInsightsSubtitle}>Get data-driven insights • Tap to explore</Text>
+              <Text style={styles.aiInsightsTitle}>{t('dashboard.ai_insights')}</Text>
+              <Text style={styles.aiInsightsSubtitle}>{t('dashboard.smart_analytics_recommendations')}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.accent} />
+            {(!hasPremiumOrHigher) ? (
+              <TouchableOpacity
+                onPress={() => router.push('/screens/subscription-upgrade-post?reason=ai_insights')}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#7C3AED', borderRadius: 12 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>{t('dashboard.upgrade')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            )}
           </View>
         </TouchableOpacity>
         
@@ -671,8 +675,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
             </View>
             <View style={styles.whatsappContactContent}>
-              <Text style={styles.whatsappContactTitle}>Need Help?</Text>
-              <Text style={styles.whatsappContactSubtitle}>Contact support via WhatsApp • Get instant help</Text>
+              <Text style={styles.whatsappContactTitle}>{t('dashboard.need_help')}</Text>
+              <Text style={styles.whatsappContactSubtitle}>{t('dashboard.contact_support_whatsapp')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
           </View>
@@ -691,22 +695,22 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Ionicons name="analytics" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Financial Overview</Text>
-              <Text style={styles.toolSubtitle}>View revenue, expenses & cash flow trends</Text>
+              <Text style={styles.toolTitle}>{t('dashboard.financial_overview')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.financial_overview_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#059669' + '10' }]}
-onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-dashboard') }}
+onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-transactions') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#059669' }]}>
               <Ionicons name="list" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Payment History</Text>
-              <Text style={styles.toolSubtitle}>Browse, filter & export payment records</Text>
+              <Text style={styles.toolTitle}>{t('dashboard.payment_history')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.payment_history_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -719,8 +723,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <Ionicons name="bar-chart" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Financial Reports</Text>
-              <Text style={styles.toolSubtitle}>Generate detailed financial analysis</Text>
+              <Text style={styles.toolTitle}>{t('dashboard.financial_reports')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.financial_reports_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -733,8 +737,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <Ionicons name="wallet" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Petty Cash</Text>
-              <Text style={styles.toolSubtitle}>Manage daily expenses & cash on hand</Text>
+              <Text style={styles.toolTitle}>{t('dashboard.petty_cash_system')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.petty_cash_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -747,8 +751,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <Ionicons name="school" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Class & Teacher Management</Text>
-              <Text style={styles.toolSubtitle}>Assign teachers, manage classes & ratios</Text>
+              <Text style={styles.toolTitle}>{t('dashboard.class_teacher_management')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.class_teacher_management_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -759,94 +763,119 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
         <View style={styles.toolsGrid}>
+          {/* Active Tools First - Available with starter subscription */}
           <TouchableOpacity 
-            style={[styles.toolCard, { backgroundColor: '#8B5CF6' + '10' }, (subscriptionReady && !hasAdvancedFeatures) ? styles.disabledCard : null]}
+            style={[styles.toolCard, { backgroundColor: '#EC4899' + '10' }, (subscriptionReady && !hasStarterAIFeatures) ? styles.disabledCard : null]}
             onPress={gate(() => {
               Alert.alert(
-                '🤖 AI Insights & Recommendations',
-                'Get AI-powered insights based on your school data:\n\n• Attendance pattern analysis\n• Financial trend insights\n• Teacher performance indicators\n• Student progress tracking\n• Enrollment optimization tips\n\nView detailed analytics now:',
+                t('quick_actions.ai_lesson_generator'),
+                t('quick_actions.ai_lesson_description'),
                 [
-                  { text: 'View AI Insights', onPress: () => router.push('/screens/principal-analytics') },
-                  { text: 'Create Lessons with AI', onPress: () => router.push('/screens/ai-lesson-generator') },
-                  { text: 'Later', style: 'cancel' },
-                ]
-              );
-            }, { ai: true })}
-          >
-            <View style={[styles.toolIcon, { backgroundColor: '#8B5CF6' }]}>
-              <Ionicons name="sparkles" size={20} color="white" />
-            </View>
-            <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>AI Insights</Text>
-              <Text style={styles.toolSubtitle}>Smart analytics & recommendations</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.toolCard, { backgroundColor: '#EC4899' + '10' }, (subscriptionReady && !hasAdvancedFeatures) ? styles.disabledCard : null]}
-            onPress={gate(() => {
-              Alert.alert(
-                '✨ AI Lesson Generator',
-                'Create engaging educational content for your students:\n\n• Age-appropriate lesson plans\n• Interactive activity suggestions\n• Assessment templates\n• Learning objectives alignment\n\nStart creating lessons now:',
-                [
-                  { text: 'Create Lesson', onPress: () => router.push('/screens/ai-lesson-generator') },
-                  { text: 'View AI Tools', onPress: () => router.push('/screens/ai-homework-grader-live') },
-                  { text: 'Later', style: 'cancel' },
+                  { text: t('quick_actions.create_lesson'), onPress: () => router.push('/screens/ai-lesson-generator') },
+                  { text: t('quick_actions.view_ai_tools'), onPress: () => router.push('/screens/ai-homework-grader-live') },
+                  { text: t('dashboard.later'), style: 'cancel' },
                 ]
               )
-            }, { ai: true })}
+            }, { needs: 'starter' })}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#EC4899' }]}>
               <Ionicons name="document-text" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Create Lessons</Text>
-              <Text style={styles.toolSubtitle}>Generate lessons & assessments with AI</Text>
+              <Text style={styles.toolTitle}>{t('quick_actions.create_lessons')}</Text>
+              <Text style={styles.toolSubtitle}>{t('quick_actions.create_lessons_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.toolCard, { backgroundColor: '#0891B2' + '10' }, (subscriptionReady && !hasAdvancedFeatures) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-analytics') }, { ai: true })}
-          >
-            <View style={[styles.toolIcon, { backgroundColor: '#0891B2' }]}>
-              <Ionicons name="analytics" size={20} color="white" />
-            </View>
-            <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>Advanced Analytics</Text>
-              <Text style={styles.toolSubtitle}>Deep insights & forecasting</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }, (subscriptionReady && !hasAdvancedFeatures) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin-ai-allocation') }, { ai: true })}
+            style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }, (subscriptionReady && !hasStarterAIFeatures) ? styles.disabledCard : null]}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin-ai-allocation') }, { needs: 'starter' })}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
               <Ionicons name="settings" size={20} color="white" />
             </View>
             <View style={styles.toolContent}>
-              <Text style={styles.toolTitle}>AI Quota Management</Text>
-              <Text style={styles.toolSubtitle}>Allocate AI credits & manage usage limits</Text>
+              <Text style={styles.toolTitle}>{t('quick_actions.ai_quota_management')}</Text>
+              <Text style={styles.toolSubtitle}>{t('quick_actions.ai_quota_subtitle')}</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+          </TouchableOpacity>
+          
+          {/* Gated/Premium Tools Below - Require premium/advanced subscriptions */}
+          <TouchableOpacity 
+            style={[
+              styles.toolCard,
+              { backgroundColor: '#7C3AED' + '10' },
+              (subscriptionReady && !hasPremiumOrHigher) ? styles.disabledCard : null
+            ]}
+            onPress={gate(() => {
+              Alert.alert(
+                t('quick_actions.ai_insights_recommendations'),
+                t('quick_actions.ai_insights_description'),
+                [
+                  { text: t('quick_actions.view_ai_insights'), onPress: () => router.push('/screens/principal-analytics') },
+                  { text: t('dashboard.later'), style: 'cancel' },
+                ]
+              );
+            }, { needs: 'premium' })}
+            disabled={subscriptionReady && !hasPremiumOrHigher}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#7C3AED' }]}>
+              <Ionicons name="sparkles" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>{t('dashboard.ai_insights')}</Text>
+              <Text style={styles.toolSubtitle}>{t('dashboard.smart_analytics_recommendations')}</Text>
+            </View>
+            {(!hasPremiumOrHigher) ? (
+              <TouchableOpacity
+                onPress={() => router.push('/screens/subscription-upgrade-post?reason=ai_insights')}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#7C3AED', borderRadius: 12 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>{t('dashboard.upgrade')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.toolCard, { backgroundColor: '#0891B2' + '10' }, (subscriptionReady && !hasAdvancedAnalytics) ? styles.disabledCard : null]}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-analytics') }, { needs: 'advanced' })}
+            disabled={subscriptionReady && !hasAdvancedAnalytics}
+          >
+            <View style={[styles.toolIcon, { backgroundColor: '#0891B2' }]}>
+              <Ionicons name="analytics" size={20} color="white" />
+            </View>
+            <View style={styles.toolContent}>
+              <Text style={styles.toolTitle}>{t('dashboard.advanced_analytics')}</Text>
+              <Text style={styles.toolSubtitle}>{t('quick_actions.advanced_analytics_subtitle')}</Text>
+            </View>
+            {(!hasAdvancedAnalytics) ? (
+              <TouchableOpacity
+                onPress={() => router.push('/screens/subscription-upgrade-post?reason=advanced_analytics')}
+                style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#0891B2', borderRadius: 12 }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>{t('dashboard.upgrade')}</Text>
+              </TouchableOpacity>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+            )}
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Quick Actions */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/student-enrollment') }}
           >
             <Ionicons name="person-add" size={24} color={theme.primary} />
-            <Text style={styles.actionText}>Enroll Student</Text>
+            <Text style={styles.actionText}>{t('quick_actions.enroll_student')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -854,7 +883,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/teacher-management') }}
           >
             <Ionicons name="people" size={24} color={theme.success} />
-            <Text style={styles.actionText}>Manage Teachers</Text>
+            <Text style={styles.actionText}>{t('quick_actions.manage_teachers')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -862,17 +891,15 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; handleCreateAnnouncement(); }}
           >
             <Ionicons name="megaphone" size={24} color={theme.accent} />
-            <Text style={styles.actionText}>Send Announcement</Text>
+            <Text style={styles.actionText}>{t('quick_actions.send_announcement')}</Text>
           </TouchableOpacity>
-        </View>
-
-        <View style={[styles.actionsGrid, { marginTop: 12 }]}>
+          
           <TouchableOpacity 
             style={styles.actionCard}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-requests') }}
           >
             <Ionicons name="people-circle" size={24} color={theme.primary} />
-            <Text style={styles.actionText}>Parent Requests</Text>
+            <Text style={styles.actionText}>{t('quick_actions.parent_requests')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
@@ -880,7 +907,15 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-seat-management') }}
           >
             <Ionicons name="id-card" size={24} color={theme.success} />
-            <Text style={styles.actionText}>Seat Management</Text>
+            <Text style={styles.actionText}>{t('quick_actions.seat_management')}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-invite-code') }}
+          >
+            <Ionicons name="key" size={24} color={theme.accent} />
+            <Text style={styles.actionText}>{t('quick_actions.invite_parents')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -888,35 +923,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin/data-export') }}
           >
             <Ionicons name="cloud-download" size={24} color={theme.accent} />
-            <Text style={styles.actionText}>Export Data</Text>
-          </TouchableOpacity>
-        </View>
-        
-        <View style={[styles.actionsGrid, { marginTop: 12 }]}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin/school-settings') }}
-          >
-            <Ionicons name="settings" size={24} color={theme.textSecondary} />
-            <Text style={styles.actionText}>School Settings</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={() => {
-              // Quick financial overview action
-              Alert.alert(
-'💰 Financial Overview',
-                `Monthly Financial Summary:\n\n• Total Revenue: ${formatCurrency(data.financialSummary?.monthlyRevenue || 0)}\n• Net Profit: ${formatCurrency(data.financialSummary?.netProfit || 0)}\n• Petty Cash Balance: ${formatCurrency(data.financialSummary?.pettyCashBalance || 0)}\n• Monthly Expenses: ${formatCurrency(data.financialSummary?.pettyCashExpenses || 0)}\n\nLast updated: ${new Date().toLocaleString()}`,
-                [
-                  { text: 'View Details', onPress: () => router.push('/screens/principal-financial-reports') },
-                  { text: 'Close', style: 'cancel' }
-                ]
-              );
-            }}
-          >
-            <Ionicons name="stats-chart" size={24} color={theme.accent} />
-            <Text style={styles.actionText}>Financial Summary</Text>
+            <Text style={styles.actionText}>{t('quick_actions.export_data')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
@@ -924,32 +931,63 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             onPress={async () => {
               // Quick school stats action
               try { await Feedback.vibrate(15); } catch {}
+              const content = t('common.school_stats_content', {
+                studentsPresent: 87,
+                totalStudents: 92,
+                studentsPercentage: 95,
+                teachersPresent: 8,
+                totalTeachers: 9,
+                teachersPercentage: 89,
+                activeClasses: 6,
+                lunchOrders: 73,
+                lastUpdated: new Date().toLocaleTimeString(),
+              });
               Alert.alert(
-                '📊 School Stats Today',
-                'Current Status:\n\n👥 Students Present: 87/92 (95%)\n👨‍🏫 Teachers Present: 8/9 (89%)\n📚 Active Classes: 6\n🍽️ Lunch Orders: 73\n🚌 Bus Routes: All on time\n\nLast updated: ' + new Date().toLocaleTimeString(),
+                t('common.school_stats_today'),
+                content,
                 [
-                  { text: 'View Details', onPress: () => router.push('/screens/principal-analytics') },
-                  { text: 'Close', style: 'cancel' }
+                  { text: t('common.view_details'), onPress: () => router.push('/screens/principal-analytics') },
+                  { text: t('common.close'), style: 'cancel' }
                 ]
               );
             }}
           >
             <Ionicons name="analytics" size={24} color={theme.primary} />
-            <Text style={styles.actionText}>Today's Stats</Text>
+            <Text style={styles.actionText}>{t('quick_actions.todays_stats')}</Text>
           </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Communications Quick Access */}
-      <View style={styles.section}>
-        <View style={styles.actionsGrid}>
-          <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/whatsapp-demo') }}
-          >
-            <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
-            <Text style={styles.actionText}>WhatsApp Integration</Text>
-          </TouchableOpacity>
+          
+          {isWhatsAppEnabled() && (
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={async () => {
+                try { await Feedback.vibrate(15); } catch {}
+                setShowWhatsAppModal(true);
+              }}
+            >
+              <Ionicons name="logo-whatsapp" size={24} color="#25D366" />
+              <Text style={styles.actionText}>{t('quick_actions.whatsapp_setup')}</Text>
+            </TouchableOpacity>
+          )}
+          
+          {!isWhatsAppEnabled() && (
+            <TouchableOpacity 
+              style={styles.actionCard}
+              onPress={async () => {
+                try { await Feedback.vibrate(15); } catch {}
+                Alert.alert(
+                  t('common.quick_settings_content'),
+                  t('common.quick_settings_description'),
+                  [
+                    { text: t('quick_actions.school_settings'), onPress: () => router.push('/screens/admin/school-settings') },
+                    { text: t('common.close'), style: 'cancel' }
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="settings" size={24} color={theme.textSecondary} />
+              <Text style={styles.actionText}>{t('quick_actions.quick_settings')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -969,7 +1007,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
         >
           <View style={styles.optionsMenuContent}>
             <View style={styles.optionsMenuHeader}>
-              <Text style={styles.optionsMenuTitle}>Menu</Text>
+              <Text style={styles.optionsMenuTitle}>{t('common.menu')}</Text>
               <TouchableOpacity onPress={() => setShowOptionsMenu(false)}>
                 <Ionicons name="close" size={24} color={theme.text} />
               </TouchableOpacity>
@@ -985,8 +1023,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <View style={styles.optionLeft}>
                 <Ionicons name="person-outline" size={24} color={theme.primary} />
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>My Profile</Text>
-                  <Text style={styles.optionSubtitle}>Account settings, profile picture & biometrics</Text>
+                  <Text style={styles.optionTitle}>{t('common.my_profile')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('common.account_settings_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
@@ -1002,8 +1040,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <View style={styles.optionLeft}>
                 <Ionicons name="settings-outline" size={24} color={theme.success} />
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>School Settings</Text>
-                  <Text style={styles.optionSubtitle}>Configure school preferences & policies</Text>
+                  <Text style={styles.optionTitle}>{t('quick_actions.school_settings')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('common.school_settings_modal_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
@@ -1019,8 +1057,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <View style={styles.optionLeft}>
                 <Ionicons name="megaphone-outline" size={24} color={theme.accent} />
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>Create Announcement</Text>
-                  <Text style={styles.optionSubtitle}>Send messages to teachers & parents</Text>
+                  <Text style={styles.optionTitle}>{t('quick_actions.create_announcement')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('quick_actions.create_announcement_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
@@ -1036,8 +1074,8 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
               <View style={styles.optionLeft}>
                 <Ionicons name="id-card" size={24} color={theme.success} />
                 <View style={styles.optionText}>
-                  <Text style={styles.optionTitle}>Seat Management</Text>
-                  <Text style={styles.optionSubtitle}>Assign or revoke teacher seats</Text>
+                  <Text style={styles.optionTitle}>{t('quick_actions.seat_management')}</Text>
+                  <Text style={styles.optionSubtitle}>{t('quick_actions.seat_management_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
@@ -1059,7 +1097,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
         onClose={() => setShowWhatsAppModal(false)}
         onSuccess={() => {
           setShowWhatsAppModal(false);
-          Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
+          Alert.alert(t('common.whatsapp_connected'), t('common.whatsapp_updates_enabled'));
         }}
       />
     </>
@@ -1074,10 +1112,12 @@ const createStyles = (theme: any) => {
     backgroundColor: theme.background,
   },
   welcomeSection: {
-    backgroundColor: theme.primary,
+    backgroundColor: theme.surface,
     paddingHorizontal: 20,
     paddingVertical: 16,
     marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
   },
   welcomeHeader: {
     flexDirection: 'row',
@@ -1091,12 +1131,12 @@ const createStyles = (theme: any) => {
   greeting: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.onPrimary,
+    color: theme.text,
     marginBottom: 4,
   },
   welcomeSubtitle: {
     fontSize: 14,
-    color: theme.onPrimary + '80',
+    color: theme.textSecondary,
     fontWeight: '400',
   },
   headerActions: {
@@ -1314,15 +1354,16 @@ const createStyles = (theme: any) => {
   },
   actionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    gap: 12,
   },
   actionCard: {
     backgroundColor: theme.cardBackground,
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: 4,
+    width: '30%',
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1496,8 +1537,9 @@ const createStyles = (theme: any) => {
   },
   aiInsightsSubtitle: {
     fontSize: 14,
-    color: theme.accentDark || theme.primary || '#4F46E5',
-    fontWeight: '600',
+    color: '#FFFFFF', // High contrast white text for better visibility
+    fontWeight: '500',
+    opacity: 0.9, // Slightly transparent for elegant look
   },
   // WhatsApp Contact Support Banner Styles
   whatsappContactBanner: {
@@ -1686,26 +1728,26 @@ const createStyles = (theme: any) => {
     color: '#FFFFFF',
   },
   
-  // Enhanced Prominent Upgrade Banner Styles
+  // Enhanced Prominent Upgrade Banner Styles (theme-aware)
   upgradeBanner: {
     borderRadius: 16,
     marginTop: 4,
-    shadowColor: '#8B5CF6',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
     elevation: 8,
     position: 'relative',
     overflow: 'hidden',
   },
   upgradeBannerGradient: {
-    backgroundColor: '#1a1a2e', // Dark base
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: isSmall ? 12 : 14,
-    flexDirection: 'column', // Changed to column for vertical layout
+    flexDirection: 'column',
     gap: isSmall ? 12 : 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.35)', // Gold border
+    borderColor: theme.border,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -1719,14 +1761,14 @@ const createStyles = (theme: any) => {
     width: isSmall ? 40 : 48,
     height: isSmall ? 40 : 48,
     borderRadius: isSmall ? 20 : 24,
-    backgroundColor: 'rgba(255, 215, 0, 0.2)', // Gold background
+    backgroundColor: theme.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.4)',
-    shadowColor: '#FFD700',
+    borderColor: theme.primary,
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 3,
   },
@@ -1736,15 +1778,12 @@ const createStyles = (theme: any) => {
   upgradeBannerTitle: {
     fontSize: isSmall ? 14 : 16,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: theme.text,
     marginBottom: 2,
-    textShadowColor: 'rgba(0, 0, 0, 0.45)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   upgradeBannerSubtitle: {
     fontSize: isSmall ? 12 : 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: theme.textSecondary,
     lineHeight: isSmall ? 16 : 18,
     fontWeight: '500',
   },
@@ -1760,13 +1799,13 @@ const createStyles = (theme: any) => {
   upgradeBannerButtonGlow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FF6B6B', // Bright red/orange
+    backgroundColor: theme.primary,
     paddingHorizontal: 16,
     paddingVertical: isSmall ? 8 : 10,
     borderRadius: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: theme.border,
     minWidth: isSmall ? 100 : 110,
     justifyContent: 'center',
     flex: 1,
@@ -1774,10 +1813,7 @@ const createStyles = (theme: any) => {
   upgradeBannerButtonText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: theme.onPrimary,
   },
   upgradeBannerPulse: {
     position: 'absolute',
@@ -1786,9 +1822,9 @@ const createStyles = (theme: any) => {
     right: 0,
     bottom: 0,
     borderRadius: 16,
-    zIndex: -1, // ensure it never captures touches
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    opacity: 0.6,
+    zIndex: -1,
+    backgroundColor: theme.primaryLight,
+    opacity: 0.15,
   },
 });
 };

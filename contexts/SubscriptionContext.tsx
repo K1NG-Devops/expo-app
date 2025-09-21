@@ -11,6 +11,7 @@ type Ctx = {
   seats: Seats;
   assignSeat: (subscriptionId: string, userId: string) => Promise<boolean>;
   revokeSeat: (subscriptionId: string, userId: string) => Promise<boolean>;
+  refresh: () => void;
 };
 
 const SubscriptionContext = createContext<Ctx>({
@@ -19,12 +20,19 @@ const SubscriptionContext = createContext<Ctx>({
   seats: null,
   assignSeat: async () => false,
   revokeSeat: async () => false,
+  refresh: () => {},
 });
 
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [tier, setTier] = useState<Tier>('free');
   const [seats, setSeats] = useState<Seats>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Function to manually refresh subscription data
+  const refresh = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -33,7 +41,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       try {
         const { data: userRes, error: userError } = await assertSupabase().auth.getUser();
         if (userError || !userRes.user) {
-          console.debug('Failed to get user for subscription detection:', userError);
           if (mounted) setReady(true);
           return;
         }
@@ -70,7 +77,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                 schoolId = profileData.preschool_id;
               }
             } catch (profileErr) {
-              console.debug('Profile lookup failed:', profileErr);
+              // ignore profile lookup debug noise
             }
           }
           
@@ -97,8 +104,20 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                   if (knownTiers.includes(tierStr as Tier)) {
                     t = tierStr as Tier;
                   }
+
+                  // Debug logging for tier detection (can be removed once verified)
+                  console.debug('[SubscriptionContext] Active subscription found', {
+                    schoolId,
+                    subscriptionId: sub.id,
+                    planId: sub.plan_id,
+                    planTier: tierStr,
+                    resolvedTier: t,
+                    seats_total: sub.seats_total,
+                    seats_used: sub.seats_used,
+                  });
                 } catch (e) {
                   // fallback ignored, t remains previous or 'free'
+                  console.debug('[SubscriptionContext] Failed to resolve plan tier from subscription_plans', e);
                 }
 
                 // Seats are available for any school-owned subscription (including free)
@@ -107,14 +126,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                   used: sub.seats_used ?? 0,
                 };
               } else if (subError) {
-                console.debug('Subscription query error:', subError);
+                // ignore non-critical subscription query debug noise
               }
             } catch (subErr) {
-              console.debug('Subscription query failed:', subErr);
+              // ignore debug noise
             }
           }
         } catch (e) {
-          console.debug('Enterprise subscription detection failed:', e);
+          // ignore debug noise
         }
 
         if (mounted) {
@@ -123,7 +142,6 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           setReady(true);
         }
       } catch (err) {
-        console.debug('SubscriptionContext initialization failed:', err);
         if (mounted) {
           // Always set ready to true to prevent blocking the UI
           setTier('free'); // Safe fallback
@@ -136,49 +154,45 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshTrigger]); // Add refreshTrigger as dependency
 
   const assignSeat = async (subscriptionId: string, userId: string) => {
     try {
-      console.debug('[assignSeat] payload', { subscriptionId, userId });
-      const { data, error } = await assertSupabase().rpc('assign_teacher_seat', { 
-        p_subscription_id: subscriptionId, 
-        p_user_id: userId 
+      const { data, error } = await assertSupabase().rpc('rpc_assign_teacher_seat', { 
+        target_user_id: userId 
       });
-      console.debug('[assignSeat] rpc response', { data, error });
       
       if (error) {
-        console.debug('Seat assignment RPC error:', error?.message || error);
-        return false;
+        console.error('Seat assignment RPC error:', error?.message || error);
+        // Throw the error with the actual message so the UI can show it
+        throw new Error(error?.message || 'Failed to assign seat');
       }
       return true;
     } catch (err) {
-      console.debug('Seat assignment failed:', err);
-      return false;
+      console.error('Seat assignment failed:', err);
+      // Re-throw to let the UI handle it
+      throw err;
     }
   };
 
   const revokeSeat = async (subscriptionId: string, userId: string) => {
     try {
-      console.debug('[revokeSeat] payload', { subscriptionId, userId });
-      const { data, error } = await assertSupabase().rpc('revoke_teacher_seat', { 
-        p_subscription_id: subscriptionId, 
-        p_user_id: userId 
+      const { data, error } = await assertSupabase().rpc('rpc_revoke_teacher_seat', { 
+        target_user_id: userId 
       });
-      console.debug('[revokeSeat] rpc response', { data, error });
       
       if (error) {
-        console.debug('Seat revocation RPC error:', error?.message || error);
-        return false;
+        console.error('Seat revocation RPC error:', error?.message || error);
+        throw new Error(error?.message || 'Failed to revoke seat');
       }
       return true;
     } catch (err) {
-      console.debug('Seat revocation failed:', err);
-      return false;
+      console.error('Seat revocation failed:', err);
+      throw err;
     }
   };
 
-  const value = useMemo<Ctx>(() => ({ ready, tier, seats, assignSeat, revokeSeat }), [ready, tier, seats]);
+  const value = useMemo<Ctx>(() => ({ ready, tier, seats, assignSeat, revokeSeat, refresh }), [ready, tier, seats]);
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }

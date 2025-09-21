@@ -46,6 +46,7 @@ import { RoleBasedHeader } from "../RoleBasedHeader";
 import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
 import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
+import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
 
 const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2;
@@ -84,6 +85,7 @@ export const TeacherDashboard: React.FC = () => {
     (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES !== "false");
   const { user, profile, refreshProfile } = useAuth();
   const { ready: subscriptionReady, tier } = useSubscription();
+  const hasPremiumOrHigher = ['premium','pro','enterprise'].includes(String(tier || '')) as boolean;
   const { maybeShowInterstitial, offerRewarded } = useAds();
   
   // Ad gating logic
@@ -94,7 +96,8 @@ export const TeacherDashboard: React.FC = () => {
 
   // Seat and plan status must be computed before capability gating
   const seatStatus = profile?.seat_status || "inactive";
-  const hasActiveSeat = profile?.hasActiveSeat?.() || seatStatus === "active";
+  const teacherHasSeat = useTeacherHasSeat(user?.id || "");
+  const hasActiveSeat = teacherHasSeat || profile?.hasActiveSeat?.() || seatStatus === "active";
   const planTier = (profile as any)?.organization_membership?.plan_tier || (profile as any)?.plan_tier || 'unknown';
 
   // Capability-driven AI gating (seat + plan tier via capabilities)
@@ -125,14 +128,17 @@ export const TeacherDashboard: React.FC = () => {
 
   // Dev console debug for capabilities / seat / tier
   React.useEffect(() => {
-    const show = (process.env.EXPO_PUBLIC_SHOW_DEBUG_CAPS === 'true') || (typeof __DEV__ !== 'undefined' && __DEV__);
+    const show = true; // Force enable debug for troubleshooting
     if (!show) return;
     try {
       // Avoid noisy logs by summarizing
       const caps = Array.isArray((profile as any)?.capabilities) ? (profile as any).capabilities : [];
       console.log('[TeacherDashboard debug]', {
+        user_id: user?.id,
         seat_status: seatStatus,
-        hasActiveSeat,
+        teacherHasSeat_hook: teacherHasSeat,
+        profile_hasActiveSeat: profile?.hasActiveSeat?.(),
+        combined_hasActiveSeat: hasActiveSeat,
         plan_tier: planTier,
         ai_caps: {
           ai_lesson_generation: !!caps.includes?.('ai_lesson_generation'),
@@ -142,7 +148,7 @@ export const TeacherDashboard: React.FC = () => {
         all_caps_count: caps?.length || 0,
       });
     } catch {}
-  }, [seatStatus, hasActiveSeat, planTier, (profile as any)?.capabilities]);
+  }, [user?.id, seatStatus, teacherHasSeat, hasActiveSeat, planTier, (profile as any)?.capabilities]);
 
   // Use the custom data hook
   const {
@@ -623,7 +629,7 @@ export const TeacherDashboard: React.FC = () => {
           : tool.id === "homework-helper"
             ? aiHelperEnabled
             : tool.id === "progress-analysis"
-              ? canViewAnalytics
+              ? (canViewAnalytics && hasPremiumOrHigher)
               : true;
               
     // Check if tool has temporary unlock from rewarded ad
@@ -664,12 +670,23 @@ export const TeacherDashboard: React.FC = () => {
               {aiTempUnlocks[tool.id]} trial use{aiTempUnlocks[tool.id] !== 1 ? 's' : ''} remaining
             </Text>
           )}
-          {!enabled && !hasTemporaryUnlock && (
+          {!enabled && !hasTemporaryUnlock && tool.id !== 'progress-analysis' && (
             <Text style={{ color: theme.textSecondary, marginTop: 4 }}>
               {t("dashboard.ai_upgrade_required_cta", {
                 defaultValue: "Upgrade to use",
               })}
             </Text>
+          )}
+          {!enabled && tool.id === 'progress-analysis' && (
+            <TouchableOpacity
+              style={{ marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#7C3AED', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push('/screens/subscription-upgrade-post?reason=ai_progress');
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Upgrade</Text>
+            </TouchableOpacity>
           )}
           {/* Rewarded ad offer for disabled premium AI tools */}
           {!enabled && !hasTemporaryUnlock && showAds && ['lesson-generator', 'homework-grader'].includes(tool.id) && (
@@ -807,13 +824,15 @@ export const TeacherDashboard: React.FC = () => {
 
   // Live updates for seat status: subscribe to profile updates for current user
   React.useEffect(() => {
-    let channel: any;
+    let channelProfile: any;
+    let channelSeats: any;
     (async () => {
       try {
         const id = user?.id;
         if (!id) return;
         const client = assertSupabase();
-        channel = client
+        // Profile updates
+        channelProfile = client
           .channel("seat-status-profile")
           .on(
             "postgres_changes",
@@ -833,16 +852,34 @@ export const TeacherDashboard: React.FC = () => {
             },
           )
           .subscribe();
+        // Teacher seats assignment updates (seat assigned/revoked)
+        channelSeats = client
+          .channel("seat-status-teacher-seats")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "subscription_seats",
+              filter: `user_id=eq.${id}`,
+            },
+            async () => {
+              try {
+                await refreshProfile();
+                await refresh();
+              } catch (err) {
+                console.warn("Failed to refresh after seat change:", err);
+              }
+            },
+          )
+          .subscribe();
       } catch (err) {
-        console.warn("Failed to set up subscription:", err);
+        console.warn("Failed to set up subscriptions:", err);
       }
     })();
     return () => {
-      try {
-        channel?.unsubscribe?.();
-      } catch (err) {
-        console.warn("Failed to unsubscribe:", err);
-      }
+      try { channelProfile?.unsubscribe?.(); } catch (err) { console.warn("Failed to unsubscribe profile:", err); }
+      try { channelSeats?.unsubscribe?.(); } catch (err) { console.warn("Failed to unsubscribe seats:", err); }
     };
   }, [user?.id, refreshProfile, refresh]);
 

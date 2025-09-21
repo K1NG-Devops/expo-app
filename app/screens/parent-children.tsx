@@ -309,6 +309,13 @@ export default function ParentChildrenScreen() {
               >
                 <Text style={styles.addButtonText}>Register Child</Text>
               </TouchableOpacity>
+              <View style={{ height: 8 }} />
+              <TouchableOpacity 
+                style={styles.addButton}
+                onPress={() => router.push('/screens/parent-join-by-code')}
+              >
+                <Text style={styles.addButtonText}>Have a school code? Join by Code</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>

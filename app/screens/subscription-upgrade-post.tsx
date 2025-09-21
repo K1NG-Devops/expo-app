@@ -17,8 +17,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { createCheckout } from '@/lib/payments';
+import { adminUpdateSubscriptionPlan } from '@/lib/supabase/rpc-subscriptions';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import * as WebBrowser from 'expo-web-browser';
+import { getReturnUrl, getCancelUrl } from '@/lib/payments/urls';
 
 const { width } = Dimensions.get('window');
 
@@ -48,16 +50,22 @@ const takeFirst = (v: string | string[] | undefined): string | undefined => {
 };
 
 // Safe color helper function
+// Use rgba() to avoid platform-specific hex alpha format issues (#RRGGBBAA vs #AARRGGBB)
 const withAlpha = (hex: string, alpha = 0.125): string => {
   try {
-    if (/^#([0-9A-Fa-f]{6})$/.test(hex)) {
-      const aa = Math.round(alpha * 255).toString(16).padStart(2, '0');
-      return hex + aa;
+    const match = /^#([0-9A-Fa-f]{6})$/.exec(hex);
+    if (match) {
+      const int = parseInt(match[1], 16);
+      const r = (int >> 16) & 255;
+      const g = (int >> 8) & 255;
+      const b = int & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
   } catch {
-    // Fallback on error
+    // ignore and use fallback
   }
-  return '#1f2937'; // Safe fallback
+  // Default to a subtle slate background with alpha
+  return `rgba(31, 41, 55, ${alpha})`;
 };
 
 // Predefined reasons with safe defaults
@@ -85,6 +93,10 @@ const UPGRADE_REASONS: Record<string, { icon: string; color: string; title: stri
 const DEFAULT_REASON = UPGRADE_REASONS.manual_upgrade;
 
 export default function SubscriptionUpgradePostScreen() {
+  if (__DEV__) {
+    console.log('🔍 SubscriptionUpgradePostScreen: Component initializing...');
+  }
+  
   const { profile } = useAuth();
   const rawParams = useLocalSearchParams();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -92,11 +104,25 @@ export default function SubscriptionUpgradePostScreen() {
   const [annual, setAnnual] = useState(true); // Default to annual for better savings
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [screenMounted, setScreenMounted] = useState(false);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   // Safely extract parameters
   const currentTier = (takeFirst(rawParams.currentTier) || 'free').toString();
   const reasonKey = (takeFirst(rawParams.reason) || 'manual_upgrade').toString();
   const feature = takeFirst(rawParams.feature);
+  
+  // Debug logging for mobile troubleshooting
+  if (__DEV__) {
+    console.log('🔍 SubscriptionUpgradePostScreen params:', {
+      currentTier,
+      reasonKey,
+      feature,
+      rawParams,
+      profile: profile ? { id: profile.id, role: profile.role } : null
+    });
+  }
   
   // Get reason with fallback
   const reason = UPGRADE_REASONS[reasonKey] || DEFAULT_REASON;
@@ -107,8 +133,32 @@ export default function SubscriptionUpgradePostScreen() {
   }
 
   useEffect(() => {
-    loadPlans();
-    trackPageView();
+    // Set mounted flag and add small delay for mobile stability
+    const initializeScreen = async () => {
+      try {
+        if (__DEV__) {
+          console.log('🔍 SubscriptionUpgradePostScreen: Initializing screen...');
+        }
+        setScreenMounted(true);
+        await new Promise(resolve => setTimeout(resolve, 50));
+        await loadPlans();
+        trackPageView();
+        if (__DEV__) {
+          console.log('🔍 SubscriptionUpgradePostScreen: Initialization complete');
+        }
+      } catch (error: any) {
+        console.error('❌ Screen initialization failed:', error);
+        setRenderError(error.message || 'Initialization failed');
+        setLoading(false);
+      }
+    };
+    
+    initializeScreen();
+    
+    // Cleanup function
+    return () => {
+      setScreenMounted(false);
+    };
   }, []);
 
   const trackPageView = () => {
@@ -121,22 +171,29 @@ export default function SubscriptionUpgradePostScreen() {
   };
 
   const loadPlans = async () => {
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => {
-      abortController.abort();
-    }, 10000); // 10 second timeout
+    // Replace AbortController usage with a simple timeout guard for RN/Hermes stability
+    let timedOut = false;
+    const timeoutId = setTimeout(() => { timedOut = true; }, 10000);
 
     try {
       setLoading(true);
+      
+      // Add small delay to prevent race conditions on mobile
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       const { data, error } = await assertSupabase()
         .from('subscription_plans')
         .select('*')
         .eq('is_active', true)
-        .order('price_monthly', { ascending: true })
-        .abortSignal(abortController.signal);
+        .order('price_monthly', { ascending: true });
 
       clearTimeout(timeoutId);
+
+      if (timedOut) {
+        // If timeout elapsed, do not apply results
+        console.warn('loadPlans timed out');
+        return;
+      }
 
       if (error) {
         console.error('Plans fetch error:', error);
@@ -146,20 +203,11 @@ export default function SubscriptionUpgradePostScreen() {
       // Ensure data is an array
       const plansData = Array.isArray(data) ? data : [];
       
-      // Filter out current tier (but allow free users to see paid upgrades)
+      // Show all plans except the current tier (so users can downgrade or upgrade)
       const currentTierLower = currentTier.toLowerCase();
       const filteredPlans = plansData.filter(plan => {
         if (!plan || !plan.tier) return false; // Skip invalid plans
-        
-        // If user is on free tier, show all paid tiers
-        if (currentTierLower === 'free') {
-          return plan.tier.toLowerCase() !== 'free';
-        }
-        // For other tiers, show higher tiers only
-        const tierOrder = { free: 0, starter: 1, premium: 2, enterprise: 3 };
-        const currentOrder = tierOrder[currentTierLower as keyof typeof tierOrder] || 0;
-        const planOrder = tierOrder[plan.tier.toLowerCase() as keyof typeof tierOrder] || 999;
-        return planOrder > currentOrder;
+        return plan.tier.toLowerCase() !== currentTierLower; // exclude current plan only
       });
       
       setPlans(filteredPlans);
@@ -181,17 +229,14 @@ export default function SubscriptionUpgradePostScreen() {
       // Set empty array to show empty state UI
       setPlans([]);
       
-      // Only show alert for non-abort errors
-      if (error.name !== 'AbortError') {
-        track('upgrade_post_load_failed', { 
-          error: error.message,
-          current_tier: currentTier 
-        });
-        
-        // Don't block the UI with an alert, just log the error
-        if (__DEV__) {
-          console.warn('Failed to load subscription plans:', error.message);
-        }
+      track('upgrade_post_load_failed', { 
+        error: error?.message || String(error),
+        current_tier: currentTier 
+      });
+      
+      // Don't block the UI with an alert, just log the error in dev
+      if (__DEV__) {
+        console.warn('Failed to load subscription plans:', error?.message || String(error));
       }
     } finally {
       setLoading(false);
@@ -199,15 +244,42 @@ export default function SubscriptionUpgradePostScreen() {
   };
 
   const handleUpgrade = async (planId: string) => {
+    // Defensive checks
+    if (!planId) {
+      console.error('❌ handleUpgrade: planId is missing');
+      Alert.alert('Error', 'No plan selected');
+      return;
+    }
+    
     const plan = plans.find(p => p.id === planId);
     if (!plan) {
+      console.error('❌ handleUpgrade: Plan not found for ID:', planId);
       Alert.alert('Error', 'Selected plan not found');
       return;
     }
 
+    // Check profile availability
+    if (!profile) {
+      console.error('❌ handleUpgrade: User profile not available');
+      Alert.alert('Error', 'User profile not loaded. Please try again.');
+      return;
+    }
+
+    console.log('🔧 handleUpgrade: Starting upgrade process', {
+      planId,
+      planTier: plan.tier,
+      userId: profile.id,
+      organizationId: profile.organization_id,
+    });
+
     const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
     const price = annual ? plan.price_annual : plan.price_monthly;
 
+    // Only update state if component is still mounted
+    if (!screenMounted) {
+      console.log('⚠️ handleUpgrade: Component unmounted, aborting upgrade');
+      return;
+    }
     setUpgrading(true);
     
     try {
@@ -233,6 +305,47 @@ export default function SubscriptionUpgradePostScreen() {
         return;
       }
 
+      // If zero-cost target (e.g., Free), perform direct downgrade without payment
+      if (price === 0) {
+        try {
+          track('downgrade_attempt', {
+            from_tier: currentTier,
+            to_tier: plan.tier,
+            billing: annual ? 'annual' : 'monthly',
+          });
+
+          // Fetch active subscription for the school
+          const { data: sub, error: subErr } = await assertSupabase()
+            .from('subscriptions')
+            .select('id')
+            .eq('school_id', profile.organization_id)
+            .eq('status', 'active')
+            .maybeSingle();
+          if (subErr || !sub?.id) throw new Error('Active subscription not found');
+
+          await adminUpdateSubscriptionPlan(assertSupabase(), {
+            subscriptionId: sub.id,
+            newPlanId: plan.id,
+            billingFrequency: annual ? 'annual' : 'monthly',
+            seatsTotal: plan.max_teachers || 1,
+            reason: 'Downgrade to Free via upgrade screen',
+            metadata: {
+              changed_via: 'principal_upgrade_screen',
+              payment_required: false,
+              downgrade: true,
+            },
+          });
+
+          Alert.alert('Plan Updated', 'Your subscription has been changed to the Free plan.');
+          track('downgrade_succeeded', { to_tier: plan.tier });
+          try { router.back(); } catch { router.replace('/screens/principal-dashboard'); }
+          return;
+        } catch (e: any) {
+          track('downgrade_failed', { error: e?.message });
+          throw e;
+        }
+      }
+
       // Track upgrade attempt
       track('upgrade_attempt', {
         from_tier: currentTier,
@@ -244,16 +357,19 @@ export default function SubscriptionUpgradePostScreen() {
 
       const checkoutInput = {
         scope: 'school' as const,
-        schoolId: profile?.organization_id,
-        userId: profile?.id,
+        schoolId: profile.organization_id,
+        userId: profile.id,
         planTier: plan.tier,
         billing: (annual ? 'annual' : 'monthly') as 'annual' | 'monthly',
         seats: plan.max_teachers,
-        return_url: 'edudashpro://screens/payments/return',
-        cancel_url: 'edudashpro://screens/subscription-upgrade-post',
+        // PayFast requires http(s) URLs. Use HTTPS bridge pages managed server-side.
+        return_url: getReturnUrl(),
+        cancel_url: getCancelUrl(),
       };
       
+      console.log('💳 handleUpgrade: Creating checkout with:', checkoutInput);
       const result = await createCheckout(checkoutInput);
+      console.log('💳 handleUpgrade: Checkout result:', { hasRedirectUrl: !!result.redirect_url, error: result.error });
       
       if (result.error) {
         throw new Error(result.error);
@@ -269,31 +385,115 @@ export default function SubscriptionUpgradePostScreen() {
         billing: annual ? 'annual' : 'monthly',
       });
       
-      // Open payment URL
-      const browserResult = await WebBrowser.openBrowserAsync(result.redirect_url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        showTitle: true,
-        toolbarColor: '#0b1220',
-      });
+      // Check if WebBrowser is available first
+      console.log('🌐 handleUpgrade: Attempting to open browser for:', result.redirect_url);
       
-      if (browserResult.type === 'dismiss' || browserResult.type === 'cancel') {
-        track('upgrade_checkout_cancelled', {
-          to_tier: plan.tier,
-          browser_result: browserResult.type,
+      try {
+        // First, try to check if WebBrowser is available
+        if (typeof WebBrowser.openBrowserAsync !== 'function') {
+          throw new Error('WebBrowser.openBrowserAsync is not available');
+        }
+        
+        console.log('🌐 handleUpgrade: WebBrowser is available, opening...');
+        const browserResult = await WebBrowser.openBrowserAsync(result.redirect_url, {
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+          showTitle: true,
+          toolbarColor: '#0b1220',
         });
+        
+        console.log('🌐 handleUpgrade: Browser opened successfully:', browserResult.type);
+        
+        if (browserResult.type === 'dismiss' || browserResult.type === 'cancel') {
+          track('upgrade_checkout_cancelled', {
+            to_tier: plan.tier,
+            browser_result: browserResult.type,
+          });
+        }
+        
+      } catch (browserError: any) {
+        console.error('❌ handleUpgrade: WebBrowser failed, trying fallback:', browserError);
+        
+        // Fallback: Try using Linking instead
+        try {
+          const { Linking } = require('react-native');
+          const canOpen = await Linking.canOpenURL(result.redirect_url);
+          if (canOpen) {
+            console.log('🔗 handleUpgrade: Using Linking fallback');
+            await Linking.openURL(result.redirect_url);
+            track('upgrade_checkout_opened_via_linking', {
+              to_tier: plan.tier,
+            });
+          } else {
+            throw new Error('Cannot open URL with system browser');
+          }
+        } catch (linkingError: any) {
+          console.error('❌ handleUpgrade: Both WebBrowser and Linking failed:', linkingError);
+          Alert.alert(
+            'Unable to Open Payment', 
+            'Cannot open the payment page. Please try again or contact support.',
+            [
+              { text: 'Copy URL', onPress: () => {
+                // Copy URL to clipboard as last resort  
+                try {
+                  require('@expo/clipboard').setStringAsync(result.redirect_url);
+                  Alert.alert('URL Copied', 'Payment URL copied to clipboard');
+                } catch {
+                  // Fallback alert with URL
+                  Alert.alert('Payment URL', result.redirect_url);
+                }
+              }},
+              { text: 'Cancel', style: 'cancel' }
+            ]
+          );
+          return; // Don't throw, just return to avoid crash
+        }
       }
       
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to start upgrade');
+      console.error('❌ handleUpgrade: Upgrade failed:', error);
+      const errorMessage = error?.message || String(error) || 'Failed to start upgrade';
+      Alert.alert('Upgrade Failed', errorMessage);
       track('upgrade_failed', {
         to_tier: plan.tier,
-        error: error.message,
+        error: errorMessage,
+        error_type: error?.name || 'unknown',
       });
     } finally {
-      setUpgrading(false);
+      console.log('🔄 handleUpgrade: Cleaning up, setting upgrading to false');
+      // Only update state if component is still mounted
+      if (screenMounted) {
+        setUpgrading(false);
+      } else {
+        console.log('⚠️ handleUpgrade: Component unmounted, skipping state reset');
+      }
     }
   };
 
+  // MINIMAL TEST: Start with absolute minimum to isolate crash
+  const handleTestUpgrade = async (planId: string) => {
+    // Test 1: Just update state - does this crash?
+    setUpgrading(true);
+    
+    // Test 2: Add tiny delay and reset state WITH MOUNT CHECK
+    setTimeout(() => {
+      // Only update state if component is still mounted
+      if (screenMounted) {
+        setUpgrading(false);
+        if (__DEV__) {
+          console.log('🧪 TEST: Timeout completed, state reset');
+        }
+      } else {
+        if (__DEV__) {
+          console.log('⚠️ TEST: Component unmounted, skipping state update');
+        }
+      }
+    }, 1000);
+    
+    // Test 3: If above works, try console log
+    if (__DEV__) {
+      console.log('🧪 TEST: Button clicked, planId:', planId);
+    }
+  };
 
   const getPlanColor = (tier: string) => {
     switch (tier.toLowerCase()) {
@@ -305,7 +505,30 @@ export default function SubscriptionUpgradePostScreen() {
   };
 
 
-  if (loading) {
+  // Check for render errors first
+  if (renderError) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.errorTitle}>Unable to Load Upgrade Screen</Text>
+        <Text style={styles.loadingText}>Error: {renderError}</Text>
+        <TouchableOpacity
+          style={[styles.cancelButton, { marginTop: 20, backgroundColor: '#00f5ff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 }]}
+          onPress={() => {
+            try {
+              router.back();
+            } catch {
+              router.replace('/screens/principal-dashboard');
+            }
+          }}
+        >
+          <Text style={[styles.cancelButtonText, { color: '#000', fontWeight: '600' }]}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+  
+  // Add crash protection for mobile
+  if (!screenMounted || loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00f5ff" />
@@ -314,13 +537,18 @@ export default function SubscriptionUpgradePostScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
+  // Wrap in try-catch to prevent render crashes on mobile
+  try {
+    return (
+      <View style={styles.container}>
       <Stack.Screen options={{ 
         title: 'Upgrade Plan',
+        headerShown: true,
         headerStyle: { backgroundColor: '#0b1220' },
         headerTitleStyle: { color: '#fff' },
-        headerTintColor: '#00f5ff'
+        headerTintColor: '#00f5ff',
+        headerBackVisible: true,
+        gestureEnabled: true
       }} />
       <StatusBar style="light" backgroundColor="#0b1220" />
       
@@ -398,7 +626,7 @@ export default function SubscriptionUpgradePostScreen() {
                     <View style={styles.planHeader}>
                       <View style={styles.planTitleSection}>
                         <Text style={styles.planName}>{plan.name}</Text>
-                        <View style={[styles.planTierBadge, { backgroundColor: planColor + '20' }]}>
+<View style={[styles.planTierBadge, { backgroundColor: withAlpha(planColor, 0.125) }]} >
                           <Text style={[styles.planTier, { color: planColor }]}>{plan.tier}</Text>
                         </View>
                       </View>
@@ -459,25 +687,36 @@ export default function SubscriptionUpgradePostScreen() {
 
                       {plan.features && plan.features.length > 0 && (
                         <View style={styles.featuresList}>
-                          {plan.features.slice(0, 3).map((feature, index) => (
+                          {((expanded[plan.id] ? plan.features : plan.features.slice(0, 3)) || []).map((feature, index) => (
                             <View key={index} style={styles.featureRow}>
                               <Text style={[styles.featureIcon, { color: planColor }]}>✓</Text>
                               <Text style={styles.featureText}>{feature}</Text>
                             </View>
                           ))}
                           {plan.features.length > 3 && (
-                            <Text style={styles.moreFeatures}>+{plan.features.length - 3} more</Text>
+                            <TouchableOpacity onPress={() => setExpanded(prev => ({ ...prev, [plan.id]: !prev[plan.id] }))}>
+                              <Text style={styles.moreFeatures}>{expanded[plan.id] ? 'Hide features' : `See all features (${plan.features.length})`}</Text>
+                            </TouchableOpacity>
                           )}
                         </View>
                       )}
                     </View>
+                    {/* Per-plan Upgrade Button */}
+                    <TouchableOpacity
+                      style={[styles.upgradeButton, { backgroundColor: planColor, marginTop: 12 }]}
+                      onPress={() => handleUpgrade(plan.id)}
+                    >
+                      <Text style={styles.upgradeButtonText}>
+                        {isEnterprise ? 'Contact Sales' : (monthlyPrice === 0 ? 'Downgrade' : 'Upgrade')}
+                      </Text>
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
 
-          {/* CTA Section */}
+          {/* CTA Section - retained for convenience but optional */}
           {selectedPlan && (
             <View style={styles.ctaSection}>
               <TouchableOpacity
@@ -488,7 +727,7 @@ export default function SubscriptionUpgradePostScreen() {
                     opacity: upgrading ? 0.7 : 1
                   }
                 ]}
-                onPress={() => handleUpgrade(selectedPlan)}
+                onPress={() => handleUpgrade(selectedPlan!)}
                 disabled={upgrading}
               >
                 {upgrading ? (
@@ -498,10 +737,10 @@ export default function SubscriptionUpgradePostScreen() {
                     <Text style={styles.upgradeButtonText}>
                       {plans.find(p => p.id === selectedPlan)?.tier.toLowerCase() === 'enterprise'
                         ? 'Contact Sales'
-                        : 'Upgrade Now'}
+                        : (plans.find(p => p.id === selectedPlan)?.price_monthly === 0 ? 'Downgrade Now' : 'Upgrade Now')}
                     </Text>
                     <Text style={styles.upgradeButtonSubtext}>
-                      Start your {annual ? 'annual' : 'monthly'} subscription
+                      {plans.find(p => p.id === selectedPlan)?.price_monthly === 0 ? 'No payment required' : `Start your ${annual ? 'annual' : 'monthly'} subscription`}
                     </Text>
                   </>
                 )}
@@ -509,7 +748,15 @@ export default function SubscriptionUpgradePostScreen() {
 
               <TouchableOpacity
                 style={styles.cancelButton}
-                onPress={() => router.back()}
+                onPress={() => {
+                  try {
+                    router.back();
+                  } catch (error) {
+                    // Fallback navigation if back() fails
+                    console.warn('Back navigation failed, using replace:', error);
+                    router.replace('/screens/principal-dashboard');
+                  }
+                }}
               >
                 <Text style={styles.cancelButtonText}>Maybe Later</Text>
               </TouchableOpacity>
@@ -528,7 +775,33 @@ export default function SubscriptionUpgradePostScreen() {
         </ScrollView>
       </SafeAreaView>
     </View>
-  );
+    );
+  } catch (renderError: any) {
+    // Fallback render for crash protection
+    console.error('Subscription upgrade screen render error:', renderError);
+    return (
+      <View style={styles.container}>
+        <SafeAreaView edges={['top']} style={styles.safeArea}>
+          <View style={styles.loadingContainer}>
+            <Text style={styles.errorTitle}>Unable to Load Upgrade Options</Text>
+            <Text style={styles.loadingText}>Please try restarting the app</Text>
+            <TouchableOpacity
+              style={[styles.cancelButton, { marginTop: 20, backgroundColor: '#00f5ff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 8 }]}
+              onPress={() => {
+                try {
+                  router.back();
+                } catch {
+                  router.replace('/screens/principal-dashboard');
+                }
+              }}
+            >
+              <Text style={[styles.cancelButtonText, { color: '#000', fontWeight: '600' }]}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
+  }
 }
 
 const styles = StyleSheet.create({
@@ -554,6 +827,13 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#9CA3AF',
     fontSize: 16,
+  },
+  errorTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 8,
   },
   
   // Header Section

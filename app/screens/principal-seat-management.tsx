@@ -18,7 +18,7 @@ export default function PrincipalSeatManagementScreen() {
   const styles = React.useMemo(() => createStyles(memoizedTheme), [memoizedTheme]);
   const params = useLocalSearchParams<{ school?: string }>();
   const routeSchoolId = (params?.school ? String(params.school) : null);
-  const { seats, assignSeat, revokeSeat } = useSubscription();
+  const { seats, assignSeat, revokeSeat, refresh } = useSubscription();
   const [effectiveSchoolId, setEffectiveSchoolId] = useState<string | null>(routeSchoolId);
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
@@ -100,6 +100,7 @@ export default function PrincipalSeatManagementScreen() {
         .eq('preschool_id', effectiveSchoolId)
         .eq('role', 'teacher');
 
+      // Use profiles.id (auth user ID) for RPC calls - RPC function expects this
       let teacherList: { id: string; email: string; hasSeat: boolean }[] = (profs || []).map((p: any) => ({ id: p.id, email: p.email, hasSeat: false }));
 
       // If none found (schema variance), fall back to users table by auth_user_id
@@ -107,7 +108,7 @@ export default function PrincipalSeatManagementScreen() {
         try {
           const { data: users } = await assertSupabase()
             .from('users')
-            .select('id, auth_user_id, email, role, preschool_id')
+            .select('auth_user_id, email, role, preschool_id')
             .eq('preschool_id', effectiveSchoolId)
             .eq('role', 'teacher');
           teacherList = (users || []).map((u: any) => ({ id: u.auth_user_id || u.id, email: u.email, hasSeat: false }));
@@ -117,10 +118,33 @@ export default function PrincipalSeatManagementScreen() {
       }
 
       // Overlay seat assignment if we have a subscription id
+      // Note: subscription_seats.user_id references users.id, but teacherList.id is profiles.id (auth user ID)
       let seatSet = new Set<string>();
       if (subscriptionId) {
-        const { data: seatsRows } = await assertSupabase().from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
-        seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
+        // Get both user_id from subscription_seats and auth_user_id from users table to map them
+        const { data: seatsData } = await assertSupabase()
+          .from('subscription_seats')
+          .select(`
+            user_id,
+            users!subscription_seats_user_id_fkey!inner(auth_user_id)
+          `)
+          .eq('subscription_id', subscriptionId)
+          .is('revoked_at', null); // Only active seats
+        
+        // Create set of auth user IDs (to match with teacherList.id)
+        seatSet = new Set((seatsData || []).map((r: any) => r.users?.auth_user_id).filter(Boolean));
+        
+        // Fallback: if embed didn't return auth_user_id, resolve via separate query
+        if ((seatsData?.length || 0) > 0 && seatSet.size === 0) {
+          const userIds: string[] = (seatsData || []).map((r: any) => r.user_id).filter(Boolean);
+          if (userIds.length > 0) {
+            const { data: mapped } = await assertSupabase()
+              .from('users')
+              .select('id, auth_user_id')
+              .in('id', userIds);
+            seatSet = new Set((mapped || []).map((u: any) => u.auth_user_id).filter(Boolean));
+          }
+        }
       }
 
       setTeachers(teacherList.map(t => ({ ...t, hasSeat: seatSet.has(t.id) })));
@@ -135,11 +159,16 @@ export default function PrincipalSeatManagementScreen() {
 
   const findTeacherIdByEmail = async (email: string): Promise<string | null> => {
     try {
+      // First try profiles table (RPC function expects profiles.id which is auth user ID)
       const { data } = await assertSupabase().from('profiles').select('id,role,preschool_id').eq('email', email).maybeSingle();
-      if (data && (data as any).id) return (data as any).id as string;
-      // Fallback to users table if profiles lookup fails
+      if (data && (data as any).id) {
+        return (data as any).id as string; // This is the auth user ID
+      }
+      
+      // Fallback to users table and get auth_user_id
       const { data: u } = await assertSupabase().from('users').select('auth_user_id,email').eq('email', email).maybeSingle();
       if (u && (u as any).auth_user_id) return (u as any).auth_user_id as string;
+      
       return null;
     } catch { return null; }
   };
@@ -150,15 +179,16 @@ export default function PrincipalSeatManagementScreen() {
       setAssigning(true); setError(null); setSuccess(null);
       const userId = await findTeacherIdByEmail(teacherEmail);
       if (!userId) { setError('Teacher not found by email'); return; }
-      const ok = await assignSeat(subscriptionId, userId);
-      if (!ok) { setError('Failed to assign seat'); return; }
-      try {
-        const { notifySeatRequestApproved } = await import('@/lib/notify');
-        await notifySeatRequestApproved(userId);
-      } catch {}
+      await assignSeat(subscriptionId, userId);
+      // Optimistically update UI
+      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, hasSeat: true } : t));
       setSuccess('Seat assigned successfully');
       setTeacherEmail('');
+      // Also refresh from server to stay in sync
       await loadTeachers();
+      try { await refresh(); } catch {}
+    } catch (error: any) {
+      setError(error?.message || 'Failed to assign seat');
     } finally {
       setAssigning(false);
     }
@@ -170,11 +200,14 @@ export default function PrincipalSeatManagementScreen() {
       setRevoking(true); setError(null); setSuccess(null);
       const userId = await findTeacherIdByEmail(teacherEmail);
       if (!userId) { setError('Teacher not found by email'); return; }
-      const ok = await revokeSeat(subscriptionId, userId);
-      if (!ok) { setError('Failed to revoke seat'); return; }
+      await revokeSeat(subscriptionId, userId);
+      // Optimistically update UI
+      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, hasSeat: false } : t));
       setSuccess('Seat revoked successfully');
       setTeacherEmail('');
       await loadTeachers();
+    } catch (error: any) {
+      setError(error?.message || 'Failed to revoke seat');
     } finally {
       setRevoking(false);
     }
@@ -358,10 +391,14 @@ export default function PrincipalSeatManagementScreen() {
                           if (!subscriptionId) { setError('No active subscription for this school'); return; }
                           try {
                             setPendingTeacherId(t.id); setError(null); setSuccess(null);
-                            const ok = await revokeSeat(subscriptionId, t.id);
-                            if (!ok) { setError('Failed to revoke seat'); return; }
+                            await revokeSeat(subscriptionId, t.id);
+                            // Optimistically update before reload
+                            setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, hasSeat: false } : x));
                             setSuccess(`Seat revoked for ${t.email}`);
                             await loadTeachers();
+                            try { await refresh(); } catch {}
+                          } catch (error: any) {
+                            setError(error?.message || `Failed to revoke seat for ${t.email}`);
                           } finally {
                             setPendingTeacherId(null);
                           }
@@ -400,11 +437,15 @@ export default function PrincipalSeatManagementScreen() {
                           if (!subscriptionId) { setError('No active subscription for this school'); return; }
                           try {
                             setPendingTeacherId(t.id); setError(null); setSuccess(null);
-                            const ok = await assignSeat(subscriptionId, t.id);
-                            if (!ok) { setError('Failed to assign seat'); return; }
+                            await assignSeat(subscriptionId, t.id);
+                            // Optimistically update before reload
+                            setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, hasSeat: true } : x));
                             try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch {}
                             setSuccess(`Seat assigned to ${t.email}`);
                             await loadTeachers();
+                            try { await refresh(); } catch {}
+                          } catch (error: any) {
+                            setError(error?.message || `Failed to assign seat to ${t.email}`);
                           } finally {
                             setPendingTeacherId(null);
                           }

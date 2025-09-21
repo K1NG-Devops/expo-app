@@ -1,7 +1,7 @@
 // Export service for financial data: CSV, PDF, Excel
 // Uses react-native-fs for file operations and xlsx for Excel generation
 
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
@@ -65,39 +65,43 @@ class ExportServiceImpl {
     filename: string
   ): Promise<void> {
     try {
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'EduDash Pro';
+      workbook.lastModifiedBy = 'EduDash Pro';
+      workbook.created = new Date();
+      workbook.modified = new Date();
 
       // Summary sheet
-      const summaryData = [
+      const summarySheet = workbook.addWorksheet('Summary');
+      summarySheet.addRows([
         ['Financial Summary', ''],
         ['Total Revenue', this.formatCurrency(summary.revenue)],
         ['Total Expenses', this.formatCurrency(summary.expenses)],
         ['Net Cash Flow', this.formatCurrency(summary.cashFlow)],
         ['', ''],
         ['Generated on', new Date().toLocaleDateString('en-ZA')],
-      ];
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+      ]);
 
       // Transactions sheet
-      const transactionData = [
-        ['Date', 'Type', 'Category', 'Amount', 'Description', 'Status'],
-        ...transactions.map(t => [
+      const transactionSheet = workbook.addWorksheet('Transactions');
+      transactionSheet.addRow(['Date', 'Type', 'Category', 'Amount', 'Description', 'Status']);
+      
+      transactions.forEach(t => {
+        transactionSheet.addRow([
           this.formatDate(t.date),
           t.type,
           t.category,
           t.amount,
           t.description,
           t.status,
-        ]),
-      ];
-      const transactionSheet = XLSX.utils.aoa_to_sheet(transactionData);
-      XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transactions');
+        ]);
+      });
 
       const filePath = `${FileSystem.documentDirectory}${filename}.xlsx`;
-      const wbout = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' });
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64 = buffer.toString('base64');
       
-      await FileSystem.writeAsStringAsync(filePath, wbout, {
+      await FileSystem.writeAsStringAsync(filePath, base64, {
         encoding: FileSystem.EncodingType.Base64,
       });
       

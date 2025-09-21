@@ -43,10 +43,12 @@ import { EmptyState } from '@/components/ui/EmptyState';
 // import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 import { useAIAllocationManagement } from '@/lib/ai/hooks/useAIAllocation';
-import { useProfile } from '@/lib/auth/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
+import { canManageAllocationsRole, derivePreschoolId } from '@/lib/roleUtils';
 import type { TeacherAIAllocation } from '@/lib/ai/allocation';
+import { useTranslation } from 'react-i18next';
 
 // Colors will be replaced with theme
 
@@ -60,7 +62,8 @@ interface AllocationFormData {
 
 export default function AllocationManagementScreen() {
   const { theme } = useTheme();
-  const { profile } = useProfile();
+  const { profile, loading: authLoading } = useAuth();
+  const { t } = useTranslation('common');
   const {
     schoolSubscription,
     teacherAllocations,
@@ -78,6 +81,12 @@ export default function AllocationManagementScreen() {
   const [selectedTeacher, setSelectedTeacher] = useState<TeacherAIAllocation | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Check profile data completeness
+  const preschoolId = derivePreschoolId(profile);
+  const hasCompleteProfileData = !!(profile && preschoolId);
+  const roleBasedAccess = canManageAllocationsRole(profile?.role);
+  const showPartialDataBanner = roleBasedAccess && !hasCompleteProfileData;
 
   // Filter teachers based on search
   const filteredTeachers = teacherAllocations.filter((teacher) =>
@@ -101,14 +110,24 @@ export default function AllocationManagementScreen() {
     backgroundColor: theme.background,
   };
 
-  // Check permissions - Temporarily bypass for principals
-  if (!canManageAllocations && !profile?.role?.includes('principal')) {
+  // Auth loading state
+  if (authLoading) {
+    return (
+      <SafeAreaView style={baseContainerStyle}>
+        <LoadingState message={t('ai_quota.loading_profile', { defaultValue: 'Loading your profile...' })} />
+      </SafeAreaView>
+    );
+  }
+
+  // Resilient role-based access control (already computed above)
+  
+  if (!roleBasedAccess && !canManageAllocations) {
     return (
       <SafeAreaView style={baseContainerStyle}>
         <EmptyState
           icon="lock-closed-outline"
-          title="Access Restricted"
-          description={`Your role: ${profile?.role || 'unknown'}. You don't have permission to manage AI allocations. Contact your administrator.`}
+          title={t('ai_quota.access_restricted_title', { defaultValue: 'Access Restricted' })}
+          description={t('ai_quota.access_restricted_desc', { defaultValue: "You don't have permission to manage AI allocations." })}
         />
       </SafeAreaView>
     );
@@ -118,7 +137,7 @@ export default function AllocationManagementScreen() {
   if (isLoading.schoolSubscription || isLoading.teacherAllocations) {
     return (
       <SafeAreaView style={baseContainerStyle}>
-        <LoadingState message="Loading allocation data..." />
+        <LoadingState message={t('ai_quota.loading_data', { defaultValue: 'Loading allocation data...' })} />
       </SafeAreaView>
     );
   }
@@ -135,11 +154,11 @@ export default function AllocationManagementScreen() {
       <SafeAreaView style={baseContainerStyle}>
         <EmptyState
           icon="alert-circle-outline"
-          title="Failed to Load AI Data"
-          description={`Unable to load allocation data. \n\nErrors:\n${errors.schoolSubscription ? 'Subscription: ' + errors.schoolSubscription.message : ''}\n${errors.teacherAllocations ? 'Allocations: ' + errors.teacherAllocations.message : ''}\n\nThis might be because the AI functions are not deployed yet.`}
+          title={t('ai_quota.failed_load_title', { defaultValue: 'Failed to Load AI Data' })}
+          description={t('ai_quota.failed_load_desc', { defaultValue: 'Unable to load allocation data.' })}
           action={
             <Button onPress={handleRefresh} variant="outline">
-              Retry Loading
+              {t('ai_quota.retry', { defaultValue: 'Retry Loading' })}
             </Button>
           }
         />
@@ -368,6 +387,20 @@ export default function AllocationManagementScreen() {
     modalButton: {
       marginTop: 16,
     },
+    banner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      marginBottom: 16,
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+    },
+    bannerText: {
+      marginLeft: 8,
+      flex: 1,
+      fontWeight: '500',
+    },
   });
 
   return (
@@ -388,9 +421,19 @@ export default function AllocationManagementScreen() {
             AI Quota Management
           </Text>
           <Text variant="caption1" color="secondary">
-            {profile?.preschool?.name || 'Your School'}
+            {profile?.organization_name || profile?.preschool?.name || 'Your School'}
           </Text>
         </View>
+        
+        {/* Partial data banner */}
+        {showPartialDataBanner && (
+          <View style={[styles.banner, { backgroundColor: theme.warning + '20', borderColor: theme.warning }]}>
+            <Ionicons name="information-circle" size={20} color={theme.warning} />
+            <Text variant="caption1" style={[styles.bannerText, { color: theme.warning }]}>
+              We're finalizing your profile. You can still allocate by searching for teachers in your school.
+            </Text>
+          </View>
+        )}
 
         {/* Fallback UI when APIs aren't available */}
         <Card style={styles.fallbackCard}>
@@ -1011,4 +1054,3 @@ function AllocationModal({
   );
 }
 
-export default AllocationManagementScreen;

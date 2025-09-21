@@ -49,6 +49,13 @@ export interface TransactionRecord {
   description: string;
   date: string; // ISO
   status: 'completed' | 'pending' | 'overdue' | 'approved' | 'rejected';
+  // Optional enrichments
+  reference?: string | null;
+  attachmentUrl?: string | null; // For payments POP/attachments
+  receiptUrl?: string | null;    // For petty cash single URL
+  receiptCount?: number;         // Count from petty_cash_receipts
+  hasReceipt?: boolean;          // True if any receipt evidence present
+  source?: 'payment' | 'petty_cash';
 }
 
 export interface FinanceOverviewData {
@@ -238,7 +245,7 @@ const { data: payments, error: paymentsError } = await assertSupabase()
           metadata,
           students!inner(first_name, last_name)
         `)
-        .eq('school_id', preschoolId)
+        .eq('preschool_id', preschoolId)
         .order('created_at', { ascending: false })
         .limit(Math.ceil(limit / 2));
 
@@ -266,8 +273,8 @@ const { data: payments, error: paymentsError } = await assertSupabase()
       // Get recent petty cash transactions
 const { data: pettyCash, error: pettyCashError } = await assertSupabase()
         .from('petty_cash_transactions')
-        .select('id, amount, description, status, created_at, receipt_number, category, type')
-        .eq('preschool_id', preschoolId)
+        .select('id, amount, description, status, created_at, receipt_number, receipt_url, category, type')
+        .eq('school_id', preschoolId)
         .order('created_at', { ascending: false })
         .limit(Math.ceil(limit / 2));
 
@@ -439,6 +446,7 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
           status,
           created_at,
           payment_reference,
+          attachment_url,
           students!inner(first_name, last_name)
         `)
         .gte('created_at', dateRange.from)
@@ -468,6 +476,9 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
             description: payment.description || `Payment from ${studentName}`,
             date: payment.created_at,
             status: this.mapPaymentStatus(payment.status),
+            reference: payment.payment_reference ?? null,
+            attachmentUrl: payment.attachment_url ?? null,
+            source: 'payment',
           });
         });
       }
@@ -475,7 +486,7 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
       // Get petty cash transactions within date range
       let pettyCashQuery = assertSupabase()
         .from('petty_cash_transactions')
-        .select('id, amount, description, status, created_at, category, type')
+        .select('id, amount, description, status, created_at, category, type, receipt_url, receipt_number, reference_number')
         .gte('created_at', dateRange.from)
         .lte('created_at', dateRange.to)
         .order('created_at', { ascending: false });
@@ -489,7 +500,29 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
       if (pettyCashError) {
         console.error('Error fetching petty cash for transactions:', pettyCashError);
       } else if (pettyCash) {
+        // Build receipt counts per transaction from petty_cash_receipts
+        let receiptsMap = new Map<string, number>();
+        try {
+          const pettyCashIds = pettyCash.map((t: any) => t.id);
+          if (pettyCashIds.length) {
+            let receiptsQuery = assertSupabase()
+              .from('petty_cash_receipts')
+              .select('transaction_id');
+            if (preschoolId) {
+              receiptsQuery = receiptsQuery.eq('school_id', preschoolId);
+            }
+            const { data: receipts } = await receiptsQuery.in('transaction_id', pettyCashIds);
+            (receipts || []).forEach((r: any) => {
+              receiptsMap.set(r.transaction_id, (receiptsMap.get(r.transaction_id) || 0) + 1);
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to fetch petty cash receipts:', err);
+        }
+
         pettyCash.forEach((transaction: any) => {
+          const count = receiptsMap.get(transaction.id) || 0;
+          const receiptUrl = transaction.receipt_url ?? null;
           transactions.push({
             id: transaction.id,
             type: 'expense',
@@ -498,6 +531,11 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
             description: transaction.description,
             date: transaction.created_at,
             status: this.mapPettyCashStatus(transaction.status),
+            reference: transaction.receipt_number ?? transaction.reference_number ?? null,
+            receiptUrl,
+            receiptCount: count,
+            hasReceipt: Boolean(receiptUrl) || count > 0,
+            source: 'petty_cash',
           });
         });
       }

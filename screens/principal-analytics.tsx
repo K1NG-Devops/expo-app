@@ -70,12 +70,14 @@ const PrincipalAnalytics: React.FC = () => {
     try {
       setLoading(true);
 
-      // Get school info
+      // Get school info based on the current user's assigned preschool
+      const schoolId = (profile as any)?.preschool_id || (profile as any)?.organization_id;
+      if (!schoolId) return;
       const { data: school } = await supabase!
         .from('preschools')
         .select('id, name')
-        .eq('created_by', user.id)
-        .single();
+        .eq('id', schoolId)
+        .maybeSingle();
 
       if (!school) return;
 
@@ -261,6 +263,9 @@ const PrincipalAnalytics: React.FC = () => {
     return '#EF4444';
   };
 
+  // Premium entitlement check for upsell banner
+  const isPremiumOrHigher = ['premium', 'pro', 'enterprise'].includes(String(tier || ''));
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container}>
@@ -326,6 +331,16 @@ const PrincipalAnalytics: React.FC = () => {
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        {!isPremiumOrHigher && (
+          <View style={{ margin: 16, padding: 12, borderRadius: 12, backgroundColor: '#7C3AED10', borderWidth: 1, borderColor: '#7C3AED30', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#7C3AED', fontWeight: '600', flex: 1, marginRight: 12 }}>
+              Unlock AI Insights & advanced analytics on the Premium plan
+            </Text>
+            <TouchableOpacity style={{ backgroundColor: '#7C3AED', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 }} onPress={() => router.push('/screens/subscription-upgrade-post?reason=analytics')}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Upgrade</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {/* Key Metrics Overview */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Key Performance Indicators</Text>
@@ -487,7 +502,7 @@ const PrincipalAnalytics: React.FC = () => {
             )}
             {analytics.staff.studentTeacherRatio > 20 && (
               <View style={styles.actionItem}>
-                <Ionicons name="people" size={20} color="#8B5CF6" />
+                <Ionicons name="people" size={20} color="#7C3AED" />
                 <Text style={styles.actionText}>
                   Consider hiring additional teachers to improve ratios
                 </Text>

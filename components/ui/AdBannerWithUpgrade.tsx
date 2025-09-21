@@ -51,7 +51,7 @@ export default function AdBannerWithUpgrade({
   margin = 8,
 }: AdBannerWithUpgradeProps) {
   const { tier } = useSubscription();
-  const theme = useTheme();
+  const { theme, isDark } = useTheme();
 
   const handleUpgradePress = () => {
     track('ads.upgrade_cta_clicked', {
@@ -84,7 +84,7 @@ export default function AdBannerWithUpgrade({
             accessibilityRole="button"
             accessibilityLabel="Remove ads by upgrading to a paid plan"
           >
-            <Text style={[styles.upgradeText, { color: theme.primary }]}>
+            <Text style={[styles.upgradeText, { color: isDark ? '#00f5ff' : theme.primary }]}>
               Remove ads — Upgrade
             </Text>
           </TouchableOpacity>

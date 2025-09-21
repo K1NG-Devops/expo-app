@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useActiveSchoolId } from '@/lib/tenant/client';
 import * as pettyCashDb from '@/lib/db/pettyCash';
+import { useTranslation } from 'react-i18next';
 
 export interface PettyCashDashboardMetrics {
   currentBalance: number;
@@ -52,6 +53,7 @@ export function usePettyCashDashboard(): UsePettyCashDashboardResult {
   const [metrics, setMetrics] = useState<PettyCashDashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useTranslation('common');
 
   const fetchMetrics = useCallback(async () => {
     if (!schoolId) {
@@ -123,7 +125,7 @@ export function usePettyCashDashboard(): UsePettyCashDashboardResult {
       // Since the RPC doesn't return category breakdown, we'll create a basic structure
       const categories = currentExpenses > 0 ? [
         {
-          name: 'General Expenses',
+          name: t('dashboard.general_expenses'),
           amount: currentExpenses,
           percentage: 100,
         }
@@ -137,7 +139,7 @@ export function usePettyCashDashboard(): UsePettyCashDashboardResult {
         id: txn.id,
         amount: txn.amount,
         type: txn.type,
-        description: txn.description || 'No description',
+        description: txn.description || t('dashboard.no_description'),
         status: txn.status,
         occurred_at: txn.occurred_at,
       }));
@@ -164,7 +166,7 @@ export function usePettyCashDashboard(): UsePettyCashDashboardResult {
     } finally {
       setLoading(false);
     }
-  }, [schoolId]);
+  }, [schoolId, t]);
 
   useEffect(() => {
     fetchMetrics();
@@ -193,6 +195,7 @@ export function usePettyCashDashboard(): UsePettyCashDashboardResult {
  */
 export function usePettyCashMetricCards() {
   const { metrics, loading, error } = usePettyCashDashboard();
+  const { t } = useTranslation();
 
   const metricCards = useMemo(() => {
     if (!metrics) return [];
@@ -210,43 +213,46 @@ export function usePettyCashMetricCards() {
     // Only add balance card if balance is substantial
     if (metrics.currentBalance > 20) {
       cards.push({
-        title: 'Petty Cash Balance',
+        id: 'petty_cash_balance',
+        title: t('dashboard.petty_cash_balance'),
         value: `R${metrics.currentBalance.toFixed(2)}`,
         icon: 'wallet-outline',
         color: '#F59E0B',
         trend: metrics.monthlyTrend.balanceChange > 0 ? 'up' : 
                metrics.monthlyTrend.balanceChange < 0 ? 'down' : 'stable',
-        subtitle: `${metrics.monthlyTrend.balanceChange >= 0 ? '+' : ''}R${metrics.monthlyTrend.balanceChange.toFixed(2)} this month`,
+        subtitle: `${metrics.monthlyTrend.balanceChange >= 0 ? '+' : ''}R${metrics.monthlyTrend.balanceChange.toFixed(2)} ${t('dashboard.this_month', { defaultValue: 'this month' })}`,
       });
     }
     
     // Only add expenses card if there are meaningful expenses
     if (metrics.monthlyExpenses > 10) {
       cards.push({
-        title: 'Monthly Expenses',
+        id: 'monthly_expenses',
+        title: t('dashboard.monthly_expenses'),
         value: `R${metrics.monthlyExpenses.toFixed(2)}`,
         icon: 'receipt-outline',
         color: '#DC2626',
         trend: metrics.monthlyTrend.expensesVsPreviousMonth > 10 ? 'up' :
                metrics.monthlyTrend.expensesVsPreviousMonth < -10 ? 'down' : 'stable',
-        subtitle: `${Math.abs(metrics.monthlyTrend.expensesVsPreviousMonth)}% vs last month`,
+        subtitle: `${Math.abs(metrics.monthlyTrend.expensesVsPreviousMonth)}% ${t('dashboard.vs_last_month', { defaultValue: 'vs last month' })}`,
       });
     }
     
     // Only add pending approvals if there are actual pending items
     if (metrics.pendingTransactionsCount > 0) {
       cards.push({
-        title: 'Pending Approvals',
+        id: 'pending_approvals',
+        title: t('dashboard.pending_approvals', { defaultValue: 'Pending Approvals' }),
         value: metrics.pendingTransactionsCount,
         icon: 'hourglass-outline',
         color: '#F59E0B',
         trend: metrics.pendingTransactionsCount > 3 ? 'attention' : 'stable',
-        subtitle: 'Requiring approval',
+        subtitle: t('dashboard.requiring_approval', { defaultValue: 'Requiring approval' }),
       });
     }
     
     return cards;
-  }, [metrics]);
+  }, [metrics, t]);
 
   return {
     metricCards,

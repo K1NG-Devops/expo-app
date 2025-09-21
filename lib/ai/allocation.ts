@@ -12,7 +12,7 @@
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
-import { getOrgType, canUseAllocation, type OrgType, type Tier } from '@/lib/subscriptionRules';
+import { getOrgType, canUseAllocation, normalizeTier, type OrgType, type Tier } from '@/lib/subscriptionRules';
 import type { AIQuotaFeature } from './limits';
 import { 
   getSchoolAISubscriptionDirect, 
@@ -124,14 +124,36 @@ export async function getSchoolAISubscription(preschoolId: string): Promise<Scho
       });
 
       if (!error && data) {
-        return data as SchoolAISubscription;
+        const funcResult = data as SchoolAISubscription;
+        const funcTier = normalizeTier(funcResult.subscription_tier as unknown as string);
+
+        // Cross-check with direct DB join to avoid legacy tier mismatches (e.g., preschools.subscription_tier)
+        try {
+          const directResult = await getSchoolAISubscriptionDirect(preschoolId);
+          const directTier = normalizeTier(String(directResult?.subscription_tier || ''));
+
+          if (directResult && directTier && funcTier !== directTier) {
+            console.warn('[AI-Quota] Tier mismatch detected. Using direct database tier result to avoid legacy fallback', {
+              preschool_id: preschoolId,
+              function_tier: funcTier,
+              direct_tier: directTier,
+            });
+            return directResult;
+          }
+        } catch (crossCheckErr) {
+          // ignore debug noise
+        }
+
+        // If no mismatch or direct not available, return function result
+        return { ...funcResult, subscription_tier: funcTier as any };
       }
     } catch (functionError) {
-      console.log('Edge function not available, using direct database fallback');
+      // function not available; will use direct fallback
     }
     
     // Fallback to direct database implementation
-    return await getSchoolAISubscriptionDirect(preschoolId);
+    const directOnly = await getSchoolAISubscriptionDirect(preschoolId);
+    return directOnly;
     
   } catch (error) {
     console.warn('Both function and direct approaches failed, trying direct as final fallback');
@@ -167,7 +189,7 @@ export async function getTeacherAllocations(preschoolId: string): Promise<Teache
         return data.allocations;
       }
     } catch (functionError) {
-      console.log('Edge function not available for teacher allocations, using direct database fallback');
+      // function not available; will use direct fallback
     }
     
     // Fallback to direct database implementation
@@ -399,49 +421,74 @@ export async function getTeacherAllocation(
  */
 export async function canManageAllocations(userId: string, preschoolId: string): Promise<boolean> {
   try {
-    // Try direct database approach first since it's simpler
-    return await canManageAllocationsDirect(userId, preschoolId);
+    const client = assertSupabase();
     
-  } catch (error) {
-    console.warn('Error checking allocation permissions:', error);
+    // Determine if userId is auth.users.id (UUID v4) or public.users.id
+    // Most calls from client use auth.users.id, but some may use public.users.id
+    let publicUserId = userId;
+    let profile = null;
     
-    // Fallback to basic role check
+    // First try direct lookup assuming userId is public.users.id
     try {
-      const client = assertSupabase();
-      
-      // Try with both id and auth_user_id for compatibility
-      let profile = null;
-      
-      // First try with id field
-      const { data: profileById } = await client
+      const { data: directProfile } = await client
         .from('users')
-        .select('role, preschool_id')
+        .select('id, role, preschool_id, organization_id')
         .eq('id', userId)
         .single();
-        
-      if (profileById) {
-        profile = profileById;
-      } else {
-        // Fallback to auth_user_id
-        const { data: profileByAuth } = await client
+      
+      if (directProfile) {
+        profile = directProfile;
+        publicUserId = directProfile.id;
+      }
+    } catch (directError) {
+      // If direct lookup fails, try auth_user_id mapping
+      try {
+        const { data: mappedProfile } = await client
           .from('users')
-          .select('role, preschool_id')
+          .select('id, role, preschool_id, organization_id')
           .eq('auth_user_id', userId)
           .single();
-        profile = profileByAuth;
+        
+        if (mappedProfile) {
+          profile = mappedProfile;
+          publicUserId = mappedProfile.id;
+        }
+      } catch (mappingError) {
+        console.warn('Both direct and auth_user_id lookups failed:', { directError, mappingError });
       }
+    }
 
-      if (!profile || profile.preschool_id !== preschoolId) {
-        return false;
-      }
-
-      // Check if user has allocation management permissions
-      return ['principal', 'principal_admin', 'super_admin'].includes(profile.role);
-      
-    } catch (fallbackError) {
-      console.warn('Fallback permission check also failed:', fallbackError);
+    if (!profile) {
+      console.warn('User profile not found for allocation check:', { userId, preschoolId });
       return false;
     }
+
+    // Validate school scope - check both preschool_id and organization_id
+    const userSchoolId = profile.preschool_id || profile.organization_id;
+    if (!userSchoolId || userSchoolId !== preschoolId) {
+      console.warn('School scope mismatch:', { userSchoolId, preschoolId, userId });
+      return false;
+    }
+
+    // Normalize role and check permissions (matching roleUtils logic)
+    const normalizedRole = (profile.role || '').toLowerCase().trim();
+    const canManage = ['principal', 'principal_admin', 'super_admin', 'superadmin'].includes(normalizedRole);
+    
+    console.log('canManageAllocations check:', { 
+      userId, 
+      publicUserId, 
+      role: profile.role, 
+      normalizedRole, 
+      userSchoolId, 
+      preschoolId, 
+      canManage 
+    });
+    
+    return canManage;
+    
+  } catch (error) {
+    console.error('canManageAllocations check failed:', error);
+    return false;
   }
 }
 

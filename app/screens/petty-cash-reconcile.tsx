@@ -9,7 +9,7 @@
  * - Reconciliation approval
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,7 @@ import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { navigateBack } from '@/lib/navigation';
+import { useTranslation } from 'react-i18next';
 
 interface CashCount {
   denomination: number;
@@ -61,6 +62,7 @@ export default function PettyCashReconcileScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,7 @@ export default function PettyCashReconcileScreen() {
   const [notes, setNotes] = useState('');
   const [isReconciling, setIsReconciling] = useState(false);
 
-  const loadReconciliationData = async () => {
+  const loadReconciliationData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -98,7 +100,7 @@ export default function PettyCashReconcileScreen() {
         .single();
 
       if (!userProfile?.preschool_id) {
-        Alert.alert('Error', 'No school assigned to your account');
+        Alert.alert(t('common.error'), t('petty_cash.error_no_school'));
         return;
       }
 
@@ -157,12 +159,12 @@ export default function PettyCashReconcileScreen() {
 
     } catch (error) {
       console.error('Error loading reconciliation data:', error);
-      Alert.alert('Error', 'Failed to load reconciliation data');
+      Alert.alert(t('common.error'), t('petty_cash_reconcile.load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user, t]);
 
   const updateCashCount = (index: number, count: string) => {
     const parsedCount = parseInt(count) || 0;
@@ -218,17 +220,17 @@ export default function PettyCashReconcileScreen() {
       }
 
       Alert.alert(
-        'Reconciliation Complete',
-        `Cash reconciliation has been recorded.\n\nVariance: ${formatCurrency(reconciliationData.variance)}`,
+        t('petty_cash_reconcile.save_success_title'),
+        t('petty_cash_reconcile.save_success_message', { variance: formatCurrency(reconciliationData.variance) }),
         [
-{ text: 'View History', onPress: () => router.push('/screens/petty-cash') },
-          { text: 'Done', onPress: () => navigateBack('/screens/petty-cash') },
+          { text: t('petty_cash_reconcile.view_history'), onPress: () => router.push('/screens/petty-cash') },
+          { text: t('common.done'), onPress: () => navigateBack('/screens/petty-cash') },
         ]
       );
 
     } catch (error) {
       console.error('Error performing reconciliation:', error);
-      Alert.alert('Error', 'Failed to save reconciliation');
+      Alert.alert(t('common.error'), t('petty_cash_reconcile.save_error'));
     } finally {
       setIsReconciling(false);
     }
@@ -255,7 +257,7 @@ export default function PettyCashReconcileScreen() {
 
   useEffect(() => {
     loadReconciliationData();
-  }, [user]);
+  }, [loadReconciliationData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -267,7 +269,7 @@ export default function PettyCashReconcileScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <Ionicons name="calculator-outline" size={48} color={theme?.textSecondary || '#6B7280'} />
-          <Text style={styles.loadingText}>Loading reconciliation data...</Text>
+          <Text style={styles.loadingText}>{t('petty_cash_reconcile.loading_data')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -280,7 +282,7 @@ export default function PettyCashReconcileScreen() {
         <TouchableOpacity onPress={() => navigateBack('/screens/petty-cash')}>
           <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cash Reconciliation</Text>
+        <Text style={styles.headerTitle}>{t('petty_cash_reconcile.title')}</Text>
         <TouchableOpacity 
 onPress={() => router.push('/screens/petty-cash')}
           disabled={loading}
@@ -295,18 +297,18 @@ onPress={() => router.push('/screens/petty-cash')}
       >
         {/* Balance Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.cardTitle}>Balance Comparison</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.balance_comparison')}</Text>
           
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>System Balance</Text>
+              <Text style={styles.balanceLabel}>{t('petty_cash_reconcile.system_balance')}</Text>
               <Text style={styles.systemBalance}>
                 {formatCurrency(reconciliationData.systemBalance)}
               </Text>
             </View>
             
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>Physical Cash</Text>
+              <Text style={styles.balanceLabel}>{t('petty_cash_reconcile.physical_cash')}</Text>
               <Text style={styles.physicalBalance}>
                 {formatCurrency(reconciliationData.physicalCash)}
               </Text>
@@ -321,13 +323,15 @@ onPress={() => router.push('/screens/petty-cash')}
                 color={getVarianceColor(reconciliationData.variance)} 
               />
               <Text style={[styles.varianceLabel, { color: getVarianceColor(reconciliationData.variance) }]}>
-                Variance: {formatCurrency(reconciliationData.variance)}
+                {t('petty_cash_reconcile.variance')}: {formatCurrency(reconciliationData.variance)}
               </Text>
             </View>
             
             {reconciliationData.variance !== 0 && (
               <Text style={styles.varianceNote}>
-                {reconciliationData.variance > 0 ? 'Physical cash exceeds system balance' : 'System balance exceeds physical cash'}
+                {reconciliationData.variance > 0 
+                  ? t('petty_cash_reconcile.variance_physical_exceeds') 
+                  : t('petty_cash_reconcile.variance_system_exceeds')}
               </Text>
             )}
           </View>
@@ -335,9 +339,9 @@ onPress={() => router.push('/screens/petty-cash')}
 
         {/* Cash Counting */}
         <View style={styles.countingCard}>
-          <Text style={styles.cardTitle}>Count Physical Cash</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.count_physical_cash')}</Text>
           <Text style={styles.countingInstructions}>
-            Count each denomination and enter the quantity below:
+            {t('petty_cash_reconcile.counting_instructions')}
           </Text>
           
           {cashCounts.map((cashCount, index) => {
@@ -356,7 +360,7 @@ onPress={() => router.push('/screens/petty-cash')}
                     value={cashCount.count.toString()}
                     onChangeText={(text) => updateCashCount(index, text)}
                     keyboardType="number-pad"
-                    placeholder="0"
+                    placeholder={t('petty_cash_reconcile.enter_quantity_placeholder', { defaultValue: '0' })}
                   />
                   <Text style={styles.multiplySign}>×</Text>
                   <Text style={styles.denominationValue}>
@@ -374,12 +378,12 @@ onPress={() => router.push('/screens/petty-cash')}
 
         {/* Notes */}
         <View style={styles.notesCard}>
-          <Text style={styles.cardTitle}>Reconciliation Notes</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.notes_title')}</Text>
           <TextInput
             style={styles.notesInput}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Add any notes about discrepancies or observations..."
+            placeholder={t('petty_cash_reconcile.notes_placeholder')}
             multiline
             numberOfLines={4}
           />
@@ -388,7 +392,7 @@ onPress={() => router.push('/screens/petty-cash')}
         {/* Info */}
         {reconciliationData.lastReconciliation && (
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Last Reconciliation</Text>
+            <Text style={styles.infoTitle}>{t('petty_cash_reconcile.last_reconciliation')}</Text>
             <Text style={styles.infoText}>
               {new Date(reconciliationData.lastReconciliation).toLocaleDateString('en-ZA', {
                 year: 'numeric',
@@ -410,7 +414,7 @@ onPress={() => router.push('/screens/petty-cash')}
           >
             <Ionicons name="checkmark-circle" size={20} color="#fff" />
             <Text style={styles.actionButtonText}>
-              {isReconciling ? 'Reconciling...' : 'Complete Reconciliation'}
+              {isReconciling ? t('petty_cash_reconcile.reconciling') : t('petty_cash_reconcile.complete_reconciliation')}
             </Text>
           </TouchableOpacity>
 
@@ -420,7 +424,7 @@ onPress={() => router.push('/screens/petty-cash')}
           >
             <Ionicons name="close-circle" size={20} color={theme?.textSecondary || '#666'} />
             <Text style={[styles.actionButtonText, { color: theme?.textSecondary || '#666' }]}>
-              Cancel
+              {t('common.cancel')}
             </Text>
           </TouchableOpacity>
         </View>

@@ -12,7 +12,7 @@ export interface UpdateState {
 }
 
 export interface UpdatesContextValue extends UpdateState {
-  checkForUpdates: () => Promise<void>;
+  checkForUpdates: () => Promise<boolean>;
   applyUpdate: () => Promise<void>;
   dismissUpdate: () => void;
   dismissError: () => void;
@@ -40,10 +40,10 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   };
 
   // Check for updates manually
-  const checkForUpdates = async () => {
+  const checkForUpdates = async (): Promise<boolean> => {
     if (!Updates.isEnabled) {
       console.log('[Updates] Updates are disabled - skipping check');
-      return;
+      return false;
     }
     
     console.log('[Updates] Manual update check initiated');
@@ -68,9 +68,11 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
         trackOTAUpdateFetch(result);
         // Download complete - this will also trigger the UPDATE_DOWNLOADED event
         updateState({ isDownloading: false, isUpdateDownloaded: true });
+        return true;
       } else {
         console.log('[Updates] No update available');
         updateState({ isDownloading: false, lastCheckTime: new Date() });
+        return false;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to check for updates';
@@ -89,6 +91,7 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
         updateError: shouldShowError ? errorMessage : null,
         lastCheckTime: new Date()
       });
+      return false;
     }
   };
 

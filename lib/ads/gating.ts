@@ -254,6 +254,7 @@ export async function isAppStateAllowedForAds(): Promise<boolean> {
     // Note: This would need to be integrated with app state listeners
     // For now, we assume foreground
     return true;
+  // eslint-disable-next-line no-unreachable
   } catch (error) {
     console.warn('Failed to check app state:', error);
     return true;

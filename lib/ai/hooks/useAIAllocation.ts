@@ -12,7 +12,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useProfile } from '@/lib/auth/useProfile';
+import { useAuth } from '@/contexts/AuthContext';
+import { derivePreschoolId, getAllocationScope, canManageAllocationsRole } from '@/lib/roleUtils';
 import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import {
@@ -57,20 +58,21 @@ export const aiAllocationKeys = {
  * Returns null for users without allocation permissions
  */
 export function useSchoolAISubscription() {
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useQuery({
-    queryKey: profile?.preschool_id 
-      ? aiAllocationKeys.schoolSubscription(profile.preschool_id)
+    queryKey: preschoolId 
+      ? aiAllocationKeys.schoolSubscription(preschoolId)
       : ['ai-allocation', 'no-school'],
     queryFn: async (): Promise<SchoolAISubscription | null> => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         return null;
       }
       
-      return await getSchoolAISubscription(profile.preschool_id);
+      return await getSchoolAISubscription(preschoolId);
     },
-    enabled: !profileLoading && !!profile?.preschool_id,
+    enabled: !profileLoading && !!preschoolId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
     meta: {
@@ -84,20 +86,21 @@ export function useSchoolAISubscription() {
  * Requires principal/admin permissions
  */
 export function useTeacherAllocations() {
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useQuery({
-    queryKey: profile?.preschool_id 
-      ? aiAllocationKeys.teacherAllocations(profile.preschool_id)
+    queryKey: preschoolId 
+      ? aiAllocationKeys.teacherAllocations(preschoolId)
       : ['ai-allocation', 'no-school-allocations'],
     queryFn: async (): Promise<TeacherAIAllocation[]> => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         return [];
       }
       
-      return await getTeacherAllocations(profile.preschool_id);
+      return await getTeacherAllocations(preschoolId);
     },
-    enabled: !profileLoading && !!profile?.preschool_id,
+    enabled: !profileLoading && !!preschoolId,
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
     meta: {
@@ -111,21 +114,22 @@ export function useTeacherAllocations() {
  * Shows current user's allocation by default
  */
 export function useTeacherAllocation(userId?: string) {
-  const { profile, isLoading: profileLoading } = useProfile();
-  const targetUserId = userId || profile?.id;
+  const { profile, session, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
+  const targetUserId = userId || profile?.id || session?.user?.id;
   
   return useQuery({
-    queryKey: profile?.preschool_id && targetUserId
-      ? aiAllocationKeys.teacherAllocation(profile.preschool_id, targetUserId)
+    queryKey: preschoolId && targetUserId
+      ? aiAllocationKeys.teacherAllocation(preschoolId, targetUserId)
       : ['ai-allocation', 'no-teacher-allocation'],
     queryFn: async (): Promise<TeacherAIAllocation | null> => {
-      if (!profile?.preschool_id || !targetUserId) {
+      if (!preschoolId || !targetUserId) {
         return null;
       }
       
-      return await getTeacherAllocation(profile.preschool_id, targetUserId);
+      return await getTeacherAllocation(preschoolId, targetUserId);
     },
-    enabled: !profileLoading && !!profile?.preschool_id && !!targetUserId,
+    enabled: !profileLoading && !!preschoolId && !!targetUserId,
     staleTime: 1 * 60 * 1000, // 1 minute (frequent updates for usage tracking)
     gcTime: 5 * 60 * 1000, // 5 minutes
     meta: {
@@ -136,26 +140,42 @@ export function useTeacherAllocation(userId?: string) {
 
 /**
  * Hook to check if current user can manage AI allocations
+ * Uses client-side role check as primary method, server check as secondary
  */
 export function useCanManageAllocations() {
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, session, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useQuery({
-    queryKey: profile?.preschool_id && profile?.id
-      ? aiAllocationKeys.canManageAllocations(profile.preschool_id, profile.id)
+    queryKey: preschoolId && (profile?.id || session?.user?.id)
+      ? aiAllocationKeys.canManageAllocations(preschoolId, profile?.id || session?.user?.id || 'unknown')
       : ['ai-allocation', 'no-manage-check'],
     queryFn: async (): Promise<boolean> => {
-      if (!profile?.id || !profile?.preschool_id) {
-        return false;
+      // Primary: client-side role check (reliable)
+      const clientSideCanManage = canManageAllocationsRole(profile?.role);
+      
+      if (clientSideCanManage && preschoolId) {
+        return true;
       }
       
-      return await canManageAllocations(profile.id, profile.preschool_id);
+      // Secondary: server-side check (when available)
+      const userId = profile?.id || session?.user?.id;
+      if (userId && preschoolId) {
+        try {
+          return await canManageAllocations(userId, preschoolId);
+        } catch (error) {
+          console.warn('Server-side canManageAllocations check failed, using client-side result:', error);
+          return clientSideCanManage;
+        }
+      }
+      
+      return false;
     },
-    enabled: !profileLoading && !!profile?.id && !!profile?.preschool_id,
+    enabled: !profileLoading && !!(profile?.role || (profile?.id || session?.user?.id)),
     staleTime: 10 * 60 * 1000, // 10 minutes (permissions change infrequently)
     gcTime: 30 * 60 * 1000, // 30 minutes
     meta: {
-      description: 'User allocation management permissions',
+      description: 'User allocation management permissions (client + server)',
     },
   });
 }
@@ -169,20 +189,21 @@ export function useAllocationHistory(options: {
   offset?: number;
   action?: string;
 } = {}) {
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useQuery({
-    queryKey: profile?.preschool_id 
-      ? [...aiAllocationKeys.allocationHistory(profile.preschool_id, options.teacherId), options]
+    queryKey: preschoolId 
+      ? [...aiAllocationKeys.allocationHistory(preschoolId, options.teacherId), options]
       : ['ai-allocation', 'no-history'],
     queryFn: async (): Promise<{ history: AllocationHistory[]; total: number }> => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         return { history: [], total: 0 };
       }
       
-      return await getAllocationHistory(profile.preschool_id, options);
+      return await getAllocationHistory(preschoolId, options);
     },
-    enabled: !profileLoading && !!profile?.preschool_id,
+    enabled: !profileLoading && !!preschoolId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
     meta: {
@@ -196,15 +217,16 @@ export function useAllocationHistory(options: {
  * Analyzes usage patterns to recommend quota adjustments
  */
 export function useAllocationSuggestions() {
-  const { profile, isLoading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   const { data: canManage } = useCanManageAllocations();
   
   return useQuery({
-    queryKey: profile?.preschool_id 
-      ? aiAllocationKeys.allocationSuggestions(profile.preschool_id)
+    queryKey: preschoolId 
+      ? aiAllocationKeys.allocationSuggestions(preschoolId)
       : ['ai-allocation', 'no-suggestions'],
     queryFn: async () => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         return {
           suggestions: [],
           school_summary: {
@@ -216,9 +238,9 @@ export function useAllocationSuggestions() {
         };
       }
       
-      return await getOptimalAllocationSuggestions(profile.preschool_id);
+      return await getOptimalAllocationSuggestions(preschoolId);
     },
-    enabled: !profileLoading && !!profile?.preschool_id && canManage === true,
+    enabled: !profileLoading && !!preschoolId && canManage === true,
     staleTime: 15 * 60 * 1000, // 15 minutes (analysis is compute-intensive)
     gcTime: 60 * 60 * 1000, // 1 hour
     meta: {
@@ -233,7 +255,8 @@ export function useAllocationSuggestions() {
  */
 export function useAllocateAIQuotas() {
   const queryClient = useQueryClient();
-  const { profile } = useProfile();
+  const { profile } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useMutation({
     mutationFn: async ({
@@ -249,12 +272,12 @@ export function useAllocateAIQuotas() {
         priority_level?: 'low' | 'normal' | 'high';
       };
     }) => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         throw new Error('No school context available');
       }
       
       const result = await allocateAIQuotas(
-        profile.preschool_id,
+        preschoolId,
         teacherId,
         quotas,
         options
@@ -267,25 +290,25 @@ export function useAllocateAIQuotas() {
       return result.allocation;
     },
     onSuccess: (allocation, variables) => {
-      if (!profile?.preschool_id) return;
+      if (!preschoolId) return;
       
       // Invalidate related queries
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.schoolSubscription(profile.preschool_id),
+        queryKey: aiAllocationKeys.schoolSubscription(preschoolId),
       });
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.teacherAllocations(profile.preschool_id),
+        queryKey: aiAllocationKeys.teacherAllocations(preschoolId),
       });
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.teacherAllocation(profile.preschool_id, variables.teacherId),
+        queryKey: aiAllocationKeys.teacherAllocation(preschoolId, variables.teacherId),
       });
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.allocationHistory(profile.preschool_id),
+        queryKey: aiAllocationKeys.allocationHistory(preschoolId),
       });
       
       // Track successful allocation
       track('edudash.ai.allocation.ui.success', {
-        preschool_id: profile.preschool_id,
+        preschool_id: preschoolId,
         teacher_id: variables.teacherId,
         quotas_allocated: variables.quotas,
         priority_level: variables.options?.priority_level || 'normal',
@@ -294,7 +317,7 @@ export function useAllocateAIQuotas() {
     onError: (error, variables) => {
       // Track allocation failure
       track('edudash.ai.allocation.ui.failed', {
-        preschool_id: profile?.preschool_id,
+        preschool_id: preschoolId,
         teacher_id: variables.teacherId,
         error: error.message,
       });
@@ -317,15 +340,16 @@ export function useAllocateAIQuotas() {
  */
 export function useRequestAIQuotas() {
   const queryClient = useQueryClient();
-  const { profile } = useProfile();
+  const { profile } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useMutation({
     mutationFn: async (request: AllocationRequest) => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         throw new Error('No school context available');
       }
       
-      const result = await requestAIQuotas(profile.preschool_id, request);
+      const result = await requestAIQuotas(preschoolId, request);
       
       if (!result.success) {
         throw new Error(result.error || 'Failed to request quotas');
@@ -345,7 +369,7 @@ export function useRequestAIQuotas() {
       });
       
       track('edudash.ai.allocation.request.submitted', {
-        preschool_id: profile?.preschool_id,
+        preschool_id: preschoolId,
         teacher_id: variables.teacher_id,
         urgency: variables.urgency,
         request_id: requestId,
@@ -353,7 +377,7 @@ export function useRequestAIQuotas() {
     },
     onError: (error, variables) => {
       track('edudash.ai.allocation.request.failed', {
-        preschool_id: profile?.preschool_id,
+        preschool_id: preschoolId,
         teacher_id: variables.teacher_id,
         error: error.message,
       });
@@ -375,7 +399,8 @@ export function useRequestAIQuotas() {
  */
 export function useBulkAllocateQuotas() {
   const queryClient = useQueryClient();
-  const { profile } = useProfile();
+  const { profile } = useAuth();
+  const { preschoolId } = getAllocationScope(profile);
   
   return useMutation({
     mutationFn: async (allocations: Array<{
@@ -383,11 +408,11 @@ export function useBulkAllocateQuotas() {
       quotas: Partial<Record<AIQuotaFeature, number>>;
       reason?: string;
     }>) => {
-      if (!profile?.preschool_id) {
+      if (!preschoolId) {
         throw new Error('No school context available');
       }
       
-      const result = await bulkAllocateQuotas(profile.preschool_id, allocations);
+      const result = await bulkAllocateQuotas(preschoolId, allocations);
       
       if (!result.success) {
         throw new Error('Bulk allocation failed');
@@ -396,17 +421,17 @@ export function useBulkAllocateQuotas() {
       return result;
     },
     onSuccess: (result) => {
-      if (!profile?.preschool_id) return;
+      if (!preschoolId) return;
       
       // Invalidate all allocation-related queries
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.schoolSubscription(profile.preschool_id),
+        queryKey: aiAllocationKeys.schoolSubscription(preschoolId),
       });
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.teacherAllocations(profile.preschool_id),
+        queryKey: aiAllocationKeys.teacherAllocations(preschoolId),
       });
       queryClient.invalidateQueries({
-        queryKey: aiAllocationKeys.allocationHistory(profile.preschool_id),
+        queryKey: aiAllocationKeys.allocationHistory(preschoolId),
       });
       
       // Invalidate individual teacher allocations
@@ -414,7 +439,7 @@ export function useBulkAllocateQuotas() {
         if (teacherResult.success) {
           queryClient.invalidateQueries({
             queryKey: aiAllocationKeys.teacherAllocation(
-              profile.preschool_id!, 
+              preschoolId, 
               teacherResult.teacher_id
             ),
           });
@@ -422,7 +447,7 @@ export function useBulkAllocateQuotas() {
       });
       
       track('edudash.ai.allocation.bulk.success', {
-        preschool_id: profile.preschool_id,
+        preschool_id: preschoolId,
         total_teachers: result.results.length,
         successful: result.summary.successful,
         failed: result.summary.failed,
@@ -430,7 +455,7 @@ export function useBulkAllocateQuotas() {
     },
     onError: (error, variables) => {
       track('edudash.ai.allocation.bulk.failed', {
-        preschool_id: profile?.preschool_id,
+        preschool_id: preschoolId,
         total_teachers: variables.length,
         error: error.message,
       });

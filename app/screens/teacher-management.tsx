@@ -24,9 +24,13 @@ import { assertSupabase } from '@/lib/supabase';
 import { TeacherInviteService } from '@/lib/services/teacherInviteService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { navigateBack } from '@/lib/navigation';
+// NEW: Import seat management hooks and types
+import { useSeatLimits, useTeacherHasSeat } from '@/lib/hooks/useSeatLimits';
+import { SeatUsageDisplay } from '@/lib/types/seats';
 
 interface Teacher {
   id: string;
+  authUserId: string; // auth.users.id for seat mapping
   employeeId: string;
   firstName: string;
   lastName: string;
@@ -128,6 +132,19 @@ export default function TeacherManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   
+  // NEW: Seat management integration
+  const {
+    seatUsageDisplay,
+    shouldDisableAssignment,
+    assignSeat,
+    revokeSeat,
+    isAssigning,
+    isRevoking,
+    isLoading: seatLimitsLoading,
+    isError: seatLimitsError,
+    refetch: refetchSeatLimits,
+  } = useSeatLimits();
+  
   // Get preschool ID from user context
   const getPreschoolId = useCallback((): string | null => {
     if (profile?.organization_id) {
@@ -179,13 +196,14 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
       console.log('✅ Real teachers fetched:', teachersData?.length || 0);
       
       // Transform database data to match Teacher interface
-      const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any) => {
+const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any) => {
         const nameParts = (dbTeacher.name || 'Unknown Teacher').split(' ');
         const firstName = nameParts[0] || 'Unknown';
         const lastName = nameParts.slice(1).join(' ') || 'Teacher';
         
         return {
           id: dbTeacher.id,
+          authUserId: dbTeacher.auth_user_id,
           employeeId: `EMP${dbTeacher.id.slice(0, 3)}`,
           firstName,
           lastName,
@@ -269,6 +287,55 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
       // ignore
     }
   };
+  
+  // NEW: Seat management handlers
+  const handleAssignSeat = useCallback((teacherId: string, teacherName: string) => {
+    if (shouldDisableAssignment) {
+      Alert.alert(
+        'Seat Limit Reached',
+        `Cannot assign more teacher seats. You have reached the limit for your current plan.${seatUsageDisplay ? `\n\nCurrent usage: ${seatUsageDisplay.displayText}` : ''}`,
+        [
+          { text: 'OK', style: 'default' },
+          { text: 'Upgrade Plan', onPress: () => {
+            // TODO: Navigate to subscription upgrade screen
+            Alert.alert('Upgrade Plan', 'Plan upgrade feature coming soon!');
+          }}
+        ]
+      );
+      return;
+    }
+    
+    Alert.alert(
+      'Assign Teacher Seat',
+      `Assign a teacher seat to ${teacherName}?\n\nThis will allow them to use the teacher portal and access student information.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Assign Seat',
+          onPress: () => {
+            assignSeat({ teacherUserId: teacherId });
+          }
+        }
+      ]
+    );
+  }, [shouldDisableAssignment, seatUsageDisplay, assignSeat]);
+  
+  const handleRevokeSeat = useCallback((teacherId: string, teacherName: string) => {
+    Alert.alert(
+      'Revoke Teacher Seat',
+      `Are you sure you want to revoke the teacher seat from ${teacherName}?\n\nThey will lose access to the teacher portal until a new seat is assigned.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke Seat',
+          style: 'destructive',
+          onPress: () => {
+            revokeSeat({ teacherUserId: teacherId });
+          }
+        }
+      ]
+    );
+  }, [revokeSeat]);
   const [inviteEmail, setInviteEmail] = useState('');
 
   const handleAddTeacher = () => {
@@ -430,34 +497,97 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
     return matchesSearch && matchesFilter;
   });
 
-  const renderTeacher = ({ item }: { item: Teacher }) => (
-    <TouchableOpacity
-      style={styles.teacherCard}
-      onPress={() => handleTeacherPress(item)}
-    >
-      <View style={styles.teacherAvatar}>
-        <Text style={styles.avatarText}>
-          {item.firstName.charAt(0)}{item.lastName.charAt(0)}
-        </Text>
-      </View>
-      
-      <View style={styles.teacherInfo}>
-        <Text style={styles.teacherName}>
-          {item.firstName} {item.lastName}
-        </Text>
-        <Text style={styles.teacherEmail}>{item.email}</Text>
-        <Text style={styles.teacherClasses}>
-          Classes: {item.classes.join(', ')}
-        </Text>
-      </View>
-      
-      <View style={styles.teacherStatus}>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status}</Text>
+  // NEW: Component for teacher cards with seat management
+const TeacherCardWithSeatManagement = ({ item }: { item: Teacher }) => {
+    const teacherHasSeat = useTeacherHasSeat(item.authUserId);
+    const fullName = `${item.firstName} ${item.lastName}`;
+    
+    return (
+      <TouchableOpacity
+        style={styles.teacherCard}
+        onPress={() => handleTeacherPress(item)}
+      >
+        <View style={styles.teacherAvatar}>
+          <Text style={styles.avatarText}>
+            {item.firstName.charAt(0)}{item.lastName.charAt(0)}
+          </Text>
         </View>
-        <Ionicons name="chevron-forward" size={20} color={theme?.textSecondary || '#666'} />
-      </View>
-    </TouchableOpacity>
+        
+        <View style={styles.teacherInfo}>
+          <Text style={styles.teacherName}>
+            {fullName}
+          </Text>
+          <Text style={styles.teacherEmail}>{item.email}</Text>
+          <Text style={styles.teacherClasses}>
+            Classes: {item.classes.join(', ')}
+          </Text>
+          
+          {/* NEW: Seat status indicator */}
+          <View style={styles.seatStatusContainer}>
+            <Ionicons 
+              name={teacherHasSeat ? 'checkmark-circle' : 'ellipse-outline'} 
+              size={14} 
+              color={teacherHasSeat ? '#059669' : '#6b7280'} 
+            />
+            <Text style={[styles.seatStatusText, { color: teacherHasSeat ? '#059669' : '#6b7280' }]}>
+              {teacherHasSeat ? 'Has teacher seat' : 'No teacher seat'}
+            </Text>
+          </View>
+        </View>
+        
+        <View style={styles.teacherActions}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusText}>{item.status}</Text>
+          </View>
+          
+          {/* NEW: Seat management actions */}
+          <View style={styles.seatActions}>
+            {teacherHasSeat ? (
+              <TouchableOpacity
+                style={[styles.seatActionButton, styles.revokeButton]}
+onPress={(e: any) => {
+                  e.stopPropagation();
+                  handleRevokeSeat(item.authUserId, fullName);
+                }}
+                disabled={isRevoking}
+              >
+                <Ionicons name="remove-circle" size={16} color="#dc2626" />
+                <Text style={[styles.seatActionText, { color: '#dc2626' }]}>Revoke</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.seatActionButton, 
+                  styles.assignButton,
+                  shouldDisableAssignment && styles.disabledButton
+                ]}
+onPress={(e: any) => {
+                  e.stopPropagation();
+                  handleAssignSeat(item.authUserId, fullName);
+                }}
+                disabled={isAssigning || shouldDisableAssignment}
+              >
+                <Ionicons 
+                  name="add-circle" 
+                  size={16} 
+                  color={shouldDisableAssignment ? '#9ca3af' : '#059669'} 
+                />
+                <Text style={[
+                  styles.seatActionText, 
+                  { color: shouldDisableAssignment ? '#9ca3af' : '#059669' }
+                ]}>Assign</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <Ionicons name="chevron-forward" size={20} color={theme?.textSecondary || '#666'} />
+        </View>
+      </TouchableOpacity>
+    );
+  };
+  
+  const renderTeacher = ({ item }: { item: Teacher }) => (
+    <TeacherCardWithSeatManagement item={item} />
   );
 
   return (
@@ -548,6 +678,36 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
       <View style={styles.contentContainer}>
         {currentView === 'overview' && (
           <View style={styles.overviewContainer}>
+            {/* NEW: Seat Usage Display Header */}
+            {seatUsageDisplay && (
+              <View style={styles.seatUsageHeader}>
+                <View style={styles.seatUsageInfo}>
+                  <Ionicons name="people" size={20} color={theme?.primary || '#007AFF'} />
+                  <Text style={styles.seatUsageText}>{seatUsageDisplay.displayText}</Text>
+                  {seatUsageDisplay.isOverLimit && (
+                    <View style={styles.overLimitBadge}>
+                      <Ionicons name="warning" size={14} color="#dc2626" />
+                      <Text style={styles.overLimitText}>Over Limit</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity 
+                  style={styles.refreshButton}
+                  onPress={() => {
+                    refetchSeatLimits();
+                    fetchTeachers();
+                  }}
+                  disabled={seatLimitsLoading}
+                >
+                  <Ionicons 
+                    name="refresh" 
+                    size={18} 
+                    color={theme?.textSecondary || '#6b7280'} 
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+            
             <FlatList
               data={filteredTeachers}
               renderItem={renderTeacher}
@@ -1274,5 +1434,88 @@ const createStyles = (theme: any) => StyleSheet.create({
   btnDangerText: { color: '#000', fontWeight: '800' },
   docCompleteText: {
     color: theme?.success || '#065f46',
+  },
+  // NEW: Seat Management Styles
+  seatUsageHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: theme?.surface || 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: theme?.border || '#f3f4f6',
+    marginBottom: 8,
+  },
+  seatUsageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  seatUsageText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme?.text || '#333',
+    marginLeft: 8,
+  },
+  overLimitBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 12,
+  },
+  overLimitText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#dc2626',
+    marginLeft: 4,
+  },
+  refreshButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: theme?.surfaceVariant || '#f9fafb',
+  },
+  seatStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  seatStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  teacherActions: {
+    alignItems: 'flex-end',
+  },
+  seatActions: {
+    marginVertical: 8,
+  },
+  seatActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 12,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  assignButton: {
+    backgroundColor: '#f0f9ff',
+  },
+  revokeButton: {
+    backgroundColor: '#fef2f2',
+  },
+  disabledButton: {
+    backgroundColor: '#f9fafb',
+    opacity: 0.6,
+  },
+  seatActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });

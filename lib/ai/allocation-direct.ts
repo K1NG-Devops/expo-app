@@ -18,20 +18,68 @@ export async function getSchoolAISubscriptionDirect(preschoolId: string): Promis
   try {
     const client = assertSupabase();
     
-    // Get basic school info and subscription details
+    // Get school info with actual subscription details
     const { data: school, error: schoolError } = await client
       .from('preschools')
-      .select('id, name, subscription_tier, subscription_plan')
+      .select(`
+        id, 
+        name, 
+        subscription_tier,
+        subscriptions!inner(
+          status,
+          subscription_plans!inner(
+            name,
+            tier,
+            price_monthly
+          )
+        )
+      `)
       .eq('id', preschoolId)
+      .eq('subscriptions.status', 'active')
       .single();
 
     if (schoolError || !school) {
-      console.warn('School not found:', schoolError);
-      return null;
+      console.warn('School not found or no active subscription:', schoolError);
+      // Fallback - try to get school without subscription join
+      const { data: fallbackSchool, error: fallbackError } = await client
+        .from('preschools')
+        .select('id, name, subscription_tier')
+        .eq('id', preschoolId)
+        .single();
+      
+      if (fallbackError || !fallbackSchool) {
+        console.warn('School completely not found:', fallbackError);
+        return null;
+      }
+      
+      // Use free tier as default
+      const tier = fallbackSchool.subscription_tier || 'free';
+      const baseQuotas = getBaseQuotasByTier(tier);
+      
+      return {
+        preschool_id: preschoolId,
+        subscription_tier: tier as any,
+        org_type: 'preschool' as any,
+        total_quotas: baseQuotas,
+        allocated_quotas: { 'chat_completions': 0, 'image_generation': 0, 'text_to_speech': 0, 'speech_to_text': 0 },
+        available_quotas: baseQuotas,
+        total_usage: { 'chat_completions': 0, 'image_generation': 0, 'text_to_speech': 0, 'speech_to_text': 0 },
+        allow_teacher_self_allocation: false,
+        default_teacher_quotas: { 'chat_completions': 10, 'image_generation': 5, 'text_to_speech': 10, 'speech_to_text': 10 },
+        max_individual_quota: { 'chat_completions': Math.floor(baseQuotas.chat_completions * 0.5), 'image_generation': Math.floor(baseQuotas.image_generation * 0.5), 'text_to_speech': Math.floor(baseQuotas.text_to_speech * 0.5), 'speech_to_text': Math.floor(baseQuotas.speech_to_text * 0.5) },
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        updated_by: 'system',
+      };
     }
 
-    // Create a mock subscription based on tier
-    const tier = school.subscription_tier || 'enterprise';
+    // Extract tier from active subscription plan
+    const activeSub = school.subscriptions[0];
+    const subscriptionPlan = activeSub?.subscription_plans;
+    const tier = subscriptionPlan?.tier || school.subscription_tier || 'free';
+    
     const baseQuotas = getBaseQuotasByTier(tier);
 
     const subscription: SchoolAISubscription = {
@@ -135,7 +183,6 @@ export async function getTeacherAllocationsDirect(preschoolId: string): Promise<
     }
 
     if (!teachers || teachers.length === 0) {
-      console.log('No teachers found for school:', preschoolId);
       return [];
     }
 
@@ -185,7 +232,6 @@ export async function getTeacherAllocationsDirect(preschoolId: string): Promise<
       };
     });
 
-    console.log(`Found ${allocations.length} teacher allocations for school ${preschoolId}`);
     return allocations;
     
   } catch (error) {
@@ -223,7 +269,6 @@ export async function canManageAllocationsDirect(userId: string, preschoolId: st
 
     // Check if user has allocation management permissions
     const canManage = ['principal', 'principal_admin', 'super_admin'].includes(profile.role);
-    console.log(`User ${userId} can manage allocations: ${canManage} (role: ${profile.role})`);
     
     return canManage;
     
@@ -291,11 +336,23 @@ function getBaseQuotasByTier(tier: string): Record<string, number> {
       'text_to_speech': 200,
       'speech_to_text': 200,
     },
+    'basic': {
+      'chat_completions': 1000,
+      'image_generation': 100,
+      'text_to_speech': 300,
+      'speech_to_text': 300,
+    },
     'premium': {
       'chat_completions': 2000,
       'image_generation': 200,
       'text_to_speech': 500,
       'speech_to_text': 500,
+    },
+    'pro': {
+      'chat_completions': 5000,
+      'image_generation': 500,
+      'text_to_speech': 1000,
+      'speech_to_text': 1000,
     },
     'enterprise': {
       'chat_completions': 10000,
@@ -305,7 +362,9 @@ function getBaseQuotasByTier(tier: string): Record<string, number> {
     },
   };
 
-  return quotaMap[tier] || quotaMap['enterprise'];
+  // Default to free tier instead of enterprise if tier is not found
+  const tierKey = tier?.toLowerCase() || 'free';
+  return quotaMap[tierKey] || quotaMap['free'];
 }
 
 /**

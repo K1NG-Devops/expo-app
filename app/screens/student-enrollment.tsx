@@ -15,7 +15,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -116,11 +116,13 @@ const initialStudentInfo: StudentInfo = {
 
 export default function StudentEnrollment() {
   const { user, profile } = useAuth();
+  const { theme, isDark } = useTheme();
   const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [currentStep, setCurrentStep] = useState<EnrollmentStep>('basic');
   const [studentInfo, setStudentInfo] = useState<StudentInfo>(initialStudentInfo);
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<{[key: string]: string}>({});
+  const [schoolType, setSchoolType] = useState<'preschool' | 'k12'>('k12'); // Default to K-12
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   
   // Get preschool ID from user context
@@ -131,9 +133,29 @@ export default function StudentEnrollment() {
     return user?.user_metadata?.preschool_id || null;
   }, [profile, user]);
 
-  const grades: Grade[] = [
+  // Define grade options based on school type
+  const preschoolGrades: Grade[] = [
     { 
-      id: 'grade-r', name: 'Grade R', capacity: 30, enrolled: 28, available: 2,
+      id: 'baby-class', name: 'Baby Class (6-12 months)', capacity: 8, enrolled: 6, available: 2,
+      fees: { admission: 300, tuition: 1800, books: 150, uniform: 200, activities: 100 }
+    },
+    { 
+      id: 'toddler-class', name: 'Toddler Class (1-2 years)', capacity: 12, enrolled: 10, available: 2,
+      fees: { admission: 350, tuition: 2000, books: 200, uniform: 220, activities: 120 }
+    },
+    { 
+      id: 'pre-k', name: 'Pre-K (3-4 years)', capacity: 15, enrolled: 14, available: 1,
+      fees: { admission: 400, tuition: 2200, books: 250, uniform: 250, activities: 150 }
+    },
+    { 
+      id: 'kindergarten', name: 'Kindergarten (4-5 years)', capacity: 18, enrolled: 16, available: 2,
+      fees: { admission: 450, tuition: 2400, books: 300, uniform: 280, activities: 170 }
+    },
+  ];
+
+  const k12Grades: Grade[] = [
+    { 
+      id: 'grade-r', name: 'Grade R (5-6 years)', capacity: 30, enrolled: 28, available: 2,
       fees: { admission: 500, tuition: 2800, books: 450, uniform: 300, activities: 200 }
     },
     { 
@@ -164,7 +186,30 @@ export default function StudentEnrollment() {
       id: 'grade-7', name: 'Grade 7', capacity: 30, enrolled: 23, available: 7,
       fees: { admission: 500, tuition: 4200, books: 720, uniform: 450, activities: 400 }
     },
+    { 
+      id: 'grade-8', name: 'Grade 8', capacity: 30, enrolled: 28, available: 2,
+      fees: { admission: 500, tuition: 4200, books: 720, uniform: 450, activities: 400 }
+    },
+    { 
+      id: 'grade-9', name: 'Grade 9', capacity: 30, enrolled: 25, available: 5,
+      fees: { admission: 600, tuition: 4500, books: 800, uniform: 500, activities: 450 }
+    },
+    { 
+      id: 'grade-10', name: 'Grade 10', capacity: 30, enrolled: 27, available: 3,
+      fees: { admission: 600, tuition: 4500, books: 800, uniform: 500, activities: 450 }
+    },
+    { 
+      id: 'grade-11', name: 'Grade 11', capacity: 30, enrolled: 22, available: 8,
+      fees: { admission: 600, tuition: 4800, books: 850, uniform: 520, activities: 480 }
+    },
+    { 
+      id: 'grade-12', name: 'Grade 12', capacity: 30, enrolled: 24, available: 6,
+      fees: { admission: 600, tuition: 4800, books: 850, uniform: 520, activities: 480 }
+    },
   ];
+
+  // Get appropriate grades based on school type
+  const grades = schoolType === 'preschool' ? preschoolGrades : k12Grades;
 
   const stepOrder: EnrollmentStep[] = ['basic', 'contact', 'parent', 'medical', 'documents', 'fees', 'review'];
   
@@ -225,6 +270,16 @@ export default function StudentEnrollment() {
     const grade = grades.find(g => g.id === selectedGrade);
     if (!grade) return 0;
     return Object.values(grade.fees).reduce((total, fee) => total + fee, 0);
+  };
+
+  const getSchoolTypeTitle = () => {
+    return schoolType === 'preschool' ? 'Preschool Enrollment' : 'K-12 School Enrollment';
+  };
+
+  const getSchoolTypeDescription = () => {
+    return schoolType === 'preschool' 
+      ? 'Enroll children aged 6 months to 5 years in our preschool programs'
+      : 'Enroll students from Grade R (Reception) to Grade 12 in our K-12 school';
   };
 
   const handleEnrollStudent = async () => {
@@ -323,7 +378,8 @@ export default function StudentEnrollment() {
         key={grade.id}
         style={[
           styles.gradeCard,
-          isSelected && styles.selectedGradeCard,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          isSelected && { borderColor: theme.primary, backgroundColor: theme.primaryLight + '20' },
           !isAvailable && styles.disabledGradeCard
         ]}
         onPress={() => isAvailable ? setSelectedGrade(grade.id) : null}
@@ -332,18 +388,23 @@ export default function StudentEnrollment() {
         <View style={styles.gradeHeader}>
           <Text style={[
             styles.gradeName,
-            isSelected && styles.selectedGradeText,
-            !isAvailable && styles.disabledText
+            { color: theme.text },
+            isSelected && { color: theme.primary },
+            !isAvailable && { color: theme.textTertiary }
           ]}>
             {grade.name}
           </Text>
           {isSelected && (
-            <Ionicons name="checkmark-circle" size={24} color={Colors.light.tint} />
+            <Ionicons name="checkmark-circle" size={24} color={theme.primary} />
           )}
         </View>
         
         <View style={styles.gradeStats}>
-          <Text style={[styles.statText, !isAvailable && styles.disabledText]}>
+          <Text style={[
+            styles.statText, 
+            { color: theme.textSecondary },
+            !isAvailable && { color: theme.textTertiary }
+          ]}>
             {grade.enrolled}/{grade.capacity} enrolled
           </Text>
           <Text style={[
@@ -358,25 +419,73 @@ export default function StudentEnrollment() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.headerBackground, borderBottomColor: theme.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Student Enrollment</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{getSchoolTypeTitle()}</Text>
         <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
+        {/* School Type Selection */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>School Type</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+            Select the type of school for enrollment
+          </Text>
+          
+          <View style={styles.schoolTypeContainer}>
+            <TouchableOpacity
+              style={[
+                styles.schoolTypeButton,
+                { borderColor: theme.border, backgroundColor: theme.surface },
+                schoolType === 'preschool' && { borderColor: theme.primary, backgroundColor: theme.primaryLight + '20' }
+              ]}
+              onPress={() => {
+                setSchoolType('preschool');
+                setSelectedGrade(''); // Reset grade selection
+              }}
+            >
+              <Text style={[styles.schoolTypeTitle, { color: schoolType === 'preschool' ? theme.primary : theme.text }]}>
+                Preschool
+              </Text>
+              <Text style={[styles.schoolTypeDescription, { color: theme.textSecondary }]}>
+                Ages 6 months - 5 years
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.schoolTypeButton,
+                { borderColor: theme.border, backgroundColor: theme.surface },
+                schoolType === 'k12' && { borderColor: theme.primary, backgroundColor: theme.primaryLight + '20' }
+              ]}
+              onPress={() => {
+                setSchoolType('k12');
+                setSelectedGrade(''); // Reset grade selection
+              }}
+            >
+              <Text style={[styles.schoolTypeTitle, { color: schoolType === 'k12' ? theme.primary : theme.text }]}>
+                K-12 School
+              </Text>
+              <Text style={[styles.schoolTypeDescription, { color: theme.textSecondary }]}>
+                Grade R - Grade 12 (South African System)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
         {/* Grade Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Select Grade</Text>
-          <Text style={styles.sectionSubtitle}>
-            Choose the grade for the new student
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Select {schoolType === 'preschool' ? 'Class' : 'Grade'}</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+            {getSchoolTypeDescription()}
           </Text>
           
           <View style={styles.gradesGrid}>
@@ -386,38 +495,38 @@ export default function StudentEnrollment() {
 
         {/* Student Information */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Student Information</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Student Information</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Student First Name *</Text>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>Student First Name *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder, color: theme.inputText }]}
               value={studentInfo.firstName}
               onChangeText={(value) => updateStudentInfo('firstName', value)}
               placeholder="Enter student's first name"
-              placeholderTextColor={Colors.light.tabIconDefault}
+              placeholderTextColor={theme.inputPlaceholder}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Student Last Name *</Text>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>Student Last Name *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder, color: theme.inputText }]}
               value={studentInfo.lastName}
               onChangeText={(value) => updateStudentInfo('lastName', value)}
               placeholder="Enter student's last name"
-              placeholderTextColor={Colors.light.tabIconDefault}
+              placeholderTextColor={theme.inputPlaceholder}
             />
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Parent/Guardian Email *</Text>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>Parent/Guardian Email *</Text>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder, color: theme.inputText }]}
               value={studentInfo.parentEmail}
               onChangeText={(value) => updateStudentInfo('parentEmail', value)}
               placeholder="parent@example.com"
-              placeholderTextColor={Colors.light.tabIconDefault}
+              placeholderTextColor={theme.inputPlaceholder}
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -427,18 +536,21 @@ export default function StudentEnrollment() {
         {/* Enrollment Summary */}
         {selectedGrade && studentInfo.firstName && studentInfo.parentEmail && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Enrollment Summary</Text>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryText}>
-                Student: <Text style={styles.summaryBold}>{studentInfo.firstName} {studentInfo.lastName}</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Enrollment Summary</Text>
+            <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                School Type: <Text style={[styles.summaryBold, { color: theme.text }]}>{schoolType === 'preschool' ? 'Preschool' : 'K-12 School'}</Text>
               </Text>
-              <Text style={styles.summaryText}>
-                Grade: <Text style={styles.summaryBold}>
+              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                Student: <Text style={[styles.summaryBold, { color: theme.text }]}>{studentInfo.firstName} {studentInfo.lastName}</Text>
+              </Text>
+              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                {schoolType === 'preschool' ? 'Class' : 'Grade'}: <Text style={[styles.summaryBold, { color: theme.text }]}>
                   {grades.find(g => g.id === selectedGrade)?.name}
                 </Text>
               </Text>
-              <Text style={styles.summaryText}>
-                Parent Email: <Text style={styles.summaryBold}>{studentInfo.parentEmail}</Text>
+              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                Parent Email: <Text style={[styles.summaryBold, { color: theme.text }]}>{studentInfo.parentEmail}</Text>
               </Text>
             </View>
           </View>
@@ -448,14 +560,16 @@ export default function StudentEnrollment() {
         <TouchableOpacity
           style={[
             styles.enrollButton,
-            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && styles.disabledButton
+            { backgroundColor: theme.primary },
+            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && [styles.disabledButton, { backgroundColor: theme.textDisabled }]
           ]}
           onPress={handleEnrollStudent}
           disabled={!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail || loading}
         >
           <Text style={[
             styles.enrollButtonText,
-            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && styles.disabledButtonText
+            { color: theme.onPrimary },
+            (!selectedGrade || !studentInfo.firstName || !studentInfo.parentEmail) && [styles.disabledButtonText, { color: theme.textTertiary }]
           ]}>
             {loading ? 'Enrolling...' : 'Enroll Student'}
           </Text>
@@ -468,7 +582,23 @@ export default function StudentEnrollment() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#f8fafc', // Will be overridden by theme
+  },
+  schoolTypeContainer: {
+    gap: 12,
+  },
+  schoolTypeButton: {
+    borderRadius: 12,
+    borderWidth: 2,
+    padding: 16,
+  },
+  schoolTypeTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  schoolTypeDescription: {
+    fontSize: 14,
   },
   header: {
     flexDirection: 'row',
@@ -487,7 +617,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.light.text,
+    // color will be set dynamically with theme
   },
   placeholder: {
     width: 40,
@@ -501,12 +631,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    // color will be set dynamically with theme
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    // color will be set dynamically with theme
     marginBottom: 16,
   },
   gradesGrid: {
@@ -523,8 +653,7 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   selectedGradeCard: {
-    borderColor: Colors.light.tint,
-    backgroundColor: '#f0f9ff',
+    // borderColor and backgroundColor will be set dynamically with theme
   },
   disabledGradeCard: {
     opacity: 0.5,
@@ -538,20 +667,20 @@ const styles = StyleSheet.create({
   gradeName: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    // color will be set dynamically with theme
   },
   selectedGradeText: {
-    color: Colors.light.tint,
+    // color will be set dynamically with theme
   },
   disabledText: {
-    color: Colors.light.tabIconDefault,
+    // color will be set dynamically with theme
   },
   gradeStats: {
     gap: 2,
   },
   statText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    // color will be set dynamically with theme
   },
   availableText: {
     fontSize: 12,
@@ -569,34 +698,33 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.light.text,
+    // color will be set dynamically with theme
     marginBottom: 8,
   },
   textInput: {
-    backgroundColor: 'white',
+    // backgroundColor, borderColor, color will be set dynamically with theme
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    color: Colors.light.text,
   },
   summaryCard: {
-    backgroundColor: 'white',
+    // backgroundColor and borderColor will be set dynamically with theme
     borderRadius: 12,
     padding: 16,
     gap: 8,
+    borderWidth: 1,
   },
   summaryText: {
     fontSize: 16,
-    color: Colors.light.tabIconDefault,
+    // color will be set dynamically with theme
   },
   summaryBold: {
     fontWeight: '600',
-    color: Colors.light.text,
+    // color will be set dynamically with theme
   },
   enrollButton: {
-    backgroundColor: Colors.light.tint,
+    // backgroundColor will be set dynamically with theme
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -604,14 +732,14 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   disabledButton: {
-    backgroundColor: Colors.light.tabIconDefault,
+    // backgroundColor will be set dynamically with theme
   },
   enrollButtonText: {
-    color: 'white',
+    // color will be set dynamically with theme
     fontSize: 18,
     fontWeight: '600',
   },
   disabledButtonText: {
-    color: '#9ca3af',
+    // color will be set dynamically with theme
   },
 });

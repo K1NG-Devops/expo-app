@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 interface AnnouncementModalProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   onSend,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
@@ -53,17 +55,17 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   const [isScheduled, setIsScheduled] = useState(false);
 
   const audiences = [
-    { id: 'teachers', label: 'Teachers', icon: 'school', color: '#4F46E5' },
-    { id: 'parents', label: 'Parents', icon: 'people', color: '#059669' },
-    { id: 'students', label: 'Students', icon: 'person', color: '#7C3AED' },
-    { id: 'admin', label: 'Admin Staff', icon: 'briefcase', color: '#DC2626' },
+    { id: 'teachers', label: t('announcement.teachers'), icon: 'school', color: '#4F46E5' },
+    { id: 'parents', label: t('announcement.parents'), icon: 'people', color: '#059669' },
+    { id: 'students', label: t('announcement.students'), icon: 'person', color: '#7C3AED' },
+    { id: 'admin', label: t('announcement.admin_staff'), icon: 'briefcase', color: '#DC2626' },
   ];
 
   const priorities = [
-    { id: 'low', label: 'Low', color: '#6B7280', icon: 'remove-circle' },
-    { id: 'normal', label: 'Normal', color: '#4F46E5', icon: 'information-circle' },
-    { id: 'high', label: 'High', color: '#F59E0B', icon: 'warning' },
-    { id: 'urgent', label: 'Urgent', color: '#DC2626', icon: 'alert-circle' },
+    { id: 'low', label: t('announcement.low'), color: '#6B7280', icon: 'remove-circle' },
+    { id: 'normal', label: t('announcement.normal'), color: '#4F46E5', icon: 'information-circle' },
+    { id: 'high', label: t('announcement.high'), color: '#F59E0B', icon: 'warning' },
+    { id: 'urgent', label: t('announcement.urgent'), color: '#DC2626', icon: 'alert-circle' },
   ];
 
   const handleAudienceToggle = (audienceId: string) => {
@@ -76,12 +78,12 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
   const handleSend = () => {
     if (!title.trim() || !message.trim()) {
-      Alert.alert('Missing Information', 'Please provide both title and message');
+      Alert.alert(t('announcement.missing_information'), t('announcement.provide_title_message'));
       return;
     }
 
     if (selectedAudience.length === 0) {
-      Alert.alert('No Audience', 'Please select at least one audience');
+      Alert.alert(t('announcement.no_audience'), t('announcement.select_audience'));
       return;
     }
 
@@ -116,7 +118,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     };
     
     const total = selectedAudience.reduce((sum, id) => sum + (counts[id as keyof typeof counts] || 0), 0);
-    return `${total} recipients`;
+    return t('announcement.recipients_count', { count: total });
   };
 
   return (
@@ -132,14 +134,14 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
           <TouchableOpacity onPress={handleClose}>
             <Ionicons name="close" size={24} color={theme?.text || '#333'} />
           </TouchableOpacity>
-          <Text style={styles.title}>Create Announcement</Text>
+          <Text style={styles.title}>{t('announcement.create_announcement')}</Text>
           <TouchableOpacity 
             onPress={handleSend}
             style={[styles.sendButton, (!title || !message) && styles.sendButtonDisabled]}
             disabled={!title || !message}
           >
             <Text style={[styles.sendButtonText, (!title || !message) && styles.sendButtonTextDisabled]}>
-              Send
+              {t('announcement.send')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -147,12 +149,12 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Title Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Title</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.title')}</Text>
             <TextInput
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
-              placeholder="Enter announcement title..."
+              placeholder={t('announcement.enter_title')}
               placeholderTextColor="#9CA3AF"
               maxLength={100}
             />
@@ -160,26 +162,26 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Message Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Message</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.message')}</Text>
             <TextInput
               style={styles.messageInput}
               value={message}
               onChangeText={setMessage}
-              placeholder="Write your announcement message here..."
+              placeholder={t('announcement.write_message')}
               placeholderTextColor="#9CA3AF"
               multiline
               textAlignVertical="top"
               maxLength={1000}
             />
             <Text style={styles.characterCount}>
-              {message.length}/1000 characters
+              {t('announcement.characters_count', { count: message.length })}
             </Text>
           </View>
 
           {/* Audience Selection */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionLabel}>Send To</Text>
+              <Text style={styles.sectionLabel}>{t('announcement.send_to')}</Text>
               <Text style={styles.audienceCount}>{getAudienceCount()}</Text>
             </View>
             <View style={styles.audienceGrid}>
@@ -211,7 +213,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Priority Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Priority Level</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.priority_level')}</Text>
             <View style={styles.priorityGrid}>
               {priorities.map((priorityOption) => (
                 <TouchableOpacity
@@ -241,12 +243,12 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Additional Options */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Options</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.options')}</Text>
             
             <View style={styles.optionRow}>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Requires Response</Text>
-                <Text style={styles.optionDescription}>Recipients must acknowledge this announcement</Text>
+                <Text style={styles.optionTitle}>{t('announcement.requires_response')}</Text>
+                <Text style={styles.optionDescription}>{t('announcement.recipients_acknowledge')}</Text>
               </View>
               <Switch
                 value={requiresResponse}
@@ -258,8 +260,8 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
             <View style={styles.optionRow}>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Schedule for Later</Text>
-                <Text style={styles.optionDescription}>Send at a specific date and time</Text>
+                <Text style={styles.optionTitle}>{t('announcement.schedule_for_later')}</Text>
+                <Text style={styles.optionDescription}>{t('announcement.send_specific_time')}</Text>
               </View>
               <Switch
                 value={isScheduled}
@@ -272,7 +274,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Preview */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Preview</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.preview')}</Text>
             <View style={styles.previewCard}>
               <View style={styles.previewHeader}>
                 <View style={styles.previewPriority}>
@@ -282,17 +284,23 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                     color={priorities.find(p => p.id === priority)?.color} 
                   />
                   <Text style={[styles.previewPriorityText, { color: priorities.find(p => p.id === priority)?.color }]}>
-                    {priority.toUpperCase()}
+                    {t(`announcement.${priority}`)?.toUpperCase()}
                   </Text>
                 </View>
                 <Text style={styles.previewDate}>
                   {new Date().toLocaleDateString()}
                 </Text>
               </View>
-              <Text style={styles.previewTitle}>{title || 'Announcement Title'}</Text>
-              <Text style={styles.previewMessage}>{message || 'Your announcement message will appear here...'}</Text>
+              <Text style={styles.previewTitle}>{title || t('announcement.announcement_title_placeholder')}</Text>
+              <Text style={styles.previewMessage}>{message || t('announcement.message_placeholder')}</Text>
               <Text style={styles.previewFooter}>
-                Sent to: {selectedAudience.join(', ') || 'No audience selected'}
+                {selectedAudience.length > 0
+                  ? t('announcement.sent_to', {
+                      audience: selectedAudience
+                        .map(id => (id === 'admin' ? t('announcement.admin_staff') : t(`announcement.${id}`)))
+                        .join(', '),
+                    })
+                  : t('announcement.no_audience_selected')}
               </Text>
             </View>
           </View>

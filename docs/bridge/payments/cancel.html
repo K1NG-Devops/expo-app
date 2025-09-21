@@ -27,10 +27,41 @@
   </div>
   <script>
     var qs = window.location.search || '';
-    // We can reuse the same in-app screen for both return and cancel to show a proper message
-    var deeplink = 'edudashpro://screens/payments/return' + qs;
-    document.getElementById('open').href = deeplink;
-    setTimeout(function(){ window.location.href = deeplink; }, 200);
+    
+    // Detect if user came from web or mobile
+    var referrer = document.referrer || '';
+    var userAgent = navigator.userAgent || '';
+    var isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent);
+    var isWebApp = referrer.includes('localhost:8081') || referrer.includes('expo.dev');
+    
+    var redirectUrl;
+    if (isWebApp || (!isMobile && referrer.includes('http'))) {
+      // User came from web version - redirect back to web
+      redirectUrl = 'http://localhost:8081/screens/payments/return' + qs;
+      // For production web, you might use your web domain
+      // redirectUrl = 'https://your-web-domain.com/screens/payments/return' + qs;
+    } else {
+      // User came from mobile app - use deep link
+      redirectUrl = 'edudashpro://screens/payments/return' + qs;
+    }
+    
+    document.getElementById('open').href = redirectUrl;
+    
+    // Update button text based on platform
+    if (isWebApp || (!isMobile && referrer.includes('http'))) {
+      document.getElementById('open').textContent = 'Back to web app';
+    }
+    
+    // Try auto-redirect shortly after load
+    setTimeout(function(){ 
+      if (isWebApp || (!isMobile && referrer.includes('http'))) {
+        // For web, redirect in the same window
+        window.location.href = redirectUrl;
+      } else {
+        // For mobile, try deep link
+        window.location.href = redirectUrl;
+      }
+    }, 1000); // Slightly longer delay for web
   </script>
 </body>
 </html>

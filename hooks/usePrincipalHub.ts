@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { usePettyCashDashboard } from './usePettyCashDashboard';
+import { useTranslation } from 'react-i18next';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
@@ -145,6 +146,7 @@ const apiCall = async (endpoint: string, user?: any) => {
 export const usePrincipalHub = () => {
   const { user, profile } = useAuth();
   const { metrics: pettyCashMetrics } = usePettyCashDashboard();
+  const { t } = useTranslation();
   const [data, setData] = useState<PrincipalHubData>({
     stats: null,
     teachers: null,
@@ -153,7 +155,7 @@ export const usePrincipalHub = () => {
     capacityMetrics: null,
     recentActivities: null,
     schoolId: null,
-    schoolName: 'No School Assigned'
+    schoolName: t('dashboard.no_school_assigned_text')
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -368,7 +370,7 @@ export const usePrincipalHub = () => {
           
           // Enhanced performance calculation based on multiple factors
           let status: 'excellent' | 'good' | 'needs_attention' = 'good';
-          let performanceIndicator = 'Active teacher';
+          let performanceIndicator = t('teacher.performance.active', { defaultValue: 'Active teacher' });
           
           // Calculate optimal ratios and workload
           const studentTeacherRatio = studentsInClasses > 0 ? studentsInClasses / Math.max(teacherClassesCount || 1, 1) : 0;
@@ -397,22 +399,22 @@ export const usePrincipalHub = () => {
           // Sophisticated performance evaluation
           if (teacherClassesCount === 0) {
             status = 'needs_attention';
-            performanceIndicator = 'No classes assigned - requires attention';
+            performanceIndicator = t('teacher.performance.no_classes', { defaultValue: 'No classes assigned - requires attention' });
           } else if (studentTeacherRatio > 25) {
             status = 'needs_attention';
-            performanceIndicator = `High student ratio (${Math.round(studentTeacherRatio)}:1) - may need support`;
+            performanceIndicator = t('teacher.performance.high_ratio', { ratio: Math.round(studentTeacherRatio), defaultValue: 'High student ratio ({{ratio}}:1) - may need support' });
           } else if ((teacherClassesCount ?? 0) >= 3 && studentTeacherRatio <= 20 && teacherAttendanceRate >= 85) {
             status = 'excellent';
-            performanceIndicator = `Excellent performance - ${teacherClassesCount} classes, ${Math.round(studentTeacherRatio)}:1 ratio, ${teacherAttendanceRate}% attendance`;
+            performanceIndicator = t('teacher.performance.excellent', { classes: teacherClassesCount ?? 0, ratio: Math.round(studentTeacherRatio), attendance: teacherAttendanceRate, defaultValue: 'Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance' });
           } else if ((teacherClassesCount ?? 0) >= 2 && studentTeacherRatio <= 22 && teacherAttendanceRate >= 80) {
             status = 'excellent';
-            performanceIndicator = `Strong performance - ${teacherClassesCount} classes, good attendance rates`;
+            performanceIndicator = t('teacher.performance.strong', { classes: teacherClassesCount ?? 0, defaultValue: 'Strong performance - {{classes}} classes, good attendance rates' });
           } else if (studentTeacherRatio <= 25 && teacherAttendanceRate >= 75) {
             status = 'good';
-            performanceIndicator = `Good performance - managing ${studentsInClasses} students effectively`;
+            performanceIndicator = t('teacher.performance.good', { students: studentsInClasses, defaultValue: 'Good performance - managing {{students}} students effectively' });
           } else {
             status = 'needs_attention';
-            performanceIndicator = `Performance review needed - ${teacherAttendanceRate}% attendance rate in classes`;
+            performanceIndicator = t('teacher.performance.review_needed', { attendance: teacherAttendanceRate, defaultValue: 'Performance review needed - {{attendance}}% attendance rate in classes' });
           }
           
           // Split name into parts for display
@@ -610,7 +612,7 @@ export const usePrincipalHub = () => {
       });
       
       // Get real school name from database
-      const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || 'My School';
+      const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || t('dashboard.your_school');
 
       setData({
         stats,
@@ -654,42 +656,48 @@ export const usePrincipalHub = () => {
 
     return [
       {
-        title: 'Total Students',
+        id: 'students',
+        title: t('metrics.total_students'),
         value: data.stats.students.total,
         icon: 'people-outline',
         color: '#4F46E5',
         trend: data.stats.students.trend
       },
       {
-        title: 'Teaching Staff',
+        id: 'staff',
+        title: t('metrics.teaching_staff'),
         value: data.stats.staff.total,
         icon: 'school-outline', 
         color: '#059669',
         trend: data.stats.staff.trend
       },
       {
-        title: 'Active Classes',
+        id: 'classes',
+        title: t('metrics.active_classes', { defaultValue: 'Active Classes' }),
         value: data.stats.classes.total,
         icon: 'library-outline',
         color: '#7C3AED',
         trend: data.stats.classes.trend
       },
       {
-        title: 'Attendance Rate',
+        id: 'attendance',
+        title: t('metrics.attendance_rate'),
         value: `${data.stats.attendanceRate.percentage}%`,
         icon: 'checkmark-circle-outline',
         color: data.stats.attendanceRate.percentage >= 90 ? '#059669' : '#DC2626',
         trend: data.stats.attendanceRate.trend
       },
       {
-        title: 'Monthly Revenue',
+        id: 'revenue',
+        title: t('metrics.monthly_revenue'),
         value: formatCurrency(data.stats.monthlyRevenue.total),
         icon: 'card-outline',
         color: '#059669',
         trend: data.stats.monthlyRevenue.trend
       },
       {
-        title: 'Pending Applications',
+        id: 'applications',
+        title: t('metrics.pending_applications', { defaultValue: 'Pending Applications' }),
         value: data.stats.pendingApplications.total,
         icon: 'document-text-outline',
         color: '#F59E0B',

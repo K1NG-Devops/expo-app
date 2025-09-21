@@ -26,6 +26,9 @@ import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { navigateBack } from '@/lib/navigation';
+import { useTranslation } from 'react-i18next';
+import { derivePreschoolId } from '@/lib/roleUtils';
 
 import { FinancialDataService } from '@/services/FinancialDataService';
 import { ChartDataService } from '@/lib/services/finance/ChartDataService';
@@ -40,6 +43,7 @@ export default function FinanceDashboard() {
   const { profile } = useAuth();
   const { theme } = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { t } = useTranslation('common');
   
   const [overview, setOverview] = useState<FinanceOverviewData | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -60,14 +64,10 @@ export default function FinanceDashboard() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
-      const preschoolId = profile?.preschool?.id;
-      if (!preschoolId) {
-        Alert.alert('Error', 'No preschool associated with your account');
-        return;
-      }
+      const preschoolId = derivePreschoolId(profile);
 
-      // Load financial overview
-      const overviewData = await FinancialDataService.getOverview(preschoolId);
+      // Load financial overview (fallback works when preschoolId is undefined)
+      const overviewData = await FinancialDataService.getOverview(preschoolId || undefined);
       setOverview(overviewData);
 
       // Load recent transactions (last 30 days)
@@ -77,12 +77,12 @@ export default function FinanceDashboard() {
       const transactionData = await FinancialDataService.getTransactions({
         from: thirtyDaysAgo.toISOString(),
         to: new Date().toISOString(),
-      }, preschoolId);
+      }, preschoolId || undefined);
       setTransactions(transactionData);
 
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
-      Alert.alert('Error', 'Failed to load financial dashboard');
+      Alert.alert(t('common.error', { defaultValue: 'Error' }), t('finance_dashboard.load_failed', { defaultValue: 'Failed to load financial dashboard' }));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,7 +91,7 @@ export default function FinanceDashboard() {
 
   const handleExport = (format: ExportFormat) => {
     if (!overview || !transactions.length) {
-      Alert.alert('No Data', 'No financial data available to export');
+      Alert.alert(t('transactions.no_data', { defaultValue: 'No Data' }), t('finance_dashboard.no_financial_data_export', { defaultValue: 'No financial data available to export' }));
       return;
     }
 
@@ -136,7 +136,7 @@ export default function FinanceDashboard() {
         const cashFlowData = ChartDataService.formatCashFlowTrend(overview);
         return (
           <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Cash Flow Trend (Last 6 Months)</Text>
+            <Text style={styles.chartTitle}>{t('finance_dashboard.trend_title', { defaultValue: 'Cash Flow Trend (Last 6 Months)' })}</Text>
             <LineChart
               data={cashFlowData}
               width={chartWidth}
@@ -153,7 +153,7 @@ export default function FinanceDashboard() {
         const categoriesData = ChartDataService.formatCategoriesBreakdown(overview);
         return (
           <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Expense Categories</Text>
+            <Text style={styles.chartTitle}>{t('finance_dashboard.categories_title', { defaultValue: 'Expense Categories' })}</Text>
             <PieChart
               data={categoriesData}
               width={chartWidth}
@@ -173,7 +173,7 @@ export default function FinanceDashboard() {
         const comparisonData = ChartDataService.formatMonthlyComparison(overview);
         return (
           <View style={styles.chartContainer}>
-            <Text style={styles.chartTitle}>Monthly Comparison</Text>
+            <Text style={styles.chartTitle}>{t('finance_dashboard.comparison_title', { defaultValue: 'Monthly Comparison' })}</Text>
             <BarChart
               data={comparisonData}
               width={chartWidth}
@@ -195,9 +195,9 @@ export default function FinanceDashboard() {
   const renderChartSelector = () => (
     <View style={styles.chartSelector}>
       {[
-        { key: 'cashflow', label: 'Cash Flow', icon: 'trending-up' },
-        { key: 'categories', label: 'Categories', icon: 'pie-chart' },
-        { key: 'comparison', label: 'Compare', icon: 'bar-chart' },
+        { key: 'cashflow', label: t('finance_dashboard.tab_cash_flow', { defaultValue: 'Cash Flow' }), icon: 'trending-up' },
+        { key: 'categories', label: t('finance_dashboard.tab_categories', { defaultValue: 'Categories' }), icon: 'pie-chart' },
+        { key: 'comparison', label: t('finance_dashboard.tab_comparison', { defaultValue: 'Compare' }), icon: 'bar-chart' },
       ].map(({ key, label, icon }) => (
         <TouchableOpacity
           key={key}
@@ -227,14 +227,14 @@ export default function FinanceDashboard() {
 
   const renderExportOptions = () => (
     <View style={styles.exportContainer}>
-      <Text style={styles.sectionTitle}>Export Data</Text>
+      <Text style={styles.sectionTitle}>{t('finance_dashboard.export_title', { defaultValue: 'Export Data' })}</Text>
       <View style={styles.exportButtons}>
         <TouchableOpacity
           style={styles.exportButton}
           onPress={() => handleExport('csv')}
         >
           <Ionicons name="document-text" size={20} color={theme?.primary || Colors.light.tint} />
-          <Text style={styles.exportButtonText}>CSV</Text>
+          <Text style={styles.exportButtonText}>{t('finance_dashboard.csv', { defaultValue: 'CSV' })}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -242,7 +242,7 @@ export default function FinanceDashboard() {
           onPress={() => handleExport('excel')}
         >
           <Ionicons name="grid" size={20} color={theme?.primary || Colors.light.tint} />
-          <Text style={styles.exportButtonText}>Excel</Text>
+          <Text style={styles.exportButtonText}>{t('finance_dashboard.excel', { defaultValue: 'Excel' })}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
@@ -250,7 +250,7 @@ export default function FinanceDashboard() {
           onPress={() => handleExport('pdf')}
         >
           <Ionicons name="document" size={20} color={theme?.primary || Colors.light.tint} />
-          <Text style={styles.exportButtonText}>PDF</Text>
+          <Text style={styles.exportButtonText}>{t('finance_dashboard.pdf', { defaultValue: 'PDF' })}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -258,14 +258,14 @@ export default function FinanceDashboard() {
 
   const renderQuickActions = () => (
     <View style={styles.quickActions}>
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
+      <Text style={styles.sectionTitle}>{t('finance_dashboard.quick_actions_title', { defaultValue: 'Quick Actions' })}</Text>
       <View style={styles.actionGrid}>
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => router.push('/screens/financial-transactions')}
         >
           <Ionicons name="list" size={24} color={theme?.primary || Colors.light.tint} />
-          <Text style={styles.actionText}>View Transactions</Text>
+          <Text style={styles.actionText}>{t('finance_dashboard.view_transactions', { defaultValue: 'View Transactions' })}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -273,7 +273,7 @@ export default function FinanceDashboard() {
           onPress={() => router.push('/screens/financial-reports')}
         >
           <Ionicons name="analytics" size={24} color={theme?.primary || Colors.light.tint} />
-          <Text style={styles.actionText}>Detailed Reports</Text>
+          <Text style={styles.actionText}>{t('finance_dashboard.detailed_reports', { defaultValue: 'Detailed Reports' })}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -283,12 +283,12 @@ export default function FinanceDashboard() {
     return (
       <View style={styles.accessDenied}>
         <Ionicons name="lock-closed" size={64} color={theme?.textSecondary || Colors.light.tabIconDefault} />
-        <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+        <Text style={styles.accessDeniedTitle}>{t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}</Text>
         <Text style={styles.accessDeniedText}>
-          Only school principals can access the financial dashboard.
+          {t('finance_dashboard.access_denied_text', { defaultValue: 'Only school principals can access the financial dashboard.' })}
         </Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigateBack()}>
+          <Text style={styles.backButtonText}>{t('navigation.back', { defaultValue: 'Back' })}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -298,7 +298,7 @@ export default function FinanceDashboard() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={Colors.light.tint} />
-        <Text style={styles.loadingText}>Loading financial dashboard...</Text>
+        <Text style={styles.loadingText}>{t('finance_dashboard.loading', { defaultValue: 'Loading financial dashboard...' })}</Text>
       </View>
     );
   }
@@ -307,10 +307,10 @@ export default function FinanceDashboard() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigateBack()}>
           <Ionicons name="arrow-back" size={24} color={theme?.text || Colors.light.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Finance Dashboard</Text>
+        <Text style={styles.title}>{t('finance_dashboard.title', { defaultValue: 'Finance Dashboard' })}</Text>
         <TouchableOpacity onPress={() => loadDashboardData(true)}>
           <Ionicons name="refresh" size={24} color={theme?.text || Colors.light.text} />
         </TouchableOpacity>
@@ -328,30 +328,30 @@ export default function FinanceDashboard() {
             {/* Key Metrics */}
             <View style={styles.metricsGrid}>
               {renderMetricCard(
-                'Monthly Revenue',
+                t('dashboard.monthly_revenue', { defaultValue: 'Monthly Revenue' }),
                 formatCurrency(overview.keyMetrics.monthlyRevenue),
-                'This month',
+                t('dashboard.this_month', { defaultValue: 'This month' }),
                 '#059669',
                 'trending-up'
               )}
               {renderMetricCard(
-                'Monthly Expenses', 
+                t('dashboard.monthly_expenses', { defaultValue: 'Monthly Expenses' }), 
                 formatCurrency(overview.keyMetrics.monthlyExpenses),
-                'This month',
+                t('dashboard.this_month', { defaultValue: 'This month' }),
                 '#DC2626',
                 'trending-down'
               )}
               {renderMetricCard(
-                'Net Cash Flow',
+                t('finance_dashboard.net_cash_flow', { defaultValue: 'Net Cash Flow' }),
                 formatCurrency(overview.keyMetrics.cashFlow),
-                overview.keyMetrics.cashFlow >= 0 ? 'Positive' : 'Negative',
+                overview.keyMetrics.cashFlow >= 0 ? t('finance_dashboard.positive', { defaultValue: 'Positive' }) : t('finance_dashboard.negative', { defaultValue: 'Negative' }),
                 overview.keyMetrics.cashFlow >= 0 ? '#059669' : '#DC2626',
                 'wallet'
               )}
               {renderMetricCard(
-                'Total Transactions',
+                t('finance_dashboard.total_transactions', { defaultValue: 'Total Transactions' }),
                 transactions.length.toString(),
-                'Last 30 days',
+                t('finance_dashboard.last_30_days', { defaultValue: 'Last 30 days' }),
                 '#4F46E5',
                 'receipt'
               )}
@@ -488,11 +488,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
   },
   exportContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     margin: 16,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -507,7 +507,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.light.tint + '10',
+    backgroundColor: (theme?.primary || Colors.light.tint) + '10',
     paddingVertical: 12,
     borderRadius: 8,
     gap: 6,
@@ -515,7 +515,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   exportButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.tint,
+    color: theme?.primary || Colors.light.tint,
   },
   quickActions: {
     margin: 16,
@@ -527,11 +527,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
@@ -540,14 +540,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || Colors.light.text,
     marginTop: 8,
     textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || Colors.light.text,
     marginBottom: 12,
   },
   accessDenied: {
@@ -584,11 +584,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   loadingText: {
     fontSize: 16,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || Colors.light.tabIconDefault,
     marginTop: 16,
   },
 });

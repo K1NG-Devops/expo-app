@@ -4,10 +4,12 @@ import { EnhancedPrincipalDashboard } from '@/components/dashboard/EnhancedPrinc
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 export default function PrincipalDashboardScreen() {
   const { profile, profileLoading, loading } = useAuth();
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   // Handle both organization_id (new RBAC) and preschool_id (legacy) fields
@@ -37,7 +39,7 @@ export default function PrincipalDashboardScreen() {
   if (isStillLoading) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.text}>Loading profile...</Text>
+        <Text style={styles.text}>{t('dashboard.loading_profile')}</Text>
       </View>
     );
   }
@@ -46,11 +48,11 @@ export default function PrincipalDashboardScreen() {
   if (!orgId) {
     return (
       <View style={styles.empty}>
-        <Text style={styles.text}>No school found. Redirecting to onboarding…</Text>
+        <Text style={styles.text}>{t('dashboard.no_school_found_redirect')}</Text>
         <TouchableOpacity onPress={() => {
           try { router.replace('/screens/principal-onboarding'); } catch (e) { console.debug('Redirect failed', e); }
         }}>
-          <Text style={[styles.text, { textDecorationLine: 'underline' }]}>Go now</Text>
+          <Text style={[styles.text, { textDecorationLine: 'underline' }]}>{t('common.go_now')}</Text>
         </TouchableOpacity>
       </View>
     );

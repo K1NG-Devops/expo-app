@@ -249,3 +249,284 @@ OR
 - **Approved by:** Engineering Lead
 - **Date:** 2025-09-19
 - **Effective:** Immediate implementation
+
+---
+
+## MISSING COMPONENTS - TODO
+
+### SuperAdmin Global Management Access Patterns
+
+**Current Gap**: SuperAdmin exists but lacks comprehensive global access patterns for operational needs.
+
+#### 1. Missing SuperAdmin-Specific Access Matrix
+
+| Resource Type | Current Access | Missing Access | Implementation Priority |
+|---------------|----------------|----------------|-----------------------|
+| **AI Model Management** | None | Global AI usage analytics, quota overrides | HIGH |
+| **Cross-Org User Management** | Limited | View/manage users across all organizations | HIGH |
+| **Global Subscription Management** | Basic | Change plans, override billing, refund handling | HIGH |
+| **System Health Monitoring** | None | Database performance, error logs, system metrics | MEDIUM |
+| **Security Incident Response** | None | Access audit logs, security investigation tools | HIGH |
+| **Feature Flag Management** | None | Toggle features per organization, A/B testing | LOW |
+
+#### 2. Missing SuperAdmin Database Views
+
+```sql
+-- Global user management view
+CREATE VIEW superadmin_users_global AS
+SELECT 
+  u.id, u.email, u.role,
+  p.name as preschool_name,
+  p.id as preschool_id,
+  u.created_at, u.last_sign_in_at
+FROM profiles u
+LEFT JOIN preschools p ON p.id = u.preschool_id
+ORDER BY u.created_at DESC;
+
+-- Global subscription analytics
+CREATE VIEW superadmin_subscription_analytics AS
+SELECT 
+  sp.tier,
+  COUNT(s.id) as active_subscriptions,
+  SUM(s.seats_total) as total_seats,
+  SUM(s.seats_used) as used_seats,
+  AVG(sp.price_monthly) as avg_monthly_revenue
+FROM subscriptions s
+JOIN subscription_plans sp ON sp.id = s.plan_id
+WHERE s.status = 'active'
+GROUP BY sp.tier, sp.price_monthly;
+
+-- Global AI usage monitoring
+CREATE VIEW superadmin_ai_usage_global AS
+SELECT 
+  p.name as preschool_name,
+  p.id as preschool_id,
+  sp.tier as subscription_tier,
+  COUNT(ai.id) as ai_requests_count,
+  ai.ai_model_used,
+  DATE_TRUNC('month', ai.created_at) as usage_month
+FROM ai_usage_logs ai
+JOIN preschools p ON p.id = ai.preschool_id
+JOIN subscriptions s ON s.school_id = p.id
+JOIN subscription_plans sp ON sp.id = s.plan_id
+WHERE ai.created_at >= (NOW() - INTERVAL '6 months')
+GROUP BY p.name, p.id, sp.tier, ai.ai_model_used, DATE_TRUNC('month', ai.created_at)
+ORDER BY usage_month DESC, ai_requests_count DESC;
+```
+
+**Implementation Priority**: HIGH - Critical for platform scaling and support
+
+### Principal → Teacher → Parent Flow Access Patterns
+
+**Current Gap**: Basic hierarchy exists but delegation and communication flows are incomplete.
+
+#### 1. Missing Principal Delegation Access Matrix
+
+| Delegation Type | Principal Can Grant | Teacher Receives | Parent Visibility | Missing Implementation |
+|----------------|---------------------|------------------|-------------------|-----------------------|
+| **AI Quota Allocation** | Allocate from school quota | Personal AI request quota | Child's AI usage summary | Quota delegation tables |
+| **Class Management Rights** | Grant class admin rights | Create/modify assignments | Assignment notifications | Permission delegation system |
+| **Parent Communication** | Grant parent contact access | Direct parent messaging | Teacher-parent message history | Communication permission matrix |
+| **Student Data Access** | Grant assessment rights | Student progress data | Limited child progress view | Graduated data access controls |
+
+#### 2. Missing Principal Delegation Database Schema
+
+```sql
+-- Principal's delegation of capabilities to teachers
+CREATE TABLE principal_teacher_delegations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  principal_id UUID REFERENCES profiles(id),
+  teacher_id UUID REFERENCES profiles(id),
+  preschool_id UUID REFERENCES preschools(id),
+  
+  -- What capabilities are delegated
+  delegated_capabilities JSONB, -- ['ai_quota_management', 'parent_communication', etc.]
+  
+  -- Scope limitations
+  class_scope UUID[], -- Which classes this applies to
+  student_scope UUID[], -- Which students (if limited)
+  
+  -- AI quota specific
+  ai_quota_allocated INTEGER DEFAULT 0,
+  ai_quota_used INTEGER DEFAULT 0,
+  ai_models_allowed TEXT[], -- ['claude-3-haiku', 'claude-3-sonnet']
+  
+  -- Time bounds
+  valid_from TIMESTAMPTZ DEFAULT NOW(),
+  valid_until TIMESTAMPTZ,
+  
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Teacher's graduated permissions for parent communication
+CREATE TABLE teacher_parent_communication_rights (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_id UUID REFERENCES profiles(id),
+  parent_id UUID REFERENCES profiles(id),
+  student_id UUID REFERENCES profiles(id),
+  preschool_id UUID REFERENCES preschools(id),
+  
+  -- What can be shared
+  data_sharing_permissions JSONB, -- {'grades': true, 'assessments': true, 'ai_insights': false}
+  
+  -- Communication settings
+  can_initiate_contact BOOLEAN DEFAULT true,
+  can_share_student_work BOOLEAN DEFAULT true,
+  can_share_ai_generated_reports BOOLEAN DEFAULT false,
+  
+  -- Granted by principal
+  granted_by UUID REFERENCES profiles(id),
+  granted_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Parent consent
+  parent_consent_given BOOLEAN DEFAULT false,
+  parent_consent_at TIMESTAMPTZ
+);
+```
+
+#### 3. Missing Three-Way Communication Access Patterns
+
+```sql
+-- Policy for AI-generated insights sharing
+CREATE POLICY "ai_insights_three_way_access" ON ai_student_insights
+FOR SELECT
+USING (
+  -- Super admin can see all
+  auth.is_super_admin()
+  OR
+  -- Principal can see all insights in their school
+  (auth.role() = 'principal' AND preschool_id = auth.org_id())
+  OR
+  -- Teacher can see insights for students in their classes (with delegation)
+  (
+    auth.role() = 'teacher' 
+    AND student_id IN (
+      SELECT cs.student_id 
+      FROM class_students cs
+      JOIN classes c ON c.id = cs.class_id
+      JOIN principal_teacher_delegations ptd ON ptd.teacher_id = auth.uid()
+      WHERE c.teacher_id = auth.uid()
+      AND 'ai_student_insights' = ANY(ptd.delegated_capabilities)
+      AND ptd.preschool_id = c.preschool_id
+    )
+  )
+  OR
+  -- Parent can see insights for their children (with permission)
+  (
+    auth.role() = 'parent'
+    AND student_id IN (
+      SELECT pcl.child_id 
+      FROM parent_child_links pcl
+      JOIN teacher_parent_communication_rights tpcr ON tpcr.parent_id = pcl.parent_id
+      WHERE pcl.parent_id = auth.uid()
+      AND tpcr.student_id = pcl.child_id
+      AND (tpcr.data_sharing_permissions->>'ai_insights')::boolean = true
+      AND tpcr.parent_consent_given = true
+    )
+  )
+);
+```
+
+**Implementation Priority**: MEDIUM - Important for user experience, not system-critical
+
+### AI Model Tiering Integration Gaps
+
+**Current State**: Basic AI tiering implemented, missing role-specific integrations.
+
+#### 1. Role-Specific AI Model Access Matrix
+
+| Role | Free Tier | Starter Tier | Premium Tier | Enterprise Tier | Missing Features |
+|------|-----------|--------------|--------------|-----------------|------------------|
+| **SuperAdmin** | All models (global) | All models (global) | All models (global) | All models (global) | Global usage analytics, override capabilities |
+| **Principal** | Haiku only | Haiku + Sonnet | All models | All models | Usage analytics dashboard, teacher quota allocation UI |
+| **Teacher** | Haiku only | Haiku + limited Sonnet | All models | All models | Personal usage tracking, quota remaining display |
+| **Parent** | Homework help only | Homework help only | Homework help + progress insights | All homework features | Child's usage visibility, parental controls |
+
+#### 2. Missing Role-Based AI Feature Access
+
+```sql
+-- AI feature permissions by role and tier
+CREATE TABLE ai_feature_role_matrix (
+  role TEXT, -- 'superadmin', 'principal', 'teacher', 'parent'
+  subscription_tier TEXT, -- 'free', 'starter', 'premium', 'enterprise'
+  ai_feature TEXT, -- 'lesson_generation', 'homework_help', 'grading_assistance', 'progress_insights'
+  model_access TEXT[], -- ['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus']
+  monthly_quota INTEGER, -- requests per month
+  rate_limit INTEGER, -- requests per minute
+  additional_restrictions JSONB,
+  PRIMARY KEY (role, subscription_tier, ai_feature)
+);
+
+-- Seed data for AI feature access
+INSERT INTO ai_feature_role_matrix VALUES
+-- SuperAdmin gets everything
+('superadmin', 'free', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'], -1, 60, '{}'),
+('superadmin', 'starter', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'], -1, 60, '{}'),
+('superadmin', 'premium', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'], -1, 60, '{}'),
+('superadmin', 'enterprise', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'], -1, 60, '{}'),
+
+-- Principal gets school tier access
+('principal', 'free', 'lesson_generation', ARRAY['claude-3-haiku'], 50, 5, '{}'),
+('principal', 'starter', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet'], 500, 15, '{}'),
+('principal', 'premium', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet', 'claude-3-opus'], 2500, 30, '{}'),
+
+-- Teacher gets allocated quota from principal
+('teacher', 'free', 'lesson_generation', ARRAY['claude-3-haiku'], 0, 5, '{"quota_source": "principal_allocation"}'),
+('teacher', 'starter', 'lesson_generation', ARRAY['claude-3-haiku', 'claude-3-sonnet'], 0, 15, '{"quota_source": "principal_allocation"}'),
+
+-- Parent gets limited homework help only
+('parent', 'free', 'homework_help', ARRAY['claude-3-haiku'], 20, 3, '{"children_only": true}'),
+('parent', 'starter', 'homework_help', ARRAY['claude-3-haiku'], 50, 5, '{"children_only": true}');
+```
+
+**Implementation Priority**: LOW - Enhancement to existing AI tiering system
+
+### Missing Compliance and Audit Trails
+
+#### 1. Educational Compliance (FERPA/COPPA)
+
+```sql
+-- Student data access audit trail
+CREATE TABLE student_data_access_audit (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  accessor_id UUID REFERENCES profiles(id),
+  student_id UUID REFERENCES profiles(id),
+  data_type TEXT, -- 'grades', 'assessments', 'ai_insights', 'behavioral_notes'
+  access_reason TEXT, -- 'teaching_duties', 'parent_request', 'principal_review'
+  accessed_at TIMESTAMPTZ DEFAULT NOW(),
+  preschool_id UUID REFERENCES preschools(id)
+);
+
+-- Parental consent tracking
+CREATE TABLE parental_consents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_id UUID REFERENCES profiles(id),
+  student_id UUID REFERENCES profiles(id),
+  consent_type TEXT, -- 'ai_usage', 'data_sharing', 'communication_preferences'
+  consent_details JSONB,
+  consent_given BOOLEAN,
+  consent_date TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ,
+  preschool_id UUID REFERENCES preschools(id)
+);
+```
+
+#### 2. AI Usage Audit and Compliance
+
+```sql
+-- Enhanced AI usage logging for compliance
+ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS student_context UUID REFERENCES profiles(id);
+ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS educational_purpose TEXT;
+ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS data_retention_until TIMESTAMPTZ;
+ALTER TABLE ai_usage_logs ADD COLUMN IF NOT EXISTS parent_consent_verified BOOLEAN DEFAULT false;
+```
+
+**Implementation Priority**: HIGH - Critical for educational institution compliance
+
+---
+
+**Updated Analysis Date:** 2025-01-21  
+**Additional Missing Components:** 18  
+**Implementation Complexity:** HIGH  
+**Estimated Development Time:** 8-10 weeks for complete role delegation flows

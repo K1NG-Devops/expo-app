@@ -122,8 +122,8 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       })
       
       Alert.alert(
-        'Invalid Phone Number',
-        validation.message || 'Please enter a valid South African mobile number',
+        t('dashboard.invalid_phone_number'),
+        validation.message || t('dashboard.enter_valid_phone'),
         [{ text: t('common.ok') }]
       )
       return
@@ -237,17 +237,18 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
   const styles = StyleSheet.create({
     overlay: {
       flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
       justifyContent: 'center',
       alignItems: 'center',
     },
     modal: {
       backgroundColor: theme.background,
-      borderRadius: 16,
-      margin: 20,
-      maxWidth: 400,
-      width: '90%',
-      maxHeight: '80%',
+      borderRadius: 0,
+      margin: 0,
+      width: '100%',
+      height: '100%',
+      maxWidth: '100%',
+      maxHeight: '100%',
     },
     header: {
       flexDirection: 'row',

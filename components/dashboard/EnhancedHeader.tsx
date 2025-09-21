@@ -44,7 +44,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
     }
 
     return () => clearInterval(timer)
-  }, [])
+  }, [t])
 
   const getTierInfo = () => {
     switch (tier) {

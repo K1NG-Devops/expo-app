@@ -11,6 +11,7 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -28,6 +29,7 @@ export default function PaymentReturnScreen() {
   const params = useLocalSearchParams<PaymentReturn>();
   const { profile } = useAuth();
   const { theme } = useTheme();
+  const { refresh: refreshSubscription } = useSubscription();
   
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('processing');
   const [message, setMessage] = useState('Processing your payment...');
@@ -92,6 +94,9 @@ export default function PaymentReturnScreen() {
           plan_id: activeSubscription.plan_id,
           polling_attempts: pollingCount + 1,
         });
+        
+        // Refresh subscription context with the new data
+        refreshSubscription();
         return;
       }
 

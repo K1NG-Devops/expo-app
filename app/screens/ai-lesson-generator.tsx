@@ -12,6 +12,7 @@ import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useLessonGenerator } from '@/hooks/useLessonGenerator'
+import { useLessonGeneratorModels, useTierInfo } from '@/hooks/useAIModelSelection'
 import { ScreenHeader } from '@/components/ui/ScreenHeader'
 
 export default function AILessonGeneratorScreen() {
@@ -25,8 +26,18 @@ export default function AILessonGeneratorScreen() {
   const [saving, setSaving] = useState(false)
   const { loading: generating, generate } = useLessonGenerator()
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
-  const [models, setModels] = useState<Array<{ id: string; name: string; provider: 'claude' | 'openai' | 'custom'; relativeCost: number }>>([])
-  const [selectedModel, setSelectedModel] = useState<string>('')
+  
+  // Use tier-based model selection
+  const {
+    availableModels,
+    selectedModel,
+    setSelectedModel,
+    tier,
+    quotas,
+    isLoading: modelsLoading
+  } = useLessonGeneratorModels()
+  
+  const { tierInfo } = useTierInfo()
 
   const categoriesQuery = useQuery({
     queryKey: ['lesson_categories'],
@@ -41,14 +52,10 @@ export default function AILessonGeneratorScreen() {
   const flags = getFeatureFlagsSync();
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true');
 
-  // Refresh function to reload usage, model data, and categories
+  // Refresh function to reload usage data and categories
   const handleRefresh = async () => {
     try {
       setUsage(await getCombinedUsage())
-      const limits = await getEffectiveLimits()
-      setModels(limits.modelOptions || [])
-      const stored = await getPreferredModel('lesson_generation')
-      setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
       // Refetch categories
       await categoriesQuery.refetch()
     } catch (error) {
@@ -61,12 +68,6 @@ export default function AILessonGeneratorScreen() {
   useEffect(() => {
     (async () => {
       setUsage(await getCombinedUsage())
-      try {
-        const limits = await getEffectiveLimits()
-        setModels(limits.modelOptions || [])
-        const stored = await getPreferredModel('lesson_generation')
-        setSelectedModel(stored || (limits.modelOptions && limits.modelOptions[0]?.id) || 'claude-3-haiku')
-      } catch { /* noop */ void 0; }
     })()
   }, [])
 
@@ -192,18 +193,80 @@ export default function AILessonGeneratorScreen() {
           <QuotaSummary feature="lesson_generation" />
         </View>
 
-        {/* Model selector */}
-        {models.length > 0 && (
+        {/* Tier-based Model selector */}
+        {!modelsLoading && availableModels.length > 0 && (
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-            <Text style={[styles.cardTitle, { color: palette.text }]}>Model</Text>
-            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              {models.map(m => (
-                <TouchableOpacity key={m.id} onPress={async () => { setSelectedModel(m.id); try { await setPreferredModel(m.id, 'lesson_generation') } catch { /* noop */ } }} style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: selectedModel === m.id ? '#111827' : '#E5E7EB', backgroundColor: selectedModel === m.id ? '#111827' : 'transparent' }}>
-                  <Text style={{ color: selectedModel === m.id ? '#fff' : palette.text }}>
-                    {`${m.name} · x${m.relativeCost} · ${m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'}${(m as any).notes ? ` · ${(m as any).notes}` : ''}`}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <Text style={[styles.cardTitle, { color: palette.text }]}>AI Model</Text>
+              {tierInfo && (
+                <View style={{ 
+                  paddingHorizontal: 8, 
+                  paddingVertical: 4, 
+                  borderRadius: 12, 
+                  backgroundColor: tierInfo.color + '20' 
+                }}>
+                  <Text style={{ color: tierInfo.color, fontSize: 11, fontWeight: '600' }}>
+                    {tierInfo.badge} Plan
                   </Text>
-                </TouchableOpacity>
-              ))}
+                </View>
+              )}
+            </View>
+            
+            <Text style={{ color: palette.textSecondary, marginBottom: 12, fontSize: 13 }}>
+              {tierInfo?.description || 'Select your AI model'}
+            </Text>
+            
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+              {availableModels.map(m => {
+                const isSelected = selectedModel === m.id
+                const costDisplay = m.relativeCost <= 1 ? '$' : m.relativeCost <= 5 ? '$$' : '$$$'
+                
+                return (
+                  <TouchableOpacity 
+                    key={m.id} 
+                    onPress={() => {
+                      setSelectedModel(m.id)
+                      // Persist preference
+                      setPreferredModel(m.id, 'lesson_generation').catch(() => {})
+                    }} 
+                    style={{
+                      paddingHorizontal: 12, 
+                      paddingVertical: 8, 
+                      borderRadius: 8, 
+                      borderWidth: 1, 
+                      borderColor: isSelected ? (tierInfo?.color || '#111827') : palette.outline, 
+                      backgroundColor: isSelected ? (tierInfo?.color || '#111827') + '10' : 'transparent'
+                    }}
+                  >
+                    <Text style={{ 
+                      color: isSelected ? (tierInfo?.color || '#111827') : palette.text,
+                      fontSize: 13,
+                      fontWeight: isSelected ? '600' : '400'
+                    }}>
+                      {m.displayName || m.name}
+                    </Text>
+                    <Text style={{
+                      color: palette.textSecondary,
+                      fontSize: 11,
+                      marginTop: 2
+                    }}>
+                      {costDisplay} · {m.notes}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+            
+            {/* Show quota information */}
+            <View style={{ 
+              marginTop: 12, 
+              padding: 8, 
+              backgroundColor: palette.outline + '30', 
+              borderRadius: 6 
+            }}>
+              <Text style={{ color: palette.textSecondary, fontSize: 11 }}>
+                Plan limits: {quotas.ai_requests === -1 ? 'Unlimited' : `${quotas.ai_requests}`} requests/month, {quotas.rpm_limit} requests/minute
+              </Text>
             </View>
           </View>
         )}

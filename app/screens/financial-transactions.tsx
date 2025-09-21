@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -26,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { navigateBack } from '@/lib/navigation';
+import { derivePreschoolId } from '@/lib/roleUtils';
 
 import { FinancialDataService } from '@/services/FinancialDataService';
 import { ExportService } from '@/lib/services/finance/ExportService';
@@ -40,6 +42,7 @@ interface FilterOptions {
 }
 
 export default function TransactionsScreen() {
+  const { t } = useTranslation('common');
   const { profile } = useAuth();
   const { theme } = useTheme();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -78,18 +81,14 @@ export default function TransactionsScreen() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
-      const preschoolId = profile?.preschool?.id;
-      if (!preschoolId) {
-        Alert.alert('Error', 'No preschool associated with your account');
-        return;
-      }
+      const preschoolId = derivePreschoolId(profile);
 
-      const data = await FinancialDataService.getTransactions(filters.dateRange, preschoolId);
+      const data = await FinancialDataService.getTransactions(filters.dateRange, preschoolId || undefined);
       setTransactions(data);
 
     } catch (error) {
       console.error('Failed to load transactions:', error);
-      Alert.alert('Error', 'Failed to load transactions');
+      Alert.alert(t('common.error'), t('transactions.load_failed', { defaultValue: 'Failed to load transactions' }));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -128,7 +127,7 @@ export default function TransactionsScreen() {
 
   const handleExport = () => {
     if (!filteredTransactions.length) {
-      Alert.alert('No Data', 'No transactions available to export');
+      Alert.alert(t('transactions.no_data', { defaultValue: 'No Data' }), t('transactions.no_transactions_export', { defaultValue: 'No transactions available to export' }));
       return;
     }
 
@@ -176,55 +175,68 @@ export default function TransactionsScreen() {
     }
   };
 
-  const renderTransaction = ({ item }: { item: TransactionRecord }) => (
-    <TouchableOpacity style={styles.transactionCard}>
-      <View style={styles.transactionHeader}>
-        <View style={styles.transactionIcon}>
-          <Ionicons 
-            name={item.type === 'income' ? 'trending-up' : 'trending-down'} 
-            size={20} 
-            color={item.type === 'income' ? '#059669' : '#DC2626'} 
-          />
-        </View>
-        <View style={styles.transactionInfo}>
-          <Text style={styles.transactionDescription}>{item.description}</Text>
-          <Text style={styles.transactionCategory}>{item.category} • {formatDate(item.date)}</Text>
-        </View>
-        <View style={styles.transactionAmount}>
-          <Text style={[
-            styles.amountText,
-            { color: item.type === 'income' ? '#059669' : '#DC2626' }
-          ]}>
-            {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status}
+  const renderTransaction = ({ item }: { item: TransactionRecord }) => {
+    const hasEvidence = Boolean(
+      (item as any).attachmentUrl || (item as any).hasReceipt || ((item as any).receiptCount ?? 0) > 0
+    );
+    return (
+      <TouchableOpacity style={styles.transactionCard}>
+        <View style={styles.transactionHeader}>
+          <View style={styles.transactionIcon}>
+            <Ionicons 
+              name={item.type === 'income' ? 'trending-up' : 'trending-down'} 
+              size={20} 
+              color={item.type === 'income' ? '#059669' : '#DC2626'} 
+            />
+          </View>
+          <View style={styles.transactionInfo}>
+            <Text style={styles.transactionDescription}>{item.description}</Text>
+            <Text style={styles.transactionCategory}>{item.category} • {formatDate(item.date)}</Text>
+          </View>
+          <View style={styles.transactionAmount}>
+            <Text style={[
+              styles.amountText,
+              { color: item.type === 'income' ? '#059669' : '#DC2626' }
+            ]}>
+              {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
             </Text>
+            {hasEvidence && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <Ionicons name="document-attach" size={16} color={theme?.primary || '#4F46E5'} />
+                <Text style={{ fontSize: 11, color: theme?.textSecondary || '#6B7280' }}>
+                  {(item as any).receiptCount ? `${(item as any).receiptCount} ${t('receipt.view_receipts', { defaultValue: 'View Receipts' })}` : t('receipt.attach_receipt', { defaultValue: 'Attach Receipt' })}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                {item.status}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderFilterModal = () => (
     <Modal visible={showFilters} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter Transactions</Text>
+            <Text style={styles.modalTitle}>{t('transactions.filter_title', { defaultValue: 'Filter Transactions' })}</Text>
             <TouchableOpacity onPress={() => setShowFilters(false)}>
               <Ionicons name="close" size={24} color={theme?.text || '#333'} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Transaction Type</Text>
+            <Text style={styles.filterLabel}>{t('transactions.type', { defaultValue: 'Transaction Type' })}</Text>
             <View style={styles.filterOptions}>
               {[
-                { key: 'all', label: 'All Types' },
-                { key: 'income', label: 'Income' },
-                { key: 'expense', label: 'Expenses' },
+                { key: 'all', label: t('transactions.all_types', { defaultValue: 'All Types' }) },
+                { key: 'income', label: t('transactions.income', { defaultValue: 'Income' }) },
+                { key: 'expense', label: t('transactions.expenses', { defaultValue: 'Expenses' }) },
               ].map(({ key, label }) => (
                 <TouchableOpacity
                   key={key}
@@ -246,15 +258,15 @@ export default function TransactionsScreen() {
           </View>
 
           <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Category</Text>
+            <Text style={styles.filterLabel}>{t('transactions.category', { defaultValue: 'Category' })}</Text>
             <View style={styles.filterOptions}>
               {[
-                { key: 'all', label: 'All Categories' },
-                { key: 'Tuition', label: 'Tuition' },
-                { key: 'Supplies', label: 'Supplies' },
-                { key: 'Salaries', label: 'Salaries' },
-                { key: 'Maintenance', label: 'Maintenance' },
-                { key: 'Utilities', label: 'Utilities' },
+                { key: 'all', label: t('transactions.all_categories', { defaultValue: 'All Categories' }) },
+                { key: 'Tuition', label: t('transactions.cat_tuition', { defaultValue: 'Tuition' }) },
+                { key: 'Supplies', label: t('transactions.cat_supplies', { defaultValue: 'Supplies' }) },
+                { key: 'Salaries', label: t('transactions.cat_salaries', { defaultValue: 'Salaries' }) },
+                { key: 'Maintenance', label: t('transactions.cat_maintenance', { defaultValue: 'Maintenance' }) },
+                { key: 'Utilities', label: t('transactions.cat_utilities', { defaultValue: 'Utilities' }) },
               ].map(({ key, label }) => (
                 <TouchableOpacity
                   key={key}
@@ -289,13 +301,13 @@ export default function TransactionsScreen() {
                 searchTerm: '',
               })}
             >
-              <Text style={styles.clearButtonText}>Clear All</Text>
+              <Text style={styles.clearButtonText}>{t('transactions.clear_all', { defaultValue: 'Clear All' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.applyButton}
               onPress={() => setShowFilters(false)}
             >
-              <Text style={styles.applyButtonText}>Apply Filters</Text>
+              <Text style={styles.applyButtonText}>{t('transactions.apply_filters', { defaultValue: 'Apply Filters' })}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -307,12 +319,12 @@ export default function TransactionsScreen() {
     return (
       <View style={styles.accessDenied}>
         <Ionicons name="lock-closed" size={64} color={theme?.textSecondary || '#666'} />
-        <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+        <Text style={styles.accessDeniedTitle}>{t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}</Text>
         <Text style={styles.accessDeniedText}>
-          Only school principals can access transaction details.
+          {t('transactions.access_denied_text', { defaultValue: 'Only school principals can access transaction details.' })}
         </Text>
         <TouchableOpacity style={styles.backButton} onPress={() => navigateBack()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+          <Text style={styles.backButtonText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -325,7 +337,7 @@ export default function TransactionsScreen() {
         <TouchableOpacity onPress={() => navigateBack()}>
           <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
-        <Text style={styles.title}>Transactions</Text>
+        <Text style={styles.title}>{t('transactions.title', { defaultValue: 'Transactions' })}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerAction}
@@ -347,7 +359,7 @@ export default function TransactionsScreen() {
         <Ionicons name="search" size={20} color={theme?.textSecondary || '#666'} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search transactions..."
+          placeholder={t('transactions.search_placeholder', { defaultValue: 'Search transactions...' })}
           value={filters.searchTerm}
           onChangeText={(text) => setFilters(prev => ({ ...prev, searchTerm: text }))}
           placeholderTextColor={theme?.textSecondary || '#666'}
@@ -357,10 +369,10 @@ export default function TransactionsScreen() {
       {/* Summary Bar */}
       <View style={styles.summaryContainer}>
         <Text style={styles.summaryText}>
-          {filteredTransactions.length} of {transactions.length} transactions
+          {t('transactions.summary_count', { defaultValue: '{{count}} of {{total}} transactions', count: filteredTransactions.length, total: transactions.length })}
         </Text>
         <Text style={styles.summaryAmount}>
-          Total: {formatCurrency(
+          {t('transactions.total', { defaultValue: 'Total' })}: {formatCurrency(
             filteredTransactions.reduce((sum, t) => 
               sum + (t.type === 'income' ? t.amount : -t.amount), 0
             )

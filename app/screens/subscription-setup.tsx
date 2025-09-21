@@ -17,6 +17,7 @@ import { track } from '@/lib/analytics';
 import { createCheckout } from '@/lib/payments';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import * as WebBrowser from 'expo-web-browser';
+import { getReturnUrl, getCancelUrl } from '@/lib/payments/urls';
 
 interface SubscriptionPlan {
   id: string;
@@ -338,8 +339,9 @@ export default function SubscriptionSetupScreen() {
         planTier: plan.tier,
         billing: annual ? 'annual' : 'monthly' as const,
         seats: plan.max_teachers,
-        return_url: 'edudashpro://screens/payments/return',
-        cancel_url: 'edudashpro://screens/subscription-setup',
+        // PayFast requires http(s) URLs. Use HTTPS bridge pages managed server-side.
+        return_url: getReturnUrl(),
+        cancel_url: getCancelUrl(),
       };
       
       const result = await createCheckout(checkoutInput);

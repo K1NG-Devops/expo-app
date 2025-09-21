@@ -90,10 +90,54 @@ function isMainDashboardRoute(routeName: string): boolean {
 }
 
 /**
+ * Helper function to identify routes that should always show a back button
+ */
+function shouldAlwaysShowBackButton(routeName: string): boolean {
+  const n = (routeName || '').toLowerCase();
+  
+  // Modal screens and detail screens should always have back buttons
+  if (n.includes('modal') || n.includes('-modal') || n.includes('premium-feature')) {
+    return true;
+  }
+  
+  // Detail screens
+  if (n.includes('detail') || n.includes('-detail') || n.endsWith('detail')) {
+    return true;
+  }
+  
+  // Settings and configuration screens
+  if (n.includes('settings') || n.includes('config') || n.includes('preferences')) {
+    return true;
+  }
+  
+  // Account and profile screens
+  if (n.includes('account') || n.includes('profile') || n.includes('subscription')) {
+    return true;
+  }
+  
+  // Invite and request management screens
+  if (n.includes('invite') || n.includes('request') || n.includes('parent-invite') || n.includes('parent-request')) {
+    return true;
+  }
+  
+  // Principal management screens
+  if (n.includes('principal-parent') || n.includes('school-wide')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Determine if a back button should be shown based on current route
  * Updated to treat all dashboards as main screens (no back button)
  */
 export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean): boolean {
+  // Some routes should always show a back button regardless of navigation stack
+  if (shouldAlwaysShowBackButton(routeName)) {
+    return true;
+  }
+  
   // Never show back button on main dashboard routes
   if (isMainDashboardRoute(routeName)) {
     return false;

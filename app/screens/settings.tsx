@@ -26,8 +26,9 @@ import Constants from 'expo-constants';
 import { useUpdates } from '@/contexts/UpdatesProvider';
 import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Vibration } from 'react-native';
-import Feedback from '@/lib/feedback';
+// Haptics temporarily disabled to prevent device-specific crashes
+// import { Vibration } from 'react-native';
+// import Feedback from '@/lib/feedback';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
@@ -520,11 +521,25 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Invoice Notification Settings */}
+        {/* Billing & Subscriptions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Billing notifications</Text>
+          <Text style={styles.sectionTitle}>Billing & subscriptions</Text>
           <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: 'hidden' }}>
             <InvoiceNotificationSettings />
+            <View style={styles.divider} />
+            <TouchableOpacity
+              style={[styles.settingItem, styles.lastSettingItem]}
+              onPress={() => router.push('/screens/manage-subscription')}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons name="card" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Manage subscription</Text>
+                  <Text style={styles.settingSubtitle}>Open billing management (RevenueCat)</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -533,14 +548,8 @@ export default function SettingsScreen() {
           <View style={styles.settingsCard}>
             <TouchableOpacity
               style={[styles.settingItem, styles.lastSettingItem]}
-              onPress={async () => {
-                try {
-                  if (hapticsEnabled) Vibration.vibrate(40);
-                  if (soundEnabled) await Feedback.playSuccess();
-                  Alert.alert('Test', 'Feedback played successfully');
-                } catch (e) {
-                  Alert.alert('Note', 'Sound feedback is unavailable. Install expo-av to enable sound.');
-                }
+              onPress={() => {
+                Alert.alert('Feedback', 'Haptics and sound feedback are temporarily disabled.');
               }}
             >
               <View style={styles.settingLeft}>
@@ -565,6 +574,26 @@ export default function SettingsScreen() {
           <ThemeLanguageSettings />
         </View>
 
+        {/* School Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>School settings</Text>
+          <View style={styles.settingsCard}>
+            <TouchableOpacity
+              style={[styles.settingItem, styles.lastSettingItem]}
+              onPress={() => router.push('/screens/school-settings')}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons name="logo-whatsapp" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>WhatsApp number</Text>
+                  <Text style={styles.settingSubtitle}>Configure your school’s WhatsApp number</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Updates */}
         {Platform.OS !== 'web' && (
           <View style={styles.section}>
@@ -584,13 +613,12 @@ export default function SettingsScreen() {
                     );
                   } else {
                     try {
-                      await checkForUpdates();
-                      // The global banner will show if an update is available
+                      const downloaded = await checkForUpdates();
                       Alert.alert(
                         'Updates',
-                        isUpdateDownloaded 
-                          ? 'Update downloaded! Use the banner to restart.' 
-                          : 'Checked for updates. You\'ll be notified if one is available.'
+                        downloaded
+                          ? 'Update downloaded! Use the banner at the top to restart.'
+                          : 'You are up to date. No updates available.'
                       );
                     } catch (err) {
                       Alert.alert('Error', 'Failed to check for updates. Please try again.');

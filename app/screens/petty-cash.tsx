@@ -9,7 +9,7 @@
  * - Monthly reconciliation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -24,12 +24,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { navigateBack } from '@/lib/navigation';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 // import * as DocumentPicker from 'expo-document-picker';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 // Removed Picker import to fix ViewManager error
 
 interface PettyCashTransaction {
@@ -69,6 +71,7 @@ const EXPENSE_CATEGORIES = [
 export default function PettyCashScreen() {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { t } = useTranslation('common');
   const router = useRouter();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
@@ -101,7 +104,20 @@ export default function PettyCashScreen() {
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
-  const loadPettyCashData = async () => {
+  // Receipts viewing state
+  const [receiptsVisible, setReceiptsVisible] = useState(false);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptItems, setReceiptItems] = useState<Array<{ id: string; url: string; fileName?: string }>>([]);
+
+  // Category filter
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  // Date range filter
+  const [selectedRange, setSelectedRange] = useState<'7d' | '30d' | 'all' | 'custom'>('30d');
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  const [customFrom, setCustomFrom] = useState<string>('');
+  const [customTo, setCustomTo] = useState<string>('');
+
+  const loadPettyCashData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -115,7 +131,7 @@ export default function PettyCashScreen() {
         .single();
 
       if (!userProfile?.preschool_id) {
-        Alert.alert('Error', 'No school assigned to your account');
+        Alert.alert(t('common.error'), t('petty_cash.error_no_school'));
         return;
       }
 
@@ -124,7 +140,7 @@ export default function PettyCashScreen() {
         const { data: ensuredId } = await assertSupabase()
           .rpc('ensure_petty_cash_account', { school_uuid: userProfile.preschool_id });
         if (ensuredId) setAccountId(String(ensuredId));
-      } catch (e) {
+      } catch {
         // Fallback: try fetch an active account
         const { data: acct } = await assertSupabase()
           .from('petty_cash_accounts')
@@ -205,27 +221,27 @@ export default function PettyCashScreen() {
 
     } catch (error) {
       console.error('Error loading petty cash data:', error);
-      Alert.alert('Error', 'Failed to load petty cash information');
+      Alert.alert(t('common.error'), t('petty_cash.error_failed_load'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user, t]);
 
   const handleAddExpense = async () => {
     if (!expenseForm.amount || !expenseForm.description || !expenseForm.category) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common.error'), t('petty_cash.error_fill_fields'));
       return;
     }
 
     const amount = parseFloat(expenseForm.amount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Alert.alert(t('common.error'), t('petty_cash.error_valid_amount'));
       return;
     }
 
     if (amount > summary.current_balance) {
-      Alert.alert('Error', 'Insufficient petty cash balance');
+      Alert.alert(t('common.error'), t('petty_cash.error_insufficient_balance'));
       return;
     }
 
@@ -256,7 +272,7 @@ const { data: transactionData, error: transactionError } = await assertSupabase(
         .single();
 
       if (transactionError) {
-        Alert.alert('Error', 'Failed to add expense');
+        Alert.alert(t('common.error'), t('petty_cash.error_failed_add'));
         return;
       }
 
@@ -266,7 +282,7 @@ const { data: transactionData, error: transactionError } = await assertSupabase(
         receiptPath = await uploadReceiptImage(receiptImage, transactionData.id);
       }
 
-      Alert.alert('Success', `Expense added successfully${receiptPath ? ' with receipt' : ''}`);
+      Alert.alert(t('common.success'), t('petty_cash.success_expense_added') + (receiptPath ? t('petty_cash.success_expense_receipt') : ''));
       setShowAddExpense(false);
       setExpenseForm({
         amount: '',
@@ -277,7 +293,7 @@ const { data: transactionData, error: transactionError } = await assertSupabase(
       setReceiptImage(null);
       loadPettyCashData();
     } catch {
-      Alert.alert('Error', 'Failed to add expense');
+      Alert.alert(t('common.error'), t('petty_cash.error_failed_add'));
     } finally {
       setUploadingReceipt(false);
     }
@@ -285,18 +301,18 @@ const { data: transactionData, error: transactionError } = await assertSupabase(
 
   const handleReplenishment = async () => {
     if (!expenseForm.amount) {
-      Alert.alert('Error', 'Please enter replenishment amount');
+      Alert.alert(t('common.error'), t('petty_cash.error_replenishment_amount'));
       return;
     }
 
     const amount = parseFloat(expenseForm.amount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Alert.alert(t('common.error'), t('petty_cash.error_valid_amount'));
       return;
     }
 
 if (!assertSupabase) {
-      Alert.alert('Error', 'Database connection not available');
+      Alert.alert(t('common.error'), t('petty_cash.error_db_unavailable'));
       return;
     }
 
@@ -321,11 +337,11 @@ const { error } = await assertSupabase()
         });
 
       if (error) {
-        Alert.alert('Error', 'Failed to record replenishment');
+        Alert.alert(t('common.error'), t('petty_cash.error_failed_record'));
         return;
       }
 
-      Alert.alert('Success', 'Replenishment recorded successfully');
+      Alert.alert(t('common.success'), t('petty_cash.success_replenishment'));
       setShowReplenishment(false);
       setExpenseForm({
         amount: '',
@@ -335,34 +351,34 @@ const { error } = await assertSupabase()
       });
       loadPettyCashData();
     } catch {
-      Alert.alert('Error', 'Failed to record replenishment');
+      Alert.alert(t('common.error'), t('petty_cash.error_failed_record'));
     }
   };
 
   const handleWithdrawal = async () => {
     if (!expenseForm.amount || !expenseForm.description) {
-      Alert.alert('Error', 'Please enter amount and description');
+      Alert.alert(t('common.error'), t('petty_cash.error_amount_description'));
       return;
     }
 
     const amount = parseFloat(expenseForm.amount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Alert.alert(t('common.error'), t('petty_cash.error_valid_amount'));
       return;
     }
 
     if (amount > summary.current_balance) {
-      Alert.alert('Error', 'Withdrawal amount exceeds current balance');
+      Alert.alert(t('common.error'), t('petty_cash.error_withdrawal_exceeds'));
       return;
     }
 
     // Confirm withdrawal
     Alert.alert(
-      'Confirm Withdrawal',
-      `Are you sure you want to withdraw ${formatCurrency(amount)} from petty cash?\n\nThis will reduce the available balance.`,
+      t('petty_cash.confirm_withdrawal'),
+      t('petty_cash.confirm_withdrawal_message', { amount: formatCurrency(amount) }),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Withdraw', style: 'destructive', onPress: performWithdrawal }
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('petty_cash.withdraw'), style: 'destructive', onPress: performWithdrawal }
       ]
     );
 
@@ -389,11 +405,11 @@ const { error } = await assertSupabase()
           });
 
         if (error) {
-          Alert.alert('Error', 'Failed to record withdrawal');
+          Alert.alert(t('common.error'), t('petty_cash.error_failed_withdrawal'));
           return;
         }
 
-        Alert.alert('Success', 'Withdrawal recorded successfully');
+        Alert.alert(t('common.success'), t('petty_cash.success_withdrawal'));
         setShowWithdrawal(false);
         setExpenseForm({
           amount: '',
@@ -403,7 +419,7 @@ const { error } = await assertSupabase()
         });
         loadPettyCashData();
       } catch {
-        Alert.alert('Error', 'Failed to record withdrawal');
+        Alert.alert(t('common.error'), t('petty_cash.error_failed_withdrawal'));
       }
     }
   };
@@ -505,21 +521,128 @@ const { error } = await assertSupabase()
     }
   };
 
+  const attachReceiptToTransaction = async (transactionId: string) => {
+    try {
+      // Choose method
+      Alert.alert(
+        t('receipt.attach_receipt', { defaultValue: 'Attach Receipt' }),
+        t('receipt.choose_method', { defaultValue: 'Choose how to add your receipt:' }),
+        [
+          {
+            text: t('receipt.take_photo', { defaultValue: 'Take Photo' }),
+            onPress: async () => {
+              try {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert(t('receipt.permission_required'), t('receipt.camera_permission'));
+                  return;
+                }
+                const result = await ImagePicker.launchCameraAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [4, 3],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  const path = await uploadReceiptImage(result.assets[0].uri, transactionId);
+                  if (path) Alert.alert(t('common.success'), t('receipt.attached_success', { defaultValue: 'Receipt attached' }));
+                }
+              } catch (e) {
+                Alert.alert(t('common.error'), t('receipt.attached_failed', { defaultValue: 'Failed to attach receipt' }));
+              }
+            },
+          },
+          {
+            text: t('receipt.choose_from_gallery', { defaultValue: 'Choose from Gallery' }),
+            onPress: async () => {
+              try {
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert(t('receipt.permission_required'), t('receipt.gallery_permission'));
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [4, 3],
+                  quality: 0.8,
+                });
+                if (!result.canceled && result.assets[0]) {
+                  const path = await uploadReceiptImage(result.assets[0].uri, transactionId);
+                  if (path) Alert.alert(t('common.success'), t('receipt.attached_success', { defaultValue: 'Receipt attached' }));
+                }
+              } catch (e) {
+                Alert.alert(t('common.error'), t('receipt.attached_failed', { defaultValue: 'Failed to attach receipt' }));
+              }
+            },
+          },
+          { text: t('common.cancel'), style: 'cancel' },
+        ]
+      );
+    } catch {}
+  };
+
+  const viewReceiptsForTransaction = async (transactionId: string) => {
+    try {
+      setReceiptsLoading(true);
+      setReceiptsVisible(true);
+
+      // Find receipts for the transaction
+      const { data: rows, error } = await assertSupabase()
+        .from('petty_cash_receipts')
+        .select('id, storage_path, file_name')
+        .eq('transaction_id', transactionId)
+        .limit(10);
+
+      if (error) throw error;
+
+      const list = rows || [];
+      if (list.length === 0) {
+        setReceiptsVisible(false);
+        Alert.alert(t('common.info'), t('receipt.no_receipts', { defaultValue: 'No receipts attached for this transaction.' }));
+        return;
+      }
+
+      // Generate signed URLs
+      const items: Array<{ id: string; url: string; fileName?: string }> = [];
+      for (const r of list) {
+        try {
+          const { data: signed } = await assertSupabase()
+            .storage
+            .from('petty-cash-receipts')
+            .createSignedUrl(r.storage_path, 3600);
+          if (signed?.signedUrl) {
+            items.push({ id: r.id, url: signed.signedUrl, fileName: r.file_name });
+          }
+        } catch (e) {
+          // skip failed items
+        }
+      }
+
+      setReceiptItems(items);
+    } catch {
+      setReceiptsVisible(false);
+      Alert.alert(t('common.error'), t('receipt.error_select_image', { defaultValue: 'Failed to load receipts' }));
+    } finally {
+      setReceiptsLoading(false);
+    }
+  };
+
   const selectReceiptImage = () => {
     Alert.alert(
-      'Add Receipt',
-      'Choose how to add your receipt:',
+      t('petty_cash.attach_receipt'),
+      t('receipt.choose_method'),
       [
         { 
-          text: 'Take Photo', 
+          text: t('receipt.take_photo'), 
           onPress: () => takeReceiptPhoto() 
         },
         { 
-          text: 'Choose from Gallery', 
+          text: t('receipt.choose_from_gallery'), 
           onPress: () => pickReceiptFromGallery() 
         },
         { 
-          text: 'Cancel', 
+          text: t('common.cancel'), 
           style: 'cancel' 
         }
       ]
@@ -530,7 +653,7 @@ const { error } = await assertSupabase()
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Camera permission is needed to take photos');
+        Alert.alert(t('receipt.permission_required'), t('receipt.camera_permission'));
         return;
       }
 
@@ -546,7 +669,7 @@ const { error } = await assertSupabase()
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo');
+      Alert.alert(t('common.error'), t('receipt.error_take_photo'));
     }
   };
 
@@ -554,7 +677,7 @@ const { error } = await assertSupabase()
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission required', 'Gallery permission is needed to select photos');
+        Alert.alert(t('receipt.permission_required'), t('receipt.gallery_permission'));
         return;
       }
 
@@ -570,7 +693,7 @@ const { error } = await assertSupabase()
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to select image');
+      Alert.alert(t('common.error'), t('receipt.error_select_image'));
     }
   };
 
@@ -580,7 +703,7 @@ const { error } = await assertSupabase()
 
   useEffect(() => {
     loadPettyCashData();
-  }, [user]);
+  }, [loadPettyCashData]);
 
   // Helpers for cancel/delete/reverse
   const canDelete = async (): Promise<boolean> => {
@@ -605,8 +728,8 @@ const { error } = await assertSupabase()
         .eq('status', 'pending');
       if (error) throw error;
       loadPettyCashData();
-    } catch (e) {
-      Alert.alert('Error', 'Failed to cancel transaction');
+    } catch {
+      Alert.alert(t('common.error'), t('transaction.failed_cancel', 'Failed to cancel transaction'));
     }
   };
 
@@ -614,21 +737,22 @@ const { error } = await assertSupabase()
     try {
       const allowed = await canDelete();
       if (!allowed) {
-        Alert.alert('Not allowed', 'Only principals can delete transactions');
+        Alert.alert(t('common.not_allowed', 'Not allowed'), t('transaction.principals_only_delete', 'Only principals can delete transactions'));
         return;
       }
-const { error } = await assertSupabase()
+
+      const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .delete()
         .eq('id', transactionId);
       if (error) throw error;
       loadPettyCashData();
-    } catch (e) {
-      Alert.alert('Error', 'Failed to delete transaction');
+    } catch {
+      Alert.alert(t('common.error'), t('transaction.failed_delete', 'Failed to delete transaction'));
     }
   };
 
-  const handleReverseTransaction = async (t: PettyCashTransaction) => {
+  const handleReverseTransaction = async (transaction: PettyCashTransaction) => {
     try {
 const { data: userProfile } = await assertSupabase()
         .from('users')
@@ -636,26 +760,51 @@ const { data: userProfile } = await assertSupabase()
         .eq('auth_user_id', user?.id)
         .single();
 
-      const oppositeType = t.type === 'expense' ? 'replenishment' : 'expense';
+      const oppositeType = transaction.type === 'expense' ? 'replenishment' : 'expense';
 const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           school_id: userProfile?.preschool_id,
           account_id: accountId,
-          amount: t.amount,
-          description: `Reversal of ${t.type} (${t.id}) - ${t.description}`,
+          amount: transaction.amount,
+          description: `Reversal of ${transaction.type} (${transaction.id}) - ${transaction.description}`,
           category: 'Other',
           type: oppositeType as any,
           created_by: user?.id,
           status: 'approved',
-          metadata: { reversed_of: t.id },
+          metadata: { reversed_of: transaction.id },
         });
       if (error) throw error;
       loadPettyCashData();
-    } catch (e) {
-      Alert.alert('Error', 'Failed to create reversal');
+    } catch {
+      Alert.alert(t('common.error'), t('transaction.failed_reverse', 'Failed to create reversal'));
     }
   };
+
+  const filteredTransactions = React.useMemo(() => {
+    let list = transactions;
+
+    if (selectedCategory !== 'All') {
+      list = list.filter(tx => tx.category === selectedCategory);
+    }
+
+    if (selectedRange === '7d' || selectedRange === '30d') {
+      const now = Date.now();
+      const cutoff = selectedRange === '7d' ? now - 7 * 24 * 60 * 60 * 1000 : now - 30 * 24 * 60 * 60 * 1000;
+      list = list.filter(tx => new Date(tx.created_at).getTime() >= cutoff);
+    } else if (selectedRange === 'custom') {
+      const from = customFrom ? new Date(customFrom).getTime() : NaN;
+      const to = customTo ? new Date(customTo).getTime() : NaN;
+      list = list.filter(tx => {
+        const ts = new Date(tx.created_at).getTime();
+        const afterFrom = isNaN(from) ? true : ts >= from;
+        const beforeTo = isNaN(to) ? true : ts <= to;
+        return afterFrom && beforeTo;
+      });
+    }
+
+    return list;
+  }, [transactions, selectedCategory, selectedRange, customFrom, customTo]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -667,7 +816,7 @@ const { error } = await assertSupabase()
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <Ionicons name="wallet-outline" size={48} color="#6B7280" />
-          <Text style={styles.loadingText}>Loading petty cash data...</Text>
+          <Text style={styles.loadingText}>{t('petty_cash.loading_data', 'Loading petty cash data...')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -677,10 +826,10 @@ const { error } = await assertSupabase()
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={() => navigateBack('/screens/financial-dashboard')}>
+          <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Petty Cash</Text>
+        <Text style={styles.headerTitle}>{t('petty_cash.petty_cash')}</Text>
 <TouchableOpacity onPress={() => router.push('/screens/financial-reports')}>
           <Ionicons name="document-text" size={24} color="#007AFF" />
         </TouchableOpacity>
@@ -692,7 +841,7 @@ const { error } = await assertSupabase()
       >
         {/* Balance Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Current Balance</Text>
+          <Text style={styles.summaryTitle}>{t('petty_cash.current_balance')}</Text>
           <Text style={[
             styles.currentBalance,
             { color: summary.current_balance < 1000 ? '#EF4444' : '#10B981' }
@@ -703,7 +852,7 @@ const { error } = await assertSupabase()
           {summary.current_balance < 1000 && (
             <View style={styles.lowBalanceWarning}>
               <Ionicons name="warning" size={16} color="#F59E0B" />
-              <Text style={styles.warningText}>Low balance - consider replenishment</Text>
+              <Text style={styles.warningText}>{t('petty_cash.low_balance_warning', 'Low balance - consider replenishment')}</Text>
             </View>
           )}
 
@@ -712,27 +861,27 @@ const { error } = await assertSupabase()
               <Text style={styles.summaryValue}>
                 {formatCurrency(summary.total_expenses)}
               </Text>
-              <Text style={styles.summaryLabel}>Total Expenses</Text>
+              <Text style={styles.summaryLabel}>{t('petty_cash.total_expenses')}</Text>
             </View>
             <View style={styles.summaryItem}>
               <Text style={styles.summaryValue}>
                 {formatCurrency(summary.pending_approval)}
               </Text>
-              <Text style={styles.summaryLabel}>Pending Approval</Text>
+              <Text style={styles.summaryLabel}>{t('petty_cash.pending_approval')}</Text>
             </View>
           </View>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.actionsCard}>
-          <Text style={styles.actionsTitle}>Quick Actions</Text>
+          <Text style={styles.actionsTitle}>{t('petty_cash.quick_actions')}</Text>
           <View style={styles.actionsGrid}>
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => setShowAddExpense(true)}
             >
               <Ionicons name="remove-circle" size={24} color="#EF4444" />
-              <Text style={styles.actionText}>Add Expense</Text>
+              <Text style={styles.actionText}>{t('petty_cash.add_expense')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -740,7 +889,7 @@ const { error } = await assertSupabase()
               onPress={() => setShowReplenishment(true)}
             >
               <Ionicons name="add-circle" size={24} color="#10B981" />
-              <Text style={styles.actionText}>Replenish Cash</Text>
+              <Text style={styles.actionText}>{t('petty_cash.replenish_cash')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -748,7 +897,7 @@ const { error } = await assertSupabase()
               onPress={() => setShowWithdrawal(true)}
             >
               <Ionicons name="arrow-down-circle" size={24} color="#F59E0B" />
-              <Text style={styles.actionText}>Withdraw Cash</Text>
+              <Text style={styles.actionText}>{t('petty_cash.withdraw_cash')}</Text>
             </TouchableOpacity>
             
             <TouchableOpacity
@@ -756,7 +905,7 @@ const { error } = await assertSupabase()
               onPress={() => router.push('/screens/petty-cash-reconcile')}
             >
               <Ionicons name="calculator" size={24} color="#8B5CF6" />
-              <Text style={styles.actionText}>Reconcile</Text>
+              <Text style={styles.actionText}>{t('petty_cash.reconcile')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -764,20 +913,59 @@ const { error } = await assertSupabase()
         {/* Recent Transactions */}
         <View style={styles.transactionsCard}>
           <View style={styles.transactionsHeader}>
-            <Text style={styles.transactionsTitle}>Recent Transactions</Text>
-<TouchableOpacity onPress={() => router.push('/screens/financial-transactions')}>
-              <Text style={styles.viewAllText}>View All</Text>
+            <Text style={styles.transactionsTitle}>{t('petty_cash.recent_transactions')}</Text>
+            <TouchableOpacity onPress={() => router.push('/screens/financial-transactions')}>
+              <Text style={styles.viewAllText}>{t('petty_cash.view_all')}</Text>
             </TouchableOpacity>
           </View>
 
-          {transactions.length === 0 ? (
+          {/* Category Filters */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            {['All', ...EXPENSE_CATEGORIES, 'Replenishment', 'Withdrawal/Adjustment'].map(cat => (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setSelectedCategory(cat)}
+                style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, selectedCategory === cat && styles.filterChipTextActive]}>
+                  {cat === 'All' ? t('common.all', { defaultValue: 'All' }) :
+                   cat === 'Replenishment' ? t('petty_cash.replenishment') :
+                   cat === 'Withdrawal/Adjustment' ? t('petty_cash.withdrawal_adjustment', { defaultValue: 'Withdrawal/Adjustment' }) : cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Date Range Filters */}
+          <View style={{ flexDirection: 'row', marginBottom: 12 }}>
+            {[
+              { key: '7d', label: t('common.last_7_days', { defaultValue: 'Last 7 days' }) },
+              { key: '30d', label: t('common.last_30_days', { defaultValue: 'Last 30 days' }) },
+              { key: 'all', label: t('common.all_time', { defaultValue: 'All time' }) },
+              { key: 'custom', label: t('common.custom_range', { defaultValue: 'Custom range' }) },
+            ].map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                onPress={() => {
+                  if (key === 'custom') { setShowCustomRange(true); } else { setSelectedRange(key as any); }
+                }}
+                style={[styles.filterChip, selectedRange === key && styles.filterChipActive]}
+              >
+                <Text style={[styles.filterChipText, selectedRange === key && styles.filterChipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {filteredTransactions.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="receipt-outline" size={48} color="#9CA3AF" />
-              <Text style={styles.emptyTitle}>No Transactions Yet</Text>
-              <Text style={styles.emptySubtitle}>Add your first expense or replenishment</Text>
+              <Text style={styles.emptyTitle}>{t('petty_cash.no_transactions_yet')}</Text>
+              <Text style={styles.emptySubtitle}>{t('petty_cash.add_first_expense')}</Text>
             </View>
           ) : (
-            transactions.slice(0, 10).map((transaction) => (
+            filteredTransactions.slice(0, 10).map((transaction) => (
               <View 
                 key={transaction.id} 
                 style={styles.transactionItem}
@@ -805,37 +993,44 @@ const { error } = await assertSupabase()
                 </View>
                 
                 <View style={styles.transactionRight}>
-                  <Text style={[
-                    styles.transactionAmount,
-                    { color: (transaction.type === 'expense' || transaction.type === 'adjustment') ? '#EF4444' : '#10B981' }
-                  ]}>
-                    {(transaction.type === 'expense' || transaction.type === 'adjustment') ? '-' : '+'}
-                    {formatCurrency(transaction.amount)}
-                  </Text>
+                  <View style={styles.rightTopRow}>
+                    <Text style={[
+                      styles.transactionAmount,
+                      { color: (transaction.type === 'expense' || transaction.type === 'adjustment') ? '#EF4444' : '#10B981' }
+                    ]}>
+                      {(transaction.type === 'expense' || transaction.type === 'adjustment') ? '-' : '+'}
+                      {formatCurrency(transaction.amount)}
+                    </Text>
+                    <TouchableOpacity
+                      style={{ marginLeft: 8, padding: 4 }}
+                      onPress={async () => {
+                        const options: any[] = [];
+                    options.push({ text: t('receipt.view_receipts', { defaultValue: 'View Receipts' }), onPress: () => viewReceiptsForTransaction(transaction.id) });
+                    options.push({ text: t('receipt.attach_receipt', { defaultValue: 'Attach Receipt' }), onPress: () => attachReceiptToTransaction(transaction.id) });
+                    if (transaction.status === 'pending') {
+                      options.push({ text: t('petty_cash.cancel', { defaultValue: 'Cancel' }) + ' (reject)', onPress: () => handleCancelTransaction(transaction.id) });
+                    }
+                    options.push({ text: 'Reverse', onPress: () => handleReverseTransaction(transaction) });
+                        const allowDelete = await canDelete();
+                        if (allowDelete) {
+                          options.push({ text: t('common.delete', { defaultValue: 'Delete' }), style: 'destructive', onPress: () => handleDeleteTransaction(transaction.id) });
+                        }
+                        options.push({ text: t('common.close', { defaultValue: 'Close' }), style: 'cancel' });
+                        Alert.alert(t('transaction.options', { defaultValue: 'Transaction Options' }), t('transaction.choose_action', { defaultValue: 'Choose an action' }), options, { cancelable: true });
+                      }}
+                      accessibilityLabel={t('transaction.options', { defaultValue: 'Transaction Options' })}
+                      hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                    >
+                      <Ionicons name="ellipsis-vertical" size={18} color={theme?.textSecondary || '#6B7280'} />
+                    </TouchableOpacity>
+                  </View>
                   <View style={[
                     styles.statusBadge,
                     { backgroundColor: getStatusColor(transaction.status) }
                   ]}>
-                    <Text style={styles.statusText}>{transaction.status}</Text>
+                    <Text style={styles.statusText}>{t(`petty_cash.${transaction.status}`)}</Text>
                   </View>
                 </View>
-                <TouchableOpacity
-                  onPress={async () => {
-                    const options: any[] = [];
-                    if (transaction.status === 'pending') {
-                      options.push({ text: 'Cancel (reject)', onPress: () => handleCancelTransaction(transaction.id) });
-                    }
-                    options.push({ text: 'Reverse', onPress: () => handleReverseTransaction(transaction) });
-                    const allowDelete = await canDelete();
-                    if (allowDelete) {
-                      options.push({ text: 'Delete', style: 'destructive', onPress: () => handleDeleteTransaction(transaction.id) });
-                    }
-                    options.push({ text: 'Close', style: 'cancel' });
-                    Alert.alert('Transaction Options', 'Choose an action', options, { cancelable: true });
-                  }}
-                >
-                  <Ionicons name="ellipsis-vertical" size={18} color={theme?.textSecondary || '#6B7280'} />
-                </TouchableOpacity>
               </View>
             ))
           )}
@@ -852,82 +1047,82 @@ const { error } = await assertSupabase()
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowAddExpense(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
+              <Text style={styles.modalCancel}>{t('petty_cash.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Expense</Text>
+            <Text style={styles.modalTitle}>{t('petty_cash.add_expense')}</Text>
             <TouchableOpacity 
               onPress={handleAddExpense}
               disabled={uploadingReceipt}
             >
               <Text style={[styles.modalSave, uploadingReceipt && { opacity: 0.5 }]}>
-                {uploadingReceipt ? 'Uploading...' : 'Add'}
+                {uploadingReceipt ? t('common.uploading', 'Uploading...') : t('common.add', 'Add')}
               </Text>
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Amount (ZAR) *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.amount')} (ZAR) *</Text>
               <TextInput
                 style={styles.formInput}
                 value={expenseForm.amount}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, amount: text }))}
-                placeholder="0.00"
+                placeholder={t('petty_cash.enter_amount')}
                 keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Description *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.description')} *</Text>
               <TextInput
                 style={[styles.formInput, { height: 80 }]}
                 value={expenseForm.description}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, description: text }))}
-                placeholder="What was this expense for?"
+                placeholder={t('petty_cash.enter_description')}
                 multiline
                 numberOfLines={3}
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Category *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.category')} *</Text>
               <TouchableOpacity 
                 style={styles.categorySelector}
                 onPress={() => {
                   Alert.alert(
-                    'Select Category',
-                    'Choose an expense category:',
+                    t('petty_cash.select_category'),
+                    t('category.choose_expense_category', 'Choose an expense category:'),
                     [
                       ...EXPENSE_CATEGORIES.map(category => ({
                         text: category,
                         onPress: () => setExpenseForm(prev => ({ ...prev, category }))
                       })),
-                      { text: 'Cancel', style: 'cancel' }
+                      { text: t('common.cancel'), style: 'cancel' }
                     ],
                     { cancelable: true }
                   );
                 }}
               >
                 <Text style={[styles.categoryText, !expenseForm.category && styles.placeholder]}>
-                  {expenseForm.category || 'Select category...'}
+                  {expenseForm.category || t('petty_cash.select_category')}
                 </Text>
                 <Ionicons name="chevron-down" size={20} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Receipt Number (Optional)</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.receipt_number')} ({t('common.optional', 'Optional')})</Text>
               <TextInput
                 style={styles.formInput}
                 value={expenseForm.receipt_number}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, receipt_number: text }))}
-                placeholder="Receipt or reference number"
+                placeholder={t('petty_cash.enter_receipt_number')}
               />
             </View>
 
             {/* Receipt Upload Section */}
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Receipt Image (Optional)</Text>
+              <Text style={styles.formLabel}>{t('receipt.receipt_image', 'Receipt Image')} ({t('common.optional', 'Optional')})</Text>
               
               {receiptImage ? (
                 <View style={styles.receiptPreviewContainer}>
@@ -945,18 +1140,98 @@ const { error } = await assertSupabase()
                   onPress={selectReceiptImage}
                 >
                   <Ionicons name="camera" size={24} color="#6B7280" />
-                  <Text style={styles.uploadReceiptText}>Add Receipt Photo</Text>
-                  <Text style={styles.uploadReceiptSubtext}>Tap to take photo or select from gallery</Text>
+                  <Text style={styles.uploadReceiptText}>{t('receipt.add_receipt_photo', 'Add Receipt Photo')}</Text>
+                  <Text style={styles.uploadReceiptSubtext}>{t('receipt.tap_to_photo_gallery', 'Tap to take photo or select from gallery')}</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             <View style={styles.balanceInfo}>
-              <Text style={styles.balanceLabel}>Available Balance:</Text>
+              <Text style={styles.balanceLabel}>{t('petty_cash.available_balance', 'Available Balance')}:</Text>
               <Text style={styles.balanceAmount}>
                 {formatCurrency(summary.current_balance)}
               </Text>
             </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Custom Range Modal */}
+      <Modal
+        visible={showCustomRange}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCustomRange(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowCustomRange(false)}>
+              <Text style={styles.modalCancel}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{t('common.custom_range', { defaultValue: 'Custom range' })}</Text>
+            <TouchableOpacity onPress={() => {
+              setSelectedRange('custom');
+              setShowCustomRange(false);
+            }}>
+              <Text style={styles.modalSave}>{t('common.apply', { defaultValue: 'Apply' })}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.modalContent}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>{t('common.start_date', { defaultValue: 'Start date' })}</Text>
+              <TextInput
+                style={styles.formInput}
+                value={customFrom}
+                onChangeText={setCustomFrom}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>{t('common.end_date', { defaultValue: 'End date' })}</Text>
+              <TextInput
+                style={styles.formInput}
+                value={customTo}
+                onChangeText={setCustomTo}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Receipts Modal */}
+      <Modal
+        visible={receiptsVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setReceiptsVisible(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setReceiptsVisible(false)}>
+              <Text style={styles.modalCancel}>{t('common.close', { defaultValue: 'Close' })}</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{t('receipt.receipt_image', { defaultValue: 'Receipt Image' })}</Text>
+            <View style={{ width: 48 }} />
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {receiptsLoading ? (
+              <View style={{ alignItems: 'center', padding: 24 }}>
+                <Ionicons name="time-outline" size={24} color={theme?.textSecondary || '#6B7280'} />
+                <Text style={{ marginTop: 8, color: theme?.textSecondary || '#6B7280' }}>{t('common.loading', { defaultValue: 'Loading...' })}</Text>
+              </View>
+            ) : (
+              receiptItems.map(item => (
+                <View key={item.id} style={{ marginBottom: 16 }}>
+                  <Image source={{ uri: item.url }} style={styles.receiptPreview} />
+                  {!!item.fileName && (
+                    <Text style={{ marginTop: 6, textAlign: 'center', color: theme?.textSecondary || '#6B7280' }}>{item.fileName}</Text>
+                  )}
+                </View>
+              ))
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -971,33 +1246,33 @@ const { error } = await assertSupabase()
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowReplenishment(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
+              <Text style={styles.modalCancel}>{t('petty_cash.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Replenish Petty Cash</Text>
+            <Text style={styles.modalTitle}>{t('petty_cash.replenish_cash')}</Text>
             <TouchableOpacity onPress={handleReplenishment}>
-              <Text style={styles.modalSave}>Record</Text>
+              <Text style={styles.modalSave}>{t('common.record', 'Record')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Replenishment Amount (ZAR) *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.replenishment_amount', 'Replenishment Amount')} (ZAR) *</Text>
               <TextInput
                 style={styles.formInput}
                 value={expenseForm.amount}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, amount: text }))}
-                placeholder="0.00"
+                placeholder={t('petty_cash.enter_amount')}
                 keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.replenishmentInfo}>
-              <Text style={styles.infoTitle}>Current Status</Text>
+              <Text style={styles.infoTitle}>{t('petty_cash.current_status', 'Current Status')}</Text>
               <Text style={styles.infoText}>
-                Current Balance: {formatCurrency(summary.current_balance)}
+                {t('petty_cash.current_balance')}: {formatCurrency(summary.current_balance)}
               </Text>
               <Text style={styles.infoText}>
-                Recommended replenishment when balance falls below R1,000
+                {t('petty_cash.replenishment_recommendation', 'Recommended replenishment when balance falls below R1,000')}
               </Text>
             </View>
           </View>
@@ -1014,55 +1289,55 @@ const { error } = await assertSupabase()
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setShowWithdrawal(false)}>
-              <Text style={styles.modalCancel}>Cancel</Text>
+              <Text style={styles.modalCancel}>{t('petty_cash.cancel')}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Withdraw Cash</Text>
+            <Text style={styles.modalTitle}>{t('petty_cash.withdraw_cash')}</Text>
             <TouchableOpacity onPress={handleWithdrawal}>
-              <Text style={styles.modalSave}>Withdraw</Text>
+              <Text style={styles.modalSave}>{t('petty_cash.withdraw')}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.modalContent}>
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Withdrawal Amount (ZAR) *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.withdrawal_amount', 'Withdrawal Amount')} (ZAR) *</Text>
               <TextInput
                 style={styles.formInput}
                 value={expenseForm.amount}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, amount: text }))}
-                placeholder="0.00"
+                placeholder={t('petty_cash.enter_amount')}
                 keyboardType="decimal-pad"
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Reason for Withdrawal *</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.withdrawal_reason', 'Reason for Withdrawal')} *</Text>
               <TextInput
                 style={[styles.formInput, { height: 80 }]}
                 value={expenseForm.description}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, description: text }))}
-                placeholder="Why are you withdrawing this cash?"
+                placeholder={t('petty_cash.withdrawal_reason_placeholder', 'Why are you withdrawing this cash?')}
                 multiline
                 numberOfLines={3}
               />
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.formLabel}>Reference Number (Optional)</Text>
+              <Text style={styles.formLabel}>{t('petty_cash.reference_number', 'Reference Number')} ({t('common.optional', 'Optional')})</Text>
               <TextInput
                 style={styles.formInput}
                 value={expenseForm.receipt_number}
                 onChangeText={(text) => setExpenseForm(prev => ({ ...prev, receipt_number: text }))}
-                placeholder="Bank deposit slip, reference number, etc."
+                placeholder={t('petty_cash.reference_placeholder', 'Bank deposit slip, reference number, etc.')}
               />
             </View>
 
             <View style={styles.replenishmentInfo}>
-              <Text style={styles.infoTitle}>⚠️ Important</Text>
+              <Text style={styles.infoTitle}>⚠️ {t('common.important', 'Important')}</Text>
               <Text style={styles.infoText}>
-                Current Balance: {formatCurrency(summary.current_balance)}
+                {t('petty_cash.current_balance')}: {formatCurrency(summary.current_balance)}
               </Text>
               <Text style={styles.infoText}>
-                This withdrawal will reduce your petty cash balance. Use this when cash needs to be deposited back to the main account or removed for other reasons.
+                {t('petty_cash.withdrawal_notice', 'This withdrawal will reduce your petty cash balance. Use this when cash needs to be deposited back to the main account or removed for other reasons.')}
               </Text>
             </View>
           </View>
@@ -1235,6 +1510,23 @@ const createStyles = (theme: any) => StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: theme?.surfaceVariant || '#eef2f7',
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: theme?.primary || '#007AFF',
+  },
+  filterChipText: {
+    color: theme?.textSecondary || '#6B7280',
+    fontSize: 12,
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
   transactionItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1269,6 +1561,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   transactionRight: {
     alignItems: 'flex-end',
+  },
+  rightTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   transactionAmount: {
     fontSize: 14,

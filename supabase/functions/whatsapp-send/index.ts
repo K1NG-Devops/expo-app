@@ -1,0 +1,472 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
+
+// Environment variables
+// Note: Supabase reserves the SUPABASE_* prefix for system envs. Do NOT set secrets with that prefix.
+// SUPABASE_URL is provided automatically by the runtime. For the service role key, use SERVICE_ROLE_KEY.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
+const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!
+const META_API_VERSION = Deno.env.get('META_API_VERSION') || 'v19.0'
+
+// CORS helpers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+function json(body: Record<string, unknown>, init: ResponseInit = {}) {
+  return new Response(JSON.stringify(body), {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...corsHeaders, ...(init.headers || {}) },
+  })
+}
+
+// Create Supabase client with service role for bypassing RLS
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error('Missing SERVICE_ROLE_KEY secret. Set it via: supabase secrets set SERVICE_ROLE_KEY=...')
+}
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+interface SendMessageRequest {
+  thread_id?: string
+  message_id?: string
+  contact_id?: string
+  phone_number?: string
+  message_type: 'text' | 'template' | 'image' | 'document'
+  content?: string
+  template_name?: string
+  template_params?: string[]
+  media_url?: string
+  filename?: string
+}
+
+interface WhatsAppResponse {
+  messaging_product: string
+  contacts: Array<{
+    input: string
+    wa_id: string
+  }>
+  messages: Array<{
+    id: string
+  }>
+}
+
+/**
+ * Send text message via WhatsApp Cloud API
+ */
+async function sendTextMessage(to: string, content: string): Promise<WhatsAppResponse> {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`
+  
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to,
+    type: "text",
+    text: {
+      body: content
+    }
+  }
+
+  console.log('Sending WhatsApp text message:', { to, payload })
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('WhatsApp API error:', error)
+    throw new Error(`WhatsApp API error: ${response.status} ${error}`)
+  }
+
+  return await response.json()
+}
+
+/**
+ * Send template message via WhatsApp Cloud API
+ */
+async function sendTemplateMessage(to: string, templateName: string, params: string[] = []): Promise<WhatsAppResponse> {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`
+  
+  const components = params.length > 0 ? [{
+    type: "body",
+    parameters: params.map(param => ({ type: "text", text: param }))
+  }] : []
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to,
+    type: "template",
+    template: {
+      name: templateName,
+      language: {
+        code: "en" // Could be dynamic based on user preference
+      },
+      components: components
+    }
+  }
+
+  console.log('Sending WhatsApp template message:', { to, templateName, payload })
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('WhatsApp API error:', error)
+    throw new Error(`WhatsApp API error: ${response.status} ${error}`)
+  }
+
+  return await response.json()
+}
+
+/**
+ * Send media message via WhatsApp Cloud API
+ */
+async function sendMediaMessage(to: string, mediaUrl: string, messageType: 'image' | 'document', caption?: string, filename?: string): Promise<WhatsAppResponse> {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`
+  
+  let mediaObject: any = {
+    link: mediaUrl
+  }
+
+  if (caption && messageType === 'image') {
+    mediaObject.caption = caption
+  }
+
+  if (filename && messageType === 'document') {
+    mediaObject.filename = filename
+  }
+
+  const payload = {
+    messaging_product: "whatsapp",
+    to: to,
+    type: messageType,
+    [messageType]: mediaObject
+  }
+
+  console.log('Sending WhatsApp media message:', { to, messageType, payload })
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('WhatsApp API error:', error)
+    throw new Error(`WhatsApp API error: ${response.status} ${error}`)
+  }
+
+  return await response.json()
+}
+
+/**
+ * Get contact information for sending message
+ */
+async function getContactInfo(request: SendMessageRequest) {
+  if (request.contact_id) {
+    const { data: contact, error } = await supabase
+      .from('whatsapp_contacts')
+      .select('*')
+      .eq('id', request.contact_id)
+      .single()
+
+    if (error) {
+      throw new Error(`Contact not found: ${error.message}`)
+    }
+
+    return contact
+  }
+
+  if (request.thread_id) {
+    const { data: thread, error: threadError } = await supabase
+      .from('message_threads')
+      .select(`
+        *,
+        whatsapp_contacts!inner(*)
+      `)
+      .eq('id', request.thread_id)
+      .eq('channel', 'whatsapp')
+      .single()
+
+    if (threadError) {
+      throw new Error(`Thread not found: ${threadError.message}`)
+    }
+
+    return thread.whatsapp_contacts
+  }
+
+  if (request.phone_number) {
+    const { data: contact, error } = await supabase
+      .from('whatsapp_contacts')
+      .select('*')
+      .eq('phone_e164', request.phone_number)
+      .single()
+
+    if (error) {
+      // Create contact if doesn't exist
+      const { data: newContact, error: createError } = await supabase
+        .from('whatsapp_contacts')
+        .insert({
+          phone_e164: request.phone_number,
+          consent_status: 'pending'
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        throw new Error(`Failed to create contact: ${createError.message}`)
+      }
+
+      return newContact
+    }
+
+    return contact
+  }
+
+  throw new Error('No contact information provided')
+}
+
+/**
+ * Record outbound message in database
+ */
+async function recordOutboundMessage(contact: any, request: SendMessageRequest, waResponse: WhatsAppResponse) {
+  const metaMessageId = waResponse.messages[0]?.id
+
+  // Insert into whatsapp_messages
+  const { data: waMessage, error: waError } = await supabase
+    .from('whatsapp_messages')
+    .insert({
+      contact_id: contact.id,
+      direction: 'out',
+      message_type: request.message_type,
+      content: request.content || `Template: ${request.template_name}`,
+      media_url: request.media_url,
+      meta_message_id: metaMessageId,
+      status: 'sent'
+    })
+    .select()
+    .single()
+
+  if (waError) {
+    console.error('Error recording WhatsApp message:', waError)
+    return
+  }
+
+  // If this is part of a thread, also record in messages table
+  if (request.thread_id) {
+    const { data: thread } = await supabase
+      .from('message_threads')
+      .select('*, preschools(*)')
+      .eq('id', request.thread_id)
+      .single()
+
+    if (thread) {
+      // Determine sender info - could be teacher or admin
+      const senderRole = 'teacher' // Default, could be dynamic based on context
+      const senderId = thread.teacher_id // Could be dynamic
+
+      const { data: messageEntry, error: messageError } = await supabase
+        .from('messages')
+        .insert({
+          thread_id: request.thread_id,
+          sender_role: senderRole,
+          sender_id: senderId,
+          content: request.content || `Template: ${request.template_name}`,
+          content_type: request.message_type,
+          media_url: request.media_url,
+          status: 'sent'
+        })
+        .select()
+        .single()
+
+      if (messageError) {
+        console.error('Error recording message entry:', messageError)
+      } else {
+        console.log('Message entry recorded:', messageEntry.id)
+        
+        // Track engagement event
+        if (thread.preschool_id) {
+          await supabase
+            .from('parent_engagement_events')
+            .insert({
+              preschool_id: thread.preschool_id,
+              parent_id: thread.parent_id,
+              event_type: 'sent_whatsapp_message',
+              metadata: {
+                message_id: messageEntry.id,
+                message_type: request.message_type,
+                thread_id: request.thread_id
+              }
+            })
+        }
+      }
+    }
+  }
+
+  return waMessage
+}
+
+/**
+ * Main send message handler
+ */
+async function sendMessage(request: Request): Promise<Response> {
+  try {
+    const sendRequest: SendMessageRequest = await request.json()
+    console.log('Processing send request:', sendRequest)
+
+    // Validate request
+    if (!sendRequest.message_type) {
+      return json({ error: 'message_type is required' }, { status: 400 })
+    }
+
+    // Get contact information
+    const contact = await getContactInfo(sendRequest)
+    console.log('Sending to contact:', contact.phone_e164)
+
+    // Check consent status
+    if (contact.consent_status !== 'opted_in') {
+      console.warn('Contact has not opted in to WhatsApp messaging:', contact.phone_e164)
+      // Still allow template messages for opt-in flows
+      if (sendRequest.message_type !== 'template') {
+        return json({ error: 'Contact has not opted in to WhatsApp messaging' }, { status: 403 })
+      }
+    }
+
+    let waResponse: WhatsAppResponse
+
+    // Send message based on type
+    switch (sendRequest.message_type) {
+      case 'text':
+        if (!sendRequest.content) {
+          return json({ error: 'content is required for text messages' }, { status: 400 })
+        }
+        waResponse = await sendTextMessage(contact.phone_e164, sendRequest.content)
+        break
+
+      case 'template':
+        if (!sendRequest.template_name) {
+          return json({ error: 'template_name is required for template messages' }, { status: 400 })
+        }
+        waResponse = await sendTemplateMessage(
+          contact.phone_e164,
+          sendRequest.template_name,
+          sendRequest.template_params || []
+        )
+        break
+
+      case 'image':
+      case 'document':
+        if (!sendRequest.media_url) {
+          return json({ error: 'media_url is required for media messages' }, { status: 400 })
+        }
+        waResponse = await sendMediaMessage(
+          contact.phone_e164,
+          sendRequest.media_url,
+          sendRequest.message_type,
+          sendRequest.content,
+          sendRequest.filename
+        )
+        break
+
+      default:
+        return json({ error: 'Unsupported message type' }, { status: 400 })
+    }
+
+    // Record message in database
+    const recordedMessage = await recordOutboundMessage(contact, sendRequest, waResponse)
+
+    return json({
+      success: true,
+      meta_message_id: waResponse.messages[0]?.id,
+      wa_id: waResponse.contacts[0]?.wa_id,
+      recorded_message_id: recordedMessage?.id
+    }, { status: 200 })
+
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error)
+    return json({ 
+      error: 'Failed to send message',
+      details: (error as any)?.message || String(error)
+    }, { status: 500 })
+  }
+}
+
+/**
+ * Handle database trigger for outbound messages
+ */
+async function handleMessageTrigger(request: Request): Promise<Response> {
+  try {
+    const { record, old_record, type } = await request.json()
+    
+    // Only process INSERT events for outbound WhatsApp messages
+    if (type !== 'INSERT' || record.direction !== 'out' || !record.channel || record.channel !== 'whatsapp') {
+      return json({ success: true, skipped: true }, { status: 200 })
+    }
+
+    // Construct send request from database record
+    const sendRequest: SendMessageRequest = {
+      thread_id: record.thread_id,
+      message_type: record.content_type || 'text',
+      content: record.content,
+      media_url: record.media_url
+    }
+
+    // Process the send request
+    return await sendMessage(new Request('http://localhost', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sendRequest)
+    }))
+
+  } catch (error) {
+    console.error('Error processing message trigger:', error)
+    return json({ 
+      error: 'Failed to process trigger',
+      details: (error as any)?.message || String(error)
+    }, { status: 500 })
+  }
+}
+
+/**
+ * Main handler
+ */
+async function handleRequest(request: Request): Promise<Response> {
+  const url = new URL(request.url)
+  
+  // Handle CORS preflight
+  if (request.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (request.method !== 'POST') {
+    return new Response('Method Not Allowed', { status: 405, headers: corsHeaders })
+  }
+
+  // Handle different endpoints
+  if (url.pathname.includes('trigger')) {
+    return await handleMessageTrigger(request)
+  } else {
+    return await sendMessage(request)
+  }
+}
+
+// Serve the function
+serve(handleRequest)

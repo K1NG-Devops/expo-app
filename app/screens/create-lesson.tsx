@@ -7,15 +7,17 @@ import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTranslation } from 'react-i18next'
 
 export default function CreateLessonScreen() {
   const { profile } = useAuth()
+  const { t } = useTranslation('common')
   const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
   const canCreate = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('create_assignments' as any))
   const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
 
   const [mode, setMode] = useState<'manual' | 'ai'>('manual')
-  const [title, setTitle] = useState('New Lesson')
+  const [title, setTitle] = useState(t('lessons_create.default_title', { defaultValue: 'New Lesson' }))
   const [description, setDescription] = useState('')
   const [duration, setDuration] = useState('30')
   const [complexity, setComplexity] = useState<'simple' | 'moderate' | 'complex'>('moderate')
@@ -67,7 +69,7 @@ export default function CreateLessonScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ 
-        title: 'Create Lesson', 
+        title: t('lessons_create.title', { defaultValue: 'Create Lesson' }), 
         headerStyle: { backgroundColor: palette.background }, 
         headerTitleStyle: { color: '#fff' }, 
         headerTintColor: palette.primary,
@@ -78,22 +80,22 @@ export default function CreateLessonScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <View style={styles.row}>
             <TouchableOpacity style={[styles.chip, mode === 'manual' && styles.chipActive]} onPress={() => setMode('manual')}>
-              <Text style={[styles.chipText, mode === 'manual' && styles.chipTextActive]}>Manual</Text>
+              <Text style={[styles.chipText, mode === 'manual' && styles.chipTextActive]}>{t('lessons_create.mode_manual', { defaultValue: 'Manual' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.chip, mode === 'ai' && styles.chipActive]} onPress={() => setMode('ai')}>
-              <Text style={[styles.chipText, mode === 'ai' && styles.chipTextActive]}>AI</Text>
+              <Text style={[styles.chipText, mode === 'ai' && styles.chipTextActive]}>{t('lessons_create.mode_ai', { defaultValue: 'AI' })}</Text>
             </TouchableOpacity>
           </View>
 
           {!canCreate ? (
             <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-              <Text style={styles.cardTitle}>Access Restricted</Text>
-              <Text style={{ color: palette.textSecondary }}>Your teacher seat is not active or you lack permission to create lessons. Please contact your administrator.</Text>
+              <Text style={styles.cardTitle}>{t('lessons_create.access_restricted_title', { defaultValue: 'Access Restricted' })}</Text>
+              <Text style={{ color: palette.textSecondary }}>{t('lessons_create.access_restricted_desc', { defaultValue: 'Your teacher seat is not active or you lack permission to create lessons. Please contact your administrator.' })}</Text>
             </View>
           ) : mode === 'ai' ? (
             <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-              <Text style={styles.cardTitle}>AI Lesson Generator</Text>
-              <Text style={{ color: palette.textSecondary, marginBottom: 8 }}>Use the AI generator to draft a CAPS-aligned lesson.</Text>
+              <Text style={styles.cardTitle}>{t('lessons_create.ai_card_title', { defaultValue: 'AI Lesson Generator' })}</Text>
+              <Text style={{ color: palette.textSecondary, marginBottom: 8 }}>{t('lessons_create.ai_card_desc', { defaultValue: 'Use the AI generator to draft a CAPS-aligned lesson.' })}</Text>
               <TouchableOpacity onPress={() => router.push('/screens/ai-lesson-generator')} style={styles.primaryBtn}>
                 <Text style={styles.primaryBtnText}>Open AI Lesson Generator</Text>
               </TouchableOpacity>
@@ -101,15 +103,15 @@ export default function CreateLessonScreen() {
           ) : (
             <>
               <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-                <Text style={styles.cardTitle}>Basics</Text>
-                <Text style={styles.label}>Title</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Lesson title" placeholderTextColor={palette.textSecondary} />
-                <Text style={[styles.label, { marginTop: 10 }]}>Description</Text>
-                <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder="Brief description" placeholderTextColor={palette.textSecondary} multiline />
+                <Text style={styles.cardTitle}>{t('lessons_create.section_basics', { defaultValue: 'Basics' })}</Text>
+                <Text style={styles.label}>{t('lessons_create.label_title', { defaultValue: 'Title' })}</Text>
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder={t('lessons_create.placeholder_title', { defaultValue: 'Lesson title' })} placeholderTextColor={palette.textSecondary} />
+                <Text style={[styles.label, { marginTop: 10 }]}>{t('lessons_create.label_description', { defaultValue: 'Description' })}</Text>
+                <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder={t('lessons_create.placeholder_description', { defaultValue: 'Brief description' })} placeholderTextColor={palette.textSecondary} multiline />
               </View>
 
               <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-                <Text style={styles.cardTitle}>Category</Text>
+                <Text style={styles.cardTitle}>{t('lessons_create.section_category', { defaultValue: 'Category' })}</Text>
                 {categoriesQuery.isLoading ? (
                   <ActivityIndicator color={palette.primary} />
                 ) : (
@@ -124,22 +126,22 @@ export default function CreateLessonScreen() {
               </View>
 
               <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-                <Text style={styles.cardTitle}>Settings</Text>
-                <Text style={styles.label}>Duration (minutes)</Text>
-                <TextInput style={styles.input} value={duration} onChangeText={setDuration} keyboardType="numeric" placeholder="30" placeholderTextColor={palette.textSecondary} />
+                <Text style={styles.cardTitle}>{t('lessons_create.section_settings', { defaultValue: 'Settings' })}</Text>
+                <Text style={styles.label}>{t('lessons_create.label_duration', { defaultValue: 'Duration (minutes)' })}</Text>
+                <TextInput style={styles.input} value={duration} onChangeText={setDuration} keyboardType="numeric" placeholder={t('lessons_create.placeholder_duration', { defaultValue: '30' })} placeholderTextColor={palette.textSecondary} />
 
-                <Text style={[styles.label, { marginTop: 10 }]}>Complexity</Text>
+                <Text style={[styles.label, { marginTop: 10 }]}>{t('lessons_create.label_complexity', { defaultValue: 'Complexity' })}</Text>
                 <View style={styles.row}>
                   {(['simple','moderate','complex'] as const).map(c => (
                     <TouchableOpacity key={c} style={[styles.chip, complexity === c && styles.chipActive]} onPress={() => setComplexity(c)}>
-                      <Text style={[styles.chipText, complexity === c && styles.chipTextActive]}>{c}</Text>
+                      <Text style={[styles.chipText, complexity === c && styles.chipTextActive]}>{t(`lessons_create.complexity_${c}`, { defaultValue: c })}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </View>
 
               <TouchableOpacity onPress={onSave} disabled={saving} style={[styles.primaryBtn, saving && { opacity: 0.6 }]}>
-                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>Save Lesson</Text>}
+                {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>{t('lessons_create.save', { defaultValue: 'Save Lesson' })}</Text>}
               </TouchableOpacity>
             </>
           )}
