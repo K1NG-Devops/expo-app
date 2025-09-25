@@ -81,8 +81,8 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
-    // Proper authentication routing - let AuthContext handle the routing
-    // This will check if user is authenticated and route appropriately
+    // Check if user is authenticated and route to dashboard if so
+    // Unauthenticated users remain on the landing page
     checkAuthAndRoute();
   }, []);
 
@@ -95,19 +95,23 @@ export default function Landing() {
       // Check current session
       const { data: { session }, error } = await assertSupabase().auth.getSession();
       
-      if (error || !session?.user) {
-        // No valid session, redirect to sign-in
-        router.replace('/(auth)/sign-in');
+      if (error) {
+        console.warn('Session check failed:', error.message);
+        // Don't redirect on error - let users stay on landing page
         return;
       }
       
-      // User is authenticated, route them to appropriate screen
-      await routeAfterLogin(session.user, null);
+      if (session?.user) {
+        // User is authenticated, route them to appropriate screen
+        console.log('Authenticated user detected, routing to dashboard...');
+        await routeAfterLogin(session.user, null);
+      }
+      
+      // If no session, do nothing - let users stay on landing page
       
     } catch (error) {
       console.error('Error checking authentication:', error);
-      // Fallback to sign-in on error
-      router.replace('/(auth)/sign-in');
+      // Don't redirect on error - let users stay on landing page
     }
   };
 
