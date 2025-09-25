@@ -959,10 +959,12 @@ export const TeacherDashboard: React.FC = () => {
             setLayout(newLayout);
             try { Feedback.vibrate(15); } catch {}
           }}
+          accessibilityLabel={`Switch to ${preferences.layout === 'classic' ? 'enhanced' : 'classic'} layout`}
+          accessibilityHint="Toggles between classic and enhanced dashboard layouts"
         >
           <Ionicons 
-            name={preferences.layout === 'enhanced' ? 'grid' : 'apps'} 
-            size={18} 
+            name={preferences.layout === 'enhanced' ? 'grid-outline' : 'apps-outline'} 
+            size={16} 
             color={theme.primary} 
           />
         </TouchableOpacity>
@@ -2056,16 +2058,21 @@ const getStyles = (theme: any, isDark: boolean) =>
     dashboardToggleInHeader: {
       position: 'absolute',
       top: 10,
-      right: 120, // Position it before the header menu items
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: theme.primaryLight,
+      right: 90, // Adjusted to prevent overlap with header icons
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.primaryLight || theme.primary + '20',
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: theme.border,
       zIndex: 10,
+      shadowColor: theme.shadow || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
     },
     modalOverlay: {
       flex: 1,
