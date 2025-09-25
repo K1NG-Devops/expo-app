@@ -690,7 +690,7 @@ export default function POPHistoryScreen() {
             <Text style={styles.emptySubtitle}>{t('pop.noUploadsDesc')}</Text>
             <TouchableOpacity 
               style={styles.emptyButton}
-              onPress={() => router.push('/proof-of-payment')}
+              onPress={() => router.push('/screens/parent-proof-of-payment')}
             >
               <Text style={styles.emptyButtonText}>{t('pop.uploadFirst')}</Text>
             </TouchableOpacity>

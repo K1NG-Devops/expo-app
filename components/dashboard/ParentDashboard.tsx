@@ -1829,9 +1829,9 @@ case 'homework':
               onPress={() => {
                 if (activeChildId) {
                   const child = childrenCards.find(c => c.id === activeChildId);
-                  router.push(`/proof-of-payment?studentId=${activeChildId}&studentName=${encodeURIComponent(`${child?.firstName || ''} ${child?.lastName || ''}`.trim())}`);
+                  router.push(`/screens/parent-proof-of-payment?studentId=${activeChildId}&studentName=${encodeURIComponent(`${child?.firstName || ''} ${child?.lastName || ''}`.trim())}`);
                 } else {
-                  router.push('/proof-of-payment');
+                  router.push('/screens/parent-proof-of-payment');
                 }
               }}
             >

@@ -124,7 +124,7 @@ export default function PaymentReturnScreen() {
         router.push('/screens/principal-seat-management');
       } else {
         // User subscription - go to dashboard or benefits screen
-        router.push('/screens/dashboard');
+        router.push('/');
       }
     } else {
       // Go back to pricing

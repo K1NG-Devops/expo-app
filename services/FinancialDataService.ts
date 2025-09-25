@@ -15,7 +15,7 @@ export interface UnifiedTransaction {
   status: string;
   date: string;
   reference?: string;
-  source: 'payment' | 'petty_cash';
+  source: 'payment' | 'petty_cash' | 'financial_txn';
   metadata?: any;
 }
 
@@ -55,7 +55,7 @@ export interface TransactionRecord {
   receiptUrl?: string | null;    // For petty cash single URL
   receiptCount?: number;         // Count from petty_cash_receipts
   hasReceipt?: boolean;          // True if any receipt evidence present
-  source?: 'payment' | 'petty_cash';
+  source?: 'payment' | 'petty_cash' | 'financial_txn';
 }
 
 export interface FinanceOverviewData {
@@ -124,7 +124,21 @@ export class FinancialDataService {
         console.error('Error fetching expenses:', expenseError);
       }
 
-      const monthlyExpenses = expenseTransactions?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+let monthlyExpenses = expenseTransactions?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+
+      // Include other expense sources from financial_transactions (completed/approved) for current month
+      try {
+        const { data: otherExpTx } = await assertSupabase()
+          .from('financial_transactions')
+          .select('amount, type, status, created_at')
+          .eq('preschool_id', preschoolId)
+          .in('type', ['expense','operational_expense','salary','purchase'])
+          .in('status', ['approved','completed'])
+          .gte('created_at', monthStart)
+          .lt('created_at', nextMonthStart);
+        const otherExp = (otherExpTx || []).reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
+        monthlyExpenses += otherExp;
+      } catch {}
 
       // Get student count
       const { count: studentCount } = await assertSupabase()
@@ -200,7 +214,20 @@ export class FinancialDataService {
           .lt('created_at', nextMonthStart);
 
         const revenue = monthlyRevenue?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-        const expenses = monthlyExpenses?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+const petty = monthlyExpenses?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+let otherExp = 0;
+try {
+  const { data: monthOther } = await assertSupabase()
+    .from('financial_transactions')
+    .select('amount, type, status, created_at')
+    .eq('preschool_id', preschoolId)
+    .in('type', ['expense','operational_expense','salary','purchase'])
+    .in('status', ['approved','completed'])
+    .gte('created_at', monthStart)
+    .lt('created_at', nextMonthStart);
+  otherExp = (monthOther || []).reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
+} catch {}
+const expenses = petty + otherExp;
 
         trendData.push({
           month: date.toLocaleDateString('en-US', { month: 'short' }),
@@ -364,7 +391,22 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
         const { data: monthlyExpensesData } = await expensesQuery;
 
         const revenue = monthlyRevenueData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-        const expenses = monthlyExpensesData?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+const petty = monthlyExpensesData?.reduce((sum, t) => sum + Math.abs(t.amount), 0) || 0;
+let otherExp = 0;
+try {
+  const { data: monthOther } = await assertSupabase()
+    .from('financial_transactions')
+    .select('amount, type, status, created_at')
+    .gte('created_at', monthStart)
+    .lt('created_at', nextMonthStart)
+    .in('type', ['expense','operational_expense','salary','purchase'])
+    .in('status', ['approved','completed'])
+    // Scope by preschool if provided
+    // Note: revenue/expense queries above also scope conditionally
+    ;
+  otherExp = (monthOther || []).reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
+} catch {}
+const expenses = petty + otherExp;
         
         revenueMonthly.push(revenue);
         expensesMonthly.push(expenses);
@@ -543,6 +585,36 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
           });
         });
       }
+
+      // Include financial transactions (expenses) within date range
+      try {
+        let finQuery = assertSupabase()
+          .from('financial_transactions')
+          .select('id, amount, description, status, created_at, category, type')
+          .gte('created_at', dateRange.from)
+          .lte('created_at', dateRange.to)
+          .order('created_at', { ascending: false });
+        if (preschoolId) {
+          finQuery = finQuery.eq('preschool_id', preschoolId);
+        }
+        const { data: finTx } = await finQuery;
+        (finTx || []).forEach((txn: any) => {
+          const lowerType = String(txn.type || '').toLowerCase();
+          const isExpense = lowerType.includes('expense') || Number(txn.amount) < 0;
+          if (isExpense) {
+            transactions.push({
+              id: txn.id,
+              type: 'expense',
+              category: txn.category || 'Expense',
+              amount: Math.abs(Number(txn.amount) || 0),
+              description: txn.description || 'Expense',
+              date: txn.created_at,
+              status: this.mapPettyCashStatus(txn.status),
+              source: 'financial_txn',
+            });
+          }
+        });
+      } catch {}
 
       // Sort by date (newest first)
       transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

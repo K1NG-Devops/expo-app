@@ -252,7 +252,19 @@ export default function FinanceDashboard() {
           <Ionicons name="document" size={20} color={theme?.primary || Colors.light.tint} />
           <Text style={styles.exportButtonText}>{t('finance_dashboard.pdf', { defaultValue: 'PDF' })}</Text>
         </TouchableOpacity>
-      </View>
+        </View>
+
+        {/* Error screen when data cannot be loaded (fallback/sample) */}
+        {overview?.isSample && (
+          <View style={styles.errorContainer}>
+            <Ionicons name="cloud-offline" size={48} color={theme?.textSecondary || Colors.light.tabIconDefault} />
+            <Text style={styles.errorTitle}>{t('finance_dashboard.load_failed', { defaultValue: 'Unable to load financial data' })}</Text>
+            <Text style={styles.errorSubtitle}>{t('finance_dashboard.check_connection', { defaultValue: 'Please check your connection or try again.' })}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => loadDashboardData(true)}>
+              <Text style={styles.retryButtonText}>{t('common.retry', { defaultValue: 'Retry' })}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
     </View>
   );
 
@@ -323,15 +335,7 @@ export default function FinanceDashboard() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {overview?.isSample && (
-          <View style={styles.sampleBanner}>
-            <Ionicons name="alert-circle" size={18} color="#92400E" />
-            <Text style={styles.sampleBannerText}>
-              Showing sample financial data (no live records detected)
-            </Text>
-          </View>
-        )}
-        {overview && (
+        {overview && !overview.isSample && (
           <>
             {/* Key Metrics */}
             <View style={styles.metricsGrid}>
@@ -599,21 +603,32 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme?.textSecondary || Colors.light.tabIconDefault,
     marginTop: 16,
   },
-  sampleBanner: {
-    flexDirection: 'row',
+  errorContainer: {
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
-    padding: 12,
-    margin: 16,
-    marginBottom: 0,
-    borderRadius: 8,
-    gap: 8,
+    justifyContent: 'center',
+    padding: 32,
   },
-  sampleBannerText: {
-    color: '#92400E',
-    fontSize: 13,
-    fontWeight: '500',
+  errorTitle: {
+    marginTop: 12,
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme?.text || Colors.light.text,
+  },
+  errorSubtitle: {
+    marginTop: 6,
+    fontSize: 14,
+    color: theme?.textSecondary || Colors.light.tabIconDefault,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 16,
+    backgroundColor: theme?.primary || Colors.light.tint,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: theme?.onPrimary || '#fff',
+    fontWeight: '600',
   },
 });
