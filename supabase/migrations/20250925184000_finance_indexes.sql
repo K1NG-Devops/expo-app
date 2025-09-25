@@ -12,3 +12,6 @@ create index if not exists idx_petty_cash_receipts_txid
 
 create index if not exists idx_students_preschool_active
   on public.students (preschool_id, is_active);
+
+create index if not exists idx_financial_tx_preschool_type_status_created_at
+  on public.financial_transactions (preschool_id, type, status, created_at desc);
