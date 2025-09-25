@@ -24,13 +24,18 @@ import { assertSupabase } from '@/lib/supabase';
 import { TeacherInviteService } from '@/lib/services/teacherInviteService';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { navigateBack } from '@/lib/navigation';
+import * as WebBrowser from 'expo-web-browser';
+import { Linking } from 'react-native';
+import { TeacherDocumentsService, TeacherDocument, TeacherDocType } from '@/lib/services/TeacherDocumentsService';
+import * as DocumentPicker from 'expo-document-picker';
 // NEW: Import seat management hooks and types
 import { useSeatLimits, useTeacherHasSeat } from '@/lib/hooks/useSeatLimits';
 import { SeatUsageDisplay } from '@/lib/types/seats';
 
 interface Teacher {
-  id: string;
-  authUserId: string; // auth.users.id for seat mapping
+  id: string; // primary key from teachers table
+  teacherUserId: string; // public.users.id (seat RPC expects this)
+  authUserId: string | null; // auth.users.id (nullable)
   employeeId: string;
   firstName: string;
   lastName: string;
@@ -64,14 +69,7 @@ interface Teacher {
     improvementAreas: string[];
     goals: string[];
   };
-  documents: {
-    cv: boolean;
-    qualifications: boolean;
-    idCopy: boolean;
-    criminalRecord: boolean;
-    medicalCertificate: boolean;
-    contracts: boolean;
-  };
+  documents: Record<string, TeacherDocument>;
   attendance: {
     daysPresent: number;
     daysAbsent: number;
@@ -85,7 +83,7 @@ interface Teacher {
   };
 }
 
-type TeacherManagementView = 'overview' | 'hiring' | 'performance' | 'payroll' | 'documents' | 'profile';
+type TeacherManagementView = 'overview' | 'hiring' | 'performance' | 'payroll' | 'profile';
 
 interface Candidate {
   id: string;
@@ -130,7 +128,13 @@ export default function TeacherManagement() {
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [teacherDocsMap, setTeacherDocsMap] = useState<Record<string, TeacherDocument | undefined>>({ /* TODO: Implement */ });
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  // Hiring hub state
+  const [availableTeachers, setAvailableTeachers] = useState<Array<{ id: string; name: string; email: string; phone?: string; home_city?: string | null; home_postal_code?: string | null; distance_km?: number }>>([]);
+  const [hiringSearch, setHiringSearch] = useState('');
+  const [radiusKm, setRadiusKm] = useState<number>(10);
   
   // NEW: Seat management integration
   const {
@@ -144,6 +148,7 @@ export default function TeacherManagement() {
     isError: seatLimitsError,
     refetch: refetchSeatLimits,
   } = useSeatLimits();
+  const selectedTeacherHasSeat = useTeacherHasSeat(selectedTeacher?.teacherUserId ?? '__none__');
   
   // Get preschool ID from user context
   const getPreschoolId = useCallback((): string | null => {
@@ -169,22 +174,24 @@ if (!preschoolId) {
       setLoading(true);
       console.log('🔍 Fetching real teachers for preschool:', preschoolId);
       
-      // Query users table for teachers (matching the working dashboard query)
-const { data: teachersData, error: teachersError } = await assertSupabase()
-        .from('users')
+      // Query teachers table with document columns
+      const { data: teachersData, error: teachersError } = await assertSupabase()
+        .from('teachers')
         .select(`
           id,
+          user_id,
           auth_user_id,
           email,
-          name,
-          phone,
-          role,
+          full_name,
           preschool_id,
           is_active,
-          created_at
+          created_at,
+          cv_file_path, cv_file_name, cv_mime_type, cv_file_size, cv_uploaded_at, cv_uploaded_by,
+          qualifications_file_path, qualifications_file_name, qualifications_mime_type, qualifications_file_size, qualifications_uploaded_at, qualifications_uploaded_by,
+          id_copy_file_path, id_copy_file_name, id_copy_mime_type, id_copy_file_size, id_copy_uploaded_at, id_copy_uploaded_by,
+          contracts_file_path, contracts_file_name, contracts_mime_type, contracts_file_size, contracts_uploaded_at, contracts_uploaded_by
         `)
         .eq('preschool_id', preschoolId)
-        .eq('role', 'teacher')
         .eq('is_active', true);
         
       if (teachersError) {
@@ -196,19 +203,153 @@ const { data: teachersData, error: teachersError } = await assertSupabase()
       console.log('✅ Real teachers fetched:', teachersData?.length || 0);
       
       // Transform database data to match Teacher interface
-const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any) => {
-        const nameParts = (dbTeacher.name || 'Unknown Teacher').split(' ');
+      const transformedTeachersRaw: (Teacher | null)[] = (teachersData || []).map((dbTeacher: any) => {
+        // Try to get name from teachers table first, fallback to users/profiles table
+        let fullName = dbTeacher.full_name;
+
+        // If full_name is null/empty, use fallback logic (synchronous)
+        if (!fullName) {
+          console.log('[fetchTeachers] full_name is null, using fallback for:', dbTeacher.email);
+
+          // For now, use email-based fallback (can be enhanced later with proper async lookups)
+          if (dbTeacher.email) {
+            fullName = dbTeacher.email.split('@')[0];
+            console.log('[fetchTeachers] Using email fallback:', fullName);
+          }
+
+          // TODO: In production, consider implementing proper async lookups:
+          // 1. Query users table by user_id for name data
+          // 2. Query profiles table by auth_user_id for name data
+          // 3. Cache results for performance
+        }
+
+        // Final fallback if still no name
+        if (!fullName) {
+          console.warn('[fetchTeachers] Using email as fallback for name:', dbTeacher.email);
+          fullName = dbTeacher.email.split('@')[0] || 'Unknown Teacher';
+        }
+
+        // Convert document data from teachers table format to TeacherDocument format
+        const documents: Record<string, TeacherDocument> = { /* TODO: Implement */ };
+
+        // CV document
+        if (dbTeacher.cv_file_path) {
+          documents.cv = {
+            id: `cv_${dbTeacher.id}`,
+            teacher_user_id: dbTeacher.id,
+            preschool_id: dbTeacher.preschool_id || preschoolId || '',
+            doc_type: 'cv',
+            file_path: dbTeacher.cv_file_path,
+            file_name: dbTeacher.cv_file_name || 'CV',
+            mime_type: dbTeacher.cv_mime_type || 'application/pdf',
+            file_size: dbTeacher.cv_file_size || 0,
+            uploaded_by: dbTeacher.cv_uploaded_by || '',
+            created_at: dbTeacher.cv_uploaded_at || dbTeacher.created_at,
+            updated_at: dbTeacher.updated_at || dbTeacher.created_at
+          };
+        }
+
+        // Qualifications document
+        if (dbTeacher.qualifications_file_path) {
+          documents.qualifications = {
+            id: `qualifications_${dbTeacher.id}`,
+            teacher_user_id: dbTeacher.id,
+            preschool_id: dbTeacher.preschool_id || preschoolId || '',
+            doc_type: 'qualifications',
+            file_path: dbTeacher.qualifications_file_path,
+            file_name: dbTeacher.qualifications_file_name || 'Qualifications',
+            mime_type: dbTeacher.qualifications_mime_type || 'application/pdf',
+            file_size: dbTeacher.qualifications_file_size || 0,
+            uploaded_by: dbTeacher.qualifications_uploaded_by || '',
+            created_at: dbTeacher.qualifications_uploaded_at || dbTeacher.created_at,
+            updated_at: dbTeacher.updated_at || dbTeacher.created_at
+          };
+        }
+
+        // ID Copy document
+        if (dbTeacher.id_copy_file_path) {
+          documents.id_copy = {
+            id: `id_copy_${dbTeacher.id}`,
+            teacher_user_id: dbTeacher.id,
+            preschool_id: dbTeacher.preschool_id || preschoolId || '',
+            doc_type: 'id_copy',
+            file_path: dbTeacher.id_copy_file_path,
+            file_name: dbTeacher.id_copy_file_name || 'ID Copy',
+            mime_type: dbTeacher.id_copy_mime_type || 'image/jpeg',
+            file_size: dbTeacher.id_copy_file_size || 0,
+            uploaded_by: dbTeacher.id_copy_uploaded_by || '',
+            created_at: dbTeacher.id_copy_uploaded_at || dbTeacher.created_at,
+            updated_at: dbTeacher.updated_at || dbTeacher.created_at
+          };
+        }
+
+        // Contracts document
+        if (dbTeacher.contracts_file_path) {
+          documents.contracts = {
+            id: `contracts_${dbTeacher.id}`,
+            teacher_user_id: dbTeacher.id,
+            preschool_id: dbTeacher.preschool_id || preschoolId || '',
+            doc_type: 'contracts',
+            file_path: dbTeacher.contracts_file_path,
+            file_name: dbTeacher.contracts_file_name || 'Contracts',
+            mime_type: dbTeacher.contracts_mime_type || 'application/pdf',
+            file_size: dbTeacher.contracts_file_size || 0,
+            uploaded_by: dbTeacher.contracts_uploaded_by || '',
+            created_at: dbTeacher.contracts_uploaded_at || dbTeacher.created_at,
+            updated_at: dbTeacher.updated_at || dbTeacher.created_at
+          };
+        }
+
+        const nameParts = fullName.split(' ');
         const firstName = nameParts[0] || 'Unknown';
         const lastName = nameParts.slice(1).join(' ') || 'Teacher';
-        
+
+        // Debug logging for data transformation
+        // teacherUserId must be the public.users.id (user_id)
+        const teacherUserId = dbTeacher.user_id;
+
+        // Preserve auth_user_id separately for document lookups
+        const authUserId = dbTeacher.auth_user_id || null;
+
+        if (!teacherUserId) {
+          console.error('[fetchTeachers] Skipping teacher due to missing user_id:', {
+            teacherEmail: dbTeacher.email,
+            teacherId: dbTeacher.id,
+            authUserId
+          });
+          return null;
+        }
+
+        console.log('[fetchTeachers TRANSFORM DEBUG]', {
+          dbTeacher: {
+            id: dbTeacher.id,
+            user_id: dbTeacher.user_id,
+            auth_user_id: dbTeacher.auth_user_id,
+            email: dbTeacher.email,
+            full_name: dbTeacher.full_name,
+          },
+          nameResolution: {
+            originalFullName: dbTeacher.full_name,
+            resolvedFullName: fullName,
+            source: dbTeacher.full_name ? 'teachers.full_name' : 'users/profiles fallback',
+          },
+          transformed: {
+            teacherUserId,
+            authUserId,
+            firstName,
+            lastName,
+          }
+        });
+
         return {
           id: dbTeacher.id,
-          authUserId: dbTeacher.auth_user_id,
+          teacherUserId,
+          authUserId,
           employeeId: `EMP${dbTeacher.id.slice(0, 3)}`,
           firstName,
           lastName,
           email: dbTeacher.email || 'No email',
-          phone: dbTeacher.phone || 'No phone',
+          phone: 'No phone', // teachers table doesn't have phone field
           address: 'Address not available',
           idNumber: 'ID not available',
           status: 'active' as const,
@@ -217,6 +358,8 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
           subjects: ['General Education'], // TODO: Get from teacher specialization
           qualifications: ['Teaching Qualification'],
           hireDate: dbTeacher.created_at?.split('T')[0] || '2024-01-01',
+          // Use resolved fullName instead of dbTeacher.full_name
+          fullName: fullName,
           emergencyContact: {
             name: 'Emergency contact not available',
             phone: 'Not available',
@@ -236,13 +379,13 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
             improvementAreas: ['Professional development'],
             goals: ['Continuous improvement']
           },
-          documents: {
-            cv: true,
-            qualifications: true,
-            idCopy: true,
+          documents: documents || {
+            cv: Boolean(dbTeacher.cv_file_path),
+            qualifications: Boolean(dbTeacher.qualifications_file_path),
+            idCopy: Boolean(dbTeacher.id_copy_file_path),
             criminalRecord: false,
             medicalCertificate: false,
-            contracts: true
+            contracts: Boolean(dbTeacher.contracts_file_path)
           },
           attendance: {
             daysPresent: 180,
@@ -257,12 +400,17 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
           }
         };
       });
-      
+
+      // Filter out null values (teachers without valid user IDs)
+      const transformedTeachers = transformedTeachersRaw.filter((teacher): teacher is Teacher => teacher !== null);
+
+      console.log('✅ Valid teachers after filtering:', transformedTeachers.length);
+
       setTeachers(transformedTeachers);
       
       // No mock candidates in production; leave empty until real data source is available
-    } catch (error) {
-      console.error('Failed to fetch teachers:', error);
+    } catch (_error) {
+      console.error('Failed to fetch teachers:', _error);
       Alert.alert('Error', 'Failed to load teacher data. Please check your connection.');
     } finally {
       setLoading(false);
@@ -272,10 +420,80 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
   useEffect(() => {
     loadInvites();
     fetchTeachers();
+    fetchAvailableCandidates();
   }, [fetchTeachers]);
 
   const [showInviteModal, setShowInviteModal] = useState(false);
 
+
+  const fetchAvailableCandidates = useCallback(async () => {
+    try {
+      setLoading(true);
+      const schoolId = getPreschoolId();
+      if (schoolId) {
+        const { data, error } = await assertSupabase().rpc('rpc_find_available_teachers_near', {
+          school_id: schoolId,
+          radius_km: radiusKm,
+          subject_filter: null,
+        });
+        if (!error && Array.isArray(data)) {
+          let list = data as any[];
+          if (hiringSearch && hiringSearch.trim()) {
+            const term = hiringSearch.trim().toLowerCase();
+            list = list.filter((x) =>
+              (x.full_name || '').toLowerCase().includes(term) ||
+              (x.email || '').toLowerCase().includes(term) ||
+              (x.home_city || '').toLowerCase().includes(term) ||
+              (x.home_postal_code || '').toLowerCase().includes(term)
+            );
+          }
+          setAvailableTeachers(list.map((x) => ({
+            id: x.user_id,
+            name: x.full_name || x.email || 'Teacher',
+            email: x.email,
+            phone: x.phone,
+            home_city: x.home_city,
+            home_postal_code: x.home_postal_code,
+            distance_km: x.distance_km,
+          })));
+          return;
+        }
+      }
+      // Fallback when RPC not available or school has no coordinates
+      const base = assertSupabase()
+        .from('users')
+        .select('id, auth_user_id, email, name, phone, city, postal_code, role, is_active, preschool_id')
+        .eq('role', 'teacher')
+        .eq('is_active', true)
+        .is('preschool_id', null)
+        .limit(100);
+      let query = base;
+      if (hiringSearch && hiringSearch.trim().length > 0) {
+        const term = hiringSearch.trim();
+        query = query.or(`city.ilike.%${term}%,postal_code.ilike.%${term}%,email.ilike.%${term}%,name.ilike.%${term}%`);
+      }
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error loading available teachers:', _error);
+        setAvailableTeachers([]);
+      } else {
+        const fallbackList = (data || []).map((u: any) => ({
+          id: u.id,
+          name: u.name || u.email || 'Teacher',
+          email: u.email,
+          phone: u.phone,
+          home_city: u.city || null,
+          home_postal_code: u.postal_code || null,
+        }));
+        setAvailableTeachers(fallbackList);
+      }
+    } catch (_e) {
+      console.error('Failed to load available teachers:', _e);
+      setAvailableTeachers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [hiringSearch, radiusKm, getPreschoolId]);
 
   const loadInvites = async () => {
     try {
@@ -289,7 +507,7 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
   };
   
   // NEW: Seat management handlers
-  const handleAssignSeat = useCallback((teacherId: string, teacherName: string) => {
+  const handleAssignSeat = useCallback((teacherUserId: string, teacherName: string) => {
     if (shouldDisableAssignment) {
       Alert.alert(
         'Seat Limit Reached',
@@ -312,15 +530,21 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Assign Seat',
-          onPress: () => {
-            assignSeat({ teacherUserId: teacherId });
+          onPress: async () => {
+            try {
+              await assignSeat({ teacherUserId });
+              // Refresh teachers list after successful assignment
+              await fetchTeachers();
+            } catch (_error) {
+              console.error('Seat assignment failed:', _error);
+            }
           }
         }
       ]
     );
-  }, [shouldDisableAssignment, seatUsageDisplay, assignSeat]);
+  }, [shouldDisableAssignment, seatUsageDisplay, assignSeat, fetchTeachers]);
   
-  const handleRevokeSeat = useCallback((teacherId: string, teacherName: string) => {
+  const handleRevokeSeat = useCallback((teacherUserId: string, teacherName: string) => {
     Alert.alert(
       'Revoke Teacher Seat',
       `Are you sure you want to revoke the teacher seat from ${teacherName}?\n\nThey will lose access to the teacher portal until a new seat is assigned.`,
@@ -329,13 +553,23 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
         {
           text: 'Revoke Seat',
           style: 'destructive',
-          onPress: () => {
-            revokeSeat({ teacherUserId: teacherId });
+          onPress: async () => {
+            try {
+              console.log('[TeacherManagement] Revoking seat from user:', teacherUserId);
+              await revokeSeat({ teacherUserId });
+              console.log('[TeacherManagement] Seat revoked successfully');
+              // Refresh teachers list after successful revocation
+              await fetchTeachers();
+              Alert.alert('Success', `Seat revoked from ${teacherName} successfully!`);
+            } catch (_error) {
+              console.error('[TeacherManagement] Seat revocation failed:', _error);
+              Alert.alert('Revocation Failed', _error instanceof Error ? _error.message : 'Unknown error occurred');
+            }
           }
         }
       ]
     );
-  }, [revokeSeat]);
+  }, [revokeSeat, fetchTeachers]);
   const [inviteEmail, setInviteEmail] = useState('');
 
   const handleAddTeacher = () => {
@@ -376,6 +610,92 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
     setSelectedTeacher(teacher);
     setCurrentView('profile');
   };
+
+  const refreshSelectedTeacherDocs = useCallback(async () => {
+    if (!selectedTeacher?.id) return;
+    const docs = await TeacherDocumentsService.listDocuments(selectedTeacher.id);
+    const map: Record<string, TeacherDocument> = { /* TODO: Implement */ };
+    for (const d of docs) { if (!map[d.doc_type]) map[d.doc_type] = d; }
+    setTeacherDocsMap(map);
+  }, [selectedTeacher]);
+
+  const pickAndUploadTeacherDoc = useCallback(async (docType: TeacherDocType) => {
+    try {
+      if (!selectedTeacher?.id) { Alert.alert('No teacher selected'); return; }
+      const preschoolId = getPreschoolId();
+      if (!preschoolId) { Alert.alert('No school linked', 'Cannot attach documents without a school context.'); return; }
+      setIsUploadingDoc(true);
+
+      const res = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], multiple: false, copyToCacheDirectory: true });
+      // New API returns { canceled, assets }
+      // @ts-ignore tolerate shape differences across versions
+      if (res.canceled) { setIsUploadingDoc(false); return; }
+      // @ts-ignore
+      const asset = (res.assets && res.assets[0]) || res;
+      const uri = asset.uri as string;
+      const name = (asset.name as string) || uri.split('/').pop() || `${docType}.dat`;
+      const mime = (asset.mimeType as string) || 'application/octet-stream';
+
+      const uploaded = await TeacherDocumentsService.uploadDocument({
+        teacherUserId: selectedTeacher.id,
+        preschoolId,
+        uploadedBy: user?.id || '',
+        localUri: uri,
+        docType,
+        originalFileName: name,
+        mimeType: mime,
+      });
+      if (!uploaded.success) {
+        Alert.alert('Upload failed', uploaded.error || 'Unknown error');
+        setIsUploadingDoc(false);
+        return;
+      }
+
+      await refreshSelectedTeacherDocs();
+      Alert.alert('Attached', `${name} uploaded as ${docType.replace('_', ' ')}`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to attach document');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  }, [selectedTeacher, user, getPreschoolId, refreshSelectedTeacherDocs]);
+
+  const showAttachDocActionSheet = useCallback(() => {
+    Alert.alert(
+      'Attach Document',
+      'Select which document to attach',
+      [
+        { text: 'CV', onPress: () => pickAndUploadTeacherDoc('cv') },
+        { text: 'Qualifications', onPress: () => pickAndUploadTeacherDoc('qualifications') },
+        { text: 'ID Copy', onPress: () => pickAndUploadTeacherDoc('id_copy') },
+        { text: 'Contracts', onPress: () => pickAndUploadTeacherDoc('contracts') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [pickAndUploadTeacherDoc]);
+
+  // Load teacher documents when entering profile view
+  useEffect(() => {
+    const loadDocs = async () => {
+      try {
+        if (currentView === 'profile' && selectedTeacher?.id) {
+          const docs = await TeacherDocumentsService.listDocuments(selectedTeacher.id);
+          // Map latest by doc_type
+          const map: Record<string, TeacherDocument> = { /* TODO: Implement */ };
+          for (const d of docs) {
+            if (!map[d.doc_type]) map[d.doc_type] = d;
+          }
+          setTeacherDocsMap(map);
+        } else {
+          setTeacherDocsMap({ /* TODO: Implement */ });
+        }
+      } catch (_e) {
+        console.warn('Failed to load teacher documents:', _e);
+        setTeacherDocsMap({ /* TODO: Implement */ });
+      }
+    };
+    loadDocs();
+  }, [currentView, selectedTeacher]);
 
   const handleCandidateAction = (candidateId: string, action: string) => {
     const candidate = candidates.find(c => c.id === candidateId);
@@ -457,7 +777,6 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
       case 'hiring': return 'person-add-outline';
       case 'performance': return 'analytics-outline';
       case 'payroll': return 'card-outline';
-      case 'documents': return 'folder-outline';
       case 'profile': return 'person-outline';
       default: return 'grid-outline';
     }
@@ -470,7 +789,7 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
       style={styles.tabsContainer}
       contentContainerStyle={styles.tabsContent}
     >
-      {(['overview', 'hiring', 'performance', 'payroll', 'documents'] as TeacherManagementView[]).map((view) => (
+      {(['overview', 'hiring', 'performance', 'payroll'] as TeacherManagementView[]).map((view) => (
         <TouchableOpacity
           key={view}
           style={[styles.tab, currentView === view && styles.activeTab]}
@@ -498,89 +817,107 @@ const transformedTeachers: Teacher[] = (teachersData || []).map((dbTeacher: any)
   });
 
   // NEW: Component for teacher cards with seat management
-const TeacherCardWithSeatManagement = ({ item }: { item: Teacher }) => {
-    const teacherHasSeat = useTeacherHasSeat(item.authUserId);
+  const TeacherCardWithSeatManagement = ({ item }: { item: Teacher }) => {
+    const teacherHasSeat = useTeacherHasSeat(item.teacherUserId);
     const fullName = `${item.firstName} ${item.lastName}`;
+    
+    // Debug logging for teacher card
+    React.useEffect(() => {
+      console.log('[TeacherCard DEBUG]', {
+        teacherName: fullName,
+        teacherEmail: item.email,
+        teacherUserId: item.teacherUserId,
+        teacherHasSeat,
+        teacherData: {
+          id: item.id,
+          employeeId: item.employeeId,
+          status: item.status,
+        }
+      });
+    }, [item, teacherHasSeat, fullName]);
     
     return (
       <TouchableOpacity
         style={styles.teacherCard}
         onPress={() => handleTeacherPress(item)}
       >
-        <View style={styles.teacherAvatar}>
-          <Text style={styles.avatarText}>
-            {item.firstName.charAt(0)}{item.lastName.charAt(0)}
-          </Text>
-        </View>
-        
-        <View style={styles.teacherInfo}>
-          <Text style={styles.teacherName}>
-            {fullName}
-          </Text>
-          <Text style={styles.teacherEmail}>{item.email}</Text>
-          <Text style={styles.teacherClasses}>
-            Classes: {item.classes.join(', ')}
-          </Text>
-          
-          {/* NEW: Seat status indicator */}
-          <View style={styles.seatStatusContainer}>
-            <Ionicons 
-              name={teacherHasSeat ? 'checkmark-circle' : 'ellipse-outline'} 
-              size={14} 
-              color={teacherHasSeat ? '#059669' : '#6b7280'} 
-            />
-            <Text style={[styles.seatStatusText, { color: teacherHasSeat ? '#059669' : '#6b7280' }]}>
-              {teacherHasSeat ? 'Has teacher seat' : 'No teacher seat'}
+        <View style={styles.teacherTopRow}>
+          <View style={styles.teacherAvatar}>
+            <Text style={styles.avatarText}>
+              {item.firstName.charAt(0)}{item.lastName.charAt(0)}
             </Text>
           </View>
+          <View style={styles.teacherInfo}>
+            <Text style={styles.teacherName}>
+              {fullName}
+            </Text>
+            <Text style={styles.teacherEmail}>{item.email}</Text>
+            <Text style={styles.teacherClasses}>
+              Classes: {item.classes.join(', ')}
+            </Text>
+            <View style={styles.seatStatusContainer}>
+              <Ionicons 
+                name={teacherHasSeat ? 'checkmark-circle' : 'ellipse-outline'} 
+                size={14} 
+                color={teacherHasSeat ? '#059669' : '#6b7280'} 
+              />
+              <Text style={[styles.seatStatusText, { color: teacherHasSeat ? '#059669' : '#6b7280' }]}>
+                {teacherHasSeat ? 'Has teacher seat' : 'No teacher seat'}
+              </Text>
+            </View>
+          </View>
         </View>
-        
-        <View style={styles.teacherActions}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+
+        <View style={styles.teacherActionsColumn}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}> 
             <Text style={styles.statusText}>{item.status}</Text>
           </View>
-          
-          {/* NEW: Seat management actions */}
-          <View style={styles.seatActions}>
+
+          <View style={styles.seatActionsStack}>
             {teacherHasSeat ? (
               <TouchableOpacity
                 style={[styles.seatActionButton, styles.revokeButton]}
-onPress={(e: any) => {
+                onPress={(e: any) => {
                   e.stopPropagation();
-                  handleRevokeSeat(item.authUserId, fullName);
+                  console.log('[TeacherCard] Revoking seat from:', { teacherId: item.id, teacherName: fullName, teacherUserId: item.teacherUserId });
+                  handleRevokeSeat(item.teacherUserId, fullName);
                 }}
                 disabled={isRevoking}
               >
-                <Ionicons name="remove-circle" size={16} color="#dc2626" />
-                <Text style={[styles.seatActionText, { color: '#dc2626' }]}>Revoke</Text>
+                <Ionicons name="remove-circle" size={16} color="#fca5a5" />
+                <Text style={styles.seatActionText}>Revoke Seat</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[
-                  styles.seatActionButton, 
+                  styles.seatActionButton,
                   styles.assignButton,
                   shouldDisableAssignment && styles.disabledButton
                 ]}
-onPress={(e: any) => {
+                onPress={(e: any) => {
                   e.stopPropagation();
-                  handleAssignSeat(item.authUserId, fullName);
+                  console.log('[TeacherCard] Assigning seat to:', { teacherId: item.id, teacherName: fullName, teacherUserId: item.teacherUserId });
+                  handleAssignSeat(item.teacherUserId, fullName);
                 }}
                 disabled={isAssigning || shouldDisableAssignment}
               >
-                <Ionicons 
-                  name="add-circle" 
-                  size={16} 
-                  color={shouldDisableAssignment ? '#9ca3af' : '#059669'} 
+                <Ionicons
+                  name="add-circle"
+                  size={16}
+                  color={shouldDisableAssignment ? '#9ca3af' : '#34d399'}
                 />
-                <Text style={[
-                  styles.seatActionText, 
-                  { color: shouldDisableAssignment ? '#9ca3af' : '#059669' }
-                ]}>Assign</Text>
+                <Text style={styles.seatActionText}>Assign Seat</Text>
               </TouchableOpacity>
             )}
+
+            <TouchableOpacity
+              style={[styles.seatActionButton, styles.messageQuickAction]}
+              onPress={() => handleTeacherPress(item)}
+            >
+              <Ionicons name="eye" size={16} color="#e2e8f0" />
+              <Text style={styles.seatActionText}>View Profile</Text>
+            </TouchableOpacity>
           </View>
-          
-          <Ionicons name="chevron-forward" size={20} color={theme?.textSecondary || '#666'} />
         </View>
       </TouchableOpacity>
     );
@@ -655,7 +992,7 @@ onPress={(e: any) => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tabsContent}
         >
-          {(['overview', 'hiring', 'performance', 'payroll', 'documents'] as TeacherManagementView[]).map((view) => (
+          {(['overview', 'hiring', 'performance', 'payroll'] as TeacherManagementView[]).map((view) => (
             <TouchableOpacity
               key={view}
               style={[styles.tab, currentView === view && styles.activeTab]}
@@ -741,10 +1078,76 @@ onPress={(e: any) => {
 
         {currentView === 'hiring' && (
           <View style={styles.sectionContainer}>
+            {/* Available teachers hub */}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Hiring Pipeline</Text>
-              <Text style={styles.sectionSubtitle}>{candidates.length} candidates in pipeline</Text>
+              <Text style={styles.sectionTitle}>Available Teachers</Text>
+              <Text style={styles.sectionSubtitle}>{availableTeachers.length} available</Text>
             </View>
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={16} color={theme?.textSecondary || '#666'} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search by name, email, city or postal code..."
+                  value={hiringSearch}
+                  onChangeText={(t) => setHiringSearch(t)}
+                  onSubmitEditing={fetchAvailableCandidates}
+                />
+              </View>
+              <View style={styles.radiusChips}>
+                {[5,10,25].map((km) => (
+                  <TouchableOpacity
+                    key={km}
+                    style={[styles.radiusChip, radiusKm === km && styles.radiusChipActive]}
+                    onPress={() => { setRadiusKm(km); fetchAvailableCandidates(); }}
+                  >
+                    <Text style={[styles.radiusChipText, radiusKm === km && styles.radiusChipTextActive]}>{km} km</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={styles.addButton} onPress={fetchAvailableCandidates}>
+                <Ionicons name="refresh" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={availableTeachers}
+              keyExtractor={(i) => i.id}
+              renderItem={({ item }) => (
+                <View style={styles.candidateCard}>
+                  <View style={styles.candidateHeader}>
+                    <View style={styles.candidateInfo}>
+                      <Text style={styles.candidateName}>{item.name}</Text>
+                      <Text style={styles.candidateEmail}>{item.email}</Text>
+                      <Text style={styles.candidateDetails}>{(item.home_city || 'Unknown city') + (item.home_postal_code ? ` • ${item.home_postal_code}` : '')}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.inviteButton}
+                      onPress={async () => {
+                        try {
+                          const schoolId = getPreschoolId();
+                          if (!schoolId) return;
+                          if (!item.email) { Alert.alert('Missing email', 'This teacher profile has no email.'); return; }
+                          await TeacherInviteService.createInvite({ schoolId, email: item.email, invitedBy: user?.id || '' });
+                          await loadInvites();
+                          Alert.alert('Invite sent', `Invitation sent to ${item.email}`);
+                        } catch (_e) {
+                          console.error('Invite error:', _e);
+                          Alert.alert('Error', 'Failed to send invite.');
+                        }
+                      }}
+                    >
+                      <Ionicons name="send" size={16} color="#fff" />
+                      <Text style={styles.inviteButtonText}>Invite</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={<RefreshControl refreshing={loading} onRefresh={fetchAvailableCandidates} />}
+              ListEmptyComponent={<Text style={styles.sectionSubtitle}>No available teachers</Text>}
+            />
+
             {/* Invites list */}
             <View style={[styles.sectionHeader, { marginTop: 8 }] }>
               <Text style={styles.sectionTitle}>Invitations</Text>
@@ -912,76 +1315,112 @@ style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#
           </View>
         )}
 
-        {currentView === 'documents' && (
-          <View style={styles.sectionContainer}>
+
+        {currentView === 'profile' && selectedTeacher && (
+          <ScrollView style={styles.sectionContainer} contentContainerStyle={styles.profileContent}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Document Management</Text>
-              <Text style={styles.sectionSubtitle}>Track required documents</Text>
+              <TouchableOpacity onPress={() => setCurrentView('overview')} style={{ paddingRight: 12, paddingVertical: 4 }}>
+                <Ionicons name="chevron-back" size={20} color={theme?.text || '#333'} />
+              </TouchableOpacity>
+              <Text style={styles.sectionTitle}>
+                {selectedTeacher.firstName} {selectedTeacher.lastName}
+              </Text>
+              <Text style={styles.sectionSubtitle}>{selectedTeacher.email}</Text>
             </View>
-            <FlatList
-              data={filteredTeachers}
-              renderItem={({ item }) => {
-                const completedDocs = Object.values(item.documents).filter(Boolean).length;
-                const totalDocs = Object.keys(item.documents).length;
-                return (
-                  <View style={styles.documentCard}>
-                    <View style={styles.documentHeader}>
-                      <View>
-                        <Text style={styles.teacherName}>
-                          {item.firstName} {item.lastName}
-                        </Text>
-                        <Text style={styles.documentProgress}>
-                          {completedDocs}/{totalDocs} documents complete
-                        </Text>
-                      </View>
-                      <View style={styles.progressCircle}>
-                        <Text style={styles.progressText}>
-                          {Math.round((completedDocs/totalDocs) * 100)}%
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.documentGrid}>
-                      <View style={[styles.docItem, item.documents.cv && styles.docComplete]}>
-                        <Ionicons 
-                          name={item.documents.cv ? "checkmark-circle" : "ellipse-outline"} 
-                          size={16} 
-                          color={item.documents.cv ? "#065f46" : "#6b7280"} 
-                        />
-                        <Text style={[styles.docText, item.documents.cv && styles.docCompleteText]}>CV</Text>
-                      </View>
-                      <View style={[styles.docItem, item.documents.qualifications && styles.docComplete]}>
-                        <Ionicons 
-                          name={item.documents.qualifications ? "checkmark-circle" : "ellipse-outline"} 
-                          size={16} 
-                          color={item.documents.qualifications ? "#065f46" : "#6b7280"} 
-                        />
-                        <Text style={[styles.docText, item.documents.qualifications && styles.docCompleteText]}>Qualifications</Text>
-                      </View>
-                      <View style={[styles.docItem, item.documents.idCopy && styles.docComplete]}>
-                        <Ionicons 
-                          name={item.documents.idCopy ? "checkmark-circle" : "ellipse-outline"} 
-                          size={16} 
-                          color={item.documents.idCopy ? "#065f46" : "#6b7280"} 
-                        />
-                        <Text style={[styles.docText, item.documents.idCopy && styles.docCompleteText]}>ID Copy</Text>
-                      </View>
-                      <View style={[styles.docItem, item.documents.contracts && styles.docComplete]}>
-                        <Ionicons 
-                          name={item.documents.contracts ? "checkmark-circle" : "ellipse-outline"} 
-                          size={16} 
-                          color={item.documents.contracts ? "#065f46" : "#6b7280"} 
-                        />
-                        <Text style={[styles.docText, item.documents.contracts && styles.docCompleteText]}>Contracts</Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              }}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            />
-          </View>
+
+            <View style={styles.documentCard}>
+              <Text style={styles.teacherName}>Profile</Text>
+              <Text style={styles.teacherEmail}>Phone: {selectedTeacher.phone}</Text>
+              <Text style={styles.teacherEmail}>Employee ID: {selectedTeacher.employeeId}</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity 
+                  style={[styles.payrollButton, styles.messageButton]} 
+                  onPress={() => Alert.alert('Messaging', 'Teacher communications coming soon')}
+                >
+                  <Ionicons name="chatbubbles" size={16} color="#fff" />
+                  <Text style={styles.payrollButtonText}>{selectedTeacherHasSeat ? 'Message (Has Seat)' : 'Message (No Seat)'}</Text>
+                </TouchableOpacity>
+              <View style={styles.inlineSeatActions}>
+                <TouchableOpacity 
+                  style={[styles.payrollButton, styles.assignSeatButton]}
+                  onPress={() => handleAssignSeat(selectedTeacher.teacherUserId, `${selectedTeacher.firstName} ${selectedTeacher.lastName}`)}
+                  disabled={shouldDisableAssignment || isAssigning}
+                >
+                  <Ionicons name="add-circle" size={16} color="#fff" />
+                  <Text style={styles.payrollButtonText}>Assign Seat</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.payrollButton, styles.revokeSeatButton]}
+                  onPress={() => handleRevokeSeat(selectedTeacher.teacherUserId, `${selectedTeacher.firstName} ${selectedTeacher.lastName}`)}
+                  disabled={isRevoking}
+                >
+                  <Ionicons name="remove-circle" size={16} color="#fff" />
+                  <Text style={styles.payrollButtonText}>Revoke Seat</Text>
+                </TouchableOpacity>
+              </View>
+              </View>
+            </View>
+
+            <View style={styles.documentCard}>
+              <View style={[styles.documentHeader, { alignItems: 'center' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Documents</Text>
+                  <Text style={styles.documentProgress}>
+                    {Object.keys(selectedTeacher.documents).length}/4 complete
+                  </Text>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.inviteButton, { backgroundColor: '#2563eb' }]} 
+                  onPress={showAttachDocActionSheet}
+                  disabled={isUploadingDoc}
+                >
+                  <Ionicons name="cloud-upload" size={16} color="#fff" />
+                  <Text style={styles.inviteButtonText}>{isUploadingDoc ? 'Uploading...' : 'Attach'}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.documentGrid}>
+                {(
+                  [
+                    { key: 'cv', label: 'CV', complete: !!selectedTeacher.documents.cv },
+                    { key: 'qualifications', label: 'Qualifications', complete: !!selectedTeacher.documents.qualifications },
+                    { key: 'id_copy', label: 'ID Copy', complete: !!selectedTeacher.documents.id_copy },
+                    { key: 'contracts', label: 'Contracts', complete: !!selectedTeacher.documents.contracts },
+                  ] as Array<{ key: string; label: string; complete: boolean }>
+                ).map((doc) => (
+                  <TouchableOpacity
+                    key={doc.key}
+                    style={[styles.docItem, (doc.complete || teacherDocsMap[doc.key]) && styles.docComplete]}
+                    onPress={async () => {
+                      const existing = teacherDocsMap[doc.key];
+                      if (!existing) {
+                        Alert.alert('No File', 'No file is currently attached for this document.');
+                        return;
+                      }
+                      try {
+                        const url = await TeacherDocumentsService.getSignedUrl(existing.file_path);
+                        if (!url) { Alert.alert('Error', 'Failed to open document.'); return; }
+                        // Prefer in-app browser when available
+                        if (WebBrowser && WebBrowser.openBrowserAsync) {
+                          await WebBrowser.openBrowserAsync(url);
+                        } else {
+                          await Linking.openURL(url);
+                        }
+                      } catch (_e) {
+                        Alert.alert('Error', 'Could not open document.');
+                      }
+                    }}
+                  >
+                    <Ionicons 
+                      name={doc.complete ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={16}
+                      color={doc.complete ? '#065f46' : '#6b7280'}
+                    />
+                    <Text style={[styles.docText, (doc.complete || teacherDocsMap[doc.key]) && styles.docCompleteText]}>{doc.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
         )}
       </View>
     </View>
@@ -1016,7 +1455,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme?.surfaceVariant || '#f9fafb',
   },
   activeTab: {
-    backgroundColor: theme?.primary || '#007AFF',
+    backgroundColor: theme?.primary || '#2563eb',
   },
   tabText: {
     marginLeft: 6,
@@ -1031,6 +1470,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   sectionContainer: {
     flex: 1,
     backgroundColor: theme?.background || '#f8fafc',
+  },
+  profileContent: {
+    paddingBottom: 160,
   },
   overviewContainer: {
     flex: 1,
@@ -1060,19 +1502,23 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   // Teacher Cards
   teacherCard: {
+    backgroundColor: theme?.cardBackground || '#10172a',
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: theme?.border || '#1e293b',
+    gap: 18,
+  },
+  teacherTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme?.cardBackground || 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: theme?.shadow || '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: theme?.border || '#f3f4f6',
+    gap: 16,
   },
   teacherAvatar: {
     width: 52,
@@ -1092,19 +1538,19 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   teacherName: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: theme?.text || '#333',
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme?.text || '#e2e8f0',
     marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: theme?.textSecondary || '#6b7280',
+    color: theme?.textSecondary || '#94a3b8',
     marginBottom: 4,
   },
   teacherClasses: {
     fontSize: 13,
-    color: theme?.textTertiary || '#9ca3af',
+    color: theme?.textTertiary || '#64748b',
   },
   teacherRole: {
     fontSize: 13,
@@ -1252,6 +1698,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+    zIndex: 1000, // Ensure it's above other elements
   },
   performanceDetails: {
     marginBottom: 16,
@@ -1290,6 +1737,39 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
     marginLeft: 6,
   },
+  inviteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  inviteButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  radiusChips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 6,
+  },
+  radiusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#334155',
+    backgroundColor: '#0f172a',
+  },
+  radiusChipActive: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+  },
+  radiusChipText: { color: '#9ca3af', fontWeight: '700' },
+  radiusChipTextActive: { color: '#fff', fontWeight: '800' },
   // Payroll Cards
   payrollCard: {
     backgroundColor: theme?.cardBackground || 'white',
@@ -1353,15 +1833,33 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme?.success || '#059669',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 12,
     alignSelf: 'flex-start',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
   payrollButtonText: {
     color: 'white',
     fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  messageButton: {
+    backgroundColor: '#2563eb',
+  },
+  assignSeatButton: {
+    backgroundColor: '#059669',
+  },
+  revokeSeatButton: {
+    backgroundColor: '#dc2626',
+  },
+  inlineSeatActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   // Document Cards
   documentCard: {
@@ -1481,41 +1979,95 @@ const createStyles = (theme: any) => StyleSheet.create({
   seatStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 8,
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: '#0f172a',
   },
   seatStatusText: {
     fontSize: 12,
-    fontWeight: '500',
-    marginLeft: 4,
+    fontWeight: '600',
+    marginLeft: 6,
+    color: '#e2e8f0',
   },
   teacherActions: {
     alignItems: 'flex-end',
   },
+  teacherActionsColumn: {
+    gap: 8,
+  },
   seatActions: {
     marginVertical: 8,
+  },
+  seatActionsStack: {
+    gap: 8,
   },
   seatActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 12,
-    minWidth: 80,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    minWidth: 110,
     justifyContent: 'center',
+    gap: 6,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   assignButton: {
-    backgroundColor: '#f0f9ff',
+    backgroundColor: '#0f172a',
   },
   revokeButton: {
-    backgroundColor: '#fef2f2',
+    backgroundColor: '#1f2937',
   },
   disabledButton: {
-    backgroundColor: '#f9fafb',
-    opacity: 0.6,
+    backgroundColor: '#0f172a',
+    opacity: 0.4,
   },
   seatActionText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
     marginLeft: 4,
+    color: '#e2e8f0',
+  },
+  messageQuickAction: {
+    backgroundColor: '#1e293b',
+  },
+  // Missing styles for search interface
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: theme?.surface || 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: theme?.border || '#f3f4f6',
+  },
+  searchBox: {
+    flex: 1,
+    marginRight: 12,
+  },
+  searchInput: {
+    backgroundColor: theme?.inputBackground || '#f9fafb',
+    borderWidth: 1,
+    borderColor: theme?.inputBorder || '#d1d5db',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: theme?.inputText || '#111827',
+  },
+  addButton: {
+    backgroundColor: theme?.primary || '#4F46E5',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
 });

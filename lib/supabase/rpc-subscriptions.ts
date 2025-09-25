@@ -33,7 +33,7 @@ export async function adminUpdateSubscriptionPlan(
     p_billing_frequency: args.billingFrequency || null,
     p_seats_total: args.seatsTotal || null,
     p_reason: args.reason || null,
-    p_metadata: args.metadata || {}
+    p_metadata: args.metadata || { /* TODO: Implement */ }
   });
 
   if (error) throw error;
