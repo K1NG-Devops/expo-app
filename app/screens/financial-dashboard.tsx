@@ -323,6 +323,14 @@ export default function FinanceDashboard() {
         }
         showsVerticalScrollIndicator={false}
       >
+        {overview?.isSample && (
+          <View style={styles.sampleBanner}>
+            <Ionicons name="alert-circle" size={18} color="#92400E" />
+            <Text style={styles.sampleBannerText}>
+              Showing sample financial data (no live records detected)
+            </Text>
+          </View>
+        )}
         {overview && (
           <>
             {/* Key Metrics */}
@@ -590,5 +598,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 16,
     color: theme?.textSecondary || Colors.light.tabIconDefault,
     marginTop: 16,
+  },
+  sampleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+    padding: 12,
+    margin: 16,
+    marginBottom: 0,
+    borderRadius: 8,
+    gap: 8,
+  },
+  sampleBannerText: {
+    color: '#92400E',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

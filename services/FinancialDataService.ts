@@ -67,6 +67,8 @@ export interface FinanceOverviewData {
     monthlyExpenses: number;
     cashFlow: number;
   };
+  // Indicates that the service returned fallback sample data (not live DB data)
+  isSample?: boolean;
 }
 
 export class FinancialDataService {
@@ -405,6 +407,7 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
           monthlyExpenses: currentExpenses,
           cashFlow: currentRevenue - currentExpenses,
         },
+        isSample: false,
       };
       
     } catch (error) {
@@ -425,6 +428,7 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
           monthlyExpenses: 22500,
           cashFlow: 22500,
         },
+        isSample: true,
       };
     }
   }
