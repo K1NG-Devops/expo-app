@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type GraderOptions = {
   submissionText: string;
@@ -93,8 +94,22 @@ export function useGrader() {
         return text;
       }
     } catch (e: any) {
-      setError(e?.message || 'Failed to grade submission');
-      throw e;
+      // Fallback to Dash assistant
+      try {
+        const dash = DashAIAssistant.getInstance();
+        await dash.initialize();
+        if (!dash.getCurrentConversationId()) {
+          await dash.startNewConversation('AI Grader');
+        }
+        const prompt = `Provide constructive feedback and a concise score (0-100) for the following student submission.\nGrade Level: ${opts.gradeLevel || 'N/A'}\nRubric: ${(opts.rubric || []).join(', ') || 'accuracy, completeness, clarity'}\nSubmission:\n${opts.submissionText}`;
+        const response = await dash.sendMessage(prompt);
+        const text = response.content || '';
+        setResult(text);
+        return text;
+      } catch (fallbackErr) {
+        setError(e?.message || 'Failed to grade submission');
+        throw e;
+      }
     } finally {
       setLoading(false);
     }

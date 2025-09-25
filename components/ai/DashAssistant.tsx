@@ -70,19 +70,40 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         setDashInstance(dash);
         setIsInitialized(true);
 
+        let hasExistingMessages = false;
+
         // Load existing conversation or create new one
         if (conversationId) {
           const existingConv = await dash.getConversation(conversationId);
           if (existingConv) {
+            hasExistingMessages = (existingConv.messages?.length || 0) > 0;
             setConversation(existingConv);
-            setMessages(existingConv.messages);
+            setMessages(existingConv.messages || []);
             dash.setCurrentConversationId(conversationId);
           }
         } else {
-          const newConvId = await dash.startNewConversation('Chat with Dash');
-          const newConv = await dash.getConversation(newConvId);
-          if (newConv) {
-            setConversation(newConv);
+          // Try to resume last active conversation
+          const savedConvId = await AsyncStorage.getItem('@dash_ai_current_conversation_id');
+          let newConvId = savedConvId || null;
+          
+          if (newConvId) {
+            const existingConv = await dash.getConversation(newConvId);
+            if (existingConv) {
+              hasExistingMessages = (existingConv.messages?.length || 0) > 0;
+              setConversation(existingConv);
+              setMessages(existingConv.messages || []);
+              dash.setCurrentConversationId(newConvId);
+            } else {
+              newConvId = null;
+            }
+          }
+          
+          if (!newConvId) {
+            const createdId = await dash.startNewConversation('Chat with Dash');
+            const newConv = await dash.getConversation(createdId);
+            if (newConv) {
+              setConversation(newConv);
+            }
           }
         }
 
@@ -99,8 +120,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           setTimeout(() => {
             sendMessage(initialMessage);
           }, 500);
-        } else {
-          // Add greeting message
+        } else if (!hasExistingMessages) {
+          // Add greeting message only if there are no previous messages
           const greeting: DashMessage = {
             id: `greeting_${Date.now()}`,
             type: 'assistant',
@@ -181,6 +202,14 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         try {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         } catch { /* Haptics not available */ }
+      } else if (response.metadata?.dashboard_action?.type === 'open_screen') {
+        const { route, params } = response.metadata.dashboard_action as any;
+        console.log(`[Dash] Opening screen: ${route}`, params || {});
+        try {
+          router.push({ pathname: route, params } as any);
+        } catch (e) {
+          console.warn('Failed to navigate to route from Dash action:', e);
+        }
       }
       
       // Update messages from conversation
@@ -239,6 +268,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           try {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           } catch { /* Haptics not available */ }
+        } else if (response.metadata?.dashboard_action?.type === 'open_screen') {
+          const { route, params } = response.metadata.dashboard_action as any;
+          console.log(`[Dash] Opening screen: ${route}`, params || {});
+          try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
         }
         
         // Update messages from conversation
@@ -297,20 +330,22 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           isUser ? styles.userMessage : styles.assistantMessage,
         ]}
       >
-        {!isUser && (
-          <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
-            <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
-          </View>
-        )}
         
         <View
           style={[
             styles.messageBubble,
             isUser
               ? { backgroundColor: theme.primary }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
+              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, marginLeft: 28 },
           ]}
         >
+          {!isUser && (
+            <View style={styles.bubbleHeaderRow}>
+              <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
+                <Ionicons name="sparkles" size={14} color={theme.onPrimary} />
+              </View>
+            </View>
+          )}
           <Text
             style={[
               styles.messageText,
@@ -462,9 +497,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <View style={styles.headerLeft}>
-          <View style={[styles.dashAvatar, { backgroundColor: theme.primary }]}>
-            <Ionicons name="sparkles" size={24} color={theme.onPrimary} />
-          </View>
           <View>
             <Text style={[styles.headerTitle, { color: theme.text }]}>Dash</Text>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
@@ -646,11 +678,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   iconButton: {
-    padding: 8,
-    marginRight: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
   closeButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
   },
   messagesContainer: {
     flex: 1,
@@ -679,7 +720,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   messageBubble: {
-    maxWidth: screenWidth * 0.75,
+    maxWidth: screenWidth * 0.72,
     padding: 12,
     borderRadius: 18,
     minHeight: 44,
@@ -687,6 +728,19 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  bubbleHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  inlineAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 2,
   },
   voiceNoteIndicator: {
     flexDirection: 'row',
@@ -718,7 +772,7 @@ const styles = StyleSheet.create({
   typingBubble: {
     padding: 12,
     borderRadius: 18,
-    marginLeft: 40,
+    marginLeft: 28,
   },
   typingDots: {
     flexDirection: 'row',
@@ -731,7 +785,7 @@ const styles = StyleSheet.create({
   },
   suggestedActionsContainer: {
     marginTop: 8,
-    paddingLeft: 40,
+    paddingLeft: 28,
   },
   suggestedActionsTitle: {
     fontSize: 12,

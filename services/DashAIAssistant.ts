@@ -123,6 +123,7 @@ export class DashAIAssistant {
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
+  private static readonly CURRENT_CONVERSATION_KEY = '@dash_ai_current_conversation_id';
   private static readonly MEMORY_KEY = 'dash_memory';
   private static readonly PERSONALITY_KEY = 'dash_personality';
   private static readonly SETTINGS_KEY = 'dash_settings';
@@ -205,6 +206,9 @@ export class DashAIAssistant {
     };
     
     await this.saveConversation(conversation);
+    try {
+      await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
+    } catch {}
     return conversationId;
   }
 
@@ -456,10 +460,9 @@ export class DashAIAssistant {
       id: string;
       title: string;
     }>;
-    dashboard_action?: {
-      type: 'switch_layout';
-      layout: 'classic' | 'enhanced';
-    };
+    dashboard_action?:
+      | { type: 'switch_layout'; layout: 'classic' | 'enhanced' }
+      | { type: 'open_screen'; route: string; params?: Record<string, string> };
   }> {
     // This would integrate with your existing AI services
     // For now, return a smart contextual response
@@ -533,11 +536,26 @@ export class DashAIAssistant {
     const isParentQuery = parentKeywords.some(keyword => userInput.includes(keyword));
     
     if (isLessonQuery) {
+      // Extract lightweight params from the user's text to prefill the form
+      const extract = (text: string) => {
+        const params: Record<string, string> = {};
+        const gradeMatch = text.match(/grade\s*(\d{1,2})/i);
+        if (gradeMatch) params.gradeLevel = gradeMatch[1];
+        const subjectMatch = text.match(/(math|mathematics|science|english|afrikaans|life\s?skills|geography|history)/i);
+        if (subjectMatch) params.subject = subjectMatch[1];
+        const topicMatch = text.match(/(?:on|about)\s+([^\.,;\n]{3,60})/i);
+        if (topicMatch) params.topic = topicMatch[1].trim();
+        if (/auto|generate|create/i.test(text)) params.autogenerate = '1';
+        return params;
+      };
+      const params = extract(userInput);
+
       return {
         content: `I can help you create engaging, CAPS-aligned lessons! I can assist with lesson planning, activity suggestions, resource recommendations, and curriculum alignment. What subject or topic would you like to focus on?`,
         confidence: 0.9,
         suggested_actions: ['create_lesson', 'view_lesson_templates', 'curriculum_alignment', 'activity_suggestions'],
-        references: []
+        references: [],
+        dashboard_action: { type: 'open_screen', route: '/screens/ai-lesson-generator', params }
       };
     }
     
@@ -802,9 +820,8 @@ export class DashAIAssistant {
    */
   public async getConversation(conversationId: string): Promise<DashConversation | null> {
     try {
-      const storage = SecureStore || AsyncStorage;
-      const conversationData = await storage.getItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
-      
+      // Always use AsyncStorage for conversations to enable indexing
+      const conversationData = await AsyncStorage.getItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
       return conversationData ? JSON.parse(conversationData) : null;
     } catch (error) {
       console.error('[Dash] Failed to get conversation:', error);
@@ -817,17 +834,23 @@ export class DashAIAssistant {
    */
   public async getAllConversations(): Promise<DashConversation[]> {
     try {
-      const storage = SecureStore || AsyncStorage;
       const conversationKeys = await this.getConversationKeys();
       const conversations: DashConversation[] = [];
-      
       for (const key of conversationKeys) {
-        const conversationData = await storage.getItem(key);
+        const conversationData = await AsyncStorage.getItem(key);
         if (conversationData) {
-          conversations.push(JSON.parse(conversationData));
+          try {
+            const parsed = JSON.parse(conversationData);
+            if (!Array.isArray(parsed.messages)) parsed.messages = [];
+            if (typeof parsed.title !== 'string') parsed.title = 'Conversation';
+            if (typeof parsed.created_at !== 'number') parsed.created_at = Date.now();
+            if (typeof parsed.updated_at !== 'number') parsed.updated_at = parsed.created_at;
+            conversations.push(parsed as DashConversation);
+          } catch (e) {
+            console.warn('[Dash] Skipping invalid conversation entry for key:', key, e);
+          }
         }
       }
-      
       return conversations.sort((a, b) => b.updated_at - a.updated_at);
     } catch (error) {
       console.error('[Dash] Failed to get conversations:', error);
@@ -840,8 +863,7 @@ export class DashAIAssistant {
    */
   private async saveConversation(conversation: DashConversation): Promise<void> {
     try {
-      const storage = SecureStore || AsyncStorage;
-      await storage.setItem(
+      await AsyncStorage.setItem(
         `${DashAIAssistant.CONVERSATIONS_KEY}_${conversation.id}`,
         JSON.stringify(conversation)
       );
@@ -860,6 +882,9 @@ export class DashAIAssistant {
         conversation.messages.push(message);
         conversation.updated_at = Date.now();
         await this.saveConversation(conversation);
+        try {
+          await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
+        } catch {}
       }
     } catch (error) {
       console.error('[Dash] Failed to add message to conversation:', error);
@@ -870,9 +895,13 @@ export class DashAIAssistant {
    * Get conversation keys from storage
    */
   private async getConversationKeys(): Promise<string[]> {
-    // This would need to be implemented based on your storage solution
-    // For now, return empty array
-    return [];
+    try {
+      const allKeys = await AsyncStorage.getAllKeys();
+      return allKeys.filter(k => k.startsWith(`${DashAIAssistant.CONVERSATIONS_KEY}_`));
+    } catch (error) {
+      console.error('[Dash] Failed to list conversation keys:', error);
+      return [];
+    }
   }
 
   /**
@@ -880,8 +909,13 @@ export class DashAIAssistant {
    */
   public async deleteConversation(conversationId: string): Promise<void> {
     try {
-      const storage = SecureStore || AsyncStorage;
-      await storage.removeItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
+      await AsyncStorage.removeItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
+      // If deleting the current conversation, clear current pointer
+      const currentId = await AsyncStorage.getItem(DashAIAssistant.CURRENT_CONVERSATION_KEY);
+      if (currentId === conversationId) {
+        await AsyncStorage.removeItem(DashAIAssistant.CURRENT_CONVERSATION_KEY);
+        this.currentConversationId = null;
+      }
     } catch (error) {
       console.error('[Dash] Failed to delete conversation:', error);
     }
@@ -899,6 +933,8 @@ export class DashAIAssistant {
    */
   public setCurrentConversationId(conversationId: string): void {
     this.currentConversationId = conversationId;
+    // Persist pointer so canvas resumes the last chat
+    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch {}
   }
 
   /**

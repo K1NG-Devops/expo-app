@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
+import ToastProvider from '@/components/ui/ToastProvider';
 import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 
@@ -219,7 +220,9 @@ export default function RootLayout() {
               <SubscriptionProvider>
                 {/* Wrap in AdsProvider for ad display gating and control */}
                 <AdsProvider>
-                  <ThemedStackWrapper />
+                  <ToastProvider>
+                    <ThemedStackWrapper />
+                  </ToastProvider>
                   <GlobalUpdateBanner />
                   <UpdateDebugPanel />
                   {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}

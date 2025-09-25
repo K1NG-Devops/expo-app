@@ -38,10 +38,26 @@ function canAccessModel(userTier: SubscriptionTier, modelId: string): boolean {
 
 function normalizeModelId(modelId: string): AIModelId | null {
   // Handle various Claude model name formats
-  if (modelId.includes('haiku')) return 'claude-3-haiku'
-  if (modelId.includes('sonnet')) return 'claude-3-sonnet' 
-  if (modelId.includes('opus')) return 'claude-3-opus'
+  if (!modelId) return null;
+  const id = modelId.toLowerCase();
+  if (id.includes('haiku')) return 'claude-3-haiku'
+  if (id.includes('sonnet')) return 'claude-3-sonnet' 
+  if (id.includes('opus')) return 'claude-3-opus'
   return null
+}
+
+// Map any "family" id to an official, versioned Anthropic model id
+function toOfficialModelId(modelId: string): string {
+  const norm = normalizeModelId(modelId) || 'claude-3-sonnet';
+  switch (norm) {
+    case 'claude-3-haiku':
+      return 'claude-3-haiku-20240307';
+    case 'claude-3-opus':
+      return 'claude-3-opus-20240229';
+    case 'claude-3-sonnet':
+    default:
+      return 'claude-3-sonnet-20240229';
+  }
 }
 
 function getDefaultModelForTier(tier: SubscriptionTier): string {
@@ -182,6 +198,11 @@ serve(async (req: Request) => {
   const action = String(body.action || "");
   const apiKey = (globalThis as any).Deno?.env?.get("ANTHROPIC_API_KEY") || "";
   const modelDefault = (globalThis as any).Deno?.env?.get("ANTHROPIC_MODEL_DEFAULT") || "claude-3-sonnet-20240229";
+
+  // Lightweight unauthenticated health check
+  if (action === 'health') {
+    return json({ status: 'ok', timestamp: new Date().toISOString(), hasApiKey: Boolean(apiKey) });
+  }
 
   // Create Supabase client with caller's JWT for RLS-aware operations
   const SUPABASE_URL = (globalThis as any).Deno?.env?.get("SUPABASE_URL") || '';
@@ -330,9 +351,11 @@ serve(async (req: Request) => {
   // Determine model to use (with tier-appropriate fallback)
   const userTier = await getUserTier(orgId);
   const requestedModel = body.model || modelDefault;
-  const modelToUse = canAccessModel(userTier, requestedModel) 
+  const modelFamily = canAccessModel(userTier, requestedModel) 
     ? requestedModel 
     : getDefaultModelForTier(userTier);
+  // Always map to an official versioned model id before calling provider
+  const modelToUse = toOfficialModelId(modelFamily);
   
   // Quota and model access enforcement
   const gate = await enforceQuotaAndModelAccess(orgId, feature, modelToUse);
@@ -400,7 +423,7 @@ serve(async (req: Request) => {
     }
 
     const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-    const streamModel = body.model || modelDefault;
+    const streamModel = toOfficialModelId(body.model || modelDefault);
     const streamSystem = toSystemPrompt('grading_assistance');
     const textDecoder = new TextDecoder("utf-8");
 
@@ -475,8 +498,14 @@ serve(async (req: Request) => {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'error' }); } catch {}
-      return json({ error: `Claude error ${res.status}`, details: errText }, { status: 500 });
+      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch {}
+      // Graceful fallback: return a basic, safe message instead of 500
+      const fallback = action === 'lesson_generation'
+        ? `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`
+        : action === 'homework_help'
+          ? `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding.`
+          : `Automated feedback: suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
+      return json({ content: fallback, usage: null, cost: null, provider_error: { status: res.status, details: errText } });
     }
 
     const data = await res.json();

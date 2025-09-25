@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
 import { incrementUsage, logUsageEvent } from '@/lib/ai/usage';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type HomeworkGenOptions = {
   question: string;
@@ -47,8 +48,24 @@ export function useHomeworkGenerator() {
 
       return text;
     } catch (e: any) {
-      setError(e?.message || 'Failed to generate help');
-      throw e;
+      // Fallback to Dash assistant
+      try {
+        const dash = DashAIAssistant.getInstance();
+        await dash.initialize();
+        if (!dash.getCurrentConversationId()) {
+          await dash.startNewConversation('Homework Helper');
+        }
+        const prompt = `Provide step-by-step help for the following homework question for Grade ${opts.gradeLevel}: \nSubject: ${opts.subject}\nQuestion: ${opts.question}\nContext: ${opts.context || 'N/A'}\nDifficulty: ${opts.difficulty || 'medium'}\nFocus on understanding, with clear explanation and examples.`;
+        const response = await dash.sendMessage(prompt);
+        const text = response.content || '';
+        setResult(text);
+        incrementUsage('homework_help', 1).catch(() => {});
+        logUsageEvent({ feature: 'homework_help', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
+        return text;
+      } catch (fallbackErr) {
+        setError(e?.message || 'Failed to generate help');
+        throw e;
+      }
     } finally {
       setLoading(false);
     }

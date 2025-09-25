@@ -221,11 +221,12 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
   };
 
   const getLastMessagePreview = (conversation: DashConversation) => {
-    const lastMessage = conversation.messages[conversation.messages.length - 1];
-    if (!lastMessage) return 'No messages';
-    
-    const preview = lastMessage.content.substring(0, 60);
-    return preview.length < lastMessage.content.length ? `${preview}...` : preview;
+    const msgs = Array.isArray((conversation as any)?.messages) ? (conversation as any).messages : [];
+    if (msgs.length === 0) return 'No messages';
+    const lastMessage = msgs[msgs.length - 1];
+    if (!lastMessage || !lastMessage.content) return 'No messages';
+    const preview = String(lastMessage.content).substring(0, 60);
+    return preview.length < String(lastMessage.content).length ? `${preview}...` : preview;
   };
 
   const renderConversationItem = ({ item }: { item: DashConversation }) => (
@@ -252,7 +253,7 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
           <View style={styles.messageCount}>
             <Ionicons name="chatbubble-outline" size={14} color={theme.textTertiary} />
             <Text style={[styles.messageCountText, { color: theme.textTertiary }]}>
-              {item.messages.length} messages
+              {(item as any).messages?.length ?? 0} messages
             </Text>
           </View>
           

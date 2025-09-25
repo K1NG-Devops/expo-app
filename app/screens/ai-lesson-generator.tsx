@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
@@ -9,22 +9,36 @@ import { track } from '@/lib/analytics'
 import { getCombinedUsage } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 import { useLessonGenerator } from '@/hooks/useLessonGenerator'
 import { useLessonGeneratorModels, useTierInfo } from '@/hooks/useAIModelSelection'
 import { ScreenHeader } from '@/components/ui/ScreenHeader'
+import { Ionicons } from '@expo/vector-icons'
+import { useTheme } from '@/contexts/ThemeContext'
+import { toast } from '@/components/ui/ToastProvider'
 
 export default function AILessonGeneratorScreen() {
-  const palette = { background: '#fff', text: '#111827', textSecondary: '#6B7280', outline: '#E5E7EB', surface: '#FFFFFF', primary: '#3B82F6' }
+  const { theme } = useTheme()
+  const palette = useMemo(() => ({
+    background: theme.background,
+    text: theme.text,
+    textSecondary: theme.textSecondary,
+    outline: theme.border,
+    surface: theme.surface,
+    primary: theme.primary,
+    accent: theme.accent,
+  }), [theme])
   const [generated, setGenerated] = useState<any | null>({ title: 'New Lesson', description: 'AI generated lesson', content: { sections: [] }, activities: [] })
   const [topic, setTopic] = useState('Fractions')
   const [subject, setSubject] = useState('Mathematics')
   const [gradeLevel, setGradeLevel] = useState('3')
   const [duration, setDuration] = useState('45')
   const [objectives, setObjectives] = useState('Understand proper fractions; Compare simple fractions')
+  const searchParams = useLocalSearchParams<{ topic?: string; subject?: string; gradeLevel?: string; duration?: string; objectives?: string; autogenerate?: string }>()
   const [saving, setSaving] = useState(false)
-  const { loading: generating, generate } = useLessonGenerator()
+  const { loading: generating, result, generate } = useLessonGenerator() as any
+  const [pending, setPending] = useState(false)
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
   
   // Use tier-based model selection
@@ -71,10 +85,42 @@ export default function AILessonGeneratorScreen() {
     })()
   }, [])
 
+  // Apply prefill from Dash action params
+  useEffect(() => {
+    const t = (searchParams?.topic || '').trim();
+    const s = (searchParams?.subject || '').trim();
+    const g = (searchParams?.gradeLevel || '').trim();
+    const d = (searchParams?.duration || '').trim();
+    const o = (searchParams?.objectives || '').trim();
+    if (t) setTopic(t);
+    if (s) setSubject(s);
+    if (g && /^\d+$/.test(g)) setGradeLevel(g);
+    if (d && /^\d+$/.test(d)) setDuration(d);
+    if (o) setObjectives(o);
+
+    const auto = String(searchParams?.autogenerate || '').toLowerCase();
+    if (auto === '1' || auto === 'true' || auto === 'yes') {
+      setTimeout(() => onGenerate(), 300);
+    }
+  }, [searchParams])
+
+  const buildDashPrompt = () => {
+    const objs = (objectives || '').split(';').map(s => s.trim()).filter(Boolean)
+    return `Generate a ${Number(duration) || 45} minute lesson plan for Grade ${Number(gradeLevel) || 3} in ${subject} on the topic "${topic}".
+Learning objectives: ${objs.join('; ') || 'derive reasonable objectives'}.
+Provide a structured plan with objectives, warm-up, core activities, assessment ideas, and closure. Use clear bullet points.`
+  }
+
+  const onOpenWithDash = () => {
+    const initialMessage = buildDashPrompt()
+    router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+  }
+
   const onGenerate = async () => {
     try {
+      setPending(true)
       if (!AI_ENABLED || flags.ai_lesson_generation === false) {
-        Alert.alert('AI Disabled', 'Lesson generator is not enabled in this build.');
+        toast.warn('AI Lesson Generator is disabled in this build.');
         return;
       }
       // Enforce quota before making a request
@@ -109,7 +155,10 @@ export default function AILessonGeneratorScreen() {
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
       track('edudash.ai.lesson.generate_failed', { error: e?.message })
-      Alert.alert('Generation failed', e?.message || 'Unable to generate lesson at this time.')
+      toast.error(`Generation failed: ${e?.message || 'Please try again'}`)
+    } finally {
+      setPending(false)
+      setSaving(false)
     }
   }
 
@@ -119,10 +168,10 @@ export default function AILessonGeneratorScreen() {
       const { data: auth } = await assertSupabase().auth.getUser()
       const authUserId = auth?.user?.id || ''
       const { data: profile } = await assertSupabase().from('users').select('id,preschool_id').eq('auth_user_id', authUserId).maybeSingle()
-      if (!profile) { Alert.alert('Not signed in', 'No user profile.'); return }
+      if (!profile) { toast.error('Not signed in'); return }
 
       const categoryId = categoriesQuery.data?.[0]?.id
-      if (!categoryId) { Alert.alert('Select category', 'Please create a category first.'); return }
+      if (!categoryId) { toast.warn('Please create a category first'); return }
 
       const res = await LessonGeneratorService.saveGeneratedLesson({
         lesson: generated,
@@ -134,12 +183,12 @@ export default function AILessonGeneratorScreen() {
         isPublished: true,
       })
       if (!res.success) {
-        Alert.alert('Save failed', res.error || 'Unknown error')
+        toast.error(`Save failed: ${res.error || 'Unknown error'}`)
         return
       }
-      Alert.alert('Saved', `Lesson saved with id ${res.lessonId}`)
+      toast.success(`Lesson saved (id ${res.lessonId})`)
     } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to save')
+      toast.error(`Save error: ${e?.message || 'Failed to save'}`)
     } finally {
       setSaving(false)
     }
@@ -152,6 +201,19 @@ export default function AILessonGeneratorScreen() {
         subtitle="Create AI-powered lesson plans" 
       />
 
+      {/* Dash-styled header row */}
+      <View style={[styles.dashHeaderRow]}>
+        <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
+          <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+        </View>
+        <Text style={[styles.dashTitleText, { color: palette.text }]}>Dash • Lesson Generator</Text>
+        <View style={{ flex: 1 }} />
+        <TouchableOpacity style={[styles.openWithDashBtn, { borderColor: palette.outline }]} onPress={onOpenWithDash}>
+          <Ionicons name="chatbubbles-outline" size={16} color={palette.text} />
+          <Text style={[styles.openWithDashText, { color: palette.text }]}>Open with Dash</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView 
         contentContainerStyle={styles.contentPadding}
         refreshControl={
@@ -163,9 +225,9 @@ export default function AILessonGeneratorScreen() {
           />
         }
       >
-        <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+        <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline, marginTop: 16 }]}>
           <Text style={[styles.cardTitle, { color: palette.text }]}>Lesson Parameters</Text>
-          <Text style={{ color: palette.textSecondary }}>Customize the generation prompt.</Text>
+          <Text style={{ color: palette.textSecondary }}>Customize the generation prompt. Dash can auto-fill and generate for you.</Text>
 
           <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Topic</Text>
           <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={topic} onChangeText={setTopic} placeholder="e.g., Fractions" />
@@ -190,7 +252,12 @@ export default function AILessonGeneratorScreen() {
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
             Monthly usage (local): Lessons generated {usage.lesson_generation}
           </Text>
-          <QuotaSummary feature="lesson_generation" />
+          <QuotaBar feature="lesson_generation" planLimit={quotas.ai_requests} color={theme.primary} />
+          {result?.__fallbackUsed && (
+            <View style={[styles.fallbackChip, { borderColor: palette.outline, backgroundColor: theme.accent + '20' }]}>
+              <Text style={{ color: palette.textSecondary }}>Fallback used</Text>
+            </View>
+          )}
         </View>
 
         {/* Tier-based Model selector */}
@@ -272,11 +339,11 @@ export default function AILessonGeneratorScreen() {
         )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: '#111827', flex: 1 }]} disabled={generating}>
-            {generating ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Generate Lesson</Text>}
+          <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: theme.primary, flex: 1 }]} disabled={generating || pending}>
+            {(generating || pending) ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Generate Lesson</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: '#3B82F6', flex: 1 }]} disabled={saving}>
-            {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Lesson</Text>}
+          <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: theme.accent, flex: 1 }]} disabled={saving}>
+            {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: theme.onAccent }]}>Save Lesson</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -284,22 +351,37 @@ export default function AILessonGeneratorScreen() {
   )
 }
 
-function QuotaSummary({ feature }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help' }) {
-  const [text, setText] = React.useState<string>('')
+function QuotaBar({ feature, planLimit, color }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help'; planLimit?: number; color: string }) {
+  const [status, setStatus] = React.useState<{ used: number; limit: number; remaining: number } | null>(null)
   React.useEffect(() => {
     let mounted = true
     ;(async () => {
       try {
-        const status = await getQuotaStatus(feature)
-        if (mounted) setText(`Quota: ${status.used}/${status.limit} used, ${status.remaining} remaining`)
+        const s = await getQuotaStatus(feature)
+        const limit = planLimit && planLimit > 0 ? planLimit : s.limit
+        const remaining = Math.max(0, (limit === -1 ? 0 : limit) - s.used)
+        if (mounted) setStatus({ used: s.used, limit, remaining })
       } catch {
-        if (mounted) setText('Quota: unavailable')
+        if (mounted) setStatus(null)
       }
     })()
     return () => { mounted = false }
-  }, [feature])
-  if (!text) return null
-  return <Text style={{ color: '#6B7280', marginTop: 4 }}>{text}</Text>
+  }, [feature, planLimit])
+  if (!status) return null
+  if (status.limit === -1) {
+    return <Text style={{ color: '#6B7280', marginTop: 4 }}>Quota: Unlimited</Text>
+  }
+  const pct = Math.max(0, Math.min(100, Math.round((status.used / Math.max(1, status.limit)) * 100)))
+  return (
+    <View style={{ marginTop: 6 }}>
+      <View style={{ height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' }}>
+        <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: color }} />
+      </View>
+      <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 12 }}>
+        Quota: {status.used}/{status.limit} used · {Math.max(0, status.limit - status.used)} remaining
+      </Text>
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -312,5 +394,11 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, fontWeight: '600' },
   input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'transparent' },
   primaryBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-  primaryBtnText: { color: '#fff', fontWeight: '700' },
+  primaryBtnText: { fontWeight: '700' },
+  dashHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8, marginTop: 16 },
+  inlineAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  dashTitleText: { fontSize: 14, fontWeight: '700' },
+  openWithDashBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
+  openWithDashText: { fontSize: 12, marginLeft: 6, fontWeight: '600' },
+  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })

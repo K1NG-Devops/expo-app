@@ -7,19 +7,41 @@
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAssistant } from '@/components/ai/DashAssistant';
+import { useAuth } from '@/contexts/AuthContext';
+import { normalizeRole } from '@/lib/rbac';
 
 export default function DashAssistantScreen() {
   const { theme } = useTheme();
+  const { profile } = useAuth();
+  const params = useLocalSearchParams<{ initialMessage?: string }>();
+  const initialMessage = typeof params?.initialMessage === 'string' ? params.initialMessage : undefined;
+
+  const getFallbackPath = () => {
+    const role = normalizeRole(String(profile?.role || ''));
+    switch (role) {
+      case 'teacher':
+        return '/screens/teacher-dashboard';
+      case 'principal':
+      case 'principal_admin':
+        return '/screens/principal-dashboard';
+      case 'parent':
+        return '/screens/parent-dashboard';
+      case 'super_admin':
+        return '/screens/super-admin-dashboard';
+      default:
+        return '/'; // safe landing
+    }
+  };
 
   const handleClose = () => {
     // Navigate back to the previous screen
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/dashboard');
+      router.replace(getFallbackPath());
     }
   };
 
@@ -35,6 +57,7 @@ export default function DashAssistantScreen() {
       
       <DashAssistant 
         onClose={handleClose}
+        initialMessage={initialMessage}
       />
     </View>
   );

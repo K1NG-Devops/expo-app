@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react';
+import { Alert } from 'react-native';
+import { toast } from '@/components/ui/ToastProvider';
 import { track } from '@/lib/analytics';
 import { assertSupabase } from '@/lib/supabase';
 import { incrementUsage, logUsageEvent } from '@/lib/ai/usage';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type LessonGenOptions = {
   topic: string;
@@ -16,7 +19,7 @@ export type LessonGenOptions = {
 export function useLessonGenerator() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<any | null>(null);
 
   const generate = useCallback(async (opts: LessonGenOptions) => {
     setLoading(true);
@@ -38,8 +41,12 @@ export function useLessonGenerator() {
       const { data, error } = await assertSupabase().functions.invoke('ai-gateway', { body: payload });
       if (error) throw error;
 
+      if (data && (data as any).provider_error) {
+        try { toast.warn('AI provider error – used safe fallback'); } catch {}
+      }
+
       const lessonText: string = (data && data.content) || '';
-      setResult(lessonText);
+      setResult({ text: lessonText, __fallbackUsed: !!(data && (data as any).provider_error) });
 
       // Track usage client-side (best-effort) in addition to server logs
       incrementUsage('lesson_generation', 1).catch(() => {});
@@ -60,8 +67,27 @@ export function useLessonGenerator() {
 
       return lessonText;
     } catch (e: any) {
-      setError(e?.message || 'Failed to generate lesson');
-      throw e;
+      // Fallback: use Dash assistant to generate if edge function fails
+      try {
+        const dash = DashAIAssistant.getInstance();
+        await dash.initialize();
+        if (!dash.getCurrentConversationId()) {
+          await dash.startNewConversation('AI Lesson Generator');
+        }
+        const prompt = `Generate a ${opts.duration ?? 45} minute lesson plan for Grade ${opts.gradeLevel} in ${opts.subject} on the topic "${opts.topic}".
+Learning objectives: ${(opts.learningObjectives || []).join('; ')}.
+Provide a structured plan with objectives, warm-up, core activities, assessment ideas, and closure. Use clear bullet points.`;
+        const response = await dash.sendMessage(prompt);
+        const lessonText = response.content || '';
+        setResult({ text: lessonText, __fallbackUsed: true });
+        incrementUsage('lesson_generation', 1).catch(() => {});
+        logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
+        track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown' });
+        return lessonText;
+      } catch (fallbackErr) {
+        setError(e?.message || 'Failed to generate lesson');
+        throw e;
+      }
     } finally {
       setLoading(false);
     }
