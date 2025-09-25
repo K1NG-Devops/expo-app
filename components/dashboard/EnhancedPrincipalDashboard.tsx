@@ -42,6 +42,7 @@ import Feedback from '@/lib/feedback';
 import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -333,7 +334,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const allMetrics = [...metrics, ...pettyCashCards];
 
   return (
-    <>
+    <View style={styles.container}>
       <RoleBasedHeader 
         title={t('dashboard.principal_hub', { defaultValue: 'Principal Hub' })}
         subtitle={data.schoolName ? t('dashboard.managing_school', { schoolName: data.schoolName }) : undefined}
@@ -1117,7 +1118,13 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           Alert.alert(t('common.whatsapp_connected'), t('common.whatsapp_updates_enabled'));
         }}
       />
-    </>
+
+      {/* Dash AI Floating Button for legacy dashboard */}
+      <DashFloatingButton
+        position="bottom-right"
+        onPress={() => router.push('/screens/dash-assistant')}
+      />
+    </View>
   );
 };
 

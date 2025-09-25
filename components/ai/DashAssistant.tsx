@@ -28,6 +28,7 @@ import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext'
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -461,15 +462,32 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             </Text>
           </View>
         </View>
-        
-        {onClose && (
+
+        <View style={styles.headerRight}>
           <TouchableOpacity
-            style={styles.closeButton}
-            onPress={onClose}
+            style={styles.iconButton}
+            accessibilityLabel="Conversations"
+            onPress={() => router.push('/screens/dash-conversations-history')}
           >
-            <Ionicons name="close" size={24} color={theme.text} />
+            <Ionicons name="time-outline" size={22} color={theme.text} />
           </TouchableOpacity>
-        )}
+          <TouchableOpacity
+            style={styles.iconButton}
+            accessibilityLabel="Settings"
+            onPress={() => router.push('/screens/dash-ai-settings')}
+          >
+            <Ionicons name="settings-outline" size={22} color={theme.text} />
+          </TouchableOpacity>
+          {onClose && (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+              accessibilityLabel="Close"
+            >
+              <Ionicons name="close" size={24} color={theme.text} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* Messages */}
@@ -611,6 +629,14 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 12,
     marginTop: 2,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    padding: 8,
+    marginRight: 4,
   },
   closeButton: {
     padding: 8,

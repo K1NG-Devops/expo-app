@@ -163,15 +163,27 @@ export class DashAIAssistant {
    */
   private async initializeAudio(): Promise<void> {
     try {
+      // On web, expo-av audio mode options are not applicable; skip configuration
+      if (Platform.OS === 'web') {
+        console.debug('[Dash] Skipping audio mode configuration on web');
+        return;
+      }
+
       await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-        playThroughEarpieceAndroid: false,
-      });
+
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+          playsInSilentModeIOS: true,
+        });
+      } else if (Platform.OS === 'android') {
+        await Audio.setAudioModeAsync({
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+          playThroughEarpieceAndroid: false,
+        } as any);
+      }
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
     }
