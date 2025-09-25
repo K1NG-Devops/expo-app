@@ -40,18 +40,23 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
   const {
     connectionStatus,
     isOptingIn,
+    isOptingOut,
     optIn,
     optOut,
+    hardDisconnect,
     getWhatsAppDeepLink,
     formatPhoneNumber,
     optInError,
     sendTestMessage,
     isSendingTest,
+    forceRefresh,
+    autoConnectToSchool,
   } = useWhatsAppConnection()
 
   const [phoneNumber, setPhoneNumber] = useState('')
   const [consentGiven, setConsentGiven] = useState(false)
   const [step, setStep] = useState<'phone' | 'consent' | 'success' | 'connected'>('phone')
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const modalOpenedAtRef = useRef<Date | null>(null)
   const prevVisibleRef = useRef<boolean>(false)
 
@@ -72,7 +77,12 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         }
       } else {
         setStep('phone')
-        setPhoneNumber('')
+        // Auto-fill with school WhatsApp number if available
+        if (connectionStatus.schoolWhatsAppNumber) {
+          setPhoneNumber(connectionStatus.schoolWhatsAppNumber)
+        } else {
+          setPhoneNumber('')
+        }
         setConsentGiven(false)
       }
     } else if (!visible && prevVisibleRef.current) {
@@ -178,22 +188,72 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
   }
 
   const handleOptOut = async () => {
+    if (isDisconnecting) return // Prevent multiple clicks
+    
     Alert.alert(
-      t('whatsapp:confirmOptOut'),
-      t('whatsapp:confirmOptOutMessage'),
+      'Disconnect WhatsApp',
+      'How would you like to disconnect your WhatsApp integration?',
       [
-        { text: t('common.cancel'), style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: t('whatsapp:optOut'),
-          style: 'destructive',
+          text: 'Soft Disconnect',
           onPress: async () => {
+            setIsDisconnecting(true)
             try {
               await optOut()
               setStep('phone')
               setPhoneNumber('')
               setConsentGiven(false)
+              // Force refresh to ensure UI updates
+              setTimeout(() => forceRefresh(), 100)
+              Alert.alert(
+                'Disconnected Successfully',
+                'WhatsApp has been disconnected. You can reconnect anytime. Your preferences have been saved.'
+              )
             } catch (error) {
               console.error('WhatsApp opt-out failed:', error)
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred'
+              Alert.alert(
+                'Disconnect Failed', 
+                `Could not disconnect: ${errorMsg}\n\nTry the "Hard Disconnect" option if this persists.`
+              )
+            } finally {
+              setIsDisconnecting(false)
+            }
+          }
+        },
+        {
+          text: 'Hard Disconnect',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDisconnecting(true)
+            try {
+              await hardDisconnect()
+              setStep('phone')
+              setPhoneNumber('')
+              setConsentGiven(false)
+              // Force refresh to ensure UI updates
+              setTimeout(() => forceRefresh(), 100)
+              Alert.alert(
+                'Completely Disconnected',
+                'WhatsApp has been completely removed from your account. All connection data has been deleted.'
+              )
+            } catch (error) {
+              console.error('WhatsApp hard disconnect failed:', error)
+              const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred'
+              Alert.alert(
+                'Hard Disconnect Failed', 
+                `Could not remove WhatsApp connection: ${errorMsg}\n\nPlease contact support if this issue persists.`,
+                [
+                  { text: 'Contact Support', onPress: () => {
+                    // Could open support chat or email
+                    console.log('User needs support for WhatsApp disconnect')
+                  }},
+                  { text: 'OK' }
+                ]
+              )
+            } finally {
+              setIsDisconnecting(false)
             }
           }
         }
@@ -467,17 +527,133 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
   const renderPhoneStep = () => (
     <View>
-      <Text style={styles.sectionTitle}>{t('whatsapp:enterPhoneTitle')}</Text>
+      {/* Header with refresh button */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Text style={styles.sectionTitle}>WhatsApp Setup</Text>
+        <TouchableOpacity 
+          onPress={() => {
+            forceRefresh()
+            Alert.alert('Refreshed', 'WhatsApp data refreshed from database')
+          }}
+          style={{ padding: 8, borderRadius: 6, backgroundColor: theme.surface }}
+        >
+          <Ionicons name="refresh" size={16} color={theme.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* School WhatsApp Info */}
+      {connectionStatus.schoolWhatsAppNumber ? (
+        <View style={{
+          backgroundColor: theme.success + '20',
+          borderColor: theme.success,
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="business" size={16} color={theme.success} />
+            <Text style={{ 
+              color: theme.success, 
+              fontWeight: '600', 
+              marginLeft: 8,
+              fontSize: 14 
+            }}>
+              School WhatsApp Business
+            </Text>
+          </View>
+          <Text style={{ 
+            color: theme.text, 
+            fontSize: 16, 
+            fontWeight: '700',
+            marginBottom: 8
+          }}>
+            {formatPhoneNumber(connectionStatus.schoolWhatsAppNumber)}
+          </Text>
+          <Text style={{ 
+            color: theme.textSecondary, 
+            fontSize: 12,
+            marginBottom: 12
+          }}>
+            This is your school's official WhatsApp Business number. Connect to receive school updates and communicate with parents.
+          </Text>
+          
+          <TouchableOpacity
+            style={{
+              backgroundColor: theme.success,
+              borderRadius: 6,
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              alignItems: 'center'
+            }}
+            onPress={async () => {
+              try {
+                await autoConnectToSchool()
+                setStep('success')
+                onSuccess?.()
+              } catch (error) {
+                console.error('Auto-connect failed:', error)
+                Alert.alert('Connection Failed', 'Please try manual setup below')
+              }
+            }}
+            disabled={isOptingIn}
+          >
+            {isOptingIn ? (
+              <ActivityIndicator color={theme.onPrimary} size="small" />
+            ) : (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="checkmark-circle" size={16} color={theme.onPrimary} />
+                <Text style={{ 
+                  color: theme.onPrimary, 
+                  fontWeight: '600',
+                  marginLeft: 8
+                }}>
+                  Connect to School WhatsApp
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={{
+          backgroundColor: theme.warning + '20',
+          borderColor: theme.warning,
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+            <Ionicons name="warning" size={16} color={theme.warning} />
+            <Text style={{ 
+              color: theme.warning, 
+              fontWeight: '600', 
+              marginLeft: 8,
+              fontSize: 14 
+            }}>
+              School WhatsApp Not Configured
+            </Text>
+          </View>
+          <Text style={{ 
+            color: theme.textSecondary, 
+            fontSize: 12
+          }}>
+            Your school hasn't set up WhatsApp Business yet. You can still connect your personal number, but school communications won't work until an admin configures the school's WhatsApp Business account.
+          </Text>
+        </View>
+      )}
+
+      <Text style={styles.sectionTitle}>Manual Setup</Text>
       <Text style={styles.description}>
-        {t('whatsapp:enterPhoneDescription')}
+        Enter a WhatsApp number to connect for school communications
       </Text>
       
-      <Text style={styles.inputLabel}>{t('whatsapp:phoneNumberLabel')}</Text>
+      <Text style={styles.inputLabel}>WhatsApp Number</Text>
       <TextInput
         style={styles.phoneInput}
         value={phoneNumber}
         onChangeText={handlePhoneChange}
-        placeholder={EXAMPLE_PHONE_NUMBERS.local}
+        placeholder={connectionStatus.schoolWhatsAppNumber || EXAMPLE_PHONE_NUMBERS.local}
         placeholderTextColor={theme.textSecondary}
         keyboardType="phone-pad"
         autoComplete="tel"
@@ -485,7 +661,10 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         maxLength={13} // Allow for formatted input
       />
       <Text style={styles.phoneHint}>
-        {t('whatsapp:phoneHint')}
+        {connectionStatus.schoolWhatsAppNumber 
+          ? 'School number pre-filled. You can change it if needed.'
+          : 'Include country code (e.g., +27 for South Africa)'
+        }
       </Text>
 
       <View style={styles.buttonContainer}>
@@ -494,7 +673,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
           onPress={onClose}
         >
           <Text style={[styles.buttonText, styles.buttonTextSecondary]}>
-            {t('common.cancel')}
+            Cancel
           </Text>
         </TouchableOpacity>
         
@@ -507,7 +686,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
           disabled={!validatePhone(phoneNumber)}
         >
           <Text style={styles.buttonText}>
-            {t('common.continue')}
+            Continue
           </Text>
         </TouchableOpacity>
       </View>
@@ -628,17 +807,56 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
   const renderConnectedStep = () => (
     <View>
-      <View style={styles.connectedInfo}>
-        <Ionicons name="logo-whatsapp" size={24} color="#FFFFFF" />
-        <Text style={styles.connectedText}>
-          {t('whatsapp:alreadyConnected')}
-        </Text>
+      {/* Header with refresh button */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={styles.connectedInfo}>
+            <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+          </View>
+          <Text style={[styles.connectedText, { marginLeft: 8 }]}>
+            WhatsApp Connected
+          </Text>
+        </View>
+        <TouchableOpacity 
+          onPress={() => {
+            forceRefresh()
+            Alert.alert('Refreshed', 'Connection status refreshed from database')
+          }}
+          style={{ padding: 8, borderRadius: 6, backgroundColor: theme.surface }}
+        >
+          <Ionicons name="refresh" size={16} color={theme.primary} />
+        </TouchableOpacity>
       </View>
 
       {connectionStatus.contact && (
-        <Text style={styles.phoneDisplay}>
-          {t('whatsapp:connectedPhone')}: {formatPhoneNumber(connectionStatus.contact.phone_e164)}
-        </Text>
+        <View style={{
+          backgroundColor: theme.surface,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16
+        }}>
+          <Text style={{ 
+            color: theme.textSecondary, 
+            fontSize: 12, 
+            marginBottom: 4 
+          }}>
+            Connected WhatsApp Number:
+          </Text>
+          <Text style={{
+            color: theme.text,
+            fontSize: 16,
+            fontWeight: '600'
+          }}>
+            {formatPhoneNumber(connectionStatus.contact.phone_e164)}
+          </Text>
+          <Text style={{ 
+            color: theme.textSecondary, 
+            fontSize: 11, 
+            marginTop: 4 
+          }}>
+            Status: {connectionStatus.contact.consent_status} • Connected: {new Date(connectionStatus.contact.created_at).toLocaleDateString()}
+          </Text>
+        </View>
       )}
 
       <TouchableOpacity
@@ -671,12 +889,26 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, styles.buttonDestructive]}
+          style={[
+            styles.button, 
+            styles.buttonDestructive,
+            (isDisconnecting || isOptingOut) && styles.buttonDisabled
+          ]}
           onPress={handleOptOut}
+          disabled={isDisconnecting || isOptingOut}
         >
-          <Text style={styles.buttonText}>
-            {t('whatsapp:disconnect')}
-          </Text>
+          {isDisconnecting || isOptingOut ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={[styles.buttonText, styles.loadingText]}>
+                Disconnecting...
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.buttonText}>
+              {t('whatsapp:disconnect')}
+            </Text>
+          )}
         </TouchableOpacity>
         
         <TouchableOpacity

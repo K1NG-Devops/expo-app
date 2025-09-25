@@ -39,13 +39,14 @@ function json(body: Record<string, unknown>, init: ResponseInit = {}) {
 }
 
 // Create Supabase client with service role for bypassing RLS
+let supabase;
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Warning: SERVICE_ROLE_KEY not found, falling back to anon key with limited permissions')
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 } else {
   console.log('Using service role key for database access')
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 }
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)
 
 interface SendMessageRequest {
   thread_id?: string

@@ -22,6 +22,10 @@ export interface WhatsAppConnectionStatus {
   schoolWhatsAppNumber?: string
   isLoading: boolean
   error?: string
+  // Enhanced UX flags
+  hasSchoolNumber?: boolean
+  shouldAutoConnect?: boolean
+  isSchoolConfigured?: boolean
 }
 
 export const useWhatsAppConnection = () => {
@@ -67,7 +71,11 @@ export const useWhatsAppConnection = () => {
           isConnected: contact?.consent_status === 'opted_in',
           contact: contact || undefined,
           schoolWhatsAppNumber,
-          isLoading: false
+          isLoading: false,
+          // Add helpful flags for UX
+          hasSchoolNumber: !!schoolWhatsAppNumber,
+          shouldAutoConnect: !!schoolWhatsAppNumber && !contact,
+          isSchoolConfigured: !!(preschool?.settings?.whatsapp_number || preschool?.phone)
         }
       } catch (err: any) {
         // Gracefully handle missing table (42P01), RLS issues (42501), or missing schema
@@ -92,7 +100,10 @@ export const useWhatsAppConnection = () => {
       }
     },
     enabled: !!user?.id && !!profile?.organization_id,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 0, // No caching - always fetch fresh data
+    cacheTime: 30 * 1000, // Keep in cache for 30 seconds only
+    refetchOnMount: true,
+    refetchOnWindowFocus: true
   })
 
   // Opt in to WhatsApp
@@ -168,32 +179,70 @@ export const useWhatsAppConnection = () => {
   // Opt out of WhatsApp
   const optOutMutation = useMutation({
     mutationFn: async () => {
-      if (!user?.id || !connectionStatus?.contact?.id) {
-        throw new Error('No WhatsApp contact to opt out')
+      if (!user?.id || !profile?.organization_id) {
+        throw new Error('User or preschool not found')
       }
 
-      const { error } = await assertSupabase()
+      // First try to find the contact by user/preschool (more reliable than using contact.id)
+      const { data: existingContact, error: findError } = await assertSupabase()
+        .from('whatsapp_contacts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('preschool_id', profile.organization_id)
+        .maybeSingle()
+
+      if (findError) {
+        console.error('Error finding WhatsApp contact:', findError)
+        throw new Error('Could not find WhatsApp contact to disconnect')
+      }
+
+      if (!existingContact) {
+        // Already disconnected - just invalidate cache
+        console.log('No WhatsApp contact found - already disconnected')
+        return { alreadyDisconnected: true }
+      }
+
+      // Update to opted_out status
+      const { error: updateError } = await assertSupabase()
         .from('whatsapp_contacts')
         .update({
           consent_status: 'opted_out',
           last_opt_in_at: null
         })
-        .eq('id', connectionStatus.contact.id)
+        .eq('id', existingContact.id)
 
-      if (error) throw error
+      if (updateError) {
+        console.error('Error updating WhatsApp contact:', updateError)
+        throw updateError
+      }
 
       // Track opt-out event
       track('edudash.whatsapp.opt_out', {
         user_id: user.id,
+        preschool_id: profile.organization_id,
+        timestamp: new Date().toISOString()
+      })
+
+      return { success: true }
+    },
+    onSuccess: (result) => {
+      // Force refresh of connection status
+      queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+      
+      // Clear any cached data
+      queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+      
+      // Track success
+      track('edudash.whatsapp.opt_out_success', {
+        user_id: user?.id || '',
         preschool_id: profile?.organization_id,
+        already_disconnected: result?.alreadyDisconnected || false,
         timestamp: new Date().toISOString()
       })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
-      // Success tracked via analytics
-    },
     onError: (error) => {
+      console.error('WhatsApp opt-out failed:', error)
+      
       // Track error via analytics
       track('edudash.whatsapp.opt_out_error', {
         user_id: user?.id || '',
@@ -323,6 +372,43 @@ export const useWhatsAppConnection = () => {
       })
     },
     optOut: optOutMutation.mutate,
+    hardDisconnect: () => {
+      // Complete disconnect - deletes the record entirely
+      return new Promise(async (resolve, reject) => {
+        try {
+          if (!user?.id || !profile?.organization_id) {
+            throw new Error('User or preschool not found')
+          }
+
+          // Delete the WhatsApp contact record completely
+          const { error } = await assertSupabase()
+            .from('whatsapp_contacts')
+            .delete()
+            .eq('user_id', user.id)
+            .eq('preschool_id', profile.organization_id)
+
+          if (error) {
+            console.error('Error deleting WhatsApp contact:', error)
+            throw error
+          }
+
+          // Force refresh
+          queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+          queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+
+          // Track complete disconnection
+          track('edudash.whatsapp.hard_disconnect', {
+            user_id: user.id,
+            preschool_id: profile.organization_id,
+            timestamp: new Date().toISOString()
+          })
+
+          resolve({ success: true })
+        } catch (error) {
+          reject(error)
+        }
+      })
+    },
     sendTestMessage: sendTestMessageMutation.mutate,
 
     // Mutation states
@@ -334,6 +420,28 @@ export const useWhatsAppConnection = () => {
     getWhatsAppDeepLink,
     formatPhoneNumber,
     isWhatsAppEnabled,
+    
+    // Force refresh function (for when database changes externally)
+    forceRefresh: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+      queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+    },
+    
+    // Auto-connect to school WhatsApp (for teachers)
+    autoConnectToSchool: async () => {
+      if (!connectionStatus?.schoolWhatsAppNumber) {
+        throw new Error('School WhatsApp number not configured')
+      }
+      
+      // For teachers, auto-connect using the school's WhatsApp number
+      // This represents the teacher joining the school's WhatsApp Business
+      const schoolPhone = connectionStatus.schoolWhatsAppNumber
+      
+      return optInMutation.mutateAsync({ 
+        phoneNumber: schoolPhone, 
+        consent: true 
+      })
+    },
 
     // Error states
     optInError: optInMutation.error,
