@@ -90,11 +90,16 @@ export default function DashAISettingsScreen() {
       setSettings(loadedSettings);
       console.log('📋 Loaded settings from DashAI:', loadedSettings);
       
-      // Load persisted in-app wake word toggle
+      // Load persisted settings
       try {
         const ww = await AsyncStorage.getItem('@dash_ai_in_app_wake_word');
         if (ww != null) {
           loadedSettings.inAppWakeWord = ww === 'true';
+        }
+        
+        const enterToSend = await AsyncStorage.getItem('@dash_ai_enter_to_send');
+        if (enterToSend != null) {
+          loadedSettings.enterToSend = enterToSend === 'true';
         }
       } catch {}
 
@@ -145,9 +150,16 @@ export default function DashAISettingsScreen() {
         console.log('✅ Settings auto-saved to DashAI:', newSettings);
         
         // Show brief success feedback for personality/voice changes
+      // Save persistent settings to AsyncStorage
       if (newSettings.inAppWakeWord !== undefined) {
         try {
           await AsyncStorage.setItem('@dash_ai_in_app_wake_word', String(newSettings.inAppWakeWord));
+        } catch {}
+      }
+      
+      if (newSettings.enterToSend !== undefined) {
+        try {
+          await AsyncStorage.setItem('@dash_ai_enter_to_send', String(newSettings.enterToSend));
         } catch {}
       }
 
@@ -503,6 +515,20 @@ export default function DashAISettingsScreen() {
               onValueChange={(proactiveHelp) => handleSettingsChange({ proactiveHelp })}
               trackColor={{ false: theme.border, true: `${theme.primary}40` }}
               thumbColor={settings.proactiveHelp ? theme.primary : '#f4f3f4'}
+            />
+          </View>
+
+          {/* Enter to Send Setting */}
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: theme.text }]}>Enter is Send</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Press Enter to send messages instead of creating new lines</Text>
+            </View>
+            <Switch
+              value={settings.enterToSend}
+              onValueChange={(enterToSend) => handleSettingsChange({ enterToSend })}
+              trackColor={{ false: theme.border, true: `${theme.primary}40` }}
+              thumbColor={settings.enterToSend ? theme.primary : '#f4f3f4'}
             />
           </View>
         </View>

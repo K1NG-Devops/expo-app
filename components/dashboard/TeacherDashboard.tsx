@@ -47,9 +47,27 @@ import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
 import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
 import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import Feedback from '@/lib/feedback';
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+const isSmallScreen = width < 380;
+const isTablet = width > 768;
 const cardWidth = (width - 48) / 2;
+
+// Dynamic scaling functions
+const getScaledSize = (baseSize: number) => {
+  if (isTablet) return baseSize * 1.2;
+  if (isSmallScreen) return baseSize * 0.85;
+  return baseSize;
+};
+
+const getResponsivePadding = (basePadding: number) => {
+  if (isTablet) return basePadding * 1.5;
+  if (isSmallScreen) return basePadding * 0.8;
+  return basePadding;
+};
 
 interface ClassInfo {
   id: string;
@@ -87,6 +105,7 @@ export const TeacherDashboard: React.FC = () => {
   const { ready: subscriptionReady, tier } = useSubscription();
   const hasPremiumOrHigher = ['premium','pro','enterprise'].includes(String(tier || '')) as boolean;
   const { maybeShowInterstitial, offerRewarded } = useAds();
+  const { preferences, setLayout } = useDashboardPreferences();
   
   // Ad gating logic
   const showAds = subscriptionReady && tier === 'free';
@@ -443,6 +462,17 @@ export const TeacherDashboard: React.FC = () => {
       color: "#4F46E5",
       onPress: () => {
         router.push("/screens/create-lesson");
+      },
+      requiredCap: "create_assignments",
+    },
+    {
+      id: "saved-lessons",
+      title: "Saved Lessons",
+      icon: "library",
+      color: "#EC4899",
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_saved_lessons');
+        router.push("/screens/lessons-hub");
       },
       requiredCap: "create_assignments",
     },
@@ -920,7 +950,23 @@ export const TeacherDashboard: React.FC = () => {
 
   return (
     <>
-      <RoleBasedHeader title="Teacher Dashboard" showBackButton={false} />
+      <View style={styles.headerWithToggle}>
+        <RoleBasedHeader title="Teacher" showBackButton={false} />
+        <TouchableOpacity
+          style={styles.dashboardToggleInHeader}
+          onPress={() => {
+            const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
+            setLayout(newLayout);
+            try { Feedback.vibrate(15); } catch {}
+          }}
+        >
+          <Ionicons 
+            name={preferences.layout === 'enhanced' ? 'grid' : 'apps'} 
+            size={18} 
+            color={theme.primary} 
+          />
+        </TouchableOpacity>
+      </View>
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -940,16 +986,15 @@ export const TeacherDashboard: React.FC = () => {
                     color={theme.primary}
                     style={{ marginRight: 6 }}
                   />
-                  <Text style={styles.greeting}>
-                    {getGreeting()}, {teacherName}! 👩‍🏫
-                  </Text>
-                </View>
-                <View style={styles.subRow}>
-                  <Text style={styles.schoolName}>{schoolName}</Text>
+                <Text style={styles.greeting}>
+                  {getGreeting()}, {teacherName}! 👩‍🏫
+                </Text>
+              </View>
+              <View style={styles.subRow}>
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleBadgeText}>
                       {profile?.role === "teacher"
-                        ? `Teacher - ${teacherName}`
+                        ? "Teacher"
                         : "Teacher"}
                     </Text>
                   </View>
@@ -1512,6 +1557,12 @@ export const TeacherDashboard: React.FC = () => {
           Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
         }}
       />
+
+      {/* Dash AI Floating Button */}
+      <DashFloatingButton
+        position="bottom-right"
+        onPress={() => router.push('/screens/dash-assistant')}
+      />
     </>
   );
 };
@@ -1538,8 +1589,8 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     headerCard: {
       backgroundColor: theme.cardBackground,
-      borderRadius: 16,
-      padding: 20,
+      borderRadius: getResponsivePadding(16),
+      padding: getResponsivePadding(20),
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.08,
@@ -1570,29 +1621,29 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     roleBadgeText: {
       color: theme.primary,
-      fontSize: 12,
-      fontWeight: "700",
+      fontSize: 10,
+      fontWeight: "600",
       textTransform: "capitalize",
     },
     greeting: {
-      fontSize: 24,
-      fontWeight: "bold",
+      fontSize: getScaledSize(16),
+      fontWeight: "600",
       color: theme.text,
       marginBottom: 4,
     },
     schoolName: {
-      fontSize: 16,
+      fontSize: getScaledSize(16),
       color: theme.textSecondary,
       fontWeight: "500",
     },
     section: {
-      padding: 16,
+      padding: getResponsivePadding(16),
     },
     sectionTitle: {
-      fontSize: 18,
+      fontSize: getScaledSize(18),
       fontWeight: "bold",
       color: theme.text,
-      marginBottom: 16,
+      marginBottom: getResponsivePadding(16),
     },
     sectionCard: {
       backgroundColor: theme.cardBackground,
@@ -1611,8 +1662,8 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     metricCard: {
       backgroundColor: theme.cardBackground,
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: getResponsivePadding(12),
+      padding: getResponsivePadding(16),
       width: cardWidth,
       borderLeftWidth: 4,
       shadowColor: theme.shadow,
@@ -1628,12 +1679,12 @@ const getStyles = (theme: any, isDark: boolean) =>
       marginBottom: 8,
     },
     metricValue: {
-      fontSize: 24,
+      fontSize: getScaledSize(24),
       fontWeight: "bold",
       color: theme.text,
     },
     metricTitle: {
-      fontSize: 14,
+      fontSize: getScaledSize(14),
       fontWeight: "600",
       color: theme.text,
       marginBottom: 2,
@@ -1649,15 +1700,15 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     quickActionButton: {
       width: cardWidth,
-      padding: 16,
-      borderRadius: 12,
+      padding: getResponsivePadding(16),
+      borderRadius: getResponsivePadding(12),
       alignItems: "center",
       justifyContent: "center",
-      minHeight: 80,
+      minHeight: getScaledSize(80),
     },
     quickActionText: {
-      color: "white",
-      fontSize: 14,
+      color: theme.onPrimary || "white",
+      fontSize: getScaledSize(14),
       fontWeight: "600",
       marginTop: 8,
       textAlign: "center",
@@ -1998,6 +2049,23 @@ const getStyles = (theme: any, isDark: boolean) =>
       backgroundColor: isDark
         ? "rgba(255, 255, 255, 0.1)"
         : "rgba(75, 85, 99, 0.1)",
+    },
+    headerWithToggle: {
+      position: 'relative',
+    },
+    dashboardToggleInHeader: {
+      position: 'absolute',
+      top: 10,
+      right: 120, // Position it before the header menu items
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.primaryLight,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+      zIndex: 10,
     },
     modalOverlay: {
       flex: 1,

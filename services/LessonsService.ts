@@ -623,6 +623,81 @@ export class LessonsService {
   }
 
   /**
+   * Get teacher's AI-generated lessons
+   */
+  async getTeacherGeneratedLessons(): Promise<Lesson[]> {
+    try {
+      const session = await getCurrentSession();
+      if (!session) return [];
+
+      // First try to fetch from generated_lessons table (if exists)
+      const { data: generatedData, error: generatedError } = await this.supabase
+        .from('generated_lessons')
+        .select(`
+          *,
+          category:lesson_categories(*)
+        `)
+        .eq('teacher_id', session.user_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (!generatedError && generatedData && generatedData.length > 0) {
+        // Convert generated lessons to standard lesson format
+        return generatedData.map((item: any) => ({
+          id: item.id,
+          title: item.title || 'Generated Lesson',
+          description: item.description || item.lesson_content?.substring(0, 200) + '...',
+          short_description: item.short_description || 'AI-generated lesson',
+          content: item.lesson_content,
+          category: item.category,
+          estimated_duration: item.estimated_duration || 45,
+          difficulty_rating: item.difficulty_rating || 3,
+          age_range: item.age_range || { min_age: 6, max_age: 18 },
+          language: item.language || 'en',
+          is_featured: false,
+          is_premium: false,
+          status: 'published',
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          rating: 0,
+          completion_count: 0,
+          tags: [],
+          skill_level: null,
+          learning_objectives: [],
+          steps: [],
+          resources: [],
+          assessments: [],
+          progress: [],
+          source: 'ai_generated'
+        }));
+      }
+
+      // Fallback: try regular lessons created by the user
+      const { data: userLessons, error: userError } = await this.supabase
+        .from('lessons')
+        .select(`
+          *,
+          category:lesson_categories(*),
+          skill_level:lesson_skill_levels(*),
+          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
+        `)
+        .eq('created_by', session.user_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (userError) {
+        console.error('Error fetching user lessons:', userError);
+        return [];
+      }
+
+      return userLessons || [];
+    } catch (error) {
+      console.error('Error in getTeacherGeneratedLessons:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get lesson analytics (for educators)
    */
   async getLessonAnalytics(lessonId: string): Promise<LessonAnalytics | null> {

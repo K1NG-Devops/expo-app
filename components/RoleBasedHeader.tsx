@@ -269,9 +269,19 @@ export function RoleBasedHeader({
 
         {/* Title Section */}
         <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: headerTextColor }]} numberOfLines={1}>
-            {displayTitle}
-          </Text>
+          <View style={styles.titleRow}>
+            {displayTitle === 'Teacher' && (
+              <Ionicons 
+                name="school" 
+                size={18} 
+                color={headerTextColor} 
+                style={{ marginRight: 6 }}
+              />
+            )}
+            <Text style={[styles.title, { color: headerTextColor }]} numberOfLines={1}>
+              {displayTitle}
+            </Text>
+          </View>
           {displaySubtitle && (
             canCycleChildren && onSubtitleTap ? (
               <TouchableOpacity onPress={onSubtitleTap} activeOpacity={0.7}>
@@ -417,6 +427,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 8,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 18,

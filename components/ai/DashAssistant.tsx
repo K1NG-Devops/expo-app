@@ -29,6 +29,7 @@ import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -53,6 +54,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [conversation, setConversation] = useState<DashConversation | null>(null);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [enterToSend, setEnterToSend] = useState(true);
 
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -83,6 +85,14 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             setConversation(newConv);
           }
         }
+
+        // Load enterToSend setting
+        try {
+          const enterToSendSetting = await AsyncStorage.getItem('@dash_ai_enter_to_send');
+          if (enterToSendSetting !== null) {
+            setEnterToSend(enterToSendSetting === 'true');
+          }
+        } catch {}
 
         // Send initial message if provided
         if (initialMessage && initialMessage.trim()) {
@@ -531,11 +541,12 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             placeholderTextColor={theme.inputPlaceholder}
             value={inputText}
             onChangeText={setInputText}
-            multiline
+            multiline={!enterToSend}
             maxLength={500}
             editable={!isLoading && !isRecording}
-            onSubmitEditing={() => sendMessage()}
-            returnKeyType="send"
+            onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
+            returnKeyType={enterToSend ? "send" : "default"}
+            blurOnSubmit={enterToSend}
           />
           
           {inputText.trim() ? (

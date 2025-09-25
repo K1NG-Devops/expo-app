@@ -191,9 +191,12 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
   let role = normalizeRole(profile.role) as Role | null;
   
+  console.log('[ROUTE DEBUG] ==> Determining route for user');
   console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
   console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
   console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
+  console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
+  console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
   
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
@@ -202,10 +205,17 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   }
   
   // Check if user has active access
-    if (!profile.hasCapability('access_mobile_app')) {
-      console.log('[ROUTE DEBUG] User lacks access_mobile_app capability');
+  if (!profile.hasCapability('access_mobile_app')) {
+    console.log('[ROUTE DEBUG] User lacks access_mobile_app capability');
+    
+    // For teachers, be more permissive - allow them to access their dashboard
+    // even if they don't have the general mobile app capability
+    if (role !== 'teacher') {
       return { path: '/screens/account' }; // Route to account settings to resolve access issues
+    } else {
+      console.log('[ROUTE DEBUG] Teacher without mobile app capability - allowing dashboard access');
     }
+  }
 
   // Route based on role and capabilities
   switch (role) {
@@ -231,12 +241,18 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       }
     
     case 'teacher':
-      // Allow pending/null seat to proceed; dashboard can show a banner if needed
-      if (!profile.seat_status || profile.seat_status === 'active' || profile.seat_status === 'pending') {
-        return { path: '/screens/teacher-dashboard' };
+      console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
+      
+      // Allow teachers to access dashboard unless explicitly blocked
+      // Only block if seat_status is specifically 'revoked' or 'suspended'
+      if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
+        console.log('[ROUTE DEBUG] Teacher seat revoked/suspended, routing to account');
+        return { path: '/screens/account' };
       }
-      // For 'inactive' or any other unexpected status, send to account to resolve
-      return { path: '/screens/account' };
+      
+      // Allow all other cases (active, pending, null, inactive, etc.) to access dashboard
+      console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
+      return { path: '/screens/teacher-dashboard' };
     
     case 'parent':
       return { path: '/screens/parent-dashboard' };
@@ -275,12 +291,12 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
   if (role === 'teacher') {
-    // Only block if explicitly inactive or revoked; allow pending/null
-    if (profile.seat_status === 'inactive' || (profile as any).seat_status === 'revoked') {
+    // Only block if explicitly revoked or suspended; allow all other statuses
+    if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
       return {
         hasAccess: false,
         reason: `Teacher seat is ${profile.seat_status}`,
-        suggestedAction: 'Contact your administrator to activate your seat',
+        suggestedAction: 'Contact your administrator to restore your access',
       };
     }
   }

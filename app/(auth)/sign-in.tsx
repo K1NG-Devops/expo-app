@@ -125,14 +125,6 @@ export default function SignIn() {
     buttonDisabled: {
       backgroundColor: theme.textSecondary,
     },
-    footer: {
-      marginTop: 16,
-      alignItems: 'center',
-    },
-    footerText: {
-      color: theme.textSecondary,
-      fontSize: 12,
-    },
   });
 
   return (
@@ -185,10 +177,6 @@ export default function SignIn() {
           </View>
 
           <SocialLoginButtons onSocialLogin={handleSocialLogin} />
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>By continuing, you agree to our Terms and Privacy Policy.</Text>
-          </View>
         </View>
       </View>
     </SafeAreaView>

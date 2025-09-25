@@ -47,6 +47,7 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
   const [featuredLessons, setFeaturedLessons] = useState<Lesson[]>([]);
   const [popularLessons, setPopularLessons] = useState<Lesson[]>([]);
   const [recentLessons, setRecentLessons] = useState<Lesson[]>([]);
+  const [myGeneratedLessons, setMyGeneratedLessons] = useState<Lesson[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
@@ -73,17 +74,20 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
         featuredData,
         popularData,
         recentData,
+        myGeneratedData,
       ] = await Promise.all([
         lessonsService.getCategories(),
         lessonsService.getFeaturedLessons(6),
         lessonsService.getPopularLessons(8),
         lessonsService.searchLessons('', {}, 'newest', 1, 8),
+        lessonsService.getTeacherGeneratedLessons(),
       ]);
 
       setCategories(categoriesData);
       setFeaturedLessons(featuredData);
       setPopularLessons(popularData);
       setRecentLessons(recentData.lessons);
+      setMyGeneratedLessons(myGeneratedData);
     } catch (error) {
       console.error('Error loading lessons hub data:', error);
     } finally {
@@ -136,7 +140,7 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
           Lessons Hub
         </Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-          Discover amazing STEM learning experiences
+          Access your saved AI-generated lessons and discover new content
         </Text>
       </View>
     </View>
@@ -286,6 +290,58 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     </View>
   );
 
+  const renderMyGeneratedLessons = () => (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          My AI-Generated Lessons
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/screens/ai-lesson-generator')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={[styles.sectionAction, { color: theme.primary }]}>
+            Generate New
+          </Text>
+        </TouchableOpacity>
+      </View>
+      
+      {myGeneratedLessons.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.lessonsContainer}
+        >
+          {myGeneratedLessons.slice(0, 8).map((lesson) => (
+            <LessonCard
+              key={lesson.id}
+              lesson={lesson}
+              onPress={() => handleLessonPress(lesson)}
+              variant="featured"
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={styles.emptySection}>
+          <Ionicons name="sparkles-outline" size={48} color={theme.textSecondary} />
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>No Generated Lessons Yet</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+            Create your first AI-powered lesson with our lesson generator
+          </Text>
+          <TouchableOpacity
+            style={[styles.emptyAction, { backgroundColor: theme.primary }]}
+            onPress={() => router.push('/screens/ai-lesson-generator')}
+          >
+            <Ionicons name="sparkles" size={20} color={theme.onPrimary} />
+            <Text style={[styles.emptyActionText, { color: theme.onPrimary }]}>
+              Generate Lesson
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+
   const renderRecentLessons = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
@@ -327,17 +383,27 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
       
       <View style={styles.quickActionsGrid}>
         <TouchableOpacity
-          style={[styles.quickAction, { backgroundColor: theme.primaryLight }]}
-          onPress={() => router.push('/screens/my-lessons')}
+          style={[styles.quickAction, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '30', borderWidth: 1 }]}
+          onPress={() => router.push('/screens/ai-lesson-generator')}
         >
-          <Ionicons name="book-outline" size={24} color={theme.primary} />
+          <Ionicons name="sparkles" size={24} color={theme.primary} />
           <Text style={[styles.quickActionText, { color: theme.primary }]}>
-            My Lessons
+            Generate New Lesson
           </Text>
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.quickAction, { backgroundColor: theme.accentLight }]}
+          style={[styles.quickAction, { backgroundColor: theme.success + '15', borderColor: theme.success + '30', borderWidth: 1 }]}
+          onPress={() => router.push('/screens/my-lessons')}
+        >
+          <Ionicons name="library" size={24} color={theme.success} />
+          <Text style={[styles.quickActionText, { color: theme.success }]}>
+            My Saved Lessons
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.quickAction, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '30', borderWidth: 1 }]}
           onPress={() => router.push('/screens/lesson-plans')}
         >
           <Ionicons name="list-outline" size={24} color={theme.accent} />
@@ -347,22 +413,12 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
         </TouchableOpacity>
         
         <TouchableOpacity
-          style={[styles.quickAction, { backgroundColor: theme.successLight }]}
+          style={[styles.quickAction, { backgroundColor: theme.warning + '15', borderColor: theme.warning + '30', borderWidth: 1 }]}
           onPress={() => router.push('/screens/bookmarked-lessons')}
         >
-          <Ionicons name="bookmark-outline" size={24} color={theme.success} />
-          <Text style={[styles.quickActionText, { color: theme.success }]}>
-            Bookmarks
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.quickAction, { backgroundColor: theme.warningLight }]}
-          onPress={() => router.push('/screens/lesson-progress')}
-        >
-          <Ionicons name="stats-chart-outline" size={24} color={theme.warning} />
+          <Ionicons name="bookmark-outline" size={24} color={theme.warning} />
           <Text style={[styles.quickActionText, { color: theme.warning }]}>
-            Progress
+            Bookmarked
           </Text>
         </TouchableOpacity>
       </View>
@@ -384,6 +440,7 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     >
       {renderHeader()}
       {renderSearchBar()}
+      {renderMyGeneratedLessons()}
       {renderCategories()}
       {renderFeaturedLessons()}
       {renderPopularLessons()}
@@ -514,6 +571,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 8,
     textAlign: 'center',
+  },
+  emptySection: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 25,
+    gap: 8,
+  },
+  emptyActionText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
