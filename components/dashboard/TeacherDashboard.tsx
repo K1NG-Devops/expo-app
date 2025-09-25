@@ -456,12 +456,13 @@ export const TeacherDashboard: React.FC = () => {
       requiredCap: "manage_classes",
     },
     {
-      id: "create-lesson",
-      title: "Create Lesson",
-      icon: "add-circle",
+      id: "lessons-hub",
+      title: "Lessons Hub",
+      icon: "library-outline",
       color: "#4F46E5",
-      onPress: () => {
-        router.push("/screens/create-lesson");
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_lessons_hub');
+        router.push("/screens/lessons-hub");
       },
       requiredCap: "create_assignments",
     },

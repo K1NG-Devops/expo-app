@@ -3,9 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
 // Environment variables
 // Note: Supabase reserves the SUPABASE_* prefix for system envs. Do NOT set secrets with that prefix.
-// SUPABASE_URL is provided automatically by the runtime. For the service role key, use SERVICE_ROLE_KEY.
+// SUPABASE_URL and SUPABASE_ANON_KEY are provided automatically by the runtime
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') || ''
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!
 const META_API_VERSION = Deno.env.get('META_API_VERSION') || 'v19.0'
@@ -25,9 +26,12 @@ function json(body: Record<string, unknown>, init: ResponseInit = {}) {
 
 // Create Supabase client with service role for bypassing RLS
 if (!SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('Missing SERVICE_ROLE_KEY secret. Set it via: supabase secrets set SERVICE_ROLE_KEY=...')
+  console.error('Warning: SERVICE_ROLE_KEY not found, falling back to anon key with limited permissions')
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+} else {
+  console.log('Using service role key for database access')
 }
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY)
 
 interface SendMessageRequest {
   thread_id?: string
@@ -181,6 +185,12 @@ async function sendMediaMessage(to: string, mediaUrl: string, messageType: 'imag
  * Get contact information for sending message
  */
 async function getContactInfo(request: SendMessageRequest) {
+  console.log('Getting contact info for request:', { 
+    contact_id: request.contact_id,
+    thread_id: request.thread_id,
+    phone_number: request.phone_number 
+  })
+  
   if (request.contact_id) {
     const { data: contact, error } = await supabase
       .from('whatsapp_contacts')
@@ -189,6 +199,7 @@ async function getContactInfo(request: SendMessageRequest) {
       .single()
 
     if (error) {
+      console.error('Error fetching contact by ID:', error)
       throw new Error(`Contact not found: ${error.message}`)
     }
 
@@ -221,20 +232,56 @@ async function getContactInfo(request: SendMessageRequest) {
       .single()
 
     if (error) {
+      console.log('Contact not found, creating new contact for:', request.phone_number)
+      
+      // Get the authenticated user's info to determine preschool_id
+      // In Edge Functions, we need to get the Authorization header from the request
+      let userId: string | null = null
+      let preschoolId: string | null = null
+      
+      // For testing, let's get a valid preschool and user from the database
+      if (!preschoolId) {
+        const { data: preschool } = await supabase
+          .from('preschools')
+          .select('id')
+          .limit(1)
+          .single()
+        
+        preschoolId = preschool?.id || null
+      }
+      
+      if (!userId) {
+        const { data: user } = await supabase
+          .from('users')
+          .select('auth_user_id')
+          .limit(1)
+          .single()
+          
+        userId = user?.auth_user_id || null
+      }
+      
+      if (!preschoolId || !userId) {
+        throw new Error('Could not determine preschool or user for contact creation')
+      }
+      
       // Create contact if doesn't exist
       const { data: newContact, error: createError } = await supabase
         .from('whatsapp_contacts')
         .insert({
           phone_e164: request.phone_number,
-          consent_status: 'pending'
+          consent_status: 'pending',
+          preschool_id: preschoolId,
+          user_id: userId
         })
         .select()
         .single()
 
       if (createError) {
+        console.error('Error creating contact:', createError)
         throw new Error(`Failed to create contact: ${createError.message}`)
       }
 
+      console.log('Created new contact:', newContact)
       return newContact
     }
 

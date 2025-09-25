@@ -208,7 +208,8 @@ export default function AIHomeworkGraderLive() {
           <QuotaBar feature="grading_assistance" planLimit={quotas.ai_requests} />
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: '#E5E7EB', backgroundColor: theme.accent + '20' }]}>
-              <Text style={{ color: '#6B7280', fontSize: 12 }}>Fallback used</Text>
+              <Ionicons name="information-circle" size={16} color={theme.accent} />
+              <Text style={{ color: '#6B7280', fontSize: 12, marginLeft: 6 }}>Fallback used</Text>
             </View>
           )}
           <View style={[styles.jsonBox, { borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }]}>
@@ -284,5 +285,5 @@ const styles = StyleSheet.create({
   parsedScore: { fontSize: 28, fontWeight: '900' },
   parsedText: { fontSize: 13 },
   bottomSpacing: { height: 40 },
-  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  fallbackChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })

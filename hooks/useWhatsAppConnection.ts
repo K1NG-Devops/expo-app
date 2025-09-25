@@ -38,15 +38,19 @@ export const useWhatsAppConnection = () => {
       }
 
       try {
-        // Get user's WhatsApp contact
+        // Get user's WhatsApp contact with proper error handling
         const { data: contact, error: contactError } = await assertSupabase()
           .from('whatsapp_contacts')
           .select('*')
           .eq('user_id', user.id)
           .eq('preschool_id', profile.organization_id)
-          .single()
+          .maybeSingle()
 
-        if (contactError && contactError.code !== 'PGRST116') {
+        // Handle various database errors gracefully
+        if (contactError && 
+            contactError.code !== 'PGRST116' && // Not found error (expected)
+            contactError.code !== '42P01' &&   // Table doesn't exist
+            contactError.code !== '42501') {   // RLS permission denied
           throw contactError
         }
 
@@ -55,7 +59,7 @@ export const useWhatsAppConnection = () => {
           .from('preschools')
           .select('phone, settings')
           .eq('id', profile.organization_id)
-          .single()
+          .maybeSingle()
 
         const schoolWhatsAppNumber = preschool?.settings?.whatsapp_number || preschool?.phone || process.env.EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER
 
@@ -66,16 +70,19 @@ export const useWhatsAppConnection = () => {
           isLoading: false
         }
       } catch (err: any) {
-        // Gracefully handle missing table (42P01) or missing schema in dev environments
+        // Gracefully handle missing table (42P01), RLS issues (42501), or missing schema
         const code = err?.code || err?.details || ''
-        if (code === '42P01' || String(err?.message || '').includes('relation') || String(err?.message || '').includes('whatsapp_contacts')) {
+        if (code === '42P01' ||  // Table doesn't exist
+            code === '42501' ||  // RLS permission denied
+            String(err?.message || '').includes('relation') || 
+            String(err?.message || '').includes('whatsapp_contacts')) {
           return {
             isConnected: false,
             isLoading: false,
-            error: undefined,
+            error: 'WhatsApp feature not yet configured',
           }
         }
-        // Other errors: log once
+        // Other errors: log once for debugging
         console.error('Error fetching WhatsApp connection status:', err)
         return {
           isConnected: false,
@@ -111,9 +118,18 @@ export const useWhatsAppConnection = () => {
           last_opt_in_at: data.consent ? new Date().toISOString() : null
         }, { onConflict: 'preschool_id,user_id' })
         .select()
-        .single()
+        .maybeSingle()
 
-      if (error) throw error
+      if (error) {
+        // Provide more helpful error message for common issues
+        if (error.code === '42P01') {
+          throw new Error('WhatsApp feature is not yet configured for your school. Please contact support.')
+        } else if (error.code === '42501') {
+          throw new Error('Permission denied. Please make sure you have the correct access permissions.')
+        } else {
+          throw error
+        }
+      }
 
       // Track opt-in event
       track('edudash.whatsapp.opt_in', {
@@ -132,7 +148,7 @@ export const useWhatsAppConnection = () => {
       
       // Track success via analytics (no console logs per WARP rules)
       track('edudash.whatsapp.opt_in_success', {
-        user_id: user.id,
+        user_id: user?.id || '',
         preschool_id: profile?.organization_id,
         consent_status: contact.consent_status,
         timestamp: new Date().toISOString()

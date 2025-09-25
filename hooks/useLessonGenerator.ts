@@ -79,10 +79,36 @@ Learning objectives: ${(opts.learningObjectives || []).join('; ')}.
 Provide a structured plan with objectives, warm-up, core activities, assessment ideas, and closure. Use clear bullet points.`;
         const response = await dash.sendMessage(prompt);
         const lessonText = response.content || '';
-        setResult({ text: lessonText, __fallbackUsed: true });
+        
+        // Automatically save the Dash-generated lesson to the database
+        let saveResult = null;
+        try {
+          saveResult = await dash.saveLessonToDatabase(lessonText, {
+            topic: opts.topic,
+            subject: opts.subject,
+            gradeLevel: opts.gradeLevel,
+            duration: opts.duration ?? 45,
+            objectives: opts.learningObjectives,
+          });
+          if (saveResult.success) {
+            console.log('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
+            track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
+          } else {
+            console.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+          }
+        } catch (saveError) {
+          console.error('[useLessonGenerator] Error saving fallback lesson:', saveError);
+        }
+        
+        setResult({ 
+          text: lessonText, 
+          __fallbackUsed: true,
+          __savedToDatabase: saveResult?.success || false,
+          __lessonId: saveResult?.lessonId || null
+        });
         incrementUsage('lesson_generation', 1).catch(() => {});
         logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
-        track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown' });
+        track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown', savedToDatabase: saveResult?.success });
         return lessonText;
       } catch (fallbackErr) {
         setError(e?.message || 'Failed to generate lesson');

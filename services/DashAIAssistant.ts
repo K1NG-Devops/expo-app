@@ -25,7 +25,7 @@ try {
 
 export interface DashMessage {
   id: string;
-  type: 'user' | 'assistant';
+  type: 'user' | 'assistant' | 'system' | 'task_result';
   content: string;
   timestamp: number;
   voiceNote?: {
@@ -38,15 +38,115 @@ export interface DashMessage {
     confidence?: number;
     suggested_actions?: string[];
     references?: Array<{
-      type: 'lesson' | 'student' | 'assignment' | 'resource';
+      type: 'lesson' | 'student' | 'assignment' | 'resource' | 'parent' | 'class' | 'task';
       id: string;
       title: string;
+      url?: string;
     }>;
     dashboard_action?: {
-      type: 'switch_layout';
-      layout: 'classic' | 'enhanced';
+      type: 'switch_layout' | 'open_screen' | 'execute_task' | 'create_reminder' | 'send_notification';
+      layout?: 'classic' | 'enhanced';
+      route?: string;
+      params?: any;
+      taskId?: string;
+      task?: DashTask;
+      reminder?: DashReminder;
+    };
+    emotions?: {
+      sentiment: 'positive' | 'negative' | 'neutral';
+      confidence: number;
+      detected_emotions: string[];
+    };
+    user_intent?: {
+      primary_intent: string;
+      secondary_intents: string[];
+      confidence: number;
+    };
+    task_progress?: {
+      taskId: string;
+      status: 'pending' | 'in_progress' | 'completed' | 'failed';
+      progress: number;
+      next_steps: string[];
     };
   };
+}
+
+export interface DashTask {
+  id: string;
+  title: string;
+  description: string;
+  type: 'one_time' | 'recurring' | 'workflow';
+  status: 'pending' | 'in_progress' | 'completed' | 'paused' | 'failed';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedTo: string; // user role or specific user
+  createdBy: string; // Dash or user
+  createdAt: number;
+  dueDate?: number;
+  estimatedDuration?: number; // in minutes
+  steps: DashTaskStep[];
+  dependencies?: string[]; // other task IDs
+  context: {
+    conversationId: string;
+    userRole: string;
+    relatedEntities: Array<{
+      type: 'student' | 'parent' | 'class' | 'lesson' | 'assignment';
+      id: string;
+      name: string;
+    }>;
+  };
+  automation?: {
+    triggers: string[];
+    conditions: Record<string, any>;
+    actions: DashAction[];
+  };
+  progress: {
+    currentStep: number;
+    completedSteps: string[];
+    blockers?: string[];
+    notes?: string;
+  };
+}
+
+export interface DashTaskStep {
+  id: string;
+  title: string;
+  description: string;
+  type: 'manual' | 'automated' | 'approval_required';
+  status: 'pending' | 'in_progress' | 'completed' | 'skipped' | 'failed';
+  estimatedDuration?: number;
+  requiredData?: Record<string, any>;
+  validation?: {
+    required: boolean;
+    criteria: string[];
+  };
+  actions?: DashAction[];
+}
+
+export interface DashAction {
+  id: string;
+  type: 'navigate' | 'api_call' | 'notification' | 'data_update' | 'file_generation' | 'email_send';
+  parameters: Record<string, any>;
+  condition?: Record<string, any>;
+  retries?: number;
+  timeout?: number;
+}
+
+export interface DashReminder {
+  id: string;
+  title: string;
+  message: string;
+  type: 'one_time' | 'recurring';
+  triggerAt: number;
+  recurrence?: {
+    pattern: 'daily' | 'weekly' | 'monthly';
+    interval: number;
+    endDate?: number;
+  };
+  userId: string;
+  conversationId?: string;
+  relatedTaskId?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'active' | 'triggered' | 'dismissed' | 'snoozed';
 }
 
 export interface DashConversation {
@@ -61,26 +161,141 @@ export interface DashConversation {
 
 export interface DashMemoryItem {
   id: string;
-  type: 'preference' | 'fact' | 'context' | 'skill';
+  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight';
   key: string;
   value: any;
   confidence: number;
   created_at: number;
   updated_at: number;
   expires_at?: number;
+  relatedEntities?: Array<{
+    type: 'user' | 'student' | 'parent' | 'class' | 'subject';
+    id: string;
+    name: string;
+  }>;
+  embeddings?: number[]; // For semantic search
+  reinforcement_count?: number;
+  emotional_weight?: number; // How emotionally significant this memory is
+  retrieval_frequency?: number; // How often this memory is accessed
+  tags?: string[];
+}
+
+export interface DashUserProfile {
+  userId: string;
+  role: 'teacher' | 'principal' | 'parent' | 'student' | 'admin';
+  name: string;
+  preferences: {
+    communication_style: 'formal' | 'casual' | 'friendly';
+    notification_frequency: 'immediate' | 'daily_digest' | 'weekly_summary';
+    preferred_subjects?: string[];
+    working_hours?: {
+      start: string;
+      end: string;
+      timezone: string;
+    };
+    task_management_style: 'detailed' | 'summary' | 'minimal';
+    ai_autonomy_level: 'high' | 'medium' | 'low'; // How much Dash can act independently
+  };
+  context: {
+    current_classes?: string[];
+    current_students?: string[];
+    current_subjects?: string[];
+    organization_id?: string;
+    grade_levels?: string[];
+    responsibilities?: string[];
+  };
+  goals: {
+    short_term: DashGoal[];
+    long_term: DashGoal[];
+    completed: DashGoal[];
+  };
+  interaction_patterns: {
+    most_active_times: string[];
+    preferred_task_types: string[];
+    common_requests: Array<{
+      pattern: string;
+      frequency: number;
+      last_used: number;
+    }>;
+    success_metrics: Record<string, number>;
+  };
+  memory_preferences: {
+    remember_personal_details: boolean;
+    remember_work_patterns: boolean;
+    remember_preferences: boolean;
+    auto_suggest_tasks: boolean;
+    proactive_reminders: boolean;
+  };
+}
+
+export interface DashGoal {
+  id: string;
+  title: string;
+  description: string;
+  category: 'academic' | 'administrative' | 'personal' | 'professional_development';
+  priority: 'low' | 'medium' | 'high';
+  target_date?: number;
+  progress: number; // 0-100
+  metrics: Array<{
+    name: string;
+    target: number;
+    current: number;
+    unit: string;
+  }>;
+  related_tasks: string[];
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  created_at: number;
+  updated_at: number;
+}
+
+export interface DashInsight {
+  id: string;
+  type: 'pattern' | 'recommendation' | 'prediction' | 'alert' | 'opportunity';
+  title: string;
+  description: string;
+  confidence: number;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  category: string;
+  data_sources: string[];
+  created_at: number;
+  expires_at?: number;
+  actionable: boolean;
+  suggested_actions?: string[];
+  impact_estimate?: {
+    type: 'time_saved' | 'efficiency_gained' | 'problem_prevented';
+    value: number;
+    unit: string;
+  };
 }
 
 export interface DashPersonality {
   name: string;
   greeting: string;
   personality_traits: string[];
-  response_style: 'formal' | 'casual' | 'encouraging' | 'professional';
+  response_style: 'formal' | 'casual' | 'encouraging' | 'professional' | 'adaptive';
   expertise_areas: string[];
   voice_settings: {
     rate: number;
     pitch: number;
     language: string;
     voice?: string;
+  };
+  role_specializations: {
+    [role: string]: {
+      greeting: string;
+      capabilities: string[];
+      tone: string;
+      proactive_behaviors: string[];
+      task_categories: string[];
+    };
+  };
+  agentic_settings: {
+    autonomy_level: 'low' | 'medium' | 'high';
+    can_create_tasks: boolean;
+    can_schedule_actions: boolean;
+    can_access_data: boolean;
+    can_send_notifications: boolean;
+    requires_confirmation_for: string[];
   };
 }
 
@@ -93,9 +308,12 @@ const DEFAULT_PERSONALITY: DashPersonality = {
     'knowledgeable',
     'patient',
     'creative',
-    'supportive'
+    'supportive',
+    'proactive',
+    'adaptive',
+    'insightful'
   ],
-  response_style: 'encouraging',
+  response_style: 'adaptive',
   expertise_areas: [
     'education',
     'lesson planning',
@@ -103,12 +321,114 @@ const DEFAULT_PERSONALITY: DashPersonality = {
     'classroom management',
     'curriculum development',
     'educational technology',
-    'parent communication'
+    'parent communication',
+    'task automation',
+    'data analysis',
+    'workflow optimization'
   ],
   voice_settings: {
     rate: 0.8,
     pitch: 1.0,
     language: 'en-US'
+  },
+  role_specializations: {
+    teacher: {
+      greeting: "Hello! I'm Dash, your teaching assistant. Ready to help with lesson planning, grading, and classroom management!",
+      capabilities: [
+        'lesson_planning',
+        'grading_assistance',
+        'parent_communication',
+        'student_progress_tracking',
+        'curriculum_alignment',
+        'resource_suggestions',
+        'behavior_management_tips',
+        'assessment_creation'
+      ],
+      tone: 'encouraging and professional',
+      proactive_behaviors: [
+        'suggest_lesson_improvements',
+        'remind_upcoming_deadlines',
+        'flag_student_concerns',
+        'recommend_resources'
+      ],
+      task_categories: ['academic', 'administrative', 'communication']
+    },
+    principal: {
+      greeting: "Good morning! I'm Dash, your administrative assistant. Here to help with school management, staff coordination, and strategic planning.",
+      capabilities: [
+        'staff_management',
+        'budget_analysis',
+        'policy_recommendations',
+        'parent_communication',
+        'data_analytics',
+        'strategic_planning',
+        'crisis_management',
+        'compliance_tracking'
+      ],
+      tone: 'professional and strategic',
+      proactive_behaviors: [
+        'monitor_school_metrics',
+        'suggest_policy_updates',
+        'flag_budget_concerns',
+        'track_compliance_deadlines'
+      ],
+      task_categories: ['administrative', 'strategic', 'compliance', 'communication']
+    },
+    parent: {
+      greeting: "Hi there! I'm Dash, your family's education assistant. I'm here to help with homework, track progress, and keep you connected with school.",
+      capabilities: [
+        'homework_assistance',
+        'progress_tracking',
+        'school_communication',
+        'learning_resources',
+        'study_planning',
+        'activity_suggestions',
+        'behavioral_support',
+        'academic_guidance'
+      ],
+      tone: 'friendly and supportive',
+      proactive_behaviors: [
+        'remind_homework_deadlines',
+        'suggest_learning_activities',
+        'flag_progress_concerns',
+        'recommend_parent_involvement'
+      ],
+      task_categories: ['academic_support', 'communication', 'personal']
+    },
+    student: {
+      greeting: "Hey! I'm Dash, your study buddy. Ready to help with homework, learning, and making school awesome!",
+      capabilities: [
+        'homework_help',
+        'study_techniques',
+        'concept_explanation',
+        'practice_problems',
+        'goal_setting',
+        'time_management',
+        'learning_games',
+        'motivation_boost'
+      ],
+      tone: 'friendly and encouraging',
+      proactive_behaviors: [
+        'remind_study_sessions',
+        'suggest_break_times',
+        'celebrate_achievements',
+        'recommend_study_methods'
+      ],
+      task_categories: ['academic', 'personal', 'motivational']
+    }
+  },
+  agentic_settings: {
+    autonomy_level: 'medium',
+    can_create_tasks: true,
+    can_schedule_actions: true,
+    can_access_data: true,
+    can_send_notifications: false,
+    requires_confirmation_for: [
+      'send_external_emails',
+      'modify_grades',
+      'delete_important_data',
+      'share_personal_information'
+    ]
   }
 };
 
@@ -121,12 +441,29 @@ export class DashAIAssistant {
   private recordingObject: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
   
+  // Enhanced agentic capabilities
+  private userProfile: DashUserProfile | null = null;
+  private activeTasks: Map<string, DashTask> = new Map();
+  private activeReminders: Map<string, DashReminder> = new Map();
+  private pendingInsights: Map<string, DashInsight> = new Map();
+  private proactiveTimer: NodeJS.Timeout | null = null;
+  private contextCache: Map<string, any> = new Map();
+  private interactionHistory: Array<{
+    timestamp: number;
+    type: string;
+    data: any;
+  }> = [];
+  
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
   private static readonly CURRENT_CONVERSATION_KEY = '@dash_ai_current_conversation_id';
   private static readonly MEMORY_KEY = 'dash_memory';
   private static readonly PERSONALITY_KEY = 'dash_personality';
   private static readonly SETTINGS_KEY = 'dash_settings';
+  private static readonly USER_PROFILE_KEY = 'dash_user_profile';
+  private static readonly TASKS_KEY = 'dash_active_tasks';
+  private static readonly REMINDERS_KEY = 'dash_active_reminders';
+  private static readonly INSIGHTS_KEY = 'dash_pending_insights';
 
   public static getInstance(): DashAIAssistant {
     if (!DashAIAssistant.instance) {
@@ -175,13 +512,11 @@ export class DashAIAssistant {
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
           playsInSilentModeIOS: true,
         });
       } else if (Platform.OS === 'android') {
         await Audio.setAudioModeAsync({
           shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
           playThroughEarpieceAndroid: false,
         } as any);
       }
@@ -291,7 +626,7 @@ export class DashAIAssistant {
     try {
       console.log('[Dash] Starting recording...');
       this.recordingObject = new Audio.Recording();
-      await this.recordingObject.prepareAsync({
+      await (this.recordingObject as any).prepareAsync({
         android: {
           extension: '.m4a',
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
@@ -411,7 +746,7 @@ export class DashAIAssistant {
       };
 
       // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
-      const response = await this.callAIService(context);
+      const response = await this.callAIServiceLegacy(context);
       
       // Update memory based on interaction
       await this.updateMemory(userInput, response);
@@ -449,9 +784,9 @@ export class DashAIAssistant {
   }
 
   /**
-   * Call AI service to generate response
+   * Call AI service to generate response (legacy - used by generateResponse)
    */
-  private async callAIService(context: any): Promise<{
+  private async callAIServiceLegacy(context: any): Promise<{
     content: string;
     confidence?: number;
     suggested_actions?: string[];
@@ -995,6 +1330,711 @@ export class DashAIAssistant {
     } catch (error) {
       console.error('[Dash] Failed to export conversation:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Save a lesson from a conversation message to the database
+   */
+  public async saveLessonToDatabase(
+    lessonContent: string,
+    lessonParams: {
+      topic?: string;
+      subject?: string;
+      gradeLevel?: number;
+      duration?: number;
+      objectives?: string[];
+    }
+  ): Promise<{ success: boolean; lessonId?: string; error?: string }> {
+    try {
+      console.log('[Dash] Saving lesson to database...');
+      
+      // Get current user and profile
+      const { data: auth } = await assertSupabase().auth.getUser();
+      const authUserId = auth?.user?.id || '';
+      const { data: profile } = await assertSupabase()
+        .from('users')
+        .select('id,preschool_id,organization_id')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+        
+      if (!profile) {
+        return { success: false, error: 'User not found or not signed in' };
+      }
+
+      // Get lesson categories
+      const { data: categories } = await assertSupabase()
+        .from('lesson_categories')
+        .select('id,name')
+        .limit(1);
+        
+      const categoryId = categories?.[0]?.id;
+      if (!categoryId) {
+        return { success: false, error: 'No lesson category found. Please create a category first.' };
+      }
+
+      // Import the LessonGeneratorService dynamically to avoid circular imports
+      const { LessonGeneratorService } = await import('@/lib/ai/lessonGenerator');
+
+      // Create lesson object compatible with LessonGeneratorService
+      const lesson = {
+        title: lessonParams.topic 
+          ? `${lessonParams.topic} - Grade ${lessonParams.gradeLevel || 'N/A'}` 
+          : 'Dash Generated Lesson',
+        description: lessonContent.length > 200 
+          ? lessonContent.substring(0, 200) + '...' 
+          : lessonContent,
+        content: lessonContent,
+        assessmentQuestions: lessonParams.objectives || [],
+        activities: [] // Could be extracted from content in the future
+      };
+
+      // Save the lesson
+      const result = await LessonGeneratorService.saveGeneratedLesson({
+        lesson,
+        teacherId: profile.id,
+        preschoolId: profile.preschool_id || profile.organization_id || '',
+        ageGroupId: 'dash-generated',
+        categoryId,
+        template: { 
+          duration: lessonParams.duration || 45, 
+          complexity: 'moderate' as const 
+        },
+        isPublished: true,
+      });
+
+      if (result.success) {
+        console.log('[Dash] Lesson saved successfully:', result.lessonId);
+      } else {
+        console.error('[Dash] Failed to save lesson:', result.error);
+      }
+
+      return result;
+    } catch (error: any) {
+      console.error('[Dash] Error saving lesson to database:', error);
+      return {
+        success: false,
+        error: error?.message || 'Failed to save lesson'
+      };
+    }
+  }
+
+  /**
+   * Save homework help session or grading session as a study resource
+   */
+  public async saveStudyResource(
+    content: string,
+    resourceParams: {
+      title?: string;
+      type: 'homework_help' | 'grading_session';
+      subject?: string;
+      gradeLevel?: number;
+      question?: string;
+    }
+  ): Promise<{ success: boolean; resourceId?: string; error?: string }> {
+    try {
+      console.log('[Dash] Saving study resource to database...');
+      
+      // Get current user and profile
+      const { data: auth } = await assertSupabase().auth.getUser();
+      const authUserId = auth?.user?.id || '';
+      const { data: profile } = await assertSupabase()
+        .from('users')
+        .select('id,preschool_id,organization_id')
+        .eq('auth_user_id', authUserId)
+        .maybeSingle();
+        
+      if (!profile) {
+        return { success: false, error: 'User not found or not signed in' };
+      }
+
+      // Save as a study resource or note
+      const resourceTitle = resourceParams.title || 
+        (resourceParams.type === 'homework_help' 
+          ? `Homework Help: ${resourceParams.subject || 'General'}` 
+          : `Grading Session: ${resourceParams.subject || 'Assessment'}`);
+
+      const resourceData = {
+        title: resourceTitle,
+        description: content.length > 200 ? content.substring(0, 200) + '...' : content,
+        content: content,
+        resource_type: 'study_material',
+        subject: resourceParams.subject || null,
+        grade_level: resourceParams.gradeLevel || null,
+        created_by: profile.id,
+        organization_id: profile.preschool_id || profile.organization_id || null,
+        is_ai_generated: true,
+        metadata: {
+          dash_type: resourceParams.type,
+          original_question: resourceParams.question || null,
+          generated_at: new Date().toISOString()
+        }
+      };
+
+      // Try to save to resources table, if it exists
+      const { data, error } = await assertSupabase()
+        .from('resources')
+        .insert(resourceData)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.warn('[Dash] Resources table not available or insert failed:', error);
+        // Could save to a different table or just keep in conversations
+        return { 
+          success: false, 
+          error: 'Study resource saved in conversation only' 
+        };
+      }
+
+      console.log('[Dash] Study resource saved successfully:', data.id);
+      return { success: true, resourceId: data.id };
+    } catch (error: any) {
+      console.error('[Dash] Error saving study resource:', error);
+      return {
+        success: false,
+        error: error?.message || 'Failed to save study resource'
+      };
+    }
+   }
+
+  /**
+   * Get active tasks from agentic engine
+   */
+  public async getActiveTasks(): Promise<any[]> {
+    try {
+      const { DashAgenticEngine } = await import('./DashAgenticEngine');
+      const agenticEngine = DashAgenticEngine.getInstance();
+      return agenticEngine.getActiveTasks();
+    } catch (error) {
+      console.error('[Dash] Failed to get active tasks:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get active reminders from agentic engine
+   */
+  public async getActiveReminders(): Promise<any[]> {
+    try {
+      const { DashAgenticEngine } = await import('./DashAgenticEngine');
+      const agenticEngine = DashAgenticEngine.getInstance();
+      return agenticEngine.getActiveReminders();
+    } catch (error) {
+      console.error('[Dash] Failed to get active reminders:', error);
+      return [];
+    }
+  }
+
+  // ==================== ENHANCED AGENTIC METHODS ====================
+
+  /**
+   * Load user profile
+   */
+  private async loadUserProfile(): Promise<void> {
+    try {
+      const storage = SecureStore || AsyncStorage;
+      const profileData = await storage.getItem(DashAIAssistant.USER_PROFILE_KEY);
+      
+      if (profileData) {
+        this.userProfile = JSON.parse(profileData);
+        console.log(`[Dash] Loaded user profile for ${this.userProfile?.role || 'unknown'}`);
+      } else {
+        // Create basic profile from current user
+        const currentProfile = await getCurrentProfile();
+        if (currentProfile) {
+          this.userProfile = {
+            userId: currentProfile.id,
+            role: currentProfile.role as any,
+            name: (currentProfile as any).full_name || 'User',
+            preferences: {
+              communication_style: 'friendly',
+              notification_frequency: 'daily_digest',
+              task_management_style: 'summary',
+              ai_autonomy_level: 'medium'
+            },
+            context: {
+              organization_id: currentProfile.organization_id || undefined
+            },
+            goals: {
+              short_term: [],
+              long_term: [],
+              completed: []
+            },
+            interaction_patterns: {
+              most_active_times: [],
+              preferred_task_types: [],
+              common_requests: [],
+              success_metrics: {}
+            },
+            memory_preferences: {
+              remember_personal_details: true,
+              remember_work_patterns: true,
+              remember_preferences: true,
+              auto_suggest_tasks: true,
+              proactive_reminders: true
+            }
+          };
+          await this.saveUserProfile();
+        }
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to load user profile:', error);
+    }
+  }
+
+  /**
+   * Save user profile
+   */
+  private async saveUserProfile(): Promise<void> {
+    if (!this.userProfile) return;
+    
+    try {
+      const storage = SecureStore || AsyncStorage;
+      await storage.setItem(DashAIAssistant.USER_PROFILE_KEY, JSON.stringify(this.userProfile));
+    } catch (error) {
+      console.error('[Dash] Failed to save user profile:', error);
+    }
+  }
+
+  /**
+   * Start proactive behaviors
+   */
+  private async startProactiveBehaviors(): Promise<void> {
+    if (this.proactiveTimer) {
+      clearInterval(this.proactiveTimer);
+    }
+
+    this.proactiveTimer = setInterval(async () => {
+      await this.executeProactiveBehaviors();
+    }, 10 * 60 * 1000) as any; // Run every 10 minutes
+
+    console.log('[Dash] Started proactive behaviors');
+  }
+
+  /**
+   * Execute proactive behaviors
+   */
+  private async executeProactiveBehaviors(): Promise<void> {
+    if (!this.userProfile) return;
+
+    try {
+      const context = await this.getCurrentContext();
+      const roleSpecialization = this.personality.role_specializations[this.userProfile.role];
+      
+      if (!roleSpecialization) return;
+
+      // Execute role-specific proactive behaviors
+      for (const behavior of roleSpecialization.proactive_behaviors) {
+        await this.executeProactiveBehavior(behavior, context);
+      }
+    } catch (error) {
+      console.error('[Dash] Error in proactive behaviors:', error);
+    }
+  }
+
+  /**
+   * Execute a specific proactive behavior
+   */
+  private async executeProactiveBehavior(behavior: string, context: any): Promise<void> {
+    switch (behavior) {
+      case 'suggest_lesson_improvements':
+        if (context.time_context?.is_work_hours && this.userProfile?.role === 'teacher') {
+          console.log('[Dash] Proactive: Analyzing lessons for improvement suggestions');
+        }
+        break;
+        
+      case 'remind_upcoming_deadlines':
+        if (this.userProfile?.role === 'teacher' || this.userProfile?.role === 'principal') {
+          console.log('[Dash] Proactive: Checking for upcoming deadlines');
+        }
+        break;
+        
+      case 'flag_student_concerns':
+        if (this.userProfile?.role === 'teacher') {
+          console.log('[Dash] Proactive: Monitoring for student concerns');
+        }
+        break;
+        
+      case 'monitor_school_metrics':
+        if (this.userProfile?.role === 'principal') {
+          console.log('[Dash] Proactive: Monitoring school performance metrics');
+        }
+        break;
+    }
+  }
+
+  /**
+   * Get current context
+   */
+  private async getCurrentContext(): Promise<any> {
+    try {
+      const now = new Date();
+      const profile = await getCurrentProfile();
+      
+      return {
+        time_context: {
+          hour: now.getHours(),
+          day_of_week: now.toLocaleDateString('en', { weekday: 'long' }),
+          is_work_hours: now.getHours() >= 8 && now.getHours() <= 17
+        },
+        user_state: {
+          role: profile?.role || 'unknown'
+        },
+        app_context: {
+          active_features: []
+        }
+      };
+    } catch (error) {
+      console.error('[Dash] Failed to get current context:', error);
+      return {};
+    }
+  }
+
+  /**
+   * Generate enhanced response with role-based intelligence
+   */
+  private async generateEnhancedResponse(content: string, conversationId: string, analysis: any): Promise<DashMessage> {
+    try {
+      // Get role-specific greeting and capabilities
+      const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
+      const capabilities = roleSpec?.capabilities || [];
+      
+      // Enhance the prompt with role context and capabilities
+      let systemPrompt = `You are Dash, an intelligent AI assistant. Your personality: ${this.personality.personality_traits.join(', ')}.`;
+      
+      if (roleSpec) {
+        systemPrompt += ` You are specifically helping a ${this.userProfile?.role} with ${roleSpec.tone} tone. Your capabilities include: ${capabilities.join(', ')}.`;
+      }
+
+      // Add context awareness
+      if (analysis.context) {
+        systemPrompt += ` Current context: ${JSON.stringify(analysis.context)}`;
+      }
+
+      // Add intent understanding
+      if (analysis.intent) {
+        systemPrompt += ` User intent: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})`;
+      }
+
+      // Call AI service with enhanced context
+      const aiResponse = await this.callAIService({
+        action: 'general_assistance',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: content }
+        ],
+        context: {
+          role: this.userProfile?.role,
+          intent: analysis.intent,
+          capabilities: capabilities
+        }
+      });
+
+      const assistantMessage: DashMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: aiResponse.content || 'I apologize, but I encountered an issue processing your request.',
+        timestamp: Date.now(),
+        metadata: {
+          confidence: analysis.intent?.confidence || 0.5,
+          suggested_actions: this.generateSuggestedActions(analysis.intent, capabilities),
+          user_intent: analysis.intent,
+          dashboard_action: this.generateDashboardAction(analysis.intent)
+        }
+      };
+
+      return assistantMessage;
+    } catch (error) {
+      console.error('[Dash] Enhanced response generation failed:', error);
+      // Fallback to basic response
+      return this.generateResponse(content, conversationId);
+    }
+  }
+
+  /**
+   * Handle proactive opportunities
+   */
+  private async handleProactiveOpportunities(opportunities: any[], response: DashMessage): Promise<void> {
+    try {
+      const { DashAgenticEngine } = await import('./DashAgenticEngine');
+      const agenticEngine = DashAgenticEngine.getInstance();
+
+      for (const opportunity of opportunities.slice(0, 2)) {
+        if (opportunity.type === 'automation' && opportunity.priority === 'high') {
+          await agenticEngine.createTask(
+            opportunity.title,
+            opportunity.description,
+            'workflow',
+            this.userProfile?.role || 'user',
+            [{
+              title: 'Execute automation',
+              description: opportunity.description,
+              type: 'automated',
+              status: 'pending',
+              actions: opportunity.actions?.map((action: any) => ({
+                id: `action_${Date.now()}`,
+                type: this.mapActionType(action.action),
+                parameters: action.parameters || {}
+              })) || []
+            }]
+          );
+        } else if (opportunity.type === 'reminder') {
+          await agenticEngine.createReminder(
+            opportunity.title,
+            opportunity.description,
+            opportunity.timing.best_time || Date.now() + (5 * 60 * 1000),
+            opportunity.priority
+          );
+        }
+      }
+
+      if (response.metadata) {
+        response.metadata.suggested_actions = opportunities.slice(0, 3).map(op => op.title);
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to handle proactive opportunities:', error);
+    }
+  }
+
+  /**
+   * Handle action intents
+   */
+  private async handleActionIntent(intent: any, response: DashMessage): Promise<void> {
+    try {
+      const { DashAgenticEngine } = await import('./DashAgenticEngine');
+      const agenticEngine = DashAgenticEngine.getInstance();
+
+      if (intent.primary_intent === 'create_lesson') {
+        await agenticEngine.createTask(
+          'Create Lesson Plan',
+          `Create a lesson plan for ${intent.parameters.subject || 'the specified subject'}`,
+          'workflow',
+          'teacher',
+          [
+            {
+              title: 'Gather curriculum requirements',
+              description: 'Research curriculum standards and requirements',
+              type: 'automated',
+              status: 'pending'
+            },
+            {
+              title: 'Create lesson structure',
+              description: 'Design lesson objectives, activities, and assessments',
+              type: 'automated',
+              status: 'pending'
+            },
+            {
+              title: 'Review and finalize',
+              description: 'Review lesson plan and make final adjustments',
+              type: 'manual',
+              status: 'pending'
+            }
+          ]
+        );
+
+        if (response.metadata) {
+          response.metadata.dashboard_action = {
+            type: 'execute_task',
+            taskId: 'lesson_creation_task'
+          };
+        }
+      } else if (intent.primary_intent === 'schedule_task') {
+        const reminderTime = this.parseTimeFromIntent(intent.parameters.time) || Date.now() + (60 * 60 * 1000);
+        await agenticEngine.createReminder(
+          'Scheduled Task',
+          `Reminder: ${intent.parameters.task || 'Complete scheduled task'}`,
+          reminderTime,
+          'medium'
+        );
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to handle action intent:', error);
+    }
+  }
+
+  /**
+   * Update enhanced memory with analysis context
+   */
+  private async updateEnhancedMemory(userInput: string, response: DashMessage, analysis: any): Promise<void> {
+    try {
+      const timestamp = Date.now();
+      
+      const intentMemory: DashMemoryItem = {
+        id: `intent_${timestamp}`,
+        type: 'pattern',
+        key: `user_intent_${analysis.intent.primary_intent}`,
+        value: {
+          intent: analysis.intent.primary_intent,
+          confidence: analysis.intent.confidence,
+          context: analysis.context,
+          timestamp: timestamp
+        },
+        confidence: analysis.intent.confidence,
+        created_at: timestamp,
+        updated_at: timestamp,
+        expires_at: timestamp + (90 * 24 * 60 * 60 * 1000),
+        reinforcement_count: 1,
+        tags: ['intent', 'pattern', analysis.intent.category]
+      };
+      
+      this.memory.set(intentMemory.key, intentMemory);
+      
+      if (response.metadata?.confidence && response.metadata.confidence > 0.7) {
+        const successMemory: DashMemoryItem = {
+          id: `success_${timestamp}`,
+          type: 'interaction',
+          key: `successful_interaction_${timestamp}`,
+          value: {
+            user_input: userInput,
+            response: response.content,
+            intent: analysis.intent.primary_intent,
+            confidence: response.metadata.confidence
+          },
+          confidence: response.metadata.confidence,
+          created_at: timestamp,
+          updated_at: timestamp,
+          expires_at: timestamp + (30 * 24 * 60 * 60 * 1000),
+          emotional_weight: 1.0,
+          tags: ['success', 'interaction']
+        };
+        
+        this.memory.set(successMemory.key, successMemory);
+      }
+      
+      await this.saveMemory();
+    } catch (error) {
+      console.error('[Dash] Failed to update enhanced memory:', error);
+    }
+  }
+
+  /**
+   * Call AI service with enhanced context
+   */
+  private async callAIService(params: any): Promise<any> {
+    try {
+      const supabase = assertSupabase();
+      const { data, error } = await supabase.functions.invoke('ai-gateway', {
+        body: params
+      });
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('[Dash] AI service call failed:', error);
+      return { content: 'I apologize, but I encountered an issue. Please try again.' };
+    }
+  }
+
+  /**
+   * Generate suggested actions based on intent and capabilities
+   */
+  private generateSuggestedActions(intent: any, capabilities: string[]): string[] {
+    const actions: string[] = [];
+    
+    if (intent?.primary_intent === 'create_lesson' && capabilities.includes('lesson_planning')) {
+      actions.push('Create detailed lesson plan', 'Align with curriculum', 'Generate assessment rubric');
+    } else if (intent?.primary_intent === 'grade_assignment' && capabilities.includes('grading_assistance')) {
+      actions.push('Auto-grade assignments', 'Generate feedback', 'Track student progress');
+    } else if (intent?.primary_intent === 'parent_communication') {
+      actions.push('Draft parent email', 'Schedule meeting', 'Share progress report');
+    }
+    
+    return actions;
+  }
+
+  /**
+   * Generate dashboard action based on intent
+   */
+  private generateDashboardAction(intent: any): any {
+    if (intent?.primary_intent === 'create_lesson') {
+      return {
+        type: 'open_screen',
+        route: '/screens/lesson-planner',
+        params: intent.parameters
+      };
+    } else if (intent?.primary_intent === 'grade_assignment') {
+      return {
+        type: 'open_screen',
+        route: '/screens/grading-assistant',
+        params: intent.parameters
+      };
+    } else if (intent?.primary_intent === 'student_progress') {
+      return {
+        type: 'open_screen',
+        route: '/screens/student-progress',
+        params: intent.parameters
+      };
+    }
+    
+    return null;
+  }
+
+  /**
+   * Map action type for task execution
+   */
+  private mapActionType(action: string): string {
+    const mapping: { [key: string]: string } = {
+      'navigate': 'navigate',
+      'create_task': 'api_call',
+      'send_email': 'email_send',
+      'create_notification': 'notification',
+      'update_data': 'data_update',
+      'generate_file': 'file_generation'
+    };
+    
+    return mapping[action] || 'api_call';
+  }
+
+  /**
+   * Parse time from intent parameters
+   */
+  private parseTimeFromIntent(timeString?: string): number | null {
+    if (!timeString) return null;
+    
+    const now = new Date();
+    
+    if (timeString.toLowerCase().includes('tomorrow')) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+      return tomorrow.getTime();
+    } else if (timeString.toLowerCase().includes('hour')) {
+      const hours = parseInt(timeString.match(/\d+/)?.[0] || '1');
+      return now.getTime() + (hours * 60 * 60 * 1000);
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get user profile
+   */
+  public getUserProfile(): DashUserProfile | null {
+    return this.userProfile;
+  }
+
+  /**
+   * Update user preferences
+   */
+  public async updateUserPreferences(preferences: Partial<DashUserProfile['preferences']>): Promise<void> {
+    if (!this.userProfile) return;
+    
+    this.userProfile.preferences = {
+      ...this.userProfile.preferences,
+      ...preferences
+    };
+    
+    await this.saveUserProfile();
+  }
+
+  /**
+   * Cleanup resources
+   */
+  public cleanup(): void {
+    if (this.proactiveTimer) {
+      clearInterval(this.proactiveTimer);
+      this.proactiveTimer = null;
     }
   }
 }

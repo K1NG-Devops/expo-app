@@ -5,7 +5,7 @@
  * Robotics, AI, STEM, and Coding categories with modern UI/UX.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   View,
   Text,
@@ -37,10 +37,10 @@ interface LessonsHubProps {
   onCategorySelect?: (category: LessonCategory) => void;
 }
 
-export const LessonsHub: React.FC<LessonsHubProps> = ({
-  onLessonSelect,
-  onCategorySelect,
-}) => {
+export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubProps>((
+  { onLessonSelect, onCategorySelect },
+  ref
+) => {
   const { theme, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [categories, setCategories] = useState<LessonCategory[]>(DEFAULT_LESSON_CATEGORIES);
@@ -68,6 +68,7 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
   const loadData = async () => {
     try {
       setLoading(true);
+      console.log('[LessonsHub] Starting to load data...');
 
       const [
         categoriesData,
@@ -82,6 +83,22 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
         lessonsService.searchLessons('', {}, 'newest', 1, 8),
         lessonsService.getTeacherGeneratedLessons(),
       ]);
+
+      console.log('[LessonsHub] Data loaded:', {
+        categories: categoriesData?.length || 0,
+        featured: featuredData?.length || 0,
+        popular: popularData?.length || 0,
+        recent: recentData?.lessons?.length || 0,
+        myGenerated: myGeneratedData?.length || 0,
+      });
+      
+      // Additional debugging
+      if (featuredData?.length > 0) {
+        console.log('[LessonsHub] First featured lesson:', featuredData[0]?.title);
+      }
+      if (myGeneratedData?.length > 0) {
+        console.log('[LessonsHub] First generated lesson:', myGeneratedData[0]?.title);
+      }
 
       setCategories(categoriesData);
       setFeaturedLessons(featuredData);
@@ -100,6 +117,11 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     setRefreshing(true);
     loadData();
   };
+
+  // Expose handleRefresh method through ref
+  useImperativeHandle(ref, () => ({
+    handleRefresh,
+  }));
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
@@ -136,9 +158,6 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     <View style={styles.header}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <View style={styles.headerContent}>
-        <Text style={[styles.headerTitle, { color: theme.text }]}>
-          Lessons Hub
-        </Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
           Access your saved AI-generated lessons and discover new content
         </Text>
@@ -290,57 +309,82 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     </View>
   );
 
-  const renderMyGeneratedLessons = () => (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          My AI-Generated Lessons
-        </Text>
-        <TouchableOpacity
-          onPress={() => router.push('/screens/ai-lesson-generator')}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[styles.sectionAction, { color: theme.primary }]}>
-            Generate New
-          </Text>
-        </TouchableOpacity>
-      </View>
-      
-      {myGeneratedLessons.length > 0 ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.lessonsContainer}
-        >
-          {myGeneratedLessons.slice(0, 8).map((lesson) => (
-            <LessonCard
-              key={lesson.id}
-              lesson={lesson}
-              onPress={() => handleLessonPress(lesson)}
-              variant="featured"
-            />
-          ))}
-        </ScrollView>
-      ) : (
-        <View style={styles.emptySection}>
-          <Ionicons name="sparkles-outline" size={48} color={theme.textSecondary} />
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>No Generated Lessons Yet</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-            Create your first AI-powered lesson with our lesson generator
+  const renderMyGeneratedLessons = () => {
+    console.log('[LessonsHub] myGeneratedLessons:', myGeneratedLessons.length, 'featuredLessons:', featuredLessons.length);
+    
+    // Show available lessons prioritizing: myGenerated -> featured -> recent -> popular
+    let displayLessons = myGeneratedLessons;
+    let sectionLabel = "My AI-Generated Lessons";
+    
+    if (displayLessons.length === 0) {
+      displayLessons = featuredLessons;
+      console.log('[LessonsHub] Using featured lessons as fallback');
+    }
+    
+    if (displayLessons.length === 0) {
+      displayLessons = recentLessons;
+      console.log('[LessonsHub] Using recent lessons as fallback');
+    }
+    
+    if (displayLessons.length === 0) {
+      displayLessons = popularLessons;
+      console.log('[LessonsHub] Using popular lessons as fallback');
+    }
+    
+    console.log('[LessonsHub] Final displayLessons count:', displayLessons.length);
+    
+    return (
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            {sectionLabel}
           </Text>
           <TouchableOpacity
-            style={[styles.emptyAction, { backgroundColor: theme.primary }]}
             onPress={() => router.push('/screens/ai-lesson-generator')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="sparkles" size={20} color={theme.onPrimary} />
-            <Text style={[styles.emptyActionText, { color: theme.onPrimary }]}>
-              Generate Lesson
+            <Text style={[styles.sectionAction, { color: theme.primary }]}>
+              Generate New
             </Text>
           </TouchableOpacity>
         </View>
-      )}
-    </View>
-  );
+        
+        {displayLessons.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.lessonsContainer}
+          >
+            {displayLessons.slice(0, 8).map((lesson) => (
+              <LessonCard
+                key={lesson.id}
+                lesson={lesson}
+                onPress={() => handleLessonPress(lesson)}
+                variant="featured"
+              />
+            ))}
+          </ScrollView>
+        ) : (
+          <View style={styles.emptySection}>
+            <Ionicons name="sparkles-outline" size={48} color={theme.textSecondary} />
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>No Lessons Available</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+              Create your first AI-powered lesson with our lesson generator
+            </Text>
+            <TouchableOpacity
+              style={[styles.emptyAction, { backgroundColor: theme.primary }]}
+              onPress={() => router.push('/screens/ai-lesson-generator')}
+            >
+              <Ionicons name="sparkles" size={20} color={theme.onPrimary} />
+              <Text style={[styles.emptyActionText, { color: theme.onPrimary }]}>
+                Generate Lesson
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderRecentLessons = () => (
     <View style={styles.section}>
@@ -377,9 +421,11 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
 
   const renderQuickActions = () => (
     <View style={styles.section}>
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>
-        Quick Actions
-      </Text>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          Quick Actions
+        </Text>
+      </View>
       
       <View style={styles.quickActionsGrid}>
         <TouchableOpacity
@@ -425,51 +471,45 @@ export const LessonsHub: React.FC<LessonsHubProps> = ({
     </View>
   );
 
-  return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          tintColor={theme.primary}
-          colors={[theme.primary]}
-        />
-      }
-    >
-      {renderHeader()}
-      {renderSearchBar()}
-      {renderMyGeneratedLessons()}
-      {renderCategories()}
-      {renderFeaturedLessons()}
-      {renderPopularLessons()}
-      {renderRecentLessons()}
-      {renderQuickActions()}
-      
-      {/* Bottom spacing for better scrolling */}
-      <View style={{ height: 100 }} />
-    </ScrollView>
-  );
-};
+    return (
+      <ScrollView
+        style={[styles.container, { backgroundColor: theme.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
+      >
+        {renderHeader()}
+        {renderSearchBar()}
+        {renderCategories()}
+        {renderFeaturedLessons()}
+        {renderPopularLessons()}
+        {renderMyGeneratedLessons()}
+        {renderRecentLessons()}
+        {renderQuickActions()}
+        
+        {/* Bottom spacing for better scrolling */}
+        <View style={{ height: 100 }} />
+      </ScrollView>
+    );
+});
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 20,
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
   headerContent: {
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
   },
   headerSubtitle: {
     fontSize: 16,
@@ -514,7 +554,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 22,
+    fontSize: screenWidth < 380 ? 20 : 22,
     fontWeight: '600',
   },
   sectionAction: {
@@ -562,20 +602,20 @@ const styles = StyleSheet.create({
     width: (screenWidth - 44) / 2,
     marginHorizontal: 6,
     marginBottom: 12,
-    padding: 20,
+    padding: screenWidth < 380 ? 16 : 20,
     borderRadius: 16,
     alignItems: 'center',
   },
   quickActionText: {
-    fontSize: 14,
+    fontSize: screenWidth < 380 ? 12 : 14,
     fontWeight: '600',
     marginTop: 8,
     textAlign: 'center',
   },
   emptySection: {
     alignItems: 'center',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
+    paddingVertical: screenWidth < 380 ? 30 : 40,
+    paddingHorizontal: screenWidth < 380 ? 16 : 20,
   },
   emptyTitle: {
     fontSize: 18,

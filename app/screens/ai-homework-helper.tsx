@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
 // import { assertSupabase } from '@/lib/supabase'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
@@ -191,7 +192,8 @@ export default function AIHomeworkHelperScreen() {
           <QuotaBar feature="homework_help" planLimit={quotas.ai_requests} />
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: '#E5E7EB', backgroundColor: theme.accent + '20' }]}>
-              <Text style={{ color: Colors.light.tabIconDefault, fontSize: 12 }}>Fallback used</Text>
+              <Ionicons name="information-circle" size={16} color={theme.accent} />
+              <Text style={{ color: Colors.light.tabIconDefault, fontSize: 12, marginLeft: 6 }}>Fallback used</Text>
             </View>
           )}
           {answer ? (
@@ -250,6 +252,6 @@ const styles = StyleSheet.create({
   usage: { fontSize: 12, color: Colors.light.tabIconDefault, marginBottom: 8 },
   answer: { fontSize: 13, color: Colors.light.text, lineHeight: 19 },
   placeholder: { fontSize: 13, color: Colors.light.tabIconDefault },
-  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  fallbackChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })
 

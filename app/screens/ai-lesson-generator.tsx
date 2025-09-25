@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput } from 'react-native'
+import * as Clipboard from 'expo-clipboard'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
@@ -29,7 +30,7 @@ export default function AILessonGeneratorScreen() {
     primary: theme.primary,
     accent: theme.accent,
   }), [theme])
-  const [generated, setGenerated] = useState<any | null>({ title: 'New Lesson', description: 'AI generated lesson', content: { sections: [] }, activities: [] })
+  const [generated, setGenerated] = useState<any | null>(null)
   const [topic, setTopic] = useState('Fractions')
   const [subject, setSubject] = useState('Mathematics')
   const [gradeLevel, setGradeLevel] = useState('3')
@@ -147,11 +148,25 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         language: 'en',
         model: selectedModel,
       })
-      setGenerated((prev: any) => ({
-        ...(prev || {}),
+      
+      // Set generated lesson content
+      setGenerated({
+        title: `${subject}: ${topic}`,
         description: lessonText || 'No lesson content returned.',
-      }))
+        content: { sections: [] },
+        activities: []
+      })
+      
+      // Update usage stats
       setUsage(await getCombinedUsage())
+      
+      // Show success toast
+      if (lessonText) {
+        toast.success('Lesson generated successfully! Review the content below.');
+      } else {
+        toast.warn('Lesson generated but no content returned. Please try again.');
+      }
+      
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
       track('edudash.ai.lesson.generate_failed', { error: e?.message })
@@ -255,7 +270,10 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <QuotaBar feature="lesson_generation" planLimit={quotas.ai_requests} color={theme.primary} />
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: palette.outline, backgroundColor: theme.accent + '20' }]}>
-              <Text style={{ color: palette.textSecondary }}>Fallback used</Text>
+              <Ionicons name={result.__savedToDatabase ? "checkmark-circle" : "information-circle"} size={16} color={result.__savedToDatabase ? theme.success : theme.accent} />
+              <Text style={{ color: palette.textSecondary, marginLeft: 6 }}>
+                {result.__savedToDatabase ? 'Fallback used • Saved to database' : 'Fallback used'}
+              </Text>
             </View>
           )}
         </View>
@@ -342,10 +360,133 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: theme.primary, flex: 1 }]} disabled={generating || pending}>
             {(generating || pending) ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Generate Lesson</Text>}
           </TouchableOpacity>
-          <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: theme.accent, flex: 1 }]} disabled={saving}>
-            {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: theme.onAccent }]}>Save Lesson</Text>}
+          <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: generated?.description ? theme.accent : palette.outline, flex: 1 }]} disabled={saving || !generated?.description}>
+            {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: generated?.description ? theme.onAccent : palette.textSecondary }]}>Save Lesson</Text>}
           </TouchableOpacity>
         </View>
+
+        {/* Generated Content Display Section */}
+        {generated?.description && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.success, borderWidth: 2, marginTop: 16 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={[styles.inlineAvatar, { backgroundColor: theme.success }]}>
+                <Ionicons name="checkmark" size={16} color={theme.onPrimary} />
+              </View>
+              <Text style={[styles.cardTitle, { color: theme.success, marginLeft: 8, marginBottom: 0 }]}>Lesson Generated Successfully!</Text>
+            </View>
+            
+            <Text style={{ color: palette.textSecondary, marginBottom: 12, fontSize: 13 }}>
+              Your AI-generated lesson is ready. Review the content below and save it to your lessons library.
+            </Text>
+
+            <View style={{ 
+              backgroundColor: palette.background, 
+              borderRadius: 8, 
+              padding: 12,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: palette.outline,
+              maxHeight: 300
+            }}>
+              <ScrollView style={{ maxHeight: 280 }} showsVerticalScrollIndicator={true}>
+                <Text style={{ 
+                  color: palette.text, 
+                  fontSize: 14, 
+                  lineHeight: 20,
+                  fontFamily: 'System' // Use monospace-like font for better readability
+                }}>
+                  {generated.description}
+                </Text>
+              </ScrollView>
+            </View>
+
+            {/* Action buttons for generated content */}
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity 
+                style={[
+                  styles.primaryBtn, 
+                  { 
+                    backgroundColor: theme.primary, 
+                    flex: 1,
+                    paddingVertical: 10
+                  }
+                ]} 
+                onPress={onSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color={theme.onPrimary} size="small" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="save-outline" size={16} color={theme.onPrimary} style={{ marginRight: 6 }} />
+                    <Text style={[styles.primaryBtnText, { color: theme.onPrimary, fontSize: 13 }]}>
+                      Save to Lessons
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.primaryBtn, 
+                  { 
+                    backgroundColor: 'transparent',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: palette.outline,
+                    flex: 1,
+                    paddingVertical: 10
+                  }
+                ]} 
+                onPress={async () => {
+                  try {
+                    await Clipboard.setStringAsync(generated.description);
+                    toast.success('Lesson content copied to clipboard!');
+                  } catch (error) {
+                    toast.error('Failed to copy to clipboard');
+                  }
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="copy-outline" size={16} color={palette.text} style={{ marginRight: 6 }} />
+                  <Text style={[styles.primaryBtnText, { color: palette.text, fontSize: 13 }]}>
+                    Copy Text
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[
+                  styles.primaryBtn, 
+                  { 
+                    backgroundColor: 'transparent',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: palette.outline,
+                    paddingHorizontal: 10,
+                    paddingVertical: 10
+                  }
+                ]} 
+                onPress={() => {
+                  setGenerated(null);
+                  toast.info('Generated content cleared. You can generate a new lesson.');
+                }}
+              >
+                <Ionicons name="refresh-outline" size={16} color={palette.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Loading State for Generation */}
+        {(generating || pending) && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.primary, borderWidth: 1, marginTop: 16 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <ActivityIndicator color={theme.primary} style={{ marginRight: 12 }} />
+              <Text style={[styles.cardTitle, { color: theme.primary, marginBottom: 0 }]}>Generating Your Lesson...</Text>
+            </View>
+            <Text style={{ color: palette.textSecondary, fontSize: 13 }}>
+              AI is creating a customized lesson plan based on your parameters. This may take 10-30 seconds.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
@@ -393,12 +534,12 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 14, fontWeight: '700', marginBottom: 8 },
   label: { fontSize: 12, fontWeight: '600' },
   input: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: 'transparent' },
-  primaryBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  primaryBtn: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' },
   primaryBtnText: { fontWeight: '700' },
   dashHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 8, marginTop: 16 },
   inlineAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   dashTitleText: { fontSize: 14, fontWeight: '700' },
   openWithDashBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
   openWithDashText: { fontSize: 12, marginLeft: 6, fontWeight: '600' },
-  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  fallbackChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })

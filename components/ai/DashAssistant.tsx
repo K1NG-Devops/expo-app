@@ -523,7 +523,14 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           {onClose && (
             <TouchableOpacity
               style={styles.closeButton}
-              onPress={onClose}
+              onPress={async () => {
+                // Stop any ongoing speech
+                if (dashInstance) {
+                  await dashInstance.stopSpeaking();
+                  dashInstance.cleanup();
+                }
+                onClose();
+              }}
               accessibilityLabel="Close"
             >
               <Ionicons name="close" size={24} color={theme.text} />

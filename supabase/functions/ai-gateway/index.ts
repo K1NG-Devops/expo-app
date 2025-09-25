@@ -53,18 +53,18 @@ function toOfficialModelId(modelId: string): string {
     case 'claude-3-haiku':
       return 'claude-3-haiku-20240307';
     case 'claude-3-opus':
-      return 'claude-3-opus-20240229';
+      return 'claude-3-5-sonnet-20241022';
     case 'claude-3-sonnet':
     default:
-      return 'claude-3-sonnet-20240229';
+      return 'claude-3-5-sonnet-20241022';
   }
 }
 
 function getDefaultModelForTier(tier: SubscriptionTier): string {
   switch (tier) {
     case 'enterprise':
-    case 'premium': return 'claude-3-opus-20240229'
-    case 'starter': return 'claude-3-sonnet-20240229' 
+    case 'premium': return 'claude-3-5-sonnet-20241022'
+    case 'starter': return 'claude-3-5-sonnet-20241022' 
     case 'free':
     default: return 'claude-3-haiku-20240307'
   }
@@ -197,12 +197,7 @@ serve(async (req: Request) => {
 
   const action = String(body.action || "");
   const apiKey = (globalThis as any).Deno?.env?.get("ANTHROPIC_API_KEY") || "";
-  const modelDefault = (globalThis as any).Deno?.env?.get("ANTHROPIC_MODEL_DEFAULT") || "claude-3-sonnet-20240229";
-
-  // Lightweight unauthenticated health check
-  if (action === 'health') {
-    return json({ status: 'ok', timestamp: new Date().toISOString(), hasApiKey: Boolean(apiKey) });
-  }
+  const modelDefault = (globalThis as any).Deno?.env?.get("ANTHROPIC_MODEL_DEFAULT") || "claude-3-5-sonnet-20241022";
 
   // Create Supabase client with caller's JWT for RLS-aware operations
   const SUPABASE_URL = (globalThis as any).Deno?.env?.get("SUPABASE_URL") || '';
@@ -216,6 +211,11 @@ serve(async (req: Request) => {
   const user = userRes?.user;
   if (!user) {
     return json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  // Authenticated health check (moved after auth)
+  if (action === 'health') {
+    return json({ status: 'ok', timestamp: new Date().toISOString(), hasApiKey: Boolean(apiKey), userId: user.id });
   }
   const { data: profile } = await supabase
     .from('profiles')
@@ -313,12 +313,47 @@ serve(async (req: Request) => {
   }
 
   async function ensureServiceId(model: string): Promise<string | null> {
-    const id = `claude:${model}`;
+    // Map model names to the UUIDs we created in the migration
+    const modelUuidMap: Record<string, string> = {
+      'claude-3-haiku-20240307': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+      'claude-3-5-sonnet-20241022': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
+      'claude-3-opus-20240229': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33'
+    };
+    
+    const id = modelUuidMap[model];
+    if (id) {
+      return id; // Return known UUID for this model
+    }
+    
+    // For unknown models, try to find existing service or create new one
     try {
-      await supabase.from('ai_services').upsert({ id, name: 'Claude', provider: 'claude', model_version: model, input_cost_per_1k_tokens: 0, output_cost_per_1k_tokens: 0, is_active: true, is_available: true } as any, { onConflict: 'id' } as any);
-      return id;
-    } catch {
-      return id; // try anyway
+      const { data: existingService } = await supabase
+        .from('ai_services')
+        .select('id')
+        .eq('model_version', model)
+        .eq('provider', 'anthropic')
+        .single();
+        
+      if (existingService) {
+        return existingService.id;
+      }
+      
+      // Create new service with generated UUID
+      const newId = crypto.randomUUID();
+      await supabase.from('ai_services').insert({
+        id: newId,
+        name: `Claude (${model})`,
+        provider: 'anthropic',
+        model_version: model,
+        input_cost_per_1k_tokens: 0.003, // Default pricing
+        output_cost_per_1k_tokens: 0.015,
+        is_active: true,
+        is_available: true
+      } as any);
+      return newId;
+    } catch (error) {
+      console.error('Error ensuring service ID:', error);
+      return modelUuidMap['claude-3-5-sonnet-20241022']; // Fallback to Sonnet UUID
     }
   }
 

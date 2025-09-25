@@ -43,7 +43,7 @@ export class LessonsService {
       const { data, error } = await this.supabase
         .from('lesson_categories')
         .select('*')
-        .order('order', { ascending: true });
+        .order('name', { ascending: true });
 
       if (error) {
         console.error('Error fetching categories:', error);
@@ -62,22 +62,9 @@ export class LessonsService {
    * Get all skill levels
    */
   async getSkillLevels(): Promise<LessonSkillLevel[]> {
-    try {
-      const { data, error } = await this.supabase
-        .from('lesson_skill_levels')
-        .select('*')
-        .order('order', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching skill levels:', error);
-        return DEFAULT_SKILL_LEVELS;
-      }
-
-      return data || DEFAULT_SKILL_LEVELS;
-    } catch (error) {
-      console.error('Error in getSkillLevels:', error);
-      return DEFAULT_SKILL_LEVELS;
-    }
+    // lesson_skill_levels table doesn't exist - using defaults
+    console.log('[LessonsService] Using default skill levels - lesson_skill_levels table not found');
+    return DEFAULT_SKILL_LEVELS;
   }
 
   /**
@@ -104,6 +91,7 @@ export class LessonsService {
 
   /**
    * Search lessons with filters and pagination
+   * Updated for preschool database schema
    */
   async searchLessons(
     query: string = '',
@@ -113,79 +101,47 @@ export class LessonsService {
     pageSize: number = 20
   ): Promise<LessonSearchResult> {
     try {
+      console.log('[LessonsService] Searching lessons with query:', query);
+      
       let queryBuilder = this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*)),
-          progress:lesson_progress(*)
-        `)
-        .eq('status', 'published');
+        .select('*')
+        .neq('status', 'draft'); // Show active and archived lessons
 
-      // Apply text search
+      // Apply text search on available fields
       if (query.trim()) {
-        queryBuilder = queryBuilder.or(`title.ilike.%${query}%,description.ilike.%${query}%,short_description.ilike.%${query}%`);
+        queryBuilder = queryBuilder.or(`title.ilike.%${query}%,description.ilike.%${query}%`);
       }
 
-      // Apply filters
+      // Apply filters based on actual schema
       if (filters.category_ids?.length) {
-        queryBuilder = queryBuilder.in('category_id', filters.category_ids);
+        // Map category IDs to subjects
+        const subjects = this.mapCategoryIdsToSubjects(filters.category_ids);
+        if (subjects.length > 0) {
+          queryBuilder = queryBuilder.in('subject', subjects);
+        }
       }
 
-      if (filters.skill_level_ids?.length) {
-        queryBuilder = queryBuilder.in('skill_level_id', filters.skill_level_ids);
-      }
-
+      // Filter by age group if provided
       if (filters.age_range) {
-        if (filters.age_range.min_age) {
-          queryBuilder = queryBuilder.gte('age_range->min_age', filters.age_range.min_age);
-        }
-        if (filters.age_range.max_age) {
-          queryBuilder = queryBuilder.lte('age_range->max_age', filters.age_range.max_age);
+        // Map age range to preschool age_group values
+        const ageGroups = this.mapAgeRangeToAgeGroups(filters.age_range);
+        if (ageGroups.length > 0) {
+          queryBuilder = queryBuilder.in('age_group', ageGroups);
         }
       }
 
+      // Apply duration filter
       if (filters.duration_range) {
         if (filters.duration_range.min_duration) {
-          queryBuilder = queryBuilder.gte('estimated_duration', filters.duration_range.min_duration);
+          queryBuilder = queryBuilder.gte('duration_minutes', filters.duration_range.min_duration);
         }
         if (filters.duration_range.max_duration) {
-          queryBuilder = queryBuilder.lte('estimated_duration', filters.duration_range.max_duration);
+          queryBuilder = queryBuilder.lte('duration_minutes', filters.duration_range.max_duration);
         }
       }
 
-      if (filters.difficulty_range) {
-        if (filters.difficulty_range.min_difficulty) {
-          queryBuilder = queryBuilder.gte('difficulty_rating', filters.difficulty_range.min_difficulty);
-        }
-        if (filters.difficulty_range.max_difficulty) {
-          queryBuilder = queryBuilder.lte('difficulty_rating', filters.difficulty_range.max_difficulty);
-        }
-      }
-
-      if (filters.rating_threshold) {
-        queryBuilder = queryBuilder.gte('rating', filters.rating_threshold);
-      }
-
-      if (filters.is_featured !== undefined) {
-        queryBuilder = queryBuilder.eq('is_featured', filters.is_featured);
-      }
-
-      if (filters.is_premium !== undefined) {
-        queryBuilder = queryBuilder.eq('is_premium', filters.is_premium);
-      }
-
-      if (filters.language) {
-        queryBuilder = queryBuilder.eq('language', filters.language);
-      }
-
-      if (filters.organization_id) {
-        queryBuilder = queryBuilder.eq('organization_id', filters.organization_id);
-      }
-
-      // Apply sorting
+      // Apply sorting based on available fields
       switch (sortBy) {
         case 'newest':
           queryBuilder = queryBuilder.order('created_at', { ascending: false });
@@ -193,29 +149,17 @@ export class LessonsService {
         case 'oldest':
           queryBuilder = queryBuilder.order('created_at', { ascending: true });
           break;
-        case 'most_popular':
-          queryBuilder = queryBuilder.order('completion_count', { ascending: false });
-          break;
-        case 'highest_rated':
-          queryBuilder = queryBuilder.order('rating', { ascending: false });
-          break;
-        case 'duration_short':
-          queryBuilder = queryBuilder.order('estimated_duration', { ascending: true });
-          break;
-        case 'duration_long':
-          queryBuilder = queryBuilder.order('estimated_duration', { ascending: false });
-          break;
-        case 'difficulty_easy':
-          queryBuilder = queryBuilder.order('difficulty_rating', { ascending: true });
-          break;
-        case 'difficulty_hard':
-          queryBuilder = queryBuilder.order('difficulty_rating', { ascending: false });
-          break;
         case 'alphabetical':
           queryBuilder = queryBuilder.order('title', { ascending: true });
           break;
-        case 'completion_count':
-          queryBuilder = queryBuilder.order('completion_count', { ascending: false });
+        case 'duration_short':
+          queryBuilder = queryBuilder.order('duration_minutes', { ascending: true });
+          break;
+        case 'duration_long':
+          queryBuilder = queryBuilder.order('duration_minutes', { ascending: false });
+          break;
+        default:
+          queryBuilder = queryBuilder.order('created_at', { ascending: false });
           break;
       }
 
@@ -231,16 +175,18 @@ export class LessonsService {
         return this.getEmptySearchResult(page, pageSize);
       }
 
-      // Get facets for filtering UI
-      const facets = await this.getFacets(filters);
+      console.log(`[LessonsService] Found ${data?.length || 0} lessons`);
+
+      // Transform data to match expected format
+      const transformedLessons = (data || []).map(lesson => this.transformDbLessonToLesson(lesson));
 
       return {
-        lessons: data || [],
+        lessons: transformedLessons,
         total_count: count || 0,
         page,
         page_size: pageSize,
         total_pages: Math.ceil((count || 0) / pageSize),
-        facets,
+        facets: await this.getFacets(filters),
       };
     } catch (error) {
       console.error('Error in searchLessons:', error);
@@ -253,19 +199,11 @@ export class LessonsService {
    */
   async getLessonById(lessonId: string): Promise<Lesson | null> {
     try {
+      console.log('[LessonsService] Fetching lesson by ID:', lessonId);
+      
       const { data, error } = await this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*)),
-          steps:lesson_steps(*),
-          resources:lesson_resources(*),
-          assessments:lesson_assessments(*),
-          learning_objectives:lesson_learning_objectives(*),
-          progress:lesson_progress(*)
-        `)
+        .select('*')
         .eq('id', lessonId)
         .single();
 
@@ -274,7 +212,13 @@ export class LessonsService {
         return null;
       }
 
-      return data;
+      if (!data) {
+        console.log('[LessonsService] No lesson found with ID:', lessonId);
+        return null;
+      }
+
+      console.log('[LessonsService] Found lesson:', data.title);
+      return this.transformDbLessonToLesson(data);
     } catch (error) {
       console.error('Error in getLessonById:', error);
       return null;
@@ -282,21 +226,17 @@ export class LessonsService {
   }
 
   /**
-   * Get featured lessons
+   * Get featured lessons (active lessons from preschool schema)
    */
   async getFeaturedLessons(limit: number = 10): Promise<Lesson[]> {
     try {
+      console.log('[LessonsService] Fetching featured lessons...');
+      
       const { data, error } = await this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-        `)
-        .eq('status', 'published')
-        .eq('is_featured', true)
-        .order('rating', { ascending: false })
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -304,7 +244,8 @@ export class LessonsService {
         return [];
       }
 
-      return data || [];
+      console.log(`[LessonsService] Found ${data?.length || 0} featured lessons`);
+      return (data || []).map(lesson => this.transformDbLessonToLesson(lesson));
     } catch (error) {
       console.error('Error in getFeaturedLessons:', error);
       return [];
@@ -312,20 +253,17 @@ export class LessonsService {
   }
 
   /**
-   * Get popular lessons
+   * Get popular lessons (recent active lessons)
    */
   async getPopularLessons(limit: number = 10): Promise<Lesson[]> {
     try {
+      console.log('[LessonsService] Fetching popular lessons...');
+      
       const { data, error } = await this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-        `)
-        .eq('status', 'published')
-        .order('completion_count', { ascending: false })
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -333,7 +271,8 @@ export class LessonsService {
         return [];
       }
 
-      return data || [];
+      console.log(`[LessonsService] Found ${data?.length || 0} popular lessons`);
+      return (data || []).map(lesson => this.transformDbLessonToLesson(lesson));
     } catch (error) {
       console.error('Error in getPopularLessons:', error);
       return [];
@@ -345,17 +284,21 @@ export class LessonsService {
    */
   async getLessonsByCategory(categoryId: string, limit: number = 20): Promise<Lesson[]> {
     try {
+      console.log(`[LessonsService] Fetching lessons for category: ${categoryId}`);
+      
+      // Map categoryId to subject for preschool schema
+      const subjects = this.mapCategoryIdsToSubjects([categoryId]);
+      if (subjects.length === 0) {
+        console.log('[LessonsService] No matching subjects found for category');
+        return [];
+      }
+
       const { data, error } = await this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-        `)
-        .eq('status', 'published')
-        .eq('category_id', categoryId)
-        .order('rating', { ascending: false })
+        .select('*')
+        .eq('status', 'active')
+        .in('subject', subjects)
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -363,7 +306,8 @@ export class LessonsService {
         return [];
       }
 
-      return data || [];
+      console.log(`[LessonsService] Found ${data?.length || 0} lessons for category`);
+      return (data || []).map(lesson => this.transformDbLessonToLesson(lesson));
     } catch (error) {
       console.error('Error in getLessonsByCategory:', error);
       return [];
@@ -555,12 +499,7 @@ export class LessonsService {
       const { data, error } = await this.supabase
         .from('lesson_progress')
         .select(`
-          lesson:lessons(
-            *,
-            category:lesson_categories(*),
-            skill_level:lesson_skill_levels(*),
-            tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-          )
+          lesson:lessons(*)
         `)
         .eq('user_id', session.user_id)
         .not('bookmarked_at', 'is', null)
@@ -571,7 +510,14 @@ export class LessonsService {
         return [];
       }
 
-      return data?.map((item: any) => item.lesson).filter(Boolean) || [];
+      const lessons: Lesson[] = [];
+      (data || []).forEach((item: any) => {
+        if (item.lesson) {
+          const transformedLesson = this.transformDbLessonToLesson(item.lesson);
+          lessons.push(transformedLesson);
+        }
+      });
+      return lessons;
     } catch (error) {
       console.error('Error in getUserBookmarkedLessons:', error);
       return [];
@@ -589,12 +535,7 @@ export class LessonsService {
       const { data, error } = await this.supabase
         .from('lesson_progress')
         .select(`
-          lesson:lessons(
-            *,
-            category:lesson_categories(*),
-            skill_level:lesson_skill_levels(*),
-            tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-          ),
+          lesson:lessons(*),
           progress_percentage,
           status,
           last_accessed_at
@@ -608,14 +549,22 @@ export class LessonsService {
         return [];
       }
 
-      return data?.map((item: any) => ({
-        ...item.lesson,
-        user_progress: {
-          progress_percentage: item.progress_percentage,
-          status: item.status,
-          last_accessed_at: item.last_accessed_at,
-        },
-      })).filter(Boolean) || [];
+      const lessons: Lesson[] = [];
+      (data || []).forEach((item: any) => {
+        if (item.lesson) {
+          const transformedLesson = this.transformDbLessonToLesson(item.lesson);
+          const lessonWithProgress = {
+            ...transformedLesson,
+            user_progress: {
+              progress_percentage: item.progress_percentage,
+              status: item.status,
+              last_accessed_at: item.last_accessed_at,
+            },
+          };
+          lessons.push(lessonWithProgress);
+        }
+      });
+      return lessons;
     } catch (error) {
       console.error('Error in getUserLessonHistory:', error);
       return [];
@@ -623,74 +572,56 @@ export class LessonsService {
   }
 
   /**
-   * Get teacher's AI-generated lessons
+   * Get teacher's lessons (from preschool schema)
+   * Modified to show AI-generated lessons from the current preschool
    */
   async getTeacherGeneratedLessons(): Promise<Lesson[]> {
     try {
+      console.log('[LessonsService] Fetching teacher generated lessons...');
       const session = await getCurrentSession();
-      if (!session) return [];
-
-      // First try to fetch from generated_lessons table (if exists)
-      const { data: generatedData, error: generatedError } = await this.supabase
-        .from('generated_lessons')
-        .select(`
-          *,
-          category:lesson_categories(*)
-        `)
-        .eq('teacher_id', session.user_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (!generatedError && generatedData && generatedData.length > 0) {
-        // Convert generated lessons to standard lesson format
-        return generatedData.map((item: any) => ({
-          id: item.id,
-          title: item.title || 'Generated Lesson',
-          description: item.description || item.lesson_content?.substring(0, 200) + '...',
-          short_description: item.short_description || 'AI-generated lesson',
-          content: item.lesson_content,
-          category: item.category,
-          estimated_duration: item.estimated_duration || 45,
-          difficulty_rating: item.difficulty_rating || 3,
-          age_range: item.age_range || { min_age: 6, max_age: 18 },
-          language: item.language || 'en',
-          is_featured: false,
-          is_premium: false,
-          status: 'published',
-          created_at: item.created_at,
-          updated_at: item.updated_at,
-          rating: 0,
-          completion_count: 0,
-          tags: [],
-          skill_level: null,
-          learning_objectives: [],
-          steps: [],
-          resources: [],
-          assessments: [],
-          progress: [],
-          source: 'ai_generated'
-        }));
+      if (!session) {
+        console.log('[LessonsService] No session found');
+        return [];
       }
 
-      // Fallback: try regular lessons created by the user
-      const { data: userLessons, error: userError } = await this.supabase
+      // First try to get lessons created by the current teacher
+      let query = this.supabase
         .from('lessons')
-        .select(`
-          *,
-          category:lesson_categories(*),
-          skill_level:lesson_skill_levels(*),
-          tags:lesson_lesson_tags(lesson_tag:lesson_tags(*))
-        `)
-        .eq('created_by', session.user_id)
+        .select('*')
+        .eq('is_ai_generated', true)
         .order('created_at', { ascending: false })
         .limit(50);
+
+      // Try filtering by teacher_id first
+      const { data: userLessons, error: userError } = await query
+        .eq('teacher_id', session.user_id);
+
+      // If no lessons found for current teacher, get all AI-generated lessons
+      if ((!userLessons || userLessons.length === 0) && !userError) {
+        console.log('[LessonsService] No lessons for current teacher, fetching all AI-generated lessons');
+        const { data: allAILessons, error: allError } = await this.supabase
+          .from('lessons')
+          .select('*')
+          .eq('is_ai_generated', true)
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (allError) {
+          console.error('Error fetching AI lessons:', allError);
+          return [];
+        }
+
+        console.log(`[LessonsService] Found ${allAILessons?.length || 0} AI-generated lessons`);
+        return (allAILessons || []).map(lesson => this.transformDbLessonToLesson(lesson));
+      }
 
       if (userError) {
         console.error('Error fetching user lessons:', userError);
         return [];
       }
 
-      return userLessons || [];
+      console.log(`[LessonsService] Found ${userLessons?.length || 0} teacher lessons`);
+      return (userLessons || []).map(lesson => this.transformDbLessonToLesson(lesson));
     } catch (error) {
       console.error('Error in getTeacherGeneratedLessons:', error);
       return [];
@@ -723,17 +654,170 @@ export class LessonsService {
 
   // Private helper methods
 
-  private async getFacets(filters: LessonSearchFilters) {
-    // This would typically be implemented with proper aggregation queries
-    // For now, return empty facets
+  /**
+   * Transform database lesson to UI lesson format
+   */
+  private transformDbLessonToLesson(dbLesson: any): Lesson {
+    const category = this.getSubjectCategory(dbLesson.subject);
+    const skillLevel = DEFAULT_SKILL_LEVELS[0] || { id: 'beginner', name: 'Beginner', level: 1 };
+    
     return {
-      categories: [],
-      skill_levels: [],
-      tags: [],
-      age_ranges: [],
-      durations: [],
-      difficulties: [],
+      id: dbLesson.id,
+      title: dbLesson.title,
+      description: dbLesson.description || 'No description provided',
+      short_description: dbLesson.description?.substring(0, 100) + '...' || 'Preschool lesson',
+      category: category,
+      category_id: category.id,
+      estimated_duration: dbLesson.duration_minutes || 30,
+      difficulty_rating: this.mapAgeGroupToDifficulty(dbLesson.age_group),
+      age_range: this.parseAgeGroup(dbLesson.age_group),
+      language: 'en',
+      is_featured: dbLesson.status === 'active',
+      is_premium: false,
+      status: dbLesson.status === 'active' ? 'published' : 'draft',
+      created_at: dbLesson.created_at,
+      updated_at: dbLesson.updated_at,
+      rating: 4.5, // Default rating
+      completion_count: 0,
+      tags: [dbLesson.subject],
+      skill_level: skillLevel,
+      skill_level_id: skillLevel.id,
+      prerequisites: [],
+      author_id: dbLesson.teacher_id || 'system',
+      author_name: 'Teacher',
+      organization_id: dbLesson.preschool_id || null,
+      version: '1.0',
+      review_count: 0,
+      bookmark_count: 0,
+      visibility: 'public',
+      thumbnail_url: undefined,
+      learning_objectives: dbLesson.objectives || [],
+      steps: [],
+      resources: [],
+      assessments: []
     };
+  }
+
+  /**
+   * Map category IDs to database subjects
+   */
+  private mapCategoryIdsToSubjects(categoryIds: string[]): string[] {
+    const categoryMap: Record<string, string> = {
+      'stem': 'science',
+      'math': 'mathematics', 
+      'science': 'science',
+      'literacy': 'literacy',
+      'art': 'art',
+      'music': 'music',
+      'physical': 'physical',
+    };
+    
+    return categoryIds.map(id => categoryMap[id] || 'general').filter(Boolean);
+  }
+
+  /**
+   * Map age range to preschool age groups
+   */
+  private mapAgeRangeToAgeGroups(ageRange: { min_age?: number; max_age?: number }): string[] {
+    const groups: string[] = [];
+    if (ageRange.min_age && ageRange.min_age <= 4) groups.push('3-4');
+    if (ageRange.max_age && ageRange.max_age >= 4) groups.push('4-5');
+    if (ageRange.max_age && ageRange.max_age >= 5) groups.push('5-6');
+    if (groups.length === 0) groups.push('3-6');
+    return groups;
+  }
+
+  /**
+   * Get category from subject
+   */
+  private getSubjectCategory(subject: string) {
+    const subjectCategoryMap: Record<string, any> = {
+      'mathematics': { id: 'math', name: 'Mathematics', icon: 'calculator' },
+      'science': { id: 'science', name: 'Science', icon: 'flask' },
+      'literacy': { id: 'literacy', name: 'Literacy', icon: 'book' },
+      'art': { id: 'art', name: 'Art & Creativity', icon: 'color-palette' },
+      'music': { id: 'music', name: 'Music', icon: 'musical-notes' },
+      'physical': { id: 'physical', name: 'Physical', icon: 'fitness' },
+      'general': { id: 'general', name: 'General', icon: 'school' },
+    };
+    
+    return subjectCategoryMap[subject] || subjectCategoryMap['general'];
+  }
+
+  /**
+   * Parse age group to age range
+   */
+  private parseAgeGroup(ageGroup: string): { min_age: number; max_age: number } {
+    switch (ageGroup) {
+      case '3-4': return { min_age: 3, max_age: 4 };
+      case '4-5': return { min_age: 4, max_age: 5 };
+      case '5-6': return { min_age: 5, max_age: 6 };
+      case '3-6':
+      default: return { min_age: 3, max_age: 6 };
+    }
+  }
+
+  /**
+   * Map age group to difficulty rating
+   */
+  private mapAgeGroupToDifficulty(ageGroup: string): number {
+    switch (ageGroup) {
+      case '3-4': return 1;
+      case '4-5': return 2;
+      case '5-6': return 3;
+      case '3-6':
+      default: return 2;
+    }
+  }
+
+  /**
+   * Get simple facets for filtering UI with proper count structure
+   */
+  private getSimpleFacets() {
+    return {
+      categories: DEFAULT_LESSON_CATEGORIES.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        count: 0 // Will be populated by actual search if needed
+      })),
+      skill_levels: DEFAULT_SKILL_LEVELS.map(level => ({
+        id: level.id,
+        name: level.name,
+        count: 0
+      })),
+      tags: COMMON_LESSON_TAGS.map(tag => ({
+        id: tag.id,
+        name: tag.name,
+        count: 0
+      })),
+      age_ranges: [
+        { range: '3-4 years', count: 0 },
+        { range: '4-5 years', count: 0 },
+        { range: '5-6 years', count: 0 },
+        { range: '3-6 years', count: 0 },
+      ],
+      durations: [
+        { range: '15-30 minutes', count: 0 },
+        { range: '30-45 minutes', count: 0 },
+        { range: '45-60 minutes', count: 0 },
+      ],
+      difficulties: [
+        { level: 1, count: 0 },
+        { level: 2, count: 0 },
+        { level: 3, count: 0 },
+      ],
+    };
+  }
+
+  private async getFacets(filters: LessonSearchFilters) {
+    try {
+      // For now, return simple facets with zero counts
+      // In a full implementation, this would query the database for actual counts
+      return this.getSimpleFacets();
+    } catch (error) {
+      console.error('Error getting facets:', error);
+      return this.getSimpleFacets();
+    }
   }
 
   private getEmptySearchResult(page: number, pageSize: number): LessonSearchResult {
@@ -743,14 +827,7 @@ export class LessonsService {
       page,
       page_size: pageSize,
       total_pages: 0,
-      facets: {
-        categories: [],
-        skill_levels: [],
-        tags: [],
-        age_ranges: [],
-        durations: [],
-        difficulties: [],
-      },
+      facets: this.getSimpleFacets(),
     };
   }
 
