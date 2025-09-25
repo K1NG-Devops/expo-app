@@ -198,8 +198,8 @@ export default function DashAISettingsEnhancedScreen() {
 
   const testVoiceAdvanced = async () => {
     try {
-      // Voice test only uses TTS, no microphone permissions needed
-      console.log('[Advanced Voice Test] Testing voice settings with personality');
+      // Sync with basic settings voice test logic
+      console.log('[Enhanced Voice Test] Testing advanced TTS voice settings');
       
       // Find the best matching voice for the current language
       let selectedVoice = undefined;
@@ -210,45 +210,46 @@ export default function DashAISettingsEnhancedScreen() {
         );
         
         if (matchingVoices.length > 0) {
-          const preferredVoice = matchingVoices.find(voice => 
-            settings.voiceType === 'female_warm' 
-              ? (voice.name?.toLowerCase().includes('female') || voice.gender === 'female')
-              : settings.voiceType === 'male_professional'
-              ? (voice.name?.toLowerCase().includes('male') || voice.gender === 'male')
-              : true
+          // Prefer female voices if available
+          const femaleVoice = matchingVoices.find(voice => 
+            voice.name?.toLowerCase().includes('female') || 
+            voice.name?.toLowerCase().includes('woman') ||
+            voice.gender === 'female'
           );
-          selectedVoice = preferredVoice?.identifier || matchingVoices[0]?.identifier;
+          selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
         }
       }
       
-      const testMessages = {
-        'professional': `Good day. I'm Dash, your professional AI assistant. I speak at ${settings.voiceRate}x speed with ${settings.voicePitch} pitch level. How may I assist you with your educational needs today?`,
-        'casual': `Hey there! I'm Dash, your friendly AI buddy. I'm talking at ${settings.voiceRate}x speed and ${settings.voicePitch} pitch. Ready to learn something cool together?`,
-        'encouraging': `Hello! I'm Dash, and I'm here to support you every step of the way. Speaking at ${settings.voiceRate}x speed and ${settings.voicePitch} pitch level. You're doing great, and I believe in you!`,
-        'formal': `Greetings. I am Dash, your dedicated artificial intelligence educational assistant. I am configured to speak at a rate of ${settings.voiceRate} and pitch of ${settings.voicePitch}. I am prepared to assist with your academic endeavors.`
+      const personalityMessages = {
+        'professional': 'Good day. I\'m Dash, your professional AI teaching assistant. I\'m ready to help with your educational needs.',
+        'casual': 'Hey there! I\'m Dash, your friendly AI buddy. Ready to learn something awesome together?',
+        'encouraging': 'Hello! I\'m Dash, and I\'m here to support you every step of the way. You\'re doing great!',
+        'formal': 'Greetings. I am Dash, your dedicated educational assistant. I am prepared to assist with your academic endeavors.'
       };
       
-      const testMessage = testMessages[settings.personality] || testMessages['encouraging'];
+      const testMessage = personalityMessages[settings.personality] || personalityMessages['encouraging'];
       
       await Speech.speak(testMessage, {
         language: settings.voiceLanguage,
         pitch: settings.voicePitch,
         rate: settings.voiceRate,
+        volume: settings.voiceVolume,
         voice: selectedVoice,
         onStart: () => {
-          console.log('[Advanced Voice Test] Started with personality:', settings.personality);
+          console.log('[Enhanced Voice Test] Started speaking with voice:', selectedVoice);
         },
         onDone: () => {
-          console.log('[Advanced Voice Test] Completed');
+          console.log('[Enhanced Voice Test] Finished speaking');
+          Alert.alert('Voice Test', 'Voice test completed successfully!');
         },
         onError: (error: any) => {
-          console.error('[Advanced Voice Test] Error:', error);
-          Alert.alert('Voice Test Error', 'Could not test voice settings.');
+          console.error('[Enhanced Voice Test] Speech error:', error);
+          Alert.alert('Voice Test Error', 'Could not test voice settings. Please check device audio.');
         }
       });
     } catch (error) {
-      console.error('[Advanced Voice Test] Failed:', error);
-      Alert.alert('Voice Test Failed', 'Could not test voice settings');
+      console.error('[Enhanced Voice Test] Failed:', error);
+      Alert.alert('Voice Test Failed', 'Could not test advanced voice settings');
     }
   };
 
@@ -480,20 +481,20 @@ export default function DashAISettingsEnhancedScreen() {
           
           <View style={styles.actionRow}>
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#E3F2FD', borderColor: '#2196F3' }]}
+              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={testVoiceAdvanced}
             >
-              <Text style={[styles.actionButtonText, { color: '#1976D2' }]}>
+              <Text style={[styles.actionButtonText, { color: theme.text }]}>
                 🎤 Test Voice
               </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#E8F5E8', borderColor: '#4CAF50' }]}
+              style={[styles.actionButton, { backgroundColor: theme.primary, borderWidth: 1, borderColor: theme.primary, opacity: saving ? 0.6 : 1 }]}
               onPress={saveSettings}
               disabled={saving}
             >
-              <Text style={[styles.actionButtonText, { color: '#388E3C' }]}>
+              <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>
                 {saving ? '💾 Saving...' : '💾 Save All'}
               </Text>
             </TouchableOpacity>
@@ -501,19 +502,19 @@ export default function DashAISettingsEnhancedScreen() {
 
           <View style={styles.actionRow}>
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#FFF3E0', borderColor: '#FF9800' }]}
+              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={exportSettings}
             >
-              <Text style={[styles.actionButtonText, { color: '#F57C00' }]}>
+              <Text style={[styles.actionButtonText, { color: theme.text }]}>
                 📤 Export
               </Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#FFEBEE', borderColor: '#F44336' }]}
+              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.error }]}
               onPress={resetToDefaults}
             >
-              <Text style={[styles.actionButtonText, { color: '#D32F2F' }]}>
+              <Text style={[styles.actionButtonText, { color: theme.error }]}>
                 🔄 Reset
               </Text>
             </TouchableOpacity>

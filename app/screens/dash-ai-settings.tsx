@@ -15,6 +15,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 export default function DashAISettingsScreen() {
@@ -43,7 +44,8 @@ export default function DashAISettingsScreen() {
       rate: 1.0,
       pitch: 1.0,
       volume: 0.8
-    }
+    },
+    inAppWakeWord: false,
   });
   const [availableVoices, setAvailableVoices] = useState<any[]>([]);
 
@@ -88,6 +90,14 @@ export default function DashAISettingsScreen() {
       setSettings(loadedSettings);
       console.log('📋 Loaded settings from DashAI:', loadedSettings);
       
+      // Load persisted in-app wake word toggle
+      try {
+        const ww = await AsyncStorage.getItem('@dash_ai_in_app_wake_word');
+        if (ww != null) {
+          loadedSettings.inAppWakeWord = ww === 'true';
+        }
+      } catch {}
+
       // Load available voices for the platform
       try {
         const voices = await Speech.getAvailableVoicesAsync();
@@ -135,7 +145,13 @@ export default function DashAISettingsScreen() {
         console.log('✅ Settings auto-saved to DashAI:', newSettings);
         
         // Show brief success feedback for personality/voice changes
-        if (newSettings.personality) {
+      if (newSettings.inAppWakeWord !== undefined) {
+        try {
+          await AsyncStorage.setItem('@dash_ai_in_app_wake_word', String(newSettings.inAppWakeWord));
+        } catch {}
+      }
+
+      if (newSettings.personality) {
           Alert.alert('Personality Updated', `Dash is now using the ${newSettings.personality} personality style.`, [{ text: 'OK' }]);
         }
       }
@@ -155,7 +171,7 @@ export default function DashAISettingsScreen() {
       // Find the best matching voice for the current language
       let selectedVoice = undefined;
       if (availableVoices.length > 0) {
-        const languageCode = (settings.voiceLanguage || 'en-ZA').substring(0, 2);
+        const languageCode = (settings.voiceSettings?.language || 'en-ZA').substring(0, 2);
         const matchingVoices = availableVoices.filter(voice => 
           voice.language?.startsWith(languageCode)
         );
@@ -171,12 +187,19 @@ export default function DashAISettingsScreen() {
         }
       }
       
-      const testMessage = `Hello! This is Dash speaking with a speech rate of ${settings.voiceRate || 1.0} and pitch of ${settings.voicePitch || 1.0}. Voice recording is ${settings.voiceEnabled ? 'enabled' : 'disabled'}.`;
+      const personalityGreeting = {
+        'professional': 'Good day! I\'m Dash, your AI teaching assistant.',
+        'casual': 'Hey there! I\'m Dash, your friendly AI buddy.',
+        'encouraging': 'Hello! I\'m Dash, and I\'m here to support your learning journey.',
+        'formal': 'Greetings. I am Dash, your educational AI assistant.'
+      };
+      
+      const testMessage = personalityGreeting[settings.personality] || personalityGreeting['encouraging'] + ' This is how I sound with your current voice settings.';
       
       await Speech.speak(testMessage, {
-        language: settings.voiceLanguage || 'en-ZA',
-        pitch: settings.voicePitch || 1.0,
-        rate: settings.voiceRate || 1.0,
+        language: settings.voiceSettings?.language || 'en-ZA',
+        pitch: settings.voiceSettings?.pitch || 1.0,
+        rate: settings.voiceSettings?.rate || 1.0,
         voice: selectedVoice,
         onStart: () => {
           console.log('[Quick Action Voice Test] Started speaking with voice:', selectedVoice);
@@ -185,12 +208,12 @@ export default function DashAISettingsScreen() {
           console.log('[Quick Action Voice Test] Finished speaking');
         },
         onError: (error: any) => {
-          console.error('[Quick Action Voice Test] Speech error:', _error);
+          console.error('[Quick Action Voice Test] Speech error:', error);
           Alert.alert('Voice Test Error', 'Could not test voice settings. Please check device audio.');
         }
       });
-    } catch (_error) {
-      console.error('[Quick Action Voice Test] Failed:', _error);
+    } catch (error) {
+      console.error('[Quick Action Voice Test] Failed:', error);
       Alert.alert('Voice Test Failed', 'Could not test voice settings');
     }
   };
@@ -217,25 +240,67 @@ export default function DashAISettingsScreen() {
     );
   };
 
+  const isVoiceLanguageAvailable = (languageCode: string): boolean => {
+    if (!availableVoices || availableVoices.length === 0) return true; // Assume available if we can't check
+    
+    const langCode = languageCode.substring(0, 2);
+    return availableVoices.some(voice => 
+      voice.language?.startsWith(langCode) || voice.language?.startsWith(languageCode)
+    );
+  };
+  
+  const suggestVoiceDownload = (languageCode: string) => {
+    const languageName = {
+      'en-ZA': 'English (South Africa)',
+      'en-US': 'English (US)', 
+      'en-GB': 'English (UK)',
+      'af': 'Afrikaans',
+      'zu': 'Zulu',
+      'xh': 'Xhosa'
+    }[languageCode] || languageCode;
+    
+    Alert.alert(
+      `${languageName} Voice Not Available`,
+      `The ${languageName} voice pack is not installed on this device. You can:\n\n• Install it from device settings\n• Use the default voice instead\n• Try a different language`,
+      [
+        { text: 'Install Voice Pack', onPress: () => {
+          Alert.alert(
+            'Install Voice Pack', 
+            `To install ${languageName}:\n\n📱 iOS: Settings > Accessibility > Spoken Content > Voices\n\n🤖 Android: Settings > Language & Input > Text-to-Speech > Settings\n\nDownload the ${languageName} voice pack and try again.`,
+            [{ text: 'Got it' }]
+          );
+        }},
+        { text: 'Use Default Voice', style: 'cancel' },
+        { text: 'Change Language', onPress: () => {
+          Alert.alert('Language Options', 'Go to Advanced Settings to change the voice language to one that\'s installed on your device.');
+        }}
+      ]
+    );
+  };
+
   const viewMemory = async () => {
     try {
-      const memory = dashAI.getMemory();
+      const memory = await dashAI.getMemory();
       
       if (!memory || memory.length === 0) {
         Alert.alert(
           'Dash Memory',
           'Dash hasn\'t stored any memories yet. Start using Dash AI features to build up memory!',
-          [{ text: 'OK' }]
+          [
+            { text: 'View Conversations', onPress: () => router.push('/screens/dash-conversations-history') },
+            { text: 'OK' }
+          ]
         );
         return;
       }
       
       // Create a more readable memory summary
       const memoryByType = memory.reduce((acc, item) => {
-        if (!acc[item.type]) acc[item.type] = [];
-        acc[item.type].push(item);
+        const type = item.type || 'general';
+        if (!acc[type]) acc[type] = [];
+        acc[type].push(item);
         return acc;
-      }, { /* TODO: Implement */ } as Record<string, any[]>);
+      }, {} as Record<string, any[]>);
       
       let summaryText = `Dash remembers ${memory.length} items about you:\n\n`;
       
@@ -243,9 +308,9 @@ export default function DashAISettingsScreen() {
         summaryText += `${type.toUpperCase()}: ${items.length} items\n`;
         items.slice(0, 2).forEach(item => {
           const valuePreview = typeof item.value === 'string' 
-            ? item.value.substring(0, 50) + '...' 
+            ? item.value.substring(0, 50) + (item.value.length > 50 ? '...' : '') 
             : JSON.stringify(item.value).substring(0, 50) + '...';
-          summaryText += `  • ${item.key}: ${valuePreview}\n`;
+          summaryText += `  • ${item.key || 'Unnamed'}: ${valuePreview}\n`;
         });
         if (items.length > 2) {
           summaryText += `  ... and ${items.length - 2} more\n`;
@@ -257,12 +322,13 @@ export default function DashAISettingsScreen() {
         'Dash Memory',
         summaryText,
         [
+          { text: 'View All', onPress: () => router.push('/screens/dash-conversations-history') },
           { text: 'Clear All', style: 'destructive', onPress: clearMemory },
           { text: 'OK' }
         ]
       );
-    } catch (_error) {
-      console.error('Error viewing memory:', _error);
+    } catch (error) {
+      console.error('Error viewing memory:', error);
       Alert.alert('Error', 'Could not load memory. Try again later.');
     }
   };
@@ -299,38 +365,29 @@ export default function DashAISettingsScreen() {
           
           <View style={styles.actionRow}>
             <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#E3F2FD', borderWidth: 1, borderColor: '#2196F3' }]}
-              onPress={testVoice}
-            >
-              <Text style={[styles.actionButtonText, { color: '#1976D2' }]}>
-                🔊 Test Voice
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#E8F5E8', borderWidth: 1, borderColor: '#4CAF50' }]}
+              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={viewMemory}
             >
-              <Text style={[styles.actionButtonText, { color: '#388E3C' }]}>
+              <Text style={[styles.actionButtonText, { color: theme.text }]}>
                 🧠 View Memory
               </Text>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity 
-            style={[styles.dangerButton, { backgroundColor: '#FFEBEE', borderColor: '#F44336', borderWidth: 1 }]}
+            style={[styles.dangerButton, { backgroundColor: theme.surface, borderColor: theme.error, borderWidth: 1 }]}
             onPress={clearMemory}
           >
-            <Text style={[styles.dangerButtonText, { color: '#D32F2F' }]}>
+            <Text style={[styles.dangerButtonText, { color: theme.error }]}>
               🗑️ Clear All Memory
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: '#F3E5F5', borderWidth: 1, borderColor: '#9C27B0', marginTop: 8 }]}
+            style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, marginTop: 8 }]}
             onPress={() => router.push('/screens/dash-ai-settings-enhanced')}
           >
-            <Text style={[styles.actionButtonText, { color: '#7B1FA2' }]}>
+            <Text style={[styles.actionButtonText, { color: theme.text }]}>
               ⚙️ Advanced Settings
             </Text>
           </TouchableOpacity>
@@ -378,6 +435,21 @@ export default function DashAISettingsScreen() {
           {/* Voice Settings */}
           <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
             <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: theme.text }]}>Voice & Speech</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Configure text-to-speech settings</Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.testVoiceButton, { backgroundColor: theme.primary, borderRadius: 6 }]}
+              onPress={testVoice}
+            >
+              <Text style={[styles.testVoiceButtonText, { color: theme.onPrimary }]}>
+                🔊 Test
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={styles.settingInfo}>
               <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Enabled</Text>
               <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Enable text-to-speech responses</Text>
             </View>
@@ -403,6 +475,23 @@ export default function DashAISettingsScreen() {
             />
           </View>
 
+          {/* In-app Wake Word */}
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: theme.text }]}>'Hello Dash' Wake Word (in app)</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Say "Hello Dash" to open the assistant while the app is open.</Text>
+              <View style={[styles.warningBox, { backgroundColor: `${theme.primary}20`, borderColor: theme.primary, marginTop: 8 }]}>
+                <Text style={[styles.warningText, { color: theme.primary }]}>⚙️ Setup required: Add your Picovoice access key to enable wake word detection.</Text>
+              </View>
+            </View>
+            <Switch
+              value={settings.inAppWakeWord}
+              onValueChange={(inAppWakeWord) => handleSettingsChange({ inAppWakeWord })}
+              trackColor={{ false: theme.border, true: `${theme.primary}40` }}
+              thumbColor={settings.inAppWakeWord ? theme.primary : '#f4f3f4'}
+            />
+          </View>
+
           {/* Proactive Help Setting */}
           <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
             <View style={styles.settingInfo}>
@@ -421,23 +510,61 @@ export default function DashAISettingsScreen() {
         {/* Settings Debug Info */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>Current Settings</Text>
-          <Text style={[styles.debugText, { color: theme.textSecondary }]}>
-            Personality: {settings.personality}\n
-            Voice Type: {settings.voiceType || 'Default'}\n
-            Voice Language: {settings.voiceLanguage}\n
-            Voice Rate: {settings.voiceRate}x\n
-            Voice Pitch: {settings.voicePitch}\n
-            Voice Enabled: {settings.voiceEnabled ? 'Yes' : 'No'}\n
-            Proactive Help: {settings.proactiveHelp ? 'Yes' : 'No'}\n
-            Memory: {settings.memoryEnabled ? 'Yes' : 'No'}\n
-            Multilingual: {settings.multilingualSupport ? 'Yes' : 'No'}\n
-            \n            CHAT BEHAVIOR:\n
-            Enter to Send: {settings.enterToSend ? 'Yes' : 'No'}\n
-            Auto Voice Reply: {settings.autoVoiceReply ? 'Yes' : 'No'}\n
-            Typing Indicator: {settings.showTypingIndicator ? 'Yes' : 'No'}\n
-            Read Receipts: {settings.readReceiptEnabled ? 'Yes' : 'No'}\n
-            Sound Effects: {settings.soundEnabled ? 'Yes' : 'No'}
-          </Text>
+          
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Personality</Text>
+            <Text style={[styles.settingValue, { color: theme.text }]}>
+              {settings.personality === 'encouraging' ? 'Encouraging & Warm' : 
+               settings.personality === 'professional' ? 'Professional' : 
+               settings.personality === 'casual' ? 'Casual & Friendly' :
+               settings.personality === 'formal' ? 'Formal' : 'Encouraging'}
+            </Text>
+          </View>
+
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Voice Type</Text>
+            <Text style={[styles.settingValue, { color: theme.text }]}>
+              {settings.voiceSettings?.voice === 'female' ? 'Female, Warm' : 'Female, Warm'}
+            </Text>
+          </View>
+
+          <View style={styles.settingRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Voice Language</Text>
+              <Text style={[styles.settingValue, { color: theme.text }]}>
+                {settings.voiceSettings?.language === 'en-ZA' ? 'English (South Africa)' : 
+                 settings.voiceSettings?.language === 'en-US' ? 'English (US)' : 
+                 settings.voiceSettings?.language === 'en-GB' ? 'English (UK)' : 'English (South Africa)'}
+              </Text>
+              {!isVoiceLanguageAvailable(settings.voiceSettings?.language || 'en-ZA') && (
+                <View style={[styles.warningBox, { backgroundColor: `${theme.warning}20`, borderColor: theme.warning, marginTop: 4 }]}>
+                  <Text style={[styles.warningText, { color: theme.warning, fontSize: 12 }]}>⚠️ Voice not installed</Text>
+                  <TouchableOpacity 
+                    style={[styles.warningButton, { borderColor: theme.warning, paddingVertical: 2, paddingHorizontal: 6 }]}
+                    onPress={() => suggestVoiceDownload(settings.voiceSettings?.language || 'en-ZA')}
+                  >
+                    <Text style={[styles.warningButtonText, { color: theme.warning, fontSize: 10 }]}>Download</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Wake Word</Text>
+            <Text style={[styles.settingValue, { color: theme.text }]}>
+              In-app: {settings.inAppWakeWord ? 'Enabled' : 'Disabled'}
+            </Text>
+          </View>
+          
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Memory & Features</Text>
+            <Text style={[styles.settingValue, { color: theme.text }]}>
+              Memory: {settings.memoryEnabled ? 'Yes' : 'No'}\n
+              Voice: {settings.voiceEnabled ? 'Yes' : 'No'}\n
+              Proactive Help: {settings.proactiveHelp ? 'Yes' : 'No'}
+            </Text>
+          </View>
         </View>
 
         {/* Information Card */}
@@ -476,41 +603,41 @@ export default function DashAISettingsScreen() {
           
           <View style={styles.navigationGrid}>
             <TouchableOpacity 
-              style={[styles.navButton, { backgroundColor: '#E3F2FD', borderWidth: 1, borderColor: '#2196F3' }]}
+              style={[styles.navButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={() => router.push('/screens/ai-lesson-generator')}
             >
               <Text style={styles.navButtonEmoji}>📚</Text>
-              <Text style={[styles.navButtonText, { color: '#1976D2' }]}>
+              <Text style={[styles.navButtonText, { color: theme.text }]}>
                 Lesson Generator
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.navButton, { backgroundColor: '#E8F5E8', borderWidth: 1, borderColor: '#4CAF50' }]}
+              style={[styles.navButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={() => router.push('/screens/ai-homework-helper')}
             >
               <Text style={styles.navButtonEmoji}>📝</Text>
-              <Text style={[styles.navButtonText, { color: '#388E3C' }]}>
+              <Text style={[styles.navButtonText, { color: theme.text }]}>
                 Homework Helper
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.navButton, { backgroundColor: '#FFF3E0', borderWidth: 1, borderColor: '#FF9800' }]}
+              style={[styles.navButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={() => router.push('/screens/ai-homework-grader-live')}
             >
               <Text style={styles.navButtonEmoji}>✅</Text>
-              <Text style={[styles.navButtonText, { color: '#F57C00' }]}>
+              <Text style={[styles.navButtonText, { color: theme.text }]}>
                 Grade Homework
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.navButton, { backgroundColor: '#F3E5F5', borderWidth: 1, borderColor: '#9C27B0' }]}
+              style={[styles.navButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
               onPress={() => router.push('/screens/dash-assistant')}
             >
               <Text style={styles.navButtonEmoji}>🤖</Text>
-              <Text style={[styles.navButtonText, { color: '#7B1FA2' }]}>
+              <Text style={[styles.navButtonText, { color: theme.text }]}>
                 Chat with Dash
               </Text>
             </TouchableOpacity>
@@ -631,6 +758,51 @@ const styles = StyleSheet.create({
   settingSubtitle: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  warningButton: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginLeft: 8,
+  },
+  warningButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  settingValue: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  testVoiceButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  testVoiceButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   personalityRow: {
     flexDirection: 'row',
