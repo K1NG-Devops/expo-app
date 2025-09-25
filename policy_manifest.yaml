@@ -1,0 +1,391 @@
+# EduDash Pro RLS Policy Manifest
+# Updated: 2025-09-19T13:17:00Z
+# Purpose: Generate comprehensive RLS policies with correct access patterns
+# Compliance: WARP.md Non-negotiables, POPIA, GDPR, child safety
+
+metadata:
+  description: "EduDash Pro RLS Policy Generation Manifest"
+  version: "2.1.0"
+  created_date: "2025-09-19"
+  last_updated: "2025-09-19T13:17:00Z"
+  author: "EduDash Pro Security Team"
+  compliance: ["WARP.md", "POPIA", "GDPR", "Child Safety"]
+
+defaults:
+  schema: "public"
+  policy_roles: "authenticated"
+  tenant_column: "organization_id"
+  user_column: "id"  # CRITICAL: Use 'id' not 'user_id'
+  default_write_capability: "manage_data"
+
+# ============================================================================
+# TEMPLATES - Reusable Security Patterns
+# ============================================================================
+
+templates:
+  # Users table - Special template with complex access patterns
+  users_selective:
+    description: "Users table with role-based selective access"
+    read_policy: |
+      app_auth.is_superadmin()
+      OR (
+        {tenant_column} = app_auth.current_user_org_id()
+        AND (
+          -- Users can see their own record
+          {user_column} = app_auth.current_user_id()
+          OR
+          -- Principals can see all users in their organization
+          app_auth.is_principal()
+          OR
+          -- Teachers can see students and parents in their organization
+          (
+            app_auth.is_teacher()
+            AND (role = 'student' OR role = 'parent')
+          )
+          OR
+          -- Parents can see teachers in their organization
+          (
+            app_auth.is_parent()
+            AND role = 'teacher'
+            AND {tenant_column} = app_auth.current_user_org_id()
+          )
+        )
+      )
+    write_policy: |
+      app_auth.is_superadmin()
+      OR (
+        {tenant_column} = app_auth.current_user_org_id()
+        AND (
+          -- Users can update their own profile
+          {user_column} = app_auth.current_user_id()
+          OR
+          -- Principals can manage all users in their organization
+          app_auth.is_principal()
+        )
+      )
+    complexity: high
+
+  # Students table - Class and parent-based access
+  students_scoped:
+    description: "Students with teacher, parent, and admin access"
+    read_policy: |
+      app_auth.is_superadmin()
+      OR (
+        {tenant_column} = app_auth.current_user_org_id()
+        AND (
+          -- Principals can see all students in their organization
+          app_auth.is_principal()
+          OR
+          -- Teachers can see students in their organization
+          (
+            app_auth.is_teacher()
+            AND {tenant_column} = app_auth.current_user_org_id()
+          )
+          OR
+          -- Parents can see students in their organization (simplified)
+          (
+            app_auth.is_parent()
+            AND {tenant_column} = app_auth.current_user_org_id()
+          )
+        )
+      )
+    write_policy: |
+      app_auth.is_superadmin()
+      OR (
+        {tenant_column} = app_auth.current_user_org_id()
+        AND (
+          -- Principals can manage all students
+          app_auth.is_principal()
+          OR
+          -- Teachers can update students in their organization
+          (
+            app_auth.is_teacher()
+            AND {tenant_column} = app_auth.current_user_org_id()
+          )
+        )
+      )
+    complexity: high
+
+  # Organization-scoped tables (standard multi-tenant)
+  org_scoped:
+    description: "Standard multi-tenant isolation by organization"
+    read_policy: |
+      app_auth.is_superadmin()
+      OR {tenant_column} = app_auth.current_user_org_id()
+    write_policy: |
+      app_auth.is_superadmin()
+      OR (
+        {tenant_column} = app_auth.current_user_org_id()
+        AND (
+          app_auth.is_principal()
+          OR app_auth.is_teacher()
+        )
+      )
+    complexity: low
+
+  # User-owned records (profiles, preferences)
+  user_owned:
+    description: "User-owned records with admin override"
+    read_policy: |
+      app_auth.is_superadmin()
+      OR {user_column} = app_auth.current_user_id()
+      OR (
+        app_auth.is_principal()
+        AND EXISTS (
+          SELECT 1 FROM users u
+          WHERE u.id = {user_column}
+          AND u.organization_id = app_auth.current_user_org_id()
+        )
+      )
+    write_policy: |
+      app_auth.is_superadmin()
+      OR {user_column} = app_auth.current_user_id()
+      OR (
+        app_auth.is_principal()
+        AND EXISTS (
+          SELECT 1 FROM users u
+          WHERE u.id = {user_column}
+          AND u.organization_id = app_auth.current_user_org_id()
+        )
+      )
+    complexity: medium
+
+  # Class-scoped data (assignments, schedules)
+  class_scoped:
+    description: "Class-based access for teachers, students, and parents"
+    read_policy: |
+      app_auth.is_superadmin()
+      OR (
+        EXISTS (
+          SELECT 1 FROM classes c
+          WHERE c.id = {class_column}
+          AND c.preschool_id = app_auth.current_user_org_id()
+        )
+        AND (
+          -- Principals can see all class data
+          app_auth.is_principal()
+          OR
+          -- Teachers can see classes in their organization
+          (
+            app_auth.is_teacher()
+          )
+          OR
+          -- Parents can see classes in their organization
+          (
+            app_auth.is_parent()
+          )
+          OR
+          -- Students can see their own class data
+          EXISTS (
+            SELECT 1 FROM students s
+            WHERE s.class_id = {class_column}
+            AND s.user_id = app_auth.current_user_id()
+          )
+        )
+      )
+    write_policy: |
+      app_auth.is_superadmin()
+      OR (
+        EXISTS (
+          SELECT 1 FROM classes c
+          WHERE c.id = {class_column}
+          AND c.preschool_id = app_auth.current_user_org_id()
+        )
+        AND (
+          -- Principals can modify all class data
+          app_auth.is_principal()
+          OR
+          -- Teachers can modify classes in their organization
+          (
+            app_auth.is_teacher()
+          )
+        )
+      )
+    complexity: high
+
+# ============================================================================
+# TABLE CONFIGURATIONS
+# ============================================================================
+
+tables:
+  # CRITICAL TABLES - Highest security priority
+  - table: users
+    template: users_selective
+    tenant_column: organization_id
+    user_column: id  # IMPORTANT: Use 'id' not 'user_id'
+    priority: critical
+    status: pending
+    description: "User accounts with role-based selective access"
+    
+  - table: students
+    template: students_scoped
+    tenant_column: preschool_id  # Students table uses preschool_id
+    user_column: id  # Students table primary key
+    class_column: class_id
+    priority: critical
+    status: pending
+    description: "Student records with teacher/parent/admin access"
+
+  - table: organizations
+    template: org_scoped
+    tenant_column: id  # Self-referencing for org table
+    priority: critical
+    status: pending
+    description: "Organization/preschool records"
+
+  - table: classes
+    template: org_scoped
+    tenant_column: preschool_id
+    priority: critical
+    status: pending
+    description: "Class management data"
+
+  # FINANCIAL TABLES - High security priority
+  - table: financial_transactions
+    template: org_scoped
+    tenant_column: organization_id
+    priority: high
+    status: pending
+    description: "Financial transaction records"
+
+  - table: invoices
+    template: org_scoped
+    tenant_column: organization_id
+    priority: high
+    status: pending
+    description: "Invoice management"
+
+  - table: petty_cash_transactions
+    template: org_scoped
+    tenant_column: organization_id
+    priority: high
+    status: pending
+    description: "Petty cash tracking"
+
+  # OPERATIONAL TABLES - Medium priority
+  - table: homework_assignments
+    template: class_scoped
+    tenant_column: organization_id
+    class_column: class_id
+    priority: medium
+    status: pending
+    description: "Homework assignments"
+
+  - table: lessons
+    template: class_scoped
+    tenant_column: organization_id
+    class_column: class_id
+    priority: medium
+    status: pending
+    description: "Lesson plans and content"
+
+  - table: attendance_records
+    template: class_scoped
+    tenant_column: organization_id
+    class_column: class_id
+    priority: medium
+    status: pending
+    description: "Student attendance tracking"
+
+  # COMMUNICATION TABLES - Medium priority
+  - table: push_notifications
+    template: user_owned
+    tenant_column: organization_id
+    user_column: recipient_user_id  # Note: This table uses recipient_user_id
+    priority: medium
+    status: pending
+    description: "Push notification delivery"
+
+  # AUDIT TABLES - Medium priority  
+  - table: ai_usage_logs
+    template: org_scoped
+    tenant_column: organization_id
+    priority: medium
+    status: pending
+    description: "AI service usage tracking"
+
+# ============================================================================
+# IMPLEMENTATION PHASES
+# ============================================================================
+
+implementation_phases:
+  critical:
+    description: "Critical security tables - users, students, organizations"
+    tables: 
+      - users
+      - students  
+      - organizations
+      - classes
+    risk_level: "CRITICAL"
+    
+  financial:
+    description: "Financial data protection"
+    tables:
+      - financial_transactions
+      - invoices
+      - petty_cash_transactions
+    risk_level: "HIGH"
+    
+  operational:
+    description: "Daily operational data"
+    tables:
+      - homework_assignments
+      - lessons
+      - attendance_records
+      - push_notifications
+      - ai_usage_logs
+    risk_level: "MEDIUM"
+
+# ============================================================================
+# VALIDATION RULES
+# ============================================================================
+
+validation:
+  required_functions:
+    - "app_auth.is_superadmin"
+    - "app_auth.current_user_org_id"
+    - "app_auth.current_user_id"
+    - "app_auth.is_principal"
+    - "app_auth.is_teacher"
+    - "app_auth.is_parent"
+  
+  required_indexes:
+    - "organization_id"
+    - "preschool_id"
+    - "class_id"
+    - "created_at"
+    - "updated_at"
+  
+  security_requirements:
+    cross_tenant_leakage_tolerance: 0
+    force_rls_after_validation: true
+    audit_trail_required: true
+  
+  performance_targets:
+    max_policy_overhead_ms: 20
+    min_index_coverage: 95
+    max_function_calls: 3
+
+# ============================================================================
+# COMPLIANCE SETTINGS
+# ============================================================================
+
+compliance:
+  child_safety:
+    minimal_exposure: true
+    parent_boundaries_enforced: true
+    teacher_scope_limited: true
+    admin_oversight_enabled: true
+    
+  data_protection:
+    gdpr_compliant: true
+    popia_compliant: true
+    audit_trail_required: true
+    export_capability: true
+    deletion_capability: true
+    
+  warp_md_compliance:
+    no_mock_data: true
+    migration_workflow_enforced: true
+    rls_always_enabled: true
+    production_safety: true

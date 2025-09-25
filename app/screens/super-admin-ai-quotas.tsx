@@ -20,6 +20,7 @@ import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { isSuperAdmin } from '@/lib/roleUtils';
 
 interface AIQuotaSettings {
@@ -68,6 +69,7 @@ interface UsageStatistics {
 
 export default function SuperAdminAIQuotasScreen() {
   const { profile } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [schoolQuotas, setSchoolQuotas] = useState<AIQuotaSettings[]>([]);

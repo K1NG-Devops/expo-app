@@ -1,0 +1,521 @@
+--------- beginning of main
+09-20 12:50:00.823 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:00.825 I/mtkpower_client( 1317): ret_hdl:249850
+09-20 12:50:00.825 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:00.825 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249850 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249850
+09-20 12:50:00.826 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:00.826 I/mtkpower_client( 1317): ret_hdl:249851
+09-20 12:50:00.827 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:00.827 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:00.827 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249851 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249851
+09-20 12:50:00.827 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:00.827 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:00.827 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:00.827 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:00.890 I/mtkpower_client( 1317): perf_lock_rel, hdl:249850, tid:1317
+09-20 12:50:00.891 I/mtkpower_client( 1317): perf_lock_rel, hdl:249851, tid:1317
+09-20 12:50:00.891 I/libPowerHal( 1238): [perfLockRel] hdl:249850, idx:0
+09-20 12:50:00.893 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:00.894 I/libPowerHal( 1238): [perfLockRel] hdl:249851, idx:2
+09-20 12:50:00.895 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:00.895 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:00.896 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:00.896 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:01.994 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249852 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249852
+09-20 12:50:02.023 I/libPowerHal( 1238): [perfLockRel] hdl:249852, idx:0
+09-20 12:50:02.027 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249853 hint:-1 pid:1221 duration:80 lock_user:iawareperf@1.0- => ret_hdl:249853
+09-20 12:50:02.036 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249854 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249854
+09-20 12:50:02.040 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249855 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249855
+09-20 12:50:02.040 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:02.040 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:02.045 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:02.045 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:02.045 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:02.046 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:02.110 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249853
+09-20 12:50:02.110 I/libPowerHal( 1238): [perfLockRel] hdl:249853, idx:2
+09-20 12:50:02.128 I/libPowerHal( 1238): [updateFPS] pid(23648) : 60 => -1
+09-20 12:50:02.129 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+09-20 12:50:02.132 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:02.229 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:02.232 I/mtkpower_client( 1317): ret_hdl:249856
+09-20 12:50:02.232 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:02.233 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249856 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249856
+09-20 12:50:02.235 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:02.236 I/mtkpower_client( 1317): ret_hdl:249857
+09-20 12:50:02.237 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:02.237 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:02.237 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249857 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249857
+09-20 12:50:02.239 I/mtkpower_client( 1317): perf_lock_rel, hdl:249856, tid:1317
+09-20 12:50:02.242 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:02.243 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:02.244 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:02.244 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:02.249 I/mtkpower_client( 1317): perf_lock_rel, hdl:249857, tid:1317
+09-20 12:50:02.249 I/libPowerHal( 1238): [perfLockRel] hdl:249856, idx:2
+09-20 12:50:02.250 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:02.252 I/libPowerHal( 1238): [perfLockRel] hdl:249857, idx:5
+09-20 12:50:02.253 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:02.262 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:02.263 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:02.264 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:02.279 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249833
+09-20 12:50:02.279 I/libPowerHal( 1238): [perfLockRel] hdl:249833, idx:8
+09-20 12:50:02.290 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:02.290 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:02.290 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:02.290 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:02.290 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:02.296 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:02.297 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:30
+09-20 12:50:02.298 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:4
+09-20 12:50:02.298 I/libPowerHal( 1238): [unset_task_affinity] index:0 0x0, scn:0xb400007892015200
+09-20 12:50:02.298 E/libPowerHal( 1238): [unset_task_affinity] stat PATH_CURR_SCENE fail
+09-20 12:50:02.298 I/libPowerHal( 1238): [PD] iawareperf@1.0- update ONESHOT cmd:10002000 param:0
+09-20 12:50:02.298 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249855
+09-20 12:50:02.298 I/libPowerHal( 1238): [perfLockRel] hdl:249855, idx:4
+09-20 12:50:02.306 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:02.307 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:02.307 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:02.307 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:02.307 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:02.309 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:02.310 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:02.322 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:-1
+09-20 12:50:02.374 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:02.377 I/mtkpower_client( 1317): ret_hdl:249858
+09-20 12:50:02.377 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:02.377 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249858 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249858
+09-20 12:50:02.377 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:02.378 I/mtkpower_client( 1317): ret_hdl:249859
+09-20 12:50:02.378 I/mtkpower_client( 1317): perf_lock_rel, hdl:249858, tid:1317
+09-20 12:50:02.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:02.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:02.380 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249859 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249859
+09-20 12:50:02.386 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:02.386 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:02.387 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:02.387 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:02.388 I/mtkpower_client( 1317): perf_lock_rel, hdl:249859, tid:1317
+09-20 12:50:02.388 I/libPowerHal( 1238): [perfLockRel] hdl:249858, idx:2
+09-20 12:50:02.389 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:02.392 I/libPowerHal( 1238): [perfLockRel] hdl:249859, idx:4
+09-20 12:50:02.393 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:02.393 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:02.393 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:02.393 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:03.338 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249860 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249860
+09-20 12:50:03.339 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:03.340 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:30
+09-20 12:50:03.411 I/libPowerHal( 1238): [perfLockRel] hdl:249860, idx:2
+09-20 12:50:03.412 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:03.412 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:03.416 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249861 hint:-1 pid:1221 duration:80 lock_user:iawareperf@1.0- => ret_hdl:249861
+09-20 12:50:03.417 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1491000 -1
+09-20 12:50:03.418 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:30
+09-20 12:50:03.419 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249862 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249862
+09-20 12:50:03.422 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249863 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249863
+09-20 12:50:03.422 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.422 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.425 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.426 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.426 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.427 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.428 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:03.429 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1000000 param:4
+09-20 12:50:03.446 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:03.447 I/mtkpower_client( 1317): ret_hdl:249864
+09-20 12:50:03.447 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:03.448 I/libPowerHal( 1238): [perfLockAcq] idx:7 hdl:249864 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249864
+09-20 12:50:03.448 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:03.449 I/mtkpower_client( 1317): ret_hdl:249865
+09-20 12:50:03.449 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:03.449 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:03.450 I/libPowerHal( 1238): [perfLockAcq] idx:8 hdl:249865 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249865
+09-20 12:50:03.451 I/mtkpower_client( 1317): perf_lock_rel, hdl:249864, tid:1317
+09-20 12:50:03.452 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:03.452 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:03.454 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:03.454 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:03.456 I/mtkpower_client( 1317): perf_lock_rel, hdl:249865, tid:1317
+09-20 12:50:03.456 I/libPowerHal( 1238): [perfLockRel] hdl:249864, idx:7
+09-20 12:50:03.457 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:03.458 I/libPowerHal( 1238): [perfLockRel] hdl:249865, idx:8
+09-20 12:50:03.459 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:03.459 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:03.460 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:03.460 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:03.491 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:50:03.491 I/libPowerHal( 1238): [perfLockAcq] idx:7 hdl:249866 hint:-1 pid:1221 duration:7000 lock_user:iawareperf@1.0- => ret_hdl:249866
+09-20 12:50:03.491 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.491 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.491 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.491 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.491 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.491 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.492 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 2200000 -1 1600000 -1
+09-20 12:50:03.493 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:50
+09-20 12:50:03.497 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1000000 param:1
+09-20 12:50:03.499 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249861
+09-20 12:50:03.499 I/libPowerHal( 1238): [perfLockRel] hdl:249861, idx:4
+09-20 12:50:03.505 I/mtkpower@impl( 1238): [setMode] type:5, enabled:1
+09-20 12:50:03.507 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+09-20 12:50:03.508 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:-1
+09-20 12:50:03.546 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.google.android.gms/com.google.android.gms.autofill.ui.AutofillTransparentActivity pid=22348 state:1
+09-20 12:50:03.547 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.google.android.gms, act:com.google.android.gms.autofill.ui.AutofillTransparentActivity, state:1, pid:22348, uid:10036, fps:-1
+09-20 12:50:03.547 I/libPowerHal( 1238): [perfNotifyAppState] foreground:com.google.android.gms, pid:22348, uid:10036
+09-20 12:50:03.551 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:03.552 I/mtkpower@impl( 1238): [notifyAppState] pc:0, com.edudashpro => com.google.android.gms
+09-20 12:50:03.562 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+09-20 12:50:03.564 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:-1
+09-20 12:50:03.599 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.google.android.gms/com.google.android.gms.autofill.ui.AutofillTransparentActivity pid=22348 state:0
+09-20 12:50:03.599 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.google.android.gms, act:com.google.android.gms.autofill.ui.AutofillTransparentActivity, state:0, pid:22348, uid:10036, fps:-1
+09-20 12:50:03.629 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:50:03.629 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249867 hint:-1 pid:1221 duration:400 lock_user:iawareperf@1.0- => ret_hdl:249867
+09-20 12:50:03.629 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.629 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.629 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.629 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.629 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.630 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.630 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:1
+09-20 12:50:03.636 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:23648, uid:10458, fps:-1
+09-20 12:50:03.636 I/libPowerHal( 1238): [perfNotifyAppState] foreground:com.edudashpro, pid:23648, uid:10458
+09-20 12:50:03.637 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:03.637 I/mtkpower@impl( 1238): [notifyAppState] pc:0, com.google.android.gms => com.edudashpro
+09-20 12:50:03.642 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:50:03.642 I/libPowerHal( 1238): [perfLockAcq] idx:8 hdl:249868 hint:-1 pid:1221 duration:400 lock_user:iawareperf@1.0- => ret_hdl:249868
+09-20 12:50:03.642 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.642 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.643 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.643 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.643 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.643 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.646 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.google.android.gms/com.google.android.gms.autofill.ui.AutofillTransparentActivity pid=22348 state:0
+09-20 12:50:03.647 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.google.android.gms, act:com.google.android.gms.autofill.ui.AutofillTransparentActivity, state:0, pid:22348, uid:10036, fps:-1
+09-20 12:50:03.675 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:50:03.675 I/libPowerHal( 1238): [perfLockAcq] idx:9 hdl:249869 hint:-1 pid:1221 duration:400 lock_user:iawareperf@1.0- => ret_hdl:249869
+09-20 12:50:03.675 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.675 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.675 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.676 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.676 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.676 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.678 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249863
+09-20 12:50:03.678 I/libPowerHal( 1238): [perfLockRel] hdl:249863, idx:5
+09-20 12:50:03.678 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:03.678 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.678 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.678 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.679 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.708 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:50:03.708 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249870 hint:-1 pid:1221 duration:400 lock_user:iawareperf@1.0- => ret_hdl:249870
+09-20 12:50:03.708 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:03.708 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.708 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:03.708 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:03.711 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:03.712 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:03.759 I/mtkpower@impl( 1238): [setMode] type:5, enabled:0
+09-20 12:50:04.030 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249867
+09-20 12:50:04.031 I/libPowerHal( 1238): [perfLockRel] hdl:249867, idx:4
+09-20 12:50:04.031 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:04.031 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:04.031 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:04.031 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:04.031 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:04.042 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249868
+09-20 12:50:04.043 I/libPowerHal( 1238): [perfLockRel] hdl:249868, idx:8
+09-20 12:50:04.043 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:04.043 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:04.043 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:04.043 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:04.044 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:04.077 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249869
+09-20 12:50:04.078 I/libPowerHal( 1238): [perfLockRel] hdl:249869, idx:9
+09-20 12:50:04.078 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:04.079 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:04.079 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:04.079 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:04.080 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:04.115 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249870
+09-20 12:50:04.115 I/libPowerHal( 1238): [perfLockRel] hdl:249870, idx:5
+09-20 12:50:04.115 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:04.115 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:04.115 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:04.116 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:04.116 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:04.263 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:04.264 I/mtkpower_client( 1317): ret_hdl:249871
+09-20 12:50:04.265 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:04.265 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249871 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249871
+09-20 12:50:04.266 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:04.267 I/mtkpower_client( 1317): ret_hdl:249872
+09-20 12:50:04.267 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:04.267 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:04.267 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249872 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249872
+09-20 12:50:04.267 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:04.267 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:04.267 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:04.267 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:04.444 I/mtkpower_client( 1317): perf_lock_rel, hdl:249871, tid:1317
+09-20 12:50:04.445 I/mtkpower_client( 1317): perf_lock_rel, hdl:249872, tid:1317
+09-20 12:50:04.446 I/libPowerHal( 1238): [perfLockRel] hdl:249871, idx:4
+09-20 12:50:04.446 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:04.447 I/libPowerHal( 1238): [perfLockRel] hdl:249872, idx:5
+09-20 12:50:04.448 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:04.448 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:04.449 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:04.449 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:05.005 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249873 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249873
+09-20 12:50:05.037 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249854
+09-20 12:50:05.037 I/libPowerHal( 1238): [perfLockRel] hdl:249854, idx:0
+09-20 12:50:05.046 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:05.050 I/mtkpower_client( 1317): ret_hdl:249874
+09-20 12:50:05.051 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:05.053 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249874 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249874
+09-20 12:50:05.053 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:05.055 I/mtkpower_client( 1317): ret_hdl:249875
+09-20 12:50:05.055 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:05.055 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:05.055 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249875 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249875
+09-20 12:50:05.056 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:05.056 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:05.056 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:05.056 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:05.071 I/libPowerHal( 1238): [perfLockRel] hdl:249873, idx:4
+09-20 12:50:05.073 I/libPowerHal( 1238): [perfLockAcq] idx:8 hdl:249876 hint:-1 pid:1221 duration:80 lock_user:iawareperf@1.0- => ret_hdl:249876
+09-20 12:50:05.075 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249877 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249877
+09-20 12:50:05.113 I/libPowerHal( 1238): [perfLockAcq] idx:9 hdl:249878 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249878
+09-20 12:50:05.114 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:05.114 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:05.114 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:05.114 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:05.114 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:05.114 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:05.121 I/mtkpower_client( 1317): perf_lock_rel, hdl:249874, tid:1317
+09-20 12:50:05.121 I/mtkpower_client( 1317): perf_lock_rel, hdl:249875, tid:1317
+09-20 12:50:05.122 I/libPowerHal( 1238): [perfLockRel] hdl:249874, idx:0
+09-20 12:50:05.122 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:05.123 I/libPowerHal( 1238): [perfLockRel] hdl:249875, idx:5
+09-20 12:50:05.124 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:05.124 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:05.125 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:05.125 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:05.153 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249876
+09-20 12:50:05.153 I/libPowerHal( 1238): [perfLockRel] hdl:249876, idx:8
+09-20 12:50:05.365 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249878
+09-20 12:50:05.366 I/libPowerHal( 1238): [perfLockRel] hdl:249878, idx:9
+09-20 12:50:05.366 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:05.366 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:05.366 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:05.366 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:05.367 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:05.755 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249879 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249879
+09-20 12:50:05.756 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:05.756 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:05.756 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:05.757 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:05.757 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:05.757 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:06.008 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249879
+09-20 12:50:06.008 I/libPowerHal( 1238): [perfLockRel] hdl:249879, idx:0
+09-20 12:50:06.009 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:06.009 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:06.009 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:06.009 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:06.009 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:06.130 I/libPowerHal( 1238): [updateFPS] pid(23648) : -1 => 90
+09-20 12:50:06.130 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:90
+09-20 12:50:06.131 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:06.421 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249862
+09-20 12:50:06.421 I/libPowerHal( 1238): [perfLockRel] hdl:249862, idx:2
+09-20 12:50:08.076 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249877
+09-20 12:50:08.077 I/libPowerHal( 1238): [perfLockRel] hdl:249877, idx:4
+09-20 12:50:09.132 I/libPowerHal( 1238): [updateFPS] pid(23648) : 90 => 60
+09-20 12:50:09.132 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+09-20 12:50:09.133 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:10.132 I/libPowerHal( 1238): [updateFPS] pid(23648) : 60 => -1
+09-20 12:50:10.132 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+09-20 12:50:10.132 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:10.498 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249866
+09-20 12:50:10.498 I/libPowerHal( 1238): [perfLockRel] hdl:249866, idx:7
+09-20 12:50:10.498 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:10.499 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:10.499 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:10.499 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:10.499 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:10.499 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:10.499 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:10.500 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:-1
+09-20 12:50:11.371 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:11.373 I/mtkpower_client( 1317): ret_hdl:249880
+09-20 12:50:11.373 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:11.375 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249880 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249880
+09-20 12:50:11.375 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:11.378 I/mtkpower_client( 1317): ret_hdl:249881
+09-20 12:50:11.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:11.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:11.380 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249881 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249881
+09-20 12:50:11.380 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:11.381 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:11.381 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:11.381 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:11.420 I/mtkpower_client( 1317): perf_lock_rel, hdl:249880, tid:1317
+09-20 12:50:11.421 I/libPowerHal( 1238): [perfLockRel] hdl:249880, idx:0
+09-20 12:50:11.421 I/mtkpower_client( 1317): perf_lock_rel, hdl:249881, tid:1317
+09-20 12:50:11.422 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:11.424 I/libPowerHal( 1238): [perfLockRel] hdl:249881, idx:2
+09-20 12:50:11.425 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:11.425 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:11.425 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:11.425 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:11.572 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:11.573 I/mtkpower_client( 1317): ret_hdl:249882
+09-20 12:50:11.573 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:11.573 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249882 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249882
+09-20 12:50:11.574 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:11.575 I/mtkpower_client( 1317): ret_hdl:249883
+09-20 12:50:11.576 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:11.577 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:11.578 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249883 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249883
+09-20 12:50:11.579 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:11.579 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:11.580 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:11.580 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:11.752 I/mtkpower_client( 1317): perf_lock_rel, hdl:249882, tid:1317
+09-20 12:50:11.754 I/mtkpower_client( 1317): perf_lock_rel, hdl:249883, tid:1317
+09-20 12:50:11.754 I/libPowerHal( 1238): [perfLockRel] hdl:249882, idx:0
+09-20 12:50:11.755 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:11.758 I/libPowerHal( 1238): [perfLockRel] hdl:249883, idx:2
+09-20 12:50:11.758 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:11.758 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:11.759 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:11.759 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:12.133 I/libPowerHal( 1238): [updateFPS] pid(23648) : -1 => 60
+09-20 12:50:12.134 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+09-20 12:50:12.135 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:13.133 I/libPowerHal( 1238): [updateFPS] pid(23648) : 60 => -1
+09-20 12:50:13.134 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+09-20 12:50:13.134 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:17.318 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249884 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249884
+09-20 12:50:17.320 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:17.322 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:30
+09-20 12:50:17.365 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:17.366 I/libPowerHal( 1238): [perfLockRel] hdl:249884, idx:0
+09-20 12:50:17.367 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:17.367 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:17.371 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249885 hint:-1 pid:1221 duration:80 lock_user:iawareperf@1.0- => ret_hdl:249885
+09-20 12:50:17.373 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1491000 -1
+09-20 12:50:17.373 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:30
+09-20 12:50:17.376 I/mtkpower_client( 1317): ret_hdl:249887
+09-20 12:50:17.376 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:17.376 I/libPowerHal( 1238): [perfLockAcq] idx:0 hdl:249886 hint:-1 pid:1221 duration:3000 lock_user:iawareperf@1.0- => ret_hdl:249886
+09-20 12:50:17.377 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1491000 -1
+09-20 12:50:17.377 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249887 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249887
+09-20 12:50:17.378 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:17.379 I/mtkpower_client( 1317): ret_hdl:249888
+09-20 12:50:17.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:17.380 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:17.380 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249888 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249888
+09-20 12:50:17.380 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:17.380 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:17.380 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:17.380 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:17.410 I/libPowerHal( 1238): [perfLockAcq] idx:7 hdl:249889 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249889
+09-20 12:50:17.410 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:17.410 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.410 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:17.410 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:17.410 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:17.410 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.411 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:17.412 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1000000 param:4
+09-20 12:50:17.422 I/mtkpower_client( 1317): perf_lock_rel, hdl:249887, tid:1317
+09-20 12:50:17.423 I/mtkpower_client( 1317): perf_lock_rel, hdl:249888, tid:1317
+09-20 12:50:17.423 I/libPowerHal( 1238): [perfLockRel] hdl:249887, idx:4
+09-20 12:50:17.424 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:17.426 I/libPowerHal( 1238): [perfLockRel] hdl:249888, idx:5
+09-20 12:50:17.426 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:17.426 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:17.427 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:17.427 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:17.453 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249885
+09-20 12:50:17.454 I/libPowerHal( 1238): [perfLockRel] hdl:249885, idx:2
+09-20 12:50:17.663 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249889
+09-20 12:50:17.664 I/libPowerHal( 1238): [perfLockRel] hdl:249889, idx:7
+09-20 12:50:17.666 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:17.666 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:17.666 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:17.666 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:17.667 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:17.667 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.667 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:17.669 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:-1
+09-20 12:50:17.895 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:249890 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249890
+09-20 12:50:17.896 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:17.896 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.896 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:17.896 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:17.897 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:17.898 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.899 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1814000 -1 1600000 -1
+09-20 12:50:17.900 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:30
+09-20 12:50:17.901 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1000000 param:2
+09-20 12:50:17.920 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:249891 hint:-1 pid:1221 duration:250 lock_user:iawareperf@1.0- => ret_hdl:249891
+09-20 12:50:17.920 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:50:17.920 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.920 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:17.921 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:17.921 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:17.921 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:17.937 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:50:17.938 I/mtkpower_client( 1317): ret_hdl:249892
+09-20 12:50:17.938 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:50:17.940 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:249892 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249892
+09-20 12:50:17.941 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:50:17.943 I/mtkpower_client( 1317): ret_hdl:249893
+09-20 12:50:17.943 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:50:17.944 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:50:17.944 I/libPowerHal( 1238): [perfLockAcq] idx:7 hdl:249893 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:249893
+09-20 12:50:17.944 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:50:17.944 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:50:17.944 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:50:17.945 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:50:17.950 I/mtkpower_client( 1317): perf_lock_rel, hdl:249892, tid:1317
+09-20 12:50:17.950 I/mtkpower_client( 1317): perf_lock_rel, hdl:249893, tid:1317
+09-20 12:50:17.951 I/libPowerHal( 1238): [perfLockRel] hdl:249892, idx:5
+09-20 12:50:17.951 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:50:17.952 I/libPowerHal( 1238): [perfLockRel] hdl:249893, idx:7
+09-20 12:50:17.953 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:50:17.953 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:50:17.953 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:50:17.954 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:50:18.134 I/libPowerHal( 1238): [updateFPS] pid(23648) : -1 => 60
+09-20 12:50:18.135 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+09-20 12:50:18.136 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:18.152 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249890
+09-20 12:50:18.152 I/libPowerHal( 1238): [perfLockRel] hdl:249890, idx:2
+09-20 12:50:18.153 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 1617000 -1 1600000 -1
+09-20 12:50:18.153 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:18.153 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:18.153 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:18.153 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:18.153 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:18.154 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:4
+09-20 12:50:18.172 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249891
+09-20 12:50:18.172 I/libPowerHal( 1238): [perfLockRel] hdl:249891, idx:4
+09-20 12:50:18.173 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1
+09-20 12:50:18.174 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:50:18.175 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:50:18.175 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:50:18.175 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:50:18.176 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:50:18.177 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1408300 param:0
+09-20 12:50:18.178 I/libPowerHal( 1238): [PD] iawareperf@1.0- update cmd:1000000 param:-1
+09-20 12:50:20.136 I/libPowerHal( 1238): [updateFPS] pid(23648) : 60 => -1
+09-20 12:50:20.137 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+09-20 12:50:20.138 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:50:20.378 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:249886
+09-20 12:50:20.379 I/libPowerHal( 1238): [perfLockRel] hdl:249886, idx:0
+09-20 12:50:20.380 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: -1 -1 -1 -1

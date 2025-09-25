@@ -1,0 +1,192 @@
+env: load .env.local
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_DEBUG_TOOLS EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBHOOK_PAYPAL_FN EXPO_PUBLIC_WEBHOOK_PAYFAST_FN FROM_EMAIL EXPO_PUBLIC_FROM_EMAIL EXPO_PUBLIC_ENVIRONMENT EXPO_PUBLIC_DEBUG_MODE EXPO_PUBLIC_DEBUG_SUPABASE EXPO_PUBLIC_EMAIL_ENABLED EXPO_PUBLIC_EMAIL_MOCK_MODE
+The /android project does not contain any URI schemes. Expo CLI will not be able to use links to launch the project. You can configure a custom URI scheme using the --scheme option.
+Starting project at /home/king/Desktop/expo-final
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android node_modules/expo-router/entry.js ▓▓▓▓▓▓░░░░░░░░░░ 38.2% (309/514)
+Android node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 69.3% ( 849/1020)
+Android node_modules/expo-router/entry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 82.2% (1574/1748)
+Android Bundled 12798ms node_modules/expo-router/entry.js (2090 modules)
+ WARN  expo-localization not available, using fallback
+ LOG  i18next: languageChanged en
+ LOG  i18next: initialized {"appendNamespaceToCIMode": false, "appendNamespaceToMissingKey": false, "cacheInBuiltFormats": true, "contextSeparator": "_", "debug": true, "defaultNS": "common", "fallbackLng": ["en"], "fallbackNS": false, "ignoreJSONStructure": true, "initAsync": true, "interpolation": {"escapeValue": false, "format": [Function bound format], "formatSeparator": ",", "maxReplaces": 1000, "nestingOptionsSeparator": ",", "nestingPrefix": "$t(", "nestingSuffix": ")", "prefix": "{{", "skipOnVariables": true, "suffix": "}}", "unescapePrefix": "-"}, "joinArrays": false, "keySeparator": ".", "lng": "en", "load": "all", "missingInterpolationHandler": false, "missingKeyHandler": false, "nonExplicitSupportedLngs": false, "ns": ["common"], "nsSeparator": ":", "overloadTranslationOptionHandler": [Function overloadTranslationOptionHandler], "parseMissingKeyHandler": false, "partialBundledLanguages": false, "pluralSeparator": "_", "postProcess": false, "postProcessPassResolved": false, "preload": false, "react": {"useSuspense": false}, "resources": {"de": {"common": [Object]}, "en": {"common": [Object]}, "es": {"common": [Object]}, "fr": {"common": [Object]}, "pt": {"common": [Object]}}, "returnEmptyString": true, "returnNull": false, "returnObjects": false, "returnedObjectHandler": false, "saveMissing": true, "saveMissingPlurals": true, "saveMissingTo": "fallback", "simplifyPluralSuffix": true, "supportedLngs": false, "updateMissing": false, "userDefinedKeySeparator": "."}
+ ERROR  Error: EXPO_PUBLIC_ANTHROPIC_API_KEY environment variable is required, js engine: hermes
+ WARN  Route "./screens/parent-dashboard.tsx" is missing the required default export. Ensure a React component is exported as default.
+Android node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 64ms node_modules/expo-router/entry.js (1 module)
+Android node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 67ms node_modules/expo-router/entry.js (1 module)
+ WARN  expo-localization not available, using fallback
+ LOG  i18next: languageChanged en
+ LOG  i18next: initialized {"appendNamespaceToCIMode": false, "appendNamespaceToMissingKey": false, "cacheInBuiltFormats": true, "contextSeparator": "_", "debug": true, "defaultNS": "common", "fallbackLng": ["en"], "fallbackNS": false, "ignoreJSONStructure": true, "initAsync": true, "interpolation": {"escapeValue": false, "format": [Function bound format], "formatSeparator": ",", "maxReplaces": 1000, "nestingOptionsSeparator": ",", "nestingPrefix": "$t(", "nestingSuffix": ")", "prefix": "{{", "skipOnVariables": true, "suffix": "}}", "unescapePrefix": "-"}, "joinArrays": false, "keySeparator": ".", "lng": "en", "load": "all", "missingInterpolationHandler": false, "missingKeyHandler": false, "nonExplicitSupportedLngs": false, "ns": ["common"], "nsSeparator": ":", "overloadTranslationOptionHandler": [Function overloadTranslationOptionHandler], "parseMissingKeyHandler": false, "partialBundledLanguages": false, "pluralSeparator": "_", "postProcess": false, "postProcessPassResolved": false, "preload": false, "react": {"useSuspense": false}, "resources": {"de": {"common": [Object]}, "en": {"common": [Object]}, "es": {"common": [Object]}, "fr": {"common": [Object]}, "pt": {"common": [Object]}}, "returnEmptyString": true, "returnNull": false, "returnObjects": false, "returnedObjectHandler": false, "saveMissing": true, "saveMissingPlurals": true, "saveMissingTo": "fallback", "simplifyPluralSuffix": true, "supportedLngs": false, "updateMissing": false, "userDefinedKeySeparator": "."}
+ ERROR  Error: EXPO_PUBLIC_ANTHROPIC_API_KEY environment variable is required, js engine: hermes
+ WARN  Route "./screens/parent-dashboard.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  🔧 Initializing monitoring...
+ LOG  Sentry Logger [log]: Integration installed: ModulesLoader
+ LOG  Sentry Logger [log]: Unhandled promise rejections will be caught by Sentry.
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeErrorHandlers
+ LOG  Sentry Logger [log]: Integration installed: Release
+ LOG  Sentry Logger [log]: Integration installed: InboundFilters
+ LOG  Sentry Logger [log]: Integration installed: FunctionToString
+ LOG  Sentry Logger [log]: Integration installed: Breadcrumbs
+ LOG  Sentry Logger [log]: Integration installed: LinkedErrors
+ LOG  Sentry Logger [log]: Integration installed: Dedupe
+ LOG  Sentry Logger [log]: Integration installed: HttpContext
+ LOG  Sentry Logger [log]: Integration installed: EventOrigin
+ LOG  Sentry Logger [log]: Integration installed: SdkInfo
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeInfo
+ LOG  Sentry Logger [log]: Integration installed: DebugSymbolicator
+ LOG  Sentry Logger [log]: Integration installed: RewriteFrames
+ LOG  Sentry Logger [log]: Integration installed: DeviceContext
+ ERROR  Sentry Logger [error]: [SentryError: Native Client is not available, can't start on native.]
+ LOG  Sentry Logger [log]: [ReactNativeTracing] Native frames instrumentation initialized.
+ LOG  Sentry Logger [log]: [ReactNativeTracing] Not instrumenting route changes as routingInstrumentation has not been set.
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeTracing
+ ERROR  Sentry Logger [error]: Error while triggering instrumentation handler.
+Type: console
+Name: _consoleBreadcrumb
+Error: [SentryError: Native Client is not available, can't start on native.]
+ WARN  [sentry-expo] Disabling the Sentry Native SDK (all JS errors will still be reported).
+To enable it, run 'yarn add @sentry/react-native' or 'npm install @sentry/react-native' in your project directory. To silence this warning, pass 'enableNative: false' to Sentry.init().
+ LOG  Sentry Logger [log]: Integration installed: ExpoBareIntegration
+ LOG  Sentry initialized for Android testing
+ LOG  PostHog initialized for Android testing
+ LOG  [Analytics] edudash.app.initialization_started: {"admob_test_ids": false, "ai_gateway_enabled": false, "android_only_mode": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 34, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:18.173Z"}
+ LOG  🌍 Initializing internationalization...
+ LOG  🔐 Initializing session management...
+ LOG  📱 Initializing AdMob...
+ LOG  [Analytics] edudash.ads.initialized: {"ai_gateway_enabled": false, "android_only": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 34, "production_db_dev": false, "stub_implementation": true, "test_mode": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:18.554Z"}
+ LOG  AdMob stub initialized - ready for production implementation
+ LOG  ⚙️  Validating environment...
+ LOG  ✅ App initialization completed successfully
+ LOG  [Analytics] edudash.app.initialization_completed: {"admob_initialized": true, "ai_gateway_enabled": false, "duration_ms": 1757468722183.8547, "enterprise_tier_enabled": false, "feature_flags_loaded": true, "platform": "android", "platform_version": 34, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:18.569Z"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  expo-localization not available, using fallback
+ LOG  i18next: languageChanged en
+ LOG  i18next: initialized {"appendNamespaceToCIMode": false, "appendNamespaceToMissingKey": false, "cacheInBuiltFormats": true, "contextSeparator": "_", "debug": true, "defaultNS": "common", "fallbackLng": ["en"], "fallbackNS": false, "ignoreJSONStructure": true, "initAsync": true, "interpolation": {"escapeValue": false, "format": [Function bound format], "formatSeparator": ",", "maxReplaces": 1000, "nestingOptionsSeparator": ",", "nestingPrefix": "$t(", "nestingSuffix": ")", "prefix": "{{", "skipOnVariables": true, "suffix": "}}", "unescapePrefix": "-"}, "joinArrays": false, "keySeparator": ".", "lng": "en", "load": "all", "missingInterpolationHandler": false, "missingKeyHandler": false, "nonExplicitSupportedLngs": false, "ns": ["common"], "nsSeparator": ":", "overloadTranslationOptionHandler": [Function overloadTranslationOptionHandler], "parseMissingKeyHandler": false, "partialBundledLanguages": false, "pluralSeparator": "_", "postProcess": false, "postProcessPassResolved": false, "preload": false, "react": {"useSuspense": false}, "resources": {"de": {"common": [Object]}, "en": {"common": [Object]}, "es": {"common": [Object]}, "fr": {"common": [Object]}, "pt": {"common": [Object]}}, "returnEmptyString": true, "returnNull": false, "returnObjects": false, "returnedObjectHandler": false, "saveMissing": true, "saveMissingPlurals": true, "saveMissingTo": "fallback", "simplifyPluralSuffix": true, "supportedLngs": false, "updateMissing": false, "userDefinedKeySeparator": "."}
+ ERROR  Error: EXPO_PUBLIC_ANTHROPIC_API_KEY environment variable is required, js engine: hermes
+ WARN  Route "./screens/parent-dashboard.tsx" is missing the required default export. Ensure a React component is exported as default.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  🔧 Initializing monitoring...
+ LOG  Sentry Logger [log]: Integration installed: ModulesLoader
+ LOG  Sentry Logger [log]: Unhandled promise rejections will be caught by Sentry.
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeErrorHandlers
+ LOG  Sentry Logger [log]: Integration installed: Release
+ LOG  Sentry Logger [log]: Integration installed: InboundFilters
+ LOG  Sentry Logger [log]: Integration installed: FunctionToString
+ LOG  Sentry Logger [log]: Integration installed: Breadcrumbs
+ LOG  Sentry Logger [log]: Integration installed: LinkedErrors
+ LOG  Sentry Logger [log]: Integration installed: Dedupe
+ LOG  Sentry Logger [log]: Integration installed: HttpContext
+ LOG  Sentry Logger [log]: Integration installed: EventOrigin
+ LOG  Sentry Logger [log]: Integration installed: SdkInfo
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeInfo
+ LOG  Sentry Logger [log]: Integration installed: DebugSymbolicator
+ LOG  Sentry Logger [log]: Integration installed: RewriteFrames
+ LOG  Sentry Logger [log]: Integration installed: DeviceContext
+ ERROR  Sentry Logger [error]: [SentryError: Native Client is not available, can't start on native.]
+ LOG  Sentry Logger [log]: [ReactNativeTracing] Native frames instrumentation initialized.
+ LOG  Sentry Logger [log]: [ReactNativeTracing] Not instrumenting route changes as routingInstrumentation has not been set.
+ LOG  Sentry Logger [log]: Integration installed: ReactNativeTracing
+ ERROR  Sentry Logger [error]: Error while triggering instrumentation handler.
+Type: console
+Name: _consoleBreadcrumb
+Error: [SentryError: Native Client is not available, can't start on native.]
+ WARN  [sentry-expo] Disabling the Sentry Native SDK (all JS errors will still be reported).
+To enable it, run 'yarn add @sentry/react-native' or 'npm install @sentry/react-native' in your project directory. To silence this warning, pass 'enableNative: false' to Sentry.init().
+ LOG  Sentry Logger [log]: Integration installed: ExpoBareIntegration
+ LOG  Sentry initialized for Android testing
+ LOG  PostHog initialized for Android testing
+ LOG  [Analytics] edudash.app.initialization_started: {"admob_test_ids": false, "ai_gateway_enabled": false, "android_only_mode": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:19.097Z"}
+ LOG  🌍 Initializing internationalization...
+ LOG  🔐 Initializing session management...
+ LOG  📱 Initializing AdMob...
+ LOG  [Analytics] edudash.ads.initialized: {"ai_gateway_enabled": false, "android_only": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "stub_implementation": true, "test_mode": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:19.261Z"}
+ LOG  AdMob stub initialized - ready for production implementation
+ LOG  ⚙️  Validating environment...
+ LOG  ✅ App initialization completed successfully
+ LOG  [Analytics] edudash.app.initialization_completed: {"admob_initialized": true, "ai_gateway_enabled": false, "duration_ms": 1757295065047.3105, "enterprise_tier_enabled": false, "feature_flags_loaded": true, "platform": "android", "platform_version": 35, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:42:19.273Z"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+Android Bundled 591ms lib/supabase.ts (676 modules)
+Android Bundled 23ms lib/supabase.ts (1 module)
+ WARN  Value being stored in SecureStore is larger than 2048 bytes and it may not be stored successfully. In a future SDK version, this call may throw an error.
+ LOG  Attempting to fetch profile for authenticated user
+ LOG  RPC get_my_profile failed or returned null
+ LOG  Direct profile fetch completed
+ LOG  Using direct profile as fallback
+ LOG  Successfully fetched profile
+ LOG  [Analytics] edudash.rbac.profile_fetched: {"ai_gateway_enabled": false, "capabilities_count": 7, "database_success": true, "enterprise_tier_enabled": false, "has_org": true, "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:42:53.668Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.auth.profile_loaded: {"ai_gateway_enabled": false, "capabilities_count": 7, "enterprise_tier_enabled": false, "has_profile": true, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "testing_mode": false, "timestamp": "2025-09-10T20:42:53.677Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.security.audit_event: {"ai_gateway_enabled": false, "details": {"auth_event": "login", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "enterprise_tier_enabled": false, "event_type": "auth", "platform": "android", "platform_version": 35, "production_db_dev": false, "scrubbed_details": {"auth_event": "[SCRUBBED]", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "severity": "info", "testing_mode": false, "timestamp": "2025-09-10T20:42:53.687Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  SECURITY AUDIT [INFO]: {"details": {"auth_event": "[SCRUBBED]", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "type": "auth", "user": "a1fd12d2***"}
+ LOG  [Analytics] edudash.auth.signed_in: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "testing_mode": false, "timestamp": "2025-09-10T20:42:53.707Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "route": "/screens/teacher-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:42:53.716Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  Navigating to route: {"path": "/screens/teacher-dashboard"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "route": "/screens/teacher-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:42:54.309Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  Navigating to route: {"path": "/screens/teacher-dashboard"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  [Analytics] edudash.auth.signed_out: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:43:02.498Z"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  Value being stored in SecureStore is larger than 2048 bytes and it may not be stored successfully. In a future SDK version, this call may throw an error.
+ LOG  Attempting to fetch profile for authenticated user
+ LOG  RPC get_my_profile failed or returned null
+ LOG  Direct profile fetch completed
+ LOG  Using direct profile as fallback
+ LOG  Successfully fetched profile
+ LOG  [Analytics] edudash.rbac.profile_fetched: {"ai_gateway_enabled": false, "capabilities_count": 5, "database_success": true, "enterprise_tier_enabled": false, "has_org": true, "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "parent", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.054Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  [Analytics] edudash.auth.profile_loaded: {"ai_gateway_enabled": false, "capabilities_count": 5, "enterprise_tier_enabled": false, "has_profile": true, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "parent", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.063Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  [Analytics] edudash.security.audit_event: {"ai_gateway_enabled": false, "details": {"auth_event": "login", "capabilities_count": 5, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "parent"}, "enterprise_tier_enabled": false, "event_type": "auth", "platform": "android", "platform_version": 35, "production_db_dev": false, "scrubbed_details": {"auth_event": "[SCRUBBED]", "capabilities_count": 5, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "parent"}, "severity": "info", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.069Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  SECURITY AUDIT [INFO]: {"details": {"auth_event": "[SCRUBBED]", "capabilities_count": 5, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "parent"}, "type": "auth", "user": "9bcfef71***"}
+ LOG  [Analytics] edudash.auth.signed_in: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "parent", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.085Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "parent", "route": "/screens/parent-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.097Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  Navigating to route: {"path": "/screens/parent-dashboard"}
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "parent", "route": "/screens/parent-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:14.444Z", "user_id": "9bcfef71-5195-4156-89bb-d05eb62009ce"}
+ LOG  Navigating to route: {"path": "/screens/parent-dashboard"}
+ WARN  Value being stored in SecureStore is larger than 2048 bytes and it may not be stored successfully. In a future SDK version, this call may throw an error.
+ LOG  Attempting to fetch profile for authenticated user
+ LOG  RPC get_my_profile failed or returned null
+ LOG  Direct profile fetch completed
+ LOG  Using direct profile as fallback
+ LOG  Successfully fetched profile
+ LOG  [Analytics] edudash.rbac.profile_fetched: {"ai_gateway_enabled": false, "capabilities_count": 7, "database_success": true, "enterprise_tier_enabled": false, "has_org": true, "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.203Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.auth.profile_loaded: {"ai_gateway_enabled": false, "capabilities_count": 7, "enterprise_tier_enabled": false, "has_profile": true, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.213Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.security.audit_event: {"ai_gateway_enabled": false, "details": {"auth_event": "login", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "enterprise_tier_enabled": false, "event_type": "auth", "platform": "android", "platform_version": 35, "production_db_dev": false, "scrubbed_details": {"auth_event": "[SCRUBBED]", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "severity": "info", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.222Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  SECURITY AUDIT [INFO]: {"details": {"auth_event": "[SCRUBBED]", "capabilities_count": 7, "organization": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "role": "teacher"}, "type": "auth", "user": "a1fd12d2***"}
+ LOG  [Analytics] edudash.auth.signed_in: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.237Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "route": "/screens/teacher-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.248Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  Navigating to route: {"path": "/screens/teacher-dashboard"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": "ba79097c-1b93-4b48-bcbe-df73878ab4d1", "plan_tier": "free", "platform": "android", "platform_version": 35, "production_db_dev": false, "role": "teacher", "route": "/screens/teacher-dashboard", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:32.757Z", "user_id": "a1fd12d2-5f09-4a23-822d-f3071bfc544b"}
+ LOG  Navigating to route: {"path": "/screens/teacher-dashboard"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  Attempting to fetch profile for authenticated user
+ LOG  RPC get_my_profile failed or returned null
+ LOG  Direct profile fetch completed
+ LOG  Using direct profile as fallback
+ LOG  Successfully fetched profile
+ LOG  [Analytics] edudash.rbac.profile_fetched: {"ai_gateway_enabled": false, "capabilities_count": 14, "database_success": true, "enterprise_tier_enabled": false, "has_org": false, "plan_tier": "free", "platform": "android", "platform_version": 34, "production_db_dev": false, "role": "super_admin", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.819Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  [Analytics] edudash.security.superadmin_access: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 34, "production_db_dev": false, "session_source": "profile_fetch", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.833Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ WARN  SECURITY: Super admin profile accessed - monitoring enabled
+ LOG  [Analytics] edudash.security.superadmin_permissions_accessed: {"ai_gateway_enabled": false, "context": "permission_checker_created", "enterprise_tier_enabled": false, "platform": "android", "platform_version": 34, "production_db_dev": false, "testing_mode": false, "timestamp": "2025-09-10T20:43:53.851Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  [Analytics] edudash.auth.profile_loaded: {"ai_gateway_enabled": false, "capabilities_count": 14, "enterprise_tier_enabled": false, "has_profile": true, "platform": "android", "platform_version": 34, "production_db_dev": false, "role": "superadmin", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.862Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  [Analytics] edudash.security.audit_event: {"ai_gateway_enabled": false, "details": {"auth_event": "login", "capabilities_count": 14, "organization": null, "role": "superadmin"}, "enterprise_tier_enabled": false, "event_type": "auth", "platform": "android", "platform_version": 34, "production_db_dev": false, "scrubbed_details": {"auth_event": "[SCRUBBED]", "capabilities_count": 14, "organization": null, "role": "superadmin"}, "severity": "info", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.887Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  SECURITY AUDIT [INFO]: {"details": {"auth_event": "[SCRUBBED]", "capabilities_count": 14, "organization": null, "role": "superadmin"}, "type": "auth", "user": "d2df36d4***"}
+ LOG  [Analytics] edudash.auth.signed_in: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "platform": "android", "platform_version": 34, "production_db_dev": false, "role": "superadmin", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.928Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": null, "plan_tier": "free", "platform": "android", "platform_version": 34, "production_db_dev": false, "role": "superadmin", "route": "/screens/super-admin-leads", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:53.950Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  Navigating to route: {"path": "/screens/super-admin-leads"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ LOG  [Analytics] edudash.auth.route_after_login: {"ai_gateway_enabled": false, "enterprise_tier_enabled": false, "has_params": false, "organization_id": null, "plan_tier": "free", "platform": "android", "platform_version": 34, "production_db_dev": false, "role": "superadmin", "route": "/screens/super-admin-leads", "seat_status": "active", "testing_mode": false, "timestamp": "2025-09-10T20:43:54.989Z", "user_id": "d2df36d4-74bc-4ffb-883b-036754764265"}
+ LOG  Navigating to route: {"path": "/screens/super-admin-leads"}
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.
+ WARN  StatusBar backgroundColor is not supported with edge-to-edge enabled. Render a view under the status bar to change its background.

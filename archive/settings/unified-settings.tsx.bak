@@ -1,0 +1,752 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Switch,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  RefreshControl,
+  Dimensions,
+  StyleSheet,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
+import { BiometricAuthService } from '@/services/BiometricAuthService';
+import { BiometricBackupManager } from '@/lib/BiometricBackupManager';
+import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Speech from 'expo-speech';
+import AudioPermissions from '@/lib/audioPermissions';
+
+const { width } = Dimensions.get('window');
+const isTablet = width > 768;
+
+interface UnifiedSettingsState {
+  // General App Settings
+  hapticsEnabled: boolean;
+  soundEnabled: boolean;
+  notificationsEnabled: boolean;
+  
+  // Dash AI Settings
+  dashPersonality: 'professional' | 'casual' | 'encouraging' | 'formal';
+  voiceEnabled: boolean;
+  voiceLanguage: string;
+  voiceRate: number;
+  voicePitch: number;
+  autoVoiceReply: boolean;
+  proactiveHelp: boolean;
+  memoryEnabled: boolean;
+  
+  // Security Settings
+  biometricEnabled: boolean;
+  biometricSupported: boolean;
+  biometricEnrolled: boolean;
+  
+  // Privacy Settings
+  dataRetention: 'session' | 'week' | 'month' | 'indefinite';
+  shareAnalytics: boolean;
+  personalizedResponses: boolean;
+  
+  // Chat Behavior
+  enterToSend: boolean;
+  showTypingIndicator: boolean;
+  readReceiptEnabled: boolean;
+}
+
+export default function UnifiedSettingsScreen() {
+  const { theme } = useTheme();
+  const { t } = useTranslation();
+  const { user, profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    general: true,
+    dashAI: false,
+    security: false,
+    privacy: false,
+    appearance: false,
+  });
+
+  const [settings, setSettings] = useState<UnifiedSettingsState>({
+    // Defaults
+    hapticsEnabled: true,
+    soundEnabled: true,
+    notificationsEnabled: true,
+    dashPersonality: 'encouraging',
+    voiceEnabled: true,
+    voiceLanguage: 'en-ZA',
+    voiceRate: 1.0,
+    voicePitch: 1.0,
+    autoVoiceReply: false,
+    proactiveHelp: true,
+    memoryEnabled: true,
+    biometricEnabled: false,
+    biometricSupported: false,
+    biometricEnrolled: false,
+    dataRetention: 'month',
+    shareAnalytics: false,
+    personalizedResponses: true,
+    enterToSend: true,
+    showTypingIndicator: true,
+    readReceiptEnabled: true,
+  });
+
+  const dashAI = DashAIAssistant.getInstance();
+
+  useEffect(() => {
+    loadAllSettings();
+  }, []);
+
+  const loadAllSettings = async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadGeneralSettings(),
+        loadDashAISettings(),
+        loadSecuritySettings(),
+        loadPrivacySettings(),
+      ]);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      Alert.alert('Error', 'Failed to load some settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGeneralSettings = async () => {
+    try {
+      const [haptics, sound, notifications] = await Promise.all([
+        AsyncStorage.getItem('pref_haptics_enabled'),
+        AsyncStorage.getItem('pref_sound_enabled'),
+        AsyncStorage.getItem('pref_notifications_enabled'),
+      ]);
+
+      setSettings(prev => ({
+        ...prev,
+        hapticsEnabled: haptics !== 'false',
+        soundEnabled: sound !== 'false',
+        notificationsEnabled: notifications !== 'false',
+      }));
+    } catch (error) {
+      console.error('Error loading general settings:', error);
+    }
+  };
+
+  const loadDashAISettings = async () => {
+    try {
+      await dashAI.initialize();
+      const personality = dashAI.getPersonality();
+      
+      setSettings(prev => ({
+        ...prev,
+        dashPersonality: personality.response_style || 'encouraging',
+        voiceLanguage: personality.voice_settings?.language || 'en-ZA',
+        voiceRate: personality.voice_settings?.rate || 1.0,
+        voicePitch: personality.voice_settings?.pitch || 1.0,
+      }));
+    } catch (error) {
+      console.error('Error loading Dash AI settings:', error);
+    }
+  };
+
+  const loadSecuritySettings = async () => {
+    try {
+      const [capabilities, isEnabled] = await Promise.all([
+        BiometricAuthService.checkCapabilities(),
+        BiometricAuthService.isBiometricEnabled(),
+      ]);
+
+      setSettings(prev => ({
+        ...prev,
+        biometricSupported: capabilities.isAvailable,
+        biometricEnrolled: capabilities.isEnrolled,
+        biometricEnabled: isEnabled,
+      }));
+    } catch (error) {
+      console.error('Error loading security settings:', error);
+    }
+  };
+
+  const loadPrivacySettings = async () => {
+    try {
+      const [retention, analytics, personalized] = await Promise.all([
+        AsyncStorage.getItem('pref_data_retention'),
+        AsyncStorage.getItem('pref_share_analytics'),
+        AsyncStorage.getItem('pref_personalized_responses'),
+      ]);
+
+      setSettings(prev => ({
+        ...prev,
+        dataRetention: (retention as any) || 'month',
+        shareAnalytics: analytics === 'true',
+        personalizedResponses: personalized !== 'false',
+      }));
+    } catch (error) {
+      console.error('Error loading privacy settings:', error);
+    }
+  };
+
+  const updateSetting = useCallback(async (key: keyof UnifiedSettingsState, value: any) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    
+    try {
+      // Save to appropriate storage/service
+      if (key.startsWith('dash')) {
+        await saveDashAISetting(key, value);
+      } else if (key.startsWith('biometric')) {
+        await saveSecuritySetting(key, value);
+      } else {
+        await AsyncStorage.setItem(`pref_${key}`, String(value));
+      }
+    } catch (error) {
+      console.error(`Error saving setting ${key}:`, error);
+      Alert.alert('Error', `Failed to save ${key} setting`);
+    }
+  }, []);
+
+  const saveDashAISetting = async (key: string, value: any) => {
+    try {
+      const personality = dashAI.getPersonality();
+      let updatedPersonality = { ...personality };
+
+      if (key === 'dashPersonality') {
+        updatedPersonality.response_style = value;
+      } else if (key === 'voiceLanguage') {
+        updatedPersonality.voice_settings = { ...personality.voice_settings, language: value };
+      } else if (key === 'voiceRate') {
+        updatedPersonality.voice_settings = { ...personality.voice_settings, rate: value };
+      } else if (key === 'voicePitch') {
+        updatedPersonality.voice_settings = { ...personality.voice_settings, pitch: value };
+      }
+
+      await dashAI.savePersonality(updatedPersonality);
+    } catch (error) {
+      console.error('Error saving Dash AI setting:', error);
+      throw error;
+    }
+  };
+
+  const saveSecuritySetting = async (key: string, value: any) => {
+    try {
+      if (key === 'biometricEnabled') {
+        if (value) {
+          if (!user?.id || !profile?.email) {
+            throw new Error('User information not available for biometric setup');
+          }
+          await BiometricAuthService.enableBiometric(user.id, profile.email);
+        } else {
+          await BiometricAuthService.disableBiometric();
+        }
+      }
+    } catch (error) {
+      console.error('Error saving security setting:', error);
+      throw error;
+    }
+  };
+
+  const testVoice = async () => {
+    try {
+      const permissionStatus = await AudioPermissions.checkPermission();
+      if (!permissionStatus.granted) {
+        const granted = await AudioPermissions.showPermissionGuidance(permissionStatus);
+        if (!granted) return;
+      }
+
+      const testMessage = `Hello! This is Dash speaking with ${settings.dashPersonality} personality.`;
+      await Speech.speak(testMessage, {
+        language: settings.voiceLanguage,
+        rate: settings.voiceRate,
+        pitch: settings.voicePitch,
+      });
+    } catch (error) {
+      console.error('Voice test failed:', error);
+      Alert.alert('Voice Test Failed', 'Could not test voice settings');
+    }
+  };
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
+  const renderSettingItem = (
+    title: string,
+    subtitle: string,
+    value: any,
+    onPress?: () => void,
+    rightElement?: React.ReactNode,
+    icon?: string,
+  ) => (
+    <TouchableOpacity
+      style={[styles.settingItem, { borderBottomColor: theme.divider }]}
+      onPress={onPress}
+      disabled={!onPress && !rightElement}
+    >
+      <View style={styles.settingLeft}>
+        {icon && (
+          <Ionicons
+            name={icon as any}
+            size={24}
+            color={theme.primary}
+            style={styles.settingIcon}
+          />
+        )}
+        <View style={styles.settingContent}>
+          <Text style={[styles.settingTitle, { color: theme.text }]}>{title}</Text>
+          {subtitle && (
+            <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+              {subtitle}
+            </Text>
+          )}
+        </View>
+      </View>
+      <View style={styles.settingRight}>
+        {rightElement || (
+          <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderSection = (
+    title: string,
+    icon: string,
+    sectionKey: keyof typeof expandedSections,
+    children: React.ReactNode,
+  ) => (
+    <View style={[styles.section, { backgroundColor: theme.surface }]}>
+      <TouchableOpacity
+        style={[styles.sectionHeader, { borderBottomColor: theme.divider }]}
+        onPress={() => toggleSection(sectionKey)}
+      >
+        <View style={styles.sectionHeaderLeft}>
+          <Ionicons name={icon as any} size={24} color={theme.primary} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
+        </View>
+        <Ionicons
+          name={expandedSections[sectionKey] ? 'chevron-up' : 'chevron-down'}
+          size={20}
+          color={theme.textSecondary}
+        />
+      </TouchableOpacity>
+      {expandedSections[sectionKey] && <View>{children}</View>}
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            Loading settings...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.divider }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Settings</Text>
+        <TouchableOpacity onPress={loadAllSettings}>
+          <Ionicons name="refresh" size={24} color={theme.primary} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={loadAllSettings} />
+        }
+      >
+        {/* General Settings */}
+        {renderSection('General', 'settings-outline', 'general', (
+          <>
+            {renderSettingItem(
+              'Haptic Feedback',
+              'Vibrations for interactions',
+              settings.hapticsEnabled,
+              undefined,
+              <Switch
+                value={settings.hapticsEnabled}
+                onValueChange={(value) => updateSetting('hapticsEnabled', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.hapticsEnabled ? theme.primary : theme.background}
+              />,
+              'phone-portrait-outline'
+            )}
+            {renderSettingItem(
+              'Sound Effects',
+              'Audio feedback for actions',
+              settings.soundEnabled,
+              undefined,
+              <Switch
+                value={settings.soundEnabled}
+                onValueChange={(value) => updateSetting('soundEnabled', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.soundEnabled ? theme.primary : theme.background}
+              />,
+              'volume-high-outline'
+            )}
+            {renderSettingItem(
+              'Notifications',
+              'Push notifications and alerts',
+              settings.notificationsEnabled,
+              undefined,
+              <Switch
+                value={settings.notificationsEnabled}
+                onValueChange={(value) => updateSetting('notificationsEnabled', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.notificationsEnabled ? theme.primary : theme.background}
+              />,
+              'notifications-outline'
+            )}
+          </>
+        ))}
+
+        {/* Dash AI Settings */}
+        {renderSection('Dash AI Assistant', 'chatbox-ellipses-outline', 'dashAI', (
+          <>
+            {renderSettingItem(
+              'Personality',
+              `Currently: ${settings.dashPersonality}`,
+              settings.dashPersonality,
+              () => {
+                Alert.alert(
+                  'Select Personality',
+                  'Choose how Dash responds to you',
+                  [
+                    { text: 'Professional', onPress: () => updateSetting('dashPersonality', 'professional') },
+                    { text: 'Casual', onPress: () => updateSetting('dashPersonality', 'casual') },
+                    { text: 'Encouraging', onPress: () => updateSetting('dashPersonality', 'encouraging') },
+                    { text: 'Formal', onPress: () => updateSetting('dashPersonality', 'formal') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              },
+              undefined,
+              'person-outline'
+            )}
+            {renderSettingItem(
+              'Voice Output',
+              'Text-to-speech responses',
+              settings.voiceEnabled,
+              undefined,
+              <Switch
+                value={settings.voiceEnabled}
+                onValueChange={(value) => updateSetting('voiceEnabled', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.voiceEnabled ? theme.primary : theme.background}
+              />,
+              'mic-outline'
+            )}
+            {renderSettingItem(
+              'Test Voice',
+              'Hear how Dash sounds',
+              null,
+              testVoice,
+              <Ionicons name="play-circle-outline" size={24} color={theme.primary} />,
+              'volume-high-outline'
+            )}
+            {renderSettingItem(
+              'Proactive Help',
+              'Dash offers helpful suggestions',
+              settings.proactiveHelp,
+              undefined,
+              <Switch
+                value={settings.proactiveHelp}
+                onValueChange={(value) => updateSetting('proactiveHelp', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.proactiveHelp ? theme.primary : theme.background}
+              />,
+              'bulb-outline'
+            )}
+            {renderSettingItem(
+              'Memory',
+              'Remember conversation context',
+              settings.memoryEnabled,
+              undefined,
+              <Switch
+                value={settings.memoryEnabled}
+                onValueChange={(value) => updateSetting('memoryEnabled', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.memoryEnabled ? theme.primary : theme.background}
+              />,
+              'library-outline'
+            )}
+          </>
+        ))}
+
+        {/* Security Settings */}
+        {renderSection('Security', 'shield-outline', 'security', (
+          <>
+            {settings.biometricSupported && (
+              <View>
+                {renderSettingItem(
+                  'Biometric Authentication',
+                  settings.biometricEnrolled 
+                    ? 'Use fingerprint/face unlock'
+                    : 'Set up biometrics in device settings first',
+                  settings.biometricEnabled,
+                  undefined,
+                  <Switch
+                    value={settings.biometricEnabled}
+                    onValueChange={(value) => updateSetting('biometricEnabled', value)}
+                    disabled={!settings.biometricEnrolled}
+                    trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                    thumbColor={settings.biometricEnabled ? theme.primary : theme.background}
+                  />,
+                  'finger-print-outline'
+                )}
+                {!settings.biometricEnrolled && (
+                  <View style={[styles.warningBanner, { backgroundColor: theme.warning + '20' }]}>
+                    <Ionicons name="warning-outline" size={20} color={theme.warning} />
+                    <Text style={[styles.warningText, { color: theme.warning }]}>
+                      Enable biometrics in your device settings to use this feature
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </>
+        ))}
+
+        {/* Privacy Settings */}
+        {renderSection('Privacy', 'lock-closed-outline', 'privacy', (
+          <>
+            {renderSettingItem(
+              'Data Retention',
+              `Keep data for: ${settings.dataRetention}`,
+              settings.dataRetention,
+              () => {
+                Alert.alert(
+                  'Data Retention',
+                  'How long should we keep your data?',
+                  [
+                    { text: 'Session Only', onPress: () => updateSetting('dataRetention', 'session') },
+                    { text: '1 Week', onPress: () => updateSetting('dataRetention', 'week') },
+                    { text: '1 Month', onPress: () => updateSetting('dataRetention', 'month') },
+                    { text: 'Indefinite', onPress: () => updateSetting('dataRetention', 'indefinite') },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              },
+              undefined,
+              'time-outline'
+            )}
+            {renderSettingItem(
+              'Share Analytics',
+              'Help improve the app with usage data',
+              settings.shareAnalytics,
+              undefined,
+              <Switch
+                value={settings.shareAnalytics}
+                onValueChange={(value) => updateSetting('shareAnalytics', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.shareAnalytics ? theme.primary : theme.background}
+              />,
+              'analytics-outline'
+            )}
+            {renderSettingItem(
+              'Personalized Responses',
+              'Customize responses based on your usage',
+              settings.personalizedResponses,
+              undefined,
+              <Switch
+                value={settings.personalizedResponses}
+                onValueChange={(value) => updateSetting('personalizedResponses', value)}
+                trackColor={{ false: theme.divider, true: theme.primary + '40' }}
+                thumbColor={settings.personalizedResponses ? theme.primary : theme.background}
+              />,
+              'person-circle-outline'
+            )}
+          </>
+        ))}
+
+        {/* Appearance & Language */}
+        {renderSection('Appearance & Language', 'color-palette-outline', 'appearance', (
+          <View style={styles.themeContainer}>
+            <ThemeLanguageSettings />
+          </View>
+        ))}
+
+        {/* Quick Actions */}
+        <View style={[styles.section, { backgroundColor: theme.surface }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text, paddingHorizontal: 16, paddingTop: 16 }]}>
+            Quick Actions
+          </Text>
+          {renderSettingItem(
+            'Reset All Settings',
+            'Restore default settings',
+            null,
+            () => {
+              Alert.alert(
+                'Reset Settings',
+                'This will restore all settings to their defaults. This action cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Reset', 
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await AsyncStorage.multiRemove([
+                          'pref_haptics_enabled',
+                          'pref_sound_enabled',
+                          'pref_notifications_enabled',
+                          'pref_data_retention',
+                          'pref_share_analytics',
+                          'pref_personalized_responses',
+                        ]);
+                        await loadAllSettings();
+                        Alert.alert('Success', 'Settings have been reset to defaults');
+                      } catch (error) {
+                        Alert.alert('Error', 'Failed to reset settings');
+                      }
+                    }
+                  },
+                ]
+              );
+            },
+            <Ionicons name="refresh-circle-outline" size={24} color={theme.error} />,
+            'refresh-outline'
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+            EduDash Pro v1.0.2
+          </Text>
+          <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+            Settings are synced across all your devices
+          </Text>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  section: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 12,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  settingIcon: {
+    marginRight: 12,
+  },
+  settingContent: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  settingSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  settingRight: {
+    marginLeft: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+  },
+  themeContainer: {
+    padding: 16,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  warningText: {
+    marginLeft: 8,
+    fontSize: 14,
+    flex: 1,
+  },
+  footer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+});

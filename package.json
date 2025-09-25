@@ -1,6 +1,6 @@
 {
   "name": "edudash-pro",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "main": "expo-router/entry",
   "expo": {
     "entryPoint": "app.config.js"
@@ -32,6 +32,7 @@
     "@tanstack/react-query-persist-client": "^5.87.4",
     "expo": "~53.0.22",
     "expo-application": "~6.1.5",
+    "expo-clipboard": "^8.0.7",
     "expo-constants": "~17.1.7",
     "expo-crypto": "~14.1.5",
     "expo-dev-client": "^5.2.4",

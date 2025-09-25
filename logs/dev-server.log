@@ -1,0 +1,144 @@
+env: load .env
+env: export EXPO_PUBLIC_SENTRY_DSN EXPO_PUBLIC_ENABLE_SENTRY EXPO_PUBLIC_POSTHOG_KEY EXPO_PUBLIC_POSTHOG_HOST EXPO_PUBLIC_DEBUG_TOOLS EXPO_PUBLIC_ENABLE_TEST_TOOLS EXPO_PUBLIC_API_BASE EXPO_PUBLIC_WEBHOOK_PAYPAL_FN EXPO_PUBLIC_WEBHOOK_PAYFAST_FN FROM_EMAIL EXPO_PUBLIC_FROM_EMAIL EXPO_PUBLIC_ADMOB_ANDROID_APP_ID EXPO_PUBLIC_ADMOB_IOS_APP_ID EXPO_PUBLIC_ADMOB_TEST_IDS_ONLY EXPO_PUBLIC_ENABLE_FREE_TIER_ADS EXPO_PUBLIC_ADMOB_ADUNIT_BANNER_PARENT_DASHBOARD EXPO_PUBLIC_ADMOB_ADUNIT_NATIVE_PARENT_FEED EXPO_PUBLIC_ADMOB_ADUNIT_INTERSTITIAL_PARENT_NAV EXPO_PUBLIC_ADMOB_ADUNIT_REWARDED_PARENT_PERK EXPO_PUBLIC_ENVIRONMENT EXPO_PUBLIC_DEBUG_MODE EXPO_PUBLIC_DEBUG_SUPABASE EXPO_PUBLIC_EMAIL_ENABLED EXPO_PUBLIC_EMAIL_MOCK_MODE EXPO_PUBLIC_AI_ENABLED EXPO_PUBLIC_ENABLE_AI_FEATURES EXPO_PUBLIC_ANTHROPIC_MODEL EXPO_PUBLIC_ANTHROPIC_MAX_TOKENS EXPO_PUBLIC_AI_LESSON_GENERATION_ENABLED EXPO_PUBLIC_AI_HOMEWORK_GRADING_ENABLED EXPO_PUBLIC_AI_HOMEWORK_HELP_ENABLED EXPO_PUBLIC_AI_STEM_ACTIVITIES_ENABLED EXPO_PUBLIC_AI_PROGRESS_ANALYSIS_ENABLED EXPO_PUBLIC_AI_INSIGHTS_ENABLED EXPO_PUBLIC_AI_CONTENT_MODERATION_ENABLED EXPO_PUBLIC_AI_STREAMING_ENABLED EXPO_PUBLIC_REVENUECAT_ANDROID_SDK_KEY EXPO_PUBLIC_REVENUECAT_IOS_SDK_KEY EXPO_PUBLIC_PAYMENTS_BRIDGE_URL EXPO_PUBLIC_ENHANCED_UI EXPO_PUBLIC_FORCE_ENHANCED_UI
+Starting project at /home/king/Desktop/edudashpro
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 1890ms node_modules/expo-router/entry.js (1890 modules)
+ LOG  [web] Logs will appear in the browser console
+Web lib/notifications.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 708ms lib/notifications.ts (262 modules)
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 121ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 108ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 98ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 132ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 137ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 104ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 84ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 93ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 110ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 103ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 97ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 111ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 94ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 94ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 112ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 116ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 137ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+ ERROR  SyntaxError: /home/king/Desktop/edudashpro/hooks/useDashboardData.ts: Unexpected token (538:10)
+
+  536 |             }
+  537 |           }
+> 538 |         } catch (fetchUsersErr) {
+      |           ^
+  539 |           console.warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
+  540 |         }
+  541 |
+ ERROR  SyntaxError: /home/king/Desktop/edudashpro/hooks/useDashboardData.ts: Unexpected token (538:10)
+
+  536 |             }
+  537 |           }
+> 538 |         } catch (fetchUsersErr) {
+      |           ^
+  539 |           console.warn('Parent user detail fetch by membership failed:', fetchUsersErr);
+  540 |         }
+  541 |
+ ERROR  SyntaxError: /home/king/Desktop/edudashpro/hooks/useDashboardData.ts: Unexpected token (538:10)
+
+  536 |             }
+  537 |           }
+> 538 |         } catch (fetchUsersErr) {
+      |           ^
+  539 |           console.warn('Parent user detail fetch by membership failed:', fetchUsersErr);
+  540 |         }
+  541 |
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundling failed 53ms node_modules/expo-router/entry.js (1 module)
+ ERROR  SyntaxError: /home/king/Desktop/edudashpro/hooks/useDashboardData.ts: Unexpected token (538:10)
+
+  536 |             }
+  537 |           }
+> 538 |         } catch (fetchUsersErr) {
+      |           ^
+  539 |           console.warn('Parent user detail fetch by membership failed:', fetchUsersErr);
+  540 |         }
+  541 |
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundling failed 37ms node_modules/expo-router/entry.js (1 module)
+ ERROR  SyntaxError: /home/king/Desktop/edudashpro/hooks/useDashboardData.ts: Unexpected token (538:10)
+
+  536 |             }
+  537 |           }
+> 538 |         } catch (fetchUsersErr) {
+      |           ^
+  539 |           console.warn('Parent user detail fetch by membership failed:', fetchUsersErr);
+  540 |         }
+  541 |
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 280ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 121ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 76ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 82ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 101ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 104ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 111ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 115ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 102ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 96ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web node_modules/expo-router/entry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 118ms node_modules/expo-router/entry.js (1 module)
+ LOG  [web] Logs will appear in the browser console
