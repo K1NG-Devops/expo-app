@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { EnhancedPrincipalDashboard } from '@/components/dashboard/EnhancedPrincipalDashboard';
+import { PrincipalDashboardWrapper } from '@/components/dashboard/PrincipalDashboardWrapper';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
@@ -58,7 +58,7 @@ export default function PrincipalDashboardScreen() {
     );
   }
 
-  return <EnhancedPrincipalDashboard />;
+  return <PrincipalDashboardWrapper />;
 }
 
 const createStyles = (theme: any) => StyleSheet.create({

@@ -41,6 +41,7 @@ import { Vibration } from 'react-native';
 import Feedback from '@/lib/feedback';
 import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -64,6 +65,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
+  const { preferences, setLayout } = useDashboardPreferences();
   const { maybeShowInterstitial, offerRewarded } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
@@ -376,6 +378,21 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   </View>
                 </View>
               )}
+              {/* Dashboard Layout Toggle */}
+              <TouchableOpacity
+                style={styles.dashboardToggle}
+                onPress={() => {
+                  const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
+                  setLayout(newLayout);
+                  try { Feedback.vibrate(15); } catch {}
+                }}
+              >
+                <Ionicons 
+                  name={preferences.layout === 'enhanced' ? 'grid' : 'apps'} 
+                  size={18} 
+                  color={theme.primary} 
+                />
+              </TouchableOpacity>
               {/* WhatsApp Status */}
               {isWhatsAppEnabled() && (
                 <TouchableOpacity onPress={() => setShowWhatsAppModal(true)}>
@@ -1143,6 +1160,16 @@ const createStyles = (theme: any) => {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  dashboardToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   section: {
     paddingHorizontal: 20,

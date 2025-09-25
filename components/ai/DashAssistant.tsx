@@ -24,6 +24,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAIAssistant, DashMessage, DashConversation } from '@/services/DashAIAssistant';
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -42,6 +43,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   initialMessage
 }) => {
   const { theme, isDark } = useTheme();
+  const { setLayout } = useDashboardPreferences();
   const [messages, setMessages] = useState<DashMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -158,6 +160,18 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
       const response = await dashInstance.sendMessage(text);
       
+      // Handle dashboard actions if present
+      if (response.metadata?.dashboard_action?.type === 'switch_layout') {
+        const newLayout = response.metadata.dashboard_action.layout;
+        console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
+        setLayout(newLayout);
+        
+        // Provide haptic feedback
+        try {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } catch { /* Haptics not available */ }
+      }
+      
       // Update messages from conversation
       const updatedConv = await dashInstance.getConversation(dashInstance.getCurrentConversationId()!);
       if (updatedConv) {
@@ -203,6 +217,18 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       if (audioUri) {
         setIsLoading(true);
         const response = await dashInstance.sendVoiceMessage(audioUri);
+        
+        // Handle dashboard actions if present
+        if (response.metadata?.dashboard_action?.type === 'switch_layout') {
+          const newLayout = response.metadata.dashboard_action.layout;
+          console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
+          setLayout(newLayout);
+          
+          // Provide haptic feedback
+          try {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          } catch { /* Haptics not available */ }
+        }
         
         // Update messages from conversation
         const updatedConv = await dashInstance.getConversation(dashInstance.getCurrentConversationId()!);
@@ -330,6 +356,41 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     );
   };
 
+  const handleSuggestedAction = (action: string) => {
+    // Map suggested actions to proper commands
+    const actionMap: Record<string, string> = {
+      'switch_to_enhanced': 'switch to enhanced dashboard',
+      'switch_to_classic': 'switch to classic dashboard', 
+      'dashboard_help': 'help me with dashboard settings',
+      'dashboard_settings': 'show dashboard settings',
+      'view_enhanced_features': 'what are enhanced dashboard features',
+      'view_classic_features': 'what are classic dashboard features',
+      'switch_dashboard_layout': 'help me switch dashboard layout',
+      'view_options': 'show me dashboard options',
+    };
+    
+    const command = actionMap[action] || action.replace('_', ' ');
+    sendMessage(command);
+  };
+
+  const getActionDisplayText = (action: string): string => {
+    const displayMap: Record<string, string> = {
+      'switch_to_enhanced': '✨ Enhanced Dashboard',
+      'switch_to_classic': '📊 Classic Dashboard',
+      'dashboard_help': '❓ Dashboard Help',
+      'dashboard_settings': '⚙️ Settings',
+      'view_enhanced_features': '🌟 Enhanced Features',
+      'view_classic_features': '📋 Classic Features',
+      'switch_dashboard_layout': '🔄 Switch Layout',
+      'view_options': '👀 View Options',
+      'explore_features': '🔍 Explore Features',
+      'lesson_planning': '📚 Lesson Planning',
+      'student_management': '👥 Student Management',
+    };
+    
+    return displayMap[action] || action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
   const renderSuggestedActions = () => {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage || lastMessage.type === 'user' || !lastMessage.metadata?.suggested_actions) {
@@ -339,17 +400,27 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     return (
       <View style={styles.suggestedActionsContainer}>
         <Text style={[styles.suggestedActionsTitle, { color: theme.textSecondary }]}>
-          Suggested actions:
+          Quick actions:
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {lastMessage.metadata.suggested_actions.map((action, index) => (
             <TouchableOpacity
               key={index}
-              style={[styles.suggestedAction, { backgroundColor: theme.surfaceVariant }]}
-              onPress={() => sendMessage(action.replace('_', ' '))}
+              style={[
+                styles.suggestedAction, 
+                { 
+                  backgroundColor: action.includes('dashboard') ? theme.primaryLight : theme.surfaceVariant,
+                  borderColor: action.includes('dashboard') ? theme.primary : 'transparent',
+                  borderWidth: action.includes('dashboard') ? 1 : 0
+                }
+              ]}
+              onPress={() => handleSuggestedAction(action)}
             >
-              <Text style={[styles.suggestedActionText, { color: theme.text }]}>
-                {action.replace('_', ' ')}
+              <Text style={[
+                styles.suggestedActionText, 
+                { color: action.includes('dashboard') ? theme.primary : theme.text }
+              ]}>
+                {getActionDisplayText(action)}
               </Text>
             </TouchableOpacity>
           ))}

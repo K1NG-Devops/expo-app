@@ -1096,5 +1096,43 @@
     "no_financial_data_title": "No Financial Data",
     "no_financial_data_description": "Financial reports and revenue data will be shown here once available.",
     "view_reports": "View Reports"
+  },
+  "settings": {
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "preview": "Preview",
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "accent": "Accent"
+    },
+    "language": {
+      "title": "Language",
+      "current": "Current Language",
+      "available": "Available Languages",
+      "comingSoon": "Coming Soon",
+      "soon": "Soon"
+    },
+    "dashboard": {
+      "title": "Dashboard Layout",
+      "current": "Current Layout",
+      "available": "Available Layouts",
+      "classic": "Classic",
+      "classicDesc": "Traditional dashboard with familiar layout and navigation",
+      "enhanced": "Enhanced",
+      "enhancedDesc": "Modern dashboard with improved design and new features"
+    },
+    "preferences": {
+      "title": "Preferences",
+      "autoTheme": "Auto Theme",
+      "autoThemeDesc": "Automatically switch between light and dark themes based on system settings"
+    },
+    "biometric": {
+      "unlockApp": "Unlock EduDash Pro",
+      "authRequired": "Biometric authentication is required to continue",
+      "authenticate": "Authenticate"
+    }
   }
 }

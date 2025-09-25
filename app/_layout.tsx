@@ -23,6 +23,7 @@ import { QueryProvider } from '@/lib/query/queryClient';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
+import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -212,7 +213,8 @@ export default function RootLayout() {
       <ThemeProvider>
         <QueryProvider>
           <AuthProvider>
-            <UpdatesProvider>
+            <DashboardPreferencesProvider>
+              <UpdatesProvider>
               {/* Wrap in SubscriptionProvider so screens can access subscription data */}
               <SubscriptionProvider>
                 {/* Wrap in AdsProvider for ad display gating and control */}
@@ -223,7 +225,8 @@ export default function RootLayout() {
                   {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
                 </AdsProvider>
               </SubscriptionProvider>
-            </UpdatesProvider>
+              </UpdatesProvider>
+            </DashboardPreferencesProvider>
           </AuthProvider>
         </QueryProvider>
       </ThemeProvider>

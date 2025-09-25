@@ -42,6 +42,10 @@ export interface DashMessage {
       id: string;
       title: string;
     }>;
+    dashboard_action?: {
+      type: 'switch_layout';
+      layout: 'classic' | 'enhanced';
+    };
   };
 }
 
@@ -405,7 +409,8 @@ export class DashAIAssistant {
         metadata: {
           confidence: response.confidence || 0.9,
           suggested_actions: response.suggested_actions || [],
-          references: response.references || []
+          references: response.references || [],
+          dashboard_action: response.dashboard_action
         }
       };
 
@@ -439,11 +444,64 @@ export class DashAIAssistant {
       id: string;
       title: string;
     }>;
+    dashboard_action?: {
+      type: 'switch_layout';
+      layout: 'classic' | 'enhanced';
+    };
   }> {
     // This would integrate with your existing AI services
     // For now, return a smart contextual response
     
     const userInput = context.userInput.toLowerCase();
+    
+    // Dashboard layout commands
+    if (userInput.includes('dashboard') || userInput.includes('layout') || userInput.includes('switch')) {
+      const isAskingForEnhanced = userInput.includes('enhanced') || userInput.includes('modern') || userInput.includes('new');
+      const isAskingForClassic = userInput.includes('classic') || userInput.includes('traditional') || userInput.includes('old');
+      
+      if (isAskingForEnhanced) {
+        return {
+          content: `I'll switch you to the Enhanced Dashboard! This modern layout features improved design, better organization, and enhanced visual elements. The switch will happen automatically.`,
+          confidence: 0.95,
+          suggested_actions: ['view_enhanced_features', 'dashboard_help'],
+          references: [],
+          dashboard_action: {
+            type: 'switch_layout',
+            layout: 'enhanced'
+          }
+        };
+      } else if (isAskingForClassic) {
+        return {
+          content: `I'll switch you to the Classic Dashboard! This familiar layout provides the traditional view you're used to. The switch will happen automatically.`,
+          confidence: 0.95,
+          suggested_actions: ['view_classic_features', 'dashboard_help'],
+          references: [],
+          dashboard_action: {
+            type: 'switch_layout',
+            layout: 'classic'
+          }
+        };
+      } else {
+        return {
+          content: `I can help you switch between dashboard layouts! You have two options:\n\n📊 **Classic Dashboard** - Traditional layout with familiar organization\n✨ **Enhanced Dashboard** - Modern design with improved visual elements\n\nWhich layout would you prefer?`,
+          confidence: 0.9,
+          suggested_actions: ['switch_to_enhanced', 'switch_to_classic', 'dashboard_help'],
+          references: []
+        };
+      }
+    }
+    
+    // Settings and preferences
+    if (userInput.includes('setting') || userInput.includes('prefer') || userInput.includes('config')) {
+      if (userInput.includes('dashboard')) {
+        return {
+          content: `I can help you customize your dashboard! You can switch between layouts, adjust preferences, or explore different views. What would you like to change about your dashboard?`,
+          confidence: 0.85,
+          suggested_actions: ['switch_dashboard_layout', 'dashboard_settings', 'view_options'],
+          references: []
+        };
+      }
+    }
     
     // Simple pattern matching for educational contexts
     if (userInput.includes('lesson') || userInput.includes('teach')) {

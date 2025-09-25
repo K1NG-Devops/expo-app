@@ -26,6 +26,7 @@ import {
   getComingSoonLanguages,
   SupportedLanguage,
 } from '@/lib/i18n';
+import { useDashboardPreferences, DashboardLayoutType } from '@/contexts/DashboardPreferencesContext';
 import { Ionicons } from '@expo/vector-icons';
 
 // Enable LayoutAnimation on Android
@@ -36,6 +37,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 export function ThemeLanguageSettings() {
   const { theme, mode, setMode, isDark } = useTheme();
   const { t } = useTranslation();
+  const { preferences, setLayout } = useDashboardPreferences();
   const currentLanguage = getCurrentLanguage();
   const availableLanguages = getAvailableLanguages();
   const comingSoonLanguages = getComingSoonLanguages();
@@ -43,6 +45,7 @@ export function ThemeLanguageSettings() {
   // State for collapsible sections
   const [isLanguageExpanded, setIsLanguageExpanded] = useState(false);
   const [isComingSoonExpanded, setIsComingSoonExpanded] = useState(false);
+  const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
 
   const themeModes: { mode: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
     { mode: 'light', label: t('settings.theme.light'), icon: 'sunny' },
@@ -66,6 +69,30 @@ export function ThemeLanguageSettings() {
   const toggleComingSoonExpansion = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setIsComingSoonExpanded(!isComingSoonExpanded);
+  };
+
+  const toggleDashboardExpansion = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsDashboardExpanded(!isDashboardExpanded);
+  };
+
+  const dashboardLayouts: { layout: DashboardLayoutType; label: string; description: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { 
+      layout: 'classic', 
+      label: t('settings.dashboard.classic'), 
+      description: t('settings.dashboard.classicDesc'), 
+      icon: 'grid-outline' 
+    },
+    { 
+      layout: 'enhanced', 
+      label: t('settings.dashboard.enhanced'), 
+      description: t('settings.dashboard.enhancedDesc'), 
+      icon: 'apps-outline' 
+    },
+  ];
+
+  const handleDashboardLayoutChange = async (layout: DashboardLayoutType) => {
+    setLayout(layout);
   };
 
   return (
@@ -252,6 +279,94 @@ export function ThemeLanguageSettings() {
               </View>
             )}
           </>
+        )}
+      </View>
+
+      {/* Dashboard Layout Section */}
+      <View style={styles.section}>
+        <TouchableOpacity
+          style={styles.collapsibleHeader}
+          onPress={toggleDashboardExpansion}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            {t('settings.dashboard.title')}
+          </Text>
+          <Ionicons
+            name={isDashboardExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color={theme.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {/* Current Dashboard Layout Preview */}
+        <View style={[styles.card, { backgroundColor: theme.surface }]}>
+          <View style={styles.languageOption}>
+            <View style={styles.languageInfo}>
+              <Text style={[styles.currentLanguageLabel, { color: theme.textSecondary }]}>
+                {t('settings.dashboard.current')}
+              </Text>
+              <Text style={[styles.languageName, { color: theme.primary, fontWeight: '600' }]}>
+                {dashboardLayouts.find(l => l.layout === preferences.layout)?.label || t('settings.dashboard.classic')}
+              </Text>
+              <Text style={[styles.languageSubtext, { color: theme.textTertiary }]}>
+                {dashboardLayouts.find(l => l.layout === preferences.layout)?.description || t('settings.dashboard.classicDesc')}
+              </Text>
+            </View>
+            <Ionicons 
+              name={dashboardLayouts.find(l => l.layout === preferences.layout)?.icon || 'grid-outline'} 
+              size={24} 
+              color={theme.primary} 
+            />
+          </View>
+        </View>
+
+        {/* Available Dashboard Layouts (Collapsible) */}
+        {isDashboardExpanded && (
+          <View style={[styles.card, styles.expandedCard, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.expandedSectionTitle, { color: theme.textSecondary }]}>
+              {t('settings.dashboard.available')}
+            </Text>
+            {dashboardLayouts.map((layout, index) => (
+              <TouchableOpacity
+                key={layout.layout}
+                style={[
+                  styles.languageOption,
+                  preferences.layout === layout.layout && styles.currentLanguageOption,
+                  index < dashboardLayouts.length - 1 && [styles.borderBottom, { borderBottomColor: theme.divider }],
+                ]}
+                onPress={() => handleDashboardLayoutChange(layout.layout)}
+                disabled={preferences.layout === layout.layout}
+              >
+                <View style={styles.optionLeft}>
+                  <Ionicons
+                    name={layout.icon}
+                    size={24}
+                    color={preferences.layout === layout.layout ? theme.primary : theme.textSecondary}
+                  />
+                  <View style={styles.languageInfo}>
+                    <Text
+                      style={[
+                        styles.languageName,
+                        {
+                          color: preferences.layout === layout.layout ? theme.primary : theme.text,
+                          fontWeight: preferences.layout === layout.layout ? '600' : '400',
+                        },
+                      ]}
+                    >
+                      {layout.label}
+                    </Text>
+                    <Text style={[styles.languageSubtext, { color: theme.textTertiary }]}>
+                      {layout.description}
+                    </Text>
+                  </View>
+                </View>
+                {preferences.layout === layout.layout && (
+                  <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
       </View>
 
