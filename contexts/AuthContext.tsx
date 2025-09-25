@@ -340,7 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             track('edudash.auth.signed_out', {});
             
             // Ensure we fall back to the sign-in screen on sign out or session loss
-            try { router.replace('/sign-in'); } catch (navErr) { console.debug('Navigation to sign-in failed', navErr); }
+            try { router.replace('/(auth)/sign-in'); } catch (navErr) { console.debug('Navigation to sign-in failed', navErr); }
           }
         } catch (error) {
           console.error('Auth state change handler error:', error);

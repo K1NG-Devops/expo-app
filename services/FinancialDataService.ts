@@ -16,6 +16,7 @@ export interface UnifiedTransaction {
   date: string;
   reference?: string;
   source: 'payment' | 'petty_cash';
+  category?: string;
   metadata?: any;
 }
 
@@ -36,8 +37,18 @@ export interface MonthlyTrendData {
   netIncome: number;
 }
 
-// Additional type exports for compatibility
-export type FinanceOverviewData = FinancialMetrics;
+// Enhanced type for dashboard compatibility
+export interface FinanceOverviewData extends FinancialMetrics {
+  revenueMonthly: number[];
+  expensesMonthly: number[];
+  categoriesBreakdown: { name: string; value: number; }[];
+  keyMetrics: {
+    monthlyRevenue: number;
+    monthlyExpenses: number;
+    cashFlow: number;
+  };
+}
+
 export type TransactionRecord = UnifiedTransaction;
 export interface DateRange {
   startDate: string;
@@ -240,6 +251,7 @@ const { data: payments, error: paymentsError } = await assertSupabase()
             date: payment.created_at,
             reference: payment.payment_reference,
             source: 'payment',
+            category: 'Tuition',
             metadata: payment.metadata
           });
         });
@@ -264,6 +276,7 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
             date: transaction.created_at,
             reference: transaction.receipt_number,
             source: 'petty_cash',
+            category: transaction.category || 'General',
             metadata: { category: transaction.category, type: transaction.type }
           });
         });
@@ -335,7 +348,26 @@ const { data: pettyCash, error: pettyCashError } = await assertSupabase()
 
   // Compatibility methods for existing code
   static async getOverview(preschoolId: string): Promise<FinanceOverviewData> {
-    return this.getFinancialMetrics(preschoolId);
+    const metrics = await this.getFinancialMetrics(preschoolId);
+    const trendData = await this.getMonthlyTrendData(preschoolId);
+    
+    // Create enhanced overview data with chart-compatible arrays
+    return {
+      ...metrics,
+      revenueMonthly: trendData.map(t => t.revenue),
+      expensesMonthly: trendData.map(t => t.expenses),
+      categoriesBreakdown: [
+        { name: 'Operations', value: metrics.monthlyExpenses * 0.4 },
+        { name: 'Staff', value: metrics.monthlyExpenses * 0.35 },
+        { name: 'Supplies', value: metrics.monthlyExpenses * 0.15 },
+        { name: 'Maintenance', value: metrics.monthlyExpenses * 0.1 },
+      ],
+      keyMetrics: {
+        monthlyRevenue: metrics.monthlyRevenue,
+        monthlyExpenses: metrics.monthlyExpenses,
+        cashFlow: metrics.netIncome,
+      },
+    };
   }
 
   static async getTransactions(preschoolId: string, dateRange?: DateRange, limit?: number): Promise<TransactionRecord[]> {

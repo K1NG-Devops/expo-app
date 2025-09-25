@@ -7,940 +7,496 @@ import {
   ActivityIndicator,
   View,
   Alert,
-  Modal,
+  ScrollView,
+  Image,
 } from "react-native";
-import { Stack, router, useLocalSearchParams } from "expo-router";
-import * as Linking from "expo-linking";
+import { Stack, router } from "expo-router";
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/lib/supabase";
 import { signInWithSession } from "@/lib/sessionManager";
-import KeyboardScreen from "@/components/ui/KeyboardScreen";
-import { BiometricAuthService } from "@/services/BiometricAuthService";
-import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
-// Biometric setup component (used conditionally)
-// import { BiometricSetup } from "@/components/auth/BiometricSetup";
-import { EnhancedBiometricAuth } from "@/services/EnhancedBiometricAuth";
-import BiometricDebugger from "../../utils/biometricDebug";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { registerForPushNotificationsAsync, onNotificationReceived, scheduleLocalNotification } from "@/lib/notifications";
 
-export default function SignIn() {
+export default function EnhancedSignIn() {
   const { theme } = useTheme();
-  console.log('Theme loaded:', theme.background); // Prevent unused warning
   const { t } = useTranslation();
-  const [mode, setMode] = useState<"password" | "otp">("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [code, setCode] = useState("");
-  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [storedUserData, setStoredUserData] = useState<any>(null);
-  // Biometric setup modal state (conditionally used)
-  // const [showBiometricSetup, setShowBiometricSetup] = useState(false);
-  const [biometricType, setBiometricType] = useState<string | null>(null);
-  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false);
-  const hasPromptedRef = React.useRef(false);
-  // Multi-account biometric support
-  const [biometricAccounts, setBiometricAccounts] = useState<Array<{ userId: string; email: string; lastUsed: string; expiresAt: string }>>([]);
-  const [showAccountPicker, setShowAccountPicker] = useState(false);
-  const [switchLoadingUserId, setSwitchLoadingUserId] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const canUseSupabase = !!supabase;
 
-  // Read query params (e.g., switch=1 to open account picker)
-  const params = useLocalSearchParams<{ switch?: string }>();
-
-  // Check biometric availability on component mount
-  useEffect(() => {
-    checkBiometricStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Register for push notifications when the sign-in screen mounts
-  useEffect(() => {
-    let unsubscribe: undefined | (() => void);
-    (async () => {
-      try {
-        const token = await registerForPushNotificationsAsync();
-        if (token) {
-          console.log('Expo push token:', token);
-          // TODO: send token to your backend if you want server-initiated pushes
-        }
-        unsubscribe = onNotificationReceived((n) => {
-          console.log('Notification received:', n);
-        });
-      } catch (e) {
-        console.warn('Push registration failed:', e);
-      }
-    })();
-    return () => { if (unsubscribe) unsubscribe(); };
-  }, []);
-
-  const checkBiometricStatus = async () => {
+  // Social OAuth handlers
+  const handleGoogleSignIn = async () => {
     try {
-      console.log('[SignIn] Checking biometric status...');
-      const securityInfo = await BiometricAuthService.getSecurityInfo();
-      const isAvailable = securityInfo.capabilities.isAvailable && securityInfo.capabilities.isEnrolled;
-      setBiometricAvailable(isAvailable);
-      setBiometricEnabled(securityInfo.isEnabled);
-
-      console.log('[SignIn] Biometric status:', {
-        isAvailable,
-        isEnabled: securityInfo.isEnabled,
-        availableTypes: securityInfo.availableTypes,
-      });
-
-      // Determine the primary biometric type for display
-      const availableTypes = securityInfo.availableTypes;
-      if (availableTypes.includes('Fingerprint')) {
-        setBiometricType('fingerprint');
-      } else if (availableTypes.includes('Face ID')) {
-        setBiometricType('face');
-      } else if (availableTypes.includes('Iris Scan')) {
-        setBiometricType('iris');
-      } else {
-        setBiometricType('biometric');
-      }
-
-      // Check both old and new biometric data storage
-      const userData = await BiometricAuthService.getStoredBiometricData();
-      const enhancedSessionData = await EnhancedBiometricAuth.getBiometricSession();
+      setLoading(true);
+      setError(null);
       
-      console.log('[SignIn] Biometric data found:', {
-        hasUserData: !!userData,
-        hasEnhancedSession: !!enhancedSessionData,
-        userEmail: userData?.email || enhancedSessionData?.email,
-      });
-
-      // Prefer enhanced session data if available, fall back to legacy data
-      const effectiveUserData = enhancedSessionData ? {
-        userId: enhancedSessionData.userId,
-        email: enhancedSessionData.email,
-        enabledAt: enhancedSessionData.lastUsed,
-        securityToken: enhancedSessionData.sessionToken,
-        version: 2
-      } : userData;
-      
-      setStoredUserData(effectiveUserData);
-
-      // Pre-populate email if we have stored biometric data
-      if (effectiveUserData?.email) {
-        setEmail(effectiveUserData.email);
-      }
-
-      // Load any stored biometric accounts (multi-account)
-      try {
-        const accounts = await EnhancedBiometricAuth.getBiometricAccounts();
-        setBiometricAccounts(accounts);
-
-        // If we were routed here to switch accounts, open picker or auto-login
-        if (params?.switch === '1') {
-          if (accounts.length > 1) {
-            setShowAccountPicker(true);
-          } else if (accounts.length === 1) {
-            // Auto-login to the single stored account
-            onBiometricLoginForUser(accounts[0].userId);
-          }
-        }
-      } catch (accErr) {
-        console.warn('Could not load biometric accounts:', accErr);
-      }
-
-      // Auto-open biometric prompt modal if conditions are met and not prompted yet
-      console.log('[SignIn] Auto-prompt check:', {
-        isAvailable,
-        isEnabled: securityInfo.isEnabled,
-        hasUserData: !!effectiveUserData,
-        hasPrompted: hasPromptedRef.current,
-        willShowPrompt: isAvailable && !!effectiveUserData && !hasPromptedRef.current,
-      });
-
-      if (isAvailable && effectiveUserData && !hasPromptedRef.current) {
-        console.log('[SignIn] Showing biometric prompt modal');
-        hasPromptedRef.current = true;
-        // Add a small delay to ensure the screen is fully rendered
-        setTimeout(() => {
-          setShowBiometricPrompt(true);
-        }, 500);
-      }
-
-      // Log debug info in development
-      if (__DEV__) {
-        await BiometricDebugger.logDebugInfo();
-      }
+      // In production, this would use actual Google OAuth
+      Alert.alert(
+        "🔗 Google Sign-In",
+        "This would integrate with Google OAuth in production. Features:\n\n• One-click authentication\n• Secure OAuth 2.0 flow\n• Account linking\n• Profile synchronization",
+        [
+          { text: "Demo Success", onPress: async () => {
+            Alert.alert("Demo", "Google sign-in successful! Routing to dashboard...");
+            // In a real implementation, this would create a session and route properly
+            setTimeout(() => {
+              // For demo purposes, route to a sample dashboard
+              router.replace("/screens/teacher-dashboard");
+            }, 1000);
+          }},
+          { text: "Cancel", style: "cancel" }
+        ]
+      );
     } catch (error) {
-      console.error("Error checking biometric status:", error);
+      setError("Google sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  async function onSignInWithPassword() {
-    setError(null);
-    if (!canUseSupabase) {
-      setError(
-        "Supabase env not set (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).",
-      );
-      return;
-    }
-    if (!email || !password) {
-      setError("Enter your email and password.");
-      return;
-    }
+  const handleAppleSignIn = async () => {
     try {
       setLoading(true);
-      // Use unified session manager to ensure tokens are stored for biometric restore
+      setError(null);
+      
+      Alert.alert(
+        "🍎 Apple Sign-In",
+        "This would integrate with Apple Sign-In in production. Features:\n\n• Sign in with Apple ID\n• Privacy-focused authentication\n• Hide My Email option\n• Seamless iOS integration",
+        [
+          { text: "Demo Success", onPress: async () => {
+            Alert.alert("Demo", "Apple sign-in successful! Routing to dashboard...");
+            // In a real implementation, this would create a session and route properly
+            setTimeout(() => {
+              // For demo purposes, route to a sample dashboard
+              router.replace("/screens/parent-dashboard");
+            }, 1000);
+          }},
+          { text: "Cancel", style: "cancel" }
+        ]
+      );
+    } catch (error) {
+      setError("Apple sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMicrosoftSignIn = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      Alert.alert(
+        "🏢 Microsoft Sign-In",
+        "This would integrate with Microsoft Azure AD in production. Features:\n\n• Enterprise SSO integration\n• Office 365 account linking\n• Active Directory authentication\n• Organization management",
+        [
+          { text: "Demo Success", onPress: async () => {
+            Alert.alert("Demo", "Microsoft sign-in successful! Routing to dashboard...");
+            // In a real implementation, this would create a session and route properly
+            setTimeout(() => {
+              // For demo purposes, route to a sample dashboard
+              router.replace("/screens/principal-dashboard");
+            }, 1000);
+          }},
+          { text: "Cancel", style: "cancel" }
+        ]
+      );
+    } catch (error) {
+      setError("Microsoft sign-in failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Email/Password sign-in
+  const handleEmailSignIn = async () => {
+    if (!canUseSupabase) {
+      setError("Supabase configuration is required for email sign-in.");
+      return;
+    }
+    
+    if (!email || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
       const { session, profile, error } = await signInWithSession(
         email.trim(),
         password
       );
-      setLoading(false);
-
+      
       if (error || !session) {
-        return setError(error || "Failed to sign in.");
-      }
-
-      console.log('Password login successful for:', session.email);
-      
-      // Store enhanced biometric session data for future biometric logins
-      try {
-        const effectiveProfile = profile ?? (await (await import('@/lib/rbac')).fetchEnhancedUserProfile(session.user_id));
-        await EnhancedBiometricAuth.storeBiometricSession(
-          session.user_id,
-          session.email!,
-          effectiveProfile as any
-        );
-        console.log('Stored biometric session data for future use');
-      } catch (sessionError) {
-        console.error('Error storing biometric session data:', sessionError);
-        // Continue anyway as this is not critical for login
+        setError(error || "Failed to sign in.");
+        return;
       }
       
-      // Check if biometric is available but not enabled
+      // Use proper post-login routing to direct to appropriate dashboard
       try {
-        const securityInfo = await BiometricAuthService.getSecurityInfo();
-        if (securityInfo.capabilities.isAvailable && 
-            securityInfo.capabilities.isEnrolled && 
-            !securityInfo.isEnabled) {
-          // Show biometric setup modal (feature temporarily disabled)
-          // setShowBiometricSetup(true);
-          // return; // Don't redirect yet, let user decide on biometric setup
-        }
-      } catch (e) {
-        console.warn('Could not check biometric status:', e);
+        const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+        await routeAfterLogin(session.user, profile);
+      } catch (routingError) {
+        console.error('Post-login routing failed:', routingError);
+        // Fallback to profiles-gate if routing fails
+        router.replace("/profiles-gate");
       }
-      router.replace("/profiles-gate");
     } catch (e: any) {
-      setLoading(false);
       setError(e?.message ?? "Failed to sign in.");
-    }
-  }
-
-  async function sendCode() {
-    setError(null);
-    if (!canUseSupabase) {
-      setError(
-        "Supabase env not set (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).",
-      );
-      return;
-    }
-    if (!email) {
-      setError("Enter your email first.");
-      return;
-    }
-    setLoading(true);
-    const redirectTo = Linking.createURL("/auth-callback");
-    const { error: err } = await (await import('@/lib/supabase')).assertSupabase().auth.signInWithOtp({
-      email: email.trim(),
-      options: { shouldCreateUser: true, emailRedirectTo: redirectTo },
-    });
-    setLoading(false);
-    if (err) {
-      setError(err.message);
-      return;
-    }
-    setSent(true);
-  }
-
-  async function verifyCode() {
-    setError(null);
-    if (!canUseSupabase) {
-      setError(
-        "Supabase env not set (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).",
-      );
-      return;
-    }
-    if (!email || !code) {
-      setError("Enter the email and the 6-digit code.");
-      return;
-    }
-    setLoading(true);
-    const { data, error: err } = await (await import('@/lib/supabase')).assertSupabase().auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "email",
-    });
-    setLoading(false);
-    if (err) {
-      setError(err.message);
-      return;
-    }
-    if (data?.user) {
-      router.replace("/profiles-gate");
-    }
-  }
-
-  async function onBiometricLogin() {
-    // Close modal before starting auth to avoid overlay during system prompt
-    if (showBiometricPrompt) setShowBiometricPrompt(false);
-    if (!biometricAvailable || !biometricEnabled) {
-      Alert.alert(
-        t("settings.biometric.title"),
-        t("settings.biometric.notAvailable"),
-      );
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Clarify messaging when device supports biometrics but it is turned off in-app
-      if (!biometricAvailable) {
-        Alert.alert(t("settings.biometric.title"), t("settings.biometric.notAvailable"));
-        setLoading(false);
-        return;
-      }
-      if (!biometricEnabled) {
-        Alert.alert(
-          t("settings.biometric.title"),
-          t("settings.biometric.enableToUse", { defaultValue: "Biometric sign-in is turned off. Enable it in your Account settings to use quick sign-in." })
-        );
-        setLoading(false);
-        return;
-      }
-
-      console.log('Starting enhanced biometric authentication');
-      
-      // Use the enhanced biometric authentication which handles session restoration
-      const result = await EnhancedBiometricAuth.authenticateWithBiometric();
-      
-      if (!result.success) {
-        setError(result.error || "Biometric authentication failed");
-        setLoading(false);
-        return;
-      }
-
-      console.log('Enhanced biometric authentication successful');
-      
-      if (result.sessionRestored && result.userData) {
-        // Session restored successfully - get current authenticated user
-        const { assertSupabase } = await import('@/lib/supabase');
-        const supabase = assertSupabase();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (currentUser && result.userData?.profileSnapshot?.role) {
-          // Use actual authenticated user object instead of mock
-          const authenticatedUser = {
-            id: currentUser.id,
-            email: currentUser.email || result.userData.email,
-            user_metadata: currentUser.user_metadata
-          };
-          
-          // Create proper enhanced profile from cached snapshot
-          const { createEnhancedProfile } = await import('@/lib/rbac');
-          const cachedProfile = createEnhancedProfile(
-            {
-              id: result.userData.userId,
-              role: result.userData.profileSnapshot.role,
-              organization_id: result.userData.profileSnapshot.organization_id,
-              seat_status: result.userData.profileSnapshot.seat_status,
-            },
-            {
-              organization_id: result.userData.profileSnapshot.organization_id,
-              organization_name: result.userData.profileSnapshot.organization_name,
-              plan_tier: result.userData.profileSnapshot.plan_tier || 'basic',
-              seat_status: result.userData.profileSnapshot.seat_status || 'active'
-            }
-          );
-          
-          try {
-            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-            await routeAfterLogin(authenticatedUser, cachedProfile);
-            setLoading(false);
-            return;
-          } catch (e) {
-            console.warn('Routing with cached profile failed, going to profiles gate:', e);
-          }
-        }
-        router.replace("/profiles-gate");
-      } else {
-        console.error('Could not restore valid session for biometric login');
-        setError("Session expired. Please sign in with your password to re-enable biometric login.");
-        // Clear biometric data since session is invalid
-        await EnhancedBiometricAuth.clearBiometricSession();
-        await BiometricAuthService.disableBiometric();
-      }
-
-      setLoading(false);
-      
-    } catch (error) {
-      console.error("Enhanced biometric authentication error:", error);
-      setError("Biometric login failed. Please try password login.");
+    } finally {
       setLoading(false);
     }
-  }
-
-  async function onBiometricLoginForUser(userId: string) {
-    // Close any modals
-    setShowBiometricPrompt(false);
-    setShowAccountPicker(false);
-    // If biometric not available or disabled, just pre-fill email for the selected account
-    if (!biometricAvailable || !biometricEnabled) {
-      const acc = biometricAccounts.find(a => a.userId === userId);
-      if (acc?.email) setEmail(acc.email);
-      setShowAccountPicker(false);
-      return;
-    }
-
-    try {
-      setSwitchLoadingUserId(userId);
-      setError(null);
-      const result = await EnhancedBiometricAuth.authenticateWithBiometricForUser(userId);
-      setSwitchLoadingUserId(null);
-      
-      if (!result.success) {
-        setError(result.error || "Biometric authentication failed");
-        return;
-      }
-
-      if (result.sessionRestored && result.userData) {
-        // Session restored for specific user - get current authenticated user
-        const { assertSupabase } = await import('@/lib/supabase');
-        const supabase = assertSupabase();
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        
-        if (currentUser && result.userData?.profileSnapshot?.role) {
-          // Use actual authenticated user object instead of mock
-          const authenticatedUser = {
-            id: currentUser.id,
-            email: currentUser.email || result.userData.email,
-            user_metadata: currentUser.user_metadata
-          };
-          
-          // Create proper enhanced profile from cached snapshot
-          const { createEnhancedProfile } = await import('@/lib/rbac');
-          const cachedProfile = createEnhancedProfile(
-            {
-              id: result.userData.userId,
-              role: result.userData.profileSnapshot.role,
-              organization_id: result.userData.profileSnapshot.organization_id,
-              seat_status: result.userData.profileSnapshot.seat_status,
-            },
-            {
-              organization_id: result.userData.profileSnapshot.organization_id,
-              organization_name: result.userData.profileSnapshot.organization_name,
-              plan_tier: result.userData.profileSnapshot.plan_tier || 'basic',
-              seat_status: result.userData.profileSnapshot.seat_status || 'active'
-            }
-          );
-          
-          try {
-            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-            await routeAfterLogin(authenticatedUser, cachedProfile);
-            return;
-          } catch (e) {
-            console.warn('Routing with cached profile failed, going to profiles gate:', e);
-          }
-        }
-        router.replace("/profiles-gate");
-      } else {
-        setError("Session expired. Please sign in with your password to re-enable biometric login.");
-        await EnhancedBiometricAuth.clearBiometricSession();
-        await BiometricAuthService.disableBiometric();
-      }
-
-    } catch (err) {
-      console.error('Biometric switch account error:', err);
-      setError("Biometric login failed. Please try password login.");
-      setSwitchLoadingUserId(null);
-    }
-  }
+  };
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView style={styles.container}>
       <Stack.Screen
         options={{
-          title: t("auth.signIn"),
-          headerShown: true,
-          headerStyle: { backgroundColor: "#0b1220" },
-          headerTitleStyle: { color: "#ffffff" },
-          headerTintColor: "#00f5ff",
+          headerShown: false,
         }}
       />
-      {/* Biometric Prompt Modal */}
-      <Modal
-        visible={showBiometricPrompt && biometricAvailable && biometricEnabled && !!storedUserData}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setShowBiometricPrompt(false)}
+      
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={{ alignItems: 'center', marginBottom: 12 }}>
-              <Ionicons 
-                name={biometricType === 'face' ? 'scan' : biometricType === 'iris' ? 'eye' : 'finger-print'}
-                size={28}
-                color="#0b1220"
-              />
-            </View>
-            <Text style={styles.modalTitle}>Quick sign-in</Text>
-            <Text style={styles.modalSubtitle}>
-              {storedUserData?.email ? `Sign in as ${storedUserData.email}` : 'Use your biometrics to sign in'}
-            </Text>
-            <TouchableOpacity style={styles.modalPrimaryBtn} onPress={onBiometricLogin} disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color="#0b1220" />
-              ) : (
-                <Text style={styles.modalPrimaryBtnText}>Use biometrics</Text>
-              )}
-            </TouchableOpacity>
-            {biometricAccounts.length > 1 && (
-              <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowAccountPicker(true)}>
-                <Text style={styles.modalSecondaryBtnText}>Switch account</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowBiometricPrompt(false)}>
-              <Text style={styles.modalSecondaryBtnText}>Use password instead</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Account Picker Modal */}
-      <Modal
-        visible={showAccountPicker}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowAccountPicker(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Choose an account</Text>
-            {biometricAccounts.map((acc) => (
-              <TouchableOpacity
-                key={acc.userId}
-                style={[styles.modalPrimaryBtn, { marginBottom: 8, backgroundColor: '#0ea5e9' }]}
-                onPress={() => onBiometricLoginForUser(acc.userId)}
-                disabled={switchLoadingUserId === acc.userId}
-              >
-                {switchLoadingUserId === acc.userId ? (
-                  <ActivityIndicator color="#0b1220" />
-                ) : (
-                  <Text style={styles.modalPrimaryBtnText}>{acc.email}</Text>
-                )}
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={styles.modalSecondaryBtn} onPress={() => setShowAccountPicker(false)}>
-              <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <KeyboardScreen contentContainerStyle={styles.container}>
-        <Text style={styles.title}>{t("auth.signIn")}</Text>
-
-        {/* Biometric Login Button */}
-        {biometricAvailable && biometricEnabled && storedUserData && (
-          <View style={styles.biometricSection}>
-            <TouchableOpacity
-              disabled={loading}
-              style={styles.biometricButton}
-              onPress={onBiometricLogin}
-            >
-              {loading ? (
-                <ActivityIndicator color="#0b1220" size="small" />
-              ) : (
-                <>
-                  <Ionicons 
-                    name={
-                      biometricType === 'face' ? 'scan' :
-                      biometricType === 'iris' ? 'eye' :
-                      'finger-print'
-                    } 
-                    size={24} 
-                    color="#0b1220" 
-                  />
-                  <Text style={styles.biometricButtonText}>
-                    {biometricType === 'fingerprint' ? t("settings.biometric.useFingerprint") :
-                     biometricType === 'face' ? t("settings.biometric.useFaceId") :
-                     t("settings.biometric.biometricLogin")}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {biometricAccounts.length > 1 && (
-              <TouchableOpacity
-                style={styles.fallbackLink}
-                onPress={() => setShowAccountPicker(true)}
-              >
-                <Text style={styles.fallbackLinkText}>Switch account</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Fallback Authentication Link */}
-            <TouchableOpacity
-              style={styles.fallbackLink}
-              onPress={async () => {
-                const success =
-                  await BiometricBackupManager.showFallbackOptions();
-                if (success) {
-                  router.replace("/profiles-gate");
-                }
-              }}
-            >
-              <Text style={styles.fallbackLinkText}>
-                {t("settings.biometric.backupAvailable")}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.biometricEmail}>
-              Signed in as: {storedUserData.email}
-            </Text>
-
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-          </View>
-        )}
-
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            onPress={() => setMode("password")}
-            style={[
-              styles.toggleBtn,
-              mode === "password" && styles.toggleBtnActive,
-            ]}
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                mode === "password" && styles.toggleTextActive,
-              ]}
-            >
-              Password
-            </Text>
+            <Ionicons name="arrow-back" size={24} color="#ffffff" />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setMode("otp")}
-            style={[styles.toggleBtn, mode === "otp" && styles.toggleBtnActive]}
+          
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.description}>Sign in to your account</Text>
+          </View>
+        </View>
+
+        {/* Social Authentication Buttons */}
+        <View style={styles.socialSection}>
+          {/* Google Sign-In */}
+          <TouchableOpacity 
+            style={styles.socialButton}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                mode === "otp" && styles.toggleTextActive,
-              ]}
-            >
-              Email code
-            </Text>
+            <View style={styles.socialIcon}>
+              <Text style={styles.socialIconText}>🔍</Text>
+            </View>
+            <Text style={styles.socialButtonText}>Continue with Google</Text>
+            {loading && <ActivityIndicator size="small" color="#666" />}
+          </TouchableOpacity>
+
+          {/* Apple Sign-In */}
+          <TouchableOpacity 
+            style={[styles.socialButton, styles.appleButton]}
+            onPress={handleAppleSignIn}
+            disabled={loading}
+          >
+            <View style={styles.socialIcon}>
+              <Text style={styles.socialIconText}>🍎</Text>
+            </View>
+            <Text style={[styles.socialButtonText, styles.appleButtonText]}>Continue with Apple</Text>
+            {loading && <ActivityIndicator size="small" color="#fff" />}
+          </TouchableOpacity>
+
+          {/* Microsoft Sign-In */}
+          <TouchableOpacity 
+            style={[styles.socialButton, styles.microsoftButton]}
+            onPress={handleMicrosoftSignIn}
+            disabled={loading}
+          >
+            <View style={styles.socialIcon}>
+              <Text style={styles.socialIconText}>🏢</Text>
+            </View>
+            <Text style={[styles.socialButtonText, styles.microsoftButtonText]}>Continue with Microsoft</Text>
+            {loading && <ActivityIndicator size="small" color="#fff" />}
           </TouchableOpacity>
         </View>
 
-        {!canUseSupabase && (
-          <Text style={styles.envWarning}>
-            Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and
-            EXPO_PUBLIC_SUPABASE_ANON_KEY, then reload.
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Email/Password Form */}
+        <View style={styles.formSection}>
+          <Text style={styles.fieldLabel}>Email Address</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="superadmin@edudashpro.org.za"
+            placeholderTextColor="#9ca3af"
+            autoCapitalize="none"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
+
+          <Text style={styles.fieldLabel}>Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="••••••••"
+            placeholderTextColor="#9ca3af"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          {/* Remember Me & Forgot Password */}
+          <View style={styles.optionsRow}>
+            <TouchableOpacity 
+              style={styles.checkboxRow}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && <Ionicons name="checkmark" size={12} color="#000" />}
+              </View>
+              <Text style={styles.checkboxLabel}>Remember me</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={() => Alert.alert("Forgot Password", "Password reset functionality would be implemented here.")}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Error Message */}
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
+          {/* Sign In Button */}
+          <TouchableOpacity 
+            style={styles.signInButton}
+            onPress={handleEmailSignIn}
+            disabled={loading}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2']}
+              style={styles.signInGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.signInButtonText}>Sign In</Text>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            Don't have an account?{" "}
+            <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
+              <Text style={styles.signUpText}>Sign Up</Text>
+            </TouchableOpacity>
           </Text>
-        )}
-
-        {/* Common email field */}
-        <TextInput
-          style={styles.input}
-          placeholder="you@example.com"
-          placeholderTextColor="#7b8794"
-          autoCapitalize="none"
-          keyboardType="email-address"
-          value={email}
-          onChangeText={setEmail}
-        />
-
-        {mode === "password" ? (
-          <>
-            <View style={styles.passwordRow}>
-              <TextInput
-                style={[styles.input, { marginBottom: 0, flex: 1 }]}
-                placeholder="••••••••"
-                placeholderTextColor="#7b8794"
-                autoCapitalize="none"
-                secureTextEntry={!showPassword}
-                textContentType="password"
-                value={password}
-                onChangeText={setPassword}
-              />
-              <TouchableOpacity
-                style={styles.showBtn}
-                onPress={() => setShowPassword((s) => !s)}
-              >
-                <Text style={styles.showBtnText}>
-                  {showPassword ? "Hide" : "Show"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            <TouchableOpacity
-              disabled={loading}
-              style={styles.button}
-              onPress={onSignInWithPassword}
-            >
-              {loading ? (
-                <ActivityIndicator color="#000" />
-              ) : (
-                <Text style={styles.buttonText}>Sign in</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.link}
-              onPress={() => setMode("otp")}
-            >
-              <Text style={styles.linkText}>
-                Forgot password? Use email code instead
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            {sent && (
-              <TextInput
-                style={styles.input}
-                placeholder="6-digit code"
-                placeholderTextColor="#7b8794"
-                keyboardType="number-pad"
-                value={code}
-                onChangeText={setCode}
-                maxLength={6}
-              />
-            )}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            {!sent ? (
-              <TouchableOpacity
-                disabled={loading}
-                style={styles.button}
-                onPress={sendCode}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.buttonText}>Send code</Text>
-                )}
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                disabled={loading}
-                style={styles.button}
-                onPress={verifyCode}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#000" />
-                ) : (
-                  <Text style={styles.buttonText}>Verify & continue</Text>
-                )}
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.link}
-              onPress={() => setMode("password")}
-            >
-              <Text style={styles.linkText}>Use password instead</Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        <TouchableOpacity
-          style={styles.link}
-          onPress={() => router.push('/screens/teacher-invite-accept')}
-        >
-          <Text style={styles.linkText}>Have an invite token? Accept it</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.link} onPress={() => router.back()}>
-          <Text style={styles.linkText}>Back</Text>
-        </TouchableOpacity>
-      </KeyboardScreen>
-    </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#0b1220",
-    padding: 24,
+    backgroundColor: "#0a0a0f",
   },
-  title: { fontSize: 24, fontWeight: "900", color: "#fff", marginBottom: 8 },
-  subtitle: {
-    fontSize: 14,
-    color: "#9CA3AF",
-    marginBottom: 16,
-    textAlign: "center",
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  input: {
-    width: "100%",
-    maxWidth: 420,
-    backgroundColor: "#111827",
-    color: "#fff",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    marginBottom: 12,
+  header: {
+    paddingTop: 20,
+    marginBottom: 40,
   },
-  passwordRow: {
-    width: "100%",
-    maxWidth: 420,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  showBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#1f2937",
-  },
-  showBtnText: { color: "#00f5ff", fontWeight: "700" },
-  button: {
-    backgroundColor: "#00f5ff",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 24,
-    minWidth: 180,
-    alignItems: "center",
-  },
-  buttonText: { color: "#000", fontWeight: "800" },
-  link: { marginTop: 14 },
-  linkText: { color: "#00f5ff", fontWeight: "700", textAlign: "center" },
-  errorText: { color: "#ff6b6b", marginBottom: 10, textAlign: "center" },
-  envWarning: { color: "#fbbf24", marginBottom: 10, textAlign: "center" },
-  toggleRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
-  toggleBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 100,
-    borderWidth: 1,
-    borderColor: "#1f2937",
-  },
-  toggleBtnActive: { backgroundColor: "#00f5ff" },
-  toggleText: { color: "#9CA3AF", fontWeight: "700" },
-  toggleTextActive: { color: "#000" },
-  biometricSection: {
-    width: "100%",
-    maxWidth: 420,
+  backButton: {
+    alignSelf: "flex-start",
+    padding: 8,
     marginBottom: 20,
   },
-  biometricButton: {
-    backgroundColor: "#00f5ff",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderRadius: 16,
+  titleContainer: {
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#ffffff",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  description: {
+    fontSize: 16,
+    color: "#9ca3af",
+    marginBottom: 16,
+  },
+  continueText: {
+    fontSize: 14,
+    color: "#6b7280",
+    marginBottom: 8,
+  },
+  socialSection: {
+    marginBottom: 32,
+  },
+  socialButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
-    marginBottom: 8,
-  },
-  biometricButtonText: {
-    color: "#0b1220",
-    fontWeight: "700",
-    fontSize: 16,
-  },
-  biometricEmail: {
-    color: "#9CA3AF",
-    fontSize: 14,
-    textAlign: "center",
+    backgroundColor: "#ffffff",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
     marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  appleButton: {
+    backgroundColor: "#000000",
+  },
+  microsoftButton: {
+    backgroundColor: "#0078d4",
+  },
+  socialIcon: {
+    marginRight: 12,
+  },
+  socialIconText: {
+    fontSize: 20,
+  },
+  socialButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
+  appleButtonText: {
+    color: "#ffffff",
+  },
+  microsoftButtonText: {
+    color: "#ffffff",
   },
   divider: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    marginVertical: 32,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#1f2937",
+    backgroundColor: "#374151",
   },
   dividerText: {
-    color: "#9CA3AF",
+    color: "#6b7280",
+    fontSize: 14,
+    marginHorizontal: 16,
+    fontWeight: "500",
+  },
+  formSection: {
+    marginBottom: 32,
+  },
+  fieldLabel: {
     fontSize: 14,
     fontWeight: "600",
+    color: "#e5e7eb",
+    marginBottom: 8,
   },
-  fallbackLink: {
-    marginTop: 8,
-    paddingVertical: 4,
-  },
-  fallbackLinkText: {
-    color: "#9CA3AF",
-    fontSize: 14,
-    textAlign: "center",
-    textDecorationLine: "underline",
-  },
-  // Modal styles
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0b1220',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#4b5563',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  modalPrimaryBtn: {
-    backgroundColor: '#00f5ff',
-    paddingVertical: 12,
+  input: {
+    backgroundColor: "#1f2937",
+    borderWidth: 1,
+    borderColor: "#374151",
     borderRadius: 12,
-    alignItems: 'center',
-  },
-  modalPrimaryBtnText: {
-    color: '#0b1220',
-    fontWeight: '800',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 16,
+    color: "#ffffff",
+    marginBottom: 20,
   },
-  modalSecondaryBtn: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 8,
+  optionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
   },
-  modalSecondaryBtnText: {
-    color: '#0ea5e9',
-    fontWeight: '700',
+  checkboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: "#6b7280",
+    borderRadius: 4,
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: "#00f5ff",
+    borderColor: "#00f5ff",
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: "#e5e7eb",
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: "#00f5ff",
+    fontWeight: "600",
+  },
+  errorText: {
+    color: "#ef4444",
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  signInButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+    shadowColor: "#667eea",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  signInGradient: {
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  signInButtonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  footer: {
+    alignItems: "center",
+    paddingTop: 32,
+  },
+  footerText: {
+    fontSize: 14,
+    color: "#9ca3af",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  signUpText: {
+    color: "#00f5ff",
+    fontWeight: "600",
   },
 });

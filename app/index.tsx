@@ -81,10 +81,35 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
-    // Always default to explicit sign-in screen on app start
-    // (Do not auto-route to parent/principal based on any stale session.)
-    router.replace('/(auth)/sign-in');
+    // Proper authentication routing - let AuthContext handle the routing
+    // This will check if user is authenticated and route appropriately
+    checkAuthAndRoute();
   }, []);
+
+  const checkAuthAndRoute = async () => {
+    try {
+      // Import here to avoid circular dependency
+      const { assertSupabase } = await import('@/lib/supabase');
+      const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+      
+      // Check current session
+      const { data: { session }, error } = await assertSupabase().auth.getSession();
+      
+      if (error || !session?.user) {
+        // No valid session, redirect to sign-in
+        router.replace('/(auth)/sign-in');
+        return;
+      }
+      
+      // User is authenticated, route them to appropriate screen
+      await routeAfterLogin(session.user, null);
+      
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      // Fallback to sign-in on error
+      router.replace('/(auth)/sign-in');
+    }
+  };
 
 
   return (
@@ -146,7 +171,7 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
             </View>
             <TouchableOpacity style={[styles.accessButton, webOptimized && styles.accessButtonWeb]} onPress={() => router.push('/(auth)/sign-in')}>
               <LinearGradient colors={['#00f5ff', '#0080ff']} style={[styles.accessGradient, webOptimized && styles.accessGradientWeb]}>
-                <Text style={[styles.accessButtonText, webOptimized && styles.accessButtonTextWeb]}>Neural Access</Text>
+                <Text style={[styles.accessButtonText, webOptimized && styles.accessButtonTextWeb]}>Sign In</Text>
                 <IconSymbol name="arrow.right" size={16} color="#000000" />
               </LinearGradient>
             </TouchableOpacity>

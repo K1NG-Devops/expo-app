@@ -7,7 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import { Alert } from 'react-native';
 
-import type { TransactionRecord } from './FinancialDataService';
+import type { TransactionRecord } from '@/services/FinancialDataService';
 
 export type ExportFormat = 'csv' | 'pdf' | 'excel';
 

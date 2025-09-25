@@ -57,18 +57,28 @@ export default function FinanceDashboard() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
+      // Get preschool ID from profile
+      const preschoolId = profile?.organization_id;
+      if (!preschoolId) {
+        throw new Error('No preschool ID found in profile');
+      }
+
       // Load financial overview
-      const overviewData = await FinancialDataService.getOverview();
+      const overviewData = await FinancialDataService.getOverview(preschoolId);
       setOverview(overviewData);
 
       // Load recent transactions (last 30 days)
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      const transactionData = await FinancialDataService.getTransactions({
-        from: thirtyDaysAgo.toISOString(),
-        to: new Date().toISOString(),
-      });
+      const transactionData = await FinancialDataService.getTransactions(
+        preschoolId,
+        {
+          startDate: thirtyDaysAgo.toISOString(),
+          endDate: new Date().toISOString(),
+        },
+        50
+      );
       setTransactions(transactionData);
 
     } catch (error) {
@@ -87,9 +97,9 @@ export default function FinanceDashboard() {
     }
 
     const summary = {
-      revenue: overview.keyMetrics.monthlyRevenue,
-      expenses: overview.keyMetrics.monthlyExpenses,
-      cashFlow: overview.keyMetrics.cashFlow,
+      revenue: overview.monthlyRevenue,
+      expenses: overview.monthlyExpenses,
+      cashFlow: overview.netIncome,
     };
 
     ExportService.exportFinancialData(transactions, summary, {
