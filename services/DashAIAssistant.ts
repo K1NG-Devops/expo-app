@@ -454,10 +454,16 @@ export class DashAIAssistant {
     
     const userInput = context.userInput.toLowerCase();
     
-    // Dashboard layout commands
-    if (userInput.includes('dashboard') || userInput.includes('layout') || userInput.includes('switch')) {
-      const isAskingForEnhanced = userInput.includes('enhanced') || userInput.includes('modern') || userInput.includes('new');
-      const isAskingForClassic = userInput.includes('classic') || userInput.includes('traditional') || userInput.includes('old');
+    // Enhanced dashboard layout commands with better pattern matching
+    const dashboardKeywords = ['dashboard', 'layout', 'switch', 'change', 'toggle', 'view'];
+    const enhancedKeywords = ['enhanced', 'modern', 'new', 'improved', 'better', 'updated'];
+    const classicKeywords = ['classic', 'traditional', 'old', 'original', 'previous', 'standard'];
+    
+    const isDashboardQuery = dashboardKeywords.some(keyword => userInput.includes(keyword));
+    const isAskingForEnhanced = enhancedKeywords.some(keyword => userInput.includes(keyword));
+    const isAskingForClassic = classicKeywords.some(keyword => userInput.includes(keyword));
+    
+    if (isDashboardQuery || userInput.includes('dashboard') || userInput.includes('layout') || userInput.includes('switch')) {
       
       if (isAskingForEnhanced) {
         return {
@@ -503,39 +509,83 @@ export class DashAIAssistant {
       }
     }
     
-    // Simple pattern matching for educational contexts
-    if (userInput.includes('lesson') || userInput.includes('teach')) {
+    // Enhanced educational context responses
+    const lessonKeywords = ['lesson', 'teach', 'curriculum', 'plan', 'activity', 'learning'];
+    const assessmentKeywords = ['assess', 'grade', 'test', 'quiz', 'evaluation', 'progress', 'performance'];
+    const studentKeywords = ['student', 'pupil', 'child', 'learner', 'class'];
+    const parentKeywords = ['parent', 'communication', 'meeting', 'report', 'update', 'feedback'];
+    
+    const isLessonQuery = lessonKeywords.some(keyword => userInput.includes(keyword));
+    const isAssessmentQuery = assessmentKeywords.some(keyword => userInput.includes(keyword));
+    const isStudentQuery = studentKeywords.some(keyword => userInput.includes(keyword));
+    const isParentQuery = parentKeywords.some(keyword => userInput.includes(keyword));
+    
+    if (isLessonQuery) {
       return {
-        content: `I can help you create engaging lessons! Based on your teaching profile, I suggest focusing on interactive activities that match your students' learning styles. Would you like me to help you plan a specific lesson?`,
+        content: `I can help you create engaging, CAPS-aligned lessons! I can assist with lesson planning, activity suggestions, resource recommendations, and curriculum alignment. What subject or topic would you like to focus on?`,
+        confidence: 0.9,
+        suggested_actions: ['create_lesson', 'view_lesson_templates', 'curriculum_alignment', 'activity_suggestions'],
+        references: []
+      };
+    }
+    
+    if (isAssessmentQuery) {
+      return {
+        content: `Assessment and evaluation are key to student success! I can help you create formative and summative assessments, track student progress, analyze performance data, and generate detailed reports. What type of assessment do you need help with?`,
+        confidence: 0.9,
+        suggested_actions: ['create_assessment', 'track_progress', 'performance_analytics', 'generate_reports'],
+        references: []
+      };
+    }
+    
+    if (isStudentQuery && !isAssessmentQuery) {
+      return {
+        content: `Student management and support is at the heart of great education! I can help with student enrollment, progress tracking, behavior management, individualized learning plans, and parent communication. How can I support your students today?`,
         confidence: 0.85,
-        suggested_actions: ['create_lesson', 'view_lesson_templates', 'student_assessment'],
+        suggested_actions: ['student_enrollment', 'track_progress', 'behavior_management', 'parent_communication'],
         references: []
       };
     }
     
-    if (userInput.includes('student') || userInput.includes('assess')) {
+    if (isParentQuery) {
       return {
-        content: `Student assessment is crucial for effective teaching. I can help you create assessments, track progress, or analyze student performance data. What specific aspect would you like to focus on?`,
-        confidence: 0.8,
-        suggested_actions: ['create_assessment', 'view_analytics', 'student_reports'],
+        content: `Strong parent partnerships enhance student success! I can help you draft professional communications, schedule parent-teacher meetings, create progress reports, send announcements, and handle difficult conversations. What type of parent interaction do you need help with?`,
+        confidence: 0.85,
+        suggested_actions: ['draft_message', 'schedule_meeting', 'progress_report', 'send_announcement'],
         references: []
       };
     }
     
-    if (userInput.includes('parent') || userInput.includes('communication')) {
+    // Help and support commands
+    const helpKeywords = ['help', 'assist', 'support', 'guide', 'how', 'what', 'explain'];
+    const greetingKeywords = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'];
+    
+    const isHelpQuery = helpKeywords.some(keyword => userInput.includes(keyword));
+    const isGreeting = greetingKeywords.some(keyword => userInput.includes(keyword));
+    
+    if (isGreeting) {
       return {
-        content: `Effective parent communication builds strong educational partnerships. I can help you craft messages, schedule meetings, or prepare progress reports. How would you like to improve parent engagement?`,
-        confidence: 0.8,
-        suggested_actions: ['draft_message', 'schedule_meeting', 'progress_report'],
+        content: `Hello! Great to see you! I'm Dash, your AI teaching assistant. I'm here to help with lesson planning, student management, assessments, parent communication, and dashboard navigation. What would you like to work on today?`,
+        confidence: 0.95,
+        suggested_actions: ['lesson_planning', 'student_management', 'dashboard_help', 'explore_features'],
+        references: []
+      };
+    }
+    
+    if (isHelpQuery) {
+      return {
+        content: `I'm here to help! Here's what I can assist you with:\n\n🎓 **Teaching Support**\n• Lesson planning & curriculum alignment\n• Assessment creation & grading\n• Student progress tracking\n\n👨‍👩‍👧‍👦 **Communication**\n• Parent communication & meetings\n• School announcements\n\n⚙️ **Dashboard & Settings**\n• Switch dashboard layouts\n• Navigate features\n\nWhat specific area would you like help with?`,
+        confidence: 0.9,
+        suggested_actions: ['lesson_planning', 'student_management', 'parent_communication', 'dashboard_help'],
         references: []
       };
     }
 
     // Default encouraging response
     return {
-      content: `I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, or administrative tasks, I'm ready to assist. What would you like to work on together?`,
+      content: `I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, dashboard navigation, or administrative tasks, I'm ready to assist. What would you like to work on together?`,
       confidence: 0.7,
-      suggested_actions: ['explore_features', 'lesson_planning', 'student_management'],
+      suggested_actions: ['explore_features', 'lesson_planning', 'student_management', 'dashboard_help'],
       references: []
     };
   }

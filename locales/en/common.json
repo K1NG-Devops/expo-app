@@ -1134,5 +1134,30 @@
       "authRequired": "Biometric authentication is required to continue",
       "authenticate": "Authenticate"
     }
+  },
+  "trends": {
+    "up": "Up",
+    "down": "Down",
+    "stable": "Stable",
+    "good": "Good",
+    "excellent": "Excellent",
+    "warning": "Warning",
+    "attention": "Attention", 
+    "needs_attention": "Needs Attention",
+    "low": "Low",
+    "high": "High"
+  },
+  "dash_ai": {
+    "assistant_name": "Dash",
+    "greeting": "Hi! I'm Dash, your AI teaching assistant. How can I help you today?",
+    "voice_greeting": "Hello! Ready to work together?",
+    "processing": "Processing your request...",
+    "recording": "Recording... Release to send",
+    "transcribing": "Transcribing audio...",
+    "error_no_response": "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
+    "help_dashboard": "I can help you switch between dashboard layouts, adjust preferences, or explore different views.",
+    "layout_switched": "Dashboard layout has been changed!",
+    "welcome_message": "Welcome! I'm here to help with teaching, dashboard management, and school administration.",
+    "initializing": "Initializing Dash..."
   }
 }

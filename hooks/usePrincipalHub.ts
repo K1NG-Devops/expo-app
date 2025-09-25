@@ -240,22 +240,22 @@ export const usePrincipalHub = () => {
           .eq('preschool_id', preschoolId)
           .or('is_active.eq.true,is_active.is.null'),
           
-        // Get teachers from users table with real data (CORRECTED)
+        // Get teachers from teachers table (CORRECTED)
         assertSupabase()
-          .from('users')
+          .from('teachers')
           .select(`
             id, 
-            auth_user_id,
+            user_id,
             email,
-            name,
+            first_name,
+            last_name,
             phone,
-            role,
+            subject_specialization,
             preschool_id,
             is_active,
             created_at
           `)
-          .or(`preschool_id.eq.${preschoolId},organization_id.eq.${preschoolId}`)
-          .eq('role', 'teacher')
+          .eq('preschool_id', preschoolId)
           .eq('is_active', true),
           
         // Get classes count
@@ -347,14 +347,14 @@ export const usePrincipalHub = () => {
           const { count: teacherClassesCount } = await assertSupabase()
             .from('classes')
             .select('id', { count: 'exact', head: true })
-            .eq('teacher_id', teacher.auth_user_id)
+            .eq('teacher_id', teacher.user_id)
             .eq('is_active', true) || { count: 0 };
             
           // Get students count for teacher's classes
           const { data: teacherClasses } = await assertSupabase()
             .from('classes')
             .select('id')
-            .eq('teacher_id', teacher.auth_user_id)
+            .eq('teacher_id', teacher.user_id)
             .eq('is_active', true) || { data: [] };
             
           const classIds = (teacherClasses || []).map((c: any) => c.id);
@@ -417,17 +417,17 @@ export const usePrincipalHub = () => {
             performanceIndicator = t('teacher.performance.review_needed', { attendance: teacherAttendanceRate, defaultValue: 'Performance review needed - {{attendance}}% attendance rate in classes' });
           }
           
-          // Split name into parts for display
-          const nameParts = (teacher.name || 'Unknown Teacher').split(' ');
-          const first_name = nameParts[0] || 'Unknown';
-          const last_name = nameParts.slice(1).join(' ') || 'Teacher';
+          // Use first_name and last_name from teachers table
+          const first_name = teacher.first_name || 'Unknown';
+          const last_name = teacher.last_name || 'Teacher';
+          const full_name = `${first_name} ${last_name}`.trim();
           
           return {
             id: teacher.id,
             email: teacher.email,
             first_name,
             last_name,
-            full_name: teacher.name || `${first_name} ${last_name}`,
+            full_name,
             phone: teacher.phone,
             subject_specialization: teacher.subject_specialization || 'General',
             hire_date: teacher.created_at,
