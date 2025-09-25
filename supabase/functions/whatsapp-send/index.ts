@@ -11,6 +11,20 @@ const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!
 const META_API_VERSION = Deno.env.get('META_API_VERSION') || 'v19.0'
 
+// Validate required environment variables at startup
+if (!WHATSAPP_ACCESS_TOKEN) {
+  console.error('❌ WHATSAPP_ACCESS_TOKEN not found - Please set this in Supabase Edge Functions environment variables')
+}
+if (!WHATSAPP_PHONE_NUMBER_ID) {
+  console.error('❌ WHATSAPP_PHONE_NUMBER_ID not found - Please set this in Supabase Edge Functions environment variables') 
+}
+console.log('✅ WhatsApp credentials loaded:', {
+  hasAccessToken: !!WHATSAPP_ACCESS_TOKEN,
+  hasPhoneNumberId: !!WHATSAPP_PHONE_NUMBER_ID,
+  phoneNumberId: WHATSAPP_PHONE_NUMBER_ID ? `***${WHATSAPP_PHONE_NUMBER_ID.slice(-4)}` : 'missing',
+  apiVersion: META_API_VERSION
+})
+
 // CORS helpers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,9 +98,29 @@ async function sendTextMessage(to: string, content: string): Promise<WhatsAppRes
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    console.error('WhatsApp API error:', error)
-    throw new Error(`WhatsApp API error: ${response.status} ${error}`)
+    const errorText = await response.text()
+    console.error('WhatsApp Text Message API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorBody: errorText,
+      url: url,
+      phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+      hasAccessToken: !!WHATSAPP_ACCESS_TOKEN,
+      tokenPrefix: WHATSAPP_ACCESS_TOKEN ? WHATSAPP_ACCESS_TOKEN.substring(0, 10) + '...' : 'missing'
+    })
+    
+    // Parse error response if possible
+    let errorDetails = errorText
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.error?.message) {
+        errorDetails = errorJson.error.message
+      }
+    } catch {
+      // Use raw error text
+    }
+    
+    throw new Error(`WhatsApp Text API error (${response.status}): ${errorDetails}`)
   }
 
   return await response.json()
@@ -128,9 +162,30 @@ async function sendTemplateMessage(to: string, templateName: string, params: str
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    console.error('WhatsApp API error:', error)
-    throw new Error(`WhatsApp API error: ${response.status} ${error}`)
+    const errorText = await response.text()
+    console.error('WhatsApp Template Message API Error:', {
+      status: response.status,
+      statusText: response.statusText,
+      errorBody: errorText,
+      templateName: templateName,
+      url: url,
+      phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+      hasAccessToken: !!WHATSAPP_ACCESS_TOKEN,
+      tokenPrefix: WHATSAPP_ACCESS_TOKEN ? WHATSAPP_ACCESS_TOKEN.substring(0, 10) + '...' : 'missing'
+    })
+    
+    // Parse error response if possible
+    let errorDetails = errorText
+    try {
+      const errorJson = JSON.parse(errorText)
+      if (errorJson.error?.message) {
+        errorDetails = errorJson.error.message
+      }
+    } catch {
+      // Use raw error text
+    }
+    
+    throw new Error(`WhatsApp Template API error (${response.status}): ${errorDetails}`)
   }
 
   return await response.json()
@@ -376,8 +431,27 @@ async function recordOutboundMessage(contact: any, request: SendMessageRequest, 
  */
 async function sendMessage(request: Request): Promise<Response> {
   try {
+    // Validate environment variables before processing
+    if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+      console.error('❌ Missing WhatsApp credentials')
+      return json({ 
+        error: 'whatsapp_not_configured',
+        message: 'WhatsApp credentials not properly configured. Please contact support.',
+        details: {
+          hasAccessToken: !!WHATSAPP_ACCESS_TOKEN,
+          hasPhoneNumberId: !!WHATSAPP_PHONE_NUMBER_ID
+        }
+      }, { status: 500 })
+    }
+
     const sendRequest: SendMessageRequest = await request.json()
-    console.log('Processing send request:', sendRequest)
+    console.log('Processing send request:', { 
+      messageType: sendRequest.message_type,
+      hasContactId: !!sendRequest.contact_id,
+      hasPhoneNumber: !!sendRequest.phone_number,
+      hasContent: !!sendRequest.content,
+      templateName: sendRequest.template_name
+    })
 
     // Validate request
     if (!sendRequest.message_type) {
