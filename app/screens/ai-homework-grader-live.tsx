@@ -12,7 +12,9 @@ import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router } from 'expo-router'
 import { useGradingModels } from '@/hooks/useAIModelSelection'
 import { toast } from '@/components/ui/ToastProvider'
+import { useTheme } from '@/contexts/ThemeContext'
 export default function AIHomeworkGraderLive() {
+  const { theme } = useTheme()
   const [assignmentTitle, setAssignmentTitle] = useState('Counting to 10')
   const [gradeLevel, setGradeLevel] = useState('Age 5')
   const [submissionContent, setSubmissionContent] = useState('I counted 1 2 3 4 6 7 8 10')
@@ -29,7 +31,7 @@ export default function AIHomeworkGraderLive() {
   const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
   const aiGradingEnabled = AI_ENABLED && flags.ai_grading_assistance !== false
 
-  const { grade } = useGrader()
+  const { grade, result } = useGrader()
   const { quotas } = useGradingModels()
 
   React.useEffect(() => {
@@ -204,6 +206,11 @@ export default function AIHomeworkGraderLive() {
           <Text style={[styles.sectionTitle, { color: '#111827' }]}>Live JSON Stream</Text>
           <Text style={{ color: '#6B7280', marginBottom: 6 }}>Monthly usage (local/server): Grading {usage.grading_assistance}</Text>
           <QuotaBar feature="grading_assistance" planLimit={quotas.ai_requests} />
+          {result?.__fallbackUsed && (
+            <View style={[styles.fallbackChip, { borderColor: '#E5E7EB', backgroundColor: theme.accent + '20' }]}>
+              <Text style={{ color: '#6B7280', fontSize: 12 }}>Fallback used</Text>
+            </View>
+          )}
           <View style={[styles.jsonBox, { borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' }]}>
             <Text style={[styles.jsonText, { color: '#111827' }]} selectable>
               {jsonBuffer || (isStreaming ? 'Waiting for tokens…' : 'No data yet. Press "Start Live Grading".')}
@@ -277,4 +284,5 @@ const styles = StyleSheet.create({
   parsedScore: { fontSize: 28, fontWeight: '900' },
   parsedText: { fontSize: 13 },
   bottomSpacing: { height: 40 },
+  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })

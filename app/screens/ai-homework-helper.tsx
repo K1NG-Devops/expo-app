@@ -14,11 +14,13 @@ import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
 import { ScreenHeader } from '@/components/ui/ScreenHeader'
 import { toast } from '@/components/ui/ToastProvider'
 import { useHomeworkHelperModels, useTierInfo } from '@/hooks/useAIModelSelection'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function AIHomeworkHelperScreen() {
+  const { theme } = useTheme()
   const [question, setQuestion] = useState('Explain how to solve long division: 156 ÷ 12 step by step for a Grade 4 learner.')
   const [subject, setSubject] = useState('Mathematics')
-  const { loading, generate } = useHomeworkGenerator()
+  const { loading, generate, result } = useHomeworkGenerator()
   const [pending, setPending] = useState(false)
   const [answer, setAnswer] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
@@ -187,6 +189,11 @@ export default function AIHomeworkHelperScreen() {
           <Text style={styles.sectionTitle}>Response</Text>
           <Text style={styles.usage}>Monthly usage (local/server): Helper {usage.homework_help}</Text>
           <QuotaBar feature="homework_help" planLimit={quotas.ai_requests} />
+          {result?.__fallbackUsed && (
+            <View style={[styles.fallbackChip, { borderColor: '#E5E7EB', backgroundColor: theme.accent + '20' }]}>
+              <Text style={{ color: Colors.light.tabIconDefault, fontSize: 12 }}>Fallback used</Text>
+            </View>
+          )}
           {answer ? (
             <Text style={styles.answer} selectable>{answer}</Text>
           ) : (
@@ -243,5 +250,6 @@ const styles = StyleSheet.create({
   usage: { fontSize: 12, color: Colors.light.tabIconDefault, marginBottom: 8 },
   answer: { fontSize: 13, color: Colors.light.text, lineHeight: 19 },
   placeholder: { fontSize: 13, color: Colors.light.tabIconDefault },
+  fallbackChip: { alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
 })
 

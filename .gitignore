@@ -94,4 +94,13 @@ migration_backup_*/
 # Development images and screenshots
 .*.png
 *.screenshot.png
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.code-workspace
+
 .vercel

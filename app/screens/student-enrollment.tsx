@@ -19,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
+import ClassPlacementService from '@/lib/services/ClassPlacementService';
 
 interface Grade {
   id: string;
@@ -124,6 +125,10 @@ export default function StudentEnrollment() {
   const [documents, setDocuments] = useState<{[key: string]: string}>({});
   const [schoolType, setSchoolType] = useState<'preschool' | 'k12'>('k12'); // Default to K-12
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Auto placement suggestion state
+  const [suggestedClass, setSuggestedClass] = useState<{ classId: string; className?: string; reason?: string } | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
   
   // Get preschool ID from user context
   const getPreschoolId = useCallback((): string | null => {
@@ -325,8 +330,8 @@ export default function StudentEnrollment() {
                   is_active: true,
                   status: 'active',
                   // TODO: Add parent_id lookup based on parentEmail
-                  // TODO: Add class_id lookup based on selected grade
                   // TODO: Add more fields as needed (gender, medical conditions, etc.)
+                  ...(suggestedClass ? { class_id: suggestedClass.classId } : {}),
                 })
                 .select()
                 .single();
@@ -490,6 +495,62 @@ export default function StudentEnrollment() {
           
           <View style={styles.gradesGrid}>
             {grades.map(renderGradeCard)}
+          </View>
+
+          {/* Auto-Assign Class (suggestion) */}
+          <View style={{ marginTop: 12, gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { borderColor: theme.border }]}
+              onPress={async () => {
+                try {
+                  const preschoolId = getPreschoolId();
+                  if (!preschoolId) {
+                    Alert.alert('Error', 'Missing preschool context.');
+                    return;
+                  }
+                  setSuggesting(true);
+                  const suggestion = await ClassPlacementService.suggestClassForStudent({
+                    preschoolId,
+                    dateOfBirth: studentInfo.dateOfBirth || undefined,
+                    gradeLevel: undefined,
+                  });
+                  if (!suggestion) {
+                    Alert.alert('No Class Found', 'No suitable class suggestion is available.');
+                    setSuggestedClass(null);
+                  } else {
+                    setSuggestedClass({ classId: suggestion.classId, className: suggestion.className, reason: suggestion.reason });
+                  }
+                } catch (e) {
+                  console.error('Auto-assign class failed', e);
+                  Alert.alert('Error', 'Could not suggest a class.');
+                } finally {
+                  setSuggesting(false);
+                }
+              }}
+              disabled={suggesting}
+            >
+              <Text style={[styles.secondaryBtnText, { color: theme.text }]}>
+                {suggesting ? 'Finding class…' : 'Auto-Assign Class'}
+              </Text>
+            </TouchableOpacity>
+
+            {suggestedClass && (
+              <View style={[styles.suggestionCard, { borderColor: theme.border, backgroundColor: theme.surface }]}> 
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Ionicons name="sparkles" size={18} color={theme.primary} />
+                  <Text style={{ color: theme.text, fontWeight: '600' }}>Suggested Class</Text>
+                </View>
+                <Text style={{ color: theme.textSecondary, marginTop: 4 }}>
+                  {suggestedClass.className || suggestedClass.classId}
+                </Text>
+                {suggestedClass.reason ? (
+                  <Text style={{ color: theme.textTertiary, fontSize: 12, marginTop: 2 }}>{suggestedClass.reason}</Text>
+                ) : null}
+                <Text style={{ color: theme.textTertiary, fontSize: 12, marginTop: 8 }}>
+                  This class will be applied when enrolling.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -730,6 +791,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 16,
     marginBottom: 32,
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  secondaryBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  suggestionCard: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
   },
   disabledButton: {
     // backgroundColor will be set dynamically with theme
