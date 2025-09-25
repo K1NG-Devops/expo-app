@@ -1,6 +1,9 @@
 // app.config.js
 // Use a dynamic config so we can disable expo-dev-client for preview/production (OTA compatibility)
 
+// Load environment variables from .env file for local development
+require('dotenv').config();
+
 /**
  * @param {import('@expo/config').ConfigContext} ctx
  */

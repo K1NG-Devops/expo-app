@@ -48,6 +48,16 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Debug logging for environment variables (only in development)
+if (__DEV__) {
+  console.log('🔧 Supabase initialization:', {
+    hasUrl: !!url,
+    hasKey: !!anon,
+    urlPreview: url ? `${url.substring(0, 30)}...` : 'NOT_SET',
+    keyPreview: anon ? `${anon.substring(0, 20)}...` : 'NOT_SET',
+  });
+}
+
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
 const SecureStoreAdapter = SecureStore ? {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -110,7 +120,28 @@ if (url && anon) {
 // Helper function to assert supabase client exists
 export function assertSupabase(): SupabaseClient {
   if (!client) {
-    throw new Error('Supabase client not initialized. Check EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+    const debugInfo = {
+      url: process.env.EXPO_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING',
+      key: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'MISSING',
+      nodeEnv: process.env.NODE_ENV,
+      easProfile: process.env.EAS_BUILD_PROFILE,
+    };
+    
+    const errorMessage = [
+      'Supabase client not initialized.',
+      'Environment variables status:',
+      `  EXPO_PUBLIC_SUPABASE_URL: ${debugInfo.url}`,
+      `  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${debugInfo.key}`,
+      `  NODE_ENV: ${debugInfo.nodeEnv}`,
+      `  EAS_BUILD_PROFILE: ${debugInfo.easProfile}`,
+      '',
+      'Solutions:',
+      '1. For local development: Make sure .env file exists with correct values',
+      '2. For EAS builds: Check eas.json environment configuration',
+      '3. Restart development server if you just added .env file'
+    ].join('\n');
+    
+    throw new Error(errorMessage);
   }
   return client;
 }
