@@ -25,6 +25,7 @@ import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
+import { installNavigationErrorHandlers } from '@/lib/navigation/navigationInterceptor';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -81,6 +82,10 @@ export default function RootLayout() {
       // Initialize monitoring systems first (for error tracking during init)
       console.log('🔧 Initializing monitoring...');
       startMonitoring();
+      
+      // Install navigation error handlers
+      console.log('🧭 Installing navigation error handlers...');
+      installNavigationErrorHandlers();
       
       // Track app initialization start
       track('edudash.app.initialization_started', {

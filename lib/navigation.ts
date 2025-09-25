@@ -12,7 +12,10 @@ import { router } from 'expo-router';
 export function navigateBack(fallbackRoute?: string) {
   try {
     // Check if we can go back in the navigation stack
-    if (router.canGoBack && router.canGoBack()) {
+    // Note: router.canGoBack is a function, not a property
+    const canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+    
+    if (canGoBack) {
       router.back();
       return;
     }
@@ -36,8 +39,16 @@ export function navigateBack(fallbackRoute?: string) {
  * Navigate to main dashboard based on user role
  */
 export function navigateToMainDashboard() {
-  // For now, navigate to root - this will be enhanced with role-based routing
-  router.replace('/');
+  try {
+    // For now, navigate to root - this will be enhanced with role-based routing
+    router.replace('/');
+  } catch (error) {
+    console.error('Navigation to main dashboard failed:', error);
+    // Try alternative approach
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  }
 }
 
 /**
@@ -144,7 +155,15 @@ export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean)
   }
   
   // Always check if we can go back first
-  const canGoBack = router.canGoBack?.() ?? false;
+  // Ensure router.canGoBack is called correctly as a function
+  let canGoBack = false;
+  try {
+    canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+  } catch (error) {
+    // If there's an error checking canGoBack, assume we can't
+    console.debug('Error checking canGoBack:', error);
+    canGoBack = false;
+  }
   
   // If we can't go back in the stack, don't show the button
   if (!canGoBack) {
