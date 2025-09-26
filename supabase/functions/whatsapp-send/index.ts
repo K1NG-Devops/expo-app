@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
 // Environment variables
 // Note: Supabase reserves the SUPABASE_* prefix for system envs. Do NOT set secrets with that prefix.
@@ -9,7 +9,7 @@ const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SERVICE_ROLE_KEY') || ''
 const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
 const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!
-const META_API_VERSION = Deno.env.get('META_API_VERSION') || 'v19.0'
+const META_API_VERSION = Deno.env.get('META_API_VERSION') || 'v22.0'
 
 // Validate required environment variables at startup
 if (!WHATSAPP_ACCESS_TOKEN) {
@@ -39,7 +39,7 @@ function json(body: Record<string, unknown>, init: ResponseInit = {}) {
 }
 
 // Create Supabase client with service role for bypassing RLS
-let supabase;
+let supabase: SupabaseClient;
 if (!SUPABASE_SERVICE_ROLE_KEY) {
   console.error('Warning: SERVICE_ROLE_KEY not found, falling back to anon key with limited permissions')
   supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
@@ -248,100 +248,132 @@ async function getContactInfo(request: SendMessageRequest) {
   })
   
   if (request.contact_id) {
-    const { data: contact, error } = await supabase
-      .from('whatsapp_contacts')
-      .select('*')
-      .eq('id', request.contact_id)
-      .single()
+    try {
+      const { data: contact, error } = await supabase
+        .from('whatsapp_contacts')
+        .select('*')
+        .eq('id', request.contact_id)
+        .single()
 
-    if (error) {
-      console.error('Error fetching contact by ID:', error)
-      throw new Error(`Contact not found: ${error.message}`)
+      if (error) {
+        console.error('Error fetching contact by ID:', error)
+        throw new Error(`Contact not found: ${error.message}`)
+      }
+
+      return contact
+    } catch (error) {
+      console.error('Database error fetching contact:', error)
+      throw new Error(`Database error: ${(error as any)?.message || String(error)}`)
     }
-
-    return contact
   }
 
   if (request.thread_id) {
-    const { data: thread, error: threadError } = await supabase
-      .from('message_threads')
-      .select(`
-        *,
-        whatsapp_contacts!inner(*)
-      `)
-      .eq('id', request.thread_id)
-      .eq('channel', 'whatsapp')
-      .single()
+    // Try to get thread, but if message_threads table doesn't exist, skip this
+    try {
+      const { data: thread, error: threadError } = await supabase
+        .from('message_threads')
+        .select(`
+          *,
+          whatsapp_contacts!inner(*)
+        `)
+        .eq('id', request.thread_id)
+        .eq('channel', 'whatsapp')
+        .single()
 
-    if (threadError) {
-      throw new Error(`Thread not found: ${threadError.message}`)
+      if (threadError) {
+        console.warn('Message threads table not available:', threadError.message)
+        throw new Error('Thread lookup not available - please provide phone_number instead')
+      }
+
+      return thread.whatsapp_contacts
+    } catch (error) {
+      console.warn('Thread lookup failed:', error)
+      throw new Error('Thread lookup not available - please provide phone_number instead')
     }
-
-    return thread.whatsapp_contacts
   }
 
   if (request.phone_number) {
-    const { data: contact, error } = await supabase
-      .from('whatsapp_contacts')
-      .select('*')
-      .eq('phone_e164', request.phone_number)
-      .single()
-
-    if (error) {
-      console.log('Contact not found, creating new contact for:', request.phone_number)
-      
-      // Get the authenticated user's info to determine preschool_id
-      // In Edge Functions, we need to get the Authorization header from the request
-      let userId: string | null = null
-      let preschoolId: string | null = null
-      
-      // For testing, let's get a valid preschool and user from the database
-      if (!preschoolId) {
-        const { data: preschool } = await supabase
-          .from('preschools')
-          .select('id')
-          .limit(1)
-          .single()
-        
-        preschoolId = preschool?.id || null
-      }
-      
-      if (!userId) {
-        const { data: user } = await supabase
-          .from('users')
-          .select('auth_user_id')
-          .limit(1)
-          .single()
-          
-        userId = user?.auth_user_id || null
-      }
-      
-      if (!preschoolId || !userId) {
-        throw new Error('Could not determine preschool or user for contact creation')
-      }
-      
-      // Create contact if doesn't exist
-      const { data: newContact, error: createError } = await supabase
+    try {
+      const { data: contact, error } = await supabase
         .from('whatsapp_contacts')
-        .insert({
-          phone_e164: request.phone_number,
-          consent_status: 'pending',
-          preschool_id: preschoolId,
-          user_id: userId
-        })
-        .select()
+        .select('*')
+        .eq('phone_e164', request.phone_number)
         .single()
 
-      if (createError) {
-        console.error('Error creating contact:', createError)
-        throw new Error(`Failed to create contact: ${createError.message}`)
+      if (error) {
+        console.log('Contact not found, creating new contact for:', request.phone_number)
+
+        // Get the authenticated user's info to determine preschool_id
+        // In Edge Functions, we need to get the Authorization header from the request
+        let userId: string | null = null
+        let preschoolId: string | null = null
+
+        // Try to get user from profiles table instead of users table
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('id, organization_id')
+            .limit(1)
+            .single()
+
+          if (profile) {
+            userId = profile.id
+            preschoolId = profile.organization_id
+          }
+        } catch (error) {
+          console.warn('Could not get profile info:', error)
+        }
+
+        // Fallback to getting a valid preschool from database
+        if (!preschoolId) {
+          try {
+            const { data: preschool } = await supabase
+              .from('preschools')
+              .select('id')
+              .limit(1)
+              .single()
+
+            preschoolId = preschool?.id || null
+          } catch (error) {
+            console.warn('Could not get preschool info:', error)
+          }
+        }
+
+        if (!preschoolId || !userId) {
+          throw new Error('Could not determine preschool or user for contact creation')
+        }
+
+        // Create contact if doesn't exist
+        try {
+          const { data: newContact, error: createError } = await supabase
+            .from('whatsapp_contacts')
+            .insert({
+              phone_e164: request.phone_number,
+              consent_status: 'pending',
+              preschool_id: preschoolId,
+              user_id: userId
+            })
+            .select()
+            .single()
+
+          if (createError) {
+            console.error('Error creating contact:', createError)
+            throw new Error(`Failed to create contact: ${createError.message}`)
+          }
+
+          console.log('Created new contact:', newContact)
+          return newContact
+        } catch (createError) {
+          console.error('Error creating contact:', createError)
+          throw new Error(`Failed to create contact: ${(createError as any)?.message || String(createError)}`)
+        }
       }
 
-      console.log('Created new contact:', newContact)
-      return newContact
+      return contact
+    } catch (error) {
+      console.error('Database error with phone number:', error)
+      throw new Error(`Database error: ${(error as any)?.message || String(error)}`)
     }
-
-    return contact
   }
 
   throw new Error('No contact information provided')
@@ -350,81 +382,41 @@ async function getContactInfo(request: SendMessageRequest) {
 /**
  * Record outbound message in database
  */
-async function recordOutboundMessage(contact: any, request: SendMessageRequest, waResponse: WhatsAppResponse) {
-  const metaMessageId = waResponse.messages[0]?.id
-
-  // Insert into whatsapp_messages
-  const { data: waMessage, error: waError } = await supabase
-    .from('whatsapp_messages')
-    .insert({
-      contact_id: contact.id,
-      direction: 'out',
-      message_type: request.message_type,
-      content: request.content || `Template: ${request.template_name}`,
-      media_url: request.media_url,
-      meta_message_id: metaMessageId,
-      status: 'sent'
-    })
-    .select()
-    .single()
-
-  if (waError) {
-    console.error('Error recording WhatsApp message:', waError)
-    return
+async function recordOutboundMessage(contact: any, request: SendMessageRequest, waResponse: WhatsAppResponse | null) {
+  if (!waResponse) {
+    console.warn('No WhatsApp response to record')
+    return null
   }
 
-  // If this is part of a thread, also record in messages table
-  if (request.thread_id) {
-    const { data: thread } = await supabase
-      .from('message_threads')
-      .select('*, preschools(*)')
-      .eq('id', request.thread_id)
+  const metaMessageId = waResponse.messages?.[0]?.id
+
+  try {
+    // Insert into whatsapp_messages
+    const { data: waMessage, error: waError } = await supabase
+      .from('whatsapp_messages')
+      .insert({
+        contact_id: contact.id,
+        direction: 'out',
+        message_type: request.message_type,
+        content: request.content || `Template: ${request.template_name}`,
+        media_url: request.media_url,
+        meta_message_id: metaMessageId,
+        status: 'sent'
+      })
+      .select()
       .single()
 
-    if (thread) {
-      // Determine sender info - could be teacher or admin
-      const senderRole = 'teacher' // Default, could be dynamic based on context
-      const senderId = thread.teacher_id // Could be dynamic
-
-      const { data: messageEntry, error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          thread_id: request.thread_id,
-          sender_role: senderRole,
-          sender_id: senderId,
-          content: request.content || `Template: ${request.template_name}`,
-          content_type: request.message_type,
-          media_url: request.media_url,
-          status: 'sent'
-        })
-        .select()
-        .single()
-
-      if (messageError) {
-        console.error('Error recording message entry:', messageError)
-      } else {
-        console.log('Message entry recorded:', messageEntry.id)
-        
-        // Track engagement event
-        if (thread.preschool_id) {
-          await supabase
-            .from('parent_engagement_events')
-            .insert({
-              preschool_id: thread.preschool_id,
-              parent_id: thread.parent_id,
-              event_type: 'sent_whatsapp_message',
-              metadata: {
-                message_id: messageEntry.id,
-                message_type: request.message_type,
-                thread_id: request.thread_id
-              }
-            })
-        }
-      }
+    if (waError) {
+      console.warn('WhatsApp messages table not available, skipping database recording:', waError.message)
+      return null
     }
-  }
 
-  return waMessage
+    console.log('WhatsApp message recorded successfully:', waMessage.id)
+    return waMessage
+  } catch (error) {
+    console.warn('Error recording WhatsApp message:', error)
+    return null
+  }
 }
 
 /**
@@ -472,54 +464,75 @@ async function sendMessage(request: Request): Promise<Response> {
       }
     }
 
-    let waResponse: WhatsAppResponse
+    let waResponse: WhatsAppResponse | null = null
 
     // Send message based on type
-    switch (sendRequest.message_type) {
-      case 'text':
-        if (!sendRequest.content) {
-          return json({ error: 'content is required for text messages' }, { status: 400 })
-        }
-        waResponse = await sendTextMessage(contact.phone_e164, sendRequest.content)
-        break
+    try {
+      switch (sendRequest.message_type) {
+        case 'text':
+          if (!sendRequest.content) {
+            return json({ error: 'content is required for text messages' }, { status: 400 })
+          }
+          waResponse = await sendTextMessage(contact.phone_e164, sendRequest.content)
+          break
 
-      case 'template':
-        if (!sendRequest.template_name) {
-          return json({ error: 'template_name is required for template messages' }, { status: 400 })
-        }
-        waResponse = await sendTemplateMessage(
-          contact.phone_e164,
-          sendRequest.template_name,
-          sendRequest.template_params || []
-        )
-        break
+        case 'template':
+          if (!sendRequest.template_name) {
+            return json({ error: 'template_name is required for template messages' }, { status: 400 })
+          }
+          waResponse = await sendTemplateMessage(
+            contact.phone_e164,
+            sendRequest.template_name,
+            sendRequest.template_params || []
+          )
+          break
 
-      case 'image':
-      case 'document':
-        if (!sendRequest.media_url) {
-          return json({ error: 'media_url is required for media messages' }, { status: 400 })
-        }
-        waResponse = await sendMediaMessage(
-          contact.phone_e164,
-          sendRequest.media_url,
-          sendRequest.message_type,
-          sendRequest.content,
-          sendRequest.filename
-        )
-        break
+        case 'image':
+        case 'document':
+          if (!sendRequest.media_url) {
+            return json({ error: 'media_url is required for media messages' }, { status: 400 })
+          }
+          waResponse = await sendMediaMessage(
+            contact.phone_e164,
+            sendRequest.media_url,
+            sendRequest.message_type,
+            sendRequest.content,
+            sendRequest.filename
+          )
+          break
 
-      default:
-        return json({ error: 'Unsupported message type' }, { status: 400 })
+        default:
+          return json({ error: 'Unsupported message type' }, { status: 400 })
+      }
+    } catch (apiError) {
+      console.error('WhatsApp API error:', apiError)
+      return json({
+        error: 'Failed to send WhatsApp message',
+        details: (apiError as any)?.message || String(apiError)
+      }, { status: 500 })
     }
 
-    // Record message in database
-    const recordedMessage = await recordOutboundMessage(contact, sendRequest, waResponse)
+    // Record message in database (optional, don't fail if this fails)
+    let recordedMessage = null
+    if (waResponse) {
+      try {
+        recordedMessage = await recordOutboundMessage(contact, sendRequest, waResponse)
+      } catch (dbError) {
+        console.warn('Failed to record message in database (continuing anyway):', dbError)
+      }
+    }
+
+    if (!waResponse) {
+      return json({
+        error: 'Failed to get response from WhatsApp API'
+      }, { status: 500 })
+    }
 
     return json({
       success: true,
-      meta_message_id: waResponse.messages[0]?.id,
-      wa_id: waResponse.contacts[0]?.wa_id,
-      recorded_message_id: recordedMessage?.id
+      meta_message_id: waResponse.messages?.[0]?.id || null,
+      wa_id: waResponse.contacts?.[0]?.wa_id || null,
+      recorded_message_id: recordedMessage?.id || null
     }, { status: 200 })
 
   } catch (error) {

@@ -799,160 +799,112 @@ export class DashAIAssistant {
       | { type: 'switch_layout'; layout: 'classic' | 'enhanced' }
       | { type: 'open_screen'; route: string; params?: Record<string, string> };
   }> {
-    // This would integrate with your existing AI services
-    // For now, return a smart contextual response
-    
-    const userInput = context.userInput.toLowerCase();
-    
-    // Enhanced dashboard layout commands with better pattern matching
-    const dashboardKeywords = ['dashboard', 'layout', 'switch', 'change', 'toggle', 'view'];
-    const enhancedKeywords = ['enhanced', 'modern', 'new', 'improved', 'better', 'updated'];
-    const classicKeywords = ['classic', 'traditional', 'old', 'original', 'previous', 'standard'];
-    
-    const isDashboardQuery = dashboardKeywords.some(keyword => userInput.includes(keyword));
-    const isAskingForEnhanced = enhancedKeywords.some(keyword => userInput.includes(keyword));
-    const isAskingForClassic = classicKeywords.some(keyword => userInput.includes(keyword));
-    
-    if (isDashboardQuery || userInput.includes('dashboard') || userInput.includes('layout') || userInput.includes('switch')) {
+    try {
+      // Use the enhanced AI service instead of hardcoded responses
+      const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
+      const capabilities = roleSpec?.capabilities || [];
       
-      if (isAskingForEnhanced) {
-        return {
-          content: `I'll switch you to the Enhanced Dashboard! This modern layout features improved design, better organization, and enhanced visual elements. The switch will happen automatically.`,
-          confidence: 0.95,
-          suggested_actions: ['view_enhanced_features', 'dashboard_help'],
-          references: [],
-          dashboard_action: {
-            type: 'switch_layout',
-            layout: 'enhanced'
-          }
-        };
-      } else if (isAskingForClassic) {
-        return {
-          content: `I'll switch you to the Classic Dashboard! This familiar layout provides the traditional view you're used to. The switch will happen automatically.`,
-          confidence: 0.95,
-          suggested_actions: ['view_classic_features', 'dashboard_help'],
-          references: [],
-          dashboard_action: {
-            type: 'switch_layout',
-            layout: 'classic'
-          }
-        };
-      } else {
-        return {
-          content: `I can help you switch between dashboard layouts! You have two options:\n\n📊 **Classic Dashboard** - Traditional layout with familiar organization\n✨ **Enhanced Dashboard** - Modern design with improved visual elements\n\nWhich layout would you prefer?`,
-          confidence: 0.9,
-          suggested_actions: ['switch_to_enhanced', 'switch_to_classic', 'dashboard_help'],
-          references: []
-        };
+      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
+
+CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
+
+RESPONSE GUIDELINES:
+- Be concise, practical, and directly helpful
+- Provide specific, actionable advice
+- Reference educational best practices when relevant  
+- Use a warm but professional tone
+- Keep responses focused and avoid unnecessary elaboration
+- When suggesting actions, be specific about next steps
+
+SPECIAL DASHBOARD ACTIONS:
+- If user asks about dashboard layouts, include dashboard_action in response
+- For lesson planning requests, suggest opening the lesson generator
+- For assessment tasks, recommend relevant tools`;
+
+      if (roleSpec && this.userProfile?.role) {
+        systemPrompt += `
+
+ROLE-SPECIFIC CONTEXT:
+- You are helping a ${this.userProfile.role}
+- Communication tone: ${roleSpec.tone}  
+- Your specialized capabilities: ${capabilities.join(', ')}`;
       }
-    }
-    
-    // Settings and preferences
-    if (userInput.includes('setting') || userInput.includes('prefer') || userInput.includes('config')) {
-      if (userInput.includes('dashboard')) {
-        return {
-          content: `I can help you customize your dashboard! You can switch between layouts, adjust preferences, or explore different views. What would you like to change about your dashboard?`,
-          confidence: 0.85,
-          suggested_actions: ['switch_dashboard_layout', 'dashboard_settings', 'view_options'],
-          references: []
-        };
+
+      systemPrompt += `
+
+RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant actions the user can take.`;
+
+      // Call the real AI service using homework_help action (which supports general educational assistance)
+      const aiResponse = await this.callAIService({
+        action: 'homework_help',
+        question: context.userInput,
+        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        gradeLevel: 'General'
+      });
+
+      // Parse AI response and add contextual actions and dashboard behaviors
+      const userInput = context.userInput.toLowerCase();
+      let dashboard_action = undefined;
+      let suggested_actions: string[] = [];
+
+      // Analyze AI response for dashboard actions
+      if (userInput.includes('dashboard') || userInput.includes('layout') || userInput.includes('switch')) {
+        if (userInput.includes('enhanced') || userInput.includes('modern') || userInput.includes('new')) {
+          dashboard_action = { type: 'switch_layout' as const, layout: 'enhanced' as const };
+          suggested_actions.push('view_enhanced_features', 'dashboard_help');
+        } else if (userInput.includes('classic') || userInput.includes('traditional') || userInput.includes('old')) {
+          dashboard_action = { type: 'switch_layout' as const, layout: 'classic' as const };
+          suggested_actions.push('view_classic_features', 'dashboard_help');
+        } else {
+          suggested_actions.push('switch_to_enhanced', 'switch_to_classic', 'dashboard_help');
+        }
       }
-    }
-    
-    // Enhanced educational context responses
-    const lessonKeywords = ['lesson', 'teach', 'curriculum', 'plan', 'activity', 'learning'];
-    const assessmentKeywords = ['assess', 'grade', 'test', 'quiz', 'evaluation', 'progress', 'performance'];
-    const studentKeywords = ['student', 'pupil', 'child', 'learner', 'class'];
-    const parentKeywords = ['parent', 'communication', 'meeting', 'report', 'update', 'feedback'];
-    
-    const isLessonQuery = lessonKeywords.some(keyword => userInput.includes(keyword));
-    const isAssessmentQuery = assessmentKeywords.some(keyword => userInput.includes(keyword));
-    const isStudentQuery = studentKeywords.some(keyword => userInput.includes(keyword));
-    const isParentQuery = parentKeywords.some(keyword => userInput.includes(keyword));
-    
-    if (isLessonQuery) {
-      // Extract lightweight params from the user's text to prefill the form
-      const extract = (text: string) => {
+
+      // Add lesson planning actions
+      if (userInput.includes('lesson') || userInput.includes('plan') || userInput.includes('curriculum')) {
         const params: Record<string, string> = {};
-        const gradeMatch = text.match(/grade\s*(\d{1,2})/i);
+        const gradeMatch = userInput.match(/grade\s*(\d{1,2})/i);
         if (gradeMatch) params.gradeLevel = gradeMatch[1];
-        const subjectMatch = text.match(/(math|mathematics|science|english|afrikaans|life\s?skills|geography|history)/i);
+        const subjectMatch = userInput.match(/(math|mathematics|science|english|afrikaans|life\s?skills|geography|history)/i);
         if (subjectMatch) params.subject = subjectMatch[1];
-        const topicMatch = text.match(/(?:on|about)\s+([^\.,;\n]{3,60})/i);
-        if (topicMatch) params.topic = topicMatch[1].trim();
-        if (/auto|generate|create/i.test(text)) params.autogenerate = '1';
-        return params;
-      };
-      const params = extract(userInput);
+        
+        dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
+        suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
+      }
+
+      // Add contextual suggested actions based on user input
+      if (userInput.includes('student') || userInput.includes('pupil')) {
+        suggested_actions.push('student_enrollment', 'track_progress', 'behavior_management');
+      }
+      if (userInput.includes('parent') || userInput.includes('communication')) {
+        suggested_actions.push('draft_message', 'schedule_meeting', 'progress_report');
+      }
+      if (userInput.includes('assess') || userInput.includes('grade') || userInput.includes('test')) {
+        suggested_actions.push('create_assessment', 'track_progress', 'performance_analytics');
+      }
+
+      // Fallback actions if none were added
+      if (suggested_actions.length === 0) {
+        suggested_actions = ['lesson_planning', 'student_management', 'dashboard_help', 'explore_features'];
+      }
 
       return {
-        content: `I can help you create engaging, CAPS-aligned lessons! I can assist with lesson planning, activity suggestions, resource recommendations, and curriculum alignment. What subject or topic would you like to focus on?`,
+        content: aiResponse?.content || aiResponse?.message || "I'm here to help with your educational needs. What would you like to work on?",
         confidence: 0.9,
-        suggested_actions: ['create_lesson', 'view_lesson_templates', 'curriculum_alignment', 'activity_suggestions'],
+        suggested_actions: suggested_actions.slice(0, 4), // Limit to 4 actions
         references: [],
-        dashboard_action: { type: 'open_screen', route: '/screens/ai-lesson-generator', params }
+        ...(dashboard_action && { dashboard_action })
       };
-    }
-    
-    if (isAssessmentQuery) {
+      
+    } catch (error) {
+      console.error('[Dash] Legacy AI service call failed:', error);
       return {
-        content: `Assessment and evaluation are key to student success! I can help you create formative and summative assessments, track student progress, analyze performance data, and generate detailed reports. What type of assessment do you need help with?`,
-        confidence: 0.9,
-        suggested_actions: ['create_assessment', 'track_progress', 'performance_analytics', 'generate_reports'],
-        references: []
-      };
-    }
-    
-    if (isStudentQuery && !isAssessmentQuery) {
-      return {
-        content: `Student management and support is at the heart of great education! I can help with student enrollment, progress tracking, behavior management, individualized learning plans, and parent communication. How can I support your students today?`,
-        confidence: 0.85,
-        suggested_actions: ['student_enrollment', 'track_progress', 'behavior_management', 'parent_communication'],
-        references: []
-      };
-    }
-    
-    if (isParentQuery) {
-      return {
-        content: `Strong parent partnerships enhance student success! I can help you draft professional communications, schedule parent-teacher meetings, create progress reports, send announcements, and handle difficult conversations. What type of parent interaction do you need help with?`,
-        confidence: 0.85,
-        suggested_actions: ['draft_message', 'schedule_meeting', 'progress_report', 'send_announcement'],
-        references: []
-      };
-    }
-    
-    // Help and support commands
-    const helpKeywords = ['help', 'assist', 'support', 'guide', 'how', 'what', 'explain'];
-    const greetingKeywords = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 'good evening'];
-    
-    const isHelpQuery = helpKeywords.some(keyword => userInput.includes(keyword));
-    const isGreeting = greetingKeywords.some(keyword => userInput.includes(keyword));
-    
-    if (isGreeting) {
-      return {
-        content: `Hello! Great to see you! I'm Dash, your AI teaching assistant. I'm here to help with lesson planning, student management, assessments, parent communication, and dashboard navigation. What would you like to work on today?`,
-        confidence: 0.95,
-        suggested_actions: ['lesson_planning', 'student_management', 'dashboard_help', 'explore_features'],
-        references: []
-      };
-    }
-    
-    if (isHelpQuery) {
-      return {
-        content: `I'm here to help! Here's what I can assist you with:\n\n🎓 **Teaching Support**\n• Lesson planning & curriculum alignment\n• Assessment creation & grading\n• Student progress tracking\n\n👨‍👩‍👧‍👦 **Communication**\n• Parent communication & meetings\n• School announcements\n\n⚙️ **Dashboard & Settings**\n• Switch dashboard layouts\n• Navigate features\n\nWhat specific area would you like help with?`,
-        confidence: 0.9,
+        content: "I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, or dashboard navigation, I'm ready to assist. What would you like to work on together?",
+        confidence: 0.7,
         suggested_actions: ['lesson_planning', 'student_management', 'parent_communication', 'dashboard_help'],
         references: []
       };
     }
-
-    // Default encouraging response
-    return {
-      content: `I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, dashboard navigation, or administrative tasks, I'm ready to assist. What would you like to work on together?`,
-      confidence: 0.7,
-      suggested_actions: ['explore_features', 'lesson_planning', 'student_management', 'dashboard_help'],
-      references: []
-    };
   }
 
   /**
@@ -1701,34 +1653,53 @@ export class DashAIAssistant {
       const capabilities = roleSpec?.capabilities || [];
       
       // Enhance the prompt with role context and capabilities
-      let systemPrompt = `You are Dash, an intelligent AI assistant. Your personality: ${this.personality.personality_traits.join(', ')}.`;
+      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
+
+CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
+
+RESPONSE GUIDELINES:
+- Be concise, practical, and directly helpful
+- Provide specific, actionable advice
+- Reference educational best practices when relevant
+- Use a warm but professional tone
+- Keep responses focused and avoid unnecessary elaboration
+- When suggesting actions, be specific about next steps`;
       
-      if (roleSpec) {
-        systemPrompt += ` You are specifically helping a ${this.userProfile?.role} with ${roleSpec.tone} tone. Your capabilities include: ${capabilities.join(', ')}.`;
+      if (roleSpec && this.userProfile?.role) {
+        systemPrompt += `
+
+ROLE-SPECIFIC CONTEXT:
+- You are helping a ${this.userProfile.role}
+- Communication tone: ${roleSpec.tone}
+- Your specialized capabilities: ${capabilities.join(', ')}
+- Role-specific greeting: ${roleSpec.greeting}`;
       }
 
       // Add context awareness
       if (analysis.context) {
-        systemPrompt += ` Current context: ${JSON.stringify(analysis.context)}`;
+        systemPrompt += `
+
+CURRENT CONTEXT: ${JSON.stringify(analysis.context, null, 2)}`;
       }
 
       // Add intent understanding
       if (analysis.intent) {
-        systemPrompt += ` User intent: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})`;
+        systemPrompt += `
+
+USER INTENT: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})
+${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.intent.secondary_intents.join(', ')}` : ''}`;
       }
 
-      // Call AI service with enhanced context
+      systemPrompt += `
+
+IMPORTANT: Always provide specific, contextual responses that directly address the user's needs. Avoid generic educational advice unless specifically requested.`;
+
+      // Call AI service with enhanced context using homework_help action
       const aiResponse = await this.callAIService({
-        action: 'general_assistance',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: content }
-        ],
-        context: {
-          role: this.userProfile?.role,
-          intent: analysis.intent,
-          capabilities: capabilities
-        }
+        action: 'homework_help',
+        question: content,
+        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        gradeLevel: 'General'
       });
 
       const assistantMessage: DashMessage = {
@@ -1914,8 +1885,15 @@ export class DashAIAssistant {
   private async callAIService(params: any): Promise<any> {
     try {
       const supabase = assertSupabase();
+      
+      // Include model from environment variables if not specified
+      const requestBody = {
+        ...params,
+        model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
+      };
+      
       const { data, error } = await supabase.functions.invoke('ai-gateway', {
-        body: params
+        body: requestBody
       });
       
       if (error) throw error;

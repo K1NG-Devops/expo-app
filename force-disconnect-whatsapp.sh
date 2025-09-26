@@ -1,82 +1,67 @@
 #!/bin/bash
 
-# Force disconnect WhatsApp connection
-# This script completely removes the WhatsApp contact from the database
+# Force Disconnect WhatsApp Script
+# Use this if the UI disconnect button doesn't work
 
-echo "🔌 Force Disconnecting WhatsApp..."
+echo "🔧 Force WhatsApp Disconnect Tool"
+echo "This will delete your WhatsApp contact record from the database"
 echo ""
 
-# User credentials from your error logs
-USER_ID="a1fd12d2-5f09-4a23-822d-f3071bfc544b"
-PRESCHOOL_ID="ba79097c-1b93-4b48-bcbe-df73878ab4d1"
+# Check if we're in the right directory
+if [ ! -f "supabase/config.toml" ]; then
+    echo "❌ Error: Please run this script from the project root directory"
+    exit 1
+fi
 
-echo "👤 Targeting User: $USER_ID"
-echo "🏫 Targeting Preschool: $PRESCHOOL_ID"
+echo "⚠️  WARNING: This will permanently delete your WhatsApp connection data!"
+echo "This cannot be undone."
 echo ""
 
-echo "⚠️  This will COMPLETELY REMOVE your WhatsApp connection."
-echo "   After this, the UI will show 'Not Connected' and you can start fresh."
-echo ""
+read -p "Are you sure you want to proceed? (yes/no): " CONFIRM
 
-read -p "❓ Are you sure you want to proceed? [y/N]: " CONFIRM
-
-if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
-    echo "❌ Operation cancelled."
+if [ "$CONFIRM" != "yes" ]; then
+    echo "Operation cancelled."
     exit 0
 fi
 
 echo ""
-echo "🗑️  Deleting WhatsApp contact record..."
+echo "📱 Getting your user information..."
 
-# Create temporary SQL file
-SQL_FILE="/tmp/delete_whatsapp_contact.sql"
-cat > "$SQL_FILE" << EOF
--- Force disconnect WhatsApp for user
-DELETE FROM public.whatsapp_contacts 
-WHERE user_id = '$USER_ID' 
-  AND preschool_id = '$PRESCHOOL_ID';
+# Get current user ID and organization
+echo "🔍 Checking current WhatsApp connections..."
 
--- Show result
-SELECT 
-  CASE 
-    WHEN COUNT(*) = 0 THEN 'SUCCESS: WhatsApp contact deleted'
-    ELSE 'ERROR: Contact still exists'
-  END as result
-FROM public.whatsapp_contacts 
-WHERE user_id = '$USER_ID' 
-  AND preschool_id = '$PRESCHOOL_ID';
+# You can run this SQL to check current connections:
+cat << 'EOF'
+-- Check current WhatsApp connections
+SELECT
+    wc.id,
+    wc.phone_e164,
+    wc.consent_status,
+    wc.created_at,
+    p.first_name || ' ' || p.last_name as user_name,
+    pr.name as school_name
+FROM whatsapp_contacts wc
+JOIN profiles p ON wc.user_id = p.id
+LEFT JOIN preschools pr ON wc.preschool_id = pr.id
+WHERE wc.consent_status = 'opted_in'
+ORDER BY wc.created_at DESC;
 EOF
 
-echo "📝 Generated SQL:"
-cat "$SQL_FILE"
+echo ""
+echo "📋 To force disconnect, run this SQL in your Supabase SQL Editor:"
+echo ""
+echo "DELETE FROM whatsapp_contacts WHERE consent_status = 'opted_in' AND phone_e164 = '+27670614747';"
+echo ""
+echo "⚠️  Replace '+27670614747' with the actual phone number you want to disconnect"
 echo ""
 
-echo "🚀 Executing via Supabase..."
+read -p "Have you run the SQL command above? (yes/no): " SQL_RUN
 
-# Try to execute the SQL using Supabase CLI
-# Note: This might not work if CLI doesn't support direct SQL execution
-# If it fails, we'll show manual instructions
-
-echo "💡 Manual execution required:"
-echo ""
-echo "1. Go to: https://supabase.com/dashboard/project/lvvvjywrmpcqrpvuptdi/sql/new"
-echo "2. Copy and paste this SQL:"
-echo ""
-echo "-- Force disconnect WhatsApp"
-echo "DELETE FROM public.whatsapp_contacts"
-echo "WHERE user_id = '$USER_ID'"
-echo "  AND preschool_id = '$PRESCHOOL_ID';"
-echo ""
-echo "3. Click 'Run'"
-echo "4. Refresh your teacher dashboard"
-echo "5. WhatsApp should now show 'Not Connected'"
-echo ""
-
-# Clean up
-rm -f "$SQL_FILE"
-
-echo "✅ Instructions provided. After running the SQL:"
-echo "   • WhatsApp UI will show 'Disconnected'"
-echo "   • You can connect with your new working token"
-echo "   • The problematic connection will be completely removed"
-echo ""
+if [ "$SQL_RUN" = "yes" ]; then
+    echo "✅ Force disconnect completed!"
+    echo ""
+    echo "🔄 Now refresh your app to see the changes."
+    echo "The WhatsApp integration should now show as disconnected."
+else
+    echo "❌ Please run the SQL command first, then re-run this script."
+fi

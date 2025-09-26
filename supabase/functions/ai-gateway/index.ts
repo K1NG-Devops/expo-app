@@ -48,12 +48,15 @@ function normalizeModelId(modelId: string): AIModelId | null {
 
 // Map any "family" id to an official, versioned Anthropic model id
 function toOfficialModelId(modelId: string): string {
+  // If already a versioned model ID, return as-is
+  if (modelId.includes('20')) return modelId;
+  
   const norm = normalizeModelId(modelId) || 'claude-3-sonnet';
   switch (norm) {
     case 'claude-3-haiku':
       return 'claude-3-haiku-20240307';
     case 'claude-3-opus':
-      return 'claude-3-5-sonnet-20241022';
+      return 'claude-3-opus-20240229';
     case 'claude-3-sonnet':
     default:
       return 'claude-3-5-sonnet-20241022';
@@ -121,12 +124,15 @@ async function callClaudeMessages(apiKey: string, payload: Record<string, any>, 
   return res;
 }
 
-function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance"): string {
+function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance"): string {
   if (kind === "lesson_generation") {
     return "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment.";
   }
   if (kind === "homework_help") {
     return "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers.";
+  }
+  if (kind === "general_assistance") {
+    return "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice.";
   }
   return "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate.";
 }
@@ -151,6 +157,15 @@ Use plain language and bullet points where helpful.`;
     const gradeLevel = body.gradeLevel || body.grade || null;
     const gradeContext = gradeLevel ? `This is for a Grade ${gradeLevel} student. ` : "";
     const userContent = `${ctx}${gradeContext}Provide a step-by-step explanation for: ${q}. Use age-appropriate language and examples. Avoid giving only the final answer; emphasize understanding and learning.`;
+    return [{ role: "user", content: userContent }];
+  }
+  if (kind === "general_assistance") {
+    // Handle messages array format from DashAIAssistant
+    if (Array.isArray(body.messages)) {
+      return body.messages.filter((msg: any) => msg.role !== 'system');
+    }
+    // Fallback for simple text input
+    const userContent = body.content || body.question || "How can I help you with your educational needs?";
     return [{ role: "user", content: userContent }];
   }
   // grading_assistance
@@ -504,7 +519,7 @@ serve(async (req: Request) => {
   }
 
   // Non-streaming handlers
-  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance") {
+  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance") {
     if (!apiKey) {
       // Fallback mock if no key
       let content = "";
@@ -512,13 +527,15 @@ serve(async (req: Request) => {
         content = `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`;
       } else if (action === "homework_help") {
         content = `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding, not just final answer.`;
+      } else if (action === "general_assistance") {
+        content = `I'm here to help with your educational needs. Whether it's lesson planning, student management, or administrative tasks, let me know what you'd like to work on.`;
       } else {
         content = `Automated feedback: solid effort. Suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
       }
       return json({ content, usage: { input_tokens: 200, output_tokens: 600 }, cost: 0 });
     }
 
-    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance";
+    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
     const messages = buildMessagesFromInputs(kind, body);
     const system = toSystemPrompt(kind);
     const model = modelToUse; // Use tier-enforced model

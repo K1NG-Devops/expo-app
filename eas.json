@@ -36,12 +36,31 @@
     },
     "production": {
       "channel": "production",
+      "credentialsSource": "local",
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
         "NODE_ENV": "production",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://lvvvjywrmpcqrpvuptdi.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2dnZqeXdybXBjcXJwdnVwdGRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcyOTM4MzgsImV4cCI6MjA0Mjg2OTgzOH0.mjXejy3qlG6PQQhFHT_FxjNJG2z_2EZs46w1rFnXI5E",
+        "EXPO_PUBLIC_ENVIRONMENT": "production",
+        "EXPO_PUBLIC_TENANT_SLUG": "production",
+        "EXPO_PUBLIC_WHATSAPP_API_ENABLED": "true",
+        "EXPO_PUBLIC_SCHOOL_WHATSAPP_NUMBER": "+27674770975",
+        "EXPO_PUBLIC_API_BASE": "https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1",
         "EXPO_PUBLIC_ENABLE_CONSOLE": "false",
         "EXPO_PUBLIC_ENABLE_ADS": "1",
         "EXPO_PUBLIC_ENABLE_TEST_ADS": "false",
-        "EXPO_PUBLIC_ENABLE_MOCK_ADS": "false"
+        "EXPO_PUBLIC_ENABLE_MOCK_ADS": "false",
+        "EXPO_PUBLIC_ENABLE_TEST_TOOLS": "0",
+        "EXPO_PUBLIC_ENABLE_OTA_UPDATES": "true"
+      }
+    },
+    "production-apk": {
+      "extends": "production",
+      "android": {
+        "buildType": "apk"
       }
     }
   },

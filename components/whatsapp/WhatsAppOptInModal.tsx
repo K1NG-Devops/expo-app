@@ -14,11 +14,12 @@ import {
   ActivityIndicator,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { useWhatsAppConnection } from '../../hooks/useWhatsAppConnection'
+import { useWhatsAppConnection, WhatsAppConnectionStatus } from '../../hooks/useWhatsAppConnection'
 import { useTheme } from '../../contexts/ThemeContext'
 import { useTranslation } from 'react-i18next'
 import { track } from '../../lib/analytics'
 import { useAuth } from '../../contexts/AuthContext'
+import { queryClient } from '../../lib/query/queryClient'
 import { convertToE164, formatAsUserTypes, validatePhoneNumber, EXAMPLE_PHONE_NUMBERS } from '../../lib/utils/phoneUtils'
 import { Vibration } from 'react-native'
 import Feedback from '../../lib/feedback'
@@ -36,9 +37,10 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 }) => {
   const { theme, isDark } = useTheme()
   const { t } = useTranslation()
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const {
     connectionStatus,
+    isLoading,
     isOptingIn,
     isOptingOut,
     optIn,
@@ -62,23 +64,25 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
   useEffect(() => {
     if (visible && !prevVisibleRef.current) {
-      // Modal opened
+      // Modal opened - force refresh to get latest data
+      forceRefresh()
+      
       modalOpenedAtRef.current = new Date()
       track('edudash.whatsapp.modal_opened', {
-        current_status: connectionStatus.isConnected ? 'connected' : 'disconnected',
+        current_status: connectionStatus?.isConnected ? 'connected' : 'disconnected',
         timestamp: new Date().toISOString()
       })
 
       // Reset form when modal opens
-      if (connectionStatus.isConnected) {
+      if (connectionStatus?.isConnected) {
         setStep('connected')
-        if (connectionStatus.contact) {
+        if (connectionStatus?.contact) {
           setPhoneNumber(connectionStatus.contact.phone_e164)
         }
       } else {
         setStep('phone')
         // Auto-fill with school WhatsApp number if available
-        if (connectionStatus.schoolWhatsAppNumber) {
+        if (connectionStatus?.schoolWhatsAppNumber) {
           setPhoneNumber(connectionStatus.schoolWhatsAppNumber)
         } else {
           setPhoneNumber('')
@@ -91,7 +95,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       if (openedAt) {
         const sessionDuration = Date.now() - openedAt.getTime()
         track('edudash.whatsapp.modal_closed', {
-          final_status: connectionStatus.isConnected ? 'connected' : 'disconnected',
+          final_status: connectionStatus?.isConnected ? 'connected' : 'disconnected',
           session_duration_ms: sessionDuration
         })
       }
@@ -99,7 +103,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
     }
 
     prevVisibleRef.current = visible
-  }, [visible, connectionStatus.isConnected, connectionStatus.contact])
+  }, [visible, connectionStatus?.isConnected, connectionStatus?.contact])
 
   // Use the new phone validation utility
   const validatePhone = (phone: string) => {
@@ -199,13 +203,23 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
           text: 'Soft Disconnect',
           onPress: async () => {
             setIsDisconnecting(true)
+            console.log('Starting soft disconnect...')
             try {
+              console.log('Calling optOut function...')
               await optOut()
+              console.log('optOut completed successfully')
               setStep('phone')
               setPhoneNumber('')
               setConsentGiven(false)
               // Force refresh to ensure UI updates
-              setTimeout(() => forceRefresh(), 100)
+              setTimeout(() => {
+                forceRefresh()
+                // Additional cache clearing to ensure UI updates
+                queryClient.invalidateQueries({ queryKey: ['whatsapp'] })
+                queryClient.removeQueries({ queryKey: ['whatsapp'] })
+                queryClient.invalidateQueries({ queryKey: ['whatsappContacts'] })
+                queryClient.removeQueries({ queryKey: ['whatsappContacts'] })
+              }, 100)
               Alert.alert(
                 'Disconnected Successfully',
                 'WhatsApp has been disconnected. You can reconnect anytime. Your preferences have been saved.'
@@ -227,13 +241,23 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
           style: 'destructive',
           onPress: async () => {
             setIsDisconnecting(true)
+            console.log('Starting hard disconnect...')
             try {
+              console.log('Calling hardDisconnect function...')
               await hardDisconnect()
+              console.log('hardDisconnect completed successfully')
               setStep('phone')
               setPhoneNumber('')
               setConsentGiven(false)
               // Force refresh to ensure UI updates
-              setTimeout(() => forceRefresh(), 100)
+              setTimeout(() => {
+                forceRefresh()
+                // Additional cache clearing to ensure UI updates
+                queryClient.invalidateQueries({ queryKey: ['whatsapp'] })
+                queryClient.removeQueries({ queryKey: ['whatsapp'] })
+                queryClient.invalidateQueries({ queryKey: ['whatsappContacts'] })
+                queryClient.removeQueries({ queryKey: ['whatsappContacts'] })
+              }, 100)
               Alert.alert(
                 'Completely Disconnected',
                 'WhatsApp has been completely removed from your account. All connection data has been deleted.'
@@ -276,6 +300,15 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
   }
 
   const handleSendTestMessage = async () => {
+    if (!connectionStatus?.isConnected || !connectionStatus?.contact) {
+      Alert.alert(
+        'WhatsApp Not Connected',
+        'Please connect WhatsApp first before sending test messages.',
+        [{ text: t('common.ok') }]
+      )
+      return
+    }
+
     try {
       await sendTestMessage()
       try { await Feedback.vibrate(30); } catch {}
@@ -286,9 +319,11 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         [{ text: t('common.ok') }]
       )
     } catch (error) {
+      console.error('Test message failed:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       Alert.alert(
         t('whatsapp:testMessageFailed'),
-        t('whatsapp:testMessageFailedMessage'),
+        `${t('whatsapp:testMessageFailedMessage')}\n\nError: ${errorMessage}`,
         [{ text: t('common.ok') }]
       )
     }
@@ -377,6 +412,11 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       color: theme.text,
       backgroundColor: isDark ? '#2A2A2A' : '#FFFFFF',
       marginBottom: 20,
+    },
+    disabledInput: {
+      backgroundColor: theme.surfaceVariant || '#F5F5F5',
+      opacity: 0.7,
+      borderColor: theme.border,
     },
     phoneInputFocused: {
       borderColor: theme.primary,
@@ -542,7 +582,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
       </View>
 
       {/* School WhatsApp Info */}
-      {connectionStatus.schoolWhatsAppNumber ? (
+      {connectionStatus?.schoolWhatsAppNumber ? (
         <View style={{
           backgroundColor: theme.success + '20',
           borderColor: theme.success,
@@ -568,7 +608,7 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
             fontWeight: '700',
             marginBottom: 8
           }}>
-            {formatPhoneNumber(connectionStatus.schoolWhatsAppNumber)}
+            {formatPhoneNumber(connectionStatus?.schoolWhatsAppNumber || '')}
           </Text>
           <Text style={{ 
             color: theme.textSecondary, 
@@ -588,12 +628,18 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
             }}
             onPress={async () => {
               try {
+                console.log('Starting auto-connect to school WhatsApp...')
                 await autoConnectToSchool()
+                console.log('Auto-connect successful')
                 setStep('success')
                 onSuccess?.()
               } catch (error) {
                 console.error('Auto-connect failed:', error)
-                Alert.alert('Connection Failed', 'Please try manual setup below')
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                Alert.alert(
+                  'Connection Failed', 
+                  `Could not connect to school WhatsApp: ${errorMessage}\n\nPlease try manual setup below.`
+                )
               }
             }}
             disabled={isOptingIn}
@@ -645,25 +691,35 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
       <Text style={styles.sectionTitle}>Manual Setup</Text>
       <Text style={styles.description}>
-        Enter a WhatsApp number to connect for school communications
+        {profile?.role === 'teacher'
+          ? 'Connect your school\'s WhatsApp Business number for student communications'
+          : 'Enter a WhatsApp number to connect for school communications'
+        }
       </Text>
       
       <Text style={styles.inputLabel}>WhatsApp Number</Text>
       <TextInput
-        style={styles.phoneInput}
+        style={[
+          styles.phoneInput,
+          profile?.role === 'teacher' && styles.disabledInput
+        ]}
         value={phoneNumber}
-        onChangeText={handlePhoneChange}
-        placeholder={connectionStatus.schoolWhatsAppNumber || EXAMPLE_PHONE_NUMBERS.local}
+        onChangeText={profile?.role === 'teacher' ? undefined : handlePhoneChange}
+        placeholder={connectionStatus?.schoolWhatsAppNumber || EXAMPLE_PHONE_NUMBERS.local}
         placeholderTextColor={theme.textSecondary}
         keyboardType="phone-pad"
         autoComplete="tel"
         textContentType="telephoneNumber"
         maxLength={13} // Allow for formatted input
+        editable={profile?.role !== 'teacher'}
+        pointerEvents={profile?.role === 'teacher' ? 'none' : 'auto'}
       />
       <Text style={styles.phoneHint}>
-        {connectionStatus.schoolWhatsAppNumber 
-          ? 'School number pre-filled. You can change it if needed.'
-          : 'Include country code (e.g., +27 for South Africa)'
+        {profile?.role === 'teacher'
+          ? 'School WhatsApp number pre-filled and locked for teachers'
+          : connectionStatus?.schoolWhatsAppNumber
+            ? 'School number pre-filled. You can change it if needed.'
+            : 'Include country code (e.g., +27 for South Africa)'
         }
       </Text>
 
@@ -680,10 +736,10 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         <TouchableOpacity
           style={[
             styles.button,
-            !validatePhone(phoneNumber) && styles.buttonDisabled
+            !validatePhone(phoneNumber) && profile?.role !== 'teacher' && styles.buttonDisabled
           ]}
           onPress={handlePhoneSubmit}
-          disabled={!validatePhone(phoneNumber)}
+          disabled={!validatePhone(phoneNumber) && profile?.role !== 'teacher'}
         >
           <Text style={styles.buttonText}>
             Continue
@@ -828,33 +884,33 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
         </TouchableOpacity>
       </View>
 
-      {connectionStatus.contact && (
+      {connectionStatus?.contact && (
         <View style={{
           backgroundColor: theme.surface,
           borderRadius: 8,
           padding: 12,
           marginBottom: 16
         }}>
-          <Text style={{ 
-            color: theme.textSecondary, 
-            fontSize: 12, 
-            marginBottom: 4 
+          <Text style={{
+            color: theme.textSecondary,
+            fontSize: 12,
+            marginBottom: 4
           }}>
-            Connected WhatsApp Number:
+            {profile?.role === 'teacher' ? 'School WhatsApp Number:' : 'Connected WhatsApp Number:'}
           </Text>
           <Text style={{
             color: theme.text,
             fontSize: 16,
             fontWeight: '600'
           }}>
-            {formatPhoneNumber(connectionStatus.contact.phone_e164)}
+            {formatPhoneNumber(connectionStatus?.contact?.phone_e164 || '')}
           </Text>
           <Text style={{ 
             color: theme.textSecondary, 
             fontSize: 11, 
             marginTop: 4 
           }}>
-            Status: {connectionStatus.contact.consent_status} • Connected: {new Date(connectionStatus.contact.created_at).toLocaleDateString()}
+            Status: {connectionStatus?.contact?.consent_status} • Connected: {connectionStatus?.contact?.created_at ? new Date(connectionStatus.contact.created_at).toLocaleDateString() : 'Unknown'}
           </Text>
         </View>
       )}
@@ -946,6 +1002,27 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {isLoading && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 16,
+                backgroundColor: theme.surfaceVariant,
+                marginBottom: 16,
+                borderRadius: 8
+              }}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={{
+                  marginLeft: 8,
+                  color: theme.textSecondary,
+                  fontSize: 14
+                }}>
+                  Loading WhatsApp connection status...
+                </Text>
+              </View>
+            )}
+            
             {step === 'phone' && renderPhoneStep()}
             {step === 'consent' && renderConsentStep()}
             {step === 'success' && renderSuccessStep()}
