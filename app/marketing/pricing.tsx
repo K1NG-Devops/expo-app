@@ -217,6 +217,43 @@ export default function PricingPage() {
     );
   }
 
+  const handlePlanCTA = (tier: PricingTier) => {
+    // Track the CTA click
+    track('plan_cta_clicked', {
+      plan_tier: tier.tier,
+      plan_name: tier.name,
+      is_enterprise: tier.isEnterprise,
+      user_authenticated: !!profile,
+      user_role: profile?.role || 'guest',
+    });
+
+    if (tier.isEnterprise) {
+      // Enterprise tier always goes to contact sales
+      navigateTo.contact();
+    } else {
+      // Non-enterprise tiers
+      if (!profile) {
+        // Not authenticated - go to sign up with plan context
+        navigateTo.signUpWithPlan({
+          tier: tier.tier,
+          billing: isAnnual ? 'annual' : 'monthly'
+        });
+      } else if ((profile as any).organization_id) {
+        // Authenticated with organization - go to subscription setup
+        navigateTo.subscriptionSetup({
+          planId: tier.id,
+          billing: isAnnual ? 'annual' : 'monthly'
+        });
+      } else {
+        // Authenticated individual user - go to subscription setup
+        navigateTo.subscriptionSetup({
+          planId: tier.id,
+          billing: isAnnual ? 'annual' : 'monthly'
+        });
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -240,7 +277,7 @@ export default function PricingPage() {
               colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]}
               style={styles.pricingSectionGradient}
             >
-              <PricingGrid tiers={pricingTiers} />
+              <PricingGrid tiers={pricingTiers} onPlanCTA={handlePlanCTA} />
               <EnterpriseSection />
               <FAQSection />
             </LinearGradient>
@@ -301,52 +338,16 @@ const BillingToggle = ({ isAnnual, onToggle }: { isAnnual: boolean; onToggle: (v
   </View>
 );
 
-const PricingGrid = ({ tiers }: { tiers: PricingTier[] }) => (
+const PricingGrid = ({ tiers, onPlanCTA }: { tiers: PricingTier[]; onPlanCTA: (tier: PricingTier) => void }) => (
   <View style={styles.pricingGrid}>
     {tiers.map((tier, index) => (
-      <PricingCard key={tier.id} tier={tier} index={index} />
+      <PricingCard key={tier.id} tier={tier} index={index} onPlanCTA={onPlanCTA} />
     ))}
   </View>
 );
 
-const handlePlanCTA = (tier: PricingTier) => {
-  // Track the CTA click
-  track('plan_cta_clicked', {
-    plan_tier: tier.tier,
-    plan_name: tier.name,
-    is_enterprise: tier.isEnterprise,
-    user_authenticated: !!profile,
-    user_role: profile?.role || 'guest',
-  });
 
-  if (tier.isEnterprise) {
-    // Enterprise tier always goes to contact sales
-    navigateTo.contact();
-  } else {
-    // Non-enterprise tiers
-    if (!profile) {
-      // Not authenticated - go to sign up with plan context
-      navigateTo.signUpWithPlan({
-        tier: tier.tier,
-        billing: isAnnual ? 'annual' : 'monthly'
-      });
-    } else if (profile.organization_id) {
-      // Authenticated with organization - go to subscription setup
-      navigateTo.subscriptionSetup({
-        planId: tier.id,
-        billing: isAnnual ? 'annual' : 'monthly'
-      });
-    } else {
-      // Authenticated individual user - go to subscription setup
-      navigateTo.subscriptionSetup({
-        planId: tier.id,
-        billing: isAnnual ? 'annual' : 'monthly'
-      });
-    }
-  }
-};
-
-const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => (
+const PricingCard = ({ tier, index, onPlanCTA }: { tier: PricingTier; index?: number; onPlanCTA: (tier: PricingTier) => void }) => (
   <View style={[
     styles.pricingCard,
     tier.recommended && styles.recommendedCard,
@@ -390,7 +391,7 @@ const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => 
           styles.ctaButton,
           tier.recommended && styles.recommendedButton
         ]}
-        onPress={() => handlePlanCTA(tier)}
+        onPress={() => onPlanCTA(tier)}
       >
         <LinearGradient
           colors={tier.recommended 

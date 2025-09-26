@@ -139,15 +139,42 @@ export async function getUsage(): Promise<AIUsageRecord> {
   }
 }
 
-export async function incrementUsage(feature: AIUsageFeature, count = 1): Promise<void> {
+export async function incrementUsage(feature: AIUsageFeature, count = 1, model = 'unknown'): Promise<void> {
   const uid = await getCurrentUserId()
   const key = `${STORAGE_PREFIX}_${uid}_${monthKey()}`
+  
+  // Create usage log event for server tracking
+  const event: AIUsageLogEvent = {
+    feature,
+    model,
+    timestamp: new Date().toISOString(),
+  }
+  
   try {
-    const current = await getUsage()
-    const next = { ...current, [feature]: (current[feature] || 0) + count }
-    await storage.setItem(key, JSON.stringify(next))
-  } catch {
-    // swallow
+    // 1. Immediately try to sync to server (write-through)
+    await logUsageEvent(event)
+    console.log(`[Usage] Successfully synced ${feature} usage to server`)
+    
+    // 2. Clear any local cache since server is now authoritative
+    // Local storage is only used for offline scenarios
+    await storage.removeItem(key)
+    
+  } catch (serverError) {
+    console.warn(`[Usage] Server sync failed, using local cache:`, serverError)
+    
+    // 3. Fallback: update local storage for offline scenarios
+    try {
+      const current = await getUsage()
+      const next = { ...current, [feature]: (current[feature] || 0) + count }
+      await storage.setItem(key, JSON.stringify(next))
+      console.log(`[Usage] Updated local cache for ${feature}:`, next[feature])
+      
+      // 4. Queue for retry when connectivity is restored
+      await enqueueUsageLog(event)
+      
+    } catch (localError) {
+      console.error(`[Usage] Both server and local storage failed:`, { serverError, localError })
+    }
   }
 }
 
@@ -166,29 +193,89 @@ async function enqueueUsageLog(event: AIUsageLogEvent): Promise<void> {
   }
 }
 
-export async function flushUsageLogQueue(): Promise<void> {
+/**
+ * Enhanced flush with retry logic and exponential backoff
+ * Attempts to sync queued usage events with improved reliability
+ */
+export async function flushUsageLogQueue(maxRetries = 3): Promise<void> {
   const uid = await getCurrentUserId()
   const key = `${LOG_QUEUE_KEY_PREFIX}_${uid}`
+  const metaKey = `${key}_meta`
+  
   try {
     const raw = await storage.getItem(key)
     const arr: AIUsageLogEvent[] = raw ? JSON.parse(raw) : []
     if (!arr.length) return
+    
+    // Get retry metadata
+    const metaRaw = await storage.getItem(metaKey)
+    const meta = metaRaw ? JSON.parse(metaRaw) : { retryCount: 0, lastAttempt: 0 }
+    
+    // Implement exponential backoff: 1s, 2s, 4s, etc.
+    const backoffMs = Math.min(1000 * Math.pow(2, meta.retryCount), 30000) // max 30s
+    const timeSinceLastAttempt = Date.now() - meta.lastAttempt
+    
+    if (timeSinceLastAttempt < backoffMs) {
+      console.log(`[Usage Queue] Backing off for ${backoffMs - timeSinceLastAttempt}ms`)
+      return // Still in backoff period
+    }
+    
+    console.log(`[Usage Queue] Attempting to flush ${arr.length} queued events (retry ${meta.retryCount})`)
+    
     const remaining: AIUsageLogEvent[] = []
-    for (const ev of arr) {
-      try {
-        const { error } = await assertSupabase().functions.invoke('ai-usage', { body: { action: 'log', event: ev } as any })
-        if (error) remaining.push(ev)
-      } catch {
-        remaining.push(ev)
+    let syncedCount = 0
+    
+    // Process events in batches to avoid overwhelming the server
+    const batchSize = 5
+    for (let i = 0; i < arr.length; i += batchSize) {
+      const batch = arr.slice(i, i + batchSize)
+      
+      for (const ev of batch) {
+        try {
+          const { error } = await assertSupabase().functions.invoke('ai-usage', { 
+            body: { action: 'log', event: ev } as any 
+          })
+          if (error) {
+            console.warn('[Usage Queue] Server rejected event:', error, ev)
+            remaining.push(ev)
+          } else {
+            syncedCount++
+          }
+        } catch (syncError) {
+          console.warn('[Usage Queue] Failed to sync event:', syncError, ev)
+          remaining.push(ev)
+        }
+      }
+      
+      // Small delay between batches
+      if (i + batchSize < arr.length) {
+        await new Promise(resolve => setTimeout(resolve, 100))
       }
     }
-    if (remaining.length) {
-      await storage.setItem(key, JSON.stringify(remaining))
+    
+    // Update queue and metadata
+    if (remaining.length > 0) {
+      if (meta.retryCount >= maxRetries) {
+        console.error(`[Usage Queue] Max retries reached, discarding ${remaining.length} events`)
+        await storage.removeItem(key)
+        await storage.removeItem(metaKey)
+      } else {
+        await storage.setItem(key, JSON.stringify(remaining))
+        await storage.setItem(metaKey, JSON.stringify({
+          retryCount: meta.retryCount + 1,
+          lastAttempt: Date.now()
+        }))
+        console.log(`[Usage Queue] ${syncedCount} events synced, ${remaining.length} remain (will retry)`)
+      }
     } else {
+      // All events synced successfully
       await storage.removeItem(key)
+      await storage.removeItem(metaKey)
+      console.log(`[Usage Queue] All ${syncedCount} events synced successfully`)
     }
-  } catch {
-    // swallow
+    
+  } catch (error) {
+    console.error('[Usage Queue] Queue flush failed:', error)
   }
 }
 
@@ -221,20 +308,75 @@ export async function getServerUsage(): Promise<AIUsageRecord | null> {
   }
 }
 
+/**
+ * Syncs any pending local usage to the server and clears local storage
+ * Should be called on app startup to prevent cross-device inconsistencies
+ */
+export async function syncLocalUsageToServer(): Promise<void> {
+  const uid = await getCurrentUserId()
+  const key = `${STORAGE_PREFIX}_${uid}_${monthKey()}`
+  
+  try {
+    const local = await getUsage()
+    const localTotal = local.lesson_generation + local.grading_assistance + local.homework_help
+    
+    // Only sync if there's local usage to sync
+    if (localTotal > 0) {
+      console.log('[Usage Sync] Syncing local usage to server:', local)
+      
+      // Send each feature's usage to server
+      for (const [feature, count] of Object.entries(local) as [AIUsageFeature, number][]) {
+        if (count > 0) {
+          // Create a usage log event for each accumulated usage
+          const event: AIUsageLogEvent = {
+            feature,
+            model: 'bulk_sync',
+            timestamp: new Date().toISOString(),
+          }
+          
+          // Try direct sync first
+          try {
+            const { error } = await assertSupabase().functions.invoke('ai-usage', { 
+              body: { action: 'bulk_increment', feature, count } as any 
+            })
+            if (error) throw error
+            console.log(`[Usage Sync] Successfully synced ${count} ${feature} usage`)
+          } catch (syncError) {
+            console.warn(`[Usage Sync] Failed to sync ${feature}, queueing for retry:`, syncError)
+            // Fallback to logging individual events
+            for (let i = 0; i < count; i++) {
+              await enqueueUsageLog(event)
+            }
+          }
+        }
+      }
+      
+      // Clear local storage after successful sync attempt
+      await storage.removeItem(key)
+      console.log('[Usage Sync] Cleared local usage cache after sync')
+    }
+    
+    // Always flush the log queue on startup
+    await flushUsageLogQueue()
+    
+  } catch (error) {
+    console.error('[Usage Sync] Failed to sync local usage:', error)
+    // Don't throw - we don't want to break app startup
+  }
+}
+
 export async function getCombinedUsage(): Promise<AIUsageRecord> {
-  const [server, local] = await Promise.all([getServerUsage(), getUsage()])
-  if (!server) return local
-  // If server exists but appears stale (all zeros) while local has data, prefer local
-  const serverTotal = (server.lesson_generation || 0) + (server.grading_assistance || 0) + (server.homework_help || 0)
-  const localTotal = (local.lesson_generation || 0) + (local.grading_assistance || 0) + (local.homework_help || 0)
-  if (serverTotal === 0 && localTotal > 0) {
-    return local
+  // Server is the authoritative source for usage tracking
+  // This fixes cross-device sync issues where local storage would reset quota
+  const server = await getServerUsage()
+  if (server) {
+    return server
   }
-  // Prefer per-feature max to handle partial lag
-  return {
-    lesson_generation: Math.max(server.lesson_generation || 0, local.lesson_generation || 0),
-    grading_assistance: Math.max(server.grading_assistance || 0, local.grading_assistance || 0),
-    homework_help: Math.max(server.homework_help || 0, local.homework_help || 0),
-  }
+  
+  // Fallback to local only when server is completely unavailable
+  // This handles offline scenarios but won't persist across devices
+  const local = await getUsage()
+  console.warn('Using local usage as fallback - server unavailable:', local)
+  return local
 }
 

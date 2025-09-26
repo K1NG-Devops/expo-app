@@ -26,6 +26,7 @@ import ToastProvider from '@/components/ui/ToastProvider';
 import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { installNavigationErrorHandlers } from '@/lib/navigation/navigationInterceptor';
+import { useUsageSync } from '@/lib/ai/hooks/useUsageSync';
 
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
@@ -213,6 +214,9 @@ export default function RootLayout() {
     );
   }
 
+  // Internal bootstrap component to initialize usage sync after auth is available
+  const UsageSyncBootstrap = () => { useUsageSync(); return null; };
+
   return (
     // Provide auth context globally to mirror standalone app behavior
     <I18nextProvider i18n={i18n}>
@@ -226,6 +230,8 @@ export default function RootLayout() {
                 {/* Wrap in AdsProvider for ad display gating and control */}
                 <AdsProvider>
                   <ToastProvider>
+                    {/* Initialize cross-device usage sync */}
+                    <UsageSyncBootstrap />
                     <ThemedStackWrapper />
                   </ToastProvider>
                   <GlobalUpdateBanner />

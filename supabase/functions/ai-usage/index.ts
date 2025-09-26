@@ -28,10 +28,175 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || '').toLowerCase();
 
-    // No-op logger
+    // Helper: resolve AI service ID for a given model string
+    async function resolveAiServiceId(supabase: any, model: string): Promise<string | null> {
+      try {
+        // Try exact model_version match first
+        if (model) {
+          const { data: exact } = await supabase
+            .from('ai_services')
+            .select('id')
+            .eq('model_version', model)
+            .maybeSingle();
+          if (exact?.id) return exact.id;
+        }
+        // Heuristic fallback by common model families
+        const family = (model || '').toLowerCase();
+        const familyKey = family.includes('sonnet') ? 'sonnet'
+          : family.includes('haiku') ? 'haiku'
+          : family.includes('opus') ? 'opus'
+          : null;
+        if (familyKey) {
+          const { data: fam } = await supabase
+            .from('ai_services')
+            .select('id, name, model_version')
+            .ilike('name', `%${familyKey}%`)
+            .maybeSingle();
+          if (fam?.id) return fam.id;
+        }
+        // Final fallback: pick any active/available service
+        const { data: anySvc } = await supabase
+          .from('ai_services')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        return anySvc?.id || null;
+      } catch {
+        return null;
+      }
+    }
+
+    // Log AI usage event to database
     if (action === 'log') {
-      // Accept and return success; optionally store in future
-      return ok({ success: true });
+      const event = body.event;
+      if (!event) return bad('event data required for log action', 400);
+      
+      try {
+        // Get user from JWT token
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader) return bad('Authorization required', 401);
+        
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          global: { headers: { Authorization: authHeader } }
+        });
+        
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) return bad('Invalid authentication', 401);
+        
+        // Get user profile for preschool_id
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id, preschool_id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        
+        if (!profile) return bad('User profile not found', 404);
+
+        // Resolve a valid ai_service_id for this model
+        const aiServiceId = await resolveAiServiceId(supabase, event.model);
+        
+        // Log to ai_usage_logs table (matching actual schema)
+        const { error: logError } = await supabase
+          .from('ai_usage_logs')
+          .insert({
+            user_id: user.id, // auth.users id
+            preschool_id: profile.preschool_id,
+            organization_id: profile.preschool_id, // In this schema org == preschool
+            ai_service_id: aiServiceId || '00000000-0000-0000-0000-000000000000', // fallback to a dummy value but should resolve
+            ai_model_used: event.model,
+            service_type: event.feature,
+            input_tokens: event.tokensIn || 0,
+            output_tokens: event.tokensOut || 0,
+            total_cost: (event.estCostCents || 0) / 100.0,
+            status: 'success',
+          });
+        
+        if (logError) {
+          console.error('Failed to log usage:', logError);
+          return ok({ success: false, error: 'Failed to log usage' });
+        }
+        
+        return ok({ success: true });
+        
+      } catch (error) {
+        console.error('Log action error:', error);
+        return ok({ success: false, error: 'Log processing failed' });
+      }
+    }
+    
+    // Bulk increment usage (for syncing accumulated local usage)
+    if (action === 'bulk_increment') {
+      const { feature, count } = body;
+      if (!feature || !count || count <= 0) {
+        return bad('feature and positive count required for bulk_increment', 400);
+      }
+      
+      try {
+        // Get user from JWT token
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader) return bad('Authorization required', 401);
+        
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          global: { headers: { Authorization: authHeader } }
+        });
+        
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) return bad('Invalid authentication', 401);
+        
+        // Get user profile for preschool_id
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id, preschool_id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        
+        if (!profile) return bad('User profile not found', 404);
+
+        // Resolve any service to use for bulk sync entries
+        const aiServiceId = await resolveAiServiceId(supabase, 'bulk_sync');
+        
+        // Create bulk log entries (one for each count)
+        const logEntries = [] as any[];
+        for (let i = 0; i < count; i++) {
+          logEntries.push({
+            user_id: user.id, // auth.users id
+            preschool_id: profile.preschool_id,
+            organization_id: profile.preschool_id,
+            ai_service_id: aiServiceId || '00000000-0000-0000-0000-000000000000',
+            ai_model_used: 'bulk_sync',
+            service_type: feature,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_cost: 0,
+            status: 'success',
+          });
+        }
+        
+        // Insert all entries at once
+        const { error: bulkError } = await supabase
+          .from('ai_usage_logs')
+          .insert(logEntries);
+        
+        if (bulkError) {
+          console.error('Bulk increment failed:', bulkError);
+          return ok({ success: false, error: 'Bulk increment failed' });
+        }
+        
+        console.log(`Successfully bulk incremented ${count} ${feature} usage for user ${user.id}`);
+        return ok({ success: true, synced_count: count });
+        
+      } catch (error) {
+        console.error('Bulk increment error:', error);
+        return ok({ success: false, error: 'Bulk increment processing failed' });
+      }
     }
 
     if (action === 'org_limits') {
@@ -243,6 +408,70 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Get current user's usage statistics (default action when no action specified)
+    if (!action || action === 'get_usage') {
+      try {
+        // Get user from JWT token
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader) return ok({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 });
+        
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+          global: { headers: { Authorization: authHeader } }
+        });
+        
+        // Get current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) return ok({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 });
+        
+        // Get user profile
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id, preschool_id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        
+        if (!profile) return ok({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 });
+        
+        // Get current month's usage from ai_usage_logs
+        const startOfMonth = new Date();
+        startOfMonth.setDate(1);
+        startOfMonth.setHours(0, 0, 0, 0);
+        
+        const { data: usageLogs, error: usageError } = await supabase
+          .from('ai_usage_logs')
+          .select('service_type')
+          .eq('user_id', profile.id)
+          .gte('created_at', startOfMonth.toISOString());
+        
+        if (usageError) {
+          console.error('Usage query error:', usageError);
+          return ok({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 });
+        }
+        
+        // Count usage by feature
+        const usageCounts = {
+          lesson_generation: 0,
+          grading_assistance: 0,
+          homework_help: 0,
+        };
+        
+        (usageLogs || []).forEach((log) => {
+          if (log.service_type in usageCounts) {
+            usageCounts[log.service_type as keyof typeof usageCounts]++;
+          }
+        });
+        
+        return ok(usageCounts);
+        
+      } catch (error) {
+        console.error('Get usage error:', error);
+        return ok({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 });
+      }
+    }
+    
     // Default response
     return ok({ ok: true });
   } catch (e) {

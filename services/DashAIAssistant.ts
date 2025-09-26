@@ -32,6 +32,11 @@ export interface DashMessage {
     audioUri: string;
     duration: number;
     transcript?: string;
+    storagePath?: string;
+    bucket?: string;
+    contentType?: string;
+    language?: string;
+    provider?: string;
   };
   metadata?: {
     context?: string;
@@ -584,7 +589,8 @@ export class DashAIAssistant {
     }
 
     // Transcribe audio
-    const transcript = await this.transcribeAudio(audioUri);
+    const tr = await this.transcribeAudio(audioUri);
+    const transcript = tr.transcript;
     
     // Get audio duration
     const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
@@ -601,7 +607,12 @@ export class DashAIAssistant {
       voiceNote: {
         audioUri,
         duration,
-        transcript
+        transcript,
+        storagePath: tr.storagePath,
+        bucket: tr.storagePath ? 'voice-notes' : undefined,
+        contentType: tr.contentType,
+        language: tr.language,
+        provider: tr.provider
       }
     };
 
@@ -624,6 +635,35 @@ export class DashAIAssistant {
     }
 
     try {
+      // Web compatibility checks for recording support and secure context
+      if (Platform.OS === 'web') {
+        try {
+          const w: any = typeof window !== 'undefined' ? window : null;
+          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+
+          const isSecure = w && (w.isSecureContext || w.location?.protocol === 'https:' || w.location?.hostname === 'localhost' || w.location?.hostname === '127.0.0.1');
+          if (!isSecure) {
+            throw new Error('Microphone requires a secure context (HTTPS or localhost).');
+          }
+
+          if (!nav?.mediaDevices?.getUserMedia) {
+            throw new Error('Your browser does not support microphone capture (mediaDevices.getUserMedia missing). Please use Chrome or Edge.');
+          }
+
+          if (w?.MediaRecorder && typeof (w as any).MediaRecorder.isTypeSupported === 'function') {
+            const preferred = 'audio/webm';
+            if (!(w as any).MediaRecorder.isTypeSupported(preferred)) {
+              console.warn(`[Dash] ${preferred} not fully supported; the browser may record using a different container/codec.`);
+            }
+          } else {
+            console.warn('[Dash] MediaRecorder is not available; recording may not work in this browser (e.g., Safari).');
+          }
+        } catch (compatErr) {
+          console.error('[Dash] Web recording compatibility error:', compatErr);
+          throw compatErr;
+        }
+      }
+
       console.log('[Dash] Starting recording...');
       this.recordingObject = new Audio.Recording();
       await (this.recordingObject as any).prepareAsync({
@@ -1048,20 +1088,104 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
 
   /**
-   * Transcribe audio using the existing transcription service
+   * Transcribe audio by uploading to Supabase Storage and invoking Edge Function.
+   * - Web: uses blob: URI fetch
+   * - Native: uses file:// fetch
    */
-  private async transcribeAudio(audioUri: string): Promise<string> {
+  private async transcribeAudio(audioUri: string): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string }> {
+    let storagePath: string | undefined;
+    let contentType: string | undefined;
     try {
-      // This would call your existing transcription service
-      // For now, return a placeholder
       console.log('[Dash] Transcribing audio:', audioUri);
-      
-      // TODO: Integrate with supabase/functions/transcribe-audio
-      // For now, return a placeholder transcript
-      return "Voice message received - transcription in progress...";
+
+      // Language hint derived from personality voice settings
+      const voiceLang = this.personality?.voice_settings?.language || 'en-ZA';
+      const language = (() => {
+        const map: Record<string, string> = { 'en-ZA': 'en', 'en-US': 'en', 'en-GB': 'en', 'af': 'af', 'zu': 'zu', 'xh': 'zu', 'st': 'st' };
+        return map[voiceLang] || voiceLang.slice(0, 2).toLowerCase();
+      })();
+
+      // Determine user ID if available
+      let userId = 'anonymous';
+      try {
+        const { data: auth } = await assertSupabase().auth.getUser();
+        userId = auth?.user?.id || 'anonymous';
+      } catch {}
+
+      // Load blob from URI (works for both web (blob:) and native (file:))
+      const res = await fetch(audioUri);
+      if (!res.ok) {
+        throw new Error(`Failed to load recorded audio: ${res.status}`);
+      }
+      const blob = await res.blob();
+
+      // Infer content type and extension
+      const uriLower = (audioUri || '').toLowerCase();
+      contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
+        : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+        : uriLower.endsWith('.wav') ? 'audio/wav'
+        : uriLower.endsWith('.ogg') ? 'audio/ogg'
+        : uriLower.endsWith('.webm') ? 'audio/webm'
+        : 'application/octet-stream');
+      const ext = contentType.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
+        : contentType.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
+        : contentType.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
+        : contentType.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
+        : contentType.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
+        : 'bin';
+      const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+      // Choose a platform-specific prefix for easier tracing
+      const prefix = Platform.OS === 'web' ? 'web' : Platform.OS;
+      storagePath = `${prefix}/${userId}/${fileName}`;
+
+      // Upload to Supabase Storage (voice-notes bucket)
+      let body: any;
+      try {
+        // Prefer File when available, otherwise upload Blob
+        // @ts-ignore: File may not exist in some environments
+        const maybeFile = typeof File !== 'undefined' ? new File([blob], fileName, { type: contentType }) : null;
+        body = maybeFile || blob;
+      } catch {
+        body = blob;
+      }
+
+      const { error: uploadError } = await assertSupabase()
+        .storage
+        .from('voice-notes')
+        .upload(storagePath, body, { contentType, upsert: true });
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+
+      // Invoke the transcription function
+      const { data, error: fnError } = await assertSupabase()
+        .functions
+        .invoke('transcribe-audio', {
+          body: { storage_path: storagePath, language }
+        });
+      if (fnError) {
+        throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
+      }
+
+      const transcript = (data as any)?.transcript || '';
+      const provider = (data as any)?.provider;
+
+      return {
+        transcript: transcript || 'Transcription returned empty result.',
+        storagePath,
+        language,
+        provider,
+        contentType,
+      };
     } catch (error) {
       console.error('[Dash] Transcription failed:', error);
-      return "Voice message received - couldn't transcribe audio.";
+      return {
+        transcript: "Voice message received - couldn't transcribe audio.",
+        storagePath,
+        language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en',
+        contentType,
+      };
     }
   }
 

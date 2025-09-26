@@ -157,72 +157,6 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
     track('edudash.ai.lesson.generate_cancelled', {})
   }
   
-  // Debug function to test usage tracking
-  const testUsageTracking = async () => {
-    try {
-      console.log('[Debug] Testing usage tracking...')
-      
-      // Test user ID retrieval
-      const { data } = await assertSupabase().auth.getUser()
-      const userId = data?.user?.id || 'anonymous'
-      console.log('[Debug] User ID:', userId)
-      
-      // Test platform detection
-      const platform = Platform?.OS || 'unknown'
-      console.log('[Debug] Platform:', platform)
-      
-      const before = await getCombinedUsage()
-      console.log('[Debug] Usage before:', before)
-      
-      // Test local storage directly
-      let storage, storageKey, currentStorageData
-      if (typeof window !== 'undefined' && window.localStorage) {
-        // Web environment - use localStorage directly
-        console.log('[Debug] Using web localStorage')
-        const monthKey = new Date().getFullYear() + (new Date().getMonth() + 1).toString().padStart(2, '0')
-        storageKey = `ai_usage_${userId}_${monthKey}`
-        console.log('[Debug] Storage key:', storageKey)
-        
-        currentStorageData = window.localStorage.getItem(storageKey)
-        console.log('[Debug] Current localStorage data:', currentStorageData)
-        
-        // Test direct localStorage write
-        const testData = JSON.stringify({ lesson_generation: 999, grading_assistance: 0, homework_help: 0 })
-        window.localStorage.setItem(storageKey, testData)
-        const testRead = window.localStorage.getItem(storageKey)
-        console.log('[Debug] Test write/read:', testRead)
-      } else {
-        // Mobile environment
-        console.log('[Debug] Using AsyncStorage')
-        storage = require('@react-native-async-storage/async-storage').default
-        const monthKey = new Date().getFullYear() + (new Date().getMonth() + 1).toString().padStart(2, '0')
-        storageKey = `ai_usage_${userId}_${monthKey}`
-        console.log('[Debug] Storage key:', storageKey)
-        
-        currentStorageData = await storage.getItem(storageKey)
-        console.log('[Debug] Current storage data:', currentStorageData)
-      }
-      
-      await incrementUsage('lesson_generation', 1)
-      console.log('[Debug] Increment called')
-      
-      const newStorageData = await storage.getItem(storageKey)
-      console.log('[Debug] New storage data:', newStorageData)
-      
-      const after = await getCombinedUsage()
-      console.log('[Debug] Usage after:', after)
-      
-      // Force local usage for now since server isn't updating
-      const localUsage = await getUsage()
-      toast.success(`Local Usage: ${localUsage.lesson_generation} lessons generated (User: ${userId.substring(0, 8)}...)`)
-      
-      // Set usage to local data instead of combined
-      setUsage(localUsage)
-    } catch (error) {
-      console.error('[Debug] Usage tracking test failed:', error)
-      toast.error(`Usage tracking test failed: ${error.message}`)
-    }
-  }
 
   const onGenerate = async () => {
     try {
@@ -590,13 +524,6 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           </TouchableOpacity>
         </View>
         
-        {/* Debug button - temporary for testing usage tracking */}
-        <TouchableOpacity 
-          style={[styles.primaryBtn, { backgroundColor: '#EF4444', marginTop: 8 }]} 
-          onPress={testUsageTracking}
-        >
-          <Text style={[styles.primaryBtnText, { color: 'white' }]}>🐛 Test Usage Tracking</Text>
-        </TouchableOpacity>
 
         {/* Progress Bar */}
         {(generating || pending) && (

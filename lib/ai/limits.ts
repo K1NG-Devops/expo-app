@@ -245,13 +245,28 @@ export async function getTeacherSpecificQuota(feature: AIQuotaFeature): Promise<
     const allocatedLimit = allocation.allocated_quotas[quotaType] || 0
     const usedAmount = allocation.used_quotas?.[quotaType] || 0
     
-    // Get current local usage for this feature
-    const { getCombinedUsage } = await import('@/lib/ai/usage')
-    const usage = await getCombinedUsage()
-    const localUsed = usage[feature] || 0
+    // Server-tracked usage is authoritative for cross-device consistency
+    // Only fall back to local usage if server data is completely unavailable
+    let effectiveUsed = usedAmount
+    let localUsed = 0 // Initialize with default value
     
-    // Use the higher of server-tracked usage vs local usage for accuracy
-    const effectiveUsed = Math.max(usedAmount, localUsed)
+    if (usedAmount === 0) {
+      // Fallback: check if we have any local usage (offline scenario)
+      try {
+        const { getCombinedUsage } = await import('@/lib/ai/usage')
+        const usage = await getCombinedUsage()
+        localUsed = usage[feature] || 0
+        if (localUsed > 0) {
+          console.warn(`[Teacher Quota] Using local usage fallback: ${localUsed} for ${feature}`);
+          effectiveUsed = localUsed
+        }
+      } catch {
+        // If getCombinedUsage fails, stick with server data
+        effectiveUsed = usedAmount
+        localUsed = 0
+      }
+    }
+    
     const remaining = Math.max(0, allocatedLimit - effectiveUsed)
     
     console.log(`[Teacher Quota] Final calculation for ${feature}:`, {
