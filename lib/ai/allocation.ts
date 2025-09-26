@@ -378,6 +378,7 @@ export async function requestAIQuotas(
 
 /**
  * Get teacher's current AI allocation
+ * Enhanced to work with both Edge Function and direct database fallback
  */
 export async function getTeacherAllocation(
   preschoolId: string,
@@ -396,19 +397,29 @@ export async function getTeacherAllocation(
       throw new Error('User ID required');
     }
     
-    const { data, error } = await client.functions.invoke('ai-usage', {
-      body: {
-        action: 'get_teacher_allocation',
-        preschool_id: preschoolId,
-        user_id: targetUserId,
-      },
-    });
+    // Try Edge Function first
+    try {
+      const { data, error } = await client.functions.invoke('ai-usage', {
+        body: {
+          action: 'get_teacher_allocation',
+          preschool_id: preschoolId,
+          user_id: targetUserId,
+        },
+      });
 
-    if (error) {
-      throw new Error(error.message || 'Failed to fetch teacher allocation');
+      if (!error && data?.allocation) {
+        return data.allocation;
+      }
+    } catch (functionError) {
+      console.log('Edge function not available for teacher allocation, using direct fallback');
     }
-
-    return data?.allocation || null;
+    
+    // Fallback to direct database implementation
+    // Get all teacher allocations and find the one for this user
+    const allAllocations = await getTeacherAllocationsDirect(preschoolId);
+    const userAllocation = allAllocations.find(allocation => allocation.user_id === targetUserId);
+    
+    return userAllocation || null;
     
   } catch (error) {
     console.warn('Failed to get teacher allocation:', error);

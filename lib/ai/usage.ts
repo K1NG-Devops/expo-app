@@ -222,8 +222,19 @@ export async function getServerUsage(): Promise<AIUsageRecord | null> {
 }
 
 export async function getCombinedUsage(): Promise<AIUsageRecord> {
-  const server = await getServerUsage()
-  if (server) return server
-  return await getUsage()
+  const [server, local] = await Promise.all([getServerUsage(), getUsage()])
+  if (!server) return local
+  // If server exists but appears stale (all zeros) while local has data, prefer local
+  const serverTotal = (server.lesson_generation || 0) + (server.grading_assistance || 0) + (server.homework_help || 0)
+  const localTotal = (local.lesson_generation || 0) + (local.grading_assistance || 0) + (local.homework_help || 0)
+  if (serverTotal === 0 && localTotal > 0) {
+    return local
+  }
+  // Prefer per-feature max to handle partial lag
+  return {
+    lesson_generation: Math.max(server.lesson_generation || 0, local.lesson_generation || 0),
+    grading_assistance: Math.max(server.grading_assistance || 0, local.grading_assistance || 0),
+    homework_help: Math.max(server.homework_help || 0, local.homework_help || 0),
+  }
 }
 

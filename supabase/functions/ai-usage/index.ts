@@ -92,6 +92,87 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    if (action === 'get_teacher_allocation') {
+      const preschoolId = body.preschool_id;
+      const userId = body.user_id;
+      if (!preschoolId || !userId) return bad('preschool_id and user_id required', 400);
+
+      try {
+        const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2');
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        // Try to find existing allocation for current billing period
+        const { data: existing, error: selErr } = await supabase
+          .from('teacher_ai_allocations')
+          .select('*')
+          .eq('preschool_id', preschoolId)
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (selErr) {
+          console.error('Select error in get_teacher_allocation:', selErr);
+        }
+
+        if (existing) {
+          return ok({ allocation: existing });
+        }
+
+        // Fetch user for defaults
+        const { data: user, error: userErr } = await supabase
+          .from('users')
+          .select('id, email, first_name, last_name, role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (userErr || !user) {
+          console.error('User fetch error in get_teacher_allocation:', userErr);
+          return ok({ allocation: null });
+        }
+
+        const fullName = `${user.first_name || user.email?.split('@')[0] || 'Teacher'} ${user.last_name || ''}`.trim();
+        const role = user.role || 'teacher';
+
+        // Default quotas
+        const defaultQuotas = role === 'principal' || role === 'principal_admin'
+          ? { claude_messages: 200, content_generation: 50, assessment_ai: 100 }
+          : { claude_messages: 50, content_generation: 10, assessment_ai: 25 };
+
+        // Create new allocation with service role (bypasses RLS)
+        const { data: inserted, error: insErr } = await supabase
+          .from('teacher_ai_allocations')
+          .insert({
+            preschool_id: preschoolId,
+            user_id: userId,
+            teacher_name: fullName,
+            teacher_email: user.email,
+            role,
+            allocated_quotas: defaultQuotas,
+            used_quotas: { claude_messages: 0, content_generation: 0, assessment_ai: 0 },
+            allocated_by: userId,
+            allocation_reason: 'Auto-created default allocation',
+            is_active: true,
+            is_suspended: false,
+            auto_renew: true,
+            priority_level: 'normal',
+          })
+          .select('*')
+          .single();
+
+        if (insErr) {
+          console.error('Insert error in get_teacher_allocation:', insErr);
+          return ok({ allocation: null });
+        }
+
+        return ok({ allocation: inserted });
+      } catch (fnErr) {
+        console.error('Function error in get_teacher_allocation:', fnErr);
+        return ok({ allocation: null });
+      }
+    }
+
     if (action === 'teacher_allocations') {
       const preschoolId = body.preschool_id;
       if (!preschoolId) return bad('preschool_id required', 400);

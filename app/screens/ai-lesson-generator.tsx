@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, TextInput, Platform } from 'react-native'
 import * as Clipboard from 'expo-clipboard'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage, logUsageEvent, getUsage, getServerUsage } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -74,7 +74,8 @@ export default function AILessonGeneratorScreen() {
   // Refresh function to reload usage data and categories
   const handleRefresh = async () => {
     try {
-      setUsage(await getCombinedUsage())
+      // Prefer local usage to avoid server lag masking local increments
+      setUsage(await getUsage())
       // Refetch categories
       await categoriesQuery.refetch()
     } catch (error) {
@@ -86,7 +87,8 @@ export default function AILessonGeneratorScreen() {
 
   useEffect(() => {
     (async () => {
-      setUsage(await getCombinedUsage())
+      // Prefer local usage for immediate UI responsiveness
+      setUsage(await getUsage())
     })()
   }, [])
 
@@ -159,20 +161,66 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
   const testUsageTracking = async () => {
     try {
       console.log('[Debug] Testing usage tracking...')
+      
+      // Test user ID retrieval
+      const { data } = await assertSupabase().auth.getUser()
+      const userId = data?.user?.id || 'anonymous'
+      console.log('[Debug] User ID:', userId)
+      
+      // Test platform detection
+      const platform = Platform?.OS || 'unknown'
+      console.log('[Debug] Platform:', platform)
+      
       const before = await getCombinedUsage()
       console.log('[Debug] Usage before:', before)
+      
+      // Test local storage directly
+      let storage, storageKey, currentStorageData
+      if (typeof window !== 'undefined' && window.localStorage) {
+        // Web environment - use localStorage directly
+        console.log('[Debug] Using web localStorage')
+        const monthKey = new Date().getFullYear() + (new Date().getMonth() + 1).toString().padStart(2, '0')
+        storageKey = `ai_usage_${userId}_${monthKey}`
+        console.log('[Debug] Storage key:', storageKey)
+        
+        currentStorageData = window.localStorage.getItem(storageKey)
+        console.log('[Debug] Current localStorage data:', currentStorageData)
+        
+        // Test direct localStorage write
+        const testData = JSON.stringify({ lesson_generation: 999, grading_assistance: 0, homework_help: 0 })
+        window.localStorage.setItem(storageKey, testData)
+        const testRead = window.localStorage.getItem(storageKey)
+        console.log('[Debug] Test write/read:', testRead)
+      } else {
+        // Mobile environment
+        console.log('[Debug] Using AsyncStorage')
+        storage = require('@react-native-async-storage/async-storage').default
+        const monthKey = new Date().getFullYear() + (new Date().getMonth() + 1).toString().padStart(2, '0')
+        storageKey = `ai_usage_${userId}_${monthKey}`
+        console.log('[Debug] Storage key:', storageKey)
+        
+        currentStorageData = await storage.getItem(storageKey)
+        console.log('[Debug] Current storage data:', currentStorageData)
+      }
       
       await incrementUsage('lesson_generation', 1)
       console.log('[Debug] Increment called')
       
+      const newStorageData = await storage.getItem(storageKey)
+      console.log('[Debug] New storage data:', newStorageData)
+      
       const after = await getCombinedUsage()
       console.log('[Debug] Usage after:', after)
       
-      toast.success(`Usage: ${after.lesson_generation} lessons generated`)
-      setUsage(after)
+      // Force local usage for now since server isn't updating
+      const localUsage = await getUsage()
+      toast.success(`Local Usage: ${localUsage.lesson_generation} lessons generated (User: ${userId.substring(0, 8)}...)`)
+      
+      // Set usage to local data instead of combined
+      setUsage(localUsage)
     } catch (error) {
       console.error('[Debug] Usage tracking test failed:', error)
-      toast.error('Usage tracking test failed')
+      toast.error(`Usage tracking test failed: ${error.message}`)
     }
   }
 
@@ -284,8 +332,15 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       // Track successful lesson generation
       try {
         console.log('[Lesson Generator] Starting usage tracking...')
-        const usageBefore = await getCombinedUsage()
-        console.log('[Lesson Generator] Usage before increment:', usageBefore)
+        
+        // Check both server and local usage separately
+        const serverUsageBefore = await getServerUsage()
+        const localUsageBefore = await getUsage()
+        const combinedUsageBefore = await getCombinedUsage()
+        
+        console.log('[Lesson Generator] Server usage before:', serverUsageBefore)
+        console.log('[Lesson Generator] Local usage before:', localUsageBefore)
+        console.log('[Lesson Generator] Combined usage before:', combinedUsageBefore)
         
         await incrementUsage('lesson_generation', 1)
         console.log('[Lesson Generator] incrementUsage called')
@@ -300,19 +355,31 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         })
         console.log('[Lesson Generator] logUsageEvent called')
         
-        // Wait a moment and check again
-        setTimeout(async () => {
-          const usageAfter = await getCombinedUsage()
-          console.log('[Lesson Generator] Usage after increment:', usageAfter)
-        }, 1000)
+        // Check both after increment
+        const serverUsageAfter = await getServerUsage()
+        const localUsageAfter = await getUsage()
+        const combinedUsageAfter = await getCombinedUsage()
+        
+        console.log('[Lesson Generator] Server usage after:', serverUsageAfter)
+        console.log('[Lesson Generator] Local usage after:', localUsageAfter)
+        console.log('[Lesson Generator] Combined usage after:', combinedUsageAfter)
+        
+        // Show alert for immediate feedback
+        Alert.alert(
+          'Usage Tracking Debug', 
+          `Local: ${localUsageBefore.lesson_generation} → ${localUsageAfter.lesson_generation}\nServer: ${serverUsageBefore?.lesson_generation || 'N/A'} → ${serverUsageAfter?.lesson_generation || 'N/A'}\nCombined: ${combinedUsageBefore.lesson_generation} → ${combinedUsageAfter.lesson_generation}`,
+          [{ text: 'OK' }]
+        )
         
         console.log('[Lesson Generator] Usage tracked successfully')
       } catch (usageError) {
         console.error('[Lesson Generator] Failed to track usage:', usageError)
       }
       
-      // Update usage stats display
-      setUsage(await getCombinedUsage())
+      // Update usage stats display - use local data for now
+      const localUsageAfterGeneration = await getUsage()
+      setUsage(localUsageAfterGeneration)
+      console.log('[Lesson Generator] Updated display with local usage:', localUsageAfterGeneration)
       
       // Show success toast
       if (lessonText) {
@@ -425,7 +492,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
             Monthly usage (local): Lessons generated {usage.lesson_generation}
           </Text>
-          <QuotaBar feature="lesson_generation" planLimit={quotas.ai_requests} color={theme.primary} />
+          <QuotaBar feature="lesson_generation" color={theme.primary} />
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: palette.outline, backgroundColor: theme.accent + '20' }]}>
               <Ionicons name={result.__savedToDatabase ? "checkmark-circle" : "information-circle"} size={16} color={result.__savedToDatabase ? theme.success : theme.accent} />
@@ -728,25 +795,61 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
 
 function QuotaBar({ feature, planLimit, color }: { feature: 'lesson_generation' | 'grading_assistance' | 'homework_help'; planLimit?: number; color: string }) {
   const [status, setStatus] = React.useState<{ used: number; limit: number; remaining: number } | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  
   React.useEffect(() => {
     let mounted = true
+    
     ;(async () => {
       try {
+        console.log(`[QuotaBar] Loading quota status for ${feature}...`);
+        setLoading(true)
+        
         const s = await getQuotaStatus(feature)
         const limit = planLimit && planLimit > 0 ? planLimit : s.limit
         const remaining = Math.max(0, (limit === -1 ? 0 : limit) - s.used)
-        if (mounted) setStatus({ used: s.used, limit, remaining })
-      } catch {
-        if (mounted) setStatus(null)
+        
+        console.log(`[QuotaBar] Quota status loaded for ${feature}:`, { used: s.used, limit, remaining });
+        
+        if (mounted) {
+          setStatus({ used: s.used, limit, remaining })
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error(`[QuotaBar] Error loading quota for ${feature}:`, error);
+        // Provide fallback status instead of null
+        if (mounted) {
+          setStatus({ used: 0, limit: 5, remaining: 5 }) // Default free tier limits
+          setLoading(false)
+        }
       }
     })()
+    
     return () => { mounted = false }
   }, [feature, planLimit])
-  if (!status) return null
+  
+  if (loading) {
+    return (
+      <View style={{ marginTop: 6 }}>
+        <Text style={{ color: '#6B7280', fontSize: 12 }}>Loading quota...</Text>
+      </View>
+    )
+  }
+  
+  if (!status) {
+    return (
+      <View style={{ marginTop: 6 }}>
+        <Text style={{ color: '#EF4444', fontSize: 12 }}>Failed to load quota</Text>
+      </View>
+    )
+  }
+  
   if (status.limit === -1) {
     return <Text style={{ color: '#6B7280', marginTop: 4 }}>Quota: Unlimited</Text>
   }
+  
   const pct = Math.max(0, Math.min(100, Math.round((status.used / Math.max(1, status.limit)) * 100)))
+  
   return (
     <View style={{ marginTop: 6 }}>
       <View style={{ height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' }}>

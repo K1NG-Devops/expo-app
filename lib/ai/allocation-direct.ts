@@ -131,108 +131,59 @@ export async function getSchoolAISubscriptionDirect(preschoolId: string): Promis
 }
 
 /**
- * Get teacher allocations - fallback implementation using users table
+ * Get teacher allocations - REAL database implementation
  */
 export async function getTeacherAllocationsDirect(preschoolId: string): Promise<TeacherAIAllocation[]> {
   try {
     const client = assertSupabase();
     
-    // Use service role to bypass RLS when available in server context
-    // Get all teachers in the school - try both users and profiles tables
-    let teachers = [];
-    let teachersError = null;
+    // Get actual teacher allocations from database
+    const { data: allocations, error } = await client
+      .from('teacher_ai_allocations')
+      .select('*')
+      .eq('preschool_id', preschoolId)
+      .eq('is_active', true);
     
-    // First try users table
-    try {
-      const { data: usersData, error: usersErr } = await client
-        .from('users')
-        .select('id, email, role, first_name, last_name, is_active')
-        .eq('preschool_id', preschoolId)
-        .in('role', ['teacher', 'principal', 'principal_admin']);
-      
-      if (!usersErr && usersData && usersData.length > 0) {
-        teachers = usersData;
-      } else {
-        teachersError = usersErr;
-      }
-    } catch (usersException) {
-      teachersError = usersException;
-    }
-    
-    // Fallback to profiles table if users didn't work
-    if (teachers.length === 0) {
-      try {
-        const { data: profilesData, error: profilesErr } = await client
-          .from('profiles')
-          .select('id, email, role, first_name, last_name, is_active, preschool_id')
-          .eq('preschool_id', preschoolId)
-          .in('role', ['teacher', 'principal', 'principal_admin']);
-        
-        if (!profilesErr && profilesData && profilesData.length > 0) {
-          teachers = profilesData;
-          teachersError = null;
-        }
-      } catch (profilesException) {
-        console.warn('Profiles fallback also failed:', profilesException);
-      }
-    }
-
-    if (teachersError && teachers.length === 0) {
-      console.warn('Failed to fetch teachers:', teachersError);
+    if (error) {
+      console.warn('Failed to fetch teacher allocations:', error);
       return [];
     }
-
-    if (!teachers || teachers.length === 0) {
+    
+    if (!allocations || allocations.length === 0) {
       return [];
     }
-
-    // Create mock allocations for each teacher
-    const allocations: TeacherAIAllocation[] = teachers.map((teacher) => {
-      const isActive = teacher.is_active !== false;
-      const role = teacher.role || 'teacher';
-      const baseQuotas = getDefaultTeacherQuotas(role);
+    
+    // Transform database records to expected format
+    return allocations.map((allocation) => {
+      const allocatedQuotas = allocation.allocated_quotas as Record<string, number> || {};
+      const usedQuotas = allocation.used_quotas as Record<string, number> || {};
       
-      // Generate name from email if first/last name is missing
-      const firstName = teacher.first_name || teacher.email.split('@')[0] || 'Teacher';
-      const lastName = teacher.last_name || '';
-      const fullName = `${firstName} ${lastName}`.trim();
+      // Calculate remaining quotas
+      const remainingQuotas: Record<string, number> = {};
+      Object.keys(allocatedQuotas).forEach(key => {
+        remainingQuotas[key] = Math.max(0, (allocatedQuotas[key] || 0) - (usedQuotas[key] || 0));
+      });
       
       return {
-        id: `allocation-${teacher.id}`,
-        preschool_id: preschoolId,
-        user_id: teacher.id,
-        teacher_id: teacher.id, // Add this field for compatibility
-        teacher_name: fullName,
-        full_name: fullName,
-        teacher_email: teacher.email || 'no-email@example.com',
-        email: teacher.email || 'no-email@example.com',
-        role: role,
-        allocated_quotas: baseQuotas,
-        used_quotas: {
-          'chat_completions': Math.floor(Math.random() * (baseQuotas.chat_completions * 0.6)),
-          'image_generation': Math.floor(Math.random() * (baseQuotas.image_generation * 0.4)),
-          'text_to_speech': Math.floor(Math.random() * (baseQuotas.text_to_speech * 0.3)),
-          'speech_to_text': Math.floor(Math.random() * (baseQuotas.speech_to_text * 0.2)),
-        },
-        remaining_quotas: {
-          'chat_completions': Math.floor(baseQuotas.chat_completions * 0.4),
-          'image_generation': Math.floor(baseQuotas.image_generation * 0.6),
-          'text_to_speech': Math.floor(baseQuotas.text_to_speech * 0.7),
-          'speech_to_text': Math.floor(baseQuotas.speech_to_text * 0.8),
-        },
-        allocated_by: 'principal',
-        allocated_at: new Date().toISOString(),
-        allocation_reason: 'Initial allocation',
-        is_active: isActive,
-        is_suspended: false,
-        auto_renewal: false,
-        auto_renew: false,
-        priority_level: 'normal',
-        updated_at: new Date().toISOString(),
+        id: allocation.id,
+        preschool_id: allocation.preschool_id,
+        user_id: allocation.user_id,
+        teacher_name: allocation.teacher_name,
+        teacher_email: allocation.teacher_email,
+        role: allocation.role,
+        allocated_quotas: allocatedQuotas,
+        used_quotas: usedQuotas,
+        remaining_quotas: remainingQuotas,
+        allocated_by: allocation.allocated_by,
+        allocated_at: allocation.allocated_at,
+        allocation_reason: allocation.allocation_reason,
+        is_active: allocation.is_active,
+        is_suspended: allocation.is_suspended,
+        suspension_reason: allocation.suspension_reason,
+        auto_renew: allocation.auto_renew,
+        priority_level: allocation.priority_level as 'low' | 'normal' | 'high',
       };
     });
-
-    return allocations;
     
   } catch (error) {
     reportError(error instanceof Error ? error : new Error('Unknown error'), {
@@ -513,29 +464,158 @@ export async function getOptimalAllocationSuggestionsDirect(
 }
 
 /**
- * Get default teacher quotas by role
+ * Get default teacher quotas by role (using database schema field names)
  */
 function getDefaultTeacherQuotas(role: string): Record<string, number> {
   const quotaMap = {
     'teacher': {
-      'chat_completions': 200,
-      'image_generation': 20,
-      'text_to_speech': 100,
-      'speech_to_text': 100,
+      'claude_messages': 50,    // Teachers get 50 messages per month
+      'content_generation': 10, // 10 content generations per month
+      'assessment_ai': 25,      // 25 assessment AI uses per month
     },
     'principal': {
-      'chat_completions': 500,
-      'image_generation': 50,
-      'text_to_speech': 200,
-      'speech_to_text': 200,
+      'claude_messages': 200,   // Principals get more
+      'content_generation': 50,
+      'assessment_ai': 100,
     },
     'principal_admin': {
-      'chat_completions': 800,
-      'image_generation': 80,
-      'text_to_speech': 300,
-      'speech_to_text': 300,
+      'claude_messages': 500,   // Principal admins get the most
+      'content_generation': 100,
+      'assessment_ai': 200,
     },
   };
 
   return quotaMap[role] || quotaMap['teacher'];
+}
+
+/**
+ * Create a default teacher allocation if none exists
+ */
+export async function ensureTeacherAllocation(preschoolId: string, userId: string): Promise<TeacherAIAllocation | null> {
+  try {
+    const client = assertSupabase();
+    
+    // Check if allocation already exists
+    const { data: existingAllocation } = await client
+      .from('teacher_ai_allocations')
+      .select('*')
+      .eq('preschool_id', preschoolId)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+    
+    if (existingAllocation) {
+      // Transform and return existing allocation
+      const allocatedQuotas = existingAllocation.allocated_quotas as Record<string, number> || {};
+      const usedQuotas = existingAllocation.used_quotas as Record<string, number> || {};
+      
+      const remainingQuotas: Record<string, number> = {};
+      Object.keys(allocatedQuotas).forEach(key => {
+        remainingQuotas[key] = Math.max(0, (allocatedQuotas[key] || 0) - (usedQuotas[key] || 0));
+      });
+      
+      return {
+        id: existingAllocation.id,
+        preschool_id: existingAllocation.preschool_id,
+        user_id: existingAllocation.user_id,
+        teacher_name: existingAllocation.teacher_name,
+        teacher_email: existingAllocation.teacher_email,
+        role: existingAllocation.role,
+        allocated_quotas: allocatedQuotas,
+        used_quotas: usedQuotas,
+        remaining_quotas: remainingQuotas,
+        allocated_by: existingAllocation.allocated_by,
+        allocated_at: existingAllocation.allocated_at,
+        allocation_reason: existingAllocation.allocation_reason,
+        is_active: existingAllocation.is_active,
+        is_suspended: existingAllocation.is_suspended,
+        suspension_reason: existingAllocation.suspension_reason,
+        auto_renew: existingAllocation.auto_renew,
+        priority_level: existingAllocation.priority_level as 'low' | 'normal' | 'high',
+      };
+    }
+    
+    // Get user details to create allocation
+    const { data: user } = await client
+      .from('users')
+      .select('id, first_name, last_name, email, role')
+      .eq('id', userId)
+      .single();
+    
+    if (!user) {
+      console.warn('User not found for allocation creation:', userId);
+      return null;
+    }
+    
+    const firstName = user.first_name || user.email?.split('@')[0] || 'Teacher';
+    const lastName = user.last_name || '';
+    const fullName = `${firstName} ${lastName}`.trim();
+    const role = user.role || 'teacher';
+    const defaultQuotas = getDefaultTeacherQuotas(role);
+    
+    // Create new teacher allocation
+    const { data: newAllocation, error } = await client
+      .from('teacher_ai_allocations')
+      .insert({
+        preschool_id: preschoolId,
+        user_id: userId,
+        teacher_name: fullName,
+        teacher_email: user.email,
+        role: role,
+        allocated_quotas: defaultQuotas,
+        used_quotas: {
+          'claude_messages': 0,
+          'content_generation': 0,
+          'assessment_ai': 0,
+        },
+        allocated_by: userId, // Self-allocated initially
+        allocation_reason: 'Auto-generated default allocation',
+        is_active: true,
+        is_suspended: false,
+        auto_renew: true,
+        priority_level: 'normal',
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Failed to create teacher allocation:', error);
+      return null;
+    }
+    
+    console.log(`[Teacher Allocation] Created default allocation for ${fullName}:`, defaultQuotas);
+    
+    // Transform and return new allocation
+    const allocatedQuotas = newAllocation.allocated_quotas as Record<string, number> || {};
+    const usedQuotas = newAllocation.used_quotas as Record<string, number> || {};
+    
+    const remainingQuotas: Record<string, number> = {};
+    Object.keys(allocatedQuotas).forEach(key => {
+      remainingQuotas[key] = Math.max(0, (allocatedQuotas[key] || 0) - (usedQuotas[key] || 0));
+    });
+    
+    return {
+      id: newAllocation.id,
+      preschool_id: newAllocation.preschool_id,
+      user_id: newAllocation.user_id,
+      teacher_name: newAllocation.teacher_name,
+      teacher_email: newAllocation.teacher_email,
+      role: newAllocation.role,
+      allocated_quotas: allocatedQuotas,
+      used_quotas: usedQuotas,
+      remaining_quotas: remainingQuotas,
+      allocated_by: newAllocation.allocated_by,
+      allocated_at: newAllocation.allocated_at,
+      allocation_reason: newAllocation.allocation_reason,
+      is_active: newAllocation.is_active,
+      is_suspended: newAllocation.is_suspended,
+      suspension_reason: newAllocation.suspension_reason,
+      auto_renew: newAllocation.auto_renew,
+      priority_level: newAllocation.priority_level as 'low' | 'normal' | 'high',
+    };
+    
+  } catch (error) {
+    console.error('Error ensuring teacher allocation:', error);
+    return null;
+  }
 }

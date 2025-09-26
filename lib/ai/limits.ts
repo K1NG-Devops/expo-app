@@ -104,11 +104,34 @@ export type QuotaStatus = {
 }
 
 export async function getQuotaStatus(feature: AIQuotaFeature): Promise<QuotaStatus> {
+  // First check if user has a teacher allocation from principal
+  try {
+    console.log(`[Quota] Checking teacher allocation for ${feature}...`);
+    const teacherAllocation = await getTeacherSpecificQuota(feature)
+    if (teacherAllocation) {
+      console.log(`[Quota] Using teacher allocation:`, teacherAllocation);
+      return teacherAllocation
+    }
+    console.log(`[Quota] No teacher allocation found, falling back to general limits`);
+  } catch (error) {
+    console.warn('[Quota] Teacher allocation check failed, falling back to general limits:', error)
+  }
+  
+  // Fallback to general subscription limits
   const limits = await getEffectiveLimits()
   const usage: AIUsageRecord = await getCombinedUsage()
   const used = usage[feature] || 0
   const limit = Math.max(0, limits.quotas[feature] || 0)
   const remaining = Math.max(0, limit - used)
+  
+  console.log(`[Quota] Using general subscription limits:`, {
+    feature,
+    used,
+    limit,
+    remaining,
+    tier: limits.tier
+  });
+  
   return { used, limit, remaining }
 }
 
@@ -130,5 +153,128 @@ export async function canUseFeature(feature: AIQuotaFeature, count = 1): Promise
   }
 
   return { allowed: true, status, limits }
+}
+
+/**
+ * Check for teacher-specific quota allocation from principal
+ * Returns null if no teacher allocation exists
+ */
+export async function getTeacherSpecificQuota(feature: AIQuotaFeature): Promise<QuotaStatus | null> {
+  try {
+    console.log(`[Teacher Quota] Starting check for ${feature}`);
+    
+    const { assertSupabase } = await import('@/lib/supabase')
+    const client = assertSupabase()
+    
+    // Get current user
+    const { data: { user }, error: authError } = await client.auth.getUser()
+    if (authError || !user) {
+      console.log(`[Teacher Quota] No authenticated user:`, authError);
+      return null;
+    }
+    
+    console.log(`[Teacher Quota] User authenticated:`, user.id);
+    
+    // Get user profile to find preschool
+    const { data: profile, error: profileError } = await client
+      .from('users')
+      .select('id, preschool_id, role')
+      .eq('auth_user_id', user.id)
+      .maybeSingle()
+    
+    if (profileError) {
+      console.warn(`[Teacher Quota] Profile lookup error:`, profileError);
+      return null;
+    }
+    
+    if (!profile) {
+      console.log(`[Teacher Quota] No profile found for user`);
+      return null;
+    }
+    
+    if (!profile.preschool_id) {
+      console.log(`[Teacher Quota] User not associated with any preschool`);
+      return null;
+    }
+    
+    console.log(`[Teacher Quota] User profile found:`, {
+      userId: profile.id,
+      preschoolId: profile.preschool_id,
+      role: profile.role
+    });
+    
+    // Ensure teacher allocation exists (create if needed)
+    console.log(`[Teacher Quota] Ensuring allocation exists...`);
+    const { getTeacherAllocation } = await import('@/lib/ai/allocation')
+    const allocation = await getTeacherAllocation(profile.preschool_id, profile.id)
+    
+    if (!allocation) {
+      console.log(`[Teacher Quota] Failed to create/find allocation`);
+      return null;
+    }
+    
+    if (!allocation.allocated_quotas) {
+      console.log(`[Teacher Quota] Allocation has no quota data`);
+      return null;
+    }
+    
+    console.log(`[Teacher Quota] Allocation found:`, {
+      teacherName: allocation.teacher_name,
+      allocatedQuotas: allocation.allocated_quotas,
+      usedQuotas: allocation.used_quotas
+    });
+    
+    // Map feature to allocation quota type (matching database schema)
+    const quotaMapping: Record<AIQuotaFeature, string> = {
+      'lesson_generation': 'claude_messages', // Lesson generation uses claude messages
+      'grading_assistance': 'claude_messages', // Grading assistance uses claude messages  
+      'homework_help': 'claude_messages', // Homework help uses claude messages
+    }
+    
+    const quotaType = quotaMapping[feature]
+    if (!quotaType) {
+      console.warn(`[Teacher Quota] No quota mapping for feature: ${feature}`);
+      return null;
+    }
+    
+    if (typeof allocation.allocated_quotas[quotaType] === 'undefined') {
+      console.warn(`[Teacher Quota] No quota data for type: ${quotaType}`);
+      return null;
+    }
+    
+    const allocatedLimit = allocation.allocated_quotas[quotaType] || 0
+    const usedAmount = allocation.used_quotas?.[quotaType] || 0
+    
+    // Get current local usage for this feature
+    const { getCombinedUsage } = await import('@/lib/ai/usage')
+    const usage = await getCombinedUsage()
+    const localUsed = usage[feature] || 0
+    
+    // Use the higher of server-tracked usage vs local usage for accuracy
+    const effectiveUsed = Math.max(usedAmount, localUsed)
+    const remaining = Math.max(0, allocatedLimit - effectiveUsed)
+    
+    console.log(`[Teacher Quota] Final calculation for ${feature}:`, {
+      quotaType,
+      allocatedLimit,
+      serverUsed: usedAmount,
+      localUsed,
+      effectiveUsed,
+      remaining,
+      teacher: profile.id,
+      preschool: profile.preschool_id,
+      teacherName: allocation.teacher_name
+    })
+    
+    return {
+      used: effectiveUsed,
+      limit: allocatedLimit,
+      remaining
+    }
+    
+  } catch (error) {
+    console.error('[Teacher Quota] Error in getTeacherSpecificQuota:', error)
+    return null
+  }
 }
 
