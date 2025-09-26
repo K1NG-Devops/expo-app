@@ -60,7 +60,7 @@ function getSchoolTypeDescription(schoolType: string): string {
 
 export default function SubscriptionSetupScreen() {
   const { profile } = useAuth();
-  const params = useLocalSearchParams<RouteParams>();
+  const params = useLocalSearchParams() as Partial<RouteParams>;
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [allPlans, setAllPlans] = useState<SubscriptionPlan[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<any>(null);
@@ -337,7 +337,7 @@ export default function SubscriptionSetupScreen() {
         schoolId: schoolId || undefined,
         userId: profile?.id,
         planTier: plan.tier,
-        billing: annual ? 'annual' : 'monthly' as const,
+        billing: (annual ? 'annual' : 'monthly') as 'annual' | 'monthly',
         seats: plan.max_teachers,
         // PayFast requires http(s) URLs. Use HTTPS bridge pages managed server-side.
         return_url: getReturnUrl(),

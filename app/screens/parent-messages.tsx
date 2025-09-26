@@ -121,7 +121,6 @@ const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress }) => {
       fontSize: 14,
       color: hasUnread ? theme.text : theme.textSecondary,
       fontWeight: hasUnread ? '500' : '400',
-      numberOfLines: 2,
     },
     rightSection: {
       alignItems: 'flex-end',
@@ -170,11 +169,11 @@ const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress }) => {
         </View>
         
         {thread.last_message ? (
-          <Text style={styles.lastMessage}>
+          <Text style={styles.lastMessage} numberOfLines={2}>
             {thread.last_message.content}
           </Text>
         ) : (
-          <Text style={[styles.lastMessage, { fontStyle: 'italic' }]}>
+          <Text style={[styles.lastMessage, { fontStyle: 'italic' }]} numberOfLines={2}>
             {t('parent.noMessagesYet')}
           </Text>
         )}

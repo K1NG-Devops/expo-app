@@ -597,4 +597,6 @@ const styles = StyleSheet.create({
     padding: 12, 
     gap: 12 
   },
+  // Alias to match existing usage in component
+  planOptionActive: { borderColor: '#00f5ff', backgroundColor: '#0b1f26' },
 });

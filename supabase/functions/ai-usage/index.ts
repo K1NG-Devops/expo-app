@@ -443,7 +443,7 @@ Deno.serve(async (req: Request) => {
         const { data: usageLogs, error: usageError } = await supabase
           .from('ai_usage_logs')
           .select('service_type')
-          .eq('user_id', profile.id)
+          .eq('user_id', user.id) // Use auth user id to match what we insert
           .gte('created_at', startOfMonth.toISOString());
         
         if (usageError) {

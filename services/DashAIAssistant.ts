@@ -666,7 +666,9 @@ export class DashAIAssistant {
 
       console.log('[Dash] Starting recording...');
       this.recordingObject = new Audio.Recording();
-      await (this.recordingObject as any).prepareAsync({
+
+      // Use the Expo AV recording API: prepareToRecordAsync + startAsync
+      await this.recordingObject.prepareToRecordAsync({
         android: {
           extension: '.m4a',
           outputFormat: Audio.AndroidOutputFormat.MPEG_4,
@@ -686,11 +688,7 @@ export class DashAIAssistant {
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
         },
-        web: {
-          mimeType: 'audio/webm',
-          bitsPerSecond: 128000,
-        },
-      });
+      } as Audio.RecordingOptions);
 
       await this.recordingObject.startAsync();
       this.isRecording = true;

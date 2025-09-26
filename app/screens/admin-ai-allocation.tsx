@@ -25,7 +25,7 @@ export default function AdminAIAllocationScreen() {
       
       <RoleBasedHeader
         title="AI Quota Management"
-        leftAction={{ type: 'back', onPress: () => navigateBack() }}
+        onBackPress={() => navigateBack()}
       />
       
       <AllocationManagementScreen />

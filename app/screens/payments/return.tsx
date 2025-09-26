@@ -26,7 +26,7 @@ interface PaymentReturn {
 }
 
 export default function PaymentReturnScreen() {
-  const params = useLocalSearchParams<PaymentReturn>();
+  const params = useLocalSearchParams() as Partial<PaymentReturn>;
   const { profile } = useAuth();
   const { theme } = useTheme();
   const { refresh: refreshSubscription } = useSubscription();

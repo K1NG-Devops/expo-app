@@ -105,6 +105,37 @@ export interface ThemeColors {
   notificationBackground: string;
   notificationText: string;
   notificationBorder: string;
+
+  // Material-like alias objects used in some components
+  colors: {
+    primary: string;
+    onPrimary: string;
+    primaryContainer: string;
+    onPrimaryContainer: string;
+    surface: string;
+    surfaceVariant: string;
+    onSurface: string;
+    onSurfaceVariant: string;
+    outline: string;
+    background: string;
+    error: string;
+    errorContainer: string;
+    onErrorContainer: string;
+    onBackground: string;
+  };
+
+  // Typography tokens used in some components for sizing
+  typography: {
+    caption: { fontSize: number; fontWeight?: string | number };
+    body1: { fontSize: number; fontWeight?: string | number };
+    body2: { fontSize: number; fontWeight?: string | number };
+    subtitle1: { fontSize: number; fontWeight?: string | number };
+    subtitle2: { fontSize: number; fontWeight?: string | number };
+    titleLarge: { fontSize: number; fontWeight?: string | number };
+    titleMedium: { fontSize: number; fontWeight?: string | number };
+    labelLarge: { fontSize: number; fontWeight?: string | number };
+    headlineSmall: { fontSize: number; fontWeight?: string | number };
+  };
 }
 
 // Light theme colors
@@ -200,6 +231,37 @@ const lightTheme: ThemeColors = {
   notificationBackground: '#F3F4F6',
   notificationText: '#111827',
   notificationBorder: '#E5E7EB',
+
+  // Alias map for components expecting Material-like theme.colors
+  colors: {
+    primary: '#4F46E5',
+    onPrimary: '#FFFFFF',
+    primaryContainer: '#F3F4F6',
+    onPrimaryContainer: '#111827',
+    surface: '#F9FAFB',
+    surfaceVariant: '#F3F4F6',
+    onSurface: '#111827',
+    onSurfaceVariant: '#6B7280',
+    outline: '#E5E7EB',
+    background: '#FFFFFF',
+    error: '#EF4444',
+    errorContainer: '#F87171',
+    onErrorContainer: '#FFFFFF',
+    onBackground: '#111827',
+  },
+
+  // Basic typography tokens for components referencing theme.typography
+  typography: {
+    caption: { fontSize: 12, fontWeight: '400' },
+    body1: { fontSize: 16, fontWeight: '400' },
+    body2: { fontSize: 14, fontWeight: '400' },
+    subtitle1: { fontSize: 16, fontWeight: '600' },
+    subtitle2: { fontSize: 14, fontWeight: '600' },
+    titleLarge: { fontSize: 22, fontWeight: '700' },
+    titleMedium: { fontSize: 18, fontWeight: '600' },
+    labelLarge: { fontSize: 14, fontWeight: '700' },
+    headlineSmall: { fontSize: 18, fontWeight: '700' },
+  },
 };
 
 // Dark theme colors
@@ -295,6 +357,37 @@ const darkTheme: ThemeColors = {
   notificationBackground: '#334155',
   notificationText: '#F9FAFB',
   notificationBorder: '#475569',
+
+  // Alias map for components expecting Material-like theme.colors
+  colors: {
+    primary: '#6366F1',
+    onPrimary: '#FFFFFF',
+    primaryContainer: '#334155',
+    onPrimaryContainer: '#F9FAFB',
+    surface: '#1E293B',
+    surfaceVariant: '#334155',
+    onSurface: '#F9FAFB',
+    onSurfaceVariant: '#CBD5E1',
+    outline: '#334155',
+    background: '#0F172A',
+    error: '#F87171',
+    errorContainer: '#FCA5A5',
+    onErrorContainer: '#000000',
+    onBackground: '#F9FAFB',
+  },
+
+  // Basic typography tokens for components referencing theme.typography
+  typography: {
+    caption: { fontSize: 12, fontWeight: '400' },
+    body1: { fontSize: 16, fontWeight: '400' },
+    body2: { fontSize: 14, fontWeight: '400' },
+    subtitle1: { fontSize: 16, fontWeight: '600' },
+    subtitle2: { fontSize: 14, fontWeight: '600' },
+    titleLarge: { fontSize: 22, fontWeight: '700' },
+    titleMedium: { fontSize: 18, fontWeight: '600' },
+    labelLarge: { fontSize: 14, fontWeight: '700' },
+    headlineSmall: { fontSize: 18, fontWeight: '700' },
+  },
 };
 
 // Theme modes

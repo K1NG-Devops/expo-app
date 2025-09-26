@@ -84,7 +84,8 @@ export default function DashAISettingsScreen() {
           rate: personality.voice_settings?.rate || 1.0,
           pitch: personality.voice_settings?.pitch || 1.0,
           volume: 0.8
-        }
+        },
+        inAppWakeWord: false,
       };
       
       setSettings(loadedSettings);

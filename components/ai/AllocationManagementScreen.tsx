@@ -421,7 +421,7 @@ export default function AllocationManagementScreen() {
             AI Quota Management
           </Text>
           <Text variant="caption1" color="secondary">
-            {profile?.organization_name || profile?.preschool?.name || 'Your School'}
+            {profile?.organization_name || 'Your School'}
           </Text>
         </View>
         
@@ -558,7 +558,7 @@ export default function AllocationManagementScreen() {
             
             Alert.alert(
               'Success',
-              `AI quotas allocated to ${selectedTeacher?.full_name || 'teacher'}`,
+              `AI quotas allocated to ${selectedTeacher?.teacher_name || 'teacher'}`,
               [{ text: 'OK' }]
             );
           } catch (error) {
@@ -577,11 +577,11 @@ export default function AllocationManagementScreen() {
 
 // School Subscription Card Component
 function SchoolSubscriptionCard({ subscription, theme, styles }: { subscription: any; theme: any; styles: any }) {
-  const totalAllocated = Object.values(subscription?.allocated_quotas || {}).reduce(
+  const totalAllocated = (Object.values(subscription?.allocated_quotas || {}) as number[]).reduce(
     (sum: number, quota: number) => sum + quota,
     0
   );
-  const totalAvailable = Object.values(subscription?.total_quotas || {}).reduce(
+  const totalAvailable = (Object.values(subscription?.total_quotas || {}) as number[]).reduce(
     (sum: number, quota: number) => sum + quota,
     0
   );
@@ -621,8 +621,8 @@ function SchoolSubscriptionCard({ subscription, theme, styles }: { subscription:
 
       <View style={styles.quotaDetails}>
         {Object.entries(subscription?.total_quotas || {}).map(([service, total]) => {
-          const allocated = subscription?.allocated_quotas?.[service] || 0;
-          const available = total - allocated;
+          const allocated = (subscription?.allocated_quotas as Record<string, number>)?.[service] || 0;
+          const available = (total as number) - allocated;
           
           return (
             <View key={service} style={styles.quotaDetailRow}>
@@ -652,11 +652,11 @@ function TeacherAllocationCard({
   styles: any;
   onEdit: () => void;
 }) {
-  const totalAllocated = Object.values(allocation?.allocated_quotas || {}).reduce(
+  const totalAllocated = (Object.values(allocation?.allocated_quotas || {}) as number[]).reduce(
     (sum: number, quota: number) => sum + quota,
     0
   );
-  const totalUsed = Object.values(allocation?.used_quotas || {}).reduce(
+  const totalUsed = (Object.values(allocation?.used_quotas || {}) as number[]).reduce(
     (sum: number, quota: number) => sum + quota,
     0
   );
@@ -715,8 +715,8 @@ function TeacherAllocationCard({
 
         <View style={styles.allocationDetails}>
           {Object.entries(allocation?.allocated_quotas || {}).map(([service, quota]) => {
-            const used = allocation?.used_quotas?.[service] || 0;
-            const remaining = quota - used;
+            const used = (allocation?.used_quotas as Record<string, number>)?.[service] || 0;
+            const remaining = (quota as number) - used;
             
             return (
               <View key={service} style={styles.serviceRow}>
@@ -736,7 +736,7 @@ function TeacherAllocationCard({
         </View>
 
         <Text variant="caption2" color="secondary" style={styles.lastUpdated}>
-          Updated {allocation.updated_at ? formatDistanceToNow(new Date(allocation.updated_at), { addSuffix: true }) : 'recently'}
+          Updated recently
         </Text>
       </Pressable>
     </Card>
@@ -763,30 +763,28 @@ function AllocationModal({
   
   // Form state
   const [quotas, setQuotas] = useState<Record<string, number>>({
-    'chat_completions': teacher?.allocated_quotas?.['chat_completions'] || 0,
-    'image_generation': teacher?.allocated_quotas?.['image_generation'] || 0,
-    'text_to_speech': teacher?.allocated_quotas?.['text_to_speech'] || 0,
-    'speech_to_text': teacher?.allocated_quotas?.['speech_to_text'] || 0,
+'lesson_generation': (teacher?.allocated_quotas as Record<string, number>)?.['lesson_generation'] || 0,
+'grading_assistance': (teacher?.allocated_quotas as Record<string, number>)?.['grading_assistance'] || 0,
+'homework_help': (teacher?.allocated_quotas as Record<string, number>)?.['homework_help'] || 0,
+'speech_to_text': 0,
   });
   const [priorityLevel, setPriorityLevel] = useState<string>(teacher?.priority_level || 'normal');
-  const [autoRenewal, setAutoRenewal] = useState<boolean>(teacher?.auto_renewal || false);
+  const [autoRenewal, setAutoRenewal] = useState<boolean>(teacher?.auto_renew || false);
   const [reason, setReason] = useState<string>('');
   
   // Available services and their max allocations based on subscription
-  const availableServices = [
-    { key: 'chat_completions', label: 'Chat Completions', max: schoolSubscription?.ai_services_quota || 1000 },
-    { key: 'image_generation', label: 'Image Generation', max: schoolSubscription?.image_generation_quota || 100 },
-    { key: 'text_to_speech', label: 'Text to Speech', max: schoolSubscription?.tts_quota || 500 },
-    { key: 'speech_to_text', label: 'Speech to Text', max: schoolSubscription?.stt_quota || 500 },
+const availableServices = [
+    { key: 'lesson_generation', label: 'Lesson Generation', max: (schoolSubscription?.total_quotas?.lesson_generation || 1000) as number },
+    { key: 'grading_assistance', label: 'Grading Assistance', max: (schoolSubscription?.total_quotas?.grading_assistance || 500) as number },
+    { key: 'homework_help', label: 'Homework Help', max: (schoolSubscription?.total_quotas?.homework_help || 1500) as number },
   ];
   
   const handleSubmit = () => {
     const formData: AllocationFormData = {
-      teacherId: teacher?.teacher_id || '',
-      teacherName: teacher?.teacher_name || teacher?.full_name || '',
-      quotas,
-      priority: priorityLevel as 'low' | 'normal' | 'high',
-      autoRenew: autoRenewal,
+      teacher_id: teacher?.user_id || teacher?.id || '',
+      allocated_quotas: quotas,
+      priority_level: priorityLevel as 'low' | 'normal' | 'high',
+      auto_renewal: autoRenewal,
       reason,
     };
     
@@ -922,10 +920,10 @@ function AllocationModal({
           {teacher && (
             <View style={modalStyles.teacherInfo}>
               <Text variant="title3" style={{ marginBottom: 4 }}>
-                {teacher.teacher_name || teacher.full_name || 'Unknown Teacher'}
+                {teacher.teacher_name || 'Unknown Teacher'}
               </Text>
               <Text variant="caption1" color="secondary">
-                {teacher.teacher_email || teacher.email || 'No email'}
+                {teacher.teacher_email || 'No email'}
               </Text>
               <Text variant="caption2" color="secondary">
                 Current Status: {teacher.is_active ? 'Active' : 'Inactive'}

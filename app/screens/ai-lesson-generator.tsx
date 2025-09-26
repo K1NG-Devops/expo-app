@@ -74,8 +74,8 @@ export default function AILessonGeneratorScreen() {
   // Refresh function to reload usage data and categories
   const handleRefresh = async () => {
     try {
-      // Prefer local usage to avoid server lag masking local increments
-      setUsage(await getUsage())
+      // Use combined usage to get server-authoritative counts
+      setUsage(await getCombinedUsage())
       // Refetch categories
       await categoriesQuery.refetch()
     } catch (error) {
@@ -87,8 +87,8 @@ export default function AILessonGeneratorScreen() {
 
   useEffect(() => {
     (async () => {
-      // Prefer local usage for immediate UI responsiveness
-      setUsage(await getUsage())
+      // Use combined usage to show accurate cross-device counts
+      setUsage(await getCombinedUsage())
     })()
   }, [])
 
@@ -424,7 +424,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={objectives} onChangeText={setObjectives} placeholder="Objective A; Objective B" />
 
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
-            Monthly usage (local): Lessons generated {usage.lesson_generation}
+            Monthly usage: Lessons generated {usage.lesson_generation}
           </Text>
           <QuotaBar feature="lesson_generation" color={theme.primary} />
           {result?.__fallbackUsed && (

@@ -31,6 +31,9 @@ interface RegistrationData {
   selectedPlanId?: string;
 }
 
+// Separate error type allowing string messages per field
+type RegistrationErrors = Partial<Record<keyof RegistrationData, string | string[]>>;
+
 // Grade level options by school type
 const GRADE_LEVELS = {
   preschool: [
@@ -77,8 +80,8 @@ export default function SchoolRegistrationScreen() {
     selectedPlanId: undefined
   });
 
-  // Validation state
-  const [errors, setErrors] = useState<Partial<RegistrationData>>({});
+// Validation state
+  const [errors, setErrors] = useState<RegistrationErrors>({});
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 3;
 
@@ -141,7 +144,7 @@ export default function SchoolRegistrationScreen() {
 
   // Validation functions
   const validateStep = (step: number): boolean => {
-    const newErrors: Partial<RegistrationData> = {};
+    const newErrors: RegistrationErrors = {};
 
     if (step >= 1) {
       if (!formData.schoolName.trim()) {

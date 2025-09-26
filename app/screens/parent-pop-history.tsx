@@ -447,7 +447,7 @@ const UploadItem: React.FC<UploadItemProps> = ({ upload, onPress, onDelete }) =>
         {upload.upload_type === 'picture_of_progress' && upload.subject && (
           <View style={styles.metadataItem}>
             <Ionicons name="book" size={12} color={theme.textSecondary} />
-            <Text style={styles.metadataText} style={{ textTransform: 'capitalize' }}>
+            <Text style={[styles.metadataText, { textTransform: 'capitalize' }]}>
               {upload.subject.replace('_', ' ')}
             </Text>
           </View>

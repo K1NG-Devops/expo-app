@@ -474,7 +474,7 @@ if (!preschoolId) {
       }
       const { data, error } = await query;
       if (error) {
-        console.error('Error loading available teachers:', _error);
+        console.error('Error loading available teachers:', error);
         setAvailableTeachers([]);
       } else {
         const fallbackList = (data || []).map((u: any) => ({

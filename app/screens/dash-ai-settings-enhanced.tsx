@@ -113,7 +113,9 @@ export default function DashAISettingsEnhancedScreen() {
       const memory = dashAI.getMemory();
       
       const loadedSettings = {
-        // Map DashAI personality to our settings
+        // Start from current state to preserve unspecified settings
+        ...settings,
+        // Map DashAI personality to our settings, overriding current state
         personality: (personality.response_style === 'professional' ? 'professional' : 
                       personality.response_style === 'casual' ? 'casual' : 
                       personality.response_style === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
@@ -121,9 +123,6 @@ export default function DashAISettingsEnhancedScreen() {
         voiceType: 'female_warm',
         voiceRate: personality.voice_settings?.rate || 1.0,
         voicePitch: personality.voice_settings?.pitch || 1.0,
-        
-        // Default enhanced settings
-        ...settings,
         memoryEnabled: memory && memory.length > 0,
         customInstructions: personality.personality_traits?.join(', ') || '',
       };

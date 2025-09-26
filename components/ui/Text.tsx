@@ -6,14 +6,14 @@
  */
 
 import React from 'react';
-import { Text as RNText, StyleSheet, TextStyle } from 'react-native';
+import { Text as RNText, StyleSheet, TextStyle, StyleProp } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export interface TextProps {
   children: React.ReactNode;
   variant?: 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'callout' | 'caption1' | 'caption2' | 'footnote';
   color?: 'primary' | 'secondary' | 'tertiary' | 'error' | 'success' | 'warning' | 'white';
-  style?: TextStyle;
+  style?: StyleProp<TextStyle>;
   numberOfLines?: number;
   ellipsizeMode?: 'head' | 'middle' | 'tail' | 'clip';
   testID?: string;

@@ -252,7 +252,7 @@ export default function DataExportScreen() {
       <SafeAreaView style={styles.container}>
         <RoleBasedHeader
           title="Data Export"
-          leftAction={{ type: 'back', onPress: () => navigateBack() }}
+          onBackPress={() => navigateBack()}
         />
         <View style={styles.accessDenied}>
           <Ionicons name="shield-checkmark" size={64} color={theme.textSecondary} />
@@ -269,7 +269,7 @@ export default function DataExportScreen() {
     <SafeAreaView style={styles.container}>
       <RoleBasedHeader
         title="Data Export"
-        leftAction={{ type: 'back', onPress: () => navigateBack() }}
+        onBackPress={() => navigateBack()}
       />
       
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

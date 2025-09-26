@@ -105,8 +105,6 @@ if (url && anon) {
       detectSessionInUrl: false,
       // Add debugging for token refresh issues
       debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
-      // Increase token refresh threshold to avoid rapid refresh attempts
-      tokenRefreshMargin: 60, // 60 seconds before expiry
     },
   });
 
