@@ -36,8 +36,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let mounted = true;
+    let timeoutId: NodeJS.Timeout;
     
-    (async () => {
+    // Add a small delay to prevent rapid successive calls
+    const fetchSubscriptionData = async () => {
       try {
         const { data: userRes, error: userError } = await assertSupabase().auth.getUser();
         if (userError || !userRes.user) {
@@ -105,16 +107,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                     t = tierStr as Tier;
                   }
 
-                  // Debug logging for tier detection (can be removed once verified)
-                  console.debug('[SubscriptionContext] Active subscription found', {
-                    schoolId,
-                    subscriptionId: sub.id,
-                    planId: sub.plan_id,
-                    planTier: tierStr,
-                    resolvedTier: t,
-                    seats_total: sub.seats_total,
-                    seats_used: sub.seats_used,
-                  });
+                  // Only log tier changes to reduce console spam
+                  if (process.env.NODE_ENV === 'development' && t !== tier) {
+                    console.debug('[SubscriptionContext] Tier changed:', { from: tier, to: t, schoolId });
+                  }
                 } catch (e) {
                   // fallback ignored, t remains previous or 'free'
                   console.debug('[SubscriptionContext] Failed to resolve plan tier from subscription_plans', e);
@@ -149,10 +145,14 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           setReady(true);
         }
       }
-    })();
+    };
+    
+    // Throttle to prevent excessive calls
+    timeoutId = setTimeout(fetchSubscriptionData, 100);
     
     return () => {
       mounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
     };
   }, [refreshTrigger]); // Add refreshTrigger as dependency
 

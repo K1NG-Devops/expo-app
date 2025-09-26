@@ -180,8 +180,50 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           }
         });
       }
-    }, [dashInstance, conversation, messages.length])
+
+      // Return cleanup function that runs when screen loses focus
+      return () => {
+        if (dashInstance && isSpeaking) {
+          setIsSpeaking(false);
+          dashInstance.stopSpeaking().catch(() => {
+            // Ignore errors during cleanup
+          });
+        }
+      };
+    }, [dashInstance, conversation, messages.length, isSpeaking])
   );
+
+  // Cleanup effect to stop speech when component unmounts
+  useEffect(() => {
+    return () => {
+      // Cleanup when component unmounts (page refresh, navigation away, etc.)
+      if (dashInstance) {
+        dashInstance.stopSpeaking().catch(() => {
+          // Ignore errors during cleanup
+        });
+        dashInstance.cleanup();
+      }
+    };
+  }, [dashInstance]);
+
+  // Handle page refresh/close in web environments
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (dashInstance && isSpeaking) {
+        dashInstance.stopSpeaking().catch(() => {
+          // Ignore errors during cleanup
+        });
+      }
+    };
+
+    // Only add event listener if we're in a web environment
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    }
+  }, [dashInstance, isSpeaking]);
 
   const sendMessage = async (text: string = inputText.trim()) => {
     if (!text || !dashInstance || isLoading) return;
@@ -195,13 +237,15 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       // Handle dashboard actions if present
       if (response.metadata?.dashboard_action?.type === 'switch_layout') {
         const newLayout = response.metadata.dashboard_action.layout;
-        console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
-        setLayout(newLayout);
-        
-        // Provide haptic feedback
-        try {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        } catch { /* Haptics not available */ }
+        if (newLayout && (newLayout === 'classic' || newLayout === 'enhanced')) {
+          console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
+          setLayout(newLayout);
+          
+          // Provide haptic feedback
+          try {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          } catch { /* Haptics not available */ }
+        }
       } else if (response.metadata?.dashboard_action?.type === 'open_screen') {
         const { route, params } = response.metadata.dashboard_action as any;
         console.log(`[Dash] Opening screen: ${route}`, params || {});
@@ -261,14 +305,18 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         // Handle dashboard actions if present
         if (response.metadata?.dashboard_action?.type === 'switch_layout') {
           const newLayout = response.metadata.dashboard_action.layout;
-          console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
-          setLayout(newLayout);
-          
-          // Provide haptic feedback
-          try {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          } catch { /* Haptics not available */ }
-        } else if (response.metadata?.dashboard_action?.type === 'open_screen') {
+          if (newLayout && (newLayout === 'classic' || newLayout === 'enhanced')) {
+            console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
+            setLayout(newLayout);
+
+            // Provide haptic feedback
+            try {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } catch { /* Haptics not available */ }
+          }
+        }
+
+        if (response.metadata?.dashboard_action?.type === 'open_screen') {
           const { route, params } = response.metadata.dashboard_action as any;
           console.log(`[Dash] Opening screen: ${route}`, params || {});
           try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
@@ -321,6 +369,16 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const renderMessage = (message: DashMessage, index: number) => {
     const isUser = message.type === 'user';
     const isLastMessage = index === messages.length - 1;
+    // Show retry button for the most recent user message
+    const isLastUserMessage = isUser && (() => {
+      // Find the most recent user message
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].type === 'user') {
+          return i === index;
+        }
+      }
+      return false;
+    })();
     
     return (
       <View
@@ -395,6 +453,21 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               name={isSpeaking ? "stop" : "volume-high"} 
               size={16} 
               color={theme.onAccent} 
+            />
+          </TouchableOpacity>
+        )}
+        
+        {isUser && isLastUserMessage && !isLoading && (
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, borderWidth: 1 }]}
+            onPress={() => sendMessage(message.content)}
+            accessibilityLabel="Try again"
+            activeOpacity={0.7}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={16} 
+              color={theme.textSecondary} 
             />
           </TouchableOpacity>
         )}
@@ -475,6 +548,79 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     );
   };
 
+  // Animated typing indicator
+  const [dotAnimations] = useState([
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.3)).current,
+  ]);
+
+  useEffect(() => {
+    if (isLoading) {
+      // Start the animation when loading begins
+      const animateTyping = () => {
+        const animations = dotAnimations.map((dot, index) => 
+          Animated.loop(
+            Animated.sequence([
+              Animated.delay(index * 200), // Stagger the animation
+              Animated.timing(dot, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: false,
+              }),
+              Animated.timing(dot, {
+                toValue: 0.3,
+                duration: 600,
+                useNativeDriver: false,
+              }),
+            ])
+          )
+        );
+        Animated.parallel(animations).start();
+      };
+      animateTyping();
+    } else {
+      // Stop animations and reset to default state
+      dotAnimations.forEach((dot) => {
+        dot.stopAnimation();
+        dot.setValue(0.3);
+      });
+    }
+  }, [isLoading, dotAnimations]);
+
+  const renderTypingIndicator = () => {
+    if (!isLoading) return null;
+
+    return (
+      <View style={styles.typingIndicator}>
+        <View style={[styles.typingBubble, { backgroundColor: theme.surface }]}>
+          <View style={styles.typingDots}>
+            {dotAnimations.map((dot, index) => (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.typingDot,
+                  {
+                    backgroundColor: theme.textTertiary,
+                    opacity: dot,
+                    transform: [
+                      {
+                        scale: dot.interpolate({
+                          inputRange: [0.3, 1],
+                          outputRange: [0.8, 1.2],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   if (!isInitialized) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -524,8 +670,9 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             <TouchableOpacity
               style={styles.closeButton}
               onPress={async () => {
-                // Stop any ongoing speech
+                // Stop any ongoing speech and update UI state
                 if (dashInstance) {
+                  setIsSpeaking(false);
                   await dashInstance.stopSpeaking();
                   dashInstance.cleanup();
                 }
@@ -548,17 +695,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       >
         {messages.map((message, index) => renderMessage(message, index))}
         
-        {isLoading && (
-          <View style={styles.typingIndicator}>
-            <View style={[styles.typingBubble, { backgroundColor: theme.surface }]}>
-              <View style={styles.typingDots}>
-                <View style={[styles.typingDot, { backgroundColor: theme.textTertiary }]} />
-                <View style={[styles.typingDot, { backgroundColor: theme.textTertiary }]} />
-                <View style={[styles.typingDot, { backgroundColor: theme.textTertiary }]} />
-              </View>
-            </View>
-          </View>
-        )}
+        {renderTypingIndicator()}
 
         {renderSuggestedActions()}
       </ScrollView>
@@ -770,6 +907,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+  },
+  retryButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   typingIndicator: {
     flexDirection: 'row',

@@ -18,6 +18,7 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import { toast } from '@/components/ui/ToastProvider'
+import { DashAIAssistant } from '@/services/DashAIAssistant'
 
 export default function AILessonGeneratorScreen() {
   const { theme } = useTheme()
@@ -36,11 +37,14 @@ export default function AILessonGeneratorScreen() {
   const [gradeLevel, setGradeLevel] = useState('3')
   const [duration, setDuration] = useState('45')
   const [objectives, setObjectives] = useState('Understand proper fractions; Compare simple fractions')
-  const searchParams = useLocalSearchParams<{ topic?: string; subject?: string; gradeLevel?: string; duration?: string; objectives?: string; autogenerate?: string }>()
+  const searchParams = useLocalSearchParams<{ topic?: string; subject?: string; gradeLevel?: string; duration?: string; objectives?: string; autogenerate?: string; model?: string }>()
   const [saving, setSaving] = useState(false)
   const { loading: generating, result, generate } = useLessonGenerator() as any
   const [pending, setPending] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [progressMessage, setProgressMessage] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [abortController, setAbortController] = useState<AbortController | null>(null)
   
   // Use tier-based model selection
   const {
@@ -93,17 +97,35 @@ export default function AILessonGeneratorScreen() {
     const g = (searchParams?.gradeLevel || '').trim();
     const d = (searchParams?.duration || '').trim();
     const o = (searchParams?.objectives || '').trim();
+    const m = (searchParams?.model || '').trim();
+    
     if (t) setTopic(t);
     if (s) setSubject(s);
     if (g && /^\d+$/.test(g)) setGradeLevel(g);
     if (d && /^\d+$/.test(d)) setDuration(d);
     if (o) setObjectives(o);
+    
+    // Set model from Dash if provided and valid
+    if (m && (m === 'claude-3-haiku' || m === 'claude-3-sonnet' || m === 'claude-3-opus')) {
+      console.log('[Lesson Generator] Setting model from Dash:', m);
+      setSelectedModel(m as any);
+    }
 
     const auto = String(searchParams?.autogenerate || '').toLowerCase();
     if (auto === '1' || auto === 'true' || auto === 'yes') {
       setTimeout(() => onGenerate(), 300);
     }
-  }, [searchParams])
+  }, [searchParams, setSelectedModel])
+  
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any ongoing generation when leaving the screen
+      if (abortController) {
+        abortController.abort()
+      }
+    }
+  }, [])
 
   const buildDashPrompt = () => {
     const objs = (objectives || '').split(';').map(s => s.trim()).filter(Boolean)
@@ -116,14 +138,41 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
     const initialMessage = buildDashPrompt()
     router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
   }
+  
+  const onCancel = () => {
+    // Cancel the ongoing request
+    if (abortController) {
+      abortController.abort()
+      setAbortController(null)
+    }
+    
+    // Reset state
+    setPending(false)
+    setProgress(0)
+    setProgressMessage('')
+    
+    toast.info('Generation cancelled')
+    track('edudash.ai.lesson.generate_cancelled', {})
+  }
 
   const onGenerate = async () => {
     try {
+      // Create abort controller for cancellation
+      const controller = new AbortController()
+      setAbortController(controller)
+      
       setPending(true)
+      setProgress(0)
+      setProgressMessage('Initializing...')
+      
       if (!AI_ENABLED || flags.ai_lesson_generation === false) {
         toast.warn('AI Lesson Generator is disabled in this build.');
         return;
       }
+      
+      setProgress(10)
+      setProgressMessage('Checking quota...')
+      
       // Enforce quota before making a request
       const gate = await canUseFeature('lesson_generation', 1)
       if (!gate.allowed) {
@@ -138,16 +187,70 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         )
         return
       }
+      
+      setProgress(20)
+      setProgressMessage('Preparing lesson request...')
       track('edudash.ai.lesson.generate_started', {})
-      const lessonText = await generate({
+      
+      // Use the same AI service architecture as Dash AI Assistant
+      const payload = {
+        action: 'lesson_generation',
         topic: topic || 'Lesson Topic',
         subject: subject || 'General Studies',
         gradeLevel: Number(gradeLevel) || 3,
         duration: Number(duration) || 45,
-        learningObjectives: (objectives || '').split(';').map(s => s.trim()).filter(Boolean),
+        objectives: (objectives || '').split(';').map(s => s.trim()).filter(Boolean),
         language: 'en',
-        model: selectedModel,
-      })
+        model: selectedModel || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+      };
+
+      setProgress(30)
+      setProgressMessage('Connecting to AI service...')
+      
+      // Simulate progress updates during AI generation
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev < 90) {
+            const increment = Math.random() * 10 + 5;
+            const newProgress = Math.min(prev + increment, 90);
+            
+            if (newProgress < 50) {
+              setProgressMessage('Analyzing lesson requirements...');
+            } else if (newProgress < 70) {
+              setProgressMessage('Generating lesson structure...');
+            } else if (newProgress < 85) {
+              setProgressMessage('Creating activities and assessments...');
+            } else {
+              setProgressMessage('Finalizing lesson plan...');
+            }
+            
+            return newProgress;
+          }
+          return prev;
+        });
+      }, 500);
+
+      // Check if cancelled before making API call
+      if (controller.signal.aborted) {
+        throw new Error('Generation cancelled')
+      }
+      
+      const { data, error } = await assertSupabase().functions.invoke('ai-gateway', { 
+        body: payload,
+        // Note: Supabase client doesn't support AbortSignal directly
+        // but we check for cancellation at key points
+      });
+      
+      clearInterval(progressInterval);
+      setProgress(95)
+      setProgressMessage('Processing results...')
+      
+      if (error) throw error;
+
+      const lessonText = data?.content || '';
+      
+      setProgress(100)
+      setProgressMessage('Complete!')
       
       // Set generated lesson content
       setGenerated({
@@ -172,8 +275,12 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       track('edudash.ai.lesson.generate_failed', { error: e?.message })
       toast.error(`Generation failed: ${e?.message || 'Please try again'}`)
     } finally {
+      // Clean up abort controller
+      setAbortController(null)
       setPending(false)
       setSaving(false)
+      setProgress(0)
+      setProgressMessage('')
     }
   }
 
@@ -365,6 +472,47 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           </TouchableOpacity>
         </View>
 
+        {/* Progress Bar */}
+        {(generating || pending) && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.primary, marginTop: 16 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
+                <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+              </View>
+              <Text style={[styles.cardTitle, { color: theme.primary, marginLeft: 8, marginBottom: 0 }]}>Generating Lesson...</Text>
+            </View>
+            
+            <Text style={{ color: palette.textSecondary, marginBottom: 12, fontSize: 13 }}>
+              {progressMessage}
+            </Text>
+
+            <View style={{ 
+              height: 8, 
+              borderRadius: 4, 
+              backgroundColor: palette.outline + '40',
+              overflow: 'hidden'
+            }}>
+              <View 
+                style={{ 
+                  width: `${progress}%`, 
+                  height: 8, 
+                  borderRadius: 4, 
+                  backgroundColor: theme.primary
+                }} 
+              />
+            </View>
+            
+            <Text style={{ 
+              color: palette.textSecondary, 
+              marginTop: 8, 
+              fontSize: 12,
+              textAlign: 'center'
+            }}>
+              {Math.round(progress)}% complete
+            </Text>
+          </View>
+        )}
+
         {/* Generated Content Display Section */}
         {generated?.description && (
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.success, borderWidth: 2, marginTop: 16 }]}>
@@ -480,11 +628,38 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.primary, borderWidth: 1, marginTop: 16 }]}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <ActivityIndicator color={theme.primary} style={{ marginRight: 12 }} />
-              <Text style={[styles.cardTitle, { color: theme.primary, marginBottom: 0 }]}>Generating Your Lesson...</Text>
+              <Text style={[styles.cardTitle, { color: theme.primary, marginBottom: 0, flex: 1 }]}>Generating Your Lesson...</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.primaryBtn, 
+                  { 
+                    backgroundColor: 'transparent',
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: '#EF4444',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    marginLeft: 8
+                  }
+                ]}
+                onPress={onCancel}
+              >
+                <Text style={[styles.primaryBtnText, { color: '#EF4444', fontSize: 12 }]}>Cancel</Text>
+              </TouchableOpacity>
             </View>
             <Text style={{ color: palette.textSecondary, fontSize: 13 }}>
               AI is creating a customized lesson plan based on your parameters. This may take 10-30 seconds.
             </Text>
+            {progress > 0 && (
+              <View style={{ marginTop: 12 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <Text style={{ color: palette.textSecondary, fontSize: 12 }}>{progressMessage}</Text>
+                  <Text style={{ color: theme.primary, fontSize: 12, fontWeight: '600' }}>{Math.round(progress)}%</Text>
+                </View>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: '#E5E7EB' }}>
+                  <View style={{ width: `${progress}%`, height: 4, borderRadius: 2, backgroundColor: theme.primary }} />
+                </View>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>

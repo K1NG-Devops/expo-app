@@ -686,6 +686,110 @@ export class DashAIAssistant {
   }
 
   /**
+   * Extract lesson parameters from user input and AI response
+   */
+  private extractLessonParameters(userInput: string, aiResponse: string): Record<string, string> {
+    const params: Record<string, string> = {};
+    const fullText = `${userInput} ${aiResponse}`.toLowerCase();
+    
+    // Extract grade level
+    const gradeMatch = fullText.match(/grade\s*(\d{1,2})|year\s*(\d{1,2})|(\d{1,2})(?:st|nd|rd|th)?\s*grade/i);
+    if (gradeMatch) {
+      const grade = gradeMatch[1] || gradeMatch[2] || gradeMatch[3];
+      if (grade && parseInt(grade) >= 1 && parseInt(grade) <= 12) {
+        params.gradeLevel = grade;
+      }
+    }
+    
+    // Extract subject with expanded matching
+    const subjectPatterns = {
+      'Mathematics': /(math|mathematics|maths|arithmetic|algebra|geometry|calculus)/i,
+      'Science': /(science|biology|chemistry|physics|life\s*science)/i,
+      'English': /(english|language\s*arts?|reading|writing|literature)/i,
+      'Afrikaans': /(afrikaans)/i,
+      'Life Skills': /(life\s*skills?)/i,
+      'Geography': /(geography|social\s*studies)/i,
+      'History': /(history)/i,
+      'Art': /(art|creative|drawing|painting)/i,
+      'Music': /(music|singing)/i,
+      'Physical Education': /(physical\s*education|pe|sports?|fitness)/i
+    };
+    
+    for (const [subject, pattern] of Object.entries(subjectPatterns)) {
+      if (pattern.test(fullText)) {
+        params.subject = subject;
+        break;
+      }
+    }
+    
+    // Extract topic/theme
+    // Look for topics after keywords like "about", "on", "teaching", etc.
+    const topicMatch = fullText.match(/(?:about|on|teaching|topic|theme)\s+([^.,;!?]+?)(?:\s+(?:for|to|with)|[.,;!?]|$)/i);
+    if (topicMatch && topicMatch[1]) {
+      const topic = topicMatch[1].trim();
+      if (topic.length > 2 && topic.length < 50) {
+        params.topic = topic;
+      }
+    }
+    
+    // Extract duration
+    const durationMatch = fullText.match(/(\d{1,3})\s*(?:minute|min|hour|hr)s?/i);
+    if (durationMatch) {
+      let duration = parseInt(durationMatch[1]);
+      // Convert hours to minutes
+      if (fullText.includes('hour') || fullText.includes('hr')) {
+        duration *= 60;
+      }
+      // Reasonable duration range (15-180 minutes)
+      if (duration >= 15 && duration <= 180) {
+        params.duration = duration.toString();
+      }
+    }
+    
+    // Extract learning objectives
+    const objectiveKeywords = ['objective', 'goal', 'aim', 'learn', 'understand', 'master'];
+    const objectivePattern = new RegExp(`(?:${objectiveKeywords.join('|')})s?[^.]*?([^.;]+)`, 'gi');
+    const objectiveMatches = fullText.match(objectivePattern);
+    if (objectiveMatches && objectiveMatches.length > 0) {
+      const objectives = objectiveMatches.map(match => 
+        match.replace(/^[^:]*:?\s*/, '').trim()
+      ).filter(obj => obj.length > 5 && obj.length < 100);
+      
+      if (objectives.length > 0) {
+        params.objectives = objectives.slice(0, 3).join('; ');
+      }
+    }
+    
+    // If we have enough parameters, add autogenerate flag
+    const paramCount = Object.keys(params).length;
+    if (paramCount >= 2) {
+      params.autogenerate = 'true';
+    }
+    
+    console.log('[Dash] Extracted lesson parameters:', params);
+    return params;
+  }
+  
+  /**
+   * Clean text for speech synthesis by removing emojis and other non-speech elements
+   */
+  private cleanTextForSpeech(text: string): string {
+    return text
+      // Remove emojis (Unicode ranges)
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Regional country flags
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')  // Misc symbols
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')  // Dingbats
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols and Pictographs
+      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols and Pictographs Extended-A
+      // Remove extra whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
    * Play Dash's response with voice synthesis
    */
   public async speakResponse(message: DashMessage): Promise<void> {
@@ -696,7 +800,16 @@ export class DashAIAssistant {
     try {
       const voiceSettings = this.personality.voice_settings;
       
-      await Speech.speak(message.content, {
+      // Clean the text before speaking to remove emojis
+      const cleanText = this.cleanTextForSpeech(message.content);
+      
+      // Only speak if there's actual text content after cleaning
+      if (cleanText.length === 0) {
+        console.log('[Dash] No speakable content after emoji filtering');
+        return;
+      }
+      
+      await Speech.speak(cleanText, {
         language: voiceSettings.language,
         pitch: voiceSettings.pitch,
         rate: voiceSettings.rate,
@@ -834,10 +947,27 @@ ROLE-SPECIFIC CONTEXT:
 
 RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant actions the user can take.`;
 
-      // Call the real AI service using homework_help action (which supports general educational assistance)
+      // Call AI service using general_assistance action with messages array
+      const messages = [];
+      
+      // Add conversation history in Claude format
+      if (context.conversationHistory && Array.isArray(context.conversationHistory)) {
+        const recentHistory = context.conversationHistory.slice(-10);
+        for (const msg of recentHistory) {
+          if (msg && typeof msg === 'object' && msg.type === 'user' && msg.content) {
+            messages.push({ role: 'user', content: String(msg.content) });
+          } else if (msg && typeof msg === 'object' && msg.type === 'assistant' && msg.content) {
+            messages.push({ role: 'assistant', content: String(msg.content) });
+          }
+        }
+      }
+      
+      // Add current user input
+      messages.push({ role: 'user', content: context.userInput });
+      
       const aiResponse = await this.callAIService({
-        action: 'homework_help',
-        question: context.userInput,
+        action: 'general_assistance',
+        messages: messages,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
         gradeLevel: 'General'
       });
@@ -862,11 +992,21 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
 
       // Add lesson planning actions
       if (userInput.includes('lesson') || userInput.includes('plan') || userInput.includes('curriculum')) {
-        const params: Record<string, string> = {};
-        const gradeMatch = userInput.match(/grade\s*(\d{1,2})/i);
-        if (gradeMatch) params.gradeLevel = gradeMatch[1];
-        const subjectMatch = userInput.match(/(math|mathematics|science|english|afrikaans|life\s?skills|geography|history)/i);
-        if (subjectMatch) params.subject = subjectMatch[1];
+        const params: Record<string, string> = this.extractLessonParameters(userInput, aiResponse?.content || '');
+        
+        // Add tier-appropriate model selection
+        const userTier = this.getUserTier();
+        switch (userTier) {
+          case 'starter':
+          case 'premium':
+          case 'enterprise':
+            params.model = 'claude-3-sonnet';
+            break;
+          case 'free':
+          default:
+            params.model = 'claude-3-haiku';
+            break;
+        }
         
         dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
         suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
@@ -1697,9 +1837,10 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       // Call AI service with enhanced context using homework_help action
       const aiResponse = await this.callAIService({
         action: 'homework_help',
-        question: content,
+        question: context.userInput,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
-        gradeLevel: 'General'
+        gradeLevel: 'General',
+        conversationHistory: context.conversationHistory
       });
 
       const assistantMessage: DashMessage = {
@@ -1990,6 +2131,16 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
    */
   public getUserProfile(): DashUserProfile | null {
     return this.userProfile;
+  }
+  
+  /**
+   * Get user's subscription tier for model selection
+   */
+  private getUserTier(): 'free' | 'starter' | 'premium' | 'enterprise' {
+    // For now, return 'starter' as default since we don't have subscription info in DashAIAssistant
+    // This should be updated to check actual subscription status when available
+    // TODO: Integrate with subscription context or session data
+    return 'starter';
   }
 
   /**
