@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { LessonGeneratorService } from '@/lib/ai/lessonGenerator'
 import { getFeatureFlagsSync } from '@/lib/featureFlags'
 import { track } from '@/lib/analytics'
-import { getCombinedUsage } from '@/lib/ai/usage'
+import { getCombinedUsage, incrementUsage, logUsageEvent } from '@/lib/ai/usage'
 import { canUseFeature, getQuotaStatus, getEffectiveLimits } from '@/lib/ai/limits'
 import { getPreferredModel, setPreferredModel } from '@/lib/ai/preferences'
 import { router, useLocalSearchParams } from 'expo-router'
@@ -154,6 +154,27 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
     toast.info('Generation cancelled')
     track('edudash.ai.lesson.generate_cancelled', {})
   }
+  
+  // Debug function to test usage tracking
+  const testUsageTracking = async () => {
+    try {
+      console.log('[Debug] Testing usage tracking...')
+      const before = await getCombinedUsage()
+      console.log('[Debug] Usage before:', before)
+      
+      await incrementUsage('lesson_generation', 1)
+      console.log('[Debug] Increment called')
+      
+      const after = await getCombinedUsage()
+      console.log('[Debug] Usage after:', after)
+      
+      toast.success(`Usage: ${after.lesson_generation} lessons generated`)
+      setUsage(after)
+    } catch (error) {
+      console.error('[Debug] Usage tracking test failed:', error)
+      toast.error('Usage tracking test failed')
+    }
+  }
 
   const onGenerate = async () => {
     try {
@@ -260,7 +281,37 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         activities: []
       })
       
-      // Update usage stats
+      // Track successful lesson generation
+      try {
+        console.log('[Lesson Generator] Starting usage tracking...')
+        const usageBefore = await getCombinedUsage()
+        console.log('[Lesson Generator] Usage before increment:', usageBefore)
+        
+        await incrementUsage('lesson_generation', 1)
+        console.log('[Lesson Generator] incrementUsage called')
+        
+        await logUsageEvent({
+          feature: 'lesson_generation',
+          model: String(payload.model),
+          tokensIn: (data && data.usage?.input_tokens) || 0,
+          tokensOut: (data && data.usage?.output_tokens) || 0,
+          estCostCents: (data && data.cost) || 0,
+          timestamp: new Date().toISOString(),
+        })
+        console.log('[Lesson Generator] logUsageEvent called')
+        
+        // Wait a moment and check again
+        setTimeout(async () => {
+          const usageAfter = await getCombinedUsage()
+          console.log('[Lesson Generator] Usage after increment:', usageAfter)
+        }, 1000)
+        
+        console.log('[Lesson Generator] Usage tracked successfully')
+      } catch (usageError) {
+        console.error('[Lesson Generator] Failed to track usage:', usageError)
+      }
+      
+      // Update usage stats display
       setUsage(await getCombinedUsage())
       
       // Show success toast
@@ -471,6 +522,14 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
             {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: generated?.description ? theme.onAccent : palette.textSecondary }]}>Save Lesson</Text>}
           </TouchableOpacity>
         </View>
+        
+        {/* Debug button - temporary for testing usage tracking */}
+        <TouchableOpacity 
+          style={[styles.primaryBtn, { backgroundColor: '#EF4444', marginTop: 8 }]} 
+          onPress={testUsageTracking}
+        >
+          <Text style={[styles.primaryBtnText, { color: 'white' }]}>🐛 Test Usage Tracking</Text>
+        </TouchableOpacity>
 
         {/* Progress Bar */}
         {(generating || pending) && (
