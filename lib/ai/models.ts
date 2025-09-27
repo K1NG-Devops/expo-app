@@ -1,4 +1,4 @@
-export type AIModelId = 'claude-3-haiku' | 'claude-3-sonnet' | 'claude-3-opus'
+export type AIModelId = 'claude-3-haiku' | 'claude-3-sonnet' | 'claude-3-opus' | 'claude-4-opus' | 'claude-4-opus-turbo'
 export type SubscriptionTier = 'free' | 'starter' | 'premium' | 'enterprise'
 
 export type AIModelInfo = {
@@ -17,6 +17,8 @@ export const MODEL_WEIGHTS: Record<AIModelId, number> = {
   'claude-3-haiku': 1,
   'claude-3-sonnet': 5, // ~5x haiku
   'claude-3-opus': 20,  // ~20x haiku
+  'claude-4-opus': 50,  // ~50x haiku - Maximum intelligence
+  'claude-4-opus-turbo': 35, // ~35x haiku - Fast maximum intelligence
 }
 
 // Tier hierarchy for access checks
@@ -28,11 +30,11 @@ export const TIER_HIERARCHY: Record<SubscriptionTier, number> = {
 }
 
 // Monthly quota limits by tier (number of AI requests)
-export const TIER_QUOTAS: Record<SubscriptionTier, { ai_requests: number; priority_support: boolean; rpm_limit: number }> = {
-  'free': { ai_requests: 50, priority_support: false, rpm_limit: 5 },
-  'starter': { ai_requests: 500, priority_support: false, rpm_limit: 15 },
-  'premium': { ai_requests: 2500, priority_support: true, rpm_limit: 30 },
-  'enterprise': { ai_requests: -1, priority_support: true, rpm_limit: 60 }, // -1 = unlimited
+export const TIER_QUOTAS: Record<SubscriptionTier, { ai_requests: number; priority_support: boolean; rpm_limit: number; max_model_access: AIModelId }> = {
+  'free': { ai_requests: 50, priority_support: false, rpm_limit: 5, max_model_access: 'claude-3-haiku' },
+  'starter': { ai_requests: 500, priority_support: false, rpm_limit: 15, max_model_access: 'claude-3-sonnet' },
+  'premium': { ai_requests: 2500, priority_support: true, rpm_limit: 30, max_model_access: 'claude-4-opus-turbo' },
+  'enterprise': { ai_requests: -1, priority_support: true, rpm_limit: 60, max_model_access: 'claude-4-opus' }, // -1 = unlimited
 }
 
 export function getDefaultModels(): AIModelInfo[] {
@@ -66,6 +68,26 @@ export function getDefaultModels(): AIModelInfo[] {
       minTier: 'premium',
       description: 'Maximum intelligence for complex educational content and advanced grading',
       notes: 'Premium and Enterprise only'
+    },
+    {
+      id: 'claude-4-opus-turbo',
+      name: 'Claude 4 Opus Turbo',
+      displayName: 'Dash Genius',
+      provider: 'claude',
+      relativeCost: MODEL_WEIGHTS['claude-4-opus-turbo'],
+      minTier: 'premium',
+      description: 'Ultra-fast maximum intelligence with advanced reasoning, creative problem-solving, and comprehensive educational expertise',
+      notes: 'Premium plan and above - Claude 4 Opus level intelligence with speed optimization'
+    },
+    {
+      id: 'claude-4-opus',
+      name: 'Claude 4 Opus',
+      displayName: 'Dash Mastermind',
+      provider: 'claude',
+      relativeCost: MODEL_WEIGHTS['claude-4-opus'],
+      minTier: 'enterprise',
+      description: 'Peak AI intelligence with deep reasoning, creative insights, advanced educational analysis, and comprehensive problem-solving capabilities',
+      notes: 'Enterprise only - Full Claude 4 Opus capabilities with maximum intelligence'
     },
   ]
 }
