@@ -153,7 +153,7 @@ export const EnhancedCourseCreationSchema = z.object({
   
   // Metadata
   tags: z.array(z.string().min(1).max(50)).max(10, 'Cannot exceed 10 tags').default([]),
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
   
 }).refine((data) => {
   // End date must be after start date
@@ -375,7 +375,7 @@ export const EnhancedSubmissionCreationSchema = z.object({
     .default([]),
     
   // External integrations
-  external_tool_data: z.record(z.any()).default({}),
+  external_tool_data: z.record(z.string(), z.any()).default({}),
   
   // Student notes and comments
   student_notes: z.string()
@@ -387,7 +387,7 @@ export const EnhancedSubmissionCreationSchema = z.object({
   integrity_verified: z.boolean().default(false),
   
   // Metadata
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
   
 }).refine((data) => {
   // Must have content or attachments (unless draft)
@@ -442,7 +442,7 @@ export const EnhancedGradeCreationSchema = z.object({
     .optional(),
     
   // Rubric scoring
-  rubric_scores: z.record(z.object({
+  rubric_scores: z.record(z.string(), z.object({
     criterion_id: z.string().uuid(),
     level_id: z.string().uuid(),
     points: z.number().min(0).max(100),
@@ -451,7 +451,7 @@ export const EnhancedGradeCreationSchema = z.object({
   
   // AI assistance
   ai_assistance_used: z.boolean().default(false),
-  ai_suggestions: z.record(z.any()).default({}),
+  ai_suggestions: z.record(z.string(), z.any()).default({}),
   ai_confidence_score: z.number().min(0).max(1).optional(),
   
   // Grading workflow
@@ -472,7 +472,7 @@ export const EnhancedGradeCreationSchema = z.object({
   external_grade_id: z.string().max(100).optional(),
   
   // Metadata
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
   
 }).refine((data) => {
   // Points earned cannot exceed points possible (with small buffer for rounding)

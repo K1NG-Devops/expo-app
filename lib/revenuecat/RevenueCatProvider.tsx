@@ -23,7 +23,7 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   
-  const { user, preschool } = useAuth();
+  const { user, profile } = useAuth();
 
   // Initialize RevenueCat
   useEffect(() => {
@@ -84,7 +84,9 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
     });
 
     return () => {
-      listener.remove();
+      if (listener && typeof listener.remove === 'function') {
+        listener.remove();
+      }
     };
   }, [initialized]);
 

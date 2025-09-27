@@ -46,7 +46,7 @@ export default function AILessonGeneratorScreen() {
   const [progressMessage, setProgressMessage] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null)
+  const [progressInterval, setProgressInterval] = useState<ReturnType<typeof setTimeout> | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [lastPayload, setLastPayload] = useState<any | null>(null)
   const [attempt, setAttempt] = useState(0)

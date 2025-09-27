@@ -115,7 +115,7 @@ export default function SuperAdminSchoolOnboardingWizard() {
 
   // Check if current user is superadmin
   useEffect(() => {
-    if (profile && profile.role !== 'superadmin') {
+    if (profile && profile.role !== 'super_admin') {
       Alert.alert(
         'Access Denied',
         'This screen is only accessible to superadmins.',
