@@ -265,6 +265,23 @@
     "billing": "Facturación",
     "usage": "Uso",
     "limits": "Límites del Plan",
-    "choose_your_plan": "Choose Your Plan"
+    "choose_your_plan": "Elige tu plan",
+    "managePlan": "Administrar plan",
+    "tiers": {
+      "free": "Gratis",
+      "starter": "Inicial",
+      "basic": "Básico",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Empresarial"
+    },
+    "tierSource": {
+      "caption": "Fuente: {{source}}",
+      "organization": "Plan de la organización",
+      "school_plan": "Suscripción del colegio",
+      "school_default": "Predeterminado del colegio",
+      "user": "Configuración del usuario",
+      "unknown": "Desconocido"
+    }
   }
 }

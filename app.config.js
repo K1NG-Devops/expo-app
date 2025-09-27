@@ -1,5 +1,7 @@
 // app.config.js
 // Use a dynamic config so we can disable expo-dev-client for preview/production (OTA compatibility)
+const fs = require('fs');
+const path = require('path');
 
 /**
  * @param {import('@expo/config').ConfigContext} ctx
@@ -62,7 +64,13 @@ module.exports = ({ config }) => {
     android: {
       edgeToEdgeEnabled: true,
       package: 'com.edudashpro',
-      googleServicesFile: './google-services.json',
+      googleServicesFile: fs.existsSync(path.resolve(__dirname, 'app/google-services.json')) 
+        ? './app/google-services.json' 
+        : fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'))
+          ? './android/app/google-services.json'
+          : fs.existsSync(path.resolve(__dirname, 'google-services.json'))
+            ? './google-services.json'
+            : undefined,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',

@@ -441,7 +441,24 @@
     "high_priority": "Hoë Prioriteit"
   },
   "subscription": {
-    "choose_your_plan": "Choose Your Plan"
+    "choose_your_plan": "Kies jou plan",
+    "managePlan": "Bestuur plan",
+    "tiers": {
+      "free": "Gratis",
+      "starter": "Beginner",
+      "basic": "Basies",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Onderneming"
+    },
+    "tierSource": {
+      "caption": "Bron: {{source}}",
+      "organization": "Organisasieplan",
+      "school_plan": "Skoolintekening",
+      "school_default": "Skoolverstek",
+      "user": "Gebruikerinstelling",
+      "unknown": "Onbekend"
+    }
   },
   "lessons_create": {
     "title": "Skep Les",

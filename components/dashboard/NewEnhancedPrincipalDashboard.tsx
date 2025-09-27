@@ -34,6 +34,7 @@ import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import TierBadge from '@/components/ui/TierBadge';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -335,21 +336,9 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
                   <Text style={styles.headerIcon}>🏫</Text>
                   <Text style={styles.welcomeTitle}>{t('dashboard.school_overview')}</Text>
                 </View>
-                {/* Tier Badge - always on right side */}
+                {/* Tier Badge - unified component */}
                 {subscriptionReady && (
-                  <View style={[
-                    styles.tierBadge,
-                    tier === 'free' ? styles.freeTierBadge : styles.premiumTierBadge
-                  ]}>
-                    <Ionicons 
-                      name={tier === 'free' ? "flash" : "diamond"} 
-                      size={12} 
-                      color="#FFFFFF" 
-                    />
-                    <Text style={styles.tierBadgeText}>
-                      {tier?.toUpperCase() || 'FREE'}
-                    </Text>
-                  </View>
+                  <TierBadge size="md" showManageButton />
                 )}
               </View>
             <Text style={styles.welcomeGreeting}>
