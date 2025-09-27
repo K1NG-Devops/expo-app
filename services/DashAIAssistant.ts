@@ -973,16 +973,11 @@ export class DashAIAssistant {
     // Handle mathematical expressions (only in math contexts)
     normalized = this.normalizeMathExpressions(normalized);
     
-    // Remove emojis (Unicode ranges)
+    // Remove emojis and special characters (simplified for ES5 compatibility)
     normalized = normalized
-      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
-      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
-      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
-      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Regional country flags
-      .replace(/[\u{2600}-\u{26FF}]/gu, '')  // Misc symbols
-      .replace(/[\u{2700}-\u{27BF}]/gu, '')  // Dingbats
-      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental Symbols and Pictographs
-      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '') // Symbols and Pictographs Extended-A
+      .replace(/[\u2600-\u26FF]/g, '')  // Misc symbols
+      .replace(/[\u2700-\u27BF]/g, '')  // Dingbats
+      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // Surrogate pairs (emojis)
       // Remove extra whitespace
       .replace(/\s+/g, ' ')
       .trim();
@@ -1832,7 +1827,7 @@ export class DashAIAssistant {
       suggestions.push('parent_communication_batch');
     }
     
-    return [...new Set(suggestions)]; // Remove duplicates
+    return suggestions.filter((item, index, arr) => arr.indexOf(item) === index); // Remove duplicates
   }
   
   /**
@@ -1865,10 +1860,10 @@ export class DashAIAssistant {
     if (dayOfWeek === 1 && hour < 10) { // Monday morning
       suggestions.push({
         id: 'monday_planning',
-        type: 'task',
+        type: 'task' as const,
         title: 'Plan This Week',
         description: 'Start your week strong by planning lessons and activities',
-        priority: 'high',
+        priority: 'high' as const,
         action: { type: 'open_screen', params: { route: 'lesson-generator' } }
       });
     }
@@ -1876,10 +1871,10 @@ export class DashAIAssistant {
     if (dayOfWeek === 5 && hour > 14) { // Friday afternoon
       suggestions.push({
         id: 'friday_wrap_up',
-        type: 'task',
+        type: 'task' as const,
         title: 'Weekly Wrap-up',
         description: 'Generate progress reports and communicate with parents',
-        priority: 'medium',
+        priority: 'medium' as const,
         action: { type: 'create_task', params: { template: 'weekly_grade_report' } }
       });
     }
@@ -1892,10 +1887,10 @@ export class DashAIAssistant {
     if (hasRecentLessonPlanning) {
       suggestions.push({
         id: 'create_worksheet',
-        type: 'action',
+        type: 'action' as const,
         title: 'Create Practice Worksheet',
         description: 'Generate worksheets to reinforce your recent lesson content',
-        priority: 'medium',
+        priority: 'medium' as const,
         action: { type: 'generate_worksheet', params: { autoDetect: true } }
       });
       
@@ -1912,10 +1907,10 @@ export class DashAIAssistant {
       if (commonTasks.length > 0) {
         suggestions.push({
           id: 'automate_common_tasks',
-          type: 'insight',
+          type: 'insight' as const,
           title: 'Automate Repetitive Tasks',
           description: `I noticed you frequently work with ${commonTasks.join(', ')}. Let me help automate this!`,
-          priority: 'medium',
+          priority: 'medium' as const,
           action: { type: 'setup_automation', params: { tasks: commonTasks } }
         });
       }
@@ -1929,10 +1924,10 @@ export class DashAIAssistant {
     if (recentErrors.length > 0) {
       suggestions.push({
         id: 'help_with_issues',
-        type: 'action',
+        type: 'action' as const,
         title: 'Need Help?',
         description: 'I noticed some challenges recently. Let me provide assistance or tutorials.',
-        priority: 'high',
+        priority: 'high' as const,
         action: { type: 'provide_help', params: { context: 'error_recovery' } }
       });
     }
@@ -1944,10 +1939,10 @@ export class DashAIAssistant {
       if ([2, 5, 11].includes(month)) { // March, June, December
         suggestions.push({
           id: 'assessment_season',
-          type: 'task',
+          type: 'task' as const,
           title: 'Assessment Season Prep',
           description: 'Prepare comprehensive assessments for this evaluation period',
-          priority: 'high',
+          priority: 'high' as const,
           action: { type: 'create_task', params: { template: 'assessment_creation_suite' } }
         });
       }
@@ -1960,10 +1955,10 @@ export class DashAIAssistant {
       if (!hasRecentParentContact && recentMemory.length > 5) {
         suggestions.push({
           id: 'parent_communication',
-          type: 'reminder',
+          type: 'reminder' as const,
           title: 'Connect with Parents',
           description: 'It\'s been a while since parent communication. Keep them engaged!',
-          priority: 'medium',
+          priority: 'medium' as const,
           action: { type: 'create_task', params: { template: 'parent_communication_batch' } }
         });
       }
@@ -1973,10 +1968,10 @@ export class DashAIAssistant {
     if (recentMemory.length < 3) {
       suggestions.push({
         id: 'explore_features',
-        type: 'insight',
+        type: 'insight' as const,
         title: 'Discover New Features',
         description: 'Explore more of what I can help you with - from lesson planning to student analytics',
-        priority: 'low',
+        priority: 'low' as const,
         action: { type: 'feature_tour', params: {} }
       });
     }
@@ -2023,13 +2018,13 @@ export class DashAIAssistant {
   public provideContextualHelp(currentScreen?: string, userAction?: string): {
     helpText: string;
     quickActions: Array<{ label: string; action: string }>;
-    tutorials: Array<{ title: string; url: string }>;
+    tutorials: Array<{ title: string; description: string; url?: string }>;
   } {
     const userRole = this.userProfile?.role || 'teacher';
     
     let helpText = "I'm here to help! ";
-    let quickActions = [];
-    let tutorials = [];
+    let quickActions: Array<{ label: string; action: string }> = [];
+    let tutorials: Array<{ title: string; description: string; url?: string }> = [];
     
     // Screen-specific help
     if (currentScreen) {
@@ -2069,15 +2064,15 @@ export class DashAIAssistant {
     // Role-specific help
     if (userRole === 'teacher') {
       tutorials.push(
-        { title: 'Creating Effective Lesson Plans', url: '/help/lesson-planning' },
-        { title: 'Using AI for Worksheets', url: '/help/worksheet-generation' },
-        { title: 'Parent Communication Best Practices', url: '/help/parent-communication' }
+        { title: 'Creating Effective Lesson Plans', description: 'Step-by-step guide to creating lesson plans', url: '/help/lesson-planning' },
+        { title: 'Using AI for Worksheets', description: 'Generate custom worksheets with AI assistance', url: '/help/worksheet-generation' },
+        { title: 'Parent Communication Best Practices', description: 'Effective strategies for parent communication', url: '/help/parent-communication' }
       );
     } else if (userRole === 'principal') {
       tutorials.push(
-        { title: 'School Analytics Dashboard', url: '/help/analytics' },
-        { title: 'Curriculum Management', url: '/help/curriculum' },
-        { title: 'Teacher Performance Insights', url: '/help/teacher-insights' }
+        { title: 'School Analytics Dashboard', description: 'Learn how to use the analytics dashboard', url: '/help/analytics' },
+        { title: 'Curriculum Management', description: 'Manage your school curriculum effectively', url: '/help/curriculum' },
+        { title: 'Teacher Performance Insights', description: 'Track and analyze teacher performance', url: '/help/teacher-insights' }
       );
     }
     
@@ -2116,7 +2111,7 @@ export class DashAIAssistant {
         type: 'one_time',
         triggerAt: params.triggerTime,
         userId: this.userProfile?.userId || 'unknown',
-        conversationId: this.currentConversationId,
+        conversationId: this.currentConversationId || undefined,
         priority: params.type === 'deadline' ? 'high' : 'medium',
         status: 'active'
       };
@@ -2197,7 +2192,7 @@ export class DashAIAssistant {
             callbacks?.onStopped?.();
             resolve();
           },
-          onError: (error) => {
+          onError: (error: any) => {
             console.error('[Dash] Speech error:', error);
             callbacks?.onError?.(error);
             reject(error);
@@ -2297,7 +2292,8 @@ export class DashAIAssistant {
     }>;
     dashboard_action?:
       | { type: 'switch_layout'; layout: 'classic' | 'enhanced' }
-      | { type: 'open_screen'; route: string; params?: Record<string, string> };
+      | { type: 'open_screen'; route: string; params?: Record<string, string> }
+      | { type: 'execute_task'; task: DashTask };
   }> {
     try {
       // Use the enhanced AI service instead of hardcoded responses
@@ -2672,11 +2668,13 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    */
   private cleanExpiredMemory(): void {
     const now = Date.now();
-    for (const [key, item] of this.memory.entries()) {
+    const keysToDelete: string[] = [];
+    this.memory.forEach((item, key) => {
       if (item.expires_at && item.expires_at < now) {
-        this.memory.delete(key);
+        keysToDelete.push(key);
       }
-    }
+    });
+    keysToDelete.forEach(key => this.memory.delete(key));
   }
 
   /**
@@ -2845,7 +2843,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   private async getConversationKeys(): Promise<string[]> {
     try {
       const allKeys = await AsyncStorage.getAllKeys();
-      return allKeys.filter(k => k.startsWith(`${DashAIAssistant.CONVERSATIONS_KEY}_`));
+      return allKeys.filter((k: string) => k.startsWith(`${DashAIAssistant.CONVERSATIONS_KEY}_`));
     } catch (error) {
       console.error('[Dash] Failed to list conversation keys:', error);
       return [];
@@ -2915,6 +2913,25 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       await this.saveMemory();
     } catch (error) {
       console.error('[Dash] Failed to clear memory:', error);
+    }
+  }
+
+  /**
+   * Add memory item
+   */
+  private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+    try {
+      const memoryItem: DashMemoryItem = {
+        ...item,
+        id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        created_at: Date.now(),
+        updated_at: Date.now()
+      };
+      
+      this.memory.set(memoryItem.key, memoryItem);
+      await this.saveMemory();
+    } catch (error) {
+      console.error('[Dash] Failed to add memory item:', error);
     }
   }
 
@@ -3111,19 +3128,6 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
     }
    }
 
-  /**
-   * Get active tasks from agentic engine
-   */
-  public async getActiveTasks(): Promise<any[]> {
-    try {
-      const { DashAgenticEngine } = await import('./DashAgenticEngine');
-      const agenticEngine = DashAgenticEngine.getInstance();
-      return agenticEngine.getActiveTasks();
-    } catch (error) {
-      console.error('[Dash] Failed to get active tasks:', error);
-      return [];
-    }
-  }
 
   /**
    * Get active reminders from agentic engine
@@ -3358,10 +3362,10 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       // Call AI service with enhanced context using homework_help action
       const aiResponse = await this.callAIService({
         action: 'homework_help',
-        question: context.userInput,
+        question: content,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
         gradeLevel: 'General',
-        conversationHistory: context.conversationHistory
+        conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
       });
 
       const assistantMessage: DashMessage = {

@@ -46,7 +46,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   conversationId,
   onClose,
   initialMessage
-}) => {
+}: DashAssistantProps) => {
   const { theme, isDark } = useTheme();
   const { setLayout } = useDashboardPreferences();
   const [messages, setMessages] = useState<DashMessage[]>([]);
@@ -179,7 +179,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     useCallback(() => {
       // Refresh conversation when screen focuses
       if (dashInstance && conversation) {
-        dashInstance.getConversation(conversation.id).then((updatedConv) => {
+        dashInstance.getConversation(conversation.id).then((updatedConv: any) => {
           if (updatedConv && updatedConv.messages.length !== messages.length) {
             setMessages(updatedConv.messages);
             setConversation(updatedConv);
@@ -388,7 +388,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         // Offer to open Lesson Generator when intent detected
         try {
           const intentType = response?.metadata?.user_intent?.primary_intent || ''
-          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator(transcript, response?.content)
+          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator('voice input', response?.content)
           if (shouldOpen) {
             setTimeout(() => {
               Alert.alert(
@@ -396,7 +396,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 'I can open the AI Lesson Generator with the details we discussed. Continue?',
                 [
                   { text: 'Not now', style: 'cancel' },
-                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(transcript, response?.content || '') }
+                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext('voice input', response?.content || '') }
                 ]
               )
             }, 200)
@@ -458,7 +458,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           setIsSpeaking(false);
           setSpeakingMessageId(null);
         },
-        onError: (error) => {
+        onError: (error: any) => {
           console.error(`[DashAssistant] Speech error for message ${message.id}:`, error);
           setIsSpeaking(false);
           setSpeakingMessageId(null);
@@ -671,7 +671,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           Quick actions:
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {lastMessage.metadata.suggested_actions.map((action, index) => (
+          {lastMessage.metadata.suggested_actions.map((action: string, index: number) => (
             <TouchableOpacity
               key={index}
               style={[
@@ -708,7 +708,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     if (isLoading) {
       // Start the animation when loading begins
       const animateTyping = () => {
-        const animations = dotAnimations.map((dot, index) => 
+        const animations = dotAnimations.map((dot: any, index: number) => 
           Animated.loop(
             Animated.sequence([
               Animated.delay(index * 200), // Stagger the animation
@@ -730,7 +730,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       animateTyping();
     } else {
       // Stop animations and reset to default state
-      dotAnimations.forEach((dot) => {
+      dotAnimations.forEach((dot: any) => {
         dot.stopAnimation();
         dot.setValue(0.3);
       });
@@ -744,7 +744,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       <View style={styles.typingIndicator}>
         <View style={[styles.typingBubble, { backgroundColor: theme.surface }]}>
           <View style={styles.typingDots}>
-            {dotAnimations.map((dot, index) => (
+            {dotAnimations.map((dot: any, index: number) => (
               <Animated.View
                 key={index}
                 style={[
@@ -915,7 +915,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
       >
-        {messages.map((message, index) => renderMessage(message, index))}
+        {messages.map((message: any, index: number) => renderMessage(message, index))}
         
         {renderTypingIndicator()}
 
