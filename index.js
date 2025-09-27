@@ -1,3 +1,3 @@
-// Ensure RN core installed before Router entry.
-import 'react-native/Libraries/Core/InitializeCore';
+// Entry point ensures polyfills load before Expo Router
+import './polyfills';
 import 'expo-router/entry';

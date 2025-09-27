@@ -8,6 +8,13 @@ module.exports = ({ config }) => {
   const profile = process.env.EAS_BUILD_PROFILE || process.env.NODE_ENV || '';
   const isDevBuild = profile === 'development' || profile === 'dev';
 
+  // Environment selection for app behavior (dev or prod)
+  const APP_ENV = process.env.APP_ENV === 'prod' ? 'prod' : 'dev';
+
+  // Prefer env-provided EAS project ID so profiles or CI can inject it
+  // This will be populated by EAS CLI when we initialize the project
+  const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || '';
+
   const plugins = [
     'expo-router',
     'sentry-expo',
@@ -35,20 +42,20 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
-    name: 'EduDashPro',
-    slug: 'edudashpro',
-    owner: 'edudashpro',
+    name: APP_ENV === 'prod' ? 'EduDashPro' : 'EduDashPro Dev',
+    slug: APP_ENV === 'prod' ? 'edudashpro' : 'edudashpro-dev',
+    owner: APP_ENV === 'prod' ? 'dashpro' : 'edudashpro',
     version: '1.0.2',
     runtimeVersion,
     updates: {
-      url: 'https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298',
+      url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
       checkAutomatically: isDevBuild ? 'ON_ERROR_RECOVERY' : 'ON_LOAD',
       fallbackToCacheTimeout: isDevBuild ? 0 : 5000,
     },
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
-    scheme: 'edudashpro',
+    scheme: APP_ENV === 'prod' ? 'edudashpro' : 'edudashpro-dev',
     newArchEnabled: true,
     splash: {
       image: './assets/splash-icon.png',
@@ -57,11 +64,11 @@ module.exports = ({ config }) => {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: 'com.k1ngdevops.edudashpro',
+      bundleIdentifier: APP_ENV === 'prod' ? 'com.k1ngdevops.edudashpro' : 'com.k1ngdevops.edudashpro.dev',
     },
     android: {
       edgeToEdgeEnabled: true,
-      package: 'com.edudashpro',
+      package: APP_ENV === 'prod' ? 'com.edudashpro' : 'com.edudashpro.dev',
       googleServicesFile: './google-services.json',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
@@ -103,10 +110,18 @@ module.exports = ({ config }) => {
       display: 'standalone',
       orientation: 'any',
     },
+    privacy: 'https://www.edudashpro.org.za/marketing/privacy-policy',
     extra: {
       router: {},
+      appEnv: APP_ENV,
       eas: {
-        projectId: '253b1057-8489-44cf-b0e3-c3c10319a298',
+        projectId: EAS_PROJECT_ID,
+      },
+      dataPolicy: {
+        privacyPolicy: 'https://www.edudashpro.org.za/marketing/privacy-policy',
+        termsOfService: 'https://www.edudashpro.org.za/marketing/terms-of-service',
+        dataDeletion: 'https://www.edudashpro.org.za/marketing/data-deletion',
+        accountDeletion: 'https://www.edudashpro.org.za/marketing/account-deletion',
       },
     },
   };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/contexts/ThemeContext';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useParentThreads, MessageThread } from '@/hooks/useParentMessaging';
+import { useBlockedUsersCheck } from '@/hooks/useUserBlocking';
+import UserBlockingMenu from '@/components/UserBlockingMenu';
 import SkeletonLoader from '@/components/ui/SkeletonLoader';
 
 // Format timestamp for message threads
@@ -38,9 +40,10 @@ const formatMessageTime = (timestamp: string): string => {
 interface ThreadItemProps {
   thread: MessageThread;
   onPress: () => void;
+  onUserAction: (userId: string, userName: string, userRole: string) => void;
 }
 
-const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress }) => {
+const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress, onUserAction }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   
@@ -125,6 +128,12 @@ const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress }) => {
     rightSection: {
       alignItems: 'flex-end',
     },
+    actionButton: {
+      padding: 8,
+      borderRadius: 16,
+      backgroundColor: theme.surface,
+      marginBottom: 4,
+    },
     unreadBadge: {
       backgroundColor: theme.primary,
       borderRadius: 10,
@@ -180,6 +189,16 @@ const ThreadItem: React.FC<ThreadItemProps> = ({ thread, onPress }) => {
       </View>
       
       <View style={styles.rightSection}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => onUserAction(
+            otherParticipant?.user_profile?.id || '',
+            participantName,
+            participantRole
+          )}
+        >
+          <Ionicons name="ellipsis-horizontal" size={16} color={theme.textSecondary} />
+        </TouchableOpacity>
         <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
         {hasUnread && (
           <View style={styles.unreadBadge}>
@@ -197,6 +216,14 @@ export default function ParentMessagesScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { data: threads, isLoading, error, refetch } = useParentThreads();
+  const { data: blockedUsersMap = {} } = useBlockedUsersCheck();
+  
+  const [blockingMenuVisible, setBlockingMenuVisible] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{
+    id: string;
+    name: string;
+    role: string;
+  } | null>(null);
   
   const styles = StyleSheet.create({
     container: {
@@ -297,6 +324,28 @@ export default function ParentMessagesScreen() {
     router.push('/screens/parent-new-message');
   };
   
+  const handleUserAction = (userId: string, userName: string, userRole: string) => {
+    setSelectedUser({ id: userId, name: userName, role: userRole });
+    setBlockingMenuVisible(true);
+  };
+  
+  const handleUserBlocked = (userId: string) => {
+    // Refresh threads to reflect blocking changes
+    refetch();
+  };
+  
+  const handleUserUnblocked = (userId: string) => {
+    // Refresh threads to reflect unblocking changes
+    refetch();
+  };
+  
+  // Filter out threads from blocked users
+  const filteredThreads = threads?.filter(thread => {
+    const otherParticipant = thread.participants?.find(p => p.role !== 'parent');
+    const participantId = otherParticipant?.user_profile?.id;
+    return !participantId || !blockedUsersMap[participantId];
+  }) || [];
+  
   // Loading state
   if (isLoading) {
     return (
@@ -329,7 +378,7 @@ export default function ParentMessagesScreen() {
   }
   
   // Empty state
-  if (!threads || threads.length === 0) {
+  if (!filteredThreads || filteredThreads.length === 0) {
     return (
       <View style={styles.container}>
         <RoleBasedHeader title={t('parent.messages')} />
@@ -361,13 +410,31 @@ export default function ParentMessagesScreen() {
           />
         }
       >
-        {threads.map((thread) => (
+        {filteredThreads.map((thread) => (
           <ThreadItem
             key={thread.id}
             thread={thread}
             onPress={() => handleThreadPress(thread)}
+            onUserAction={handleUserAction}
           />
         ))}
+        
+        {/* User Blocking Menu */}
+        {selectedUser && (
+          <UserBlockingMenu
+            userId={selectedUser.id}
+            userName={selectedUser.name}
+            userRole={selectedUser.role}
+            visible={blockingMenuVisible}
+            onClose={() => {
+              setBlockingMenuVisible(false);
+              setSelectedUser(null);
+            }}
+            onBlock={handleUserBlocked}
+            onUnblock={handleUserUnblocked}
+            isBlocked={!!blockedUsersMap[selectedUser.id]}
+          />
+        )}
       </ScrollView>
     </View>
   );

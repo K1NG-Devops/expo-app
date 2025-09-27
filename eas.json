@@ -9,6 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
+        "APP_ENV": "dev",
+        "EAS_PROJECT_ID": "4926d822-0e8c-49eb-b1b0-c6adf9285cbd",
         "EXPO_PUBLIC_ENABLE_TEST_TOOLS": "1",
         "EXPO_PUBLIC_ENABLE_CONSOLE": "true"
       }
@@ -21,8 +23,9 @@
         "buildType": "apk"
       },
       "env": {
+        "APP_ENV": "dev",
         "EXPO_PUBLIC_SUPABASE_URL": "https://your-project.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your_anon_key_here",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your_new_anon_key_here",
         "EXPO_PUBLIC_ENVIRONMENT": "preview",
         "EXPO_PUBLIC_TENANT_SLUG": "preview",
         "EXPO_PUBLIC_WHATSAPP_API_ENABLED": "true",
@@ -36,14 +39,15 @@
     },
     "production": {
       "channel": "production",
-      "credentialsSource": "local",
+      "credentialsSource": "remote",
       "android": {
         "buildType": "app-bundle"
       },
       "env": {
+        "APP_ENV": "prod",
         "NODE_ENV": "production",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://lvvvjywrmpcqrpvuptdi.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2dnZqeXdybXBjcXJwdnVwdGRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjcyOTM4MzgsImV4cCI6MjA0Mjg2OTgzOH0.mjXejy3qlG6PQQhFHT_FxjNJG2z_2EZs46w1rFnXI5E",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://your-project.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "your_new_anon_key_here",
         "EXPO_PUBLIC_ENVIRONMENT": "production",
         "EXPO_PUBLIC_TENANT_SLUG": "production",
         "EXPO_PUBLIC_WHATSAPP_API_ENABLED": "true",

@@ -45,11 +45,16 @@
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "minSdkVersion": 21,
-      "versionCode": 3
+      "versionCode": 3,
+      "contentRating": {
+        "targetAudience": "FAMILY",
+        "ageRangeMin": 3,
+        "ageRangeMax": 6,
+        "contentDescriptor": "EDUCATIONAL_CONTENT"
+      }
     },
     "plugins": [
       "expo-router",
-      "expo-dev-client",
       "sentry-expo",
       [
         "react-native-google-mobile-ads",
@@ -81,6 +86,7 @@
     "developmentClient": {
       "silentLaunch": true
     },
+    "privacy": "https://www.edudashpro.org.za/marketing/privacy-policy",
     "web": {
       "favicon": "./assets/favicon.png",
       "name": "EduDash Pro - AI-Powered Educational Platform",
@@ -109,13 +115,7 @@
       "orientation": "any"
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
-      }
-    },
-    "updates": {
-      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
+      "router": {}
     }
   }
 }

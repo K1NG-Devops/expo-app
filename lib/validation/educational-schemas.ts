@@ -38,7 +38,7 @@ const AttachmentSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'File name is required').max(255, 'File name too long'),
   size: FileSizeSchema,
-  type: z.string().regex(/^[a-zA-Z0-9-_\/]+$/, 'Invalid file type'),
+  type: z.string().regex(/^[a-zA-Z0-9-_/]+$/, 'Invalid file type'),
   extension: FileExtensionSchema,
   url: z.string().url('Invalid file URL').optional(),
   uploaded_at: z.string().datetime().optional(),

@@ -158,7 +158,7 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
           <View style={[styles.heroTextContainer, webOptimized && styles.heroTextContainerWeb]}>
             <Animated.View style={[styles.heroTitle, { transform: [{ translateY: floatingY }] }, webOptimized && styles.heroTitleWeb]}>
               <Text style={[styles.heroMainTitle, webOptimized && styles.heroMainTitleWeb]}>
-                <Text style={styles.gradientTextPrimary}>NEURAL</Text> EDUCATION{String.fromCharCode(10)}
+                <Text style={styles.gradientTextPrimary}>NEURAL</Text> EDUCATION{`\n`}
                 <Text style={styles.gradientTextSecondary}>REVOLUTION</Text>
               </Text>
               <Text style={[styles.heroTagline, webOptimized && styles.heroTaglineWeb]}>🚀 Society 5.0 • AI • Robotics • Virtual Reality • Quantum Learning</Text>
@@ -285,14 +285,14 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
       <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.testimonialsGradient}>
         <Text style={styles.sectionTitle}>Neural Testimonials</Text>
         <Text style={styles.sectionSubtitle}>From the educators using tomorrow's technology today</Text>
-<View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
           <TestimonialCard index={activeTestimonial} />
           <View style={styles.testimonialDots}>
             {testimonials.map((_: any, index: number) => (
               <TouchableOpacity key={index} style={[styles.dot, index === activeTestimonial && styles.activeDot]} onPress={() => setActiveTestimonial(index)} />
             ))}
           </View>
-</View>
+        </View>
       </LinearGradient>
     </View>
   );

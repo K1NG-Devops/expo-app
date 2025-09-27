@@ -238,7 +238,14 @@ export default function RootLayout() {
                   <UpdateDebugPanel />
                   {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
                   {/* Foreground-only wake word listener (enabled via settings) */}
-                  {Platform.OS !== 'web' && (require('@/components/ai/DashWakeWordListener').default ? React.createElement(require('@/components/ai/DashWakeWordListener').default) : null)}
+                  {Platform.OS !== 'web' && (() => {
+                    try {
+                      const DashWakeWordListener = require('@/components/ai/DashWakeWordListener').default;
+                      return DashWakeWordListener ? <DashWakeWordListener /> : null;
+                    } catch {
+                      return null;
+                    }
+                  })()}
                 </AdsProvider>
               </SubscriptionProvider>
               </UpdatesProvider>

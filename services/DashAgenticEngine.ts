@@ -260,25 +260,29 @@ export class DashAgenticEngine {
         let query = supabase.from(table);
         
         switch (operation) {
-          case 'select':
+          case 'select': {
             const { data: selectData, error: selectError } = await query.select(data?.select || '*');
             if (selectError) throw selectError;
             return { success: true, message: `Retrieved ${selectData?.length || 0} records from ${table}` };
+          }
             
-          case 'insert':
+          case 'insert': {
             const { error: insertError } = await query.insert(data);
             if (insertError) throw insertError;
             return { success: true, message: `Inserted data into ${table}` };
+          }
             
-          case 'update':
+          case 'update': {
             const { error: updateError } = await query.update(data.values).match(data.match);
             if (updateError) throw updateError;
             return { success: true, message: `Updated data in ${table}` };
+          }
             
-          case 'delete':
+          case 'delete': {
             const { error: deleteError } = await query.delete().match(data.match);
             if (deleteError) throw deleteError;
             return { success: true, message: `Deleted data from ${table}` };
+          }
             
           default:
             return { success: false, message: `Unknown operation: ${operation}` };

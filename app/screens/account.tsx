@@ -694,6 +694,52 @@ export default function AccountScreen() {
     return "U";
   };
 
+  // Request account deletion: confirm and submit a request record to admins
+  const requestAccountDeletion = async () => {
+    Alert.alert(
+      'Request account deletion',
+      'This will submit a request to delete your account and associated data. An administrator will review and process it. This action is generally irreversible once processed. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request deletion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await assertSupabase().auth.getUser();
+              const user = data.user;
+              if (!user?.id) {
+                Alert.alert('Error', 'User not found');
+                return;
+              }
+
+              const { error: insertError } = await assertSupabase()
+                .from('superadmin_user_deletion_requests')
+                .insert({
+                  user_id: user.id,
+                  requester_id: user.id,
+                  reason: 'User requested account deletion via app (Account screen)',
+                });
+
+              if (insertError) throw insertError;
+
+              Alert.alert(
+                'Request submitted',
+                'We have received your account deletion request. An administrator will contact you or process the request shortly.'
+              );
+            } catch (err) {
+              console.error('Account deletion request failed:', err);
+              Alert.alert(
+                'Could not submit request',
+                'Please email support@edudashpro.org.za from your account email with the subject "Account deletion request" and we will assist you.'
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <RoleBasedHeader title={t('navigation.account')} showBackButton onBackPress={() => {
@@ -814,13 +860,21 @@ export default function AccountScreen() {
           )}
         </View>
 
-        {/* Switch Account and Sign Out Buttons */}
+        {/* Switch Account, Request Deletion, and Sign Out Buttons */}
         <TouchableOpacity
           onPress={() => router.push('/(auth)/sign-in?switch=1')}
           style={[styles.signOutButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border }]}
         >
           <SafeIcon name="swap-horizontal" size={20} color={theme.primary} fallback="🔄" />
           <Text style={[styles.signOutText, { color: theme.primary }]}>Switch account</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={requestAccountDeletion}
+          style={styles.signOutButton}
+        >
+          <SafeIcon name="trash" size={20} color={theme.onError} fallback="🗑️" />
+          <Text style={styles.signOutText}>Request account deletion</Text>
         </TouchableOpacity>
 
         <TouchableOpacity

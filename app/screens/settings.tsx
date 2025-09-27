@@ -9,6 +9,7 @@ import {
   Switch,
   ActivityIndicator,
   Platform,
+  Modal,
   TextInput,
 } from "react-native";
 import { router } from "expo-router";
@@ -47,6 +48,17 @@ export default function SettingsScreen() {
   // Feedback preferences
   const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(true);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  // Data deletion (partial) modal state
+  const [showDataDeletionModal, setShowDataDeletionModal] = useState(false);
+  const [deletionCategories, setDeletionCategories] = useState({
+    uploads: true,
+    messages: false,
+    activity: false,
+    aiContent: false,
+    personalData: false,
+  });
+  const [submittingDataDeletion, setSubmittingDataDeletion] = useState(false);
 
   const styles = useThemedStyles((theme) => ({
     container: {
@@ -265,6 +277,103 @@ export default function SettingsScreen() {
     }
   };
 
+  // Request account deletion: confirm and submit a request record to admins
+  const requestAccountDeletion = async () => {
+    Alert.alert(
+      'Request account deletion',
+      'This will submit a request to delete your account and associated data. An administrator will review and process it. This action is generally irreversible once processed. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request deletion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data } = await assertSupabase().auth.getUser();
+              const user = data.user;
+              if (!user?.id) {
+                Alert.alert('Error', 'User not found');
+                return;
+              }
+
+              // Attempt to log a deletion request for admins to process
+              const { error: insertError } = await assertSupabase()
+                .from('superadmin_user_deletion_requests')
+                .insert({
+                  user_id: user.id,
+                  requester_id: user.id,
+                  reason: 'User requested account deletion via app',
+                });
+
+              if (insertError) throw insertError;
+
+              Alert.alert(
+                'Request submitted',
+                'We have received your account deletion request. An administrator will contact you or process the request shortly.'
+              );
+            } catch (err) {
+              console.error('Account deletion request failed:', err);
+              Alert.alert(
+                'Could not submit request',
+                'Please email support@edudashpro.org.za from your account email with the subject "Account deletion request" and we will assist you.'
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Submit partial data deletion request
+  const submitPartialDataDeletionRequest = async () => {
+    try {
+      const selected = Object.entries(deletionCategories)
+        .filter(([_, v]) => v)
+        .map(([k]) => k);
+
+      if (selected.length === 0) {
+        Alert.alert('Select data', 'Please select at least one data category to delete.');
+        return;
+      }
+
+      setSubmittingDataDeletion(true);
+      const { data } = await assertSupabase().auth.getUser();
+      const user = data.user;
+      if (!user?.id) {
+        Alert.alert('Error', 'User not found');
+        return;
+      }
+
+      const { error: insertError } = await assertSupabase()
+        .from('superadmin_user_deletion_requests')
+        .insert({
+          user_id: user.id,
+          requester_id: user.id,
+          reason: 'User requested partial data deletion',
+          metadata: {
+            scope: 'partial',
+            categories: selected,
+          },
+        });
+
+      if (insertError) throw insertError;
+
+      setShowDataDeletionModal(false);
+      Alert.alert(
+        'Request submitted',
+        'We received your data deletion request. An administrator will review and process it.'
+      );
+    } catch (err) {
+      console.error('Partial data deletion request failed:', err);
+      Alert.alert(
+        'Could not submit request',
+        'Please email support@edudashpro.org.za from your account email with the subject "Partial data deletion request" and include which data to delete.'
+      );
+    } finally {
+      setSubmittingDataDeletion(false);
+    }
+  };
+
   const getBiometricStatusText = () => {
     if (!biometricSupported) return t('settings.biometric.notAvailable');
     if (!biometricEnrolled) return t('settings.biometric.setupRequired');
@@ -415,7 +524,7 @@ export default function SettingsScreen() {
 
             {/* Privacy & Data Protection */}
             <TouchableOpacity
-              style={[styles.settingItem, styles.lastSettingItem]}
+              style={[styles.settingItem]}
               onPress={() =>
                 Alert.alert(
                   "Privacy & Security",
@@ -435,6 +544,46 @@ export default function SettingsScreen() {
                   <Text style={styles.settingSubtitle}>
                     {t('settings.learnDataProtection')}
                   </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Request data deletion (partial) */}
+            <TouchableOpacity
+              style={[styles.settingItem]}
+              onPress={() => setShowDataDeletionModal(true)}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons
+                  name="remove-circle"
+                  size={24}
+                  color={theme.textSecondary}
+                  style={styles.settingIcon}
+                />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Request data deletion</Text>
+                  <Text style={styles.settingSubtitle}>Delete selected data (keep account)</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Request account deletion */}
+            <TouchableOpacity
+              style={[styles.settingItem, styles.lastSettingItem]}
+              onPress={requestAccountDeletion}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons
+                  name="trash"
+                  size={24}
+                  color={theme.error}
+                  style={styles.settingIcon}
+                />
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitle, { color: theme.error }]}>Request account deletion</Text>
+                  <Text style={styles.settingSubtitle}>Ask to delete your account and associated data</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -692,7 +841,7 @@ export default function SettingsScreen() {
               onPress={() =>
                 Alert.alert(
                   "Help & Support",
-                  "For support, please contact us at support@edudashpro.com",
+                  "For support, please contact us at support@edudashpro.org.za",
                   [{ text: "OK" }]
                 )
               }
@@ -733,6 +882,128 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Data Deletion Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showDataDeletionModal}
+        onRequestClose={() => setShowDataDeletionModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <Text style={{ fontSize: 18, fontWeight: '600', color: theme.text }}>Request data deletion</Text>
+              <TouchableOpacity onPress={() => setShowDataDeletionModal(false)}>
+                <Ionicons name="close" size={22} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={{ color: theme.textSecondary, marginBottom: 8 }}>
+              Select which data you want us to delete. Your account will remain active.
+            </Text>
+
+            {/* Category toggles */}
+            <View style={[styles.settingItem, { borderBottomWidth: 0 }]}> 
+              <View style={styles.settingLeft}>
+                <Ionicons name="image" size={22} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Uploaded files & media</Text>
+                  <Text style={styles.settingSubtitle}>Profile images or other uploads</Text>
+                </View>
+              </View>
+              <Switch
+                value={deletionCategories.uploads}
+                onValueChange={(v) => setDeletionCategories(prev => ({ ...prev, uploads: v }))}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={deletionCategories.uploads ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="chatbubble-ellipses" size={22} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Messages & communications</Text>
+                  <Text style={styles.settingSubtitle}>Conversations and direct messages</Text>
+                </View>
+              </View>
+              <Switch
+                value={deletionCategories.messages}
+                onValueChange={(v) => setDeletionCategories(prev => ({ ...prev, messages: v }))}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={deletionCategories.messages ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="pulse" size={22} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Activity history & analytics</Text>
+                  <Text style={styles.settingSubtitle}>Usage logs and analytics events</Text>
+                </View>
+              </View>
+              <Switch
+                value={deletionCategories.activity}
+                onValueChange={(v) => setDeletionCategories(prev => ({ ...prev, activity: v }))}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={deletionCategories.activity ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="sparkles" size={22} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>AI-generated content</Text>
+                  <Text style={styles.settingSubtitle}>Prompts, outputs, and related artifacts</Text>
+                </View>
+              </View>
+              <Switch
+                value={deletionCategories.aiContent}
+                onValueChange={(v) => setDeletionCategories(prev => ({ ...prev, aiContent: v }))}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={deletionCategories.aiContent ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            <View style={[styles.settingItem, styles.lastSettingItem]}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="person" size={22} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Non-essential personal data</Text>
+                  <Text style={styles.settingSubtitle}>Optional profile fields and preferences</Text>
+                </View>
+              </View>
+              <Switch
+                value={deletionCategories.personalData}
+                onValueChange={(v) => setDeletionCategories(prev => ({ ...prev, personalData: v }))}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={deletionCategories.personalData ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            {/* Actions */}
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+              <TouchableOpacity onPress={() => setShowDataDeletionModal(false)} style={{ paddingVertical: 12, paddingHorizontal: 16, marginRight: 8 }}>
+                <Text style={{ color: theme.text }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitPartialDataDeletionRequest}
+                disabled={submittingDataDeletion}
+                style={{ paddingVertical: 12, paddingHorizontal: 16, backgroundColor: theme.primary, borderRadius: 8 }}
+              >
+                {submittingDataDeletion ? (
+                  <ActivityIndicator color={theme.onPrimary} />
+                ) : (
+                  <Text style={{ color: theme.onPrimary, fontWeight: '600' }}>Submit request</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

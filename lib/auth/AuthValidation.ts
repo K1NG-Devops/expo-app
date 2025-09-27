@@ -143,7 +143,7 @@ export class AuthValidation {
       feedback.push('Add numbers');
     }
 
-    const specialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
+    const specialChars = /[!@#$%^&*()_+\-=[\]{};':"|,.<>/?]/;
     if (specialChars.test(password)) {
       requirements.hasSpecialChars = true;
       score += 15;
@@ -297,7 +297,7 @@ export class AuthValidation {
     }
 
     // Check for valid phone number patterns
-    const phoneRegex = /^[\+]?[1-9][\d]{0,14}$|^[\d\s\-\(\)\+\.]{10,}$/;
+    const phoneRegex = /^[+]?[1-9][\d]{0,14}$|^[\d\s\-()\+.]{10,}$/;
     if (!phoneRegex.test(trimmedPhone)) {
       errors.push('Please enter a valid phone number');
     }

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { Stack } from 'expo-router'
+import { Stack, router } from 'expo-router'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { track } from '@/lib/analytics'
@@ -116,6 +116,18 @@ export default function TeacherMessagesScreen() {
             <TextInput style={[styles.input, styles.multiline]} value={message} onChangeText={setMessage} placeholder="Write your message to parents..." placeholderTextColor={palette.textSecondary} multiline />
             <TouchableOpacity onPress={onSend} disabled={sending || !classId} style={[styles.primaryBtn, (sending || !classId) && { opacity: 0.6 }]}>
               {sending ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>Send</Text>}
+            </TouchableOpacity>
+          </View>
+          
+          {/* User Management Section */}
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+            <Text style={styles.cardTitle}>User Management</Text>
+            <Text style={styles.label}>Manage communication preferences and blocked users</Text>
+            <TouchableOpacity 
+              style={[styles.primaryBtn, { backgroundColor: palette.outline, marginTop: 12 }]} 
+              onPress={() => router.push('/screens/blocked-users-management')}
+            >
+              <Text style={[styles.primaryBtnText, { color: palette.text }]}>Manage Blocked Users</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
