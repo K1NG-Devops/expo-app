@@ -25,9 +25,7 @@ import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { UpdateDebugPanel } from '@/components/debug/UpdateDebugPanel';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
-import { installNavigationErrorHandlers } from '@/lib/navigation/navigationInterceptor';
 import { useUsageSync } from '@/lib/ai/hooks/useUsageSync';
-
 export default function RootLayout() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
@@ -83,10 +81,6 @@ export default function RootLayout() {
       // Initialize monitoring systems first (for error tracking during init)
       console.log('🔧 Initializing monitoring...');
       startMonitoring();
-      
-      // Install navigation error handlers
-      console.log('🧭 Installing navigation error handlers...');
-      installNavigationErrorHandlers();
       
       // Track app initialization start
       track('edudash.app.initialization_started', {
@@ -231,21 +225,23 @@ export default function RootLayout() {
                 <AdsProvider>
                   <ToastProvider>
                     {/* Initialize cross-device usage sync */}
-                    <UsageSyncBootstrap />
+                    {/* Temporarily disable cross-device usage sync while bootstrapping */}
+                    {/* <UsageSyncBootstrap /> */}
                     <ThemedStackWrapper />
                   </ToastProvider>
-                  <GlobalUpdateBanner />
-                  <UpdateDebugPanel />
-                  {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />}
+                  {/* Temporarily disable non-critical global UI to isolate runtime error */}
+                  {/* <GlobalUpdateBanner /> */}
+                  {/* <UpdateDebugPanel /> */}
+                  {/* {locked && <ThemedLockScreen onUnlock={() => setLocked(false)} />} */}
                   {/* Foreground-only wake word listener (enabled via settings) */}
-                  {Platform.OS !== 'web' && (() => {
+                  {/* {Platform.OS !== 'web' && (() => {
                     try {
                       const DashWakeWordListener = require('@/components/ai/DashWakeWordListener').default;
                       return DashWakeWordListener ? <DashWakeWordListener /> : null;
                     } catch {
                       return null;
                     }
-                  })()}
+                  })()} */}
                 </AdsProvider>
               </SubscriptionProvider>
               </UpdatesProvider>
