@@ -61,7 +61,11 @@ interface TeacherCardProps {
   onPress?: () => void;
 }
 
-export const EnhancedPrincipalDashboard: React.FC = () => {
+interface EnhancedPrincipalDashboardProps {
+  refreshTrigger?: number;
+}
+
+export const EnhancedPrincipalDashboard: React.FC<EnhancedPrincipalDashboardProps> = ({ refreshTrigger }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme, toggleTheme, isDark } = useTheme();

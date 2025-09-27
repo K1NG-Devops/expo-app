@@ -22,6 +22,8 @@ interface NotificationRequest {
     | 'trial_ended'
     | 'seat_request_created'
     | 'seat_request_approved'
+    | 'payment_required'
+    | 'subscription_pending_payment'
     | 'new_invoice'
     | 'invoice_sent'
     | 'overdue_reminder'
@@ -50,6 +52,7 @@ interface NotificationRequest {
     data?: any
   }
   include_email?: boolean
+  include_push?: boolean
   email_template_override?: {
     subject?: string
     html?: string
@@ -232,6 +235,31 @@ function getNotificationTemplate(eventType: string, context: any = {}): Notifica
       sound: 'default',
       priority: 'high',
       channelId: 'admin'
+    },
+    payment_required: {
+      title: 'Payment Required',
+      body: context.message || `Payment required for ${context.plan_tier || 'plan'} upgrade`,
+      data: { 
+        type: 'billing', 
+        screen: 'payment-checkout',
+        subscription_id: context.subscription_id,
+        payment_url: context.payment_url
+      },
+      sound: 'default',
+      priority: 'high',
+      channelId: 'billing'
+    },
+    subscription_pending_payment: {
+      title: 'Payment Pending',
+      body: context.action_required || `Complete payment for ${context.plan_name || 'your subscription'}`,
+      data: { 
+        type: 'billing', 
+        screen: 'payment-checkout',
+        subscription_id: context.subscription_id
+      },
+      sound: 'default',
+      priority: 'high',
+      channelId: 'billing'
     },
     new_invoice: {
       title: 'New Invoice',
@@ -654,6 +682,23 @@ async function getNotificationContext(request: NotificationRequest): Promise<any
         break
       }
 
+      case 'payment_required': {
+        context.subscription_id = request.subscription_id
+        context.plan_tier = request.plan_tier
+        context.payment_url = request.custom_payload?.payment_url
+        context.amount = request.custom_payload?.amount
+        context.message = request.custom_payload?.message
+        break
+      }
+
+      case 'subscription_pending_payment': {
+        context.subscription_id = request.subscription_id
+        context.plan_name = request.custom_payload?.plan_name
+        context.action_required = request.custom_payload?.action_required
+        context.payment_deadline = request.custom_payload?.payment_deadline
+        break
+      }
+
       case 'trial_started':
       case 'trial_ending':
       case 'trial_ended': {
@@ -897,7 +942,7 @@ async function filterUsersByPreferences(
   eventType: string,
   channel: 'email' | 'push' | 'sms' = 'email'
 ): Promise<string[]> {
-  if (!['new_invoice', 'invoice_sent', 'overdue_reminder', 'payment_confirmed', 'invoice_viewed'].includes(eventType)) {
+  if (!['new_invoice', 'invoice_sent', 'overdue_reminder', 'payment_confirmed', 'invoice_viewed', 'payment_required', 'subscription_pending_payment'].includes(eventType)) {
     return userIds // No filtering for non-invoice events
   }
 
@@ -1124,7 +1169,7 @@ async function dispatchNotification(request: Request): Promise<Response> {
     await recordNotification(filteredUserIds, template, notificationRequest, expoResult)
 
     // Send email notifications for invoice events or when explicitly requested
-    const isInvoiceEvent = ['new_invoice', 'invoice_sent', 'overdue_reminder', 'payment_confirmed', 'invoice_viewed'].includes(notificationRequest.event_type)
+    const isInvoiceEvent = ['new_invoice', 'invoice_sent', 'overdue_reminder', 'payment_confirmed', 'invoice_viewed', 'payment_required', 'subscription_pending_payment'].includes(notificationRequest.event_type)
     if (isInvoiceEvent || notificationRequest.include_email) {
       try {
         await sendEnhancedEmailNotification(filteredUserIds, template.title, template.body, notificationRequest.event_type)

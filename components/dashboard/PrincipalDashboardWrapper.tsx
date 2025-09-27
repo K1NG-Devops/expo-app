@@ -32,7 +32,6 @@ export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps>
         <NewEnhancedPrincipalDashboard 
           key="enhanced"
           refreshTrigger={refreshTrigger}
-          preferences={preferences}
         />
       );
     case 'classic':

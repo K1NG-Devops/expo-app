@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
+import { logger } from './logger';
 
 // Dynamically import SecureStore to avoid web issues
 let SecureStore: any = null;
@@ -48,12 +49,26 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Dev-only visibility: indicate whether env vars are present (do not log values)
-if (typeof __DEV__ !== 'undefined' && __DEV__) {
+// Enhanced debugging for environment variable loading (development only)
+const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
+if (isDevelopment) {
   try {
-    // eslint-disable-next-line no-console
-    console.log('[supabase] env present', { hasUrl: !!url, hasAnon: !!anon });
-  } catch {}
+    logger.debug('Supabase env check', { 
+      hasUrl: !!url, 
+      hasAnon: !!anon,
+      urlLength: url ? url.length : 0,
+      anonLength: anon ? anon.length : 0,
+      urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
+      anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING'
+    });
+    if (!url || !anon) {
+      logger.error('Missing Supabase environment variables!');
+      logger.error('EXPO_PUBLIC_SUPABASE_URL:', url ? 'present' : 'MISSING');
+      logger.error('EXPO_PUBLIC_SUPABASE_ANON_KEY:', anon ? 'present' : 'MISSING');
+    }
+  } catch (e) {
+    logger.error('Supabase debug error:', e);
+  }
 }
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
@@ -116,16 +131,16 @@ if (url && anon) {
     },
   });
 
-  if (client && (typeof __DEV__ !== 'undefined' && __DEV__)) {
-    try { console.log('[supabase] client initialized'); } catch {}
+  if (client && isDevelopment) {
+    logger.info('Supabase client initialized successfully');
   }
 
   // Add global error handler for auth errors
   client.auth.onAuthStateChange((event, session) => {
     if (event === 'TOKEN_REFRESHED') {
-      console.log('[Supabase] Token refreshed successfully');
+      logger.info('Token refreshed successfully');
     } else if (event === 'SIGNED_OUT') {
-      console.log('[Supabase] User signed out');
+      logger.info('User signed out');
       // Clear any stale session data
       storage.removeItem('edudash_user_session').catch(() => {});
       storage.removeItem('edudash_user_profile').catch(() => {});
@@ -136,7 +151,39 @@ if (url && anon) {
 // Helper function to assert supabase client exists
 export function assertSupabase(): SupabaseClient {
   if (!client) {
-    throw new Error('Supabase client not initialized. Check EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+    const isTest = process.env.NODE_ENV === 'test';
+    
+    if (isDev || isTest) {
+      // Development/test environment - show detailed debugging info
+      const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+      const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+      
+      let errorMsg = 'Supabase client not initialized.\n';
+      
+      if (!url && !anon) {
+        errorMsg += 'BOTH environment variables are missing:\n';
+        errorMsg += '- EXPO_PUBLIC_SUPABASE_URL\n';
+        errorMsg += '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n';
+      } else if (!url) {
+        errorMsg += 'Missing: EXPO_PUBLIC_SUPABASE_URL\n';
+      } else if (!anon) {
+        errorMsg += 'Missing: EXPO_PUBLIC_SUPABASE_ANON_KEY\n';
+      } else {
+        errorMsg += 'Environment variables are present but client failed to initialize.\n';
+        errorMsg += `URL length: ${url.length}, Key length: ${anon.length}\n`;
+      }
+      
+      errorMsg += '\nTo fix:\n';
+      errorMsg += '1. Check that your .env file exists in the project root\n';
+      errorMsg += '2. Restart your development server (Metro/Expo)\n';
+      errorMsg += '3. Clear cache: npx expo start --clear\n';
+      
+      throw new Error(errorMsg);
+    } else {
+      // Production environment - show user-friendly message
+      throw new Error('Unable to connect to the service. Please check your internet connection and try again.');
+    }
   }
   return client;
 }

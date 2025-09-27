@@ -3,6 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
+import { useSubscription } from '@/contexts/SubscriptionContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { router } from 'expo-router'
 
 interface SimpleEnhancedHeaderProps {
   userName?: string
@@ -19,6 +22,9 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   onWhatsAppPress,
   onProfilePress
 }) => {
+  const { tier: ctxTier } = useSubscription()
+  const { profile } = useAuth()
+  const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
   const { t } = useTranslation('common')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [weatherGreeting, setWeatherGreeting] = useState('')
@@ -43,7 +49,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   }, [t])
 
   const getTierInfo = () => {
-    switch (tier) {
+    switch (effectiveTier) {
       case 'pro':
         return {
           label: 'Pro',
@@ -132,15 +138,29 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
                 </Text>
               </View>
               
-              {tier === 'free' && (
+              {(profile?.role === 'principal' || profile?.role === 'principal_admin' || profile?.role === 'super_admin') ? (
                 <TouchableOpacity 
                   style={styles.upgradeHint}
-                  onPress={() => console.log('Navigate to pricing')}
+                  onPress={() => {
+                    if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
+                    else router.push('/pricing')
+                  }}
                 >
                   <Text style={styles.upgradeText}>
-                    {t('dashboard.upgradeHint')}
+                    Manage plan
                   </Text>
                 </TouchableOpacity>
+              ) : (
+                tier === 'free' && (
+                  <TouchableOpacity 
+                    style={styles.upgradeHint}
+                    onPress={() => router.push('/pricing')}
+                  >
+                    <Text style={styles.upgradeText}>
+                      {t('dashboard.upgradeHint')}
+                    </Text>
+                  </TouchableOpacity>
+                )
               )}
             </View>
 

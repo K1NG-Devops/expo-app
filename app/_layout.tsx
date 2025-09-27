@@ -9,6 +9,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import GlobalShortcuts from '@/components/navigation/GlobalShortcuts';
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -249,6 +250,8 @@ export default function RootLayout() {
                 <ToastProvider>
                 <View style={styles.container}>
                   <StatusBar style="dark" />
+                  {/* Global shortcuts and command palette (web only) */}
+                  <GlobalShortcuts />
                   <Stack
                     screenOptions={{
                       headerShown: false,

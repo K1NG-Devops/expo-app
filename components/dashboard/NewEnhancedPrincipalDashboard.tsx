@@ -61,7 +61,11 @@ interface QuickActionProps {
   subtitle?: string;
 }
 
-export const NewEnhancedPrincipalDashboard: React.FC = () => {
+interface NewEnhancedPrincipalDashboardProps {
+  refreshTrigger?: number;
+}
+
+export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = ({ refreshTrigger }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();

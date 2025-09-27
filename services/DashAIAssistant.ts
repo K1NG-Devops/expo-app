@@ -727,13 +727,41 @@ export class DashAIAssistant {
   }
 
   /**
-   * Extract lesson parameters from user input and AI response
+   * Extract lesson parameters from user input and AI response (enhanced)
    */
   private extractLessonParameters(userInput: string, aiResponse: string): Record<string, string> {
     const params: Record<string, string> = {};
-    const fullText = `${userInput} ${aiResponse}`.toLowerCase();
-    
-    // Extract grade level
+    const fullTextRaw = `${userInput || ''} ${aiResponse || ''}`;
+    const fullText = fullTextRaw.toLowerCase();
+
+    // Language hints (e.g., "in Spanish", "respond in Afrikaans")
+    const languageHints: Record<string, RegExp> = {
+      en: /(in\s+english|respond\s+in\s+english)/i,
+      es: /(in\s+spanish|en\s+español|responde\s+en\s+español)/i,
+      fr: /(in\s+french|en\s+français)/i,
+      pt: /(in\s+portuguese|em\s+portugu[eê]s)/i,
+      de: /(in\s+german|auf\s+deutsch)/i,
+      af: /(in\s+afrikaans)/i,
+      zu: /(in\s+zulu|ngesi[zs]ulu)/i,
+      st: /(in\s+sesotho|sesotho)/i,
+    };
+    for (const [code, rx] of Object.entries(languageHints)) {
+      if (rx.test(fullTextRaw)) { params.language = code; break; }
+    }
+
+    // Curriculum hints
+    if (/caps/i.test(fullTextRaw)) params.curriculum = 'CAPS';
+    else if (/common\s*core/i.test(fullTextRaw)) params.curriculum = 'Common Core';
+    else if (/cambridge|igcse/i.test(fullTextRaw)) params.curriculum = 'Cambridge';
+    else if (/(uk\s*national\s*curriculum|uk\s*curriculum)/i.test(fullTextRaw)) params.curriculum = 'UK';
+    else if (/ib\s*(pyp|myp|dp)?/i.test(fullTextRaw)) params.curriculum = 'IB';
+
+    // Model hints ("use haiku/sonnet/opus", or speed words)
+    if (/\b(haiku|fast)\b/i.test(fullTextRaw)) params.model = 'claude-3-haiku';
+    else if (/\b(sonnet|smart|balanced)\b/i.test(fullTextRaw)) params.model = 'claude-3-sonnet';
+    else if (/\b(opus|expert|advanced)\b/i.test(fullTextRaw)) params.model = 'claude-3-opus';
+
+    // Grade level
     const gradeMatch = fullText.match(/grade\s*(\d{1,2})|year\s*(\d{1,2})|(\d{1,2})(?:st|nd|rd|th)?\s*grade/i);
     if (gradeMatch) {
       const grade = gradeMatch[1] || gradeMatch[2] || gradeMatch[3];
@@ -741,11 +769,11 @@ export class DashAIAssistant {
         params.gradeLevel = grade;
       }
     }
-    
-    // Extract subject with expanded matching
+
+    // Subject synonyms
     const subjectPatterns = {
-      'Mathematics': /(math|mathematics|maths|arithmetic|algebra|geometry|calculus)/i,
-      'Science': /(science|biology|chemistry|physics|life\s*science)/i,
+      'Mathematics': /(math|mathematics|maths|arithmetic|algebra|geometry|calculus|numbers?\s*sense|fractions?)/i,
+      'Science': /(science|biology|chemistry|physics|life\s*science|natural\s*science)/i,
       'English': /(english|language\s*arts?|reading|writing|literature)/i,
       'Afrikaans': /(afrikaans)/i,
       'Life Skills': /(life\s*skills?)/i,
@@ -754,61 +782,70 @@ export class DashAIAssistant {
       'Art': /(art|creative|drawing|painting)/i,
       'Music': /(music|singing)/i,
       'Physical Education': /(physical\s*education|pe|sports?|fitness)/i
-    };
-    
+    } as const;
     for (const [subject, pattern] of Object.entries(subjectPatterns)) {
-      if (pattern.test(fullText)) {
-        params.subject = subject;
-        break;
+      if (pattern.test(fullTextRaw)) { params.subject = subject; break; }
+    }
+
+    // Topic/theme: allow quoted phrases or after keywords
+    const topicQuoted = fullTextRaw.match(/topic\s*[:\-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
+    if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
+      const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
+      if (t) params.topic = t;
+    } else {
+      const topicMatch = fullText.match(/(?:about|on|teaching|topic|theme)\s+([^.,;!?]+?)(?:\s+(?:for|to|with)|[.,;!?]|$)/i);
+      if (topicMatch && topicMatch[1]) {
+        const t = topicMatch[1].trim();
+        if (t.length > 2 && t.length < 80) params.topic = t;
       }
     }
-    
-    // Extract topic/theme
-    // Look for topics after keywords like "about", "on", "teaching", etc.
-    const topicMatch = fullText.match(/(?:about|on|teaching|topic|theme)\s+([^.,;!?]+?)(?:\s+(?:for|to|with)|[.,;!?]|$)/i);
-    if (topicMatch && topicMatch[1]) {
-      const topic = topicMatch[1].trim();
-      if (topic.length > 2 && topic.length < 50) {
-        params.topic = topic;
+
+    // Duration: handle "one and a half hours", "half an hour", "90-minute"
+    let durationMins: number | null = null;
+    const numMatch = fullText.match(/(\d{1,3})\s*\-?\s*(?:minute|min)s?\b/i);
+    const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
+    const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
+    const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
+    if (numMatch) durationMins = parseInt(numMatch[1]);
+    else if (hourMatch) durationMins = Math.round(parseFloat(hourMatch[1]) * 60);
+    else if (ninetyLike) durationMins = 90;
+    else if (halfHour) durationMins = 30;
+    if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
+
+    // Objectives: capture bullet points and sentences
+    const lines = fullTextRaw.split(/\n|;|•|\-/).map(s => s.trim()).filter(Boolean);
+    const objectiveCandidates: string[] = [];
+    const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
+    for (const ln of lines) {
+      if (objectiveVerbs.test(ln) && ln.length > 5 && ln.length < 140) {
+        objectiveCandidates.push(ln.replace(/^[^:]*:?\s*/, ''))
       }
     }
-    
-    // Extract duration
-    const durationMatch = fullText.match(/(\d{1,3})\s*(?:minute|min|hour|hr)s?/i);
-    if (durationMatch) {
-      let duration = parseInt(durationMatch[1]);
-      // Convert hours to minutes
-      if (fullText.includes('hour') || fullText.includes('hr')) {
-        duration *= 60;
-      }
-      // Reasonable duration range (15-180 minutes)
-      if (duration >= 15 && duration <= 180) {
-        params.duration = duration.toString();
-      }
-    }
-    
-    // Extract learning objectives
-    const objectiveKeywords = ['objective', 'goal', 'aim', 'learn', 'understand', 'master'];
-    const objectivePattern = new RegExp(`(?:${objectiveKeywords.join('|')})s?[^.]*?([^.;]+)`, 'gi');
-    const objectiveMatches = fullText.match(objectivePattern);
-    if (objectiveMatches && objectiveMatches.length > 0) {
-      const objectives = objectiveMatches.map(match => 
-        match.replace(/^[^:]*:?\s*/, '').trim()
-      ).filter(obj => obj.length > 5 && obj.length < 100);
-      
-      if (objectives.length > 0) {
-        params.objectives = objectives.slice(0, 3).join('; ');
-      }
-    }
-    
-    // If we have enough parameters, add autogenerate flag
+    if (objectiveCandidates.length) params.objectives = objectiveCandidates.slice(0, 4).join('; ');
+
+    // Assessment hints
+    const assess = fullTextRaw.match(/(quiz|exit\s*ticket|rubric|project|worksheet)/i);
+    if (assess) params.assessmentType = assess[1].toLowerCase();
+
+    // Autogenerate if we have enough
     const paramCount = Object.keys(params).length;
-    if (paramCount >= 2) {
-      params.autogenerate = 'true';
-    }
-    
-    console.log('[Dash] Extracted lesson parameters:', params);
+    if (paramCount >= 2) params.autogenerate = 'true';
+
+    console.log('[Dash] Extracted lesson parameters (enhanced):', params);
     return params;
+  }
+
+  /**
+   * Build and open a deep link to Lesson Generator using extracted params
+   */
+  public openLessonGeneratorFromContext(userInput: string, aiResponse: string): void {
+    try {
+      const params = this.extractLessonParameters(userInput, aiResponse);
+      const query = new URLSearchParams(params as any).toString();
+      router.push({ pathname: '/screens/ai-lesson-generator', params });
+    } catch (e) {
+      console.warn('[Dash] Failed to open Lesson Generator from context:', e);
+    }
   }
   
   /**
@@ -918,6 +955,9 @@ export class DashAIAssistant {
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
+    // Handle bullet points and list formatting FIRST (before other transformations)
+    normalized = this.normalizeBulletPoints(normalized);
+    
     // Handle numbers intelligently
     normalized = this.normalizeNumbers(normalized);
     
@@ -930,7 +970,7 @@ export class DashAIAssistant {
     // Handle abbreviations and acronyms
     normalized = this.normalizeAbbreviations(normalized);
     
-    // Handle mathematical expressions
+    // Handle mathematical expressions (only in math contexts)
     normalized = this.normalizeMathExpressions(normalized);
     
     // Remove emojis (Unicode ranges)
@@ -1005,6 +1045,28 @@ export class DashAIAssistant {
   }
   
   /**
+   * Normalize bullet points and list formatting
+   */
+  private normalizeBulletPoints(text: string): string {
+    return text
+      // Handle bullet points at start of lines
+      .replace(/^[\s]*[-•*+]\s+/gm, '') // Remove bullet at line start
+      .replace(/\n[\s]*[-•*+]\s+/g, '\n') // Remove bullet after newlines
+      // Handle numbered lists
+      .replace(/^[\s]*(\d+)[.)\s]+/gm, '') // Remove "1. " or "1) " at line start
+      .replace(/\n[\s]*(\d+)[.)\s]+/g, '\n') // Remove numbered bullets after newlines
+      // Handle dashes in educational content (not math contexts)
+      .replace(/([a-zA-Z])\s*-\s*([A-Z][a-z])/g, '$1, $2') // "Students - They will" -> "Students, They will"
+      // Handle dash separators in descriptions
+      .replace(/([a-z])\s*-\s*([a-z])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
+      // Clean up extra spaces and newlines
+      .replace(/\n\s*\n/g, '. ') // Double newlines become sentence breaks
+      .replace(/\n/g, '. ') // Single newlines become sentence breaks
+      .replace(/\s+/g, ' ') // Multiple spaces become single space
+      .trim();
+  }
+  
+  /**
    * Normalize special formatting like underscores and camelCase
    */
   private normalizeSpecialFormatting(text: string): string {
@@ -1061,13 +1123,29 @@ export class DashAIAssistant {
   }
   
   /**
-   * Normalize mathematical expressions
+   * Normalize mathematical expressions (only in math contexts)
    */
   private normalizeMathExpressions(text: string): string {
+    // Check if this appears to be mathematical content
+    const hasMathContext = /\b(math|equation|formula|calculate|solve|problem|exercise)\b/i.test(text) ||
+                          /\d+\s*[+\-*/=]\s*\d+/g.test(text) ||
+                          /\b\d+\s*\/\s*\d+\b/.test(text);
+    
+    if (!hasMathContext) {
+      // Only handle standalone fractions and percentages in non-math contexts
+      return text
+        .replace(/\b(\d+)\s*%/g, '$1 percent')
+        // Handle fractions only when clearly mathematical (surrounded by numbers/operators)
+        .replace(/\b(\d+)\s*\/\s*(\d+)\b(?=[^a-zA-Z]|$)/g, (match, num, den) => {
+          return this.fractionToWords(parseInt(num), parseInt(den));
+        });
+    }
+    
+    // Full math processing for mathematical contexts
     return text
       // Handle basic operations
       .replace(/\+/g, ' plus ')
-      .replace(/-/g, ' minus ')
+      .replace(/(?<!\w)-(?=\d)/g, ' minus ') // Only replace minus before numbers
       .replace(/\*/g, ' times ')
       .replace(/\//g, ' divided by ')
       .replace(/=/g, ' equals ')
@@ -2074,7 +2152,12 @@ export class DashAIAssistant {
   /**
    * Play Dash's response with voice synthesis
    */
-  public async speakResponse(message: DashMessage): Promise<void> {
+  public async speakResponse(message: DashMessage, callbacks?: {
+    onStart?: () => void;
+    onDone?: () => void;
+    onStopped?: () => void;
+    onError?: (error: any) => void;
+  }): Promise<void> {
     if (message.type !== 'assistant') {
       return;
     }
@@ -2088,21 +2171,43 @@ export class DashAIAssistant {
       // Only speak if there's actual text content after normalization
       if (normalizedText.length === 0) {
         console.log('[Dash] No speakable content after normalization');
+        callbacks?.onError?.('No speakable content after normalization');
         return;
       }
       
-      await Speech.speak(normalizedText, {
-        language: voiceSettings.language,
-        pitch: voiceSettings.pitch,
-        rate: voiceSettings.rate,
-        voice: voiceSettings.voice,
-        onStart: () => console.log('[Dash] Started speaking'),
-        onDone: () => console.log('[Dash] Finished speaking'),
-        onStopped: () => console.log('[Dash] Speech stopped'),
-        onError: (error) => console.error('[Dash] Speech error:', error),
+      console.log('[Dash] About to start speaking:', normalizedText.substring(0, 100) + '...');
+      
+      return new Promise<void>((resolve, reject) => {
+        Speech.speak(normalizedText, {
+          language: voiceSettings.language,
+          pitch: voiceSettings.pitch,
+          rate: voiceSettings.rate,
+          voice: voiceSettings.voice,
+          onStart: () => {
+            console.log('[Dash] Started speaking');
+            callbacks?.onStart?.();
+          },
+          onDone: () => {
+            console.log('[Dash] Finished speaking');
+            callbacks?.onDone?.();
+            resolve();
+          },
+          onStopped: () => {
+            console.log('[Dash] Speech stopped');
+            callbacks?.onStopped?.();
+            resolve();
+          },
+          onError: (error) => {
+            console.error('[Dash] Speech error:', error);
+            callbacks?.onError?.(error);
+            reject(error);
+          },
+        });
       });
     } catch (error) {
       console.error('[Dash] Failed to speak response:', error);
+      callbacks?.onError?.(error);
+      throw error;
     }
   }
 

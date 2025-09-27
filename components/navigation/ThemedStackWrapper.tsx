@@ -4,16 +4,84 @@
  * Wraps the Stack navigator with theme-aware styling
  */
 
-import React from 'react';
-import { Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/contexts/ThemeContext';
 import { View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 
 export function ThemedStackWrapper() {
   const { theme, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const [showPalette, setShowPalette] = useState(false);
+
+  // Global keyboard shortcut Cmd/Ctrl+K for web
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const seqRef = { lastKey: '', lastTime: 0 } as { lastKey: string; lastTime: number };
+
+    const handler = (e: KeyboardEvent) => {
+      const key = e.key;
+      const lower = key?.toLowerCase?.() || '';
+
+      // ESC closes palette
+      if (key === 'Escape') {
+        if (showPalette) {
+          e.preventDefault();
+          setShowPalette(false);
+          return;
+        }
+      }
+
+      // Cmd/Ctrl+K opens palette
+      const isCmdK = (e.metaKey || e.ctrlKey) && (lower === 'k');
+      if (isCmdK) {
+        // Ignore if typing in input/textarea/contentEditable
+        const t = e.target as HTMLElement | null;
+        const tag = (t && t.tagName) ? t.tagName.toLowerCase() : '';
+        const editing = tag === 'input' || tag === 'textarea' || (t && (t as any).isContentEditable);
+        if (editing) return;
+        e.preventDefault();
+        setShowPalette(true);
+        return;
+      }
+
+      // Two-key sequences (e.g., g l)
+      const now = Date.now();
+      const within = now - seqRef.lastTime < 800; // 800ms window
+      if (seqRef.lastKey === 'g' && within) {
+        // Map sequences
+        const map: Record<string, string> = {
+          'l': '/screens/lessons-hub',
+          's': '/screens/lessons-search',
+          'c': '/screens/lessons-categories',
+          'a': '/screens/dash-assistant',
+          'd': '/screens/teacher-dashboard',
+          'p': '/screens/principal-dashboard',
+          'f': '/screens/financial-dashboard',
+          'h': '/screens/dash-conversations-history',
+        };
+        const route = map[lower];
+        if (route) {
+          e.preventDefault();
+          // Reset sequence and navigate
+          seqRef.lastKey = '';
+          seqRef.lastTime = 0;
+          try { router.push(route as any); } catch {}
+          return;
+        }
+      }
+
+      // Update sequence
+      seqRef.lastKey = lower;
+      seqRef.lastTime = now;
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showPalette]);
 
   return (
     <>
@@ -42,6 +110,8 @@ export function ThemedStackWrapper() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
       </Stack>
+      {/* Global Command Palette */}
+      <DashCommandPalette visible={showPalette} onClose={() => setShowPalette(false)} />
     </>
   );
 }

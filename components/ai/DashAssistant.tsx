@@ -30,6 +30,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { assertSupabase } from '@/lib/supabase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -51,10 +54,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<DashConversation | null>(null);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
 
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -225,6 +231,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   }, [dashInstance, isSpeaking]);
 
+  const wantsLessonGenerator = (t: string, assistantText?: string): boolean => {
+    const rx = /(create|plan|generate)\s+(a\s+)?lesson(\s+plan)?|lesson\s+plan|teach\s+.*(about|on)/i
+    if (rx.test(t)) return true
+    if (assistantText && rx.test(assistantText)) return true
+    return false
+  }
+
   const sendMessage = async (text: string = inputText.trim()) => {
     if (!text || !dashInstance || isLoading) return;
 
@@ -232,7 +245,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       setIsLoading(true);
       setInputText('');
 
-      const response = await dashInstance.sendMessage(text);
+      const userText = text
+      const response = await dashInstance.sendMessage(userText);
       
       // Handle dashboard actions if present
       if (response.metadata?.dashboard_action?.type === 'switch_layout') {
@@ -248,11 +262,23 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         }
       } else if (response.metadata?.dashboard_action?.type === 'open_screen') {
         const { route, params } = response.metadata.dashboard_action as any;
-        console.log(`[Dash] Opening screen: ${route}`, params || {});
-        try {
-          router.push({ pathname: route, params } as any);
-        } catch (e) {
-          console.warn('Failed to navigate to route from Dash action:', e);
+        console.log(`[Dash] Proposed open_screen: ${route}`, params || {});
+        // Require confirmation for AI Lesson Generator to avoid auto-navigation
+        if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
+          Alert.alert(
+            'Open Lesson Generator?',
+            'Dash suggests opening the AI Lesson Generator with these details. Continue?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
+            ]
+          );
+        } else {
+          try {
+            router.push({ pathname: route, params } as any);
+          } catch (e) {
+            console.warn('Failed to navigate to route from Dash action:', e);
+          }
         }
       }
       
@@ -262,6 +288,25 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         setMessages(updatedConv.messages);
         setConversation(updatedConv);
       }
+
+      // Offer to open Lesson Generator when intent detected
+      try {
+        const intentType = response?.metadata?.user_intent?.primary_intent || ''
+        const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator(userText, response?.content)
+        if (shouldOpen) {
+          // Ask user to proceed
+          setTimeout(() => {
+            Alert.alert(
+              'Open Lesson Generator?',
+              'I can open the AI Lesson Generator with the details we discussed. Continue?',
+              [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(userText, response?.content || '') }
+              ]
+            )
+          }, 200)
+        }
+      } catch {}
 
       // Auto-speak response if enabled
       setTimeout(() => {
@@ -318,8 +363,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
         if (response.metadata?.dashboard_action?.type === 'open_screen') {
           const { route, params } = response.metadata.dashboard_action as any;
-          console.log(`[Dash] Opening screen: ${route}`, params || {});
-          try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
+          console.log(`[Dash] Proposed open_screen: ${route}`, params || {});
+          if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
+            Alert.alert(
+              'Open Lesson Generator?',
+              'Dash suggests opening the AI Lesson Generator with these details. Continue?',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
+              ]
+            );
+          } else {
+            try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
+          }
         }
         
         // Update messages from conversation
@@ -328,6 +384,24 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           setMessages(updatedConv.messages);
           setConversation(updatedConv);
         }
+
+        // Offer to open Lesson Generator when intent detected
+        try {
+          const intentType = response?.metadata?.user_intent?.primary_intent || ''
+          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator(transcript, response?.content)
+          if (shouldOpen) {
+            setTimeout(() => {
+              Alert.alert(
+                'Open Lesson Generator?',
+                'I can open the AI Lesson Generator with the details we discussed. Continue?',
+                [
+                  { text: 'Not now', style: 'cancel' },
+                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(transcript, response?.content || '') }
+                ]
+              )
+            }, 200)
+          }
+        } catch {}
 
         // Auto-speak response
         setTimeout(() => {
@@ -343,26 +417,82 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   };
 
   const speakResponse = async (message: DashMessage) => {
-    if (!dashInstance || isSpeaking || message.type !== 'assistant') return;
+    console.log(`[DashAssistant] speakResponse called for message: ${message.id}`);
+    console.log(`[DashAssistant] Current state - isSpeaking: ${isSpeaking}, speakingMessageId: ${speakingMessageId}`);
+    
+    if (!dashInstance || message.type !== 'assistant') {
+      console.log(`[DashAssistant] Cannot speak - dashInstance: ${!!dashInstance}, messageType: ${message.type}`);
+      return;
+    }
+
+    // If already speaking this message, stop it
+    if (speakingMessageId === message.id) {
+      console.log(`[DashAssistant] Stopping speech for message: ${message.id}`);
+      await stopSpeaking();
+      return;
+    }
+
+    // Stop any current speech
+    if (isSpeaking && speakingMessageId) {
+      console.log(`[DashAssistant] Stopping previous speech for message: ${speakingMessageId}`);
+      await stopSpeaking();
+    }
 
     try {
+      console.log(`[DashAssistant] Starting speech for message: ${message.id}`);
       setIsSpeaking(true);
-      await dashInstance.speakResponse(message);
+      setSpeakingMessageId(message.id);
+      
+      await dashInstance.speakResponse(message, {
+        onStart: () => {
+          console.log(`[DashAssistant] Speech started for message: ${message.id}`);
+          // State is already set above
+        },
+        onDone: () => {
+          console.log(`[DashAssistant] Speech finished for message: ${message.id}`);
+          setIsSpeaking(false);
+          setSpeakingMessageId(null);
+        },
+        onStopped: () => {
+          console.log(`[DashAssistant] Speech stopped for message: ${message.id}`);
+          setIsSpeaking(false);
+          setSpeakingMessageId(null);
+        },
+        onError: (error) => {
+          console.error(`[DashAssistant] Speech error for message ${message.id}:`, error);
+          setIsSpeaking(false);
+          setSpeakingMessageId(null);
+        }
+      });
+      
+      console.log(`[DashAssistant] Speech completed for message: ${message.id}`);
     } catch (error) {
       console.error('Failed to speak response:', error);
-    } finally {
       setIsSpeaking(false);
+      setSpeakingMessageId(null);
     }
   };
 
   const stopSpeaking = async () => {
-    if (!dashInstance || !isSpeaking) return;
+    console.log(`[DashAssistant] stopSpeaking called - current speakingMessageId: ${speakingMessageId}`);
+    
+    if (!dashInstance) {
+      console.log(`[DashAssistant] Cannot stop speaking - no dashInstance`);
+      return;
+    }
 
     try {
+      console.log(`[DashAssistant] Calling dashInstance.stopSpeaking()`);
       await dashInstance.stopSpeaking();
+      console.log(`[DashAssistant] dashInstance.stopSpeaking() completed`);
       setIsSpeaking(false);
+      setSpeakingMessageId(null);
+      console.log(`[DashAssistant] Speech state cleared`);
     } catch (error) {
       console.error('Failed to stop speaking:', error);
+      // Still clear the state even if stopping failed
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
     }
   };
 
@@ -448,31 +578,46 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             </View>
           )}
           
-          <Text
-            style={[
-              styles.messageTime,
-              { color: isUser ? theme.onPrimary : theme.textTertiary },
-            ]}
-          >
-            {new Date(message.timestamp).toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })}
-          </Text>
+          {/* Bottom row with speak button (left) and timestamp (right) */}
+          <View style={styles.messageBubbleFooter}>
+            {!isUser && (
+              <TouchableOpacity
+                style={[
+                  styles.inlineSpeakButton, 
+                  { 
+                    backgroundColor: speakingMessageId === message.id ? theme.error : theme.accent,
+                  }
+                ]}
+                onPress={() => {
+                  console.log(`[DashAssistant] Speak button pressed for message ${message.id}`);
+                  console.log(`[DashAssistant] Currently speaking: ${speakingMessageId}`);
+                  console.log(`[DashAssistant] Is same message: ${speakingMessageId === message.id}`);
+                  speakResponse(message);
+                }}
+                activeOpacity={0.7}
+                accessibilityLabel={speakingMessageId === message.id ? "Stop speaking" : "Speak message"}
+              >
+                <Ionicons 
+                  name={speakingMessageId === message.id ? "stop" : "volume-high"} 
+                  size={12} 
+                  color={speakingMessageId === message.id ? theme.onError || theme.background : theme.onAccent} 
+                />
+              </TouchableOpacity>
+            )}
+            <View style={{ flex: 1 }} />
+            <Text
+              style={[
+                styles.messageTime,
+                { color: isUser ? theme.onPrimary : theme.textTertiary },
+              ]}
+            >
+              {new Date(message.timestamp).toLocaleTimeString([], { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </Text>
+          </View>
         </View>
-        
-        {!isUser && isLastMessage && !isLoading && (
-          <TouchableOpacity
-            style={[styles.speakButton, { backgroundColor: theme.accent }]}
-            onPress={() => isSpeaking ? stopSpeaking() : speakResponse(message)}
-          >
-            <Ionicons 
-              name={isSpeaking ? "stop" : "volume-high"} 
-              size={16} 
-              color={theme.onAccent} 
-            />
-          </TouchableOpacity>
-        )}
         
 
       </View>
@@ -648,7 +793,15 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <View style={styles.headerLeft}>
           <View>
-            <Text style={[styles.headerTitle, { color: theme.text }]}>Dash</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.headerTitle, { color: theme.text }]}>Dash</Text>
+              {/* Tier badge */}
+              {subReady && (
+                <View style={[styles.tierBadge, { borderColor: theme.border, backgroundColor: getTierColor(tier) + '20' }]}>
+                  <Text style={[styles.tierBadgeText, { color: getTierColor(tier) }]}>{getTierLabel(tier)}</Text>
+                </View>
+              )}
+            </View>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
               AI Teaching Assistant
             </Text>
@@ -656,19 +809,83 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
 
         <View style={styles.headerRight}>
+          {/* Verify tier button */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            accessibilityLabel="Verify subscription tier"
+            onPress={async () => {
+              try {
+                const supa = assertSupabase();
+                const { data: { user } } = await supa.auth.getUser();
+                let metaTier = (user?.user_metadata as any)?.subscription_tier || 'unknown';
+                let profileTier = 'unknown';
+                let planTier = 'unknown';
+                let schoolId: string | undefined = (user?.user_metadata as any)?.preschool_id;
+                if (!schoolId && user?.id) {
+                  const { data: profile } = await supa
+                    .from('profiles')
+                    .select('preschool_id')
+                    .eq('id', user.id)
+                    .maybeSingle();
+                  schoolId = profile?.preschool_id;
+                }
+                if (schoolId) {
+                  const { data: sub } = await supa
+                    .from('subscriptions')
+                    .select('plan_id, status')
+                    .eq('school_id', schoolId)
+                    .eq('status', 'active')
+                    .maybeSingle();
+                  if (sub?.plan_id) {
+                    const { data: plan } = await supa
+                      .from('subscription_plans')
+                      .select('tier')
+                      .eq('id', sub.plan_id)
+                      .maybeSingle();
+                    planTier = String(plan?.tier || 'unknown');
+                  }
+                }
+                // The SubscriptionContext tier
+                profileTier = tier;
+                const msg = `Tier verification:\n- Context tier: ${profileTier}\n- Metadata tier: ${metaTier}\n- Plan tier: ${planTier}\n- School: ${schoolId || 'none'}`;
+                Alert.alert('Subscription Tier', msg, [{ text: 'OK' }]);
+              } catch (e) {
+                Alert.alert('Subscription Tier', 'Failed to verify tier');
+              }
+            }}
+          >
+            <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            accessibilityLabel="Command Palette"
+            onPress={() => setShowCommandPalette(true)}
+          >
+            <Ionicons name="compass-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
+          </TouchableOpacity>
+          {isSpeaking && (
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: theme.error }]}
+              accessibilityLabel="Stop speaking"
+              onPress={stopSpeaking}
+            >
+              <Ionicons name="stop" size={screenWidth < 400 ? 18 : 22} color={theme.onError || theme.background} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Conversations"
             onPress={() => router.push('/screens/dash-conversations-history')}
           >
-            <Ionicons name="time-outline" size={22} color={theme.text} />
+            <Ionicons name="time-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Settings"
             onPress={() => router.push('/screens/dash-ai-settings')}
           >
-            <Ionicons name="settings-outline" size={22} color={theme.text} />
+            <Ionicons name="settings-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
           {onClose && (
             <TouchableOpacity
@@ -677,6 +894,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 // Stop any ongoing speech and update UI state
                 if (dashInstance) {
                   setIsSpeaking(false);
+                  setSpeakingMessageId(null);
                   await dashInstance.stopSpeaking();
                   dashInstance.cleanup();
                 }
@@ -684,7 +902,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               }}
               accessibilityLabel="Close"
             >
-              <Ionicons name="close" size={24} color={theme.text} />
+              <Ionicons name="close" size={screenWidth < 400 ? 20 : 24} color={theme.text} />
             </TouchableOpacity>
           )}
         </View>
@@ -773,9 +991,37 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           </View>
         )}
       </View>
+      {/* Command Palette Modal */}
+      <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
     </KeyboardAvoidingView>
   );
 };
+
+// Helper functions for tier badge
+function getTierLabel(tier?: string) {
+  const t = String(tier || '').toLowerCase()
+  switch (t) {
+    case 'starter': return 'Starter'
+    case 'basic': return 'Basic'
+    case 'premium': return 'Premium'
+    case 'pro': return 'Pro'
+    case 'enterprise': return 'Enterprise'
+    case 'free':
+    default: return 'Free'
+  }
+}
+function getTierColor(tier?: string) {
+  const t = String(tier || '').toLowerCase()
+  switch (t) {
+    case 'starter': return '#059669' // green
+    case 'premium': return '#7C3AED' // purple
+    case 'pro': return '#2563EB' // blue
+    case 'enterprise': return '#DC2626' // red
+    case 'basic': return '#10B981' // teal/emerald
+    case 'free':
+    default: return '#6B7280' // gray
+  }
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -821,25 +1067,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  tierBadge: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  tierBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: screenWidth < 400 ? 32 : 36,
+    height: screenWidth < 400 ? 32 : 36,
+    borderRadius: screenWidth < 400 ? 16 : 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 4,
+    marginLeft: screenWidth < 400 ? 2 : 4,
+    minWidth: 32, // Ensure minimum touch target
+    minHeight: 32,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: screenWidth < 400 ? 32 : 36,
+    height: screenWidth < 400 ? 32 : 36,
+    borderRadius: screenWidth < 400 ? 16 : 18,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 4,
+    marginLeft: screenWidth < 400 ? 2 : 4,
+    minWidth: 32, // Ensure minimum touch target
+    minHeight: 32,
   },
   messagesContainer: {
     flex: 1,
@@ -912,16 +1173,18 @@ const styles = StyleSheet.create({
   },
   messageTime: {
     fontSize: 10,
-    marginTop: 4,
+    marginTop: 0,
     alignSelf: 'flex-end',
   },
   speakButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: screenWidth < 400 ? 30 : 32,
+    height: screenWidth < 400 ? 30 : 32,
+    borderRadius: screenWidth < 400 ? 15 : 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
+    marginLeft: screenWidth < 400 ? 6 : 8,
+    minWidth: 30, // Ensure minimum touch target size
+    minHeight: 30,
   },
   retryButton: {
     width: 32,
@@ -1013,6 +1276,19 @@ const styles = StyleSheet.create({
   },
   recordingText: {
     fontSize: 12,
+  },
+  messageBubbleFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  inlineSpeakButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
 });
 

@@ -5,6 +5,10 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import { useTranslation } from 'react-i18next'
 import WhatsAppStatusChip from '../whatsapp/WhatsAppStatusChip'
+import { useSubscription } from '@/contexts/SubscriptionContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { router } from 'expo-router'
+import TierBadge from '@/components/ui/TierBadge'
 // Colors import removed - now using theme colors
 
 interface EnhancedHeaderProps {
@@ -22,6 +26,9 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   childrenCount = 0,
   onWhatsAppPress
 }) => {
+  const { tier: ctxTier } = useSubscription()
+  const { profile } = useAuth()
+  const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
   const { theme, isDark } = useTheme()
   const { t } = useTranslation()
   const [currentTime, setCurrentTime] = useState(new Date())
@@ -47,7 +54,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   }, [t])
 
   const getTierInfo = () => {
-    switch (tier) {
+    switch (effectiveTier) {
       case 'pro':
         return {
           label: t('dashboard.tierPro'),
@@ -110,19 +117,9 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
             
             {/* Tier and Role Info */}
             <View style={styles.infoRow}>
-              <View style={[styles.tierBadge, { backgroundColor: `${tierInfo.color}20` }]}>
-                <Ionicons 
-                  name={tierInfo.icon} 
-                  size={12} 
-                  color={tierInfo.color} 
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.tierText, { color: tierInfo.color }]}>
-                  {t('dashboard.tierLabel', { tier: tierInfo.label })}
-                </Text>
-              </View>
-              
-              {/* Upgrade hint removed for OTA preview test */}
+              {/* Unified Tier Badge component */}
+              {/* Manage plan button displayed for principal/super_admin via TierBadge */}
+              <TierBadge showManageButton size="md" />
             </View>
 
             {/* Children Count */}
@@ -245,6 +242,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     color: '#FFB000',
+  },
+  managePlanBtn: {
+    marginLeft: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  managePlanText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   childrenInfo: {
     fontSize: 13,

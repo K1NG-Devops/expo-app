@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
+import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -79,6 +80,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
   const [proactiveSuggestions, setProactiveSuggestions] = useState<ProactiveSuggestion[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
   const [hasNewInsights, setHasNewInsights] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Animations
   const scaleAnimation = useRef(new Animated.Value(1)).current;
@@ -454,7 +456,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
         if (showQuickActions && quickActions.length > 0) {
           setShowQuickActionsModal(true);
         } else {
-          router.push('/screens/dash-assistant');
+          setShowCommandPalette(true);
         }
       }
     } catch (error) {
@@ -640,6 +642,9 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
           </View>
         </View>
       </Modal>
+
+      {/* Command Palette */}
+      <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
 
       {/* Proactive Suggestions Modal */}
       <Modal
