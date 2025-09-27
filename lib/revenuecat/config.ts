@@ -268,7 +268,9 @@ export function useRevenueCatCustomerInfo() {
 
     return () => {
       isMounted = false;
-      listener.remove();
+      if (listener && typeof listener.remove === 'function') {
+        listener.remove();
+      }
     };
   }, []);
 

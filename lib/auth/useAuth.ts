@@ -303,9 +303,10 @@ export const useAutoRefresh = (refreshThreshold: number = 300) => { // 5 minutes
     if (!session?.expires_at) return;
 
     const timeUntilExpiry = session.expires_at - Date.now() / 1000;
+    let refreshTimer: NodeJS.Timeout | null = null;
     
     if (timeUntilExpiry <= refreshThreshold && timeUntilExpiry > 0) {
-      const refreshTimer = setTimeout(async () => {
+      refreshTimer = setTimeout(async () => {
         setIsAutoRefreshing(true);
         try {
           await authService.refreshSession();
@@ -315,9 +316,14 @@ export const useAutoRefresh = (refreshThreshold: number = 300) => { // 5 minutes
           setIsAutoRefreshing(false);
         }
       }, Math.max(0, (timeUntilExpiry - refreshThreshold) * 1000));
-
-      return () => clearTimeout(refreshTimer);
     }
+
+    // Always return cleanup function to prevent memory leaks
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+    };
   }, [session?.expires_at, refreshThreshold]);
 
   return {

@@ -51,7 +51,7 @@ export function createProtectedRoute<T = any>(
       
       if (config.rbac) {
         const rbacMiddleware = requireAuthorization(config.rbac);
-        const rbacResult = await rbacMiddleware(request, origin, environment);
+        const rbacResult = await rbacMiddleware(request, origin || undefined, environment);
         
         if (rbacResult instanceof Response) {
           return rbacResult;

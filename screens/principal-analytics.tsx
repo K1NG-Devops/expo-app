@@ -62,7 +62,7 @@ const PrincipalAnalytics: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   
   // Check if user has premium analytics access
-  const hasAdvancedAnalytics = tier === 'enterprise' || tier === 'pro' || profile?.role === 'superadmin';
+  const hasAdvancedAnalytics = tier === 'enterprise' || tier === 'pro' || profile?.role === 'super_admin';
 
   const loadAnalytics = async () => {
     if (!user || !supabase) return;
