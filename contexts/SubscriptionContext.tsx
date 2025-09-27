@@ -5,10 +5,14 @@ type Tier = 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise';
 
 type Seats = { total: number; used: number } | null;
 
+type TierSource = 'organization' | 'school_plan' | 'school_default' | 'user' | 'unknown';
+
 type Ctx = {
   ready: boolean;
   tier: Tier;
   seats: Seats;
+  tierSource: TierSource;
+  tierSourceDetail?: string;
   assignSeat: (subscriptionId: string, userId: string) => Promise<boolean>;
   revokeSeat: (subscriptionId: string, userId: string) => Promise<boolean>;
   refresh: () => void;
@@ -18,6 +22,8 @@ const SubscriptionContext = createContext<Ctx>({
   ready: false,
   tier: 'free',
   seats: null,
+  tierSource: 'unknown',
+  tierSourceDetail: undefined,
   assignSeat: async () => false,
   revokeSeat: async () => false,
   refresh: () => {},
@@ -27,6 +33,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(false);
   const [tier, setTier] = useState<Tier>('free');
   const [seats, setSeats] = useState<Seats>(null);
+  const [tierSource, setTierSource] = useState<TierSource>('unknown');
+  const [tierSourceDetail, setTierSourceDetail] = useState<string | undefined>(undefined);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Function to manually refresh subscription data
@@ -52,49 +60,67 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         if (!mounted) return; // Prevent state updates if unmounted
         
         let t: Tier = 'free';
+        let source: TierSource = 'unknown';
         const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
         if (metaTier && ['free','starter','basic','premium','pro','enterprise'].includes(metaTier)) {
           t = metaTier as Tier;
+          source = 'user';
         }
 
-        // Try to detect school-owned subscription using correct schema
+        // Try to detect org or school-owned subscription using schema
         let seatsData: Seats = null;
         try {
-          // First, get user's preschool_id from profiles table (correct approach)
+          // First, get user's preschool_id AND organization_id from profiles table
           let schoolId: string | undefined;
+          let orgId: string | undefined;
           
           // Try user metadata first (fastest)
           schoolId = (user?.user_metadata as any)?.preschool_id;
+          orgId = (user?.user_metadata as any)?.organization_id;
           
           // If not in metadata, query profiles table
-          if (!schoolId && user.id) {
+          if ((!schoolId || !orgId) && user.id) {
             try {
-              const { data: profileData, error: profileError } = await assertSupabase()
+              const { data: profileData } = await assertSupabase()
                 .from('profiles')
-                .select('preschool_id')
+                .select('preschool_id, organization_id')
                 .eq('id', user.id)
                 .maybeSingle();
-              
-              if (!profileError && profileData?.preschool_id) {
-                schoolId = profileData.preschool_id;
+              if (profileData?.preschool_id) schoolId = profileData.preschool_id;
+              if (profileData?.organization_id) orgId = profileData.organization_id;
+            } catch {/* ignore */}
+          }
+
+          // Organization path first
+          if (orgId && mounted) {
+            try {
+              const { data: org } = await assertSupabase()
+                .from('organizations')
+                .select('plan_tier')
+                .eq('id', orgId)
+                .maybeSingle();
+              if (org?.plan_tier) {
+                const tierStr = String(org.plan_tier).toLowerCase();
+                const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                if (knownTiers.includes(tierStr as Tier)) {
+                  t = tierStr as Tier;
+                  source = 'organization';
+                }
               }
-            } catch (profileErr) {
-              // ignore profile lookup debug noise
-            }
+            } catch {/* ignore */}
           }
           
-          // Now query subscriptions with correct schema columns
-          if (schoolId && mounted) {
+          // If still unknown or free, check school subscription
+          if (schoolId && mounted && (source === 'unknown' || t === 'free')) {
             try {
-              const { data: sub, error: subError } = await assertSupabase()
+              const { data: sub } = await assertSupabase()
                 .from('subscriptions')
                 .select('id, plan_id, seats_total, seats_used, status')
                 .eq('school_id', schoolId)
-                .eq('status', 'active') // Only active subscriptions
+                .in('status', ['active','trialing'])
                 .maybeSingle();
               
-              if (!subError && sub && mounted) {
-                // Resolve plan tier from subscription_plans by plan_id (robust)
+              if (sub) {
                 try {
                   const { data: planRow } = await assertSupabase()
                     .from('subscription_plans')
@@ -105,35 +131,37 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                   const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
                   if (knownTiers.includes(tierStr as Tier)) {
                     t = tierStr as Tier;
+                    source = 'school_plan';
                   }
+                } catch {/* ignore */}
 
-                  // Only log tier changes to reduce console spam
-                  if (process.env.NODE_ENV === 'development' && t !== tier) {
-                    console.debug('[SubscriptionContext] Tier changed:', { from: tier, to: t, schoolId });
+                seatsData = { total: sub.seats_total ?? 0, used: sub.seats_used ?? 0 };
+              } else {
+                // Fall back to preschools.subscription_tier
+                try {
+                  const { data: school } = await assertSupabase()
+                    .from('preschools')
+                    .select('subscription_tier')
+                    .eq('id', schoolId)
+                    .maybeSingle();
+                  if (school?.subscription_tier) {
+                    const tierStr = String(school.subscription_tier).toLowerCase();
+                    const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                    if (knownTiers.includes(tierStr as Tier)) {
+                      t = tierStr as Tier;
+                      source = 'school_default';
+                    }
                   }
-                } catch (e) {
-                  // fallback ignored, t remains previous or 'free'
-                  console.debug('[SubscriptionContext] Failed to resolve plan tier from subscription_plans', e);
-                }
-
-                // Seats are available for any school-owned subscription (including free)
-                seatsData = {
-                  total: sub.seats_total ?? 0,
-                  used: sub.seats_used ?? 0,
-                };
-              } else if (subError) {
-                // ignore non-critical subscription query debug noise
+                } catch {/* ignore */}
               }
-            } catch (subErr) {
-              // ignore debug noise
-            }
+            } catch {/* ignore */}
           }
-        } catch (e) {
-          // ignore debug noise
-        }
+        } catch {/* ignore */}
 
         if (mounted) {
           setTier(t);
+          setTierSource(source);
+          setTierSourceDetail(source);
           setSeats(seatsData);
           setReady(true);
         }
@@ -192,7 +220,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }
   };
 
-  const value = useMemo<Ctx>(() => ({ ready, tier, seats, assignSeat, revokeSeat, refresh }), [ready, tier, seats]);
+  const value = useMemo<Ctx>(() => ({ ready, tier, seats, tierSource, tierSourceDetail, assignSeat, revokeSeat, refresh }), [ready, tier, seats, tierSource, tierSourceDetail]);
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }

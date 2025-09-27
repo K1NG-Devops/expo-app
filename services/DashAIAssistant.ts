@@ -13,6 +13,8 @@ import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
+import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
 
@@ -829,7 +831,10 @@ export class DashAIAssistant {
 
     // Autogenerate if we have enough
     const paramCount = Object.keys(params).length;
-    if (paramCount >= 2) params.autogenerate = 'true';
+    // IMPORTANT: Do not auto-trigger generation. We only prefill.
+    // We explicitly avoid setting any autogenerate flag so the user must confirm
+    // and press Generate in the UI.
+    // if (paramCount >= 2) params.autogenerate = 'true';
 
     console.log('[Dash] Extracted lesson parameters (enhanced):', params);
     return params;
@@ -1350,21 +1355,27 @@ export class DashAIAssistant {
       
       // Map common screen names to actual routes
       const routeMap: Record<string, string> = {
-        'dashboard': '/dashboard',
+        'dashboard': '/',
         'home': '/',
-        'students': '/screens/student-management', 
-        'lessons': '/screens/lesson-generator',
+        'students': '/screens/student-management',
+        // Map generic "lessons" to hub; AI generator is a separate intent
+        'lessons': '/screens/lessons-hub',
         'ai-lesson': '/screens/ai-lesson-generator',
         'worksheets': '/screens/worksheet-demo',
         'assignments': '/screens/assign-homework',
-        'reports': '/screens/reports',
+        // Map reports to teacher-reports screen
+        'reports': '/screens/teacher-reports',
         'settings': '/screens/dash-ai-settings',
-        'chat': '/screens/dash-chat',
-        'profile': '/screens/profile',
-        'calendar': '/screens/calendar',
-        'gradebook': '/screens/gradebook',
-        'parents': '/screens/parent-communication',
-        'curriculum': '/screens/curriculum-planning'
+        // Chat -> Dash Assistant
+        'chat': '/screens/dash-assistant',
+        // Fallbacks for common nouns to existing screens
+        'profile': '/screens/account',
+        // Not implemented screens are mapped to closest existing destinations
+        'calendar': '/screens/teacher-reports',
+        'gradebook': '/screens/teacher-reports',
+        // Parent messaging
+        'parents': '/screens/parent-messages',
+        'curriculum': '/screens/lessons-categories'
       };
       
       // Resolve the actual route
@@ -1390,6 +1401,32 @@ export class DashAIAssistant {
     }
   }
   
+  /**
+   * Open Teacher Messages with optional prefilled subject/body
+   */
+  public openTeacherMessageComposer(subject?: string, body?: string): void {
+    try {
+      const params: Record<string, string> = {};
+      if (subject) params.prefillSubject = subject;
+      if (body) params.prefillMessage = body;
+      router.push({ pathname: '/screens/teacher-messages', params } as any);
+    } catch (e) {
+      console.warn('[Dash] Failed to open Teacher Messages:', e);
+    }
+  }
+
+  /**
+   * Export provided text as a PDF via EducationalPDFService
+   */
+  public async exportTextAsPDF(title: string, content: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
+      return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'PDF export failed' };
+    }
+  }
+
   /**
    * Get current screen context for better assistance
    */
@@ -2260,6 +2297,8 @@ export class DashAIAssistant {
         }
       };
 
+      // Post-process assistant message to avoid implying non-existent attachments (e.g., PDFs)
+      assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
       return assistantMessage;
     } catch (error) {
       console.error('[Dash] Failed to generate response:', error);
@@ -2277,7 +2316,25 @@ export class DashAIAssistant {
       };
     }
   }
-
+  
+  /**
+   * Simple guard to prevent claims of sending/attaching files when no file was produced.
+   * If such claims are detected, add a clarifying line and suggest available options.
+   */
+  private ensureNoAttachmentClaims(text: string): string {
+    try {
+      const t = String(text || '');
+      const rx = /(attached|enclosed|here is|i have sent|see the pdf|see attached|download the file)/i;
+      if (!rx.test(t)) return t;
+      const note = '\n\nNote: I cannot attach files directly. If you need a PDF or export, use the on-screen Export/Save options or ask me to open the appropriate screen.';
+      // Avoid duplicating the note if already present
+      if (t.includes('cannot attach files directly')) return t;
+      return t + note;
+    } catch {
+      return text;
+    }
+  }
+  
   /**
    * Call AI service to generate response (legacy - used by generateResponse)
    */
@@ -2393,6 +2450,47 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         
         dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
         suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
+      }
+
+      // Communication / messaging intents
+      if (/\b(message|notify|contact)\b/i.test(userInput) && (userInput.includes('parent') || userInput.includes('teacher'))) {
+        const subject = 'Announcement';
+        const body = context.userInput;
+        dashboard_action = { type: 'open_screen' as const, route: '/screens/teacher-messages', params: { prefillSubject: subject, prefillMessage: body } };
+        suggested_actions.push('send_message');
+      }
+
+      // Announcements intent (super admin or admins)
+      if (/\b(announcement|announce|broadcast|platform\s+update|news)\b/i.test(userInput)) {
+        const title = 'Announcement';
+        const content = context.userInput;
+        dashboard_action = { type: 'open_screen' as const, route: '/screens/super-admin-announcements', params: { compose: '1', prefillTitle: title, prefillContent: content } };
+        suggested_actions.push('create_announcement');
+      }
+
+      // Financial insights intent
+      if (/\b(finance|financial|fees|payments|outstanding|revenue|insight)\b/i.test(userInput)) {
+        try {
+          const prof = await getCurrentProfile();
+          const schoolId = (prof as any)?.preschool_id || (prof as any)?.organization_id;
+          if (schoolId) {
+            const insights = await AIInsightsService.generateInsightsForSchool(schoolId);
+            if (insights && insights.length) {
+              const bullets = insights.slice(0, 5).map(i => `• [${i.priority}] ${i.title} — ${i.description}`).join('\n');
+              aiResponse.content = `${aiResponse.content || ''}\n\nFinancial insights:\n${bullets}`.trim();
+            }
+          }
+        } catch (e) {
+          console.warn('[Dash] Financial insights generation failed', e);
+        }
+        dashboard_action = { type: 'open_screen' as const, route: '/screens/financial-dashboard' };
+        suggested_actions.push('view_financial_dashboard');
+      }
+      
+      // PDF export intent
+      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput)) {
+        dashboard_action = { type: 'export_pdf' as any, title: 'Dash Export', content: aiResponse?.content || context.userInput } as any;
+        suggested_actions.push('export_pdf');
       }
       
       // Add worksheet generation actions with voice command handling

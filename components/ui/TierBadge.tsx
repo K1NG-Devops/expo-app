@@ -4,6 +4,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 
 export type TierBadgeProps = {
   tier?: string | null
@@ -26,7 +27,8 @@ function getTierMeta(t?: string) {
 }
 
 export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = false, containerStyle, size = 'md' }) => {
-  const { tier: ctxTier } = useSubscription()
+  const { t } = useTranslation()
+  const { tier: ctxTier, tierSource } = useSubscription()
   const { profile } = useAuth()
   const effectiveTier = tier || ctxTier || 'free'
   const meta = useMemo(() => getTierMeta(effectiveTier), [effectiveTier])
@@ -36,10 +38,17 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
   const height = size === 'sm' ? 22 : 24
   const fontSize = size === 'sm' ? 11 : 12
 
+  const tierKey = String(effectiveTier || 'free').toLowerCase()
+  const label = t(`subscription.tiers.${tierKey}`, { defaultValue: meta.label })
+
+  const tierSourceKey = `subscription.tierSource.${tierSource || 'unknown'}`
+  const tierSourceText = t(tierSourceKey, { defaultValue: t('subscription.tierSource.unknown', { defaultValue: 'Unknown' }) })
+  const sourceCaption = t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` })
+
   return (
     <View style={[styles.row, containerStyle]}>
       <View style={[styles.chip, { borderColor: meta.color, backgroundColor: meta.color + '20', height }] }>
-        <Text style={[styles.chipText, { color: meta.color, fontSize }]}>{meta.label}</Text>
+        <Text style={[styles.chipText, { color: meta.color, fontSize }]}>{label}</Text>
       </View>
       {showManageButton && canManage && (
         <TouchableOpacity
@@ -48,11 +57,17 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
             if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
             else router.push('/pricing')
           }}
-          accessibilityLabel="Manage subscription plan"
+          accessibilityLabel={t('subscription.managePlan', { defaultValue: 'Manage plan' })}
         >
           <Ionicons name="pricetags-outline" size={12} color={meta.color} />
-          <Text style={[styles.manageText, { color: meta.color, fontSize: fontSize - 1 }]}>Manage plan</Text>
+          <Text style={[styles.manageText, { color: meta.color, fontSize: fontSize - 1 }]}>{t('subscription.managePlan', { defaultValue: 'Manage plan' })}</Text>
         </TouchableOpacity>
+      )}
+      {canManage && (
+        <View style={styles.sourceWrap}>
+          <Ionicons name="information-circle-outline" size={12} color={meta.color} />
+          <Text style={[styles.sourceText, { color: meta.color, fontSize: fontSize - 2 }]}>{sourceCaption}</Text>
+        </View>
       )}
     </View>
   )
@@ -86,6 +101,16 @@ const styles = StyleSheet.create({
   },
   manageText: {
     fontWeight: '600',
+  },
+  sourceWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+    gap: 4,
+  },
+  sourceText: {
+    fontWeight: '500',
+    opacity: 0.85,
   },
 })
 

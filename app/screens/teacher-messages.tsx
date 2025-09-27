@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { ScreenHeader } from '@/components/ui/ScreenHeader'
+import { useLocalSearchParams } from 'expo-router'
 
 export default function TeacherMessagesScreen() {
   const { profile, permissions } = useAuth()
@@ -28,6 +29,15 @@ export default function TeacherMessagesScreen() {
   const [subject, setSubject] = useState('Announcement')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
+
+  // Prefill support for Dash
+  const params = useLocalSearchParams<{ prefillSubject?: string; prefillMessage?: string }>()
+  React.useEffect(() => {
+    const s = (params?.prefillSubject || '').trim()
+    const m = (params?.prefillMessage || '').trim()
+    if (s) setSubject(s)
+    if (m) setMessage(m)
+  }, [params])
 
   const classesQuery = useQuery({
     queryKey: ['teacher_classes_for_messages', profile?.id],

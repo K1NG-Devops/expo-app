@@ -267,7 +267,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
           Alert.alert(
             'Open Lesson Generator?',
-            'Dash suggests opening the AI Lesson Generator with these details. Continue?',
+            'Dash suggests opening the AI Lesson Generator with prefilled details. Please confirm the fields in the next screen, then press Generate to start.',
             [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
@@ -298,7 +298,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           setTimeout(() => {
             Alert.alert(
               'Open Lesson Generator?',
-              'I can open the AI Lesson Generator with the details we discussed. Continue?',
+              'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
               [
                 { text: 'Not now', style: 'cancel' },
                 { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(userText, response?.content || '') }
@@ -367,7 +367,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
             Alert.alert(
               'Open Lesson Generator?',
-              'Dash suggests opening the AI Lesson Generator with these details. Continue?',
+              'Dash suggests opening the AI Lesson Generator with prefilled details. Please confirm the fields in the next screen, then press Generate to start.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
@@ -376,6 +376,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           } else {
             try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
           }
+        } else if (response.metadata?.dashboard_action?.type === 'export_pdf') {
+          const { title, content } = response.metadata.dashboard_action as any;
+          Alert.alert(
+            'Generate PDF?',
+            'Create a PDF from the latest Dash response?',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Generate', onPress: async () => {
+                try { await dashInstance.exportTextAsPDF(title || 'Dash Export', content || response.content || ''); }
+                catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
+              } }
+            ]
+          );
         }
         
         // Update messages from conversation
@@ -393,7 +406,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             setTimeout(() => {
               Alert.alert(
                 'Open Lesson Generator?',
-                'I can open the AI Lesson Generator with the details we discussed. Continue?',
+                'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
                 [
                   { text: 'Not now', style: 'cancel' },
                   { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext('voice input', response?.content || '') }
@@ -635,6 +648,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       'view_classic_features': 'what are classic dashboard features',
       'switch_dashboard_layout': 'help me switch dashboard layout',
       'view_options': 'show me dashboard options',
+      // Additional
+      'export_pdf': 'export pdf',
+      'send_message': 'message parents',
+      'view_financial_dashboard': 'open financial dashboard',
+      'create_announcement': 'create announcement'
     };
     
     const command = actionMap[action] || action.replace('_', ' ');

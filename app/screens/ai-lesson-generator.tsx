@@ -128,10 +128,8 @@ export default function AILessonGeneratorScreen() {
       setSelectedModel(m as any);
     }
 
-    const auto = String(searchParams?.autogenerate || '').toLowerCase();
-    if (auto === '1' || auto === 'true' || auto === 'yes') {
-      setTimeout(() => onGenerate(), 300);
-    }
+    // Explicitly ignore any autogenerate flags: user must press Generate
+    // This preserves the requirement for a manual confirmation action.
   }, [searchParams, setSelectedModel])
   
   // Cleanup on component unmount
