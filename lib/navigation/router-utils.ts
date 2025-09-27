@@ -16,10 +16,11 @@ export const navigateTo = {
     } as any);
   },
   
-  subscriptionSetup: ({ planId, billing }: { planId?: string; billing?: 'monthly' | 'annual' }) => {
+  subscriptionSetup: ({ planId, billing, auto }: { planId?: string; billing?: 'monthly' | 'annual'; auto?: boolean }) => {
     const params: any = {};
     if (planId) params.planId = planId;
     if (billing) params.billing = billing;
+    if (auto) params.auto = '1';
     
     router.push({
       pathname: '/screens/subscription-setup' as any,

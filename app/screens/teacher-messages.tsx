@@ -1,18 +1,28 @@
 import React, { useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { StatusBar } from 'expo-status-bar'
-import { Stack } from 'expo-router'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { track } from '@/lib/analytics'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
+import { ScreenHeader } from '@/components/ui/ScreenHeader'
 
 export default function TeacherMessagesScreen() {
-  const { profile } = useAuth()
-  const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
-  const canMessage = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('communicate_with_parents' as any))
-  const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
+  const { profile, permissions } = useAuth()
+  const { theme } = useTheme()
+  
+  const hasActiveSeat = profile?.seat_status === 'active'
+  const canMessage = hasActiveSeat && permissions.can('communicate_with_parents')
+  
+  const palette = {
+    background: theme.background,
+    text: theme.text,
+    textSecondary: theme.textSecondary,
+    outline: theme.border,
+    surface: theme.cardBackground,
+    primary: theme.primary
+  }
 
   const [classId, setClassId] = useState<string | null>(null)
   const [subject, setSubject] = useState('Announcement')
@@ -74,27 +84,24 @@ export default function TeacherMessagesScreen() {
   const classes = classesQuery.data || []
 
   return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ 
-        title: 'Message Parents', 
-        headerStyle: { backgroundColor: palette.background }, 
-        headerTitleStyle: { color: '#fff' }, 
-        headerTintColor: palette.primary,
-        headerBackVisible: true,
-        presentation: 'card',
-        headerShown: true,
-      }} />
-      <StatusBar style="light" backgroundColor={palette.background} />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
-        <ScrollView contentContainerStyle={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
+      <ScreenHeader 
+        title="Message Parents" 
+        subtitle="Send announcements to parent groups" 
+      />
+      <ScrollView contentContainerStyle={styles.content}>
           {!canMessage && (
             <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-              <Text style={styles.cardTitle}>Access Restricted</Text>
-              <Text style={styles.label}>Your seat does not allow messaging yet. Please contact your administrator.</Text>
+              <Text style={[styles.cardTitle, { color: palette.text }]}>Access Restricted</Text>
+              <Text style={[styles.label, { color: palette.textSecondary }]}>
+                {!hasActiveSeat 
+                  ? 'Your teacher seat is not active. Please contact your administrator.' 
+                  : 'Your account does not have messaging permissions. Please contact your administrator.'}
+              </Text>
             </View>
           )}
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-            <Text style={styles.cardTitle}>Class</Text>
+            <Text style={[styles.cardTitle, { color: palette.text }]}>Class</Text>
             {classesQuery.isLoading ? (
               <ActivityIndicator color={palette.primary} />
             ) : (
@@ -109,33 +116,101 @@ export default function TeacherMessagesScreen() {
           </View>
 
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
-            <Text style={styles.cardTitle}>Message</Text>
-            <Text style={styles.label}>Subject</Text>
-            <TextInput style={styles.input} value={subject} onChangeText={setSubject} placeholder="Subject" placeholderTextColor={palette.textSecondary} />
-            <Text style={[styles.label, { marginTop: 10 }]}>Body</Text>
-            <TextInput style={[styles.input, styles.multiline]} value={message} onChangeText={setMessage} placeholder="Write your message to parents..." placeholderTextColor={palette.textSecondary} multiline />
-            <TouchableOpacity onPress={onSend} disabled={sending || !classId} style={[styles.primaryBtn, (sending || !classId) && { opacity: 0.6 }]}>
-              {sending ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>Send</Text>}
+            <Text style={[styles.cardTitle, { color: palette.text }]}>Message</Text>
+            <Text style={[styles.label, { color: palette.textSecondary }]}>Subject</Text>
+            <TextInput 
+              style={[styles.input, { backgroundColor: palette.surface, color: palette.text, borderColor: palette.outline }]} 
+              value={subject} 
+              onChangeText={setSubject} 
+              placeholder="Subject" 
+              placeholderTextColor={palette.textSecondary} 
+            />
+            <Text style={[styles.label, { marginTop: 10, color: palette.textSecondary }]}>Body</Text>
+            <TextInput 
+              style={[styles.input, styles.multiline, { backgroundColor: palette.surface, color: palette.text, borderColor: palette.outline }]} 
+              value={message} 
+              onChangeText={setMessage} 
+              placeholder="Write your message to parents..." 
+              placeholderTextColor={palette.textSecondary} 
+              multiline 
+            />
+            <TouchableOpacity 
+              onPress={onSend} 
+              disabled={sending || !classId} 
+              style={[
+                styles.primaryBtn, 
+                { backgroundColor: palette.primary },
+                (sending || !classId) && { opacity: 0.6 }
+              ]}
+            >
+              {sending ? (
+                <ActivityIndicator color={theme.onPrimary} />
+              ) : (
+                <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Send</Text>
+              )}
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </SafeAreaView>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12 },
-  card: { borderWidth: 1, borderColor: '#1f2937', borderRadius: 12, padding: 12, gap: 8 },
-  cardTitle: { color: '#fff', fontWeight: '800' },
-  label: { color: '#9CA3AF', fontSize: 12, fontWeight: '700' },
-  input: { backgroundColor: '#111827', color: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#1f2937', padding: 12 },
-  multiline: { minHeight: 120, textAlignVertical: 'top' },
-  chip: { borderWidth: 1, borderColor: '#1f2937', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, marginRight: 8 },
-  chipActive: { backgroundColor: '#00f5ff', borderColor: '#00f5ff' },
-  chipText: { color: '#9CA3AF', fontWeight: '700' },
-  chipTextActive: { color: '#000' },
-  primaryBtn: { backgroundColor: '#00f5ff', paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  primaryBtnText: { color: '#000', fontWeight: '800' },
+  container: {
+    flex: 1,
+  },
+  content: { 
+    padding: 16, 
+    gap: 12 
+  },
+  card: { 
+    borderWidth: 1, 
+    borderRadius: 12, 
+    padding: 16, 
+    gap: 12 
+  },
+  cardTitle: { 
+    fontSize: 18,
+    fontWeight: '700' 
+  },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '600',
+    marginBottom: 8
+  },
+  input: { 
+    borderRadius: 8, 
+    borderWidth: 1, 
+    padding: 12,
+    fontSize: 16
+  },
+  multiline: { 
+    minHeight: 120, 
+    textAlignVertical: 'top' 
+  },
+  chip: { 
+    borderWidth: 1, 
+    paddingHorizontal: 16, 
+    paddingVertical: 8, 
+    borderRadius: 20, 
+    marginRight: 8 
+  },
+  chipActive: { 
+    opacity: 1 
+  },
+  chipText: { 
+    fontWeight: '600' 
+  },
+  chipTextActive: {},
+  primaryBtn: { 
+    paddingVertical: 14, 
+    borderRadius: 8, 
+    alignItems: 'center',
+    marginTop: 8
+  },
+  primaryBtnText: { 
+    fontWeight: '600',
+    fontSize: 16
+  },
 })
 

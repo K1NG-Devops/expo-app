@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, FlatList, Dimensions } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,7 @@ import type { PlanId } from '../components/pricing/ComparisonTable';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 import { salesOrPricingPath } from '@/lib/sales';
+import { navigateTo } from '@/lib/navigation/router-utils';
 
 export default function PricingScreen() {
   const [annual, setAnnual] = useState(false);
@@ -23,7 +24,105 @@ export default function PricingScreen() {
     return `R${monthly} / month`;
   };
 
-  const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['free','parent-starter','parent-plus','private-teacher','pro'];
+const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['free','parent-starter','parent-plus','private-teacher','pro'];
+
+  // Swipe carousel state and items
+  const screenWidth = Dimensions.get('window').width
+  const itemWidth = screenWidth - 32
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const topPlanItems = [
+    {
+      key: 'free',
+      render: () => (
+        <PlanCard
+          name="Free"
+          price={priceStr(0)}
+          description="Get started with basics"
+          features={[
+            'Mobile app access',
+            'Homework Helper (limited)',
+            'Lesson generator (limited)',
+            'Community support',
+          ]}
+          ctaText="Start free"
+          onPress={() => navigateTo.signUpWithPlan({ tier: 'free', billing: annual ? 'annual' : 'monthly' })}
+        />
+      ),
+    },
+    {
+      key: 'parent-starter',
+      render: () => (
+        <PlanCard
+          name="Parent Starter"
+          price={priceStr(49)}
+          description="Affordable AI help for families"
+          features={[
+            'Homework Helper · 30/mo',
+            'Child-safe explanations',
+            'Email support',
+          ]}
+          ctaText="Choose Parent Starter"
+          onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-starter', billing: annual ? 'annual' : 'monthly', auto: true })}
+        />
+      ),
+    },
+    {
+      key: 'parent-plus',
+      render: () => (
+        <PlanCard
+          name="Parent Plus"
+          price={priceStr(149)}
+          description="Expanded AI support for families"
+          features={[
+            'Homework Helper · 100/mo',
+            'Priority processing',
+            'Basic analytics',
+          ]}
+          ctaText="Choose Parent Plus"
+          onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-plus', billing: annual ? 'annual' : 'monthly', auto: true })}
+        />
+      ),
+    },
+    {
+      key: 'private-teacher',
+      render: () => (
+        <PlanCard
+          name="Private Teacher"
+          price={priceStr(299)}
+          description="For tutors and private teachers"
+          features={[
+            'Lesson Generator · 20/mo',
+            'Grading Assistance · 20/mo',
+            'Homework Helper · 100/mo',
+          ]}
+          ctaText="Choose Private Teacher"
+          onPress={() => navigateTo.subscriptionSetup({ planId: 'private-teacher', billing: annual ? 'annual' : 'monthly', auto: true })}
+        />
+      ),
+    },
+    {
+      key: 'pro',
+      render: () => (
+        <PlanCard
+          name="Pro"
+          price={priceStr(599)}
+          description="For individual teachers"
+          highlights={['Most popular']}
+          features={[
+            'All Free features',
+            'AI Homework Helper increased limits',
+            'AI Lesson Generator increased limits',
+            'AI Grading Assistance increased limits',
+            'Model selection (Haiku/Sonnet/Opus)',
+            'Priority support',
+          ]}
+          ctaText="Upgrade to Pro"
+          onPress={() => navigateTo.subscriptionSetup({ planId: 'pro', billing: annual ? 'annual' : 'monthly', auto: true })}
+        />
+      ),
+    },
+  ] as const
 
   return (
     <View style={{ flex: 1 }}>
@@ -31,6 +130,15 @@ export default function PricingScreen() {
       <StatusBar style="light" />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
         <ScrollView contentContainerStyle={styles.container}>
+          {/* Free ribbon if on free tier */}
+          {String((profile as any)?.plan_tier || 'free').toLowerCase() === 'free' && (
+            <View style={{ backgroundColor: '#111827', borderColor: '#1f2937', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>You are on the Free plan</Text>
+              <TouchableOpacity onPress={() => navigateTo.subscriptionSetup({ planId: 'pro', billing: annual ? 'annual' : 'monthly', auto: true })} style={{ backgroundColor: '#00f5ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+                <Text style={{ color: '#000', fontWeight: '800' }}>Upgrade</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <Text style={styles.title}>Plans & Pricing</Text>
           <Text style={styles.subtitle}>Flexible options for individuals, preschools and schools. AI usage includes monthly quotas. Overages require prepayment.</Text>
 
@@ -44,8 +152,38 @@ export default function PricingScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Plans in order */}
-          <View style={styles.grid}>
+          {/* Plans in order - horizontal carousel on mobile */}
+          <View style={{ marginTop: 8 }}>
+            <FlatList
+              data={topPlanItems}
+              keyExtractor={(item) => item.key}
+              renderItem={({ item }) => (
+                <View style={{ width: itemWidth, paddingHorizontal: 0 }}>
+                  {item.render()}
+                </View>
+              )}
+              contentContainerStyle={{ paddingHorizontal: 16 }}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              pagingEnabled
+              snapToAlignment="center"
+              decelerationRate="fast"
+              onMomentumScrollEnd={(e) => {
+                const offsetX = e.nativeEvent.contentOffset.x
+                const index = Math.round(offsetX / itemWidth)
+                setActiveIndex(index)
+              }}
+              scrollEventThrottle={16}
+            />
+            <View style={styles.dotsRow}>
+              {topPlanItems.map((it, idx) => (
+                <View key={it.key} style={[styles.dot, activeIndex === idx && styles.dotActive]} />
+              ))}
+            </View>
+          </View>
+
+          {/* Legacy stacked grid kept for larger screens as fallback */}
+          <View style={[styles.grid, { display: 'none' }]}>
             <PlanCard
               name="Free"
               price={priceStr(0)}
@@ -57,7 +195,7 @@ export default function PricingScreen() {
                 'Community support',
               ]}
               ctaText="Start free"
-              onPress={() => router.push('/')} // or onboarding
+              onPress={() => navigateTo.signUpWithPlan({ tier: 'free', billing: annual ? 'annual' : 'monthly' })}
             />
 
             <PlanCard
@@ -70,7 +208,7 @@ export default function PricingScreen() {
                 'Email support',
               ]}
               ctaText="Choose Parent Starter"
-              onPress={() => router.push(salesOrPricingPath({ role: roleNorm, salesPath: '/sales/contact?plan=parent-starter' }))}
+              onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-starter', billing: annual ? 'annual' : 'monthly' })}
             />
 
             <PlanCard
@@ -83,7 +221,7 @@ export default function PricingScreen() {
                 'Basic analytics',
               ]}
               ctaText="Choose Parent Plus"
-              onPress={() => router.push(salesOrPricingPath({ role: roleNorm, salesPath: '/sales/contact?plan=parent-plus' }))}
+              onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-plus', billing: annual ? 'annual' : 'monthly' })}
             />
 
             <PlanCard
@@ -96,7 +234,7 @@ export default function PricingScreen() {
                 'Homework Helper · 100/mo',
               ]}
               ctaText="Choose Private Teacher"
-              onPress={() => router.push(salesOrPricingPath({ role: roleNorm, salesPath: '/sales/contact?plan=private-teacher' }))}
+              onPress={() => navigateTo.subscriptionSetup({ planId: 'private-teacher', billing: annual ? 'annual' : 'monthly' })}
             />
 
             <PlanCard
@@ -113,7 +251,7 @@ export default function PricingScreen() {
                 'Priority support',
               ]}
               ctaText="Upgrade to Pro"
-              onPress={() => router.push(salesOrPricingPath({ role: roleNorm, salesPath: '/sales/contact?plan=pro' }))}
+              onPress={() => navigateTo.subscriptionSetup({ planId: 'pro', billing: annual ? 'annual' : 'monthly' })}
             />
 
             {canRequestEnterprise && (
@@ -181,11 +319,16 @@ export default function PricingScreen() {
             annual={annual}
             visiblePlans={visiblePlans}
             onSelectPlan={(planId) => {
-              if ((planId === 'preschool-pro' || planId === 'enterprise') && !canRequestEnterprise) {
-                Alert.alert('Restricted', 'Only principals or school admins can submit these requests.');
+              if (planId === 'preschool-pro' || planId === 'enterprise') {
+                if (!canRequestEnterprise) {
+                  Alert.alert('Restricted', 'Only principals or school admins can submit these requests.');
+                  return;
+                }
+                router.push(`/sales/contact?plan=${planId}` as any)
                 return;
               }
-              router.push(salesOrPricingPath({ role: roleNorm, salesPath: `/sales/contact?plan=${planId}` }))
+              // All other plans: go to subscription setup
+              navigateTo.subscriptionSetup({ planId: planId, billing: annual ? 'annual' : 'monthly' })
             }}
           />
         </ScrollView>
@@ -257,4 +400,7 @@ const styles = StyleSheet.create({
   noteItem: { color: '#9CA3AF', marginBottom: 4 },
   badge: { backgroundColor: '#00f5ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   badgeText: { color: '#000', fontWeight: '800', fontSize: 12 },
+  dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#334155' },
+  dotActive: { backgroundColor: '#00f5ff' },
 });

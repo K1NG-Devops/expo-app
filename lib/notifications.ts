@@ -7,7 +7,7 @@ import Constants from 'expo-constants'
 
 // Constant project ID for Expo push tokens (Android only scope for now)
 // Matches extra.eas.projectId in app.config.js
-const EXPO_PROJECT_ID = '253b1057-8489-44cf-b0e3-c3c10319a298'
+const EXPO_PROJECT_ID = 'ab7c9230-2f47-4bfa-b4f4-4ae516a334bc'
 
 // Show notifications while app is foregrounded (customize as needed)
 Notifications.setNotificationHandler({
