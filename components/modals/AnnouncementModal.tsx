@@ -21,7 +21,8 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 interface AnnouncementModalProps {
   visible: boolean;
@@ -43,6 +44,9 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   onClose,
   onSend,
 }) => {
+  const { theme } = useTheme();
+  const { t } = useTranslation('common');
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [selectedAudience, setSelectedAudience] = useState<string[]>(['teachers']);
@@ -51,17 +55,17 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   const [isScheduled, setIsScheduled] = useState(false);
 
   const audiences = [
-    { id: 'teachers', label: 'Teachers', icon: 'school', color: '#4F46E5' },
-    { id: 'parents', label: 'Parents', icon: 'people', color: '#059669' },
-    { id: 'students', label: 'Students', icon: 'person', color: '#7C3AED' },
-    { id: 'admin', label: 'Admin Staff', icon: 'briefcase', color: '#DC2626' },
+    { id: 'teachers', label: t('announcement.teachers'), icon: 'school', color: '#4F46E5' },
+    { id: 'parents', label: t('announcement.parents'), icon: 'people', color: '#059669' },
+    { id: 'students', label: t('announcement.students'), icon: 'person', color: '#7C3AED' },
+    { id: 'admin', label: t('announcement.admin_staff'), icon: 'briefcase', color: '#DC2626' },
   ];
 
   const priorities = [
-    { id: 'low', label: 'Low', color: '#6B7280', icon: 'remove-circle' },
-    { id: 'normal', label: 'Normal', color: '#4F46E5', icon: 'information-circle' },
-    { id: 'high', label: 'High', color: '#F59E0B', icon: 'warning' },
-    { id: 'urgent', label: 'Urgent', color: '#DC2626', icon: 'alert-circle' },
+    { id: 'low', label: t('announcement.low'), color: '#6B7280', icon: 'remove-circle' },
+    { id: 'normal', label: t('announcement.normal'), color: '#4F46E5', icon: 'information-circle' },
+    { id: 'high', label: t('announcement.high'), color: '#F59E0B', icon: 'warning' },
+    { id: 'urgent', label: t('announcement.urgent'), color: '#DC2626', icon: 'alert-circle' },
   ];
 
   const handleAudienceToggle = (audienceId: string) => {
@@ -74,12 +78,12 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
   const handleSend = () => {
     if (!title.trim() || !message.trim()) {
-      Alert.alert('Missing Information', 'Please provide both title and message');
+      Alert.alert(t('announcement.missing_information'), t('announcement.provide_title_message'));
       return;
     }
 
     if (selectedAudience.length === 0) {
-      Alert.alert('No Audience', 'Please select at least one audience');
+      Alert.alert(t('announcement.no_audience'), t('announcement.select_audience'));
       return;
     }
 
@@ -114,7 +118,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
     };
     
     const total = selectedAudience.reduce((sum, id) => sum + (counts[id as keyof typeof counts] || 0), 0);
-    return `${total} recipients`;
+    return t('announcement.recipients_count', { count: total });
   };
 
   return (
@@ -128,16 +132,16 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={handleClose}>
-            <Ionicons name="close" size={24} color={Colors.light.text} />
+            <Ionicons name="close" size={24} color={theme?.text || '#333'} />
           </TouchableOpacity>
-          <Text style={styles.title}>Create Announcement</Text>
+          <Text style={styles.title}>{t('announcement.create_announcement')}</Text>
           <TouchableOpacity 
             onPress={handleSend}
             style={[styles.sendButton, (!title || !message) && styles.sendButtonDisabled]}
             disabled={!title || !message}
           >
             <Text style={[styles.sendButtonText, (!title || !message) && styles.sendButtonTextDisabled]}>
-              Send
+              {t('announcement.send')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -145,12 +149,12 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Title Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Title</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.title')}</Text>
             <TextInput
               style={styles.titleInput}
               value={title}
               onChangeText={setTitle}
-              placeholder="Enter announcement title..."
+              placeholder={t('announcement.enter_title')}
               placeholderTextColor="#9CA3AF"
               maxLength={100}
             />
@@ -158,26 +162,26 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Message Input */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Message</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.message')}</Text>
             <TextInput
               style={styles.messageInput}
               value={message}
               onChangeText={setMessage}
-              placeholder="Write your announcement message here..."
+              placeholder={t('announcement.write_message')}
               placeholderTextColor="#9CA3AF"
               multiline
               textAlignVertical="top"
               maxLength={1000}
             />
             <Text style={styles.characterCount}>
-              {message.length}/1000 characters
+              {t('announcement.characters_count', { count: message.length })}
             </Text>
           </View>
 
           {/* Audience Selection */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionLabel}>Send To</Text>
+              <Text style={styles.sectionLabel}>{t('announcement.send_to')}</Text>
               <Text style={styles.audienceCount}>{getAudienceCount()}</Text>
             </View>
             <View style={styles.audienceGrid}>
@@ -209,7 +213,7 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Priority Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Priority Level</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.priority_level')}</Text>
             <View style={styles.priorityGrid}>
               {priorities.map((priorityOption) => (
                 <TouchableOpacity
@@ -239,38 +243,38 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
 
           {/* Additional Options */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Options</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.options')}</Text>
             
             <View style={styles.optionRow}>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Requires Response</Text>
-                <Text style={styles.optionDescription}>Recipients must acknowledge this announcement</Text>
+                <Text style={styles.optionTitle}>{t('announcement.requires_response')}</Text>
+                <Text style={styles.optionDescription}>{t('announcement.recipients_acknowledge')}</Text>
               </View>
               <Switch
                 value={requiresResponse}
                 onValueChange={setRequiresResponse}
-                trackColor={{ false: '#D1D5DB', true: Colors.light.tint + '40' }}
-                thumbColor={requiresResponse ? Colors.light.tint : '#fff'}
+                trackColor={{ false: theme?.border || '#D1D5DB', true: (theme?.primary || '#007AFF') + '40' }}
+                thumbColor={requiresResponse ? (theme?.primary || '#007AFF') : '#fff'}
               />
             </View>
 
             <View style={styles.optionRow}>
               <View style={styles.optionInfo}>
-                <Text style={styles.optionTitle}>Schedule for Later</Text>
-                <Text style={styles.optionDescription}>Send at a specific date and time</Text>
+                <Text style={styles.optionTitle}>{t('announcement.schedule_for_later')}</Text>
+                <Text style={styles.optionDescription}>{t('announcement.send_specific_time')}</Text>
               </View>
               <Switch
                 value={isScheduled}
                 onValueChange={setIsScheduled}
-                trackColor={{ false: '#D1D5DB', true: Colors.light.tint + '40' }}
-                thumbColor={isScheduled ? Colors.light.tint : '#fff'}
+                trackColor={{ false: theme?.border || '#D1D5DB', true: (theme?.primary || '#007AFF') + '40' }}
+                thumbColor={isScheduled ? (theme?.primary || '#007AFF') : '#fff'}
               />
             </View>
           </View>
 
           {/* Preview */}
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Preview</Text>
+            <Text style={styles.sectionLabel}>{t('announcement.preview')}</Text>
             <View style={styles.previewCard}>
               <View style={styles.previewHeader}>
                 <View style={styles.previewPriority}>
@@ -280,17 +284,23 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
                     color={priorities.find(p => p.id === priority)?.color} 
                   />
                   <Text style={[styles.previewPriorityText, { color: priorities.find(p => p.id === priority)?.color }]}>
-                    {priority.toUpperCase()}
+                    {t(`announcement.${priority}`)?.toUpperCase()}
                   </Text>
                 </View>
                 <Text style={styles.previewDate}>
                   {new Date().toLocaleDateString()}
                 </Text>
               </View>
-              <Text style={styles.previewTitle}>{title || 'Announcement Title'}</Text>
-              <Text style={styles.previewMessage}>{message || 'Your announcement message will appear here...'}</Text>
+              <Text style={styles.previewTitle}>{title || t('announcement.announcement_title_placeholder')}</Text>
+              <Text style={styles.previewMessage}>{message || t('announcement.message_placeholder')}</Text>
               <Text style={styles.previewFooter}>
-                Sent to: {selectedAudience.join(', ') || 'No audience selected'}
+                {selectedAudience.length > 0
+                  ? t('announcement.sent_to', {
+                      audience: selectedAudience
+                        .map(id => (id === 'admin' ? t('announcement.admin_staff') : t(`announcement.${id}`)))
+                        .join(', '),
+                    })
+                  : t('announcement.no_audience_selected')}
               </Text>
             </View>
           </View>
@@ -300,10 +310,10 @@ export const AnnouncementModal: React.FC<AnnouncementModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme?.background || '#F9FAFB',
   },
   header: {
     flexDirection: 'row',
@@ -312,23 +322,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme?.border || '#E5E7EB',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   sendButton: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   sendButtonDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: theme?.border || '#D1D5DB',
   },
   sendButtonText: {
     color: 'white',
@@ -336,7 +346,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   sendButtonTextDisabled: {
-    color: '#9CA3AF',
+    color: theme?.textSecondary || '#9CA3AF',
   },
   content: {
     flex: 1,
@@ -354,39 +364,39 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   titleInput: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   messageInput: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     height: 120,
   },
   characterCount: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme?.textSecondary || '#9CA3AF',
     textAlign: 'right',
     marginTop: 4,
   },
   audienceCount: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     fontWeight: '500',
   },
   audienceGrid: {
@@ -397,7 +407,7 @@ const styles = StyleSheet.create({
   audienceOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 16,
@@ -405,13 +415,13 @@ const styles = StyleSheet.create({
     minWidth: '47%',
   },
   audienceOptionSelected: {
-    backgroundColor: Colors.light.tint,
-    borderColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
+    borderColor: theme?.primary || '#007AFF',
   },
   audienceOptionText: {
     fontSize: 14,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginLeft: 8,
   },
   audienceOptionTextSelected: {
@@ -424,7 +434,7 @@ const styles = StyleSheet.create({
   priorityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderWidth: 2,
     borderRadius: 12,
     paddingHorizontal: 12,
@@ -432,20 +442,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   priorityOptionSelected: {
-    backgroundColor: Colors.light.tint,
-    borderColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
+    borderColor: theme?.primary || '#007AFF',
   },
   priorityOptionText: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginLeft: 6,
   },
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
@@ -458,19 +468,19 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 2,
   },
   optionDescription: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   previewCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme?.border || '#E5E7EB',
   },
   previewHeader: {
     flexDirection: 'row',
@@ -489,23 +499,23 @@ const styles = StyleSheet.create({
   },
   previewDate: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   previewTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 8,
   },
   previewMessage: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     lineHeight: 20,
     marginBottom: 12,
   },
   previewFooter: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: theme?.textTertiary || '#9CA3AF',
     fontStyle: 'italic',
   },
 });

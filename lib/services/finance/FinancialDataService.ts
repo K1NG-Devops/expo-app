@@ -22,6 +22,8 @@ export interface FinanceOverviewData {
     monthlyExpenses: number;
     cashFlow: number;
   };
+  // Indicates that the service returned fallback/sample (mock) data
+  isSample?: boolean;
 }
 
 export interface DateRange {
@@ -69,6 +71,7 @@ class FinancialDataServiceImpl {
         monthlyExpenses,
         cashFlow: monthlyRevenue - monthlyExpenses,
       },
+      isSample: true,
     };
   }
 

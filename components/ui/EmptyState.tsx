@@ -17,6 +17,10 @@ export interface EmptyStateProps {
   description: string;
   actionLabel?: string;
   onActionPress?: () => void;
+  // Direct action node override (e.g., custom button)
+  action?: React.ReactNode;
+  // More compact spacing variant
+  compact?: boolean;
   secondary?: boolean;
   size?: "small" | "medium" | "large";
 }
@@ -27,6 +31,8 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   description,
   actionLabel,
   onActionPress,
+  action,
+  compact = false,
   secondary = false,
   size = "medium",
 }) => {
@@ -57,7 +63,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const currentSize = sizeStyles[size];
 
   return (
-    <View style={[styles.container, currentSize.container]}>
+    <View style={[styles.container, currentSize.container, compact && { paddingVertical: 8 }]}>
       <Ionicons
         name={icon}
         size={currentSize.icon}
@@ -68,7 +74,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       <Text style={[styles.description, currentSize.description]}>
         {description}
       </Text>
-      {actionLabel && onActionPress && (
+      {action ? (
+        <View style={{ marginTop: 12 }}>{action}</View>
+      ) : actionLabel && onActionPress ? (
         <TouchableOpacity
           style={[styles.actionButton, secondary && styles.secondaryButton]}
           onPress={onActionPress}
@@ -82,7 +90,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             {actionLabel}
           </Text>
         </TouchableOpacity>
-      )}
+      ) : null}
     </View>
   );
 };

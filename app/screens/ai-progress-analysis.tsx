@@ -10,6 +10,7 @@ import { track } from '@/lib/analytics';
 import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { canUseFeature, getQuotaStatus } from '@/lib/ai/limits';
 import { router } from 'expo-router';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface StudentProgress {
   id: string;
@@ -33,6 +34,8 @@ interface ClassAnalytics {
 
 export default function AIProgressAnalysisScreen() {
   const { user } = useAuth();
+  const { tier } = useSubscription();
+  const hasPremiumOrHigher = ['premium','pro','enterprise'].includes(String(tier || ''));
   const [loading, setLoading] = useState(true);
   const [analysisData, setAnalysisData] = useState<{
     studentProgress: StudentProgress[];
@@ -293,16 +296,22 @@ export default function AIProgressAnalysisScreen() {
     );
   }
 
-  if (!aiAnalysisEnabled) {
+  if (!aiAnalysisEnabled || !hasPremiumOrHigher) {
     return (
       <SafeAreaView style={styles.container}>
         <ScreenHeader title="AI Progress Analysis" subtitle="AI-powered student insights" />
         <View style={styles.disabledContainer}>
           <Ionicons name="analytics-outline" size={64} color={Colors.light.tabIconDefault} />
-          <Text style={styles.disabledTitle}>AI Analysis Disabled</Text>
+          <Text style={styles.disabledTitle}>Premium Feature</Text>
           <Text style={styles.disabledText}>
-            Progress analysis is not enabled in this build or your plan.
+            Progress Analysis is available on Premium and higher plans.
           </Text>
+          <TouchableOpacity
+            style={{ marginTop: 12, backgroundColor: '#7C3AED', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 }}
+            onPress={() => router.push('/screens/subscription-upgrade-post?reason=ai_progress')}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Upgrade</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );

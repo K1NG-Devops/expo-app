@@ -10,8 +10,8 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from "react-native";
-import { Colors } from '@/constants/Colors';
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -40,7 +40,6 @@ import {
   isEnrolled,
 } from "@/lib/biometrics";
 import { BiometricAuthService } from "@/services/BiometricAuthService";
-import { BiometricBackupManager } from "@/lib/BiometricBackupManager";
 import { assertSupabase } from "@/lib/supabase";
 import { signOutAndRedirect } from "@/lib/authActions";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -48,6 +47,7 @@ import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import ProfileImageService from '@/services/ProfileImageService';
 
 export default function AccountScreen() {
   const { theme, mode } = useTheme();
@@ -59,26 +59,19 @@ export default function AccountScreen() {
   const [firstName, setFirstName] = useState<string | null>(null);
   const [lastName, setLastName] = useState<string | null>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
-  const [biometricTypes, setBiometricTypes] = useState<string[]>([]);
-  const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(
-    null,
-  );
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
-  const [showBackupSetup, setShowBackupSetup] = useState(false);
-  const [backupPin, setBackupPin] = useState("");
-  const [confirmPin, setConfirmPin] = useState("");
-  const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [showThemeSettings, setShowThemeSettings] = useState(false);
 
-  const styles = useThemedStyles((theme, isDark) => ({
+  const styles = useThemedStyles((theme) => ({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -407,6 +400,31 @@ export default function AccountScreen() {
     load();
   }, [load]);
 
+  // Convert profile image URI to data URI for web compatibility
+  useEffect(() => {
+    const convertImageUri = async () => {
+      if (profileImage) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (profileImage.startsWith('blob:') || profileImage.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(profileImage);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(profileImage);
+          }
+        } catch (error) {
+          console.error('Failed to convert profile image URI:', error);
+          setDisplayUri(profileImage); // Fallback to original URI
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertImageUri();
+  }, [profileImage]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -415,15 +433,6 @@ export default function AccountScreen() {
         setBiometricSupported(securityInfo.capabilities.isAvailable);
         setBiometricEnrolled(securityInfo.capabilities.isEnrolled);
         setBiometricEnabled(securityInfo.isEnabled);
-        setBiometricTypes(securityInfo.availableTypes);
-        setBiometricLastUsed(securityInfo.lastUsed || null);
-
-        // Check for backup methods
-        const backupMethods =
-          await BiometricBackupManager.getAvailableFallbackMethods();
-        setHasBackupMethods(
-          backupMethods.hasPin || backupMethods.hasSecurityQuestions,
-        );
       } catch (error) {
         console.error("Error loading biometric info:", error);
         // Fallback to original method
@@ -514,74 +523,36 @@ export default function AccountScreen() {
       const user = data.user;
 
       if (!user?.id) {
-        Alert.alert("Error", "User not found");
+        Alert.alert('Error', 'User not found');
         return;
       }
 
-      // Read the image file
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const filename = `profile_${user.id}_${Date.now()}.jpg`;
-
-      // Try to upload to Supabase Storage
-      let publicUrl = null;
-      try {
-        // Upload to Supabase Storage
-        const { error: uploadError } = await assertSupabase().storage
-          .from("avatars")
-          .upload(filename, blob, {
-            contentType: "image/jpeg",
-            upsert: true,
-          });
-
-        if (uploadError) {
-          console.warn("Storage upload failed:", uploadError);
-          throw uploadError;
-        }
-
-        // Get public URL
-        const {
-          data: { publicUrl: url },
-        } = assertSupabase().storage.from("avatars").getPublicUrl(filename);
-
-        publicUrl = url;
-      } catch (storageError) {
-        console.warn("Storage upload failed, using local URI:", storageError);
-        // Fallback: just use the local URI for now
-        publicUrl = uri;
+      // Validate image before upload
+      const validation = await ProfileImageService.validateImage(uri);
+      if (!validation.valid) {
+        Alert.alert('Invalid Image', validation.error || 'Please select a valid image');
+        return;
       }
 
-      // Update profile with new avatar URL
-      const { error: updateError } = await assertSupabase()
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", user.id);
+      // Upload using ProfileImageService
+      const result = await ProfileImageService.uploadProfileImage(user.id, uri, {
+        quality: 0.8,
+        maxWidth: 800,
+        maxHeight: 800,
+        format: 'jpeg'
+      });
 
-      if (updateError) {
-        console.warn("Profile update error:", updateError);
-        // Still update local state even if DB update fails
+      if (result.success && result.publicUrl) {
+        // Update local state
+        setProfileImage(result.publicUrl);
+        Alert.alert("Success", "Profile picture updated!");
+      } else {
+        // Provide specific error message for missing bucket
+        const errorMessage = result.error?.includes('Bucket not found') || result.error?.includes('not found') 
+          ? "Avatar storage is not set up. Please contact support."
+          : result.error || "Failed to update profile picture. Please try again.";
+        Alert.alert("Upload Failed", errorMessage);
       }
-
-      // Also update user metadata to ensure persistence
-      try {
-        const { error: metaError } = await assertSupabase().auth.updateUser({
-          data: { 
-            avatar_url: publicUrl
-          }
-        });
-        
-        if (metaError) {
-          console.warn("User metadata update error:", metaError);
-        } else {
-          console.log("Successfully updated avatar in user metadata");
-        }
-      } catch (metaErr) {
-        console.warn("Failed to update user metadata:", metaErr);
-      }
-
-      // Update local state
-      setProfileImage(publicUrl);
-      Alert.alert("Success", "Profile picture updated!");
     } catch (error) {
       console.error("Upload error:", error);
       Alert.alert(
@@ -727,7 +698,12 @@ export default function AccountScreen() {
     <View style={styles.container}>
       <RoleBasedHeader title={t('navigation.account')} showBackButton onBackPress={() => {
         // Prefer router back when available, fall back to navigation
-        try { require('expo-router').router.back(); } catch {}
+        try { 
+          require('expo-router').router.back(); 
+        } catch (error) {
+          // Fallback handled by router
+          console.log('Router back fallback', error);
+        }
       }} />
 
       <ScrollView
@@ -748,8 +724,8 @@ export default function AccountScreen() {
             onPress={showImageOptions}
             disabled={uploadingImage}
           >
-            {profileImage ? (
-              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            {displayUri || profileImage ? (
+              <Image source={{ uri: (displayUri || profileImage) ?? '' }} style={styles.avatar} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Text style={styles.avatarText}>{getInitials()}</Text>

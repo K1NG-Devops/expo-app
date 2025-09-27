@@ -9,7 +9,8 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { LinearGradient } from 'expo-linear-gradient';
-import ParentDashboard from '@/components/dashboard/ParentDashboard';
+import ParentDashboardWrapper from '@/components/dashboard/ParentDashboardWrapper';
+import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { track } from '@/lib/analytics';
 
 export default function ParentDashboardScreen() {
@@ -127,7 +128,7 @@ export default function ParentDashboardScreen() {
 
     return (
       <View style={{ flex: 1 }}>
-        <Stack.Screen options={{ title: t('dashboard.parentDashboard'), headerStyle: { backgroundColor: theme.background }, headerTitleStyle: { color: theme.text }, headerTintColor: theme.primary, headerBackVisible: false }} />
+        <Stack.Screen options={{ headerShown: false }} />
         <StatusBar style={isDark ? "light" : "dark"} />
         <SafeAreaView edges={['top']} style={deniedStyles.deniedContainer}>
           <LinearGradient
@@ -157,7 +158,8 @@ export default function ParentDashboardScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar style={isDark ? "light" : "dark"} />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
-        <ParentDashboard />
+        <RoleBasedHeader showBackButton={false} />
+        <ParentDashboardWrapper />
       </SafeAreaView>
     </View>
   );

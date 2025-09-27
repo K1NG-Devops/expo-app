@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   View,
   Text,
@@ -22,9 +23,11 @@ import {
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
+import { navigateBack } from '@/lib/navigation';
+import { derivePreschoolId } from '@/lib/roleUtils';
 
 import { FinancialDataService } from '@/services/FinancialDataService';
 import { ExportService } from '@/lib/services/finance/ExportService';
@@ -39,7 +42,10 @@ interface FilterOptions {
 }
 
 export default function TransactionsScreen() {
+  const { t } = useTranslation('common');
   const { profile } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionRecord[]>([]);
@@ -75,12 +81,14 @@ export default function TransactionsScreen() {
       setLoading(!forceRefresh);
       if (forceRefresh) setRefreshing(true);
 
-      const data = await FinancialDataService.getTransactions(filters.dateRange);
+      const preschoolId = derivePreschoolId(profile);
+
+      const data = await FinancialDataService.getTransactions(filters.dateRange, preschoolId || undefined);
       setTransactions(data);
 
     } catch (error) {
       console.error('Failed to load transactions:', error);
-      Alert.alert('Error', 'Failed to load transactions');
+      Alert.alert(t('common.error'), t('transactions.load_failed', { defaultValue: 'Failed to load transactions' }));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -119,7 +127,7 @@ export default function TransactionsScreen() {
 
   const handleExport = () => {
     if (!filteredTransactions.length) {
-      Alert.alert('No Data', 'No transactions available to export');
+      Alert.alert(t('transactions.no_data', { defaultValue: 'No Data' }), t('transactions.no_transactions_export', { defaultValue: 'No transactions available to export' }));
       return;
     }
 
@@ -167,55 +175,68 @@ export default function TransactionsScreen() {
     }
   };
 
-  const renderTransaction = ({ item }: { item: TransactionRecord }) => (
-    <TouchableOpacity style={styles.transactionCard}>
-      <View style={styles.transactionHeader}>
-        <View style={styles.transactionIcon}>
-          <Ionicons 
-            name={item.type === 'income' ? 'trending-up' : 'trending-down'} 
-            size={20} 
-            color={item.type === 'income' ? '#059669' : '#DC2626'} 
-          />
-        </View>
-        <View style={styles.transactionInfo}>
-          <Text style={styles.transactionDescription}>{item.description}</Text>
-          <Text style={styles.transactionCategory}>{item.category} • {formatDate(item.date)}</Text>
-        </View>
-        <View style={styles.transactionAmount}>
-          <Text style={[
-            styles.amountText,
-            { color: item.type === 'income' ? '#059669' : '#DC2626' }
-          ]}>
-            {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
-          </Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-              {item.status}
+  const renderTransaction = ({ item }: { item: TransactionRecord }) => {
+    const hasEvidence = Boolean(
+      (item as any).attachmentUrl || (item as any).hasReceipt || ((item as any).receiptCount ?? 0) > 0
+    );
+    return (
+      <TouchableOpacity style={styles.transactionCard}>
+        <View style={styles.transactionHeader}>
+          <View style={styles.transactionIcon}>
+            <Ionicons 
+              name={item.type === 'income' ? 'trending-up' : 'trending-down'} 
+              size={20} 
+              color={item.type === 'income' ? '#059669' : '#DC2626'} 
+            />
+          </View>
+          <View style={styles.transactionInfo}>
+            <Text style={styles.transactionDescription}>{item.description}</Text>
+            <Text style={styles.transactionCategory}>{item.category} • {formatDate(item.date)}</Text>
+          </View>
+          <View style={styles.transactionAmount}>
+            <Text style={[
+              styles.amountText,
+              { color: item.type === 'income' ? '#059669' : '#DC2626' }
+            ]}>
+              {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount)}
             </Text>
+            {hasEvidence && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                <Ionicons name="document-attach" size={16} color={theme?.primary || '#4F46E5'} />
+                <Text style={{ fontSize: 11, color: theme?.textSecondary || '#6B7280' }}>
+                  {(item as any).receiptCount ? `${(item as any).receiptCount} ${t('receipt.view_receipts', { defaultValue: 'View Receipts' })}` : t('receipt.attach_receipt', { defaultValue: 'Attach Receipt' })}
+                </Text>
+              </View>
+            )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
+                {item.status}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderFilterModal = () => (
     <Modal visible={showFilters} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Filter Transactions</Text>
+            <Text style={styles.modalTitle}>{t('transactions.filter_title', { defaultValue: 'Filter Transactions' })}</Text>
             <TouchableOpacity onPress={() => setShowFilters(false)}>
-              <Ionicons name="close" size={24} color={Colors.light.text} />
+              <Ionicons name="close" size={24} color={theme?.text || '#333'} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Transaction Type</Text>
+            <Text style={styles.filterLabel}>{t('transactions.type', { defaultValue: 'Transaction Type' })}</Text>
             <View style={styles.filterOptions}>
               {[
-                { key: 'all', label: 'All Types' },
-                { key: 'income', label: 'Income' },
-                { key: 'expense', label: 'Expenses' },
+                { key: 'all', label: t('transactions.all_types', { defaultValue: 'All Types' }) },
+                { key: 'income', label: t('transactions.income', { defaultValue: 'Income' }) },
+                { key: 'expense', label: t('transactions.expenses', { defaultValue: 'Expenses' }) },
               ].map(({ key, label }) => (
                 <TouchableOpacity
                   key={key}
@@ -237,15 +258,15 @@ export default function TransactionsScreen() {
           </View>
 
           <View style={styles.filterSection}>
-            <Text style={styles.filterLabel}>Category</Text>
+            <Text style={styles.filterLabel}>{t('transactions.category', { defaultValue: 'Category' })}</Text>
             <View style={styles.filterOptions}>
               {[
-                { key: 'all', label: 'All Categories' },
-                { key: 'Tuition', label: 'Tuition' },
-                { key: 'Supplies', label: 'Supplies' },
-                { key: 'Salaries', label: 'Salaries' },
-                { key: 'Maintenance', label: 'Maintenance' },
-                { key: 'Utilities', label: 'Utilities' },
+                { key: 'all', label: t('transactions.all_categories', { defaultValue: 'All Categories' }) },
+                { key: 'Tuition', label: t('transactions.cat_tuition', { defaultValue: 'Tuition' }) },
+                { key: 'Supplies', label: t('transactions.cat_supplies', { defaultValue: 'Supplies' }) },
+                { key: 'Salaries', label: t('transactions.cat_salaries', { defaultValue: 'Salaries' }) },
+                { key: 'Maintenance', label: t('transactions.cat_maintenance', { defaultValue: 'Maintenance' }) },
+                { key: 'Utilities', label: t('transactions.cat_utilities', { defaultValue: 'Utilities' }) },
               ].map(({ key, label }) => (
                 <TouchableOpacity
                   key={key}
@@ -280,13 +301,13 @@ export default function TransactionsScreen() {
                 searchTerm: '',
               })}
             >
-              <Text style={styles.clearButtonText}>Clear All</Text>
+              <Text style={styles.clearButtonText}>{t('transactions.clear_all', { defaultValue: 'Clear All' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.applyButton}
               onPress={() => setShowFilters(false)}
             >
-              <Text style={styles.applyButtonText}>Apply Filters</Text>
+              <Text style={styles.applyButtonText}>{t('transactions.apply_filters', { defaultValue: 'Apply Filters' })}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -297,13 +318,13 @@ export default function TransactionsScreen() {
   if (!canAccessFinances()) {
     return (
       <View style={styles.accessDenied}>
-        <Ionicons name="lock-closed" size={64} color={Colors.light.tabIconDefault} />
-        <Text style={styles.accessDeniedTitle}>Access Denied</Text>
+        <Ionicons name="lock-closed" size={64} color={theme?.textSecondary || '#666'} />
+        <Text style={styles.accessDeniedTitle}>{t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}</Text>
         <Text style={styles.accessDeniedText}>
-          Only school principals can access transaction details.
+          {t('transactions.access_denied_text', { defaultValue: 'Only school principals can access transaction details.' })}
         </Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigateBack()}>
+          <Text style={styles.backButtonText}>{t('common.back')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -313,45 +334,45 @@ export default function TransactionsScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
+        <TouchableOpacity onPress={() => navigateBack()}>
+          <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
-        <Text style={styles.title}>Transactions</Text>
+        <Text style={styles.title}>{t('transactions.title', { defaultValue: 'Transactions' })}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.headerAction}
             onPress={() => setShowFilters(true)}
           >
-            <Ionicons name="filter" size={20} color={Colors.light.text} />
+            <Ionicons name="filter" size={20} color={theme?.text || '#333'} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.headerAction}
             onPress={handleExport}
           >
-            <Ionicons name="download" size={20} color={Colors.light.text} />
+            <Ionicons name="download" size={20} color={theme?.text || '#333'} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={Colors.light.tabIconDefault} />
+        <Ionicons name="search" size={20} color={theme?.textSecondary || '#666'} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search transactions..."
+          placeholder={t('transactions.search_placeholder', { defaultValue: 'Search transactions...' })}
           value={filters.searchTerm}
           onChangeText={(text) => setFilters(prev => ({ ...prev, searchTerm: text }))}
-          placeholderTextColor={Colors.light.tabIconDefault}
+          placeholderTextColor={theme?.textSecondary || '#666'}
         />
       </View>
 
       {/* Summary Bar */}
       <View style={styles.summaryContainer}>
         <Text style={styles.summaryText}>
-          {filteredTransactions.length} of {transactions.length} transactions
+          {t('transactions.summary_count', { defaultValue: '{{count}} of {{total}} transactions', count: filteredTransactions.length, total: transactions.length })}
         </Text>
         <Text style={styles.summaryAmount}>
-          Total: {formatCurrency(
+          {t('transactions.total', { defaultValue: 'Total' })}: {formatCurrency(
             filteredTransactions.reduce((sum, t) => 
               sum + (t.type === 'income' ? t.amount : -t.amount), 0
             )
@@ -377,10 +398,10 @@ export default function TransactionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: theme?.background || '#f8fafc',
   },
   header: {
     flexDirection: 'row',
@@ -389,14 +410,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: theme?.border || '#e2e8f0',
   },
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   headerActions: {
     flexDirection: 'row',
@@ -408,20 +429,20 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     marginHorizontal: 16,
     marginTop: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme?.border || '#e2e8f0',
   },
   searchInput: {
     flex: 1,
     marginLeft: 8,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -432,21 +453,21 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   summaryAmount: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   listContent: {
     paddingHorizontal: 16,
   },
   transactionCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.cardBackground || 'white',
     borderRadius: 12,
     marginBottom: 8,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -461,7 +482,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme?.surfaceVariant || '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -472,12 +493,12 @@ const styles = StyleSheet.create({
   transactionDescription: {
     fontSize: 16,
     fontWeight: '500',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   transactionCategory: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   transactionAmount: {
     alignItems: 'flex-end',
@@ -503,7 +524,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContainer: {
-    backgroundColor: 'white',
+    backgroundColor: theme?.surface || 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
@@ -514,12 +535,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: theme?.border || '#e2e8f0',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
   },
   filterSection: {
     padding: 20,
@@ -527,7 +548,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginBottom: 12,
   },
   filterOptions: {
@@ -539,20 +560,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: theme?.surfaceVariant || '#f1f5f9',
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: theme?.border || '#e2e8f0',
   },
   filterOptionActive: {
-    backgroundColor: Colors.light.tint + '20',
-    borderColor: Colors.light.tint,
+    backgroundColor: (theme?.primary || '#007AFF') + '20',
+    borderColor: theme?.primary || '#007AFF',
   },
   filterOptionText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
   },
   filterOptionTextActive: {
-    color: Colors.light.tint,
+    color: theme?.primary || '#007AFF',
     fontWeight: '600',
   },
   modalActions: {
@@ -560,18 +581,18 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
+    borderTopColor: theme?.border || '#e2e8f0',
   },
   clearButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.light.tabIconDefault,
+    borderColor: theme?.textSecondary || '#666',
     alignItems: 'center',
   },
   clearButtonText: {
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -579,7 +600,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     alignItems: 'center',
   },
   applyButtonText: {
@@ -596,18 +617,18 @@ const styles = StyleSheet.create({
   accessDeniedTitle: {
     fontSize: 24,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme?.text || '#333',
     marginTop: 16,
     marginBottom: 8,
   },
   accessDeniedText: {
     fontSize: 16,
-    color: Colors.light.tabIconDefault,
+    color: theme?.textSecondary || '#666',
     textAlign: 'center',
     marginBottom: 24,
   },
   backButton: {
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme?.primary || '#007AFF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

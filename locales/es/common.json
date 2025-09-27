@@ -53,7 +53,14 @@
     "statistics": "Estadísticas",
     "notifications": "Notificaciones",
     "noActivity": "Sin actividad reciente",
-    "loading": "Cargando panel..."
+    "loading": "Cargando panel...",
+    "loading_profile": "Loading profile...",
+    "no_school_found_redirect": "No school found. Redirecting to onboarding…",
+    "principal_hub_load_error": "Unable to Load Principal Hub",
+    "your_school": "your school",
+    "unlock_premium_subtitle": "Advanced analytics, AI insights & more • Transform your school today!",
+    "capacity_students": "{{current}} / {{capacity}} students",
+    "utilized_percentage": "{{percentage}}% utilized"
   },
   "ai": {
     "homework": {
@@ -213,6 +220,17 @@
     "created": "Elemento creado exitosamente",
     "updated": "Elemento actualizado exitosamente"
   },
+  "teacher": {
+    "performance": {
+      "active": "Active teacher",
+      "no_classes": "No classes assigned - requires attention",
+      "high_ratio": "High student ratio ({{ratio}}:1) - may need support",
+      "excellent": "Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance",
+      "strong": "Strong performance - {{classes}} classes, good attendance rates",
+      "good": "Good performance - managing {{students}} students effectively",
+      "review_needed": "Performance review needed - {{attendance}}% attendance rate in classes"
+    }
+  },
   "common": {
     "loading": "Cargando...",
     "error": "Error",
@@ -225,12 +243,18 @@
     "ok": "OK",
     "close": "Cerrar",
     "retry": "Reintentar",
-    "refresh": "Actualizar"
+    "refresh": "Actualizar",
+    "email": "Email",
+    "status": "Status",
+    "go_now": "Go now"
   },
   "curriculum": {
     "standards": {
       "placeholder": "{{subject}} - Estándares de Grado {{grade}}"
     }
+  },
+  "quick_actions": {
+    "seat_management_subtitle": "Assign or revoke teacher seats"
   },
   "subscription": {
     "free": "Gratis",
@@ -240,6 +264,7 @@
     "upgrade": "Actualizar Plan",
     "billing": "Facturación",
     "usage": "Uso",
-    "limits": "Límites del Plan"
+    "limits": "Límites del Plan",
+    "choose_your_plan": "Choose Your Plan"
   }
 }

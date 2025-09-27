@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useThemedStyles } from '@/hooks/useThemedStyles';
+// import { useThemedStyles } from '@/hooks/useThemedStyles'; // TODO: Use for theme-aware styles
 import { Colors } from '@/constants/Colors';
 
 interface SchoolSettings {
@@ -188,6 +188,7 @@ export default function SchoolSettingsScreen() {
 
   useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const canAccessSettings = (): boolean => {
@@ -363,12 +364,13 @@ export default function SchoolSettingsScreen() {
             updateNestedSetting(['permissions', 'allowParentMessaging'], !settings.permissions.allowParentMessaging);
           })}
           {renderSettingRow('Session Timeout', `${settings.permissions.sessionTimeout} min`, () => {
-            Alert.prompt('Session Timeout', 'Enter timeout in minutes', (text) => {
-              const timeout = parseInt(text || '30');
-              if (!isNaN(timeout)) {
-                updateNestedSetting(['permissions', 'sessionTimeout'], timeout);
-              }
-            });
+            Alert.alert('Session Timeout', 'Choose timeout duration:', [
+              { text: '15 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 15) },
+              { text: '30 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 30) },
+              { text: '60 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 60) },
+              { text: '120 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 120) },
+              { text: 'Cancel', style: 'cancel' }
+            ]);
           })}
         </View>
 
@@ -407,12 +409,13 @@ export default function SchoolSettingsScreen() {
             ]);
           })}
           {renderSettingRow('Data Retention', `${settings.backup.dataRetentionMonths} months`, () => {
-            Alert.prompt('Data Retention', 'Enter retention period in months', (text) => {
-              const months = parseInt(text || '12');
-              if (!isNaN(months)) {
-                updateNestedSetting(['backup', 'dataRetentionMonths'], months);
-              }
-            });
+            Alert.alert('Data Retention', 'Choose retention period:', [
+              { text: '6 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 6) },
+              { text: '12 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 12) },
+              { text: '24 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 24) },
+              { text: '36 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 36) },
+              { text: 'Cancel', style: 'cancel' }
+            ]);
           })}
         </View>
 
@@ -433,20 +436,22 @@ export default function SchoolSettingsScreen() {
             updateNestedSetting(['display', 'showCalendarWidget'], !settings.display.showCalendarWidget);
           })}
           {renderSettingRow('Financial Reports Limit', `${settings.features.financialReports.requireApprovalLimit}`, () => {
-            Alert.prompt('Approval Limit', 'Enter amount requiring approval', (text) => {
-              const limit = parseFloat(text || '1000');
-              if (!isNaN(limit)) {
-                updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], limit);
-              }
-            });
+            Alert.alert('Approval Limit', 'Choose amount requiring approval:', [
+              { text: 'R500', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 500) },
+              { text: 'R1000', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 1000) },
+              { text: 'R2500', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 2500) },
+              { text: 'R5000', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 5000) },
+              { text: 'Cancel', style: 'cancel' }
+            ]);
           })}
           {renderSettingRow('Petty Cash Daily Limit', `${settings.features.pettyCash.dailyLimit}`, () => {
-            Alert.prompt('Daily Limit', 'Enter daily petty cash limit', (text) => {
-              const limit = parseFloat(text || '500');
-              if (!isNaN(limit)) {
-                updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], limit);
-              }
-            });
+            Alert.alert('Daily Limit', 'Choose daily petty cash limit:', [
+              { text: 'R200', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 200) },
+              { text: 'R500', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 500) },
+              { text: 'R1000', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 1000) },
+              { text: 'R2000', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 2000) },
+              { text: 'Cancel', style: 'cancel' }
+            ]);
           })}
         </View>
       </ScrollView>

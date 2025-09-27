@@ -195,9 +195,13 @@ async function clearStoredData(): Promise<void> {
  */
 async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
   try {
-    // First get user profile
-    const { data: profile, error: profileError } = await assertSupabase()
-      .from('profiles')
+    // Try both auth_user_id and id fields for compatibility
+    let profile = null;
+    let profileError = null;
+    
+    // First try with auth_user_id (the correct field)
+    const { data: profileByAuth, error: authError } = await assertSupabase()
+      .from('users')
       .select(`
         id,
         email,
@@ -206,13 +210,40 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
         last_name,
         avatar_url,
         created_at,
-        last_login_at,
-        preschool_id
+        preschool_id,
+        is_active
       `)
-      .eq('id', userId)
+      .eq('auth_user_id', userId)
       .maybeSingle();
+      
+    if (!authError && profileByAuth) {
+      profile = profileByAuth;
+    } else {
+      // Fallback to id field
+      const { data: profileById, error: idError } = await assertSupabase()
+        .from('users')
+        .select(`
+          id,
+          email,
+          role,
+          first_name,
+          last_name,
+          avatar_url,
+          created_at,
+          preschool_id,
+          is_active
+        `)
+        .eq('id', userId)
+        .maybeSingle();
+        
+      if (!idError && profileById) {
+        profile = profileById;
+      } else {
+        profileError = authError || idError;
+      }
+    }
 
-    if (profileError) {
+    if (profileError && !profile) {
       console.error('Failed to fetch user profile:', profileError);
       return null;
     }
@@ -238,10 +269,6 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       };
     }
 
-    // Extract organization info (placeholders retained)
-    const orgMember = null as any;
-    const org = null as any;
-
     // Get user capabilities based on role and subscription
     const planTier = undefined;
     const capabilities = await getUserCapabilities(profile.role, planTier);
@@ -255,10 +282,10 @@ async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
       avatar_url: profile.avatar_url,
       organization_id: profile.preschool_id,
       organization_name: undefined,
-      seat_status: 'active',
+      seat_status: profile.is_active !== false ? 'active' : 'inactive',
       capabilities,
       created_at: profile.created_at,
-      last_login_at: profile.last_login_at,
+      last_login_at: (profile as any).last_login_at ?? null,
     };
   } catch (error) {
     reportError(new Error('Failed to fetch user profile'), { userId, error });
@@ -342,7 +369,7 @@ function needsRefresh(session: UserSession): boolean {
 }
 
 /**
- * Refresh session token with exponential backoff
+ * Refresh session using refresh token
  */
 async function refreshSession(
   refreshToken: string,
@@ -350,15 +377,27 @@ async function refreshSession(
   maxAttempts: number = 3
 ): Promise<UserSession | null> {
   try {
+    // Validate refresh token before attempting refresh
+    if (!refreshToken || refreshToken.trim() === '') {
+      throw new Error('Invalid refresh token: empty or null');
+    }
+
+    console.log(`[SessionManager] Attempting refresh (attempt ${attempt}/${maxAttempts})`);
+    
     const { data, error } = await assertSupabase().auth.refreshSession({
       refresh_token: refreshToken,
     });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SessionManager] Supabase refresh error:', error.message);
+      throw error;
+    }
 
     if (!data.session) {
       throw new Error('No session returned from refresh');
     }
+
+    console.log('[SessionManager] Session refreshed successfully');
 
     const newSession: UserSession = {
       access_token: data.session.access_token,
@@ -379,9 +418,28 @@ async function refreshSession(
   } catch (error) {
     console.error(`Session refresh attempt ${attempt} failed:`, error);
 
+    // Special handling for specific refresh token errors
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid Refresh Token') || 
+          error.message.includes('Refresh Token Not Found') ||
+          error.message.includes('refresh_token_not_found')) {
+        console.log('[SessionManager] Refresh token is invalid, clearing stored session');
+        await clearStoredData();
+        
+        track('edudash.auth.session_refresh_failed', {
+          attempts: attempt,
+          error: 'invalid_refresh_token',
+          final: true,
+        });
+        
+        return null; // Don't retry for invalid tokens
+      }
+    }
+
     if (attempt < maxAttempts) {
       // Exponential backoff: 1s, 2s, 4s
       const delay = Math.pow(2, attempt - 1) * 1000;
+      console.log(`[SessionManager] Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return refreshSession(refreshToken, attempt + 1, maxAttempts);
     }
@@ -389,6 +447,7 @@ async function refreshSession(
     track('edudash.auth.session_refresh_failed', {
       attempts: attempt,
       error: error instanceof Error ? error.message : 'Unknown error',
+      final: true,
     });
 
     reportError(new Error('Session refresh failed after all attempts'), { 
@@ -396,6 +455,8 @@ async function refreshSession(
       originalError: error 
     });
 
+    // Clear stored session if all attempts failed
+    await clearStoredData();
     return null;
   }
 }
@@ -523,11 +584,29 @@ export async function signInWithSession(
       storeProfile(profile),
     ]);
 
-    // Update last login
-    await assertSupabase()
-      .from('profiles')
-      .update({ last_login_at: new Date().toISOString() })
-      .eq('id', data.user.id);
+    // Update last login - try both auth_user_id and id fields for compatibility
+    try {
+      let updateResult = await assertSupabase()
+        .from('users')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('auth_user_id', data.user.id);
+        
+      if (updateResult.error) {
+        // Fallback to id field
+        updateResult = await assertSupabase()
+          .from('users')
+          .update({ last_login_at: new Date().toISOString() })
+          .eq('id', data.user.id);
+      }
+      
+      if (updateResult.error) {
+        console.warn('Could not update last_login_at:', updateResult.error);
+        // Continue anyway - this is not critical for login success
+      }
+    } catch (updateError) {
+      console.warn('Error updating last_login_at:', updateError);
+      // Continue anyway - this is not critical for login success
+    }
 
     // Set up monitoring and feature flags
     identifyUser(data.user.id, {

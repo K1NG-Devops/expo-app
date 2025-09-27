@@ -53,6 +53,15 @@
       "error": "Falha ao gerar a aula. Tente novamente."
     }
   },
+  "dashboard": {
+    "loading_profile": "Loading profile...",
+    "no_school_found_redirect": "No school found. Redirecting to onboarding…",
+    "principal_hub_load_error": "Unable to Load Principal Hub",
+    "your_school": "your school",
+    "unlock_premium_subtitle": "Advanced analytics, AI insights & more • Transform your school today!",
+    "capacity_students": "{{current}} / {{capacity}} students",
+    "utilized_percentage": "{{percentage}}% utilized"
+  },
   "settings": {
     "title": "Configurações",
     "profile": "Configurações do Perfil",
@@ -83,12 +92,32 @@
     "termsOfService": "Termos de Serviço",
     "privacyPolicy": "Política de Privacidade"
   },
+  "teacher": {
+    "performance": {
+      "active": "Active teacher",
+      "no_classes": "No classes assigned - requires attention",
+      "high_ratio": "High student ratio ({{ratio}}:1) - may need support",
+      "excellent": "Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance",
+      "strong": "Strong performance - {{classes}} classes, good attendance rates",
+      "good": "Good performance - managing {{students}} students effectively",
+      "review_needed": "Performance review needed - {{attendance}}% attendance rate in classes"
+    }
+  },
   "common": {
     "loading": "Carregando...",
     "error": "Erro",
     "success": "Sucesso",
     "warning": "Aviso",
-    "info": "Informação"
+    "info": "Informação",
+    "email": "Email",
+    "status": "Status",
+    "go_now": "Go now"
+  },
+  "quick_actions": {
+    "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "subscription": {
+    "choose_your_plan": "Choose Your Plan"
   },
   "curriculum": {
     "standards": {

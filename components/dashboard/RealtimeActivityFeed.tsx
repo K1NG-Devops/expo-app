@@ -16,7 +16,8 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 import { 
   RealtimeSubscriptionService,
   StudentEnrollmentEvent,
@@ -302,21 +303,22 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
   }, [loadInitialActivities, setupRealtimeSubscriptions, autoRefresh]);
 
   // Format timestamp for display
+  const { t } = useTranslation('common')
   const formatTimestamp = useCallback((timestamp: string): string => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return t('activity.just_now', { defaultValue: 'Just now' });
+    if (diffMins < 60) return t('activity.minutes_ago', { count: diffMins, defaultValue: `${diffMins}m ago` });
     
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return t('activity.hours_ago', { count: diffHours, defaultValue: `${diffHours}h ago` });
     
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  }, []);
+    return t('activity.days_ago', { count: diffDays, defaultValue: `${diffDays}d ago` });
+  }, [t]);
 
   // Render individual activity item
   const renderActivityItem = ({ item }: { item: ActivityFeedItem }) => (
@@ -344,7 +346,7 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
         {item.priority === 'high' && (
           <View style={styles.priorityIndicator}>
             <Ionicons name="alert-circle" size={12} color="#DC2626" />
-            <Text style={styles.priorityText}>High Priority</Text>
+            <Text style={styles.priorityText}>{t('activity.high_priority', { defaultValue: 'High Priority' })}</Text>
           </View>
         )}
       </View>
@@ -367,8 +369,8 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
         }
       ]} />
       <Text style={styles.statusText}>
-        {connectionStatus === 'connected' ? 'Live' :
-         connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
+        {connectionStatus === 'connected' ? t('activity.live', { defaultValue: 'Live' }) :
+         connectionStatus === 'connecting' ? t('activity.connecting', { defaultValue: 'Connecting...' }) : t('activity.offline', { defaultValue: 'Offline' })}
       </Text>
     </View>
   );
@@ -377,7 +379,7 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#6B7280" />
-        <Text style={styles.loadingText}>Loading activity feed...</Text>
+        <Text style={styles.loadingText}>{t('activity.loading', { defaultValue: 'Loading activity feed...' })}</Text>
       </View>
     );
   }
@@ -386,7 +388,7 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
     <View style={styles.container}>
       {showHeader && (
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Recent Activity</Text>
+          <Text style={styles.headerTitle}>{t('activity.recent_activity', { defaultValue: 'Recent Activity' })}</Text>
           {renderConnectionStatus()}
         </View>
       )}
@@ -422,9 +424,9 @@ export const RealtimeActivityFeed: React.FC<RealtimeActivityFeedProps> = ({
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons name="pulse" size={48} color="#D1D5DB" />
-              <Text style={styles.emptyTitle}>No Recent Activity</Text>
+              <Text style={styles.emptyTitle}>{t('activity.no_recent_activity', { defaultValue: 'No Recent Activity' })}</Text>
               <Text style={styles.emptyDescription}>
-                School activities will appear here in real-time
+                {t('activity.empty_description', { defaultValue: 'School activities will appear here in real-time' })}
               </Text>
             </View>
           }

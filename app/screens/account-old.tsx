@@ -201,9 +201,26 @@ export default function AccountScreen() {
         return;
       }
 
-      // Read the image file
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      // Handle different URI formats for web/mobile compatibility
+      let blob: Blob;
+      try {
+        if (uri.startsWith('file://') && typeof window !== 'undefined') {
+          // Web environment with file:// URI - this shouldn't happen but handle gracefully
+          console.warn('File URI detected in web environment, cannot process:', uri);
+          Alert.alert('Error', 'Image selection not supported in web environment');
+          return;
+        }
+        
+        const response = await fetch(uri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+        blob = await response.blob();
+      } catch (fetchError) {
+        console.error('Error fetching image:', fetchError);
+        Alert.alert('Error', 'Failed to load selected image');
+        return;
+      }
       const filename = `profile_${user.id}_${Date.now()}.jpg`;
 
       // Try to upload to Supabase Storage

@@ -12,7 +12,7 @@
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'petty-cash-receipts',
-  'petty-cash-receipts', 
+  'petty-cash-receipts',
   false, -- Private bucket
   10485760, -- 10MB limit
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'image/heic']
@@ -26,66 +26,68 @@ VALUES (
 ALTER TABLE IF EXISTS storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Users can upload receipts to their school's folder
-DROP POLICY IF EXISTS "petty_cash_receipts_upload_policy" ON storage.objects;
-CREATE POLICY "petty_cash_receipts_upload_policy" ON storage.objects
-  FOR INSERT
-  WITH CHECK (
-    bucket_id = 'petty-cash-receipts' AND
-    -- Path must start with user's school ID
-    (storage.foldername(name))[1] IN (
-      SELECT p.id::text 
-      FROM preschools p
-      JOIN users u ON u.preschool_id = p.id
-      WHERE u.auth_user_id = auth.uid()
-    ) AND
-    -- Only authenticated users can upload
-    auth.role() = 'authenticated'
-  );
+DROP POLICY IF EXISTS petty_cash_receipts_upload_policy ON storage.objects;
+CREATE POLICY petty_cash_receipts_upload_policy ON storage.objects
+FOR INSERT
+WITH CHECK (
+  bucket_id = 'petty-cash-receipts'
+  -- Path must start with user's school ID
+  AND (storage.foldername(name))[1] IN (
+    SELECT p.id::text
+    FROM preschools AS p
+    INNER JOIN users AS u ON p.id = u.preschool_id
+    WHERE u.auth_user_id = auth.uid()
+  )
+  -- Only authenticated users can upload
+  AND auth.role() = 'authenticated'
+);
 
 -- Policy: Users can view receipts from their school
-DROP POLICY IF EXISTS "petty_cash_receipts_select_policy" ON storage.objects;
-CREATE POLICY "petty_cash_receipts_select_policy" ON storage.objects
-  FOR SELECT
-  USING (
-    bucket_id = 'petty-cash-receipts' AND
-    -- Path must be from user's school
-    (storage.foldername(name))[1] IN (
-      SELECT p.id::text 
-      FROM preschools p
-      JOIN users u ON u.preschool_id = p.id
-      WHERE u.auth_user_id = auth.uid()
-    ) AND
-    auth.role() = 'authenticated'
-  );
+DROP POLICY IF EXISTS petty_cash_receipts_select_policy ON storage.objects;
+CREATE POLICY petty_cash_receipts_select_policy ON storage.objects
+FOR SELECT
+USING (
+  bucket_id = 'petty-cash-receipts'
+  -- Path must be from user's school
+  AND (storage.foldername(name))[1] IN (
+    SELECT p.id::text
+    FROM preschools AS p
+    INNER JOIN users AS u ON p.id = u.preschool_id
+    WHERE u.auth_user_id = auth.uid()
+  )
+  AND auth.role() = 'authenticated'
+);
 
 -- Policy: Users can delete their own receipts, admins can delete any in their school
-DROP POLICY IF EXISTS "petty_cash_receipts_delete_policy" ON storage.objects;
-CREATE POLICY "petty_cash_receipts_delete_policy" ON storage.objects
-  FOR DELETE
-  USING (
-    bucket_id = 'petty-cash-receipts' AND
-    -- Must be from user's school
-    (storage.foldername(name))[1] IN (
-      SELECT p.id::text 
-      FROM preschools p
-      JOIN users u ON u.preschool_id = p.id
-      WHERE u.auth_user_id = auth.uid()
-    ) AND
-    (
-      -- Own receipts (check via petty_cash_receipts table)
-      EXISTS (
-        SELECT 1 FROM petty_cash_receipts pcr
-        WHERE pcr.storage_path = storage.objects.name
+DROP POLICY IF EXISTS petty_cash_receipts_delete_policy ON storage.objects;
+CREATE POLICY petty_cash_receipts_delete_policy ON storage.objects
+FOR DELETE
+USING (
+  bucket_id = 'petty-cash-receipts'
+  -- Must be from user's school
+  AND (storage.foldername(name))[1] IN (
+    SELECT p.id::text
+    FROM preschools AS p
+    INNER JOIN users AS u ON p.id = u.preschool_id
+    WHERE u.auth_user_id = auth.uid()
+  )
+  AND (
+    -- Own receipts (check via petty_cash_receipts table)
+    EXISTS (
+      SELECT 1 FROM petty_cash_receipts AS pcr
+      WHERE
+        pcr.storage_path = storage.objects.name
         AND pcr.created_by = auth.uid()
-      ) OR
-      -- Admins can delete any receipt in their school
-      EXISTS (
-        SELECT 1 FROM users u
-        WHERE u.auth_user_id = auth.uid()
-        AND u.role IN ('principal_admin', 'finance_admin', 'super_admin')
-      )
     )
-  );
+    -- Admins can delete any receipt in their school
+    OR EXISTS (
+      SELECT 1 FROM users AS u
+      WHERE
+        u.auth_user_id = auth.uid()
+        AND u.role IN ('principal_admin', 'finance_admin', 'super_admin')
+    )
+  )
+);
 
 -- ============================================================================
 -- 3. HELPER FUNCTIONS FOR STORAGE OPERATIONS
@@ -94,12 +96,12 @@ CREATE POLICY "petty_cash_receipts_delete_policy" ON storage.objects
 -- Generate signed URL for receipt display
 -- Note: This would typically be called from the application layer
 CREATE OR REPLACE FUNCTION get_receipt_signed_url(
-  school_uuid UUID,
-  receipt_id UUID,
-  expires_in INTEGER DEFAULT 3600 -- 1 hour
+  school_uuid uuid,
+  receipt_id uuid,
+  expires_in integer DEFAULT 3600 -- 1 hour
 )
-RETURNS TEXT
-LANGUAGE PLPGSQL
+RETURNS text
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
@@ -127,12 +129,12 @@ $$;
 
 -- Generate upload URL for new receipt
 CREATE OR REPLACE FUNCTION generate_receipt_upload_path(
-  school_uuid UUID,
-  transaction_id UUID,
-  file_extension TEXT
+  school_uuid uuid,
+  transaction_id uuid,
+  file_extension text
 )
-RETURNS TEXT
-LANGUAGE PLPGSQL
+RETURNS text
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
@@ -161,8 +163,8 @@ $$;
 
 -- Clean up orphaned storage objects (receipts without database records)
 CREATE OR REPLACE FUNCTION cleanup_orphaned_receipts()
-RETURNS INTEGER
-LANGUAGE PLPGSQL
+RETURNS integer
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
@@ -191,8 +193,8 @@ $$;
 
 -- Clean up database records without storage objects
 CREATE OR REPLACE FUNCTION cleanup_orphaned_receipt_records()
-RETURNS INTEGER
-LANGUAGE PLPGSQL
+RETURNS integer
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
@@ -222,28 +224,28 @@ $$;
 
 -- View for storage usage by school
 CREATE OR REPLACE VIEW petty_cash_storage_usage AS
-SELECT 
+SELECT
   pcr.school_id,
-  p.name as school_name,
-  COUNT(pcr.id) as receipt_count,
-  SUM(pcr.size_bytes) as total_bytes,
-  ROUND(SUM(pcr.size_bytes)::numeric / 1048576, 2) as total_mb,
-  AVG(pcr.size_bytes) as avg_file_size,
-  MAX(pcr.created_at) as last_upload
-FROM petty_cash_receipts pcr
-JOIN preschools p ON p.id = pcr.school_id
+  p.name AS school_name,
+  count(pcr.id) AS receipt_count,
+  sum(pcr.size_bytes) AS total_bytes,
+  round(sum(pcr.size_bytes)::numeric / 1048576, 2) AS total_mb,
+  avg(pcr.size_bytes) AS avg_file_size,
+  max(pcr.created_at) AS last_upload
+FROM petty_cash_receipts AS pcr
+INNER JOIN preschools AS p ON pcr.school_id = p.id
 GROUP BY pcr.school_id, p.name
 ORDER BY total_bytes DESC;
 
 -- Function to get storage stats for a school
-CREATE OR REPLACE FUNCTION get_school_storage_stats(school_uuid UUID)
-RETURNS TABLE(
-  receipt_count BIGINT,
-  total_bytes BIGINT,
-  total_mb NUMERIC,
-  avg_file_size NUMERIC
+CREATE OR REPLACE FUNCTION get_school_storage_stats(school_uuid uuid)
+RETURNS TABLE (
+  receipt_count bigint,
+  total_bytes bigint,
+  total_mb numeric,
+  avg_file_size numeric
 )
-LANGUAGE SQL
+LANGUAGE sql
 SECURITY DEFINER
 AS $$
   SELECT 
@@ -259,11 +261,15 @@ $$;
 -- 6. COMMENTS FOR DOCUMENTATION
 -- ============================================================================
 
-COMMENT ON FUNCTION get_receipt_signed_url(UUID, UUID, INTEGER) IS 'Generate signed URL for receipt viewing (placeholder for app-layer implementation)';
-COMMENT ON FUNCTION generate_receipt_upload_path(UUID, UUID, TEXT) IS 'Generate standardized upload path for new receipts';
+COMMENT ON FUNCTION get_receipt_signed_url(
+  uuid, uuid, integer
+) IS 'Generate signed URL for receipt viewing (placeholder for app-layer implementation)';
+COMMENT ON FUNCTION generate_receipt_upload_path(
+  uuid, uuid, text
+) IS 'Generate standardized upload path for new receipts';
 COMMENT ON FUNCTION cleanup_orphaned_receipts() IS 'Clean up storage objects without database records';
 COMMENT ON FUNCTION cleanup_orphaned_receipt_records() IS 'Clean up database records without storage objects';
-COMMENT ON FUNCTION get_school_storage_stats(UUID) IS 'Get storage usage statistics for a school';
+COMMENT ON FUNCTION get_school_storage_stats(uuid) IS 'Get storage usage statistics for a school';
 
 COMMENT ON VIEW petty_cash_storage_usage IS 'Storage usage statistics by school for monitoring';
 

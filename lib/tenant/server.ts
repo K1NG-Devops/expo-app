@@ -30,14 +30,14 @@ export async function getTenantContext(): Promise<ServerTenantContext | null> {
 
     // Get user profile with organization info
     const { data: profile, error: profileError } = await assertSupabase()
-      .from('users')
+      .from('profiles')
       .select(`
         preschool_id,
         role,
         capabilities,
         preschools!inner(id, name)
       `)
-      .eq('auth_user_id', user.id)
+      .eq('id', user.id)
       .single();
 
     if (profileError || !profile) {

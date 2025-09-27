@@ -16,6 +16,7 @@ export interface FeatureFlags {
   ai_grading_assistance: boolean;
   ai_stem_activities: boolean;
   ai_progress_analysis: boolean;
+  ai_insights: boolean;
   ai_streaming_enabled: boolean;
   
   // Collaboration Features
@@ -91,6 +92,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   ai_grading_assistance: AI_DEFAULT,
   ai_stem_activities: AI_DEFAULT,
   ai_progress_analysis: AI_DEFAULT,
+  ai_insights: AI_DEFAULT,
   ai_streaming_enabled: false,
   
   // Collaboration Features
@@ -118,7 +120,7 @@ const DEFAULT_FLAGS: FeatureFlags = {
   
   // Parent Dashboard Features (NEW) - Strategic Roadmap Implementation
   parent_hub_enabled: process.env.EXPO_PUBLIC_PARENT_HUB_ENABLED !== 'false', // enabled by default
-  whatsapp_integration: SA_TENANT_DEFAULT || TENANT_SLUG_DEFAULT, // enabled for SA tenants or explicit tenant slug
+  whatsapp_integration: false, // EMERGENCY KILL SWITCH - client credentials exposed
   offline_homework: process.env.EXPO_PUBLIC_OFFLINE_HOMEWORK !== 'false', // beta feature
   voice_notes: true, // core feature enabled
   progress_tracking: true, // core feature enabled
@@ -130,10 +132,10 @@ const DEFAULT_FLAGS: FeatureFlags = {
   multilingual_auto_translate: SA_TENANT_DEFAULT, // for SA multi-language support
   parent_engagement_metrics: true, // basic engagement tracking
   
-  // WhatsApp Specific Features
-  whatsapp_opt_in: SA_TENANT_DEFAULT, // SA has 90%+ WhatsApp penetration
-  whatsapp_webhook: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_WEBHOOK_ENABLED === 'true',
-  whatsapp_send_receive: SA_TENANT_DEFAULT && process.env.EXPO_PUBLIC_WHATSAPP_API_ENABLED === 'true',
+  // WhatsApp Specific Features - SECURITY: DISABLED DUE TO CLIENT-SIDE SECRET EXPOSURE
+  whatsapp_opt_in: false, // EMERGENCY KILL SWITCH - client credentials exposed
+  whatsapp_webhook: false, // EMERGENCY KILL SWITCH - client credentials exposed
+  whatsapp_send_receive: false, // EMERGENCY KILL SWITCH - client credentials exposed
   
   // Offline Features - Strategic "Offline-First" Architecture
   offline_sync_engine: process.env.EXPO_PUBLIC_OFFLINE_SYNC !== 'false', // core offline feature
@@ -193,6 +195,7 @@ export async function getFeatureFlags(userId?: string): Promise<FeatureFlags> {
       ai_grading_assistance: flags.ai_grading_assistance ?? DEFAULT_FLAGS.ai_grading_assistance,
       ai_stem_activities: flags.ai_stem_activities ?? DEFAULT_FLAGS.ai_stem_activities,
       ai_progress_analysis: flags.ai_progress_analysis ?? DEFAULT_FLAGS.ai_progress_analysis,
+      ai_insights: flags.ai_insights ?? DEFAULT_FLAGS.ai_insights,
       ai_streaming_enabled: flags.ai_streaming ?? DEFAULT_FLAGS.ai_streaming_enabled,
       
       // Collaboration Features

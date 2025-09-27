@@ -60,7 +60,7 @@ async function checkAIPermissions(req, res, next) {
     // Check if user has AI access permissions
     const { data: profile } = await supabase
       .from('users')
-      .select('capabilities, subscription_status, ai_credits_remaining')
+      .select('capabilities, subscription_status, ai_credits_remaining, organization_id, preschool_id')
       .eq('auth_user_id', userId)
       .single();
 
@@ -95,27 +95,37 @@ async function checkAIPermissions(req, res, next) {
 /**
  * Log AI usage for billing and monitoring
  */
-async function logAIUsage(userId, serviceType, tokensUsed, costCents) {
+async function logAIUsage(userId, organizationId, preschoolId, aiServiceId, serviceType, inputTokens, outputTokens, responseTimeMs, inputCost, outputCost, totalCost, status = 'success', errorMessage = null) {
   try {
     await supabase.from('ai_usage_logs').insert({
       user_id: userId,
+      organization_id: organizationId,
+      preschool_id: preschoolId,
+      ai_service_id: aiServiceId,
       service_type: serviceType,
-      provider: 'claude',
-      tokens_used: tokensUsed,
-      cost_cents: costCents,
-      created_at: new Date().toISOString(),
+      input_tokens: inputTokens || 0,
+      output_tokens: outputTokens || 0,
+      response_time_ms: responseTimeMs || 0,
+      status: status,
+      input_cost: inputCost || 0,
+      output_cost: outputCost || 0,
+      total_cost: totalCost || 0,
+      ai_model_used: 'claude-3-sonnet-20240229',
+      error_message: errorMessage,
     });
 
-    // Update user's remaining credits
-    await supabase
-      .from('users')
-      .update({ 
-        ai_credits_remaining: supabase.rpc('decrement_ai_credits', { 
-          user_id: userId, 
-          amount: costCents 
+    // Only update user's remaining credits on successful requests
+    if (status === 'success' && totalCost > 0) {
+      await supabase
+        .from('users')
+        .update({ 
+          ai_credits_remaining: supabase.rpc('decrement_ai_credits', { 
+            user_id: userId, 
+            amount: Math.ceil(totalCost * 100) // Convert to cents
+          })
         })
-      })
-      .eq('auth_user_id', userId);
+        .eq('auth_user_id', userId);
+    }
   } catch (error) {
     console.error('Failed to log AI usage:', error);
   }
@@ -127,10 +137,29 @@ async function logAIUsage(userId, serviceType, tokensUsed, costCents) {
 app.post('/ai/claude/messages', authenticateUser, checkAIPermissions, async (req, res) => {
   try {
     const { model, max_tokens, temperature, system, messages, userId } = req.body;
+    const requestStartTime = Date.now();
 
     // Validate request
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: 'Invalid messages format' });
+    }
+
+    // Get user profile data for logging
+    const userProfile = req.userProfile;
+    if (!userProfile || !userProfile.organization_id || !userProfile.preschool_id) {
+      return res.status(400).json({ error: 'User profile incomplete for AI logging' });
+    }
+
+    // Get AI service ID for Claude
+    const { data: aiService } = await supabase
+      .from('ai_services')
+      .select('id')
+      .eq('name', 'Claude')
+      .eq('provider', 'anthropic')
+      .single();
+
+    if (!aiService) {
+      return res.status(500).json({ error: 'AI service configuration not found' });
     }
 
     // Add rate limiting per user
@@ -154,22 +183,53 @@ app.post('/ai/claude/messages', authenticateUser, checkAIPermissions, async (req
       }),
     });
 
+    const responseTime = Date.now() - requestStartTime;
+
     if (!claudeResponse.ok) {
       const errorText = await claudeResponse.text();
       console.error('Claude API error:', errorText);
+      
+      // Log failed usage
+      await logAIUsage(
+        userId,
+        userProfile.organization_id,
+        userProfile.preschool_id,
+        aiService.id,
+        'claude_message',
+        0, // input_tokens
+        0, // output_tokens
+        responseTime,
+        0, // input_cost
+        0, // output_cost
+        0, // total_cost
+        'error',
+        errorText
+      );
+      
       return res.status(claudeResponse.status).json({ error: 'AI service temporarily unavailable' });
     }
 
     const data = await claudeResponse.json();
 
     // Calculate cost and log usage
-    const tokensUsed = data.usage.input_tokens + data.usage.output_tokens;
-    const inputCost = (data.usage.input_tokens / 1000) * 3; // $0.003 per 1K input tokens
-    const outputCost = (data.usage.output_tokens / 1000) * 15; // $0.015 per 1K output tokens
-    const totalCostCents = Math.ceil((inputCost + outputCost) * 100);
+    const inputCost = (data.usage.input_tokens / 1000) * 0.003; // $0.003 per 1K input tokens
+    const outputCost = (data.usage.output_tokens / 1000) * 0.015; // $0.015 per 1K output tokens
+    const totalCost = inputCost + outputCost;
 
-    // Log usage for billing
-    await logAIUsage(userId, 'claude_message', tokensUsed, totalCostCents);
+    // Log successful usage
+    await logAIUsage(
+      userId,
+      userProfile.organization_id,
+      userProfile.preschool_id,
+      aiService.id,
+      'claude_message',
+      data.usage.input_tokens,
+      data.usage.output_tokens,
+      responseTime,
+      inputCost,
+      outputCost,
+      totalCost
+    );
 
     // Return response to client
     res.json(data);
@@ -196,7 +256,7 @@ app.get('/ai/usage', authenticateUser, async (req, res) => {
     
     const { data: usage } = await supabase
       .from('ai_usage_logs')
-      .select('service_type, tokens_used, cost_cents, created_at')
+      .select('service_type, input_tokens, output_tokens, total_cost, created_at')
       .eq('user_id', userId)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()) // Last 30 days
       .order('created_at', { ascending: false });

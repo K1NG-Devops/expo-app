@@ -2,6 +2,7 @@ import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
 
 interface EnhancedStatProps {
   label: string
@@ -65,19 +66,20 @@ export const EnhancedStatsRow: React.FC<EnhancedStatsRowProps> = ({
   aiLessons,
   aiLessonsLimit
 }) => {
+  const { t } = useTranslation('common')
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Usage Limits</Text>
+      <Text style={styles.sectionTitle}>{t('dashboard.usageLimits', { defaultValue: 'Usage Limits' })}</Text>
       <View style={styles.statsRow}>
         <EnhancedStat
-          label="AI Homework Help"
+          label={t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })}
           value={aiHelp}
           limit={aiHelpLimit}
           icon="help-circle"
           gradientColors={['#00f5ff', '#0080ff']}
         />
         <EnhancedStat
-          label="AI Lessons"
+          label={t('quick_actions.ai_lessons', { defaultValue: 'AI Lessons' })}
           value={aiLessons}
           limit={aiLessonsLimit}
           icon="school"
