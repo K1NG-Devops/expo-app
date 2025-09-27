@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -45,6 +45,14 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
   const tierSourceText = t(tierSourceKey, { defaultValue: t('subscription.tierSource.unknown', { defaultValue: 'Unknown' }) })
   const sourceCaption = t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` })
 
+  const [showTip, setShowTip] = useState(false)
+
+  useEffect(() => {
+    if (!showTip) return
+    const id = setTimeout(() => setShowTip(false), 3000)
+    return () => clearTimeout(id)
+  }, [showTip])
+
   return (
     <View style={[styles.row, containerStyle]}>
       <View style={[styles.chip, { borderColor: meta.color, backgroundColor: meta.color + '20', height }] }>
@@ -65,8 +73,20 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
       )}
       {canManage && (
         <View style={styles.sourceWrap}>
-          <Ionicons name="information-circle-outline" size={12} color={meta.color} />
-          <Text style={[styles.sourceText, { color: meta.color, fontSize: fontSize - 2 }]}>{sourceCaption}</Text>
+          <TouchableOpacity
+            onPress={() => setShowTip(prev => !prev)}
+            accessibilityRole="button"
+            accessibilityLabel={sourceCaption}
+            accessibilityState={{ expanded: showTip }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="information-circle-outline" size={12} color={meta.color} />
+          </TouchableOpacity>
+          {showTip && (
+            <View style={[styles.tooltip, { borderColor: meta.color }]}>
+              <Text style={styles.tooltipText}>{sourceCaption}</Text>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -107,10 +127,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 8,
     gap: 4,
+    position: 'relative',
   },
   sourceText: {
     fontWeight: '500',
     opacity: 0.85,
+  },
+  tooltip: {
+    position: 'absolute',
+    top: -30,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    maxWidth: 240,
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tooltipText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
   },
 })
 
