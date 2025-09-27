@@ -286,10 +286,36 @@ export async function logUsageEvent(event: AIUsageLogEvent): Promise<void> {
     if (error) throw error
   } catch {
     await enqueueUsageLog(event)
-  } finally {
-    // best-effort flush of any pending logs
-try { await flushUsageLogQueue() } catch { /* noop */ void 0; }
+    // Only flush queue periodically to avoid performance issues
+    // Flush every 10th failed event or after 5 minutes
+    if (shouldFlushQueue()) {
+      try {
+        await flushUsageLogQueue()
+      } catch {
+        // Silent failure for background flush
+      }
+    }
   }
+}
+
+// Performance optimization: track flush timing to avoid excessive queue processing
+let lastFlushTime = 0
+let failedEventCount = 0
+
+function shouldFlushQueue(): boolean {
+  const now = Date.now()
+  const fiveMinutes = 5 * 60 * 1000
+  
+  failedEventCount++
+  
+  // Flush if 5 minutes have passed OR every 10th failed event
+  if (now - lastFlushTime > fiveMinutes || failedEventCount >= 10) {
+    lastFlushTime = now
+    failedEventCount = 0
+    return true
+  }
+  
+  return false
 }
 
 export async function getServerUsage(): Promise<AIUsageRecord | null> {

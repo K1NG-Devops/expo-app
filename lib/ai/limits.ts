@@ -226,9 +226,9 @@ export async function getTeacherSpecificQuota(feature: AIQuotaFeature): Promise<
     
     // Map feature to allocation quota type (matching database schema)
     const quotaMapping: Record<AIQuotaFeature, string> = {
-      'lesson_generation': 'claude_messages', // Lesson generation uses claude messages
-      'grading_assistance': 'claude_messages', // Grading assistance uses claude messages  
-      'homework_help': 'claude_messages', // Homework help uses claude messages
+      'lesson_generation': 'lesson_generation', // Lesson generation has its own quota pool
+      'grading_assistance': 'grading_assistance', // Grading assistance has its own quota pool  
+      'homework_help': 'homework_help', // Homework help has its own quota pool
     }
     
     const quotaType = quotaMapping[feature]

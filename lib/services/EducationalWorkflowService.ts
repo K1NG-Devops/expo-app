@@ -89,7 +89,7 @@ export class EducationalWorkflowService {
   private gradeService: GradeService;
 
   constructor(private supabase: SupabaseClient) {
-    this.courseService = new CourseService(supabase);
+    this.courseService = new CourseService();
     this.assignmentService = new AssignmentService(supabase);
     this.submissionService = new SubmissionService(supabase);
     this.gradeService = new GradeService(supabase);

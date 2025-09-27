@@ -29,7 +29,7 @@ const useSafeUpdates = () => {
     const { useUpdates } = require('@/contexts/UpdatesProvider');
     return useUpdates();
   } catch (error) {
-    console.warn('[Settings] UpdatesProvider not available:', error.message);
+    console.warn('[Settings] UpdatesProvider not available:', error instanceof Error ? error.message : String(error));
     // Return fallback values
     return {
       isDownloading: false,
@@ -329,7 +329,7 @@ export default function SettingsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container} className="settings-screen" data-settings-screen="true">
+      <View style={styles.container}>
         <RoleBasedHeader title="Settings" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -340,7 +340,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={styles.container} className="settings-screen" data-settings-screen="true">
+    <View style={styles.container}>
       <RoleBasedHeader title="Settings" />
 
       <ScrollView

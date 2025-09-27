@@ -6,7 +6,7 @@ import 'dotenv/config';
 //
 // Do NOT put secrets here. Only EXPO_PUBLIC_* keys should be used in app code.
 
-export default ({ config }) => ({
+export default ({ config }: { config: any }) => ({
   ...config,
   web: {
     ...config.web,

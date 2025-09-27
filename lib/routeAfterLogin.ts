@@ -244,9 +244,9 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
       
       // Allow teachers to access dashboard unless explicitly blocked
-      // Only block if seat_status is specifically 'revoked' or 'suspended'
-      if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
-        console.log('[ROUTE DEBUG] Teacher seat revoked/suspended, routing to account');
+      // Block if seat_status is 'inactive' (which includes revoked/suspended semantics)
+      if (profile.seat_status === 'inactive') {
+        console.log('[ROUTE DEBUG] Teacher seat inactive, routing to account');
         return { path: '/screens/account' };
       }
       
@@ -291,8 +291,8 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
   if (role === 'teacher') {
-    // Only block if explicitly revoked or suspended; allow all other statuses
-    if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
+    // Only block if explicitly inactive; allow all other statuses
+    if (profile.seat_status === 'inactive') {
       return {
         hasAccess: false,
         reason: `Teacher seat is ${profile.seat_status}`,
