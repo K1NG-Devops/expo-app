@@ -393,8 +393,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           style={[
             styles.messageBubble,
             isUser
-              ? { backgroundColor: theme.primary }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, marginLeft: 28 },
+              ? { backgroundColor: theme.primary, marginLeft: screenWidth * 0.15 }
+              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, marginRight: screenWidth * 0.25 },
           ]}
         >
           {!isUser && (
@@ -404,14 +404,31 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               </View>
             </View>
           )}
-          <Text
-            style={[
-              styles.messageText,
-              { color: isUser ? theme.onPrimary : theme.text },
-            ]}
-          >
-            {message.content}
-          </Text>
+          <View style={styles.messageContentRow}>
+            <Text
+              style={[
+                styles.messageText,
+                { color: isUser ? theme.onPrimary : theme.text, flex: 1 },
+              ]}
+            >
+              {message.content}
+            </Text>
+            
+            {isUser && isLastUserMessage && !isLoading && (
+              <TouchableOpacity
+                style={styles.inlineBubbleRetryButton}
+                onPress={() => sendMessage(message.content)}
+                accessibilityLabel="Try again"
+                activeOpacity={0.7}
+              >
+                <Ionicons 
+                  name="refresh" 
+                  size={14} 
+                  color={theme.onPrimary} 
+                />
+              </TouchableOpacity>
+            )}
+          </View>
           
           {message.voiceNote && (
             <View style={styles.voiceNoteIndicator}>
@@ -457,20 +474,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           </TouchableOpacity>
         )}
         
-        {isUser && isLastUserMessage && !isLoading && (
-          <TouchableOpacity
-            style={[styles.retryButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border, borderWidth: 1 }]}
-            onPress={() => sendMessage(message.content)}
-            accessibilityLabel="Try again"
-            activeOpacity={0.7}
-          >
-            <Ionicons 
-              name="refresh" 
-              size={16} 
-              color={theme.textSecondary} 
-            />
-          </TouchableOpacity>
-        )}
+
       </View>
     );
   };
@@ -864,14 +868,25 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   messageBubble: {
-    maxWidth: screenWidth * 0.72,
-    padding: 12,
+    maxWidth: screenWidth < 400 ? screenWidth * 0.8 : screenWidth * 0.75,
+    padding: screenWidth < 400 ? 10 : 12,
     borderRadius: 18,
     minHeight: 44,
   },
   messageText: {
     fontSize: 16,
     lineHeight: 22,
+  },
+  messageContentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  inlineBubbleRetryButton: {
+    padding: 4,
+    marginLeft: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   bubbleHeaderRow: {
     flexDirection: 'row',

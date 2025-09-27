@@ -31,7 +31,6 @@ import { usePrincipalHub } from '@/hooks/usePrincipalHub';
 import { router } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import AnnouncementService from '@/lib/services/announcementService';
-import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
@@ -43,6 +42,7 @@ import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -64,7 +64,7 @@ interface TeacherCardProps {
 export const EnhancedPrincipalDashboard: React.FC = () => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
-  const { theme } = useTheme();
+  const { theme, toggleTheme, isDark } = useTheme();
   const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
   const { preferences, setLayout } = useDashboardPreferences();
   const { maybeShowInterstitial, offerRewarded } = useAds();
@@ -142,7 +142,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   };
 
   // Create theme-aware styles
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
   
   const {
     data,
@@ -193,7 +193,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           t('dashboard.announcement_send_details', {
             title: announcement.title,
             audience: announcement.audience.join(', '),
-            count: announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups',
+            count: announcement.audience.length,
+            groups: announcement.audience.length === 1 ? '1 group' : announcement.audience.length + ' groups',
             priority: announcement.priority.toUpperCase(),
             requiresResponse: announcement.requiresResponse ? t('dashboard.response_required') : ''
           }),
@@ -333,14 +334,66 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
   const allMetrics = [...metrics, ...pettyCashCards];
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.container}>
-      <RoleBasedHeader 
-        title={t('dashboard.principal_hub', { defaultValue: 'Principal Hub' })}
-        subtitle={data.schoolName ? t('dashboard.managing_school', { schoolName: data.schoolName }) : undefined}
-      />
+      {/* Fixed top header to match enhanced dashboard */}
+      <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
+        <View style={styles.appHeaderContent}>
+          <View style={styles.headerLeft}>
+            <Text style={styles.tenantName}>
+              {(profile as any)?.organization_membership?.organization_slug ||
+               (profile as any)?.organization_membership?.tenant_slug ||
+               (profile as any)?.organization_membership?.slug ||
+               data.schoolName ||
+               (profile as any)?.organization_membership?.organization_name ||
+               t('dashboard.your_school')}
+            </Text>
+          </View>
+          <View style={styles.headerRight}>
+            {/* Layout toggle */}
+            <TouchableOpacity
+              style={styles.dashboardToggle}
+              onPress={() => {
+                const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
+                setLayout(newLayout);
+                try { Feedback.vibrate(15); } catch {}
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={preferences.layout === 'classic' ? 'grid' : 'apps'}
+                size={16}
+                color={theme.primary}
+              />
+            </TouchableOpacity>
+
+            {/* Settings */}
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => router.push('/screens/settings')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="settings-outline" size={20} color={theme.text} />
+            </TouchableOpacity>
+
+            {/* Avatar (initials) */}
+            <TouchableOpacity
+              style={styles.userAvatar}
+              onPress={() => router.push('/screens/account')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.userAvatarText}>
+                {user?.user_metadata?.first_name?.[0] || '?'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
       <ScrollView
-        style={styles.container}
+        style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refresh} />
@@ -379,17 +432,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   </View>
                 </View>
               )}
-              {/* Dashboard Layout Toggle */}
+              {/* Theme Toggle */}
               <TouchableOpacity
-                style={styles.dashboardToggle}
-                onPress={() => {
-                  const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
-                  setLayout(newLayout);
+                style={styles.themeToggle}
+                onPress={async () => {
+                  await toggleTheme();
                   try { Feedback.vibrate(15); } catch {}
                 }}
               >
                 <Ionicons 
-                  name={preferences.layout === 'enhanced' ? 'grid' : 'apps'} 
+                  name={isDark ? 'sunny' : 'moon'} 
                   size={18} 
                   color={theme.primary} 
                 />
@@ -1128,18 +1180,63 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
   );
 };
 
-const createStyles = (theme: any) => {
+const createStyles = (theme: any, preferences: any = {}) => {
   const isSmall = width <= 400;
+  const isClassicLayout = preferences.layout === 'classic';
+  
   return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: '#0f1419',
+  },
+  appHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: '#0f1419',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1f2937',
+  },
+  appHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: { flex: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tenantName: { fontSize: 18, fontWeight: '700', color: '#e5e7eb' },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00f5ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: { color: '#000', fontSize: 14, fontWeight: '700' },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+
+  scrollContainer: {
+    flex: 1,
+    // Reduced top margin for classic layout, more space for enhanced layout
+    marginTop: isClassicLayout ? 36 : 62,
   },
   welcomeSection: {
     backgroundColor: theme.surface,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    marginBottom: 8,
+    paddingVertical: isClassicLayout ? 12 : 16,
+    marginBottom: isClassicLayout ? 4 : 8,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
   },
@@ -1147,7 +1244,7 @@ const createStyles = (theme: any) => {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: isClassicLayout ? 12 : 16,
   },
   greetingContainer: {
     flex: 1,
@@ -1173,6 +1270,16 @@ const createStyles = (theme: any) => {
     height: 36,
     borderRadius: 18,
     backgroundColor: theme.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  themeToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.surfaceVariant,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,

@@ -12,6 +12,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
+import { WorksheetService } from './WorksheetService';
+import { DashTaskAutomation } from './DashTaskAutomation';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -809,11 +812,129 @@ export class DashAIAssistant {
   }
   
   /**
-   * Clean text for speech synthesis by removing emojis and other non-speech elements
+   * Extract worksheet parameters from user input and AI response
    */
-  private cleanTextForSpeech(text: string): string {
-    return text
-      // Remove emojis (Unicode ranges)
+  private extractWorksheetParameters(userInput: string, aiResponse: string): Record<string, string> {
+    const params: Record<string, string> = {};
+    const fullText = `${userInput} ${aiResponse}`.toLowerCase();
+    
+    // Extract worksheet type
+    if (fullText.includes('math') || fullText.includes('arithmetic') || fullText.includes('addition') || fullText.includes('subtraction') || fullText.includes('multiplication') || fullText.includes('division')) {
+      params.type = 'math';
+      params.title = 'Math Practice Worksheet';
+    } else if (fullText.includes('reading') || fullText.includes('comprehension') || fullText.includes('vocabulary') || fullText.includes('spelling')) {
+      params.type = 'reading';
+      params.title = 'Reading Activity Worksheet';
+    } else {
+      params.type = 'activity';
+      params.title = 'Learning Activity Worksheet';
+    }
+    
+    // Extract age group
+    const ageMatch = fullText.match(/(\d+)\s*[-–to]\s*(\d+)\s*year|age\s*(\d+)|grade\s*(\d+)/i);
+    if (ageMatch) {
+      const age1 = ageMatch[1] ? parseInt(ageMatch[1]) : null;
+      const age2 = ageMatch[2] ? parseInt(ageMatch[2]) : null;
+      const age3 = ageMatch[3] ? parseInt(ageMatch[3]) : null;
+      const grade = ageMatch[4] ? parseInt(ageMatch[4]) : null;
+      
+      if (age1 && age2) {
+        if (age1 >= 3 && age2 <= 4) params.ageGroup = '3-4 years';
+        else if (age1 >= 4 && age2 <= 5) params.ageGroup = '4-5 years';
+        else if (age1 >= 5 && age2 <= 6) params.ageGroup = '5-6 years';
+        else if (age1 >= 6 && age2 <= 7) params.ageGroup = '6-7 years';
+        else params.ageGroup = '5-6 years';
+      } else if (age3) {
+        if (age3 <= 4) params.ageGroup = '3-4 years';
+        else if (age3 <= 5) params.ageGroup = '4-5 years';
+        else if (age3 <= 6) params.ageGroup = '5-6 years';
+        else params.ageGroup = '6-7 years';
+      } else if (grade) {
+        if (grade <= 1) params.ageGroup = '5-6 years';
+        else if (grade <= 2) params.ageGroup = '6-7 years';
+        else params.ageGroup = '6-7 years';
+      }
+    }
+    
+    // Extract difficulty level
+    if (fullText.includes('easy') || fullText.includes('simple') || fullText.includes('beginner')) {
+      params.difficulty = 'Easy';
+    } else if (fullText.includes('hard') || fullText.includes('difficult') || fullText.includes('challenging') || fullText.includes('advanced')) {
+      params.difficulty = 'Hard';
+    } else {
+      params.difficulty = 'Medium';
+    }
+    
+    // Extract number of problems for math worksheets
+    if (params.type === 'math') {
+      const numberMatch = fullText.match(/(\d+)\s*(?:problem|question|exercise|item)/i);
+      if (numberMatch) {
+        const count = parseInt(numberMatch[1]);
+        if (count >= 5 && count <= 50) {
+          params.problemCount = count.toString();
+        }
+      }
+      
+      // Default values for math worksheets
+      if (!params.problemCount) params.problemCount = '15';
+      
+      // Math operation type
+      if (fullText.includes('addition') || fullText.includes('add')) {
+        params.operation = 'addition';
+      } else if (fullText.includes('subtraction') || fullText.includes('subtract') || fullText.includes('minus')) {
+        params.operation = 'subtraction';
+      } else if (fullText.includes('multiplication') || fullText.includes('multiply') || fullText.includes('times')) {
+        params.operation = 'multiplication';
+      } else {
+        params.operation = 'mixed'; // Default to mixed operations
+      }
+    }
+    
+    // Extract color preference
+    if (fullText.includes('color') || fullText.includes('colour') || fullText.includes('colorful') || fullText.includes('colourful')) {
+      params.colorMode = 'Color';
+    } else if (fullText.includes('black') && fullText.includes('white')) {
+      params.colorMode = 'Black & White';
+    }
+    
+    // Extract paper size
+    if (fullText.includes('a4') || fullText.includes('letter')) {
+      params.paperSize = fullText.includes('a4') ? 'A4' : 'Letter';
+    }
+    
+    // Add auto-generation flag if we have enough parameters
+    if (Object.keys(params).length >= 2) {
+      params.autoGenerate = 'true';
+    }
+    
+    console.log('[Dash] Extracted worksheet parameters:', params);
+    return params;
+  }
+  
+  /**
+   * Intelligent text normalization for smart reading
+   * Handles numbers, dates, special characters, and formatting
+   */
+  private normalizeTextForSpeech(text: string): string {
+    let normalized = text;
+    
+    // Handle numbers intelligently
+    normalized = this.normalizeNumbers(normalized);
+    
+    // Handle dates and time formats
+    normalized = this.normalizeDatesAndTime(normalized);
+    
+    // Handle underscores and special formatting
+    normalized = this.normalizeSpecialFormatting(normalized);
+    
+    // Handle abbreviations and acronyms
+    normalized = this.normalizeAbbreviations(normalized);
+    
+    // Handle mathematical expressions
+    normalized = this.normalizeMathExpressions(normalized);
+    
+    // Remove emojis (Unicode ranges)
+    normalized = normalized
       .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
       .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc Symbols and Pictographs
       .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport and Map
@@ -825,6 +946,1129 @@ export class DashAIAssistant {
       // Remove extra whitespace
       .replace(/\s+/g, ' ')
       .trim();
+    
+    return normalized;
+  }
+  
+  /**
+   * Normalize numbers for intelligent reading
+   */
+  private normalizeNumbers(text: string): string {
+    return text
+      // Handle large numbers with separators (e.g., 1,000 -> one thousand)
+      .replace(/\b(\d{1,3}(?:,\d{3})+)\b/g, (match) => {
+        const number = parseInt(match.replace(/,/g, ''));
+        return this.numberToWords(number);
+      })
+      // Handle decimal numbers (e.g., 3.14 -> three point one four)
+      .replace(/\b(\d+)\.(\d+)\b/g, (match, whole, decimal) => {
+        const wholeWords = this.numberToWords(parseInt(whole));
+        const decimalWords = decimal.split('').map((d: string) => this.numberToWords(parseInt(d))).join(' ');
+        return `${wholeWords} point ${decimalWords}`;
+      })
+      // Handle ordinal numbers (e.g., 1st -> first, 2nd -> second)
+      .replace(/\b(\d+)(st|nd|rd|th)\b/gi, (match, num) => {
+        return this.numberToOrdinal(parseInt(num));
+      })
+      // Handle regular numbers (e.g., 123 -> one hundred twenty three)
+      .replace(/\b\d+\b/g, (match) => {
+        const number = parseInt(match);
+        if (number > 2024 && number < 2100) {
+          // Handle years specially (e.g., 2025 -> twenty twenty five)
+          return this.numberToWords(number, true);
+        }
+        return this.numberToWords(number);
+      });
+  }
+  
+  /**
+   * Normalize dates and time for speech
+   */
+  private normalizeDatesAndTime(text: string): string {
+    return text
+      // Handle ISO dates (2024-12-25)
+      .replace(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/g, (match, year, month, day) => {
+        const monthName = this.getMonthName(parseInt(month));
+        const dayOrdinal = this.numberToOrdinal(parseInt(day));
+        return `${monthName} ${dayOrdinal}, ${year}`;
+      })
+      // Handle US dates (12/25/2024)
+      .replace(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g, (match, month, day, year) => {
+        const monthName = this.getMonthName(parseInt(month));
+        const dayOrdinal = this.numberToOrdinal(parseInt(day));
+        return `${monthName} ${dayOrdinal}, ${year}`;
+      })
+      // Handle time (14:30 -> two thirty PM)
+      .replace(/\b(\d{1,2}):(\d{2})\b/g, (match, hour, minute) => {
+        return this.timeToWords(parseInt(hour), parseInt(minute));
+      });
+  }
+  
+  /**
+   * Normalize special formatting like underscores and camelCase
+   */
+  private normalizeSpecialFormatting(text: string): string {
+    return text
+      // Handle underscore formatting (date_month_year -> date month year)
+      .replace(/([a-zA-Z]+)_([a-zA-Z]+)/g, '$1 $2')
+      // Handle camelCase (firstName -> first name)
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      // Handle kebab-case (first-name -> first name)
+      .replace(/([a-zA-Z]+)-([a-zA-Z]+)/g, '$1 $2')
+      // Handle file extensions (.pdf -> dot P D F)
+      .replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|png|gif)\b/gi, (match, ext) => {
+        return ` dot ${ext.toUpperCase().split('').join(' ')}`;
+      });
+  }
+  
+  /**
+   * Normalize common abbreviations and acronyms
+   */
+  private normalizeAbbreviations(text: string): string {
+    const abbreviations: Record<string, string> = {
+      'Mr.': 'Mister',
+      'Mrs.': 'Missus',
+      'Dr.': 'Doctor',
+      'Prof.': 'Professor',
+      'St.': 'Street',
+      'Ave.': 'Avenue',
+      'Rd.': 'Road',
+      'Ltd.': 'Limited',
+      'Inc.': 'Incorporated',
+      'vs.': 'versus',
+      'etc.': 'etcetera',
+      'i.e.': 'that is',
+      'e.g.': 'for example',
+      'AI': 'A I',
+      'API': 'A P I',
+      'URL': 'U R L',
+      'HTML': 'H T M L',
+      'CSS': 'C S S',
+      'JS': 'JavaScript',
+      'PDF': 'P D F',
+      'FAQ': 'F A Q',
+      'CEO': 'C E O',
+      'CTO': 'C T O'
+    };
+    
+    let normalized = text;
+    for (const [abbr, expansion] of Object.entries(abbreviations)) {
+      const regex = new RegExp(`\\b${abbr.replace('.', '\\.')}\\b`, 'gi');
+      normalized = normalized.replace(regex, expansion);
+    }
+    
+    return normalized;
+  }
+  
+  /**
+   * Normalize mathematical expressions
+   */
+  private normalizeMathExpressions(text: string): string {
+    return text
+      // Handle basic operations
+      .replace(/\+/g, ' plus ')
+      .replace(/-/g, ' minus ')
+      .replace(/\*/g, ' times ')
+      .replace(/\//g, ' divided by ')
+      .replace(/=/g, ' equals ')
+      .replace(/%/g, ' percent ')
+      // Handle fractions (1/2 -> one half)
+      .replace(/\b(\d+)\s*\/\s*(\d+)\b/g, (match, num, den) => {
+        return this.fractionToWords(parseInt(num), parseInt(den));
+      });
+  }
+  
+  /**
+   * Convert number to words
+   */
+  private numberToWords(num: number, isYear: boolean = false): string {
+    if (num === 0) return 'zero';
+    
+    const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+    const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    const thousands = ['', 'thousand', 'million', 'billion'];
+    
+    // Special handling for years
+    if (isYear && num >= 1000 && num <= 9999) {
+      const century = Math.floor(num / 100);
+      const yearPart = num % 100;
+      if (yearPart === 0) {
+        return this.numberToWords(century) + ' hundred';
+      } else {
+        return this.numberToWords(century) + ' ' + (yearPart < 10 ? 'oh ' + this.numberToWords(yearPart) : this.numberToWords(yearPart));
+      }
+    }
+    
+    if (num < 10) return ones[num];
+    if (num < 20) return teens[num - 10];
+    if (num < 100) {
+      return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+    }
+    if (num < 1000) {
+      return ones[Math.floor(num / 100)] + ' hundred' + (num % 100 ? ' ' + this.numberToWords(num % 100) : '');
+    }
+    
+    // Handle larger numbers
+    let result = '';
+    let thousandIndex = 0;
+    
+    while (num > 0) {
+      const chunk = num % 1000;
+      if (chunk !== 0) {
+        const chunkWords = this.numberToWords(chunk);
+        result = chunkWords + (thousands[thousandIndex] ? ' ' + thousands[thousandIndex] : '') + (result ? ' ' + result : '');
+      }
+      num = Math.floor(num / 1000);
+      thousandIndex++;
+    }
+    
+    return result;
+  }
+  
+  /**
+   * Convert number to ordinal words
+   */
+  private numberToOrdinal(num: number): string {
+    const ordinals: Record<number, string> = {
+      1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 5: 'fifth',
+      6: 'sixth', 7: 'seventh', 8: 'eighth', 9: 'ninth', 10: 'tenth',
+      11: 'eleventh', 12: 'twelfth', 13: 'thirteenth', 14: 'fourteenth', 15: 'fifteenth',
+      16: 'sixteenth', 17: 'seventeenth', 18: 'eighteenth', 19: 'nineteenth', 20: 'twentieth',
+      21: 'twenty first', 22: 'twenty second', 23: 'twenty third', 30: 'thirtieth'
+    };
+    
+    if (ordinals[num]) return ordinals[num];
+    
+    // For larger ordinals, use pattern
+    if (num > 20) {
+      const lastDigit = num % 10;
+      const tens = Math.floor(num / 10) * 10;
+      if (lastDigit === 0) {
+        const tensWord = this.numberToWords(tens);
+        return tensWord.slice(0, -1) + 'ieth';
+      } else {
+        return this.numberToWords(tens) + ' ' + this.numberToOrdinal(lastDigit);
+      }
+    }
+    
+    return this.numberToWords(num) + 'th';
+  }
+  
+  /**
+   * Get month name from number
+   */
+  private getMonthName(month: number): string {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[month - 1] || 'Invalid Month';
+  }
+  
+  /**
+   * Convert time to words
+   */
+  private timeToWords(hour: number, minute: number): string {
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    
+    if (minute === 0) {
+      return `${this.numberToWords(displayHour)} o'clock ${period}`;
+    } else if (minute === 15) {
+      return `quarter past ${this.numberToWords(displayHour)} ${period}`;
+    } else if (minute === 30) {
+      return `half past ${this.numberToWords(displayHour)} ${period}`;
+    } else if (minute === 45) {
+      const nextHour = displayHour === 12 ? 1 : displayHour + 1;
+      return `quarter to ${this.numberToWords(nextHour)} ${period}`;
+    } else {
+      return `${this.numberToWords(displayHour)} ${this.numberToWords(minute)} ${period}`;
+    }
+  }
+  
+  /**
+   * Convert fraction to words
+   */
+  private fractionToWords(numerator: number, denominator: number): string {
+    const fractions: Record<string, string> = {
+      '1/2': 'one half',
+      '1/3': 'one third',
+      '2/3': 'two thirds',
+      '1/4': 'one quarter',
+      '3/4': 'three quarters',
+      '1/5': 'one fifth',
+      '2/5': 'two fifths',
+      '3/5': 'three fifths',
+      '4/5': 'four fifths'
+    };
+    
+    const key = `${numerator}/${denominator}`;
+    if (fractions[key]) return fractions[key];
+    
+    const numWords = this.numberToWords(numerator);
+    const denWords = this.numberToOrdinal(denominator);
+    return `${numWords} ${denWords}${numerator > 1 ? 's' : ''}`;
+  }
+  
+  /**
+   * Generate worksheet directly for voice commands
+   */
+  public async generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }> {
+    try {
+      console.log('[Dash] Auto-generating worksheet with params:', params);
+      
+      // Create worksheet generation service instance
+      const worksheetService = new WorksheetService();
+      
+      // Generate worksheet based on type
+      let worksheetData;
+      
+      switch (params.type) {
+        case 'math':
+          worksheetData = await worksheetService.generateMathWorksheet({
+            ageGroup: params.ageGroup || '5-6 years',
+            difficulty: params.difficulty || 'Medium',
+            operation: params.operation || 'mixed',
+            problemCount: parseInt(params.problemCount || '15'),
+            includeHints: params.includeHints !== 'false'
+          });
+          break;
+          
+        case 'reading':
+          worksheetData = await worksheetService.generateReadingWorksheet({
+            ageGroup: params.ageGroup || '5-6 years',
+            difficulty: params.difficulty || 'Medium',
+            topic: params.topic || 'General Reading',
+            includeImages: params.includeImages !== 'false'
+          });
+          break;
+          
+        default:
+          worksheetData = await worksheetService.generateActivityWorksheet({
+            ageGroup: params.ageGroup || '5-6 years',
+            difficulty: params.difficulty || 'Medium',
+            topic: params.topic || 'Learning Activity',
+            activityType: params.activityType || 'creative'
+          });
+          break;
+      }
+      
+      return {
+        success: true,
+        worksheetData
+      };
+      
+    } catch (error) {
+      console.error('[Dash] Failed to auto-generate worksheet:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to generate worksheet'
+      };
+    }
+  }
+  
+  /**
+   * Navigate to a specific screen programmatically with intelligent route mapping
+   */
+  public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('[Dash] Navigating to screen:', route, params);
+      
+      // Map common screen names to actual routes
+      const routeMap: Record<string, string> = {
+        'dashboard': '/dashboard',
+        'home': '/',
+        'students': '/screens/student-management', 
+        'lessons': '/screens/lesson-generator',
+        'ai-lesson': '/screens/ai-lesson-generator',
+        'worksheets': '/screens/worksheet-demo',
+        'assignments': '/screens/assign-homework',
+        'reports': '/screens/reports',
+        'settings': '/screens/dash-ai-settings',
+        'chat': '/screens/dash-chat',
+        'profile': '/screens/profile',
+        'calendar': '/screens/calendar',
+        'gradebook': '/screens/gradebook',
+        'parents': '/screens/parent-communication',
+        'curriculum': '/screens/curriculum-planning'
+      };
+      
+      // Resolve the actual route
+      const actualRoute = routeMap[route.toLowerCase().replace(/^\//, '')] || route;
+      
+      // Navigate to the specified route
+      if (params && Object.keys(params).length > 0) {
+        router.push({ pathname: actualRoute, params } as any);
+      } else {
+        router.push(actualRoute);
+      }
+      
+      // Log successful navigation
+      console.log(`[Dash] Successfully navigated to: ${actualRoute}`);
+      return { success: true };
+      
+    } catch (error) {
+      console.error('[Dash] Navigation failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Navigation failed'
+      };
+    }
+  }
+  
+  /**
+   * Get current screen context for better assistance
+   */
+  public getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] } {
+    // This would ideally get the current route from the navigation system
+    // For now, we'll return a default context
+    const defaultContext = {
+      screen: 'dashboard',
+      capabilities: [
+        'navigate to different screens',
+        'generate worksheets and lessons', 
+        'manage students and assignments',
+        'communicate with parents',
+        'create reports and analytics'
+      ],
+      suggestions: [
+        'Create a new lesson plan',
+        'Generate a math worksheet',
+        'Check student progress',
+        'Send a message to parents',
+        'View recent assignments'
+      ]
+    };
+    
+    return defaultContext;
+  }
+  
+  /**
+   * Suggest contextual actions based on current screen
+   */
+  public getContextualSuggestions(screen: string, userRole: string): string[] {
+    const suggestions: Record<string, Record<string, string[]>> = {
+      dashboard: {
+        teacher: ['Create lesson plan', 'Generate worksheet', 'Check assignments', 'Message parents'],
+        principal: ['View school analytics', 'Review teacher performance', 'Manage curriculum', 'Send announcements'],
+        parent: ['Check child progress', 'View assignments', 'Schedule meeting', 'Update contact info']
+      },
+      'lesson-generator': {
+        teacher: ['Generate new lesson', 'Import curriculum standards', 'Save as template', 'Share with colleagues'],
+        principal: ['Review lesson plans', 'Approve curriculum', 'Monitor teaching standards'],
+        parent: ['View lesson plans', 'Understand learning objectives']
+      },
+      'worksheet-demo': {
+        teacher: ['Generate math worksheet', 'Create reading activity', 'Customize difficulty', 'Print for class'],
+        principal: ['Review educational materials', 'Monitor resource usage'],
+        parent: ['Download homework help', 'Practice activities for home']
+      },
+      'student-management': {
+        teacher: ['Add new student', 'Update progress', 'Track behavior', 'Generate report'],
+        principal: ['View all students', 'Enrollment statistics', 'Performance analytics'],
+        parent: ['View my children', 'Update emergency contacts', 'Check attendance']
+      }
+    };
+    
+    return suggestions[screen]?.[userRole] || suggestions.dashboard[userRole] || [
+      'Ask me anything about education',
+      'Navigate to a different screen', 
+      'Generate educational content',
+      'Get help with current task'
+    ];
+  }
+  
+  /**
+   * Enhanced contextual understanding and intent recognition
+   */
+  private analyzeUserIntent(userInput: string, conversationContext: DashMessage[]): {
+    primaryIntent: string;
+    confidence: number;
+    entities: Array<{ type: string; value: string; confidence: number }>;
+    context: string;
+    urgency: 'low' | 'medium' | 'high';
+    actionable: boolean;
+  } {
+    const input = userInput.toLowerCase().trim();
+    
+    // Intent patterns with confidence scoring
+    const intentPatterns = {
+      // Navigation intents
+      navigation: {
+        patterns: [/(?:go to|open|show me|navigate to|take me to)\s+(\w+)/i, /(?:where is|find)\s+(\w+)/i],
+        confidence: 0.9
+      },
+      // Content creation intents
+      creation: {
+        patterns: [/(?:create|make|generate|build)\s+(\w+)/i, /(?:new|add)\s+(lesson|worksheet|assignment)/i],
+        confidence: 0.85
+      },
+      // Question/help intents
+      question: {
+        patterns: [/^(?:what|how|why|when|where|who|can you|could you)/i, /\?$/],
+        confidence: 0.8
+      },
+      // Task management intents
+      task_management: {
+        patterns: [/(?:assign|schedule|remind|track|manage)/i, /(?:todo|task|deadline)/i],
+        confidence: 0.85
+      },
+      // Data retrieval intents
+      data_retrieval: {
+        patterns: [/(?:show|list|display|find|search|get)\s+(students|grades|reports|data)/i],
+        confidence: 0.9
+      },
+      // Communication intents
+      communication: {
+        patterns: [/(?:send|message|email|call|notify|contact)\s+(parent|teacher|student)/i],
+        confidence: 0.88
+      }
+    };
+    
+    let bestMatch = { intent: 'general_assistance', confidence: 0.5 };
+    
+    // Analyze input against patterns
+    for (const [intent, config] of Object.entries(intentPatterns)) {
+      for (const pattern of config.patterns) {
+        if (pattern.test(input)) {
+          if (config.confidence > bestMatch.confidence) {
+            bestMatch = { intent, confidence: config.confidence };
+          }
+        }
+      }
+    }
+    
+    // Extract entities
+    const entities = this.extractEntities(input);
+    
+    // Determine urgency
+    const urgency = this.determineUrgency(input, conversationContext);
+    
+    // Determine if actionable
+    const actionable = this.isActionableRequest(input, bestMatch.intent);
+    
+    // Build context from conversation history
+    const context = this.buildConversationContext(conversationContext, bestMatch.intent);
+    
+    return {
+      primaryIntent: bestMatch.intent,
+      confidence: bestMatch.confidence,
+      entities,
+      context,
+      urgency,
+      actionable
+    };
+  }
+  
+  /**
+   * Extract entities from user input
+   */
+  private extractEntities(input: string): Array<{ type: string; value: string; confidence: number }> {
+    const entities = [];
+    
+    // Educational entities
+    const educationalEntities = {
+      subjects: ['math', 'mathematics', 'english', 'science', 'reading', 'writing', 'art', 'music'],
+      grades: ['grade 1', 'grade 2', 'grade 3', 'year 1', 'year 2', 'kindergarten', 'pre-k'],
+      activities: ['worksheet', 'lesson', 'assignment', 'quiz', 'test', 'activity', 'homework'],
+      roles: ['student', 'parent', 'teacher', 'principal', 'admin'],
+      difficulty: ['easy', 'medium', 'hard', 'beginner', 'intermediate', 'advanced'],
+      ages: ['3-4 years', '4-5 years', '5-6 years', '6-7 years']
+    };
+    
+    for (const [type, values] of Object.entries(educationalEntities)) {
+      for (const value of values) {
+        if (input.includes(value)) {
+          entities.push({
+            type,
+            value,
+            confidence: 0.9
+          });
+        }
+      }
+    }
+    
+    // Numbers and quantities
+    const numberMatch = input.match(/\b(\d+)\s*(minutes?|hours?|problems?|questions?|students?)/gi);
+    if (numberMatch) {
+      entities.push({
+        type: 'quantity',
+        value: numberMatch[0],
+        confidence: 0.95
+      });
+    }
+    
+    return entities;
+  }
+  
+  /**
+   * Determine urgency of the request
+   */
+  private determineUrgency(input: string, context: DashMessage[]): 'low' | 'medium' | 'high' {
+    // High urgency indicators
+    if (input.match(/\b(urgent|emergency|asap|immediately|now|help|problem|issue|broken)/i)) {
+      return 'high';
+    }
+    
+    // Medium urgency indicators
+    if (input.match(/\b(today|tomorrow|soon|quickly|deadline|due)/i)) {
+      return 'medium';
+    }
+    
+    // Check conversation context for escalation
+    const recentMessages = context.slice(-3);
+    const hasRepeatedRequests = recentMessages.some(msg => 
+      msg.type === 'user' && 
+      msg.content.toLowerCase().includes(input.split(' ').slice(0, 3).join(' ').toLowerCase())
+    );
+    
+    if (hasRepeatedRequests) {
+      return 'medium';
+    }
+    
+    return 'low';
+  }
+  
+  /**
+   * Determine if request is actionable
+   */
+  private isActionableRequest(input: string, intent: string): boolean {
+    const actionableIntents = ['navigation', 'creation', 'task_management', 'communication'];
+    
+    if (actionableIntents.includes(intent)) {
+      return true;
+    }
+    
+    // Check for action verbs
+    const actionVerbs = /\b(create|make|generate|send|schedule|assign|update|delete|save|print|download)/i;
+    return actionVerbs.test(input);
+  }
+  
+  /**
+   * Build conversation context summary
+   */
+  private buildConversationContext(messages: DashMessage[], currentIntent: string): string {
+    if (!messages || messages.length === 0) {
+      return 'New conversation';
+    }
+    
+    const recentMessages = messages.slice(-5);
+    const topics = new Set<string>();
+    
+    for (const message of recentMessages) {
+      if (message.type === 'user') {
+        const intent = this.quickIntentDetection(message.content);
+        topics.add(intent);
+      }
+    }
+    
+    const topicsList = Array.from(topics).join(', ');
+    return `Recent topics: ${topicsList}. Current: ${currentIntent}`;
+  }
+  
+  /**
+   * Quick intent detection for context building
+   */
+  private quickIntentDetection(text: string): string {
+    const lower = text.toLowerCase();
+    
+    if (lower.includes('lesson') || lower.includes('teach')) return 'lesson_planning';
+    if (lower.includes('worksheet') || lower.includes('activity')) return 'worksheet_creation';
+    if (lower.includes('student') || lower.includes('grade')) return 'student_management';
+    if (lower.includes('parent') || lower.includes('message')) return 'communication';
+    if (lower.includes('report') || lower.includes('data')) return 'reporting';
+    if (lower.includes('help') || lower.includes('how')) return 'help_request';
+    
+    return 'general';
+  }
+  
+  /**
+   * Smart response personalization based on user profile and context
+   */
+  private personalizeResponse(response: string, userProfile?: DashUserProfile, context?: any): string {
+    if (!userProfile) return response;
+    
+    // Adjust tone based on user preferences
+    const communicationStyle = userProfile.preferences.communication_style;
+    
+    let personalizedResponse = response;
+    
+    // Role-specific personalization
+    if (userProfile.role === 'teacher') {
+      personalizedResponse = personalizedResponse.replace(
+        /\bstudents?\b/gi, 
+        userProfile.context.current_classes ? 'your students' : 'students'
+      );
+    } else if (userProfile.role === 'parent') {
+      personalizedResponse = personalizedResponse.replace(
+        /\bchild(?:ren)?\b/gi,
+        userProfile.context.current_students ? 'your child' : 'your children'
+      );
+    }
+    
+    // Add contextual references
+    if (userProfile.context.current_subjects?.length) {
+      const subjects = userProfile.context.current_subjects.slice(0, 2).join(' and ');
+      personalizedResponse += ` This would work well with your ${subjects} curriculum.`;
+    }
+    
+    return personalizedResponse;
+  }
+  
+  /**
+   * Create and manage complex automated tasks
+   */
+  public async createAutomatedTask(
+    templateId: string,
+    customParams?: any
+  ): Promise<{ success: boolean; task?: DashTask; error?: string }> {
+    try {
+      const taskAutomation = DashTaskAutomation.getInstance();
+      const userRole = this.userProfile?.role || 'teacher';
+      
+      const result = await taskAutomation.createTask(templateId, customParams, userRole);
+      
+      if (result.success && result.task) {
+        // Add task progress to memory for future reference
+        await this.addMemoryItem({
+          type: 'context',
+          key: `active_task_${result.task.id}`,
+          value: {
+            taskId: result.task.id,
+            title: result.task.title,
+            status: result.task.status,
+            createdAt: result.task.createdAt
+          },
+          confidence: 1.0,
+          expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+        });
+        
+        console.log('[Dash] Created automated task:', result.task.title);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('[Dash] Failed to create automated task:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Task creation failed'
+      };
+    }
+  }
+  
+  /**
+   * Execute task step with user interaction
+   */
+  public async executeTaskStep(
+    taskId: string,
+    stepId: string,
+    userInput?: any
+  ): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }> {
+    try {
+      const taskAutomation = DashTaskAutomation.getInstance();
+      const result = await taskAutomation.executeTaskStep(taskId, stepId, userInput);
+      
+      // Update memory with task progress
+      if (result.success) {
+        await this.addMemoryItem({
+          type: 'interaction',
+          key: `task_step_${taskId}_${stepId}`,
+          value: {
+            stepId,
+            completedAt: Date.now(),
+            result: result.result
+          },
+          confidence: 1.0
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('[Dash] Task step execution failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Step execution failed'
+      };
+    }
+  }
+  
+  /**
+   * Get user's active tasks for context
+   */
+  public getActiveTasks(): DashTask[] {
+    const taskAutomation = DashTaskAutomation.getInstance();
+    return taskAutomation.getActiveTasks();
+  }
+  
+  /**
+   * Get available task templates for user's role
+   */
+  public getAvailableTaskTemplates() {
+    const taskAutomation = DashTaskAutomation.getInstance();
+    const userRole = this.userProfile?.role || 'teacher';
+    return taskAutomation.getTaskTemplates(userRole);
+  }
+  
+  /**
+   * Smart task suggestion based on user context and patterns
+   */
+  public suggestRelevantTasks(): string[] {
+    const userRole = this.userProfile?.role || 'teacher';
+    const currentTime = new Date();
+    const dayOfWeek = currentTime.getDay();
+    const hour = currentTime.getHours();
+    
+    const suggestions = [];
+    
+    // Time-based suggestions
+    if (dayOfWeek === 5 && hour > 14) { // Friday afternoon
+      suggestions.push('weekly_grade_report');
+    }
+    
+    if (dayOfWeek === 1 && hour < 10) { // Monday morning
+      suggestions.push('lesson_plan_sequence');
+    }
+    
+    // Role-based suggestions
+    switch (userRole) {
+      case 'teacher':
+        suggestions.push('assessment_creation_suite', 'student_progress_analysis');
+        break;
+      case 'principal':
+        suggestions.push('weekly_grade_report', 'parent_communication_batch');
+        break;
+    }
+    
+    // Memory-based suggestions (check recent activities)
+    const recentMemory = Array.from(this.memory.values())
+      .filter(item => item.created_at > Date.now() - (24 * 60 * 60 * 1000)) // Last 24 hours
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 5);
+    
+    const hasGradingActivity = recentMemory.some(item => 
+      item.key.includes('grade') || item.value?.includes?.('assessment')
+    );
+    
+    if (hasGradingActivity && !suggestions.includes('parent_communication_batch')) {
+      suggestions.push('parent_communication_batch');
+    }
+    
+    return [...new Set(suggestions)]; // Remove duplicates
+  }
+  
+  /**
+   * Proactive assistance - suggest actions based on user patterns and context
+   */
+  public async generateProactivesuggestions(): Promise<{
+    suggestions: Array<{
+      id: string;
+      type: 'task' | 'reminder' | 'insight' | 'action';
+      title: string;
+      description: string;
+      priority: 'low' | 'medium' | 'high';
+      action?: { type: string; params: any };
+    }>;
+    insights: string[];
+  }> {
+    const suggestions = [];
+    const insights = [];
+    const userRole = this.userProfile?.role || 'teacher';
+    const currentTime = new Date();
+    const dayOfWeek = currentTime.getDay();
+    const hour = currentTime.getHours();
+    
+    // Analyze user patterns from memory
+    const recentMemory = Array.from(this.memory.values())
+      .filter(item => item.created_at > Date.now() - (7 * 24 * 60 * 60 * 1000))
+      .sort((a, b) => b.created_at - a.created_at);
+    
+    // Time-based proactive suggestions
+    if (dayOfWeek === 1 && hour < 10) { // Monday morning
+      suggestions.push({
+        id: 'monday_planning',
+        type: 'task',
+        title: 'Plan This Week',
+        description: 'Start your week strong by planning lessons and activities',
+        priority: 'high',
+        action: { type: 'open_screen', params: { route: 'lesson-generator' } }
+      });
+    }
+    
+    if (dayOfWeek === 5 && hour > 14) { // Friday afternoon
+      suggestions.push({
+        id: 'friday_wrap_up',
+        type: 'task',
+        title: 'Weekly Wrap-up',
+        description: 'Generate progress reports and communicate with parents',
+        priority: 'medium',
+        action: { type: 'create_task', params: { template: 'weekly_grade_report' } }
+      });
+    }
+    
+    // Pattern-based suggestions
+    const hasRecentLessonPlanning = recentMemory.some(item => 
+      item.key.includes('lesson') || item.type === 'context' && String(item.value).includes('lesson')
+    );
+    
+    if (hasRecentLessonPlanning) {
+      suggestions.push({
+        id: 'create_worksheet',
+        type: 'action',
+        title: 'Create Practice Worksheet',
+        description: 'Generate worksheets to reinforce your recent lesson content',
+        priority: 'medium',
+        action: { type: 'generate_worksheet', params: { autoDetect: true } }
+      });
+      
+      insights.push('You\'ve been actively planning lessons. Consider creating supporting materials like worksheets or assessments.');
+    }
+    
+    // User interaction patterns
+    const interactionHistory = recentMemory.filter(item => item.type === 'interaction');
+    if (interactionHistory.length > 10) {
+      insights.push(`You\'ve been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
+      
+      // Suggest efficiency improvements
+      const commonTasks = this.identifyCommonTaskPatterns(interactionHistory);
+      if (commonTasks.length > 0) {
+        suggestions.push({
+          id: 'automate_common_tasks',
+          type: 'insight',
+          title: 'Automate Repetitive Tasks',
+          description: `I noticed you frequently work with ${commonTasks.join(', ')}. Let me help automate this!`,
+          priority: 'medium',
+          action: { type: 'setup_automation', params: { tasks: commonTasks } }
+        });
+      }
+    }
+    
+    // Contextual help based on current challenges
+    const recentErrors = recentMemory.filter(item => 
+      item.key.includes('error') || String(item.value).toLowerCase().includes('failed')
+    );
+    
+    if (recentErrors.length > 0) {
+      suggestions.push({
+        id: 'help_with_issues',
+        type: 'action',
+        title: 'Need Help?',
+        description: 'I noticed some challenges recently. Let me provide assistance or tutorials.',
+        priority: 'high',
+        action: { type: 'provide_help', params: { context: 'error_recovery' } }
+      });
+    }
+    
+    // Role-specific proactive suggestions
+    if (userRole === 'teacher') {
+      // Check if it's assessment season
+      const month = currentTime.getMonth();
+      if ([2, 5, 11].includes(month)) { // March, June, December
+        suggestions.push({
+          id: 'assessment_season',
+          type: 'task',
+          title: 'Assessment Season Prep',
+          description: 'Prepare comprehensive assessments for this evaluation period',
+          priority: 'high',
+          action: { type: 'create_task', params: { template: 'assessment_creation_suite' } }
+        });
+      }
+      
+      // Suggest parent communication if no recent contact
+      const hasRecentParentContact = recentMemory.some(item => 
+        item.key.includes('parent') || item.key.includes('communication')
+      );
+      
+      if (!hasRecentParentContact && recentMemory.length > 5) {
+        suggestions.push({
+          id: 'parent_communication',
+          type: 'reminder',
+          title: 'Connect with Parents',
+          description: 'It\'s been a while since parent communication. Keep them engaged!',
+          priority: 'medium',
+          action: { type: 'create_task', params: { template: 'parent_communication_batch' } }
+        });
+      }
+    }
+    
+    // Learning and improvement suggestions
+    if (recentMemory.length < 3) {
+      suggestions.push({
+        id: 'explore_features',
+        type: 'insight',
+        title: 'Discover New Features',
+        description: 'Explore more of what I can help you with - from lesson planning to student analytics',
+        priority: 'low',
+        action: { type: 'feature_tour', params: {} }
+      });
+    }
+    
+    // Performance insights
+    const completedTasks = recentMemory.filter(item => 
+      item.type === 'context' && String(item.value).includes('completed')
+    );
+    
+    if (completedTasks.length > 0) {
+      insights.push(`You\'ve completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
+    }
+    
+    return {
+      suggestions: suggestions.sort((a, b) => {
+        const priorityOrder = { high: 3, medium: 2, low: 1 };
+        return priorityOrder[b.priority] - priorityOrder[a.priority];
+      }),
+      insights
+    };
+  }
+  
+  /**
+   * Identify common task patterns for automation suggestions
+   */
+  private identifyCommonTaskPatterns(interactions: DashMemoryItem[]): string[] {
+    const taskCounts: Record<string, number> = {};
+    
+    for (const interaction of interactions) {
+      if (interaction.key.includes('worksheet')) taskCounts['worksheets'] = (taskCounts['worksheets'] || 0) + 1;
+      if (interaction.key.includes('lesson')) taskCounts['lesson planning'] = (taskCounts['lesson planning'] || 0) + 1;
+      if (interaction.key.includes('grade')) taskCounts['grading'] = (taskCounts['grading'] || 0) + 1;
+      if (interaction.key.includes('parent')) taskCounts['parent communication'] = (taskCounts['parent communication'] || 0) + 1;
+    }
+    
+    return Object.entries(taskCounts)
+      .filter(([_, count]) => count >= 3)
+      .map(([task, _]) => task);
+  }
+  
+  /**
+   * Context-aware help system
+   */
+  public provideContextualHelp(currentScreen?: string, userAction?: string): {
+    helpText: string;
+    quickActions: Array<{ label: string; action: string }>;
+    tutorials: Array<{ title: string; url: string }>;
+  } {
+    const userRole = this.userProfile?.role || 'teacher';
+    
+    let helpText = "I'm here to help! ";
+    let quickActions = [];
+    let tutorials = [];
+    
+    // Screen-specific help
+    if (currentScreen) {
+      switch (currentScreen.toLowerCase()) {
+        case 'worksheet-demo':
+          helpText += "You can generate custom worksheets by selecting age group, difficulty, and subject. Try saying 'Create a math worksheet for 5-year-olds' or 'Generate an easy reading activity'.";
+          quickActions = [
+            { label: 'Generate Math Worksheet', action: 'generate_math_worksheet' },
+            { label: 'Create Reading Activity', action: 'generate_reading_worksheet' },
+            { label: 'Customize Settings', action: 'show_worksheet_settings' }
+          ];
+          break;
+          
+        case 'lesson-generator':
+          helpText += "I can help you create comprehensive lesson plans. Specify the subject, grade level, and learning objectives, and I'll generate a complete lesson with activities and assessments.";
+          quickActions = [
+            { label: 'Quick Lesson Plan', action: 'generate_quick_lesson' },
+            { label: 'Curriculum-Aligned Lesson', action: 'generate_curriculum_lesson' },
+            { label: 'Multi-Day Sequence', action: 'generate_lesson_sequence' }
+          ];
+          break;
+          
+        case 'student-management':
+          helpText += "Manage your students effectively with progress tracking, behavior notes, and performance analytics. I can help generate reports and identify students who need additional support.";
+          quickActions = [
+            { label: 'Progress Analysis', action: 'analyze_student_progress' },
+            { label: 'Generate Report', action: 'generate_student_report' },
+            { label: 'Communication Draft', action: 'draft_parent_message' }
+          ];
+          break;
+          
+        default:
+          helpText += "I can assist with lesson planning, worksheet generation, student management, and much more. What would you like to work on?";
+      }
+    }
+    
+    // Role-specific help
+    if (userRole === 'teacher') {
+      tutorials.push(
+        { title: 'Creating Effective Lesson Plans', url: '/help/lesson-planning' },
+        { title: 'Using AI for Worksheets', url: '/help/worksheet-generation' },
+        { title: 'Parent Communication Best Practices', url: '/help/parent-communication' }
+      );
+    } else if (userRole === 'principal') {
+      tutorials.push(
+        { title: 'School Analytics Dashboard', url: '/help/analytics' },
+        { title: 'Curriculum Management', url: '/help/curriculum' },
+        { title: 'Teacher Performance Insights', url: '/help/teacher-insights' }
+      );
+    }
+    
+    // Add universal quick actions if none were set
+    if (quickActions.length === 0) {
+      quickActions = [
+        { label: 'Create Worksheet', action: 'open_worksheet_generator' },
+        { label: 'Plan Lesson', action: 'open_lesson_planner' },
+        { label: 'View Tasks', action: 'show_active_tasks' },
+        { label: 'Settings', action: 'open_dash_settings' }
+      ];
+    }
+    
+    return {
+      helpText,
+      quickActions,
+      tutorials
+    };
+  }
+  
+  /**
+   * Smart reminders and notifications
+   */
+  public async scheduleSmartReminder(params: {
+    type: 'deadline' | 'follow_up' | 'routine' | 'custom';
+    title: string;
+    description: string;
+    triggerTime: number;
+    context?: any;
+  }): Promise<{ success: boolean; reminderId?: string; error?: string }> {
+    try {
+      const reminder: DashReminder = {
+        id: `reminder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        title: params.title,
+        message: params.description,
+        type: 'one_time',
+        triggerAt: params.triggerTime,
+        userId: this.userProfile?.userId || 'unknown',
+        conversationId: this.currentConversationId,
+        priority: params.type === 'deadline' ? 'high' : 'medium',
+        status: 'active'
+      };
+      
+      // Store reminder in memory for later processing
+      await this.addMemoryItem({
+        type: 'context',
+        key: `scheduled_reminder_${reminder.id}`,
+        value: reminder,
+        confidence: 1.0,
+        expires_at: params.triggerTime + (24 * 60 * 60 * 1000) // Expire 24 hours after trigger
+      });
+      
+      console.log('[Dash] Scheduled smart reminder:', reminder.title);
+      return { success: true, reminderId: reminder.id };
+      
+    } catch (error) {
+      console.error('[Dash] Failed to schedule reminder:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Reminder scheduling failed'
+      };
+    }
+  }
+  
+  /**
+   * Legacy method for backward compatibility
+   */
+  private cleanTextForSpeech(text: string): string {
+    return this.normalizeTextForSpeech(text);
   }
 
   /**
@@ -838,16 +2082,16 @@ export class DashAIAssistant {
     try {
       const voiceSettings = this.personality.voice_settings;
       
-      // Clean the text before speaking to remove emojis
-      const cleanText = this.cleanTextForSpeech(message.content);
+      // Intelligently normalize the text before speaking
+      const normalizedText = this.normalizeTextForSpeech(message.content);
       
-      // Only speak if there's actual text content after cleaning
-      if (cleanText.length === 0) {
-        console.log('[Dash] No speakable content after emoji filtering');
+      // Only speak if there's actual text content after normalization
+      if (normalizedText.length === 0) {
+        console.log('[Dash] No speakable content after normalization');
         return;
       }
       
-      await Speech.speak(cleanText, {
+      await Speech.speak(normalizedText, {
         language: voiceSettings.language,
         pitch: voiceSettings.pitch,
         rate: voiceSettings.rate,
@@ -1048,6 +2292,56 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         
         dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
         suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
+      }
+      
+      // Add worksheet generation actions with voice command handling
+      if (userInput.includes('worksheet') || userInput.includes('activity') || userInput.includes('practice') || userInput.includes('exercise')) {
+        const worksheetParams = this.extractWorksheetParameters(userInput, aiResponse?.content || '');
+        
+        // Check if this is a direct generation command (voice)
+        if (userInput.includes('generate') || userInput.includes('create') || userInput.includes('make') || worksheetParams.autoGenerate === 'true') {
+          // For voice commands, try to generate directly
+          dashboard_action = { 
+            type: 'execute_task' as const, 
+            task: {
+              id: `worksheet_${Date.now()}`,
+              title: 'Generate Worksheet',
+              description: 'Creating educational worksheet based on voice command',
+              type: 'one_time' as const,
+              status: 'pending' as const,
+              priority: 'medium' as const,
+              assignedTo: 'dash',
+              createdBy: 'dash',
+              createdAt: Date.now(),
+              steps: [{
+                id: 'generate',
+                title: 'Generate worksheet content',
+                description: 'Create worksheet based on parameters',
+                type: 'automated' as const,
+                status: 'pending' as const,
+                actions: [{
+                  id: 'worksheet_gen',
+                  type: 'api_call' as const,
+                  parameters: worksheetParams
+                }]
+              }],
+              context: {
+                conversationId: this.currentConversationId || '',
+                userRole: this.userProfile?.role || 'teacher',
+                relatedEntities: []
+              },
+              progress: {
+                currentStep: 0,
+                completedSteps: []
+              }
+            }
+          };
+          suggested_actions.push('view_worksheet', 'download_pdf', 'customize_more');
+        } else {
+          // For regular commands, open the worksheet demo screen
+          dashboard_action = { type: 'open_screen' as const, route: '/screens/worksheet-demo', params: worksheetParams };
+          suggested_actions.push('generate_worksheet', 'customize_worksheet', 'download_pdf');
+        }
       }
 
       // Add contextual suggested actions based on user input

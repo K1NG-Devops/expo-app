@@ -43,8 +43,8 @@ export function ScreenHeader({
     }
   };
 
-  const headerBgColor = backgroundColor || theme.surface || 'white';
-  const headerTextColor = textColor || theme.text || Colors.light.text;
+  const headerBgColor = backgroundColor || theme.background;
+  const headerTextColor = textColor || theme.text;
 
   return (
     <View
@@ -53,7 +53,7 @@ export function ScreenHeader({
         {
           paddingTop: insets.top,
           backgroundColor: headerBgColor,
-          borderBottomColor: theme.divider || '#e1e1e1',
+          borderBottomColor: theme.border,
         },
       ]}
     >

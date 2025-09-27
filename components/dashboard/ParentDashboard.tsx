@@ -149,7 +149,7 @@ const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, 
 
 export default function ParentDashboard() {
   const { t } = useTranslation();
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const { user, profile } = useAuth();
   const { data: unreadMessageCount = 0 } = useUnreadMessageCount();
   const [refreshing, setRefreshing] = useState(false);
@@ -1323,6 +1323,21 @@ case 'homework':
       opacity: 0.9,
       marginTop: 4,
     },
+    welcomeHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+    },
+    themeToggleButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.3)',
+    },
     // Urgent Cards Styling
     urgentCardsGrid: {
       gap: 12,
@@ -1564,18 +1579,7 @@ case 'homework':
       {/* Offline Banner */}
       <OfflineBanner />
 
-      {/* Fixed Header */}
-      <RoleBasedHeader 
-        title={t('dashboard.parentDashboard')}
-        subtitle={(() => {
-          const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
-          if (active) return `Managing ${active.firstName} ${active.lastName}`;
-          if (children.length > 0) return `Managing ${children.length} ${children.length === 1 ? 'child' : 'children'}`;
-          return undefined;
-        })()}
-        onSubtitleTap={children.length > 1 ? cycleToNextChild : undefined}
-        canCycleChildren={children.length > 1}
-      />
+      {/* Fixed Header - Hidden for cleaner UI */}
       
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -1598,17 +1602,44 @@ case 'homework':
 
         {/* Professional Welcome Section */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.greeting}>
-            {getGreeting()}, {`${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || t('roles.parent')}! 👋
-          </Text>
-          <Text style={styles.welcomeSubtitle}>
-            {(() => {
-              const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
-              if (active) return `Managing ${active.firstName} ${active.lastName}`;
-              if (children.length > 0) return t('dashboard.managingChildrenPlural', { count: children.length });
-              return 'Welcome to EduDash Pro';
-            })()}
-          </Text>
+          <View style={styles.welcomeHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greeting}>
+                {getGreeting()}, {`${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || t('roles.parent')}! 👋
+              </Text>
+              <Text style={styles.welcomeSubtitle}>
+                {(() => {
+                  const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
+                  if (active) return `Managing ${active.firstName} ${active.lastName}`;
+                  if (children.length > 0) return t('dashboard.managingChildrenPlural', { count: children.length });
+                  return 'Welcome to EduDash Pro';
+                })()}
+              </Text>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.themeToggleButton}
+              onPress={async () => {
+                await toggleTheme();
+                try { 
+                  if (Platform.OS !== 'web') {
+                    // Use platform-appropriate haptics
+                    if (Platform.OS === 'ios') {
+                      await require('expo-haptics').impactAsync(require('expo-haptics').ImpactFeedbackStyle.Light);
+                    } else {
+                      require('react-native').Vibration.vibrate(15);
+                    }
+                  }
+                } catch {}
+              }}
+            >
+              <Ionicons 
+                name={isDark ? 'sunny' : 'moon'} 
+                size={18} 
+                color={theme.primary} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Enhanced Children Section (moved under welcome) */}

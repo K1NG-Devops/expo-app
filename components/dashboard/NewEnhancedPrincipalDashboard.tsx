@@ -263,7 +263,10 @@ export const NewEnhancedPrincipalDashboard: React.FC = () => {
           {/* Left side - Tenant/School name */}
           <View style={styles.headerLeft}>
             <Text style={styles.tenantName}>
-              {data.schoolName || t('dashboard.your_school')}
+              {(profile as any)?.organization_membership?.organization_slug ||
+               (profile as any)?.organization_membership?.tenant_slug ||
+               (profile as any)?.organization_membership?.slug ||
+               data.schoolName || t('dashboard.your_school')}
             </Text>
           </View>
           
@@ -606,8 +609,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     scrollContainer: {
       flex: 1,
-      // Space below the fixed header including safe area inset
-      marginTop: (isSmallScreen ? 44 : 50) + insetTop,
+      // Space below the fixed header including safe area inset (reduced for tighter layout)
+      marginTop: (isSmallScreen ? 32 : 38) + insetTop,
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),

@@ -22,6 +22,7 @@ import {
   RefreshControl,
   Linking,
   Modal,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
@@ -134,7 +135,7 @@ export const TeacherDashboard: React.FC = () => {
   const aiHelperEnabled =
     (aiHelperCap || hasActiveSeat) && AI_ENABLED && flags.ai_homework_help !== false;
   const { t } = useTranslation();
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const styles = getStyles(theme, isDark);
 
   // Teacher info for header
@@ -952,7 +953,6 @@ export const TeacherDashboard: React.FC = () => {
   return (
     <>
       <View style={styles.headerWithToggle}>
-        <RoleBasedHeader title="Teacher" showBackButton={false} />
         <TouchableOpacity
           style={styles.dashboardToggleInHeader}
           onPress={() => {
@@ -1035,16 +1035,41 @@ export const TeacherDashboard: React.FC = () => {
                   </View>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.headerMenuButton}
-                onPress={() => setShowOptionsMenu(true)}
-              >
-                <Ionicons
-                  name="ellipsis-vertical"
-                  size={24}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.themeToggleButton}
+                  onPress={async () => {
+                    await toggleTheme();
+                    try { 
+                      if (Platform.OS !== 'web') {
+                        // Use platform-appropriate haptics
+                        if (Platform.OS === 'ios') {
+                          await require('expo-haptics').impactAsync(require('expo-haptics').ImpactFeedbackStyle.Light);
+                        } else {
+                          require('react-native').Vibration.vibrate(15);
+                        }
+                      }
+                    } catch {}
+                  }}
+                >
+                  <Ionicons 
+                    name={isDark ? 'sunny' : 'moon'} 
+                    size={20} 
+                    color={theme.primary} 
+                  />
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.headerMenuButton}
+                  onPress={() => setShowOptionsMenu(true)}
+                >
+                  <Ionicons
+                    name="ellipsis-vertical"
+                    size={24}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -2052,6 +2077,21 @@ const getStyles = (theme: any, isDark: boolean) =>
       backgroundColor: isDark
         ? "rgba(255, 255, 255, 0.1)"
         : "rgba(75, 85, 99, 0.1)",
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    themeToggleButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.surfaceVariant || theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
     },
     headerWithToggle: {
       position: 'relative',

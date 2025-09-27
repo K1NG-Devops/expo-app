@@ -8,6 +8,7 @@ import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
@@ -62,6 +63,8 @@ export function RoleBasedHeader({
   const { user } = useAuth();
   const permissions = usePermissions();
   const { theme, mode, toggleTheme } = useTheme();
+  // Dashboard layout preferences (used for grid/apps toggle)
+  const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
 
   // Load avatar URL from user metadata or profiles table
   useEffect(() => {
@@ -175,9 +178,16 @@ export function RoleBasedHeader({
     const profile = permissions?.enhancedProfile;
     if (!profile) return undefined;
 
-    // Show organization name for school-based roles
-    if (profile.organization_membership?.organization_name) {
-      return profile.organization_membership.organization_name;
+    // Prefer explicit tenant slug if available
+    const org = profile.organization_membership as any;
+    const slug = org?.organization_slug || org?.tenant_slug || org?.slug;
+    if (slug) {
+      return `Tenant: ${slug}`;
+    }
+
+    // Fallback to organization/school name
+    if (org?.organization_name) {
+      return org.organization_name;
     }
 
     // Show seat status for teachers
@@ -307,17 +317,13 @@ export function RoleBasedHeader({
 
         {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
-          {/* Theme Toggle Button */}
-          <TouchableOpacity 
-            style={[styles.themeButton, { marginRight: 8 }]} 
-            onPress={toggleTheme}
-            accessibilityLabel="Toggle theme"
+          {/* Dashboard layout toggle (replaces theme toggle) */}
+          <TouchableOpacity
+            style={[styles.themeButton, { marginRight: 8 }]}
+            onPress={() => setDashboardLayout(dashboardPreferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
+            accessibilityLabel="Toggle dashboard layout"
           >
-            <Ionicons 
-              name={mode === 'dark' ? 'sunny' : 'moon'} 
-              size={20} 
-              color={headerTextColor} 
-            />
+            <Ionicons name={(dashboardPreferences.layout === 'enhanced' ? 'grid' : 'apps') as any} size={18} color={headerTextColor} />
           </TouchableOpacity>
           
           {/* Settings Button */}

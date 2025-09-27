@@ -28,7 +28,6 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.edudashpro",
-      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
@@ -45,35 +44,19 @@
       "compileSdkVersion": 34,
       "targetSdkVersion": 34,
       "minSdkVersion": 21,
-      "versionCode": 3
+      "versionCode": 3,
+      "contentRating": {
+        "targetAudience": "FAMILY",
+        "ageRangeMin": 3,
+        "ageRangeMax": 6,
+        "contentDescriptor": "EDUCATIONAL_CONTENT"
+      }
     },
     "plugins": [
       "expo-router",
-      "expo-dev-client",
       "sentry-expo",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
-          "androidManifestApplicationMetaData": {
-            "com.google.android.gms.ads.APPLICATION_ID": "ca-app-pub-3940256099942544~3347511713"
-          }
-        }
-      ],
       "expo-localization",
-      "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#00f5ff",
-          "defaultChannel": "default",
-          "sounds": [
-            "./assets/sounds/notification.wav"
-          ]
-        }
-      ]
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": false
@@ -81,6 +64,7 @@
     "developmentClient": {
       "silentLaunch": true
     },
+    "privacy": "https://www.edudashpro.org.za/marketing/privacy-policy",
     "web": {
       "favicon": "./assets/favicon.png",
       "name": "EduDash Pro - AI-Powered Educational Platform",
@@ -106,16 +90,11 @@
       "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
       "startUrl": "/",
       "display": "standalone",
-      "orientation": "any"
+      "orientation": "any",
+      "bundler": "metro"
     },
     "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
-      }
-    },
-    "updates": {
-      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
+      "router": {}
     }
   }
 }

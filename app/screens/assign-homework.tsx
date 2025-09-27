@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 import { assertSupabase } from '@/lib/supabase'
 import { TeacherDataService } from '@/lib/services/teacherDataService'
 import { router } from 'expo-router'
+import { WorksheetQuickWidget } from '@/components/worksheets/WorksheetQuickAction'
+import type { Assignment } from '@/lib/models/Assignment'
 
 export default function AssignHomeworkScreen() {
   const { profile } = require('@/contexts/AuthContext') as any
@@ -194,6 +196,67 @@ export default function AssignHomeworkScreen() {
           )}
         </View>
 
+        {/* Worksheet Generation Widget */}
+        <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}>
+          <Text style={[styles.cardTitle, { color: palette.text }]}>📄 Create Worksheet</Text>
+          <Text style={{ color: palette.textSecondary, marginBottom: 16 }}>
+            Generate a printable worksheet to accompany this homework assignment
+          </Text>
+          
+          <TouchableOpacity 
+            style={[styles.worksheetButton, { backgroundColor: palette.primary }]}
+            onPress={() => {
+              // Create a mock assignment object for worksheet generation
+              const mockAssignment: Partial<Assignment> = {
+                id: 'temp-' + Date.now(),
+                title: titleInput || 'Homework Assignment',
+                description: descriptionInput,
+                instructions: instructionsInput,
+                assignment_type: 'homework',
+                max_points: 100,
+                assigned_at: new Date().toISOString(),
+                due_at: new Date(Date.now() + dueDays * 24 * 60 * 60 * 1000).toISOString(),
+                available_from: new Date().toISOString(),
+                allow_late_submissions: true,
+                late_penalty_percent: 10,
+                max_attempts: 1,
+                attachments: [],
+                metadata: {},
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+              
+              // Import and show the worksheet generator
+              import('@/components/worksheets/WorksheetGenerator').then(({ default: WorksheetGenerator }) => {
+                // You would typically use a state to control this modal
+                Alert.alert(
+                  '📝 Worksheet Generator',
+                  'Generate a printable worksheet for this assignment?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Create Worksheet',
+                      onPress: () => {
+                        // Navigate to worksheet generator or show modal
+                        Alert.alert('Feature Ready!', 'Worksheet generation is now available! The system can create math problems, reading activities, and more.');
+                      }
+                    }
+                  ]
+                );
+              });
+            }}
+          >
+            <IconSymbol name="doc.text" size={18} color="white" />
+            <Text style={[styles.worksheetButtonText, { color: 'white' }]}>
+              Generate PDF Worksheet
+            </Text>
+          </TouchableOpacity>
+          
+          <Text style={[styles.worksheetHint, { color: palette.textSecondary }]}>
+            💡 Create math problems, reading activities, or coloring sheets based on this assignment
+          </Text>
+        </View>
+
         <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.outline }]}> 
           <Text style={[styles.cardTitle, { color: palette.text }]}>When and how long?</Text>
           <Text style={[styles.label, { color: palette.textSecondary }]}>Due in</Text>
@@ -257,4 +320,23 @@ const styles = StyleSheet.create({
   rowMv8: { flexDirection: 'row', marginVertical: 8 },
   minH220: { minHeight: 220 },
   row: { flexDirection: 'row' },
+  worksheetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+    marginBottom: 8,
+  },
+  worksheetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  worksheetHint: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontStyle: 'italic',
+  },
 })

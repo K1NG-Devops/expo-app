@@ -48,6 +48,14 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Dev-only visibility: indicate whether env vars are present (do not log values)
+if (typeof __DEV__ !== 'undefined' && __DEV__) {
+  try {
+    // eslint-disable-next-line no-console
+    console.log('[supabase] env present', { hasUrl: !!url, hasAnon: !!anon });
+  } catch {}
+}
+
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
 const SecureStoreAdapter = SecureStore ? {
   getItem: (key: string) => SecureStore.getItemAsync(key),
@@ -107,6 +115,10 @@ if (url && anon) {
       debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
     },
   });
+
+  if (client && (typeof __DEV__ !== 'undefined' && __DEV__)) {
+    try { console.log('[supabase] client initialized'); } catch {}
+  }
 
   // Add global error handler for auth errors
   client.auth.onAuthStateChange((event, session) => {

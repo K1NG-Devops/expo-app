@@ -23,7 +23,28 @@ import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettin
 import InvoiceNotificationSettings from '@/components/settings/InvoiceNotificationSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import Constants from 'expo-constants';
-import { useUpdates } from '@/contexts/UpdatesProvider';
+// Safe useUpdates hook that handles missing provider
+const useSafeUpdates = () => {
+  try {
+    const { useUpdates } = require('@/contexts/UpdatesProvider');
+    return useUpdates();
+  } catch (error) {
+    console.warn('[Settings] UpdatesProvider not available:', error.message);
+    // Return fallback values
+    return {
+      isDownloading: false,
+      isUpdateDownloaded: false,
+      updateError: null,
+      checkForUpdates: async () => {
+        console.log('[Settings] Updates check not available in current environment');
+        return false;
+      },
+      applyUpdate: async () => {
+        console.log('[Settings] Update apply not available in current environment');
+      },
+    };
+  }
+};
 import { useAuth } from '@/contexts/AuthContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Haptics temporarily disabled to prevent device-specific crashes
@@ -42,7 +63,7 @@ export default function SettingsScreen() {
   const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(null);
   const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useUpdates();
+  const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useSafeUpdates();
   
   // Feedback preferences
   const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(true);
@@ -308,7 +329,7 @@ export default function SettingsScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={styles.container} className="settings-screen" data-settings-screen="true">
         <RoleBasedHeader title="Settings" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -319,7 +340,7 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} className="settings-screen" data-settings-screen="true">
       <RoleBasedHeader title="Settings" />
 
       <ScrollView
