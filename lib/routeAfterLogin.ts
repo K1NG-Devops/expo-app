@@ -243,14 +243,16 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
     case 'teacher':
       console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
       
-      // Allow teachers to access dashboard unless explicitly blocked
-      // Block if seat_status is 'inactive' (which includes revoked/suspended semantics)
-      if (profile.seat_status === 'inactive') {
-        console.log('[ROUTE DEBUG] Teacher seat inactive, routing to account');
+      // Teachers should generally have access to their dashboard
+      // Only block if specifically revoked or suspended (not just inactive)
+      // Note: 'inactive' might be set by default and doesn't mean access should be denied
+      if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
+        console.log('[ROUTE DEBUG] Teacher seat revoked/suspended, routing to account');
         return { path: '/screens/account' };
       }
       
-      // Allow all other cases (active, pending, null, inactive, etc.) to access dashboard
+      // Allow all other cases (active, pending, inactive, null, etc.) to access dashboard
+      // This is more permissive and ensures teachers can access their dashboard
       console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
       return { path: '/screens/teacher-dashboard' };
     
@@ -291,8 +293,9 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
   if (role === 'teacher') {
-    // Only block if explicitly inactive; allow all other statuses
-    if (profile.seat_status === 'inactive') {
+    // Only block if explicitly revoked or suspended; allow all other statuses
+    // Note: 'inactive' might be set by default and doesn't mean access should be denied
+    if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
       return {
         hasAccess: false,
         reason: `Teacher seat is ${profile.seat_status}`,

@@ -14,10 +14,10 @@ module.exports = ({ config }) => {
     [
       'react-native-google-mobile-ads',
       {
-        androidAppId: 'ca-app-pub-3940256099942544~3347511713',
-        iosAppId: 'ca-app-pub-3940256099942544~1458002511',
+        androidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
+        iosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || 'ca-app-pub-3940256099942544~1458002511',
         androidManifestApplicationMetaData: {
-          'com.google.android.gms.ads.APPLICATION_ID': 'ca-app-pub-3940256099942544~3347511713',
+          'com.google.android.gms.ads.APPLICATION_ID': process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
         },
       },
     ],
@@ -37,11 +37,11 @@ module.exports = ({ config }) => {
     ...config,
     name: 'EduDashPro',
     slug: 'edudashpro',
-    owner: 'edudashpro',
+    owner: 'dashpro',
     version: '1.0.2',
     runtimeVersion,
     updates: {
-      url: 'https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298',
+      url: 'https://u.expo.dev/ab7c9230-2f47-4bfa-b4f4-4ae516a334bc',
       checkAutomatically: isDevBuild ? 'ON_ERROR_RECOVERY' : 'ON_LOAD',
       fallbackToCacheTimeout: isDevBuild ? 0 : 5000,
     },
@@ -76,7 +76,7 @@ module.exports = ({ config }) => {
       silentLaunch: true,
     },
     web: {
-      favicon: './assets/favicon.png',
+      favicon: `./assets/favicon.png?v=${Date.now()}`,
       name: 'EduDash Pro - AI-Powered Educational Platform',
       shortName: 'EduDash Pro',
       lang: 'en',
@@ -106,7 +106,7 @@ module.exports = ({ config }) => {
     extra: {
       router: {},
       eas: {
-        projectId: '253b1057-8489-44cf-b0e3-c3c10319a298',
+        projectId: 'ab7c9230-2f47-4bfa-b4f4-4ae516a334bc',
       },
     },
   };

@@ -45,6 +45,7 @@ export default function AILessonGeneratorScreen() {
   const [progress, setProgress] = useState(0)
   const [progressMessage, setProgressMessage] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [quotaStatus, setQuotaStatus] = useState<{ used: number; limit: number; remaining: number } | null>(null)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [progressInterval, setProgressInterval] = useState<ReturnType<typeof setTimeout> | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -94,6 +95,13 @@ export default function AILessonGeneratorScreen() {
     (async () => {
       // Use combined usage to show accurate cross-device counts
       setUsage(await getCombinedUsage())
+      try {
+        const s = await getQuotaStatus('lesson_generation')
+        setQuotaStatus(s)
+      } catch (err) {
+        console.warn('[Lesson Generator] Failed to load quota status:', err)
+        setQuotaStatus(null)
+      }
     })()
   }, [])
 
@@ -224,8 +232,8 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       try {
         gate = await invokeWithTimeout(canUseFeature('lesson_generation', 1), 10000)
       } catch (gateErr) {
-        console.warn('[Lesson Generator] Quota check timed out, continuing with server enforcement')
-        toast.warn('Quota check is slow; continuing. Server will enforce limits.')
+        console.warn('[Lesson Generator] Quota check timed out; proceeding with server-side enforcement')
+        toast.info('Network is slow; proceeding. If you are over your quota, the server will block this request.')
         gate = { allowed: true }
       }
 
@@ -352,6 +360,11 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       // Update usage stats display - use local data for now
       const localUsageAfterGeneration = await getUsage()
       setUsage(localUsageAfterGeneration)
+      // Refresh quota status after counting usage
+      try {
+        const sAfter = await getQuotaStatus('lesson_generation')
+        setQuotaStatus(sAfter)
+      } catch {}
       console.log('[Lesson Generator] Updated display with local usage:', localUsageAfterGeneration)
       
       // Show success toast
@@ -418,6 +431,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       <ScreenHeader 
         title="AI Lesson Generator" 
         subtitle="Create AI-powered lesson plans" 
+        showBackButton={true}
       />
 
       {/* Dash-styled header row */}
@@ -481,9 +495,34 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           </View>
 
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
-            Monthly usage: Lessons generated {usage.lesson_generation}
+            This month: {usage.lesson_generation} lessons generated
           </Text>
           <QuotaBar feature="lesson_generation" color={theme.primary} />
+          {quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit && (
+            <View style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 8,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: '#EF4444',
+              backgroundColor: '#EF4444' + '10'
+            }}>
+              <Text style={{ color: '#EF4444', fontWeight: '700', marginBottom: 4 }}>
+                Monthly limit reached
+              </Text>
+              <Text style={{ color: palette.textSecondary, marginBottom: 8 }}>
+                You have used {quotaStatus.used} of {quotaStatus.limit} lesson generations for this month.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => router.push('/pricing')} style={[styles.primaryBtn, { backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 8 }]}>
+                  <Text style={[styles.primaryBtnText, { color: '#FFFFFF' }]}>See plans</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => toast.info('Your quota resets at the start of next month.')} style={[styles.primaryBtn, { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 8 }]}>
+                  <Text style={[styles.primaryBtnText, { color: '#EF4444' }]}>When does it reset?</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: palette.outline, backgroundColor: theme.accent + '20' }]}>
               <Ionicons name={result.__savedToDatabase ? "checkmark-circle" : "information-circle"} size={16} color={result.__savedToDatabase ? theme.success : theme.accent} />
@@ -573,8 +612,24 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={() => onGenerate()} style={[styles.primaryBtn, { backgroundColor: theme.primary, flex: 1 }]} disabled={generating || pending}>
-            {(generating || pending) ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Generate Lesson</Text>}
+          <TouchableOpacity
+            onPress={() => {
+              if (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) {
+                router.push('/pricing');
+                return;
+              }
+              onGenerate();
+            }}
+            style={[styles.primaryBtn, { backgroundColor: (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) ? '#9CA3AF' : theme.primary, flex: 1 }]}
+            disabled={(generating || pending || (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit)) ? true : false}
+          >
+            {(generating || pending) ? (
+              <ActivityIndicator color={theme.onPrimary} />
+            ) : (
+              <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}> 
+                {(quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) ? 'Upgrade to Generate' : 'Generate Lesson'}
+              </Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: generated?.description ? theme.accent : palette.outline, flex: 1 }]} disabled={saving || !generated?.description}>
             {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: generated?.description ? theme.onAccent : palette.textSecondary }]}>Save Lesson</Text>}
@@ -927,16 +982,27 @@ function QuotaBar({ feature, planLimit, color }: { feature: 'lesson_generation' 
     return <Text style={{ color: '#6B7280', marginTop: 4 }}>Quota: Unlimited</Text>
   }
   
-  const pct = Math.max(0, Math.min(100, Math.round((status.used / Math.max(1, status.limit)) * 100)))
+  const used = status.used
+  const limit = status.limit
+  const remaining = Math.max(0, limit - used)
+  const overBy = Math.max(0, used - limit)
+  const pct = Math.max(0, Math.min(100, Math.round((Math.min(used, limit) / Math.max(1, limit)) * 100)))
+  const barColor = overBy > 0 ? '#EF4444' : color
   
   return (
     <View style={{ marginTop: 6 }}>
       <View style={{ height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' }}>
-        <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: color }} />
+        <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: barColor }} />
       </View>
-      <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 12 }}>
-        Quota: {status.used}/{status.limit} used · {Math.max(0, status.limit - status.used)} remaining
-      </Text>
+      {overBy > 0 ? (
+        <Text style={{ color: '#EF4444', marginTop: 4, fontSize: 12, fontWeight: '600' }}>
+          Monthly limit reached · {used}/{limit} used ({overBy} over)
+        </Text>
+      ) : (
+        <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 12 }}>
+          Quota: {used}/{limit} used · {remaining} remaining
+        </Text>
+      )}
     </View>
   )
 }

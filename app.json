@@ -2,7 +2,7 @@
   "expo": {
     "name": "EduDashPro",
     "slug": "edudashpro",
-    "owner": "edudashpro",
+    "owner": "dashpro",
     "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -41,16 +41,7 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
-      "minSdkVersion": 21,
-      "versionCode": 3,
-      "contentRating": {
-        "targetAudience": "FAMILY",
-        "ageRangeMin": 3,
-        "ageRangeMax": 6,
-        "contentDescriptor": "EDUCATIONAL_CONTENT"
-      }
+      "versionCode": 3
     },
     "plugins": [
       "expo-router",
@@ -64,7 +55,6 @@
     "developmentClient": {
       "silentLaunch": true
     },
-    "privacy": "https://www.edudashpro.org.za/marketing/privacy-policy",
     "web": {
       "favicon": "./assets/favicon.png",
       "name": "EduDash Pro - AI-Powered Educational Platform",
@@ -94,7 +84,10 @@
       "bundler": "metro"
     },
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "ab7c9230-2f47-4bfa-b4f4-4ae516a334bc"
+      }
     }
   }
 }

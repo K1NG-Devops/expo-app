@@ -48,24 +48,13 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const [popularLessons, setPopularLessons] = useState<Lesson[]>([]);
   const [recentLessons, setRecentLessons] = useState<Lesson[]>([]);
   const [myGeneratedLessons, setMyGeneratedLessons] = useState<Lesson[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
   const lessonsService = LessonsService.getInstance();
 
-  // Load initial data
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Refresh data when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [])
-  );
-
-  const loadData = async () => {
+  // Define loadData function first to avoid reference before declaration
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       console.log('[LessonsHub] Starting to load data...');
@@ -111,7 +100,19 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [lessonsService]);
+
+  // Load initial data
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -156,7 +157,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       <View style={styles.headerContent}>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
           Access your saved AI-generated lessons and discover new content
@@ -261,9 +262,9 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.lessonsContainer}
       >
-        {featuredLessons.map((lesson) => (
+        {featuredLessons.map((lesson, index) => (
           <LessonCard
-            key={lesson.id}
+            key={lesson.id || `featured-${index}`}
             lesson={lesson}
             onPress={() => handleLessonPress(lesson)}
             variant="featured"
@@ -295,7 +296,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
       <View style={styles.popularGrid}>
         {popularLessons.slice(0, 4).map((lesson, index) => (
           <LessonCard
-            key={lesson.id}
+            key={lesson.id || `popular-${index}`}
             lesson={lesson}
             onPress={() => handleLessonPress(lesson)}
             variant="compact"
@@ -355,9 +356,9 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.lessonsContainer}
           >
-            {displayLessons.slice(0, 8).map((lesson) => (
+            {displayLessons.slice(0, 8).map((lesson, index) => (
               <LessonCard
-                key={lesson.id}
+                key={lesson.id || `display-${index}`}
                 lesson={lesson}
                 onPress={() => handleLessonPress(lesson)}
                 variant="featured"
@@ -408,7 +409,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
       <View style={styles.recentList}>
         {recentLessons.slice(0, 6).map((lesson, index) => (
           <LessonCard
-            key={lesson.id}
+            key={lesson.id || `recent-${index}`}
             lesson={lesson}
             onPress={() => handleLessonPress(lesson)}
             variant="list"
