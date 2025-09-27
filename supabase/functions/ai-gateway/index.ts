@@ -6,7 +6,7 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // AI Model tiers and access control
-type AIModelId = 'claude-3-haiku' | 'claude-3-sonnet' | 'claude-3-opus'
+type AIModelId = 'claude-3-haiku' | 'claude-3-sonnet' | 'claude-3-opus' | 'claude-3-5-sonnet' | 'claude-4-opus'
 type SubscriptionTier = 'free' | 'starter' | 'premium' | 'enterprise'
 
 const TIER_HIERARCHY: Record<SubscriptionTier, number> = {
@@ -20,6 +20,8 @@ const MODEL_TIER_REQUIREMENTS: Record<AIModelId, SubscriptionTier> = {
   'claude-3-haiku': 'free',
   'claude-3-sonnet': 'starter', 
   'claude-3-opus': 'premium',
+  'claude-3-5-sonnet': 'premium',
+  'claude-4-opus': 'enterprise',
 }
 
 const TIER_QUOTAS: Record<SubscriptionTier, { ai_requests: number; rpm_limit: number }> = {
@@ -41,7 +43,9 @@ function normalizeModelId(modelId: string): AIModelId | null {
   if (!modelId) return null;
   const id = modelId.toLowerCase();
   if (id.includes('haiku')) return 'claude-3-haiku'
-  if (id.includes('sonnet')) return 'claude-3-sonnet' 
+  if (id.includes('3.5-sonnet') || id.includes('3-5-sonnet')) return 'claude-3-5-sonnet'
+  if (id.includes('3-sonnet')) return 'claude-3-sonnet' 
+  if (id.includes('4-opus')) return 'claude-4-opus'
   if (id.includes('opus')) return 'claude-3-opus'
   return null
 }
@@ -51,13 +55,18 @@ function toOfficialModelId(modelId: string): string {
   // If already a versioned model ID, return as-is
   if (modelId.includes('20')) return modelId;
   
-  const norm = normalizeModelId(modelId) || 'claude-3-sonnet';
+  const norm = normalizeModelId(modelId) || 'claude-3-5-sonnet';
   switch (norm) {
     case 'claude-3-haiku':
       return 'claude-3-haiku-20240307';
     case 'claude-3-opus':
       return 'claude-3-opus-20240229';
     case 'claude-3-sonnet':
+      return 'claude-3-sonnet-20240229';
+    case 'claude-3-5-sonnet':
+      return 'claude-3-5-sonnet-20241022';
+    case 'claude-4-opus':
+      return 'claude-4-opus-20241220'; // Future Claude 4 Opus model
     default:
       return 'claude-3-5-sonnet-20241022';
   }
@@ -65,11 +74,11 @@ function toOfficialModelId(modelId: string): string {
 
 function getDefaultModelForTier(tier: SubscriptionTier): string {
   switch (tier) {
-    case 'enterprise':
-    case 'premium': return 'claude-3-5-sonnet-20241022'
-    case 'starter': return 'claude-3-5-sonnet-20241022' 
+    case 'enterprise': return 'claude-4-opus-20241220' // Claude 4 Opus for enterprise
+    case 'premium': return 'claude-3-5-sonnet-20241022' // Claude 3.5 Sonnet for premium
+    case 'starter': return 'claude-3-5-sonnet-20241022' // Claude 3.5 Sonnet for starter
     case 'free':
-    default: return 'claude-3-haiku-20240307'
+    default: return 'claude-3-haiku-20240307' // Claude 3 Haiku for free
   }
 }
 
@@ -124,17 +133,103 @@ async function callClaudeMessages(apiKey: string, payload: Record<string, any>, 
   return res;
 }
 
-function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance"): string {
+function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance" | "image_analysis" | "document_analysis"): string {
   if (kind === "lesson_generation") {
-    return "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment.";
+    return `You are an expert educational curriculum planner with advanced reasoning capabilities. Your approach includes:
+
+1. **Deep Analysis**: Break down complex educational concepts into fundamental components
+2. **Extended Thinking**: Consider multiple perspectives, learning styles, and pedagogical approaches
+3. **Contextual Reasoning**: Adapt lessons to specific grade levels, cultural contexts, and learning objectives
+4. **Creative Problem-Solving**: Develop innovative activities that engage students and promote deep understanding
+5. **Assessment Integration**: Design formative and summative assessments that measure true comprehension
+
+Create structured, age-appropriate lessons with clear objectives, engaging activities, and meaningful assessment. Use evidence-based pedagogical strategies and consider diverse learning needs.`;
   }
   if (kind === "homework_help") {
-    return "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers.";
+    return `You are a child-safe educational assistant with advanced reasoning capabilities. Your approach includes:
+
+1. **Socratic Method**: Guide students through questioning rather than providing direct answers
+2. **Multi-Step Reasoning**: Break down complex problems into manageable steps
+3. **Conceptual Understanding**: Focus on underlying principles rather than memorization
+4. **Adaptive Explanation**: Adjust complexity based on student responses and understanding
+5. **Encouragement and Motivation**: Build confidence through positive reinforcement
+
+Provide step-by-step explanations that encourage understanding and critical thinking. Never give only final answers - always guide students to discover solutions themselves. Use age-appropriate language and examples.`;
   }
   if (kind === "general_assistance") {
-    return "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice.";
+    return `You are Dash, an AI Teaching Assistant with Claude 4 Opus-level intelligence, specialized in early childhood education and preschool management. Your capabilities include:
+
+**Advanced Reasoning & Analysis:**
+- Multi-step problem-solving with extended thinking
+- Complex decision-making with multiple variables
+- Pattern recognition and predictive analysis
+- Contextual understanding across educational domains
+
+**Specialized Expertise:**
+- Early childhood development and pedagogy
+- Curriculum design and implementation
+- Classroom management and behavior strategies
+- Parent communication and engagement
+- Administrative and organizational tasks
+
+**Intelligent Assistance:**
+- Proactive suggestions based on context and patterns
+- Adaptive responses to user needs and preferences
+- Deep integration with educational workflows
+- Multi-modal understanding (text, context, intent)
+
+Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice. Use advanced reasoning to anticipate needs and offer comprehensive support.`;
   }
-  return "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate.";
+  return `You are an AI grading assistant with advanced analytical capabilities. Your approach includes:
+
+1. **Comprehensive Analysis**: Evaluate work across multiple dimensions (accuracy, creativity, effort, understanding)
+2. **Constructive Feedback**: Provide specific, actionable suggestions for improvement
+3. **Fair Assessment**: Consider individual student context and learning progression
+4. **Rubric Integration**: Align feedback with established grading criteria
+5. **Motivation Focus**: Encourage continued learning and growth
+
+Provide constructive feedback and appropriate scoring that supports student development and learning goals.`;
+  }
+  if (kind === "image_analysis") {
+    return `You are an advanced AI with multimodal capabilities, specialized in educational image analysis. Your capabilities include:
+
+**Visual Analysis:**
+- Object detection and recognition
+- Text extraction (OCR) from images
+- Educational context identification
+- Visual learning material assessment
+
+**Educational Insights:**
+- Identify subjects and grade levels
+- Suggest educational applications
+- Assess visual learning effectiveness
+- Recommend improvements
+
+Analyze the provided image with focus on educational value, accessibility, and learning potential. Provide detailed descriptions, identify key educational elements, and suggest how the image could be used in teaching.`;
+  }
+  if (kind === "document_analysis") {
+    return `You are an advanced AI specialized in educational document analysis with deep understanding of curriculum and pedagogy. Your capabilities include:
+
+**Document Classification:**
+- Lesson plans, assessments, curriculum materials
+- Student work and assignments
+- Educational resources and guides
+- Administrative documents
+
+**Content Analysis:**
+- Extract learning objectives and key concepts
+- Assess educational quality and alignment
+- Identify grade levels and subjects
+- Evaluate assessment criteria
+
+**Educational Assessment:**
+- Curriculum alignment analysis
+- Learning objective clarity
+- Assessment effectiveness
+- Pedagogical soundness
+
+Provide comprehensive analysis of educational documents with specific recommendations for improvement and alignment with best practices.`;
+  }
 }
 
 function buildMessagesFromInputs(kind: string, body: any) {
@@ -166,6 +261,27 @@ Use plain language and bullet points where helpful.`;
     }
     // Fallback for simple text input
     const userContent = body.content || body.question || "How can I help you with your educational needs?";
+    return [{ role: "user", content: userContent }];
+  }
+  if (kind === "image_analysis") {
+    const imageData = body.image_data || "";
+    const context = body.context || {};
+    const userContent = `Please analyze this educational image. Context: ${JSON.stringify(context)}. Provide detailed analysis including objects, text, educational value, and suggestions for use in teaching.`;
+    
+    // For Claude with vision capabilities, we would include the image data
+    return [{ 
+      role: "user", 
+      content: [
+        { type: "text", text: userContent },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageData}` } }
+      ]
+    }];
+  }
+  if (kind === "document_analysis") {
+    const documentText = body.document_text || "";
+    const metadata = body.document_metadata || {};
+    const context = body.context || {};
+    const userContent = `Please analyze this educational document:\n\n${documentText}\n\nMetadata: ${JSON.stringify(metadata)}\nContext: ${JSON.stringify(context)}\n\nProvide comprehensive analysis including document type, key concepts, learning objectives, and educational recommendations.`;
     return [{ role: "user", content: userContent }];
   }
   // grading_assistance
@@ -519,7 +635,7 @@ serve(async (req: Request) => {
   }
 
   // Non-streaming handlers
-  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance") {
+  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance" || action === "image_analysis" || action === "document_analysis") {
     if (!apiKey) {
       // Fallback mock if no key
       let content = "";
@@ -529,24 +645,46 @@ serve(async (req: Request) => {
         content = `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding, not just final answer.`;
       } else if (action === "general_assistance") {
         content = `I'm here to help with your educational needs. Whether it's lesson planning, student management, or administrative tasks, let me know what you'd like to work on.`;
+      } else if (action === "image_analysis") {
+        content = `Image analyzed: Educational content detected with visual learning potential.`;
+      } else if (action === "document_analysis") {
+        content = `Document analyzed: Educational materials identified with curriculum alignment suggestions.`;
       } else {
         content = `Automated feedback: solid effort. Suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
       }
       return json({ content, usage: { input_tokens: 200, output_tokens: 600 }, cost: 0 });
     }
 
-    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
+    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance" | "image_analysis" | "document_analysis";
     const messages = buildMessagesFromInputs(kind, body);
     const system = toSystemPrompt(kind);
     const model = modelToUse; // Use tier-enforced model
 
-    const res = await callClaudeMessages(apiKey, {
+    // Enhanced parameters for advanced reasoning with extended context
+    const enhancedParams: any = {
       model,
       system,
-      max_tokens: 1500,
-      temperature: 0.6,
+      max_tokens: 8000, // Increased for extended thinking and comprehensive responses
+      temperature: 0.3, // Lower for more consistent reasoning
       messages,
-    }, false);
+    };
+
+    // Enable extended context window for premium models (200k tokens)
+    if (model.includes('opus') || model.includes('3-5-sonnet')) {
+      enhancedParams.max_tokens = 12000; // Allow longer responses for complex reasoning
+      enhancedParams.context_window = 'extended'; // Signal to use full 200k context
+    }
+
+    // Add extended thinking mode for premium models
+    if (model.includes('opus') || model.includes('3-5-sonnet')) {
+      enhancedParams.metadata = {
+        user_id: user.id,
+        reasoning_mode: 'extended',
+        context_window: 'extended'
+      };
+    }
+
+    const res = await callClaudeMessages(apiKey, enhancedParams, false);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");

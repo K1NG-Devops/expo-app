@@ -15,6 +15,9 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
+import { DashAdvancedMemory, AdvancedMemoryItem } from './DashAdvancedMemory';
+import { DashToolIntegration } from './DashToolIntegration';
+import { DashMultimodalProcessor } from './DashMultimodalProcessor';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -462,6 +465,11 @@ export class DashAIAssistant {
     data: any;
   }> = [];
   
+  // Advanced memory system
+  private advancedMemory: DashAdvancedMemory;
+  private toolIntegration: DashToolIntegration;
+  private multimodalProcessor: DashMultimodalProcessor;
+  
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
   private static readonly CURRENT_CONVERSATION_KEY = '@dash_ai_current_conversation_id';
@@ -480,6 +488,12 @@ export class DashAIAssistant {
     return DashAIAssistant.instance;
   }
 
+  private constructor() {
+    this.advancedMemory = DashAdvancedMemory.getInstance();
+    this.toolIntegration = DashToolIntegration.getInstance();
+    this.multimodalProcessor = DashMultimodalProcessor.getInstance();
+  }
+
   /**
    * Initialize Dash AI Assistant
    */
@@ -493,6 +507,15 @@ export class DashAIAssistant {
       // Load persistent data
       await this.loadMemory();
       await this.loadPersonality();
+      
+      // Initialize advanced memory system
+      await this.advancedMemory.initialize();
+      
+      // Initialize tool integration
+      await this.toolIntegration.initialize();
+      
+      // Initialize multimodal processor
+      await this.multimodalProcessor.initialize();
       
       // Load user context
       await this.loadUserContext();
@@ -2222,29 +2245,42 @@ export class DashAIAssistant {
    */
   private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
-      // Get conversation history for context
+      // Get conversation history for context with extended window
       const conversation = await this.getConversation(conversationId);
-      const recentMessages = conversation?.messages.slice(-5) || [];
+      const recentMessages = conversation?.messages.slice(-20) || []; // Increased from 5 to 20 messages
       
       // Get user context
       const session = await getCurrentSession();
       const profile = await getCurrentProfile();
       
-      // Build context for AI
+      // Retrieve relevant memories using advanced semantic search with extended context
+      const relevantMemories = await this.advancedMemory.retrieveMemories({
+        text: userInput,
+        limit: 25 // Increased from 10 to 25 for better context
+      });
+
+      // Build enhanced context for AI with advanced memory
       const context = {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
         memory: Array.from(this.memory.values()),
+        advancedMemory: relevantMemories.map(m => ({
+          type: m.type,
+          key: m.key,
+          value: m.value,
+          importance: m.importance_score,
+          confidence: m.confidence
+        })),
         personality: this.personality,
         timestamp: new Date().toISOString(),
       };
 
-      // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
+      // Call enhanced AI service with advanced reasoning
       const response = await this.callAIServiceLegacy(context);
       
-      // Update memory based on interaction
-      await this.updateMemory(userInput, response);
+      // Store interaction in advanced memory system
+      await this.storeInteractionInAdvancedMemory(userInput, response, conversationId);
       
       // Create assistant message
       const assistantMessage: DashMessage = {
@@ -2661,6 +2697,225 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
     } catch (error) {
       console.error('[Dash] Failed to update memory:', error);
     }
+  }
+
+  /**
+   * Store interaction in advanced memory system
+   */
+  private async storeInteractionInAdvancedMemory(
+    userInput: string, 
+    response: any, 
+    conversationId: string
+  ): Promise<void> {
+    try {
+      const timestamp = Date.now();
+      const profile = await getCurrentProfile();
+      
+      // Store the conversation interaction
+      await this.advancedMemory.storeMemory(
+        'conversation',
+        `conversation_${timestamp}`,
+        {
+          user_input: userInput,
+          assistant_response: response.content,
+          conversation_id: conversationId,
+          timestamp
+        },
+        {
+          conversation_id: conversationId,
+          screen: 'dash_assistant',
+          time_context: this.getTimeContext(timestamp),
+          user_mood: this.detectUserMood(userInput)
+        },
+        {
+          importance: this.calculateInteractionImportance(userInput, response),
+          tags: this.extractTagsFromInteraction(userInput),
+          related_entities: [{
+            type: 'user',
+            id: profile?.id || 'unknown',
+            name: profile?.name || 'User',
+            relevance_score: 1.0
+          }]
+        }
+      );
+
+      // Extract and store key insights from the interaction
+      const insights = this.extractInsightsFromInteraction(userInput, response);
+      for (const insight of insights) {
+        await this.advancedMemory.storeMemory(
+          'insight',
+          `insight_${timestamp}_${insight.type}`,
+          insight,
+          {
+            conversation_id: conversationId,
+            task_context: insight.category
+          },
+          {
+            importance: insight.confidence,
+            tags: [insight.category, 'auto_generated']
+          }
+        );
+      }
+
+      // Store user preferences if detected
+      const preferences = this.extractUserPreferences(userInput);
+      for (const preference of preferences) {
+        await this.advancedMemory.storeMemory(
+          'preference',
+          `preference_${preference.key}`,
+          preference.value,
+          {
+            conversation_id: conversationId
+          },
+          {
+            importance: 0.8,
+            tags: ['user_preference', preference.category]
+          }
+        );
+      }
+
+    } catch (error) {
+      console.error('[Dash] Failed to store interaction in advanced memory:', error);
+    }
+  }
+
+  /**
+   * Get time context for memory storage
+   */
+  private getTimeContext(timestamp: number): string {
+    const date = new Date(timestamp);
+    const hour = date.getHours();
+    
+    if (hour >= 6 && hour < 12) return 'morning';
+    if (hour >= 12 && hour < 18) return 'afternoon';
+    if (hour >= 18 && hour < 22) return 'evening';
+    return 'night';
+  }
+
+  /**
+   * Detect user mood from input
+   */
+  private detectUserMood(input: string): 'positive' | 'neutral' | 'frustrated' | 'excited' {
+    const lowerInput = input.toLowerCase();
+    
+    if (lowerInput.includes('thank') || lowerInput.includes('great') || lowerInput.includes('awesome')) {
+      return 'positive';
+    }
+    if (lowerInput.includes('frustrated') || lowerInput.includes('annoying') || lowerInput.includes('difficult')) {
+      return 'frustrated';
+    }
+    if (lowerInput.includes('excited') || lowerInput.includes('amazing') || lowerInput.includes('love')) {
+      return 'excited';
+    }
+    
+    return 'neutral';
+  }
+
+  /**
+   * Calculate interaction importance
+   */
+  private calculateInteractionImportance(userInput: string, response: any): number {
+    let importance = 0.5;
+    
+    // Increase importance for specific patterns
+    if (userInput.includes('important') || userInput.includes('urgent')) {
+      importance += 0.3;
+    }
+    if (userInput.includes('help') || userInput.includes('problem')) {
+      importance += 0.2;
+    }
+    if (response.confidence && response.confidence > 0.8) {
+      importance += 0.1;
+    }
+    
+    return Math.min(importance, 1.0);
+  }
+
+  /**
+   * Extract tags from interaction
+   */
+  private extractTagsFromInteraction(userInput: string): string[] {
+    const tags: string[] = [];
+    const lowerInput = userInput.toLowerCase();
+    
+    // Educational tags
+    if (lowerInput.includes('lesson') || lowerInput.includes('teaching')) tags.push('education');
+    if (lowerInput.includes('student') || lowerInput.includes('child')) tags.push('student_management');
+    if (lowerInput.includes('parent') || lowerInput.includes('family')) tags.push('parent_communication');
+    if (lowerInput.includes('grade') || lowerInput.includes('assessment')) tags.push('assessment');
+    if (lowerInput.includes('homework') || lowerInput.includes('assignment')) tags.push('homework');
+    
+    // Task tags
+    if (lowerInput.includes('schedule') || lowerInput.includes('plan')) tags.push('planning');
+    if (lowerInput.includes('create') || lowerInput.includes('make')) tags.push('creation');
+    if (lowerInput.includes('organize') || lowerInput.includes('manage')) tags.push('organization');
+    
+    return tags;
+  }
+
+  /**
+   * Extract insights from interaction
+   */
+  private extractInsightsFromInteraction(userInput: string, response: any): Array<{
+    type: string;
+    category: string;
+    confidence: number;
+    value: any;
+  }> {
+    const insights: Array<{ type: string; category: string; confidence: number; value: any }> = [];
+    
+    // Pattern recognition
+    if (userInput.includes('often') || userInput.includes('frequently')) {
+      insights.push({
+        type: 'pattern',
+        category: 'frequency',
+        confidence: 0.7,
+        value: { pattern: 'repeated_task', context: userInput }
+      });
+    }
+    
+    // Preference detection
+    if (userInput.includes('prefer') || userInput.includes('like')) {
+      insights.push({
+        type: 'preference',
+        category: 'user_choice',
+        confidence: 0.8,
+        value: { preference: userInput, detected_at: Date.now() }
+      });
+    }
+    
+    return insights;
+  }
+
+  /**
+   * Extract user preferences from interaction
+   */
+  private extractUserPreferences(userInput: string): Array<{
+    key: string;
+    value: any;
+    category: string;
+  }> {
+    const preferences: Array<{ key: string; value: any; category: string }> = [];
+    
+    // Communication style preferences
+    if (userInput.includes('formal') || userInput.includes('professional')) {
+      preferences.push({
+        key: 'communication_style',
+        value: 'formal',
+        category: 'communication'
+      });
+    }
+    
+    // Task management preferences
+    if (userInput.includes('detailed') || userInput.includes('comprehensive')) {
+      preferences.push({
+        key: 'task_detail_level',
+        value: 'detailed',
+        category: 'task_management'
+      });
+    }
+    
+    return preferences;
   }
 
   /**
