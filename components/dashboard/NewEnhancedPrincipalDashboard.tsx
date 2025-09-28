@@ -911,7 +911,6 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       color: theme.text,
       textAlign: 'center',
       lineHeight: isSmallScreen ? 16 : 18,
-      numberOfLines: 2,
     },
     actionSubtitle: {
       fontSize: 12,

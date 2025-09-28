@@ -45,7 +45,7 @@
     "sql:config": "./lint-sql.sh config",
     "fix-auth": "node scripts/fix-auth.js",
     "build:android:apk": "npx eas build --platform android --profile production-apk --local",
-    "build:android:aab": "npx eas build --platform android --profile production --local",
+    "build:android:aab": "npx eas build --platform android --profile production --clear-cache --non-interactive",
     "build:android:preview": "npx eas build --platform android --profile preview --local"
   },
   "dependencies": {
