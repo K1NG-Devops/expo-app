@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.edudashpro"
+      "bundleIdentifier": "com.k1ngdevops.edudashpro"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +28,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.edudashpro",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
@@ -48,9 +49,31 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "sentry-expo",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "androidManifestApplicationMetaData": {
+            "com.google.android.gms.ads.APPLICATION_ID": "ca-app-pub-3940256099942544~3347511713"
+          }
+        }
+      ],
       "expo-localization",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#00f5ff",
+          "defaultChannel": "default",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
@@ -83,16 +106,16 @@
       "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
       "startUrl": "/",
       "display": "standalone",
-      "orientation": "any",
-      "bundler": "metro"
+      "orientation": "any"
     },
     "extra": {
-      "router": {
-        "origin": false
-      },
+      "router": {},
       "eas": {
         "projectId": "eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
     }
   }
 }
