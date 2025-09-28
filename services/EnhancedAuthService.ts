@@ -80,7 +80,7 @@ export class EnhancedAuthService extends AuthService {
         case 'parent':
           return await this.registerParent(registration as any);
         case 'student':
-          return await this.registerStudent(registration as any);
+          return await this.registerStudentEnhanced(registration as any);
         default:
           throw new AuthError('Invalid role specified', 'INVALID_ROLE');
       }
@@ -358,7 +358,7 @@ const { data, error } = await assertSupabase().auth.signUp({
   /**
    * Register Student (enhanced self-service)
    */
-  private async registerStudent(registration: any): Promise<EnhancedAuthResponse> {
+  private async registerStudentEnhanced(registration: any): Promise<EnhancedAuthResponse> {
     // Use the enhanced student registration from base class
     const baseResult = await super.registerStudent({
       email: registration.email,
@@ -409,7 +409,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       const expiresAt = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)); // 7 days
 
       // Store invitation in database
-      const { error } = await this.supabase
+      const { error } = await assertSupabase()
         .from('invitations')
         .insert({
           id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -594,7 +594,7 @@ const { data, error } = await assertSupabase().auth.verifyOtp({
    */
   async checkEmailAvailability(email: string): Promise<boolean> {
     try {
-      const { data } = await this.supabase
+      const { data } = await assertSupabase()
         .from('profiles')
         .select('email')
         .eq('email', email.toLowerCase())
@@ -672,7 +672,7 @@ const { data, error } = await assertSupabase().auth.verifyOtp({
 
   private async validateInvitationToken(token: string, role: string): Promise<any> {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await assertSupabase()
         .from('invitations')
         .select('*')
         .eq('token', token)
