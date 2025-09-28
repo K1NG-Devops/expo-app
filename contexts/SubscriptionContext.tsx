@@ -78,7 +78,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
           schoolId = (user?.user_metadata as any)?.preschool_id;
           orgId = (user?.user_metadata as any)?.organization_id;
           
-          // If not in metadata, query profiles table
+          // If not in metadata, query profiles table (legacy) then users table (current)
           if ((!schoolId || !orgId) && user.id) {
             try {
               const { data: profileData } = await assertSupabase()
@@ -89,6 +89,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
               if (profileData?.preschool_id) schoolId = profileData.preschool_id;
               if (profileData?.organization_id) orgId = profileData.organization_id;
             } catch {/* ignore */}
+            
+            // Current schema commonly stores principals/teachers in users table with auth_user_id
+            if ((!schoolId || !orgId)) {
+              try {
+                const { data: userRow } = await assertSupabase()
+                  .from('users')
+                  .select('preschool_id, organization_id')
+                  .eq('auth_user_id', user.id)
+                  .maybeSingle();
+                if (userRow?.preschool_id) schoolId = userRow.preschool_id as any;
+                if (userRow?.organization_id) orgId = userRow.organization_id as any;
+              } catch {/* ignore */}
+            }
           }
 
           // Organization path first
