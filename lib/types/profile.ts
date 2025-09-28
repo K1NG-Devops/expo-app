@@ -306,13 +306,11 @@ export function sanitizePreferences(
         (eventsSanitized as any)[event as NotificationEvent] = sanitizedEvent;
       }
     });
-  }
-
-  // Assign sanitized events if any were processed
-  if (Object.keys(eventsSanitized as any).length > 0) {
-    sanitized.events = eventsSanitized as any;
-  }
-
+    // Assign sanitized events if any were processed
+    if (Object.keys(eventsSanitized as any).length > 0) {
+      sanitized.events = eventsSanitized as any;
+    }
+  
   // Validate signature preferences
   if ('email_include_signature' in prefs) {
     sanitized.email_include_signature = Boolean(prefs.email_include_signature);
