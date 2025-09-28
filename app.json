@@ -19,7 +19,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.k1ngdevops.edudashpro"
+      "bundleIdentifier": "com.edudashpro"
     },
     "android": {
       "adaptiveIcon": {
