@@ -85,7 +85,7 @@ module.exports = ({ config }) => {
       silentLaunch: true,
     },
     web: {
-      favicon: `./assets/favicon.png?v=${Date.now()}`,
+      favicon: './assets/favicon.png',
       name: 'EduDash Pro - AI-Powered Educational Platform',
       shortName: 'EduDash Pro',
       lang: 'en',
