@@ -36,15 +36,10 @@ module.exports = ({ config }) => {
   return {
     ...config,
     name: 'EduDashPro',
-    slug: 'edudashpro',
-    owner: 'edudashpro',
+    slug: 'dashpro',
+    owner: 'edudashprotest',
     version: '1.0.2',
     runtimeVersion,
-    updates: {
-      url: 'https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298',
-      checkAutomatically: isDevBuild ? 'ON_ERROR_RECOVERY' : 'ON_LOAD',
-      fallbackToCacheTimeout: isDevBuild ? 0 : 5000,
-    },
     orientation: 'portrait',
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
@@ -62,7 +57,13 @@ module.exports = ({ config }) => {
     android: {
       edgeToEdgeEnabled: true,
       package: 'com.edudashpro',
-      googleServicesFile: './google-services.json',
+      googleServicesFile: fs.existsSync(path.resolve(__dirname, 'app/google-services.json')) 
+        ? './app/google-services.json' 
+        : fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'))
+          ? './android/app/google-services.json'
+          : fs.existsSync(path.resolve(__dirname, 'google-services.json'))
+            ? './google-services.json'
+            : undefined,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
@@ -106,7 +107,7 @@ module.exports = ({ config }) => {
     extra: {
       router: {},
       eas: {
-        projectId: '253b1057-8489-44cf-b0e3-c3c10319a298',
+        projectId: 'eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
       },
     },
   };
