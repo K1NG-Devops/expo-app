@@ -310,6 +310,7 @@ export function sanitizePreferences(
     if (Object.keys(eventsSanitized as any).length > 0) {
       sanitized.events = eventsSanitized as any;
     }
+  }
   
   // Validate signature preferences
   if ('email_include_signature' in prefs) {
