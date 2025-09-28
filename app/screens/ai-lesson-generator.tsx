@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import { toast } from '@/components/ui/ToastProvider'
 import { DashAIAssistant } from '@/services/DashAIAssistant'
+import { EducationalPDFService } from '@/lib/services/EducationalPDFService'
 
 export default function AILessonGeneratorScreen() {
   const { theme } = useTheme()
@@ -153,6 +154,18 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
   const onOpenWithDash = () => {
     const initialMessage = buildDashPrompt()
     router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+  }
+  
+  const onExportPDF = async () => {
+    try {
+      const title = `${subject}: ${topic}`
+      const content = (result?.text || generated?.description || '').trim()
+      if (!content) { Alert.alert('Export PDF', 'Please generate a lesson first.'); return }
+      await EducationalPDFService.generateTextPDF(title, content)
+      toast.success('PDF generated');
+    } catch (e: any) {
+      toast.error('Failed to generate PDF')
+    }
   }
   
   const onCancel = () => {
@@ -439,6 +452,10 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         </View>
         <Text style={[styles.dashTitleText, { color: palette.text }]}>Dash • Lesson Generator</Text>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity style={[styles.openWithDashBtn, { borderColor: palette.outline, marginRight: 8 }]} onPress={onExportPDF}>
+          <Ionicons name="document-outline" size={16} color={palette.text} />
+          <Text style={[styles.openWithDashText, { color: palette.text }]}>Export PDF</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.openWithDashBtn, { borderColor: palette.outline }]} onPress={onOpenWithDash}>
           <Ionicons name="chatbubbles-outline" size={16} color={palette.text} />
           <Text style={[styles.openWithDashText, { color: palette.text }]}>Open with Dash</Text>

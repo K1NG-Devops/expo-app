@@ -2460,11 +2460,24 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         suggested_actions.push('send_message');
       }
 
-      // Announcements intent (super admin or admins)
+      // Announcements intent (route by role)
       if (/\b(announcement|announce|broadcast|platform\s+update|news)\b/i.test(userInput)) {
         const title = 'Announcement';
         const content = context.userInput;
-        dashboard_action = { type: 'open_screen' as const, route: '/screens/super-admin-announcements', params: { compose: '1', prefillTitle: title, prefillContent: content } };
+        try {
+          const prof = await getCurrentProfile();
+          const role = (prof as any)?.role || 'teacher';
+          if (role === 'super_admin') {
+            dashboard_action = { type: 'open_screen' as const, route: '/screens/super-admin-announcements', params: { compose: '1', prefillTitle: title, prefillContent: content } };
+          } else if (role === 'principal' || role === 'principal_admin') {
+            dashboard_action = { type: 'open_screen' as const, route: '/screens/principal-announcement', params: { title, content, compose: '1' } };
+          } else {
+            // Teachers should use messaging to parents instead
+            dashboard_action = { type: 'open_screen' as const, route: '/screens/teacher-messages', params: { prefillSubject: title, prefillMessage: content } };
+          }
+        } catch {
+          dashboard_action = { type: 'open_screen' as const, route: '/screens/teacher-messages', params: { prefillSubject: title, prefillMessage: content } };
+        }
         suggested_actions.push('create_announcement');
       }
 
