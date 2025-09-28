@@ -1,5 +1,7 @@
 // app.config.js
 // Use a dynamic config so we can disable expo-dev-client for preview/production (OTA compatibility)
+const fs = require('fs');
+const path = require('path');
 
 /**
  * @param {import('@expo/config').ConfigContext} ctx
@@ -14,10 +16,10 @@ module.exports = ({ config }) => {
     [
       'react-native-google-mobile-ads',
       {
-        androidAppId: 'ca-app-pub-3940256099942544~3347511713',
-        iosAppId: 'ca-app-pub-3940256099942544~1458002511',
+        androidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
+        iosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || 'ca-app-pub-3940256099942544~1458002511',
         androidManifestApplicationMetaData: {
-          'com.google.android.gms.ads.APPLICATION_ID': 'ca-app-pub-3940256099942544~3347511713',
+          'com.google.android.gms.ads.APPLICATION_ID': process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
         },
       },
     ],
@@ -26,8 +28,9 @@ module.exports = ({ config }) => {
     'expo-notifications',
   ];
 
-  // Only include expo-dev-client for development builds
-  if (isDevBuild) plugins.push('expo-dev-client');
+  // Always include expo-dev-client for local development
+  // Only exclude for production EAS builds
+  if (isDevBuild || !process.env.EAS_BUILD_PLATFORM) plugins.push('expo-dev-client');
 
   // Use consistent runtimeVersion policy to avoid OTA compatibility issues
   // appVersion works with remote version source and couples OTA compatibility to app version
