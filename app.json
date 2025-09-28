@@ -48,7 +48,14 @@
       "sentry-expo",
       "expo-localization",
       "expo-secure-store",
-      "expo-build-properties"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.8.22"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": false
