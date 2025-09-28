@@ -200,8 +200,8 @@ export const AssignmentAttachmentSchema = z.object({
   uploaded_at: z.string().datetime().optional(),
 });
 
-// Create assignment validation
-export const CreateAssignmentSchema = z.object({
+// Base assignment object schema
+const BaseAssignmentSchema = z.object({
   title: z.string()
     .min(1, 'Title is required')
     .max(255, 'Title must be less than 255 characters'),
@@ -250,7 +250,10 @@ export const CreateAssignmentSchema = z.object({
   attachments: z.array(AssignmentAttachmentSchema).default([]),
   
   metadata: z.record(z.string(), z.any()).default({}),
-}).refine((data) => {
+});
+
+// Create assignment validation with refinements
+export const CreateAssignmentSchema = BaseAssignmentSchema.refine((data) => {
   // Validate date relationships
   if (data.due_at && data.available_from) {
     return new Date(data.due_at) > new Date(data.available_from);
@@ -270,10 +273,10 @@ export const CreateAssignmentSchema = z.object({
   path: ['available_until']
 });
 
-// Update assignment validation
-export const UpdateAssignmentSchema = CreateAssignmentSchema.partial().omit({
+// Update assignment validation (without course_id)
+export const UpdateAssignmentSchema = BaseAssignmentSchema.omit({
   course_id: true, // Cannot change course after creation
-});
+}).partial();
 
 // Assignment list params validation
 export const AssignmentListParamsSchema = z.object({
