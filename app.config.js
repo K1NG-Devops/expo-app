@@ -28,8 +28,9 @@ module.exports = ({ config }) => {
     'expo-notifications',
   ];
 
-  // Only include expo-dev-client for development builds
-  if (isDevBuild) plugins.push('expo-dev-client');
+  // Always include expo-dev-client for local development
+  // Only exclude for production EAS builds
+  if (isDevBuild || !process.env.EAS_BUILD_PLATFORM) plugins.push('expo-dev-client');
 
   // Use consistent runtimeVersion policy to avoid OTA compatibility issues
   // appVersion works with remote version source and couples OTA compatibility to app version
