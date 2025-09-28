@@ -985,9 +985,108 @@ export class DashAIAssistant {
       .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // Surrogate pairs (emojis)
       // Remove extra whitespace
       .replace(/\s+/g, ' ')
+      .replace(/([.!?])\s*$/, '$1') // Ensure proper ending punctuation
       .trim();
     
+    // Final cleanup for speech synthesis
+    normalized = this.finalizeForSpeech(normalized);
+    
     return normalized;
+  }
+  
+  /**
+   * Normalize educational and contextual content for better speech
+   */
+  private normalizeEducationalContent(text: string): string {
+    return text
+      // Fix common educational terms
+      .replace(/\bK-12\b/g, 'K through twelve')
+      .replace(/\bPre-K\b/g, 'Pre kindergarten')
+      .replace(/\bGrade ([0-9]+)\b/g, 'Grade $1')
+      .replace(/\bYear ([0-9]+)\b/g, 'Year $1')
+      .replace(/\bPhD\b/g, 'P H D')
+      .replace(/\bBA\b/g, 'B A')
+      .replace(/\bMA\b/g, 'M A')
+      .replace(/\bBSc\b/g, 'B S C')
+      .replace(/\bMSc\b/g, 'M S C')
+      // Fix age ranges
+      .replace(/(\d+)-(\d+)\s*years?/g, '$1 to $2 years old')
+      .replace(/(\d+)-(\d+)\s*months?/g, '$1 to $2 months old')
+      // Fix curriculum terms
+      .replace(/\bSTEM\b/g, 'S T E M')
+      .replace(/\bSTEAM\b/g, 'S T E A M')
+      .replace(/\bIEP\b/g, 'I E P')
+      .replace(/\b504\s*plan\b/g, 'five oh four plan')
+      // Fix assessment terms
+      .replace(/\bGPA\b/g, 'G P A')
+      .replace(/\bSAT\b/g, 'S A T')
+      .replace(/\bACT\b/g, 'A C T')
+      // Fix common educational abbreviations
+      .replace(/\bELL\b/g, 'E L L')
+      .replace(/\bESL\b/g, 'E S L')
+      .replace(/\bADHD\b/g, 'A D H D')
+      .replace(/\bASD\b/g, 'A S D')
+      // Fix technology terms
+      .replace(/\bLMS\b/g, 'L M S')
+      .replace(/\bVR\b/g, 'V R')
+      .replace(/\bAR\b/g, 'A R')
+      .replace(/\bAI\b/g, 'A I')
+      // Fix common measurement units
+      .replace(/\bcm\b/g, 'centimeters')
+      .replace(/\bmm\b/g, 'millimeters')
+      .replace(/\bkg\b/g, 'kilograms')
+      .replace(/\bg\b/g, 'grams')
+      .replace(/\bml\b/g, 'milliliters')
+      .replace(/\bl\b/g, 'liters');
+  }
+  
+  /**
+   * Normalize punctuation for natural speech flow
+   */
+  private normalizePunctuation(text: string): string {
+    return text
+      // Handle lists and bullets
+      .replace(/^[•·▪▫◦‣⁃]\s*/gm, '') // Remove bullet points
+      .replace(/^\d+\.\s*/gm, '') // Remove numbered list markers
+      .replace(/^[a-zA-Z]\.\s*/gm, '') // Remove lettered list markers
+      // Handle parenthetical expressions
+      .replace(/\(([^)]+)\)/g, ', $1,')
+      // Handle dashes and em-dashes
+      .replace(/\s*[-–—]\s*/g, ', ')
+      // Handle quotation marks
+      .replace(/["""''`]/g, '')
+      // Handle colons in context
+      .replace(/(\w):\s*([A-Z])/g, '$1. $2') // Convert colons to periods when followed by capital letter
+      .replace(/(\w):\s*([a-z])/g, '$1, $2') // Convert colons to commas when followed by lowercase
+      // Handle semicolons
+      .replace(/;/g, ',')
+      // Handle multiple periods
+      .replace(/\.{2,}/g, '.')
+      // Handle exclamation and question combinations
+      .replace(/[!?]{2,}/g, '!')
+      // Ensure proper spacing around punctuation
+      .replace(/\s*([.!?])\s*/g, '$1 ')
+      .replace(/\s*,\s*/g, ', ')
+      // Clean up multiple spaces
+      .replace(/\s+/g, ' ');
+  }
+  
+  /**
+   * Final cleanup and optimization for speech synthesis
+   */
+  private finalizeForSpeech(text: string): string {
+    return text
+      // Ensure sentences end properly
+      .replace(/([^.!?])$/, '$1.')
+      // Handle abbreviations at sentence end
+      .replace(/\b(Mr|Mrs|Dr|Prof|St|Ave|Rd)\.$/, '$1')
+      // Add natural pauses
+      .replace(/([.!?])\s*([A-Z])/g, '$1 $2') // Pause between sentences
+      .replace(/,\s*/g, ', ') // Brief pause for commas
+      // Fix any remaining issues
+      .replace(/\s+/g, ' ')
+      .replace(/^[,.]\s*/, '') // Remove leading punctuation
+      .trim();
   }
   
   /**
@@ -1287,6 +1386,82 @@ export class DashAIAssistant {
     const numWords = this.numberToWords(numerator);
     const denWords = this.numberToOrdinal(denominator);
     return `${numWords} ${denWords}${numerator > 1 ? 's' : ''}`;
+  }
+  
+  /**
+   * Generate lesson directly for voice commands using enhanced PDF service
+   */
+  public async generateLessonDirectly(params: Record<string, any>): Promise<{ success: boolean; lessonId?: string; title?: string; features?: string[]; error?: string }> {
+    try {
+      console.log('[Dash] Generating lesson directly:', params);
+      
+      // Import EducationalPDFService dynamically
+      const { EducationalPDFService } = await import('../lib/services/EducationalPDFService');
+      const pdfService = new EducationalPDFService();
+      
+      // Map Dash parameters to PDF service parameters
+      const lessonConfig = {
+        subject: params.subject || 'General Education',
+        grade: params.grade || params.ageGroup || 'Preschool',
+        duration: params.duration || '45 minutes',
+        objectives: params.objectives?.split(';').map((obj: string) => obj.trim()) || [
+          'Engage students in interactive learning',
+          'Develop critical thinking skills',
+          'Apply knowledge through practical activities'
+        ],
+        activities: params.activities?.split(';').map((act: string) => act.trim()) || undefined,
+        resources: params.resources?.split(';').map((res: string) => res.trim()) || undefined,
+        assessments: params.assessments?.split(';').map((assess: string) => assess.trim()) || undefined,
+        differentiation: params.differentiation || 'Multiple learning styles supported',
+        extensions: params.extensions?.split(';').map((ext: string) => ext.trim()) || undefined
+      };
+      
+      // Generate lesson plan using PDF service
+      const lessonResult = await pdfService.generateEnhancedLessonPlan(lessonConfig);
+      
+      if (lessonResult.success && lessonResult.content) {
+        const lessonId = `lesson_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Store lesson data in memory for retrieval
+        await this.addMemoryItem({
+          type: 'context',
+          key: `generated_lesson_${lessonId}`,
+          value: {
+            ...lessonResult.content,
+            id: lessonId,
+            createdBy: 'DashAI',
+            createdAt: new Date().toISOString()
+          },
+          confidence: 1.0,
+          expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+        });
+        
+        return {
+          success: true,
+          lessonId,
+          title: lessonResult.content.title || 'AI-Generated Lesson Plan',
+          features: [
+            'Learning objectives',
+            'Interactive activities',
+            'Assessment rubrics',
+            'Differentiation strategies',
+            'Resource recommendations'
+          ]
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'Failed to generate lesson content'
+      };
+      
+    } catch (error) {
+      console.error('[Dash] Direct lesson generation failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Lesson generation failed'
+      };
+    }
   }
   
   /**
@@ -2430,7 +2605,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         }
       }
 
-      // Add lesson planning actions
+      // Add lesson planning actions - enhanced with direct generation
       if (userInput.includes('lesson') || userInput.includes('plan') || userInput.includes('curriculum')) {
         const params: Record<string, string> = this.extractLessonParameters(userInput, aiResponse?.content || '');
         
@@ -2448,6 +2623,34 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
             break;
         }
         
+        // Check if this is a direct generation request
+        if (userInput.includes('generate') || userInput.includes('create') || params.autogenerate === 'true') {
+          // Direct lesson generation via enhanced PDF service
+          try {
+            const lessonResult = await this.generateLessonDirectly(params);
+            if (lessonResult.success) {
+              dashboard_action = { type: 'open_screen' as const, route: '/screens/lesson-viewer', params: { lessonId: lessonResult.lessonId, ...params } };
+              suggested_actions.push('download_lesson_pdf', 'edit_lesson', 'share_lesson', 'create_worksheet');
+              
+              // Update the AI response to reflect successful generation
+              return {
+                content: `I've generated your lesson plan! ${lessonResult.title} is ready for ${params.grade || 'your students'}. The lesson includes ${lessonResult.features?.join(', ') || 'comprehensive activities and assessments'}.`,
+                confidence: 0.95,
+                suggested_actions,
+                references: [{
+                  type: 'lesson' as const,
+                  id: lessonResult.lessonId,
+                  title: lessonResult.title
+                }],
+                dashboard_action
+              };
+            }
+          } catch (error) {
+            console.warn('[Dash] Direct lesson generation failed, falling back to generator screen:', error);
+          }
+        }
+        
+        // Fallback to lesson generator screen
         dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
         suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
       }
@@ -2506,54 +2709,59 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         suggested_actions.push('export_pdf');
       }
       
-      // Add worksheet generation actions with voice command handling
+      // Add worksheet generation actions with improved voice command handling
       if (userInput.includes('worksheet') || userInput.includes('activity') || userInput.includes('practice') || userInput.includes('exercise')) {
         const worksheetParams = this.extractWorksheetParameters(userInput, aiResponse?.content || '');
         
         // Check if this is a direct generation command (voice)
         if (userInput.includes('generate') || userInput.includes('create') || userInput.includes('make') || worksheetParams.autoGenerate === 'true') {
-          // For voice commands, try to generate directly
-          dashboard_action = { 
-            type: 'execute_task' as const, 
-            task: {
-              id: `worksheet_${Date.now()}`,
-              title: 'Generate Worksheet',
-              description: 'Creating educational worksheet based on voice command',
-              type: 'one_time' as const,
-              status: 'pending' as const,
-              priority: 'medium' as const,
-              assignedTo: 'dash',
-              createdBy: 'dash',
-              createdAt: Date.now(),
-              steps: [{
-                id: 'generate',
-                title: 'Generate worksheet content',
-                description: 'Create worksheet based on parameters',
-                type: 'automated' as const,
-                status: 'pending' as const,
-                actions: [{
-                  id: 'worksheet_gen',
-                  type: 'api_call' as const,
-                  parameters: worksheetParams
-                }]
-              }],
-              context: {
-                conversationId: this.currentConversationId || '',
-                userRole: this.userProfile?.role || 'teacher',
-                relatedEntities: []
-              },
-              progress: {
-                currentStep: 0,
-                completedSteps: []
-              }
+          // For voice commands, generate directly and show results
+          try {
+            const worksheetResult = await this.generateWorksheetAutomatically(worksheetParams);
+            if (worksheetResult.success && worksheetResult.worksheetData) {
+              const worksheetId = `worksheet_${Date.now()}`;
+              
+              // Store worksheet data for retrieval
+              await this.addMemoryItem({
+                type: 'context',
+                key: `generated_worksheet_${worksheetId}`,
+                value: worksheetResult.worksheetData,
+                confidence: 1.0,
+                expires_at: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+              });
+              
+              dashboard_action = { 
+                type: 'open_screen' as const, 
+                route: '/screens/worksheet-viewer', 
+                params: { worksheetId, ...worksheetParams }
+              };
+              
+              suggested_actions.push('download_pdf', 'print_worksheet', 'create_more', 'customize_worksheet');
+              
+              // Update AI response to reflect successful generation
+              const worksheetType = worksheetResult.worksheetData.type || 'learning';
+              const problemCount = worksheetResult.worksheetData.problems?.length || worksheetResult.worksheetData.activities?.length || 'several';
+              
+              return {
+                content: `Perfect! I've created your ${worksheetType} worksheet with ${problemCount} ${worksheetType === 'math' ? 'problems' : 'activities'} for ${worksheetParams.ageGroup || 'your students'}. The worksheet is ${worksheetParams.difficulty || 'appropriately'} leveled and ready to use.`,
+                confidence: 0.95,
+                suggested_actions,
+                references: [{
+                  type: 'resource' as const,
+                  id: worksheetId,
+                  title: worksheetResult.worksheetData.title || 'Generated Worksheet'
+                }],
+                dashboard_action
+              };
             }
-          };
-          suggested_actions.push('view_worksheet', 'download_pdf', 'customize_more');
-        } else {
-          // For regular commands, open the worksheet demo screen
-          dashboard_action = { type: 'open_screen' as const, route: '/screens/worksheet-demo', params: worksheetParams };
-          suggested_actions.push('generate_worksheet', 'customize_worksheet', 'download_pdf');
+          } catch (error) {
+            console.warn('[Dash] Direct worksheet generation failed, falling back to demo screen:', error);
+          }
         }
+        
+        // Fallback to worksheet demo screen with better parameter passing
+        dashboard_action = { type: 'open_screen' as const, route: '/screens/worksheet-demo', params: worksheetParams };
+        suggested_actions.push('generate_worksheet', 'customize_worksheet', 'download_pdf');
       }
 
       // Add contextual suggested actions based on user input

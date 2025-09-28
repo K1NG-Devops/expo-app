@@ -1,11 +1,11 @@
 /**
- * New Enhanced Teacher Dashboard - Modern UI/UX Implementation
+ * New Enhanced Parent Dashboard - Modern UI/UX Implementation
  * 
  * Features:
  * - Clean grid-based layout with improved visual hierarchy
  * - Mobile-first responsive design with <2s load time
  * - Modern card design with subtle shadows and rounded corners
- * - Streamlined quick actions with contextual grouping
+ * - Child switching with multi-child support
  * - Better information architecture with progressive disclosure
  * - Enhanced loading states and error handling
  * - Optimized for touch interfaces and accessibility
@@ -26,7 +26,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTranslation } from 'react-i18next';
-import { useTeacherDashboard } from '@/hooks/useDashboardData';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import Feedback from '@/lib/feedback';
@@ -34,6 +33,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
+import { useUnreadMessageCount } from '@/hooks/useParentMessaging';
+import { usePOPStats } from '@/hooks/usePOPUploads';
+import { useParentDashboard } from '@/hooks/useDashboardData';
+import { logger } from '@/lib/logger';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -62,49 +65,146 @@ interface QuickActionProps {
   disabled?: boolean;
 }
 
-interface NewEnhancedTeacherDashboardProps {
+interface NewEnhancedParentDashboardProps {
   refreshTrigger?: number;
-  preferences?: any;
 }
 
-export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardProps> = ({ 
-  refreshTrigger, 
-  preferences 
+// Child Switcher Component
+interface ChildSwitcherProps {
+  children: any[];
+  activeChildId: string | null;
+  onChildChange: (childId: string) => void;
+}
+
+const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, onChildChange }) => {
+  const { theme } = useTheme();
+  const { t } = useTranslation();
+
+  if (children.length <= 1) return null;
+
+  return (
+    <View style={{
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      marginBottom: 24,
+    }}>
+      <Text style={{
+        fontSize: 14,
+        fontWeight: '600',
+        color: theme.text,
+        marginBottom: 12,
+      }}>{t('parent.selectChild', { defaultValue: 'Select Child' })}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          {children.map((child) => {
+            const isActive = child.id === activeChildId;
+            return (
+              <TouchableOpacity
+                key={child.id}
+                style={{
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  backgroundColor: isActive ? theme.primary : theme.elevated,
+                  borderWidth: isActive ? 0 : 1,
+                  borderColor: theme.border,
+                }}
+                onPress={() => onChildChange(child.id)}
+              >
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: isActive ? '600' : '500',
+                  color: isActive ? theme.onPrimary : theme.text,
+                }}>
+                  {child.firstName} {child.lastName}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            onPress={() => router.push('/screens/parent-children')}
+            style={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: theme.elevated,
+              borderWidth: 1,
+              borderColor: theme.border,
+            }}
+          >
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }}>{t('common.manage', { defaultValue: 'Manage' })}</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+};
+
+export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProps> = ({ 
+  refreshTrigger
 }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady } = useSubscription();
-  const { preferences: dashPrefs, setLayout } = useDashboardPreferences();
+  const { preferences, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
+  const [activeChildId, setActiveChildId] = useState<string | null>(null);
+  const [children, setChildren] = useState<any[]>([]);
   const insets = useSafeAreaInsets();
-  const userRole = (profile as any)?.role || 'teacher';
+  const userRole = (profile as any)?.role || 'parent';
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
+  // Main parent dashboard data hook
   const {
     data: dashboardData,
     loading,
     error,
     refresh,
     isLoadingFromCache,
-  } = useTeacherDashboard();
+  } = useParentDashboard();
+  
+  // Hooks for parent-specific data
+  const { data: unreadMessageCount = 0 } = useUnreadMessageCount();
+  const { data: popStats } = usePOPStats(activeChildId || undefined);
+
+  // Update children state when dashboard data changes
+  React.useEffect(() => {
+    if (dashboardData?.children) {
+      setChildren(dashboardData.children);
+      // Set first child as active if none selected
+      if (!activeChildId && dashboardData.children.length > 0) {
+        setActiveChildId(dashboardData.children[0].id);
+      }
+    }
+  }, [dashboardData?.children, activeChildId]);
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
-    const teacherName = profile?.first_name || user?.user_metadata?.first_name || 'Teacher';
-    if (hour < 12) return t('dashboard.good_morning') + ', ' + teacherName;
-    if (hour < 18) return t('dashboard.good_afternoon') + ', ' + teacherName;
-    return t('dashboard.good_evening') + ', ' + teacherName;
+    const parentName = profile?.first_name || user?.user_metadata?.first_name || 'Parent';
+    if (hour < 12) return t('dashboard.good_morning', { defaultValue: 'Good morning' }) + ', ' + parentName;
+    if (hour < 18) return t('dashboard.good_afternoon', { defaultValue: 'Good afternoon' }) + ', ' + parentName;
+    return t('dashboard.good_evening', { defaultValue: 'Good evening' }) + ', ' + parentName;
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await refresh();
-      await Feedback.vibrate(10);
+      try {
+        await Feedback.vibrate(10);
+      } catch {
+        // Vibration not supported, ignore
+      }
     } catch (_error) {
-      console.error('Refresh error:', _error);
+      logger.error('Dashboard refresh failed:', _error);
     } finally {
       setRefreshing(false);
     }
@@ -160,8 +260,10 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         if (disabled) return;
         try {
           await Feedback.vibrate(10);
-          onPress();
-        } catch { /* TODO: Implement */ }
+        } catch {
+          // Vibration not supported, ignore
+        }
+        onPress();
       }}
       activeOpacity={disabled ? 1 : 0.7}
     >
@@ -208,100 +310,138 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
   };
 
   const handleQuickAction = (action: string) => {
-    track('teacher.dashboard.quick_action', { action, layout: 'enhanced' });
+    track('parent.dashboard.quick_action', { action, layout: 'enhanced' });
     
     switch (action) {
-      case 'create_lesson':
-        router.push('/screens/lesson-planner');
+      case 'view_homework':
+        router.push('/screens/homework');
         break;
-      case 'grade_assignments':
-        router.push('/screens/assignments');
+      case 'check_attendance':
+        router.push('/screens/attendance');
         break;
-      case 'view_classes':
-        router.push('/screens/classes');
+      case 'view_grades':
+        router.push('/screens/grades');
         break;
-      case 'parent_communication':
+      case 'messages':
         router.push('/screens/messages');
         break;
-      case 'student_reports':
-        router.push('/screens/reports');
+      case 'events':
+        router.push('/screens/events');
         break;
-      case 'ai_assistant':
-        router.push('/screens/dash-assistant');
+      case 'ai_homework_help':
+        router.push('/screens/ai-homework-help');
         break;
       default:
-        Alert.alert(t('common.coming_soon'), t('dashboard.feature_coming_soon'));
+        Alert.alert(t('common.coming_soon', { defaultValue: 'Coming Soon' }), t('dashboard.feature_coming_soon', { defaultValue: 'This feature is coming soon!' }));
     }
   };
 
-  // Mock data for demonstration - in real app, this would come from dashboardData
-  const metrics = [
-    {
-      title: t('teacher.students_total'),
-      value: dashboardData?.totalStudents || '24',
-      icon: 'people',
-      color: theme.primary,
-      trend: 'stable'
-    },
-    {
-      title: t('teacher.classes_active'),
-      value: dashboardData?.activeClasses || '3',
-      icon: 'school',
-      color: theme.secondary,
-      trend: 'good'
-    },
-    {
-      title: t('teacher.assignments_pending'),
-      value: dashboardData?.pendingAssignments || '8',
-      icon: 'document-text',
-      color: theme.warning,
-      trend: 'attention'
-    },
-    {
-      title: t('teacher.average_grade'),
-      value: dashboardData?.averageGrade || '85%',
-      icon: 'trophy',
-      color: theme.success,
-      trend: 'up'
+  // Real data metrics from dashboard
+  const metrics = useMemo(() => {
+    if (!dashboardData) {
+      return [
+        {
+          title: t('parent.unread_messages', { defaultValue: 'Unread Messages' }),
+          value: '...',
+          icon: 'mail-unread',
+          color: theme.primary,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.homework_pending', { defaultValue: 'Homework Pending' }),
+          value: '...',
+          icon: 'document-text',
+          color: theme.warning,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.attendance_rate', { defaultValue: 'Attendance Rate' }),
+          value: '...',
+          icon: 'calendar',
+          color: theme.success,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.total_children', { defaultValue: 'Total Children' }),
+          value: '...',
+          icon: 'people',
+          color: theme.secondary,
+          trend: 'stable'
+        }
+      ];
     }
-  ];
+
+    const pendingHomework = dashboardData.recentHomework.filter(hw => hw.status === 'not_submitted').length;
+    const attendancePercentage = `${dashboardData.attendanceRate}%`;
+    
+    return [
+      {
+        title: t('parent.unread_messages', { defaultValue: 'Unread Messages' }),
+        value: dashboardData.unreadMessages || unreadMessageCount || '0',
+        icon: 'mail-unread',
+        color: theme.primary,
+        trend: (dashboardData.unreadMessages || unreadMessageCount) > 5 ? 'attention' : 'stable'
+      },
+      {
+        title: t('parent.homework_pending', { defaultValue: 'Homework Pending' }),
+        value: pendingHomework.toString(),
+        icon: 'document-text',
+        color: theme.warning,
+        trend: pendingHomework > 3 ? 'attention' : pendingHomework === 0 ? 'good' : 'stable'
+      },
+      {
+        title: t('parent.attendance_rate', { defaultValue: 'Attendance Rate' }),
+        value: attendancePercentage,
+        icon: 'calendar',
+        color: theme.success,
+        trend: dashboardData.attendanceRate >= 90 ? 'good' : dashboardData.attendanceRate >= 75 ? 'stable' : 'attention'
+      },
+      {
+        title: t('parent.total_children', { defaultValue: 'Total Children' }),
+        value: dashboardData.totalChildren.toString(),
+        icon: 'people',
+        color: theme.secondary,
+        trend: 'stable'
+      }
+    ];
+  }, [dashboardData, unreadMessageCount, theme, t]);
 
   const quickActions = [
     {
-      title: t('teacher.create_lesson'),
+      title: t('parent.view_homework', { defaultValue: 'View Homework' }),
       icon: 'book',
       color: theme.primary,
-      onPress: () => handleQuickAction('create_lesson')
+      onPress: () => handleQuickAction('view_homework')
     },
     {
-      title: t('teacher.grade_assignments'),
-      icon: 'checkmark-circle',
+      title: t('parent.check_attendance', { defaultValue: 'Check Attendance' }),
+      icon: 'calendar',
       color: theme.success,
-      onPress: () => handleQuickAction('grade_assignments')
+      onPress: () => handleQuickAction('check_attendance')
     },
     {
-      title: t('teacher.view_classes'),
-      icon: 'people',
+      title: t('parent.view_grades', { defaultValue: 'View Grades' }),
+      icon: 'school',
       color: theme.secondary,
-      onPress: () => handleQuickAction('view_classes')
+      onPress: () => handleQuickAction('view_grades')
     },
     {
-      title: t('teacher.parent_communication'),
+      title: t('parent.messages', { defaultValue: 'Messages' }),
       icon: 'chatbubbles',
       color: theme.info,
-      onPress: () => handleQuickAction('parent_communication')
+      onPress: () => handleQuickAction('messages')
     },
     {
-      title: t('teacher.student_reports'),
-      icon: 'bar-chart',
+      title: t('parent.events', { defaultValue: 'Events' }),
+      icon: 'calendar-outline',
       color: theme.warning,
-      onPress: () => handleQuickAction('student_reports')
+      onPress: () => handleQuickAction('events')
     },
     {
-      title: t('teacher.ai_assistant'),
+      title: t('parent.ai_homework_help', { defaultValue: 'AI Homework Help' }),
       icon: 'sparkles',
       color: '#8B5CF6',
-      onPress: () => handleQuickAction('ai_assistant'),
+      onPress: () => handleQuickAction('ai_homework_help'),
       disabled: tier === 'free'
     }
   ];
@@ -309,7 +449,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
   if (loading && !dashboardData) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>{t('common.loading')}</Text>
+        <Text style={styles.loadingText}>{t('common.loading', { defaultValue: 'Loading...' })}</Text>
       </View>
     );
   }
@@ -332,12 +472,19 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.subtitle}>{t('teacher.dashboard_subtitle')}</Text>
+          <Text style={styles.subtitle}>{t('parent.dashboard_subtitle', { defaultValue: 'Track your child\'s progress' })}</Text>
         </View>
+
+        {/* Child Switcher */}
+        <ChildSwitcher
+          children={children}
+          activeChildId={activeChildId}
+          onChildChange={setActiveChildId}
+        />
 
         {/* Metrics Grid */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.overview')}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.overview', { defaultValue: 'Overview' })}</Text>
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => (
               <MetricCard
@@ -348,8 +495,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
                 color={metric.color}
                 trend={metric.trend}
                 onPress={() => {
-                  // Add specific navigation for each metric
-                  track('teacher.dashboard.metric_clicked', { metric: metric.title });
+                  track('parent.dashboard.metric_clicked', { metric: metric.title });
                 }}
               />
             ))}
@@ -358,7 +504,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions')}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
               <QuickAction
@@ -368,7 +514,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
                 color={action.color}
                 onPress={action.onPress}
                 disabled={action.disabled}
-                subtitle={action.disabled ? t('dashboard.upgrade_required') : undefined}
+                subtitle={action.disabled ? t('dashboard.upgrade_required', { defaultValue: 'Upgrade required' }) : undefined}
               />
             ))}
           </View>
@@ -379,10 +525,10 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
           <View style={styles.debugSection}>
             <TouchableOpacity
               style={styles.debugButton}
-              onPress={() => setLayout(dashPrefs.layout === 'enhanced' ? 'classic' : 'enhanced')}
+              onPress={() => setLayout(preferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
             >
               <Text style={styles.debugButtonText}>
-                Switch to {dashPrefs.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
+                Switch to {preferences.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
               </Text>
             </TouchableOpacity>
           </View>
