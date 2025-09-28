@@ -42,7 +42,7 @@ export function EduDashProLoader({
   variant = 'default',
   ...props
 }: EduDashProLoaderProps) {
-  const theme = useTheme();
+  const { theme } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -174,7 +174,7 @@ export function EduDashProLoader({
         {message && (
           <Animated.View style={{ opacity: fadeAnim }}>
             <Text 
-              variant={variant === 'splash' ? 'h3' : 'body'} 
+              variant={variant === 'splash' ? 'title2' : 'body'} 
               color={variant === 'splash' ? 'white' : 'primary'}
               style={[
                 styles.message,
@@ -200,14 +200,14 @@ export function EduDashProLoader({
         {variant === 'splash' && (
           <Animated.View style={{ opacity: fadeAnim }}>
             <Text 
-              variant="h1" 
+              variant="title1" 
               color="white"
               style={styles.brandName}
             >
               EduDash Pro
             </Text>
             <Text 
-              variant="caption" 
+              variant="caption1" 
               color="white"
               style={styles.tagline}
             >

@@ -479,7 +479,6 @@ export const TwoFactorAuth: React.FC<TwoFactorAuthProps> = ({
             textContentType="oneTimeCode"
             autoCapitalize="characters"
             textAlign="center"
-            fontSize={20}
             letterSpacing={4}
           />
         </View>

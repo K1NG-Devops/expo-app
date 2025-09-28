@@ -588,7 +588,6 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
           keyboardType="numeric"
           maxLength={6}
           textAlign="center"
-          fontSize={20}
           letterSpacing={4}
           autoComplete="one-time-code"
           textContentType="oneTimeCode"

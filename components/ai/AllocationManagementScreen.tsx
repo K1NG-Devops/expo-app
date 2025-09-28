@@ -491,7 +491,6 @@ export default function AllocationManagementScreen() {
               onPress={() => setShowAllocationModal(true)}
               variant="primary"
               style={styles.primaryAction}
-              leftIcon="add"
             >
               Allocate Quotas
             </Button>
@@ -499,7 +498,6 @@ export default function AllocationManagementScreen() {
               onPress={handleRefresh}
               variant="outline"
               style={styles.secondaryAction}
-              leftIcon="refresh"
             >
               Refresh Data
             </Button>
