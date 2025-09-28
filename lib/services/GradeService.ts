@@ -222,7 +222,7 @@ export class GradeService {
     includeDetails: boolean = false
   ): Promise<ServiceResponse<GradeWithSubmission | GradeWithDetails>> {
     try {
-      let query = this.supabase
+      let query: any = this.supabase
         .from('grades')
         .select(`
           *,
@@ -1182,12 +1182,12 @@ export class GradeService {
     organizationId?: string
   ): Promise<boolean> {
     // Admins can access all grades in their organization
-    if (userRole === UserRole.ADMIN && grade.submission.assignment.course.organization_id === organizationId) {
+    if (userRole === UserRole.ADMIN && (grade.submission.assignment.course as any).organization_id === organizationId) {
       return true;
     }
 
     // Instructors can access grades from their courses
-    if (userRole === UserRole.INSTRUCTOR && grade.submission.assignment.course.instructor_id === userId) {
+    if (userRole === UserRole.INSTRUCTOR && (grade.submission.assignment.course as any).instructor_id === userId) {
       return true;
     }
 

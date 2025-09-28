@@ -1174,9 +1174,8 @@ export const useParentDashboard = () => {
       // Try to load from cache first (unless forced refresh)
       if (!forceRefresh && user?.id) {
         setIsLoadingFromCache(true);
-        const cachedData = await offlineCacheService.getParentDashboard(
-          user.id, 
-          user.user_metadata?.school_id || 'unknown'
+const cachedData = await offlineCacheService.getParentDashboard(
+          user.id
         );
         
         if (cachedData) {
@@ -1364,9 +1363,8 @@ export const useParentDashboard = () => {
 
         // Cache the fresh data for offline use
         if (user?.id && schoolId) {
-          await offlineCacheService.cacheParentDashboard(
+await offlineCacheService.cacheParentDashboard(
             user.id,
-            schoolId,
             dashboardData
           );
           log('💾 Parent dashboard data cached for offline use');

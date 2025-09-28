@@ -224,7 +224,7 @@ export function createQuotaAwareNavigation(
     () => {
       // Track successful navigation
       track('edudash.ai.tool.opened', {
-        tool_type: serviceType,
+        tool_type: (serviceType === 'lesson_generation' ? 'lesson_generator' : (serviceType === 'grading_assistance' ? 'grader' : (serviceType as any))),
         source: 'dashboard_navigation',
         user_role: 'unknown', // Will be filled by context
       });

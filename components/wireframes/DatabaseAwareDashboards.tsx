@@ -176,7 +176,7 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
               key={country}
               icon="🏫"
               title={country}
-              subtitle={`${count} school${count > 1 ? 's' : ''}`}
+              subtitle={`${Number(count)} school${Number(count) > 1 ? 's' : ''}`}
             />
           ))
         )}

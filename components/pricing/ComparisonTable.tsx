@@ -163,7 +163,10 @@ export function ComparisonTable({
     'Email Support': { free: false, 'parent-starter': true, 'parent-plus': true, 'private-teacher': true, pro: true, 'preschool-pro': true, enterprise: true },
     'Priority Support': { free: false, 'parent-starter': false, 'parent-plus': true, 'private-teacher': true, pro: true, 'preschool-pro': true, enterprise: true },
     'Phone Support': { free: false, 'parent-starter': false, 'parent-plus': false, 'private-teacher': false, pro: false, 'preschool-pro': true, enterprise: true },
-    'Dedicated Manager': { free: false, 'parent-starter': false, 'parent-plus': false, 'private-teacher': false, pro: false, 'preschool-pro': false, enterprise: true },
+'Dedicated Manager': { free: false, 'parent-starter': false, 'parent-plus': false, 'private-teacher': false, pro: false, 'preschool-pro': false, enterprise: true },
+    'Priority Processing': { free: false, 'parent-starter': false, 'parent-plus': true, 'private-teacher': true, pro: true, 'preschool-pro': true, enterprise: true },
+    'Advanced Reports': { free: false, 'parent-starter': false, 'parent-plus': 'Basic', 'private-teacher': 'Standard', pro: 'Advanced', 'preschool-pro': 'Enterprise', enterprise: 'Enterprise' },
+    'Model Tokens (per month)': { free: 0, 'parent-starter': 0, 'parent-plus': 100000, 'private-teacher': 300000, pro: 800000, 'preschool-pro': 2000000, enterprise: 10000000 },
   }
   
   const categoryTitles = {
@@ -317,6 +320,9 @@ export function ComparisonTable({
             {plans.map((p) => (
               <View key={p} style={[styles.cell, styles.planCol]}>
                 <Text style={styles.headerText}>{planName[p]}</Text>
+                {p === 'pro' && (
+                  <View style={styles.badge}><Text style={styles.badgeText}>Most popular</Text></View>
+                )}
                 <Text style={styles.priceText}>{priceStr(p)}</Text>
               </View>
             ))}
@@ -575,6 +581,8 @@ const styles = StyleSheet.create({
   // Text styles
   headerText: { color: '#FFFFFF', fontWeight: '800' },
   featureText: { color: '#9CA3AF', fontWeight: '700' },
+  badge: { backgroundColor: '#00f5ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, alignSelf: 'flex-start', marginTop: 6 },
+  badgeText: { color: '#000', fontWeight: '800', fontSize: 10 },
   categoryText: {
     color: '#00f5ff',
     fontWeight: '800',

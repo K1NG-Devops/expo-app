@@ -578,7 +578,9 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
             {
               backgroundColor: theme.surface,
               borderColor: errors.verificationCode ? theme.error : theme.border,
-              color: theme.text
+              color: theme.text,
+              letterSpacing: 4,
+              fontSize: 20,
             }
           ]}
           value={formData.verificationCode}
@@ -588,8 +590,6 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
           keyboardType="numeric"
           maxLength={6}
           textAlign="center"
-          fontSize={20}
-          letterSpacing={4}
           autoComplete="one-time-code"
           textContentType="oneTimeCode"
         />

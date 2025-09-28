@@ -309,6 +309,23 @@
     "seat_management_subtitle": "Assign or revoke teacher seats"
   },
   "subscription": {
-    "choose_your_plan": "Choose Your Plan"
+    "choose_your_plan": "Khetha uhlelo",
+    "managePlan": "Phatha uhlelo",
+    "tiers": {
+      "free": "Mahhala",
+      "starter": "Isiqalo",
+      "basic": "Eyisisekelo",
+      "premium": "Eliphezulu",
+      "pro": "Pro",
+      "enterprise": "Ibhizinisi"
+    },
+    "tierSource": {
+      "caption": "Umthombo: {{source}}",
+      "organization": "Uhlelo lenhlangano",
+      "school_plan": "Uhlelo lwesikole",
+      "school_default": "Okuzenzakalelayo kwesikole",
+      "user": "Uhlelo lomsebenzisi",
+      "unknown": "Akwaziwa"
+    }
   }
 }

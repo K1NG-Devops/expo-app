@@ -232,6 +232,7 @@ export default function PricingPage() {
       navigateTo.contact();
     } else {
       // Non-enterprise tiers
+      const isPaid = tier.price !== 'Free';
       if (!profile) {
         // Not authenticated - go to sign up with plan context
         navigateTo.signUpWithPlan({
@@ -242,13 +243,15 @@ export default function PricingPage() {
         // Authenticated with organization - go to subscription setup
         navigateTo.subscriptionSetup({
           planId: tier.id,
-          billing: isAnnual ? 'annual' : 'monthly'
+          billing: isAnnual ? 'annual' : 'monthly',
+          auto: isPaid
         });
       } else {
         // Authenticated individual user - go to subscription setup
         navigateTo.subscriptionSetup({
           planId: tier.id,
-          billing: isAnnual ? 'annual' : 'monthly'
+          billing: isAnnual ? 'annual' : 'monthly',
+          auto: isPaid
         });
       }
     }

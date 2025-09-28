@@ -124,4 +124,25 @@
       "placeholder": "{{subject}} - Padrões da {{grade}}ª Série"
     }
   }
+  ,
+  "subscription": {
+    "choose_your_plan": "Escolha seu plano",
+    "managePlan": "Gerenciar plano",
+    "tiers": {
+      "free": "Grátis",
+      "starter": "Inicial",
+      "basic": "Básico",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Empresarial"
+    },
+    "tierSource": {
+      "caption": "Origem: {{source}}",
+      "organization": "Plano da organização",
+      "school_plan": "Assinatura da escola",
+      "school_default": "Padrão da escola",
+      "user": "Configuração do usuário",
+      "unknown": "Desconhecido"
+    }
+  }
 }

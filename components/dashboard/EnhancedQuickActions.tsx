@@ -107,7 +107,11 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
         <EnhancedQuickAction
           icon="help-circle"
           title={t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })}
-          description={isHomeworkDisabled ? t('quick_actions.limit_reached', { defaultValue: 'Limit reached' }) : t('quick_actions.requests_left', { count: remaining, defaultValue: `${remaining} requests left` })}
+          description={
+            isHomeworkDisabled
+              ? t('quick_actions.limit_reached', 'Limit reached')
+              : t('quick_actions.requests_left', `${typeof remaining === 'number' ? remaining : 0} requests left`, { count: typeof remaining === 'number' ? remaining : 0 })
+          }
           gradientColors={['#00f5ff', '#0080ff']}
           onPress={onHomeworkPress}
           disabled={isHomeworkDisabled}

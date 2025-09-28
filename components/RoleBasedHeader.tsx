@@ -15,6 +15,7 @@ import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
 import ProfileImageService from '@/services/ProfileImageService';
+import TierBadge from '@/components/ui/TierBadge';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -243,9 +244,7 @@ export function RoleBasedHeader({
     return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Free';
   })();
   const tierChip = (
-    <View style={[styles.tierChip, { backgroundColor: tierColor + '20', borderColor: tierColor }] }>
-      <Text style={[styles.tierChipText, { color: tierColor }]}>{tierLabel}</Text>
-    </View>
+    <TierBadge size="sm" showManageButton />
   );
 
   return (

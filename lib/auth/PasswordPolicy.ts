@@ -15,7 +15,7 @@ const DEFAULT_PASSWORD_POLICY: PasswordPolicy = {
   preventCommonPasswords: true,
   preventUserInfoInPassword: true,
   preventRecentPasswords: 5,
-  specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?'
+  specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?'.split('')
 };
 
 // Password breach database (simplified for demo - in production use HaveIBeenPwned API)

@@ -27,7 +27,6 @@ export function ThemedStack({ children }: ThemedStackProps) {
           animation: 'slide_from_right',
           statusBarStyle: isDark ? 'light' : 'dark',
           statusBarTranslucent: true,
-          statusBarBackgroundColor: theme.headerBackground,
         }}
       >
         {children}

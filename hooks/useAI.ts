@@ -62,46 +62,6 @@ export function useAIUserLimits(userId?: string) {
     gcTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    
-    // Cache to AsyncStorage for offline access
-    onSuccess: async (data) => {
-      if (effectiveUserId) {
-        try {
-          await AsyncStorage.setItem(
-            CACHE_KEYS.USER_LIMITS + effectiveUserId,
-            JSON.stringify({
-              data,
-              timestamp: Date.now(),
-            })
-          );
-        } catch (error) {
-          console.warn('Failed to cache AI user limits:', error);
-        }
-      }
-    },
-    
-    // Fallback to cached data on error
-    onError: async (error) => {
-      if (effectiveUserId) {
-        try {
-          const cached = await AsyncStorage.getItem(CACHE_KEYS.USER_LIMITS + effectiveUserId);
-          if (cached) {
-            const { data, timestamp } = JSON.parse(cached);
-            // Use cached data if less than 1 hour old
-            if (Date.now() - timestamp < 60 * 60 * 1000) {
-              return data;
-            }
-          }
-        } catch {
-          // Ignore cache errors
-        }
-      }
-      
-      track('edudash.ai.hooks.user_limits_error', {
-        user_id: effectiveUserId,
-        error: extractAPIError(error).message,
-      });
-    },
   });
 }
 
@@ -110,7 +70,7 @@ export function useAIUserLimits(userId?: string) {
  */
 export function useAIOrgLimits(preschoolId?: string) {
   const { profile } = useAuth();
-  const effectivePreschoolId = preschoolId || profile?.preschool_id;
+  const effectivePreschoolId = preschoolId || (profile as any)?.organization_id;
   
   return useQuery({
     queryKey: createAIQueryKeys.orgLimits(effectivePreschoolId || ''),
@@ -125,21 +85,6 @@ export function useAIOrgLimits(preschoolId?: string) {
     gcTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
     
-    onSuccess: async (data) => {
-      if (effectivePreschoolId) {
-        try {
-          await AsyncStorage.setItem(
-            CACHE_KEYS.ORG_LIMITS + effectivePreschoolId,
-            JSON.stringify({
-              data,
-              timestamp: Date.now(),
-            })
-          );
-        } catch (error) {
-          console.warn('Failed to cache AI org limits:', error);
-        }
-      }
-    },
   });
 }
 
@@ -148,7 +93,7 @@ export function useAIOrgLimits(preschoolId?: string) {
  */
 export function useAISchoolUsageSummary(preschoolId?: string) {
   const { profile } = useAuth();
-  const effectivePreschoolId = preschoolId || profile?.preschool_id;
+  const effectivePreschoolId = preschoolId || (profile as any)?.organization_id;
   
   return useQuery({
     queryKey: createAIQueryKeys.schoolUsage(effectivePreschoolId || ''),
@@ -163,21 +108,6 @@ export function useAISchoolUsageSummary(preschoolId?: string) {
     gcTime: 10 * 60 * 1000, // 10 minutes
     retry: 2,
     
-    onSuccess: async (data) => {
-      if (effectivePreschoolId) {
-        try {
-          await AsyncStorage.setItem(
-            CACHE_KEYS.SCHOOL_USAGE + effectivePreschoolId,
-            JSON.stringify({
-              data,
-              timestamp: Date.now(),
-            })
-          );
-        } catch (error) {
-          console.warn('Failed to cache school usage:', error);
-        }
-      }
-    },
   });
 }
 
@@ -197,7 +127,7 @@ export function useAIRecentUsage(params: {
   const effectiveParams = {
     ...params,
     user_id: params.user_id || (params.scope === 'user' ? user?.id : undefined),
-    preschool_id: params.preschool_id || profile?.preschool_id,
+    preschool_id: params.preschool_id || (profile as any)?.organization_id,
     limit: params.limit || 20,
   };
   
@@ -276,48 +206,6 @@ export function useAIInsights(
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 10000),
-    
-    onSuccess: async (data) => {
-      try {
-        await AsyncStorage.setItem(
-          CACHE_KEYS.INSIGHTS + cacheKey,
-          JSON.stringify({
-            data,
-            timestamp: Date.now(),
-          })
-        );
-        
-        track('edudash.ai.insights.viewed', {
-          scope,
-          insights_count: data.bullets?.length || 0,
-          confidence_score: data.confidence,
-          generated_at: data.generated_at,
-        });
-      } catch (error) {
-        console.warn('Failed to cache AI insights:', error);
-      }
-    },
-    
-    onError: async (error) => {
-      // Try to use cached insights on error
-      try {
-        const cached = await AsyncStorage.getItem(CACHE_KEYS.INSIGHTS + cacheKey);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          // Use cached data if less than 4 hours old
-          if (Date.now() - timestamp < 4 * 60 * 60 * 1000) {
-            return data;
-          }
-        }
-      } catch {
-        // Ignore cache errors
-      }
-      
-      track('edudash.ai.hooks.insights_error', {
-        scope,
-        error: extractAPIError(error).message,
-      });
-    },
   });
 }
 
@@ -346,9 +234,10 @@ export function useAIRequest() {
       
       track('edudash.ai.request.succeeded', {
         service_type: variables.service_type,
-        scope: variables.scope,
+        duration_ms: 0,
         tokens_used: data.usage?.tokens_in + data.usage?.tokens_out || 0,
-      });
+        cost_cents: 0,
+      } as any);
     },
     
     onError: (error, variables) => {
@@ -356,17 +245,20 @@ export function useAIRequest() {
       
       track('edudash.ai.request.failed', {
         service_type: variables.service_type,
-        scope: variables.scope,
         error_code: errorInfo.code,
-      });
+        duration_ms: 0,
+        retry_count: 0,
+      } as any);
       
       // Handle quota exceeded with upgrade prompt
       if (errorInfo.isQuotaExceeded) {
         track('edudash.ai.quota.blocked', {
           service_type: variables.service_type,
-          upgrade_shown: true,
+          quota_used: 0,
+          quota_limit: 0,
           user_tier: errorInfo.quotaInfo?.service_type || 'unknown',
-        });
+          upgrade_shown: true,
+        } as any);
         
         Alert.alert(
           'AI Usage Limit Reached',

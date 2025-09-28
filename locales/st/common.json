@@ -266,6 +266,23 @@
     "seat_management_subtitle": "Assign or revoke teacher seats"
   },
   "subscription": {
-    "choose_your_plan": "Choose Your Plan"
+    "choose_your_plan": "Kgetha lenaneo",
+    "managePlan": "Laola leano",
+    "tiers": {
+      "free": "Free",
+      "starter": "Starter",
+      "basic": "Basic",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "tierSource": {
+      "caption": "Mohlodi: {{source}}",
+      "organization": "Leano la mokgatlo",
+      "school_plan": "Lenaneo la sekolo",
+      "school_default": "Tirelwa ya sekolo",
+      "user": "Peakanyo ya modiriši",
+      "unknown": "Ga e tsebjwe"
+    }
   }
 }

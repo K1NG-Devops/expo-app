@@ -8,7 +8,7 @@
 import { applySecurityMiddleware, SecurityConfig } from './securityMiddleware';
 import { requireAuthorization, UserRole, Permission } from './rbac';
 import { getRequestOrigin } from './middleware';
-import { AppConfiguration } from '../config';
+import { getAppConfiguration } from '../config';
 
 /**
  * Route guard configuration
@@ -31,7 +31,7 @@ export function createProtectedRoute<T = any>(
 ) {
   return async (request: Request): Promise<Response> => {
     const origin = getRequestOrigin(request);
-    const environment = AppConfiguration.environment;
+const environment = getAppConfiguration().environment;
 
     try {
       // 1. Apply general security middleware
@@ -63,7 +63,7 @@ export function createProtectedRoute<T = any>(
 
       // 3. Call the actual handler with validated data and user context
       return await handler(request, {
-        data: securityResult.data || {},
+        data: (securityResult.data || {}) as T,
         user: authUser,
         profile: authProfile,
       });
@@ -323,4 +323,3 @@ export function createRouteGuard() {
  * Export commonly used types and classes
  */
 export { UserRole, Permission };
-export type { RouteGuardConfig };

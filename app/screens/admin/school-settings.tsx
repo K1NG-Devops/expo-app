@@ -200,7 +200,8 @@ export default function SchoolSettingsScreen() {
       const schoolId = profile?.organization_id || 'school-123';
       const cached = await offlineCacheService.get(`school_settings`, schoolId, user?.id || '');
       if (cached) {
-        setSettings({ ...DEFAULT_SETTINGS, ...cached });
+        const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
+        setSettings({ ...DEFAULT_SETTINGS, ...(parsed as Partial<SchoolSettings>) });
       }
     } catch (error) {
       console.error('Failed to load school settings:', error);

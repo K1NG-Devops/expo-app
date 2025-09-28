@@ -90,15 +90,15 @@ export const LessonCard: React.FC<LessonCardProps> = ({
     
     return (
       <View style={styles.tagsContainer}>
-        {displayTags.map((tag) => (
+        {displayTags.map((tag, idx) => (
           <View
-            key={tag.id}
+            key={tag?.id ? String(tag.id) : `${tag?.name || 'tag'}-${idx}`}
             style={[
               styles.tag,
               { backgroundColor: `${tag.color}20`, borderColor: tag.color },
             ]}
           >
-            <Text style={[styles.tagText, { color: tag.color }]}>
+            <Text style={[styles.tagText, { color: tag.color }]}> 
               {tag.name}
             </Text>
           </View>

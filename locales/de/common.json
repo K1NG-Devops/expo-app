@@ -124,4 +124,25 @@
       "placeholder": "{{subject}} - Klasse {{grade}} Standards"
     }
   }
+  ,
+  "subscription": {
+    "choose_your_plan": "Wählen Sie Ihren Tarif",
+    "managePlan": "Tarif verwalten",
+    "tiers": {
+      "free": "Kostenlos",
+      "starter": "Starter",
+      "basic": "Basis",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "tierSource": {
+      "caption": "Quelle: {{source}}",
+      "organization": "Organisationsplan",
+      "school_plan": "Schulabonnement",
+      "school_default": "Schulstandard",
+      "user": "Benutzereinstellung",
+      "unknown": "Unbekannt"
+    }
+  }
 }

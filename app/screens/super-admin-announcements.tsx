@@ -16,7 +16,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
@@ -206,9 +206,30 @@ export default function SuperAdminAnnouncementsScreen() {
     }
   }, [profile?.role, profile?.id]);
 
+  // Prefill/compose via route params from Dash
+  const routeParams = useLocalSearchParams<{ compose?: string; prefillTitle?: string; prefillContent?: string; priority?: string; type?: string }>();
+
   useEffect(() => {
     fetchAnnouncements();
   }, [fetchAnnouncements]);
+
+  useEffect(() => {
+    const compose = String(routeParams?.compose || '').toLowerCase();
+    if (compose === '1' || compose === 'true') {
+      const prefillTitle = (routeParams?.prefillTitle || '').toString();
+      const prefillContent = (routeParams?.prefillContent || '').toString();
+      const prefillPriority = (routeParams?.priority || '').toString();
+      const prefillType = (routeParams?.type || '').toString();
+      setFormData(prev => ({
+        ...prev,
+        title: prefillTitle || prev.title,
+        content: prefillContent || prev.content,
+        priority: (['low','medium','high','urgent'].includes(prefillPriority) ? prefillPriority : prev.priority) as any,
+        type: (['info','warning','alert','maintenance','feature'].includes(prefillType) ? prefillType : prev.type) as any,
+      }))
+      setShowCreateModal(true);
+    }
+  }, [routeParams])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);

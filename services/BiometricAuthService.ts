@@ -453,7 +453,7 @@ export class BiometricAuthService {
       } else {
         return {
           success: false,
-          error: result.error || "Authentication failed",
+          error: "Authentication failed",
         };
       }
     } catch (error) {

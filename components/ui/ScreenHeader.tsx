@@ -33,7 +33,7 @@ export function ScreenHeader({
   textColor,
 }: ScreenHeaderProps) {
   const insets = useSafeAreaInsets();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
 
   const handleBackPress = () => {
     if (onBackPress) {
@@ -43,8 +43,8 @@ export function ScreenHeader({
     }
   };
 
-  const headerBgColor = backgroundColor || theme.background;
-  const headerTextColor = textColor || theme.text;
+  const headerBgColor = backgroundColor || theme.headerBackground;
+  const headerTextColor = textColor || theme.headerText;
 
   return (
     <View
@@ -63,7 +63,7 @@ export function ScreenHeader({
           {showBackButton && (
             <TouchableOpacity
               onPress={handleBackPress}
-              style={styles.backButton}
+              style={[styles.backButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }]}
               accessibilityLabel="Go back"
               accessibilityRole="button"
             >
@@ -123,7 +123,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.05)',
   },
   titleSection: {
     flex: 1,

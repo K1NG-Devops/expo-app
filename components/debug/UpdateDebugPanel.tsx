@@ -56,7 +56,7 @@ export function UpdateDebugPanel() {
         runtimeVersion: Updates.runtimeVersion || 'unknown',
         channel: Updates.channel || 'unknown',
         isEmergencyLaunch: Updates.isEmergencyLaunch,
-        lastCheckTime: Updates.lastCheckForUpdateTime || null,
+        lastCheckTime: null,
         manifestString: manifest ? JSON.stringify(manifest, null, 2) : null,
       });
     } catch (error) {

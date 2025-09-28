@@ -213,7 +213,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             .eq('auth_user_id', user.id)
             .single();
           const internalUserId = me?.id;
-          const mySchoolId = me?.preschool_id || (profile as any)?.preschool_id || null;
+          const mySchoolId = me?.preschool_id || (profile as any)?.organization_id || null;
 
           // Approach 1: Direct parent_id/guardian_id lookup with class names using internal user id
           const { data: directChildren } = internalUserId ? await client
@@ -598,7 +598,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
     }
   };
 
-  const getAttendanceIcon = (): string => {
+  const getAttendanceIcon = (): keyof typeof Ionicons.glyphMap => {
     switch (urgentMetrics.todayAttendance) {
       case 'present': return 'checkmark-circle';
       case 'absent': return 'close-circle';
@@ -1839,7 +1839,7 @@ case 'homework':
                 onPress={() => router.push('/attendance')}
               >
                 <View style={[styles.metricIcon, { backgroundColor: getAttendanceColor() }]}>
-                  <Ionicons name={getAttendanceIcon() as any} size={20} color="white" />
+                  <Ionicons name={getAttendanceIcon()} size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>Today</Text>
                 <Text style={styles.metricLabel}>Attendance</Text>

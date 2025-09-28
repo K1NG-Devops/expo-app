@@ -15,7 +15,8 @@ try {
 // Dynamically require AsyncStorage to avoid web/test issues
 let AsyncStorage: any = null;
 try {
-  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  const mod = require('@react-native-async-storage/async-storage');
+  AsyncStorage = mod?.default ?? mod;
 } catch (e) {
   console.debug('AsyncStorage import failed (non-React Native env?)', e);
   // Web fallback using localStorage

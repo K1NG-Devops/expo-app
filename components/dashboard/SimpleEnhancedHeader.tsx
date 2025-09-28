@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { router } from 'expo-router'
+import TierBadge from '@/components/ui/TierBadge'
 
 interface SimpleEnhancedHeaderProps {
   userName?: string
@@ -126,42 +127,8 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
             
             {/* Tier and Role Info */}
             <View style={styles.infoRow}>
-              <View style={[styles.tierBadge, { backgroundColor: `${tierInfo.color}20` }]}>
-                <Ionicons 
-                  name={tierInfo.icon} 
-                  size={12} 
-                  color={tierInfo.color} 
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.tierText, { color: tierInfo.color }]}>
-                  {t('dashboard.tierLabel', { tier: tierInfo.label })}
-                </Text>
-              </View>
-              
-              {(profile?.role === 'principal' || profile?.role === 'principal_admin' || profile?.role === 'super_admin') ? (
-                <TouchableOpacity 
-                  style={styles.upgradeHint}
-                  onPress={() => {
-                    if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-                    else router.push('/pricing')
-                  }}
-                >
-                  <Text style={styles.upgradeText}>
-                    Manage plan
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                tier === 'free' && (
-                  <TouchableOpacity 
-                    style={styles.upgradeHint}
-                    onPress={() => router.push('/pricing')}
-                  >
-                    <Text style={styles.upgradeText}>
-                      {t('dashboard.upgradeHint')}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
+              {/* Unified Tier Badge component */}
+              <TierBadge showManageButton size="md" />
             </View>
 
             {/* Children Count */}

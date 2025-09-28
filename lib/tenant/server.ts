@@ -137,6 +137,7 @@ export async function requireSchoolAccess(schoolId: string): Promise<ServerTenan
 export function createTenantQuery(tableName: string, schoolId: string) {
   return assertSupabase()
     .from(tableName)
+    .select('*')
     .eq('preschool_id', schoolId) as any;
 }
 
@@ -159,6 +160,7 @@ export class TenantQueryBuilder {
   table(tableName: string) {
     return assertSupabase()
       .from(tableName)
+      .select('*')
       .eq('preschool_id', this.schoolId) as any;
   }
 

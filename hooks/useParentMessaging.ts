@@ -127,9 +127,11 @@ export const useParentThreads = () => {
             ...thread,
             last_message: lastMessage ? {
               content: lastMessage.content,
-              sender_name: lastMessage.sender ? 
-                `${lastMessage.sender.first_name} ${lastMessage.sender.last_name}`.trim() : 
-                'Unknown',
+              sender_name: (() => {
+                const s: any = lastMessage?.sender;
+                const sender = Array.isArray(s) ? s[0] : s;
+                return sender ? `${sender.first_name} ${sender.last_name}`.trim() : 'Unknown';
+              })(),
               created_at: lastMessage.created_at
             } : undefined,
             unread_count: unreadCount

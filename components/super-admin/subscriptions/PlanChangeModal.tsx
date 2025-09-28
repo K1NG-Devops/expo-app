@@ -25,6 +25,7 @@ interface Subscription {
   billing_frequency: string;
   seats_total: number;
   school_id: string;
+  status?: string;
 }
 
 interface School {

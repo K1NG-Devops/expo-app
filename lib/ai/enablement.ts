@@ -2,7 +2,7 @@
 // Fixes the inconsistency mentioned in MISSING.md where different components
 // use conflicting conditions to determine AI feature availability
 
-import { AppConfiguration } from '../config';
+import { getAppConfiguration } from '../config';
 
 /**
  * Central source of truth for AI enablement logic
@@ -10,7 +10,7 @@ import { AppConfiguration } from '../config';
  * @returns boolean indicating if AI features are enabled
  */
 export function isAIEnabled(): boolean {
-  return AppConfiguration.isAIEnabled;
+  return getAppConfiguration().isAIEnabled;
 }
 
 /**

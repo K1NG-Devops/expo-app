@@ -24,6 +24,7 @@ import { featuresContent } from '@/constants/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 import { setPageMetadata, landingPageSEO } from '@/lib/webSEO';
+import AppSplashScreen from '@/components/ui/AppSplashScreen';
 
 const { width, height } = Dimensions.get('window');
 const isSmall = width < 400;
@@ -63,6 +64,8 @@ export default function Landing() {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [webOptimized, setWebOptimized] = useState(false);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -81,14 +84,41 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
+    // Simulate app initialization
+    const initializeApp = async () => {
+      // Add any app initialization logic here
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading time
+      setIsAppLoading(false);
+    };
+
+    initializeApp();
+
     // Default routing behavior:
     // - Native (iOS/Android): go straight to sign-in for faster access
     // - Web: keep the marketing landing page
     if (Platform.OS !== 'web') {
-      router.replace('/(auth)/sign-in');
+      // Delay navigation until splash is complete
+      const timer = setTimeout(() => {
+        if (!showSplash) {
+          router.replace('/(auth)/sign-in');
+        }
+      }, 2500);
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [showSplash]);
 
+
+  // Show splash screen on mobile
+  if (showSplash && Platform.OS !== 'web') {
+    return (
+      <AppSplashScreen
+        isLoading={isAppLoading}
+        onLoadingComplete={() => setShowSplash(false)}
+        minimumDisplayTime={2000}
+        message="Initializing Neural Network..."
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>

@@ -7,6 +7,9 @@ import { z } from 'zod';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
+// Temporary declaration to satisfy TypeScript in app context
+declare function withTenantContext<T>(schoolId: string, fn: (context: any, queryBuilder?: any) => Promise<T>): Promise<T>;
+
 // ============================================================================
 // ZOD SCHEMAS FOR VALIDATION
 // ============================================================================
@@ -23,7 +26,7 @@ export const CreateTransactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   reference_number: z.string().optional(),
   occurred_at: z.date().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Transaction update schema (for approvals/rejections)

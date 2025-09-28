@@ -659,7 +659,7 @@ export class LessonsService {
    */
   private transformDbLessonToLesson(dbLesson: any): Lesson {
     const category = this.getSubjectCategory(dbLesson.subject);
-    const skillLevel = DEFAULT_SKILL_LEVELS[0] || { id: 'beginner', name: 'Beginner', level: 1 };
+    const skillLevel = DEFAULT_SKILL_LEVELS[0] || { id: 'beginner', name: 'Beginner', level: 1, description: 'Beginner level', order: 1, color: '#4CAF50' };
     
     return {
       id: dbLesson.id,

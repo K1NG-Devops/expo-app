@@ -1,6 +1,6 @@
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { assertSupabase } from '../supabase';
-import { AppConfiguration } from '../config';
+import { getAppConfiguration } from '../config';
 import { RoleId, ROLES } from '../rbac/types';
 
 // Types for authentication
@@ -603,7 +603,7 @@ export class AuthService {
           success: !eventType.includes('failed'),
           metadata: {
             timestamp: new Date().toISOString(),
-            app_version: AppConfiguration.environment,
+app_version: getAppConfiguration().environment,
           },
         });
 

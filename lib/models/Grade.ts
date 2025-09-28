@@ -306,17 +306,17 @@ export const CreateGradeSchema = z.object({
     .max(10000, 'Feedback must be less than 10000 characters')
     .optional(),
   
-  rubric_scores: z.record(RubricScoreSchema).default({}),
+  rubric_scores: z.record(z.string(), RubricScoreSchema).default({}),
   
   ai_assistance_used: z.boolean().default(false),
   
-  ai_suggestions: z.record(z.any()).default({}),
+  ai_suggestions: z.record(z.string(), z.any()).default({}),
   
   is_final: z.boolean().default(true),
   
   is_published: z.boolean().default(false),
   
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
 }).refine((data) => {
   // Points earned cannot exceed points possible
   return data.points_earned <= data.points_possible;
@@ -342,17 +342,17 @@ export const UpdateGradeSchema = z.object({
     .max(10000, 'Feedback must be less than 10000 characters')
     .optional(),
   
-  rubric_scores: z.record(RubricScoreSchema).optional(),
+  rubric_scores: z.record(z.string(), RubricScoreSchema).optional(),
   
   ai_assistance_used: z.boolean().optional(),
   
-  ai_suggestions: z.record(z.any()).optional(),
+  ai_suggestions: z.record(z.string(), z.any()).optional(),
   
   is_final: z.boolean().optional(),
   
   is_published: z.boolean().optional(),
   
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 }).refine((data) => {
   // If both points are provided, earned cannot exceed possible
   if (data.points_earned !== undefined && data.points_possible !== undefined) {
@@ -392,7 +392,7 @@ export const BulkGradeSchema = z.object({
     points_earned: z.number().min(0),
     letter_grade: LetterGradeSchema.optional(),
     feedback: z.string().max(10000).optional(),
-    rubric_scores: z.record(RubricScoreSchema).default({}),
+    rubric_scores: z.record(z.string(), RubricScoreSchema).default({}),
   })).min(1, 'At least one grade is required').max(100, 'Cannot grade more than 100 submissions at once'),
   
   is_published: z.boolean().default(false),
