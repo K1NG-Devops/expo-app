@@ -16,7 +16,7 @@ export interface VisibilityHandlerOptions {
 
 class VisibilityHandler {
   private options: VisibilityHandlerOptions;
-  private refreshTimeout?: NodeJS.Timeout;
+  private refreshTimeout?: ReturnType<typeof setTimeout>;
   private lastVisibilityChange = Date.now();
 
   constructor(options: VisibilityHandlerOptions = {}) {

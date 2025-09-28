@@ -44,7 +44,7 @@ export {
 export {
   LoginForm,
   RegisterForm,
-  UserProfile,
+  UserProfile as UserProfileComponent,
   AuthGuard,
 } from '../../components/auth/AuthComponents';
 

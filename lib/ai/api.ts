@@ -386,9 +386,9 @@ export async function postAIRequest(params: {
     // Track request start
     track('edudash.ai.request.started', {
       service_type: params.service_type,
-      scope: params.scope,
-      has_metadata: !!params.metadata,
-    });
+      model: 'unknown',
+      quota_remaining: 0,
+    } as any);
     
     const { data, error } = await client.functions.invoke('ai-proxy', {
       body: {
@@ -405,7 +405,8 @@ export async function postAIRequest(params: {
         service_type: params.service_type,
         error_code: error.message?.includes('quota') ? 'quota_exceeded' : 'server_error',
         duration_ms: Date.now() - startTime,
-      });
+        retry_count: 0,
+      } as any);
       
       throw new Error(error.message || 'AI request failed');
     }
@@ -444,7 +445,8 @@ export async function postAIRequest(params: {
       service_type: params.service_type,
       error_code: 'client_error',
       duration_ms: Date.now() - startTime,
-    });
+      retry_count: 0,
+    } as any);
 
     reportError(error instanceof Error ? error : new Error(errorMessage), {
       context: 'postAIRequest',

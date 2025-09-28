@@ -860,11 +860,7 @@ export class InvoiceService {
 
       if (error) throw error;
 
-      // Update invoice with PDF URL
-      await this.updateInvoice({
-        id: invoiceId,
-        pdf_url: data.pdf_url,
-      });
+      // Optionally update invoice metadata with PDF URL via dedicated endpoint (skipped here)
 
       // Track analytics
       track('edudash.invoice.pdf_generated', {

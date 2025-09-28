@@ -41,6 +41,7 @@ interface Subscription {
   start_date: string;
   end_date: string;
   created_at: string;
+  metadata?: Record<string, any>;
   school?: School;
 }
 
@@ -49,6 +50,7 @@ interface SubscriptionPlan {
   name: string;
   tier: string;
   price_monthly: number;
+  price_annual?: number;
   max_teachers: number;
   max_students: number;
 }
