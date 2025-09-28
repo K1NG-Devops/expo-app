@@ -17,7 +17,9 @@ import type {
 import { sanitizePreferences } from '@/lib/types/profile';
 
 export class ProfileSettingsService {
-  private static readonly supabase = assertSupabase();
+  private static get supabase() {
+    return assertSupabase();
+  }
 
   /**
    * Get current user's invoice notification settings and signature info

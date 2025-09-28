@@ -252,8 +252,8 @@ serve(async (req: Request) => {
       .limit(1)
       .maybeSingle()
     
-    if (subscription?.subscription_plans?.tier) {
-      return normalizeTier(subscription.subscription_plans.tier)
+    if (subscription?.subscription_plans?.[0]?.tier) {
+      return normalizeTier(subscription.subscription_plans[0].tier)
     }
     
     // Fallback to legacy fields
@@ -374,7 +374,7 @@ serve(async (req: Request) => {
 
   async function logUsage(params: { serviceType: string; model: string; system?: string; input?: string; output?: string; inputTokens?: number | null; outputTokens?: number | null; totalCost?: number | null; status: string }) {
     try {
-      if (!orgId) return;
+      if (!orgId || !user) return;
       const serviceId = await ensureServiceId(params.model);
       await supabase.from('ai_usage_logs').insert({
         ai_service_id: serviceId,

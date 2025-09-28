@@ -62,6 +62,7 @@ export function DashCommandPalette({
       { id: 'parent_dashboard', title: 'Parent Dashboard', subtitle: 'Track your child', icon: 'home-outline', route: '/screens/parent-dashboard', section: 'Dashboards' },
       { id: 'financial_dashboard', title: 'Financial Dashboard', subtitle: 'Fees and finance', icon: 'cash-outline', route: '/screens/financial-dashboard', section: 'Dashboards' },
       { id: 'principal_approval', title: 'Principal Approvals', subtitle: 'Review/approve requests', icon: 'checkmark-circle-outline', route: '/screens/principal-approval-dashboard', section: 'Dashboards' },
+      { id: 'principal_announcement', title: 'Create School Announcement', subtitle: 'Principal announcement composer', icon: 'megaphone', route: '/screens/principal-announcement', params: { compose: '1' }, section: 'Dashboards' },
 
       // People
       { id: 'students', title: 'Students', subtitle: 'Browse students', icon: 'people-outline', route: '/screens/students-detail', section: 'People' },

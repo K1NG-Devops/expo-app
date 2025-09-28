@@ -51,7 +51,6 @@ import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import Feedback from '@/lib/feedback';
-import TierBadge from '@/components/ui/TierBadge';
 
 const { width, height } = Dimensions.get("window");
 const isSmallScreen = width < 380;
@@ -995,13 +994,13 @@ export const TeacherDashboard: React.FC = () => {
                 </Text>
               </View>
               <View style={styles.subRow}>
-                  {/* Role chip */}
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleBadgeText}>
-                      {profile?.role === "teacher" ? "Teacher" : (String(profile?.role || '').replace('_',' '))}
+                      {profile?.role === "teacher"
+                        ? "Teacher"
+                        : "Teacher"}
                     </Text>
                   </View>
-                  {/* Seat status chip */}
                   <View
                     style={[
                       styles.roleBadge,
@@ -1034,8 +1033,6 @@ export const TeacherDashboard: React.FC = () => {
                           : "Inactive"}
                     </Text>
                   </View>
-                  {/* Tier badge */}
-                  <TierBadge size="sm" showManageButton />
                 </View>
               </View>
               <View style={styles.headerActions}>

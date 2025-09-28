@@ -214,8 +214,14 @@ class ConfigManager {
   }
 }
 
-// Singleton instance
-export const AppConfiguration = new ConfigManager();
+// Lazy singleton accessor
+let _AppConfiguration: ConfigManager | null = null;
+export function getAppConfiguration(): ConfigManager {
+  if (!_AppConfiguration) {
+    _AppConfiguration = new ConfigManager();
+  }
+  return _AppConfiguration;
+}
 
 // Type exports
 export type { AppConfig };

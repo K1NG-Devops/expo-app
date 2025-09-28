@@ -8,7 +8,7 @@ import {
 import { ValidationContext, validateRequestBody, ValidationSchemas } from './validation';
 import { RateLimiters, checkLoginAttempts } from './rateLimiting';
 import { authService } from '../auth/AuthService';
-import { AppConfiguration } from '../config';
+import { getAppConfiguration } from '../config';
 import { getUserLanguage, getSecurityMessage, getLoginLockoutMessage } from '../i18n/securityMessages';
 
 /**
@@ -68,7 +68,7 @@ export async function applySecurityMiddleware(
   routeParams?: Record<string, string>
 ): Promise<SecurityResult> {
   const origin = getRequestOrigin(request);
-  const environment = AppConfiguration.environment;
+const environment = getAppConfiguration().environment;
 
   try {
     // 1. Handle CORS preflight requests
