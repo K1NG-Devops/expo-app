@@ -26,7 +26,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
 import { EmptyActivityState } from '@/components/ui/EmptyState';
-// import { offlineCacheService } from '@/lib/services/offlineCacheService'; // Temporarily disabled for build
+import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { assertSupabase } from '@/lib/supabase';
 
 type Activity = ActivityItem;
@@ -247,38 +247,38 @@ export default function ActivityDetailScreen() {
       const userRole = profile?.role || 'parent';
       const schoolId = profile?.organization_id || 'school-123';
 
-      // Try cache first (temporarily disabled for build)
-      // if (!forceRefresh && user?.id) {
-      //   setIsLoadingFromCache(true);
-      //   const cached = await offlineCacheService.getActivityFeed(
-      //     schoolId,
-      //     user.id,
-      //     userRole === 'principal_admin' ? 'school' : 'class'
-      //   );
-      //   
-      //   if (cached) {
-      //     setActivities(cached);
-      //     setIsLoadingFromCache(false);
-      //     // Continue to fetch fresh data in background
-      //     setTimeout(() => loadActivities(true), 100);
-      //     return;
-      //   }
-      //   setIsLoadingFromCache(false);
-      // }
+      // Try cache first
+      if (!forceRefresh && user?.id) {
+        setIsLoadingFromCache(true);
+        const cached = await offlineCacheService.getActivityFeed(
+          schoolId,
+          user.id,
+          userRole === 'principal_admin' ? 'school' : 'class'
+        );
+        
+        if (cached) {
+          setActivities(cached);
+          setIsLoadingFromCache(false);
+          // Continue to fetch fresh data in background
+          setTimeout(() => loadActivities(true), 100);
+          return;
+        }
+        setIsLoadingFromCache(false);
+      }
 
       // Load activities from database (no more mock data)
       const realActivities = await loadActivitiesFromDatabase();
       setActivities(realActivities);
 
-      // Cache the fresh data (temporarily disabled for build)
-      // if (user?.id) {
-      //   await offlineCacheService.cacheActivityFeed(
-      //     schoolId,
-      //     user.id,
-      //     realActivities,
-      //     userRole === 'principal_admin' ? 'school' : 'class'
-      //   );
-      // }
+      // Cache the fresh data
+      if (user?.id) {
+        await offlineCacheService.cacheActivityFeed(
+          schoolId,
+          user.id,
+          realActivities,
+          userRole === 'principal_admin' ? 'school' : 'class'
+        );
+      }
 
     } catch (error) {
       console.error('Failed to load activities:', error);
