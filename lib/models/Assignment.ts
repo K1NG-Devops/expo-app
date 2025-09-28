@@ -249,7 +249,7 @@ export const CreateAssignmentSchema = z.object({
   
   attachments: z.array(AssignmentAttachmentSchema).default([]),
   
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
 }).refine((data) => {
   // Validate date relationships
   if (data.due_at && data.available_from) {

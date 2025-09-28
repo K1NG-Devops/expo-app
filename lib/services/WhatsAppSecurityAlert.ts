@@ -123,7 +123,6 @@ class WhatsAppSecurityAlert {
 // Export singleton instance that blocks all operations
 export const whatsAppService = new WhatsAppSecurityAlert();
 
-// Export types for compatibility
-export type { WhatsAppConfig, WhatsAppMessage, WhatsAppResponse };
+// Types are defined above; re-export removed to avoid duplicate declarations
 
 export default WhatsAppSecurityAlert;

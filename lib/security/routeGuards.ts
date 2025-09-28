@@ -63,7 +63,7 @@ const environment = getAppConfiguration().environment;
 
       // 3. Call the actual handler with validated data and user context
       return await handler(request, {
-        data: securityResult.data || {},
+        data: (securityResult.data || {}) as T,
         user: authUser,
         profile: authProfile,
       });
@@ -323,4 +323,3 @@ export function createRouteGuard() {
  * Export commonly used types and classes
  */
 export { UserRole, Permission };
-export type { RouteGuardConfig };

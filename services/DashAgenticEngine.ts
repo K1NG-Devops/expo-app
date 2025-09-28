@@ -27,7 +27,7 @@ export class DashAgenticEngine {
   private activeReminders: Map<string, DashReminder> = new Map();
   private executionQueue: Array<{ taskId: string; action: DashAction; priority: number }> = [];
   private isExecuting = false;
-  private proactiveInterval: NodeJS.Timeout | null = null;
+  private proactiveInterval: ReturnType<typeof setInterval> | null = null;
 
   // Storage keys
   private static readonly TASKS_KEY = 'dash_active_tasks';
@@ -432,6 +432,7 @@ export class DashAgenticEngine {
           data: { reminderId: reminder.id, type: 'dash_reminder' }
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: new Date(reminder.triggerAt)
         }
       });

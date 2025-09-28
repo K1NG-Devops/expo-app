@@ -180,12 +180,13 @@ export const compressImageIfNeeded = async (
     
     // Get compressed file info
     const compressedFileInfo = await FileSystem.getInfoAsync(compressedImage.uri);
+    const size = (compressedFileInfo && 'size' in compressedFileInfo) ? (compressedFileInfo as any).size || 0 : 0;
     
     return {
       uri: compressedImage.uri,
       width: compressedImage.width,
       height: compressedImage.height,
-      fileSize: compressedFileInfo.size || 0,
+      fileSize: size,
     };
   } catch (error) {
     console.error('Image compression failed:', error);

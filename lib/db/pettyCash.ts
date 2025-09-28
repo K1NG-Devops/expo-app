@@ -26,7 +26,7 @@ export const CreateTransactionSchema = z.object({
   description: z.string().min(1, 'Description is required'),
   reference_number: z.string().optional(),
   occurred_at: z.date().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Transaction update schema (for approvals/rejections)

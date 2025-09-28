@@ -26,7 +26,6 @@ import { assertSupabase } from '../lib/supabase';
  * Extends the base AuthService with comprehensive features
  */
 export class EnhancedAuthService extends AuthService {
-  private supabase = assertSupabase();
   private invitationTokens: Map<string, any> = new Map();
 
   constructor() {
@@ -141,7 +140,7 @@ export class EnhancedAuthService extends AuthService {
     }
 
     // Create user account
-    const { data, error } = await this.supabase.auth.signUp({
+const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
@@ -163,7 +162,7 @@ export class EnhancedAuthService extends AuthService {
     }
 
     // Create organization record
-    const { data: orgData, error: orgError } = await this.supabase
+const { data: orgData, error: orgError } = await assertSupabase()
       .from('organizations')
       .insert({
         name: registration.organization.name,
@@ -226,7 +225,7 @@ export class EnhancedAuthService extends AuthService {
     }
 
     // Create user account
-    const { data, error } = await this.supabase.auth.signUp({
+const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
@@ -300,7 +299,7 @@ export class EnhancedAuthService extends AuthService {
     }
 
     // Create user account
-    const { data, error } = await this.supabase.auth.signUp({
+const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
@@ -472,7 +471,7 @@ export class EnhancedAuthService extends AuthService {
       const expiresAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)); // 30 days
 
       // Store invitation in database
-      const { error } = await this.supabase
+const { error } = await assertSupabase()
         .from('invitations')
         .insert({
           id: `inv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -538,7 +537,7 @@ export class EnhancedAuthService extends AuthService {
         );
       }
 
-      const { data, error } = await this.supabase.auth.verifyOtp({
+const { data, error } = await assertSupabase().auth.verifyOtp({
         token_hash: token,
         type: 'email'
       });
@@ -690,7 +689,7 @@ export class EnhancedAuthService extends AuthService {
 
   private async acceptInvitation(token: string, userId: string): Promise<void> {
     try {
-      await this.supabase
+await assertSupabase()
         .from('invitations')
         .update({
           status: 'accepted',
@@ -747,7 +746,7 @@ export class EnhancedAuthService extends AuthService {
       }
     };
 
-    const { error } = await this.supabase
+const { error } = await assertSupabase()
       .from('profiles')
       .insert(profileData);
 
@@ -839,7 +838,7 @@ export class EnhancedAuthService extends AuthService {
 
   private async getInviterName(userId: string): Promise<string> {
     try {
-      const { data } = await this.supabase
+const { data, error } = await assertSupabase()
         .from('profiles')
         .select('first_name, last_name')
         .eq('id', userId)

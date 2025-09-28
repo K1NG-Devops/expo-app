@@ -120,7 +120,7 @@ const environment = getAppConfiguration().environment;
       );
       
       if (!bodyValidation.valid) {
-        return { success: false, response: bodyValidation.response };
+        return { success: false, response: (bodyValidation as any).response };
       }
       
       validatedData.body = bodyValidation.data;
@@ -132,7 +132,7 @@ const environment = getAppConfiguration().environment;
       const paramsValidation = validateParams(validationContext, config.validation.params);
       
       if (!paramsValidation.valid) {
-        return { success: false, response: paramsValidation.response };
+        return { success: false, response: (paramsValidation as any).response };
       }
       
       validatedData.params = paramsValidation.data;
@@ -144,7 +144,7 @@ const environment = getAppConfiguration().environment;
       const queryValidation = validateQuery(validationContext, config.validation.query);
       
       if (!queryValidation.valid) {
-        return { success: false, response: queryValidation.response };
+        return { success: false, response: (queryValidation as any).response };
       }
       
       validatedData.query = queryValidation.data;
@@ -291,7 +291,7 @@ export async function validateLoginAttempt(
   credentials: { email: string; password: string }
 ): Promise<SecurityResult> {
   const origin = getRequestOrigin(request);
-  const environment = AppConfiguration.environment;
+  const environment = getAppConfiguration().environment;
 
   // Check login attempt limits
   const loginCheck = checkLoginAttempts(request, credentials.email);
@@ -439,7 +439,7 @@ export function createSecureEndpoint(
         getSecurityMessage('errors.securityValidationFailed', { lng: userLanguage }),
         400,
         getRequestOrigin(request) || undefined,
-        AppConfiguration.environment
+        getAppConfiguration().environment
       );
     }
 
@@ -458,7 +458,7 @@ export function createSecureEndpoint(
         getSecurityMessage('errors.internalError', { lng: userLanguage }),
         500,
         getRequestOrigin(request) || undefined,
-        AppConfiguration.environment
+        getAppConfiguration().environment
       );
     }
   };

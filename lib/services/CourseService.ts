@@ -348,7 +348,7 @@ export class CourseService {
       // First verify the user can update this course
       const authCheck = await this.checkCourseAuthority(courseId, requestingUserId, userRole, 'update');
       if (!authCheck.success) {
-        return authCheck;
+        return authCheck as unknown as ServiceResponse<Course>;
       }
 
       const { data, error } = await this.supabase
@@ -570,7 +570,7 @@ export class CourseService {
       // First verify the user can view this course roster
       const authCheck = await this.checkCourseAuthority(courseId, requestingUserId, userRole, 'view_roster');
       if (!authCheck.success) {
-        return authCheck;
+        return authCheck as unknown as ServiceResponse<CourseWithEnrollments>;
       }
 
       const { data, error } = await this.supabase
@@ -689,7 +689,7 @@ export class CourseService {
       // First verify the user can update this course
       const authCheck = await this.checkCourseAuthority(courseId, requestingUserId, userRole, 'update');
       if (!authCheck.success) {
-        return authCheck;
+        return authCheck as unknown as ServiceResponse<{ join_code: string; expires_at: string }>;
       }
 
       const newJoinCode = generateJoinCode();
