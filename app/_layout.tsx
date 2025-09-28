@@ -1,4 +1,3 @@
-import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -10,9 +9,6 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
-import GlobalShortcuts from '@/components/navigation/GlobalShortcuts';
-
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -244,44 +240,40 @@ export default function RootLayout() {
   }, []);
   
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <DashboardPreferencesProvider>
-                <UpdatesProvider>
-                  <ToastProvider>
-                  <View style={styles.container}>
-                    <StatusBar style="dark" />
-                    {/* Global shortcuts and command palette (web only) */}
-                    <GlobalShortcuts />
-                    <Stack
-                      screenOptions={{
-                        headerShown: false,
-                        presentation: 'card',
-                        animationTypeForReplace: 'push',
-                      }}
-                    >
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
-                      <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
-                      {/* Screens area manages headers via its own layout */}
-                      <Stack.Screen name="screens" options={{ headerShown: false }} />
-                      <Stack.Screen name="screens/teacher-dashboard" options={{ headerShown: false }} />
-                      <Stack.Screen name="screens/principal-dashboard" options={{ headerShown: false }} />
-                      <Stack.Screen name="screens/parent-dashboard" options={{ headerShown: false }} />
-                      <Stack.Screen name="screens/super-admin-dashboard" options={{ headerShown: false }} />
-                    </Stack>
-                  </View>
-                  </ToastProvider>
-                </UpdatesProvider>
-              </DashboardPreferencesProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </QueryProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <QueryProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <DashboardPreferencesProvider>
+              <UpdatesProvider>
+                <ToastProvider>
+                <View style={styles.container}>
+                  <StatusBar style="dark" />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animationTypeForReplace: 'push',
+                    }}
+                  >
+                    <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
+                    {/* Screens area manages headers via its own layout */}
+                    <Stack.Screen name="screens" options={{ headerShown: false }} />
+                    <Stack.Screen name="screens/teacher-dashboard" options={{ headerShown: false }} />
+                    <Stack.Screen name="screens/principal-dashboard" options={{ headerShown: false }} />
+                    <Stack.Screen name="screens/parent-dashboard" options={{ headerShown: false }} />
+                    <Stack.Screen name="screens/super-admin-dashboard" options={{ headerShown: false }} />
+                  </Stack>
+                </View>
+                </ToastProvider>
+              </UpdatesProvider>
+            </DashboardPreferencesProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryProvider>
+    </SafeAreaProvider>
   );
 }
 

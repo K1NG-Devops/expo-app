@@ -30,7 +30,9 @@ import type {
 // ================================================
 
 export class InvoiceService {
-  private static readonly supabase = assertSupabase();
+  private static get supabase() {
+    return assertSupabase();
+  }
 
   // ================================================
   // Invoice Notification Helper

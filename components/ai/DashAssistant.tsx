@@ -376,7 +376,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           } else {
             try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
           }
-        } else if (response.metadata?.dashboard_action?.type === 'export_pdf') {
+        } else if ((response.metadata?.dashboard_action?.type as string) === 'export_pdf') {
           const { title, content } = response.metadata.dashboard_action as any;
           Alert.alert(
             'Generate PDF?',

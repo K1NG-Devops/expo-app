@@ -11,6 +11,7 @@ import { getFeatureFlagsSync } from '@/lib/featureFlags';
 import { canUseFeature, getQuotaStatus } from '@/lib/ai/limits';
 import { router } from 'expo-router';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { EducationalPDFService } from '@/lib/services/EducationalPDFService'
 
 interface StudentProgress {
   id: string;
@@ -155,6 +156,19 @@ export default function AIProgressAnalysisScreen() {
     setRefreshing(true);
     await fetchProgressData();
   };
+
+  const onExportPDF = async () => {
+    try {
+      const title = 'AI Progress Analysis'
+      const insightsText = (analysisData?.insights || []).map(i => `• ${i}`).join('\n')
+      const classesText = (analysisData?.classAnalytics || []).map(c => `${c.className}: avg ${c.averagePerformance}%`).join('\n')
+      const body = [insightsText, classesText].filter(Boolean).join('\n\n') || 'No analysis available.'
+      await EducationalPDFService.generateTextPDF(title, body)
+      Alert.alert('Export PDF', 'PDF generated successfully')
+    } catch {
+      Alert.alert('Export PDF', 'Failed to generate PDF')
+    }
+  }
 
   // Create theme-aware styles
   const styles = useMemo(() => StyleSheet.create({
@@ -427,6 +441,12 @@ export default function AIProgressAnalysisScreen() {
     <SafeAreaView style={styles.container}>
       <ScreenHeader title="AI Progress Analysis" subtitle="AI-powered student insights" />
       
+      <View style={{ padding: 12, flexDirection: 'row', justifyContent: 'flex-end' }}>
+        <TouchableOpacity onPress={onExportPDF} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.border }}>
+          <Ionicons name="document-outline" size={16} color={theme.text} />
+          <Text style={{ marginLeft: 6, color: theme.text }}>Export PDF</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView
         style={styles.scrollView}
         refreshControl={

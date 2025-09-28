@@ -8,7 +8,7 @@
 import { applySecurityMiddleware, SecurityConfig } from './securityMiddleware';
 import { requireAuthorization, UserRole, Permission } from './rbac';
 import { getRequestOrigin } from './middleware';
-import { AppConfiguration } from '../config';
+import { getAppConfiguration } from '../config';
 
 /**
  * Route guard configuration
@@ -31,7 +31,7 @@ export function createProtectedRoute<T = any>(
 ) {
   return async (request: Request): Promise<Response> => {
     const origin = getRequestOrigin(request);
-    const environment = AppConfiguration.environment;
+const environment = getAppConfiguration().environment;
 
     try {
       // 1. Apply general security middleware
