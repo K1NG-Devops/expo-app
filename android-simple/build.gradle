@@ -6,7 +6,7 @@ buildscript {
     minSdkVersion = 23
     compileSdkVersion = 34
     targetSdkVersion = 34
-    ndkVersion = "25.1.8937393"
+    ndkVersion = "26.3.11579264"
     kotlinVersion = "1.9.24"
   }
   repositories {
@@ -33,12 +33,12 @@ allprojects {
   repositories {
     maven {
       // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
-      url(reactNativeAndroidDir)
+      url = uri(reactNativeAndroidDir)
     }
     
     google()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
+    maven { url = uri('https://www.jitpack.io') }
   }
 }
 
