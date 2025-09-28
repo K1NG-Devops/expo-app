@@ -574,7 +574,7 @@ export default function SuperAdminAdminManagementScreen() {
                       borderColor: formData.role === role.value ? role.color : '#374151'
                     }
                   ]}
-                  onPress={() => setFormData(prev => ({ ...prev, role: role.value }))}
+onPress={() => setFormData(prev => ({ ...prev, role: role.value as any }))}
                 >
                   <View style={styles.roleOptionContent}>
                     <Text style={[styles.roleOptionTitle, { 

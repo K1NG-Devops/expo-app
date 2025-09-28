@@ -1,5 +1,6 @@
 // Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
@@ -8,6 +9,12 @@ const config = getDefaultConfig(__dirname);
 config.resolver.platforms = ['ios', 'android', 'web'];
 
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
+
+// Force a single React and ReactDOM to avoid nested copies (e.g., under sentry-expo)
+config.resolver.extraNodeModules = {
+  react: path.resolve(__dirname, 'node_modules/react'),
+  'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+};
 
 // Exclude debug/test/mock files from production bundle
 const exclusionList = require('metro-config/src/defaults/exclusionList');

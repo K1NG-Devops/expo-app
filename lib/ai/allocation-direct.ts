@@ -100,8 +100,9 @@ export async function getSchoolAISubscriptionDirect(preschoolId: string): Promis
 
     // Extract tier from active subscription plan
     const activeSub = school.subscriptions[0];
-    const subscriptionPlan = activeSub?.subscription_plans;
-    const tier = subscriptionPlan?.tier || school.subscription_tier || 'free';
+    const subscriptionPlan = activeSub?.subscription_plans as any;
+    const planTier = Array.isArray(subscriptionPlan) ? subscriptionPlan[0]?.tier : subscriptionPlan?.tier;
+    const tier = planTier || school.subscription_tier || 'free';
     
     const baseQuotas = getBaseQuotasByTier(tier);
 

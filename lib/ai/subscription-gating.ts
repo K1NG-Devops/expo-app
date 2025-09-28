@@ -91,8 +91,10 @@ async function getOrganizationTier(
       .limit(1)
       .maybeSingle()
 
-    if (subscription?.subscription_plans?.tier) {
-      return subscription.subscription_plans.tier as SubscriptionTier
+    const planObj = (subscription as any)?.subscription_plans;
+    const planTier = Array.isArray(planObj) ? planObj[0]?.tier : planObj?.tier;
+    if (planTier) {
+      return planTier as SubscriptionTier
     }
 
     // Fallback to legacy fields

@@ -7,6 +7,9 @@ import { z } from 'zod';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 
+// Temporary declaration to satisfy TypeScript in app context
+declare function withTenantContext<T>(schoolId: string, fn: (context: any, queryBuilder?: any) => Promise<T>): Promise<T>;
+
 // ============================================================================
 // ZOD SCHEMAS FOR VALIDATION
 // ============================================================================

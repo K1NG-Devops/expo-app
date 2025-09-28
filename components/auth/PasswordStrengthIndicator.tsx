@@ -120,9 +120,9 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
         ]}>
           <View style={[
             styles.strengthBarFill,
-            {
+              {
               backgroundColor: strengthConfig.color,
-              width: strengthConfig.width
+              width: strengthConfig.width as any
             }
           ]} />
         </View>

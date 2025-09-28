@@ -106,10 +106,8 @@ class SoundAlertService {
       // Configure audio session
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
-        interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_MIX_WITH_OTHERS,
         playsInSilentModeIOS: true,
         shouldDuckAndroid: true,
-        interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DUCK_OTHERS,
         playThroughEarpieceAndroid: false,
       });
 
@@ -466,10 +464,10 @@ class SoundAlertService {
    */
   private async getSystemNotificationSettings(): Promise<{ alertsEnabled: boolean }> {
     try {
-      const permissions = await Notifications.getPermissionsAsync();
-      return {
-        alertsEnabled: permissions.status === 'granted' && permissions.canAlert,
-      };
+        const permissions = await Notifications.getPermissionsAsync();
+        return {
+          alertsEnabled: permissions.status === 'granted',
+        };
     } catch (error) {
       console.error('Failed to get system notification settings:', error);
       return { alertsEnabled: true }; // Default to enabled

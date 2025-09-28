@@ -303,7 +303,7 @@ export const useAutoRefresh = (refreshThreshold: number = 300) => { // 5 minutes
     if (!session?.expires_at) return;
 
     const timeUntilExpiry = session.expires_at - Date.now() / 1000;
-    let refreshTimer: NodeJS.Timeout | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     
     if (timeUntilExpiry <= refreshThreshold && timeUntilExpiry > 0) {
       refreshTimer = setTimeout(async () => {
