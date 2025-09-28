@@ -18,6 +18,16 @@
         ],
         "listUnknownPackages": false
       }
+    },
+    "install": {
+      "exclude": [
+        "react",
+        "react-dom",
+        "react-native",
+        "expo-router",
+        "@react-native-community/datetimepicker",
+        "@types/react"
+      ]
     }
   },
   "scripts": {
@@ -52,7 +62,7 @@
     "@expo/ngrok": "^4.1.3",
     "@picovoice/porcupine-react-native": "^3.0.4",
     "@react-native-async-storage/async-storage": "2.1.2",
-    "@react-native-community/datetimepicker": "8.4.1",
+    "@react-native-community/datetimepicker": "8.4.5",
     "@react-native-community/netinfo": "^11.4.1",
     "@react-native-community/slider": "4.5.6",
     "@react-native-picker/picker": "2.11.1",
@@ -86,7 +96,7 @@
     "expo-localization": "~16.1.6",
     "expo-notifications": "~0.31.4",
     "expo-print": "~14.1.4",
-    "expo-router": "~5.1.7",
+    "expo-router": "~3.5.0",
     "expo-secure-store": "~14.2.4",
     "expo-sharing": "~13.1.5",
     "expo-speech": "~13.1.7",
@@ -97,10 +107,10 @@
     "i18next-browser-languagedetector": "^8.2.0",
     "js-yaml": "^4.1.0",
     "posthog-react-native": "^4.3.2",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "react-i18next": "^15.7.3",
-    "react-native": "0.79.5",
+    "react-native": "0.76.6",
     "react-native-chart-kit": "^6.12.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-google-mobile-ads": "^14.11.0",
@@ -116,17 +126,15 @@
     "zod": "^4.1.11"
   },
   "overrides": {
-    "@expo/config-plugins": "~10.1.1",
-    "@expo/prebuild-config": "~9.0.0",
-    "metro": "^0.82.0",
-    "metro-resolver": "^0.82.0",
-    "metro-config": "^0.82.0"
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-native": "0.76.6"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@eslint/js": "^9.35.0",
     "@types/jest": "^30.0.0",
-    "@types/react": "~19.0.10",
+    "@types/react": "~18.3.24",
     "@typescript-eslint/eslint-plugin": "^8.43.0",
     "@typescript-eslint/parser": "^8.43.0",
     "eslint": "^9.35.0",
