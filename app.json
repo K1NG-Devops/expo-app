@@ -85,7 +85,13 @@
       "bundler": "metro"
     },
     "extra": {
+<<<<<<< HEAD
       "router": {},
+=======
+      "router": {
+        "origin": false
+      },
+>>>>>>> f8333d8 (New project)
       "eas": {
         "projectId": "eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
       }
