@@ -7,7 +7,7 @@ buildscript {
     compileSdkVersion = 35
     targetSdkVersion = 34
     ndkVersion = "26.3.11579264"
-    // Using default Kotlin version for Expo SDK 53
+    kotlinVersion = "1.8.22"
   }
   repositories {
     google()
@@ -16,7 +16,7 @@ buildscript {
   dependencies {
     classpath('com.android.tools.build:gradle:8.2.1')
     classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     classpath('com.google.gms:google-services:4.4.1')
   }
 }
