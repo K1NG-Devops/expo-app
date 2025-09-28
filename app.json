@@ -47,8 +47,7 @@
       "expo-router",
       "sentry-expo",
       "expo-localization",
-      "expo-secure-store",
-      "expo-build-properties"
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": false
