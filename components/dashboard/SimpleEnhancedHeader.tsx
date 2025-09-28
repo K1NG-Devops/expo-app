@@ -3,6 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
+import { useSubscription } from '@/contexts/SubscriptionContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { router } from 'expo-router'
+import TierBadge from '@/components/ui/TierBadge'
 
 interface SimpleEnhancedHeaderProps {
   userName?: string
@@ -19,6 +23,9 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   onWhatsAppPress,
   onProfilePress
 }) => {
+  const { tier: ctxTier } = useSubscription()
+  const { profile } = useAuth()
+  const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
   const { t } = useTranslation('common')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [weatherGreeting, setWeatherGreeting] = useState('')
@@ -43,7 +50,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   }, [t])
 
   const getTierInfo = () => {
-    switch (tier) {
+    switch (effectiveTier) {
       case 'pro':
         return {
           label: 'Pro',
@@ -120,28 +127,8 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
             
             {/* Tier and Role Info */}
             <View style={styles.infoRow}>
-              <View style={[styles.tierBadge, { backgroundColor: `${tierInfo.color}20` }]}>
-                <Ionicons 
-                  name={tierInfo.icon} 
-                  size={12} 
-                  color={tierInfo.color} 
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.tierText, { color: tierInfo.color }]}>
-                  {t('dashboard.tierLabel', { tier: tierInfo.label })}
-                </Text>
-              </View>
-              
-              {tier === 'free' && (
-                <TouchableOpacity 
-                  style={styles.upgradeHint}
-                  onPress={() => console.log('Navigate to pricing')}
-                >
-                  <Text style={styles.upgradeText}>
-                    {t('dashboard.upgradeHint')}
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Unified Tier Badge component */}
+              <TierBadge showManageButton size="md" />
             </View>
 
             {/* Children Count */}

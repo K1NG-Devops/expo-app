@@ -10,10 +10,12 @@ import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { router } from 'expo-router';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
 import ProfileImageService from '@/services/ProfileImageService';
+import TierBadge from '@/components/ui/TierBadge';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -63,6 +65,7 @@ export function RoleBasedHeader({
   const { user } = useAuth();
   const permissions = usePermissions();
   const { theme, mode, toggleTheme } = useTheme();
+  const { tier } = useSubscription();
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
 
@@ -226,6 +229,24 @@ export function RoleBasedHeader({
     </View>
   ) : null;
 
+  // Tier chip
+  const tierColor = ((): string => {
+    const t = String(tier || '').toLowerCase();
+    if (t === 'starter') return '#059669';
+    if (t === 'basic') return '#10B981';
+    if (t === 'premium') return '#7C3AED';
+    if (t === 'pro') return '#2563EB';
+    if (t === 'enterprise') return '#DC2626';
+    return '#6B7280';
+  })();
+  const tierLabel = ((): string => {
+    const t = String(tier || '').toLowerCase();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Free';
+  })();
+  const tierChip = (
+    <TierBadge size="sm" showManageButton />
+  );
+
   return (
     <View style={[
       styles.container,
@@ -317,6 +338,18 @@ export function RoleBasedHeader({
 
         {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
+          {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
+            <TouchableOpacity
+              style={[styles.managePlanBtn, { borderColor: theme.primary }]}
+              onPress={() => {
+                if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
+                else router.push('/pricing')
+              }}
+              accessibilityLabel="Manage subscription plan"
+            >
+              <Ionicons name="pricetags-outline" size={14} color={theme.primary} />
+            </TouchableOpacity>
+          )}
           {/* Dashboard layout toggle (replaces theme toggle) */}
           <TouchableOpacity
             style={[styles.themeButton, { marginRight: 8 }]}
@@ -523,6 +556,26 @@ const styles = StyleSheet.create({
   themeIndicator: {
     fontSize: 12,
     marginLeft: 'auto',
+  },
+  tierChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginRight: 8,
+  },
+  tierChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  managePlanBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   menuOverlay: {
     flex: 1,

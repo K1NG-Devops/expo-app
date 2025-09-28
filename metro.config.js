@@ -42,15 +42,4 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-// Add symbolication workaround to prevent ENOENT errors with <anonymous> files
-config.symbolicator = {
-  customizeFrame: (frame) => {
-    // Skip symbolication for <anonymous> files to prevent ENOENT errors
-    if (frame.file && frame.file.includes('<anonymous>')) {
-      return null;
-    }
-    return frame;
-  },
-};
-
 module.exports = config;

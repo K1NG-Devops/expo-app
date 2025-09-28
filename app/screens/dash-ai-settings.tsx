@@ -16,6 +16,7 @@ import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 
 
 export default function DashAISettingsScreen() {
@@ -92,17 +93,9 @@ export default function DashAISettingsScreen() {
       console.log('📋 Loaded settings from DashAI:', loadedSettings);
       
       // Load persisted settings
-      try {
-        const ww = await AsyncStorage.getItem('@dash_ai_in_app_wake_word');
-        if (ww != null) {
-          loadedSettings.inAppWakeWord = ww === 'true';
-        }
-        
-        const enterToSend = await AsyncStorage.getItem('@dash_ai_enter_to_send');
-        if (enterToSend != null) {
-          loadedSettings.enterToSend = enterToSend === 'true';
-        }
-      } catch {}
+      await loadSettingsFromPersistentStorage(loadedSettings);
+      
+      setSettings(loadedSettings);
 
       // Load available voices for the platform
       try {
@@ -129,43 +122,37 @@ export default function DashAISettingsScreen() {
       const changedKeys = Object.keys(newSettings);
       console.log('🔄 Settings changed:', changedKeys.join(', '));
       
-      // Auto-save to DashAI service
-      if (newSettings.voiceLanguage || newSettings.voiceRate || newSettings.voicePitch || newSettings.personality) {
+      // Auto-save all settings types
+      await saveSettingsToPersistentStorage(newSettings);
+      
+      // Auto-save to DashAI service for personality and voice settings
+      if (newSettings.voiceLanguage || newSettings.voiceRate || newSettings.voicePitch || newSettings.personality || newSettings.voiceEnabled) {
+        const updatedSettings = { ...settings, ...newSettings };
         const dashPersonality = {
           personality_traits: [
-            newSettings.personality || 'encouraging',
+            updatedSettings.personality || 'encouraging',
             'educational',
             'supportive'
           ],
-          response_style: (newSettings.personality === 'professional' ? 'professional' : 
-                           newSettings.personality === 'casual' ? 'casual' : 
-                           newSettings.personality === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
+          response_style: (updatedSettings.personality === 'professional' ? 'professional' : 
+                           updatedSettings.personality === 'casual' ? 'casual' : 
+                           updatedSettings.personality === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
           voice_settings: {
-            language: newSettings.voiceLanguage || 'en-ZA',
-            rate: newSettings.voiceRate || 1.0,
-            pitch: newSettings.voicePitch || 1.0,
+            language: updatedSettings.voiceLanguage || updatedSettings.voiceSettings?.language || 'en-ZA',
+            rate: updatedSettings.voiceRate || updatedSettings.voiceSettings?.rate || 1.0,
+            pitch: updatedSettings.voicePitch || updatedSettings.voiceSettings?.pitch || 1.0,
+            enabled: updatedSettings.voiceEnabled !== undefined ? updatedSettings.voiceEnabled : true
           }
         };
         
         await dashAI.savePersonality(dashPersonality);
         console.log('✅ Settings auto-saved to DashAI:', newSettings);
         
-        // Show brief success feedback for personality/voice changes
-      // Save persistent settings to AsyncStorage
-      if (newSettings.inAppWakeWord !== undefined) {
-        try {
-          await AsyncStorage.setItem('@dash_ai_in_app_wake_word', String(newSettings.inAppWakeWord));
-        } catch {}
-      }
-      
-      if (newSettings.enterToSend !== undefined) {
-        try {
-          await AsyncStorage.setItem('@dash_ai_enter_to_send', String(newSettings.enterToSend));
-        } catch {}
-      }
-
-      if (newSettings.personality) {
-          Alert.alert('Personality Updated', `Dash is now using the ${newSettings.personality} personality style.`, [{ text: 'OK' }]);
+        // Show brief success feedback for important changes
+        if (newSettings.personality) {
+          showSettingsToast(`Personality updated to ${newSettings.personality}`);
+        } else if (newSettings.voiceEnabled !== undefined) {
+          showSettingsToast(`Voice ${newSettings.voiceEnabled ? 'enabled' : 'disabled'}`);
         }
       }
       
@@ -173,6 +160,107 @@ export default function DashAISettingsScreen() {
     } catch (_error) {
       console.error('Failed to update settings:', _error);
       Alert.alert('Settings Error', 'Settings were updated locally but may not be saved permanently. Please try again.');
+    }
+  };
+
+  const saveSettingsToPersistentStorage = async (newSettings: any) => {
+    const settingsToSave = [
+      { key: '@dash_ai_voice_enabled', value: 'voiceEnabled' },
+      { key: '@dash_ai_memory_enabled', value: 'memoryEnabled' },
+      { key: '@dash_ai_proactive_help', value: 'proactiveHelp' },
+      { key: '@dash_ai_in_app_wake_word', value: 'inAppWakeWord' },
+      { key: '@dash_ai_enter_to_send', value: 'enterToSend' },
+      { key: '@dash_ai_personality', value: 'personality' },
+    ];
+
+    for (const { key, value } of settingsToSave) {
+      if (newSettings[value] !== undefined) {
+        try {
+          await AsyncStorage.setItem(key, String(newSettings[value]));
+          console.log(`✅ Saved ${key}:`, newSettings[value]);
+        } catch (error) {
+          console.warn(`Failed to save ${key}:`, error);
+        }
+      }
+    }
+  };
+
+  const loadSettingsFromPersistentStorage = async (loadedSettings: any) => {
+    const settingsToLoad = [
+      { key: '@dash_ai_voice_enabled', value: 'voiceEnabled', default: true },
+      { key: '@dash_ai_memory_enabled', value: 'memoryEnabled', default: true },
+      { key: '@dash_ai_proactive_help', value: 'proactiveHelp', default: true },
+      { key: '@dash_ai_in_app_wake_word', value: 'inAppWakeWord', default: false },
+      { key: '@dash_ai_enter_to_send', value: 'enterToSend', default: true },
+      { key: '@dash_ai_personality', value: 'personality', default: 'encouraging' },
+    ];
+
+    for (const { key, value, default: defaultValue } of settingsToLoad) {
+      try {
+        const storedValue = await AsyncStorage.getItem(key);
+        if (storedValue !== null) {
+          if (typeof defaultValue === 'boolean') {
+            loadedSettings[value] = storedValue === 'true';
+          } else {
+            loadedSettings[value] = storedValue;
+          }
+          console.log(`💾 Loaded ${key}:`, loadedSettings[value]);
+        }
+      } catch (error) {
+        console.warn(`Failed to load ${key}:`, error);
+      }
+    }
+  };
+
+  const showSettingsToast = (message: string) => {
+    // Simple alert for now - could be replaced with toast library
+    console.log('🔊 Settings feedback:', message);
+  };
+
+  // Manual save function with user feedback
+  const manualSave = async () => {
+    try {
+      const settingsData = {
+        voiceEnabled: settings.voiceEnabled,
+        speechSpeed: settings.voiceSettings?.rate || 1.0,
+        speechVolume: settings.voiceSettings?.volume || 0.8,
+        preferredLanguage: settings.voiceSettings?.language || 'en-ZA',
+        memoryEnabled: settings.memoryEnabled,
+        personality: settings.personality,
+        proactiveHelp: settings.proactiveHelp,
+        enterToSend: settings.enterToSend,
+        inAppWakeWord: settings.inAppWakeWord
+      };
+      
+      // Save to persistent storage
+      await AsyncStorage.setItem('@dash_ai_settings_backup', JSON.stringify(settingsData));
+      
+      // Also trigger the regular save process
+      await saveSettingsToPersistentStorage(settingsData);
+      
+      // Save to DashAI service
+      const dashPersonality = {
+        personality_traits: [
+          settings.personality || 'encouraging',
+          'educational',
+          'supportive'
+        ],
+        response_style: settings.personality || 'encouraging',
+        voice_settings: {
+          language: settings.voiceSettings?.language || 'en-ZA',
+          rate: settings.voiceSettings?.rate || 1.0,
+          pitch: settings.voiceSettings?.pitch || 1.0,
+          enabled: settings.voiceEnabled
+        }
+      };
+      
+      await dashAI.savePersonality(dashPersonality);
+      
+      Alert.alert('Settings Saved', 'All settings have been saved successfully!');
+      console.log('✅ Manual save completed successfully');
+    } catch (error) {
+      Alert.alert('Save Error', 'Failed to save settings. Please try again.');
+      console.error('❌ Manual save failed:', error);
     }
   };
 
@@ -372,6 +460,25 @@ export default function DashAISettingsScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
+        {/* Save Status and Manual Save */}
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.saveHeader}>
+            <View style={styles.saveStatus}>
+              <View style={[styles.saveIndicator, { backgroundColor: theme.success }]} />
+              <Text style={[styles.saveStatusText, { color: theme.textSecondary }]}>
+                Settings auto-save enabled
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.manualSaveButton, { backgroundColor: theme.primary }]}
+              onPress={manualSave}
+            >
+              <Ionicons name="save-outline" size={16} color={theme.onPrimary} />
+              <Text style={[styles.manualSaveText, { color: theme.onPrimary }]}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Quick Actions */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>Quick Actions</Text>
@@ -846,6 +953,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   personalityButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  saveHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  saveStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  saveIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  saveStatusText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  manualSaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    gap: 4,
+  },
+  manualSaveText: {
     fontSize: 12,
     fontWeight: '600',
   },

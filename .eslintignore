@@ -1,0 +1,10 @@
+node_modules/
+docs/
+android/
+android-simple/
+.expo/
+dist/
+build/
+*.log
+*.tgz
+.DS_Store

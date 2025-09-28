@@ -256,7 +256,7 @@ export default function SuperAdminUsersScreen() {
                 // Suspend user using RPC function
                 const { data: suspendResult, error: suspendError } = await assertSupabase()
                   .rpc('superadmin_suspend_user', {
-                    target_user_id: user.auth_user_id,
+target_user_id: (user as any).auth_user_id,
                     reason: 'Administrative suspension by super admin'
                   });
 
@@ -271,7 +271,7 @@ export default function SuperAdminUsersScreen() {
                 // Reactivate user using RPC function
                 const { data: reactivateResult, error: reactivateError } = await assertSupabase()
                   .rpc('superadmin_reactivate_user', {
-                    target_user_id: user.auth_user_id,
+target_user_id: (user as any).auth_user_id,
                     reason: 'Administrative reactivation by super admin'
                   });
 
@@ -322,7 +322,7 @@ export default function SuperAdminUsersScreen() {
               // Update user role using RPC function
               const { data: updateResult, error: updateError } = await assertSupabase()
                 .rpc('superadmin_update_user_role', {
-                  target_user_id: user.auth_user_id,
+target_user_id: (user as any).auth_user_id,
                   new_role: newRole,
                   reason: 'Administrative role change by super admin'
                 });
@@ -372,7 +372,7 @@ export default function SuperAdminUsersScreen() {
               // Request user deletion using RPC function
               const { data: deleteResult, error: deleteError } = await assertSupabase()
                 .rpc('superadmin_request_user_deletion', {
-                  target_user_id: user.auth_user_id,
+target_user_id: (user as any).auth_user_id,
                   deletion_reason: 'Administrative deletion request by super admin'
                 });
 

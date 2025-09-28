@@ -151,6 +151,35 @@ export interface TeacherDashboardData {
   }>;
 }
 
+export interface ParentDashboardData {
+  schoolName: string;
+  totalChildren: number;
+  children: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    grade: string;
+    className: string;
+    teacher: string;
+  }>;
+  attendanceRate: number;
+  presentToday: number;
+  recentHomework: Array<{
+    id: string;
+    title: string;
+    dueDate: string;
+    status: 'submitted' | 'graded' | 'not_submitted';
+    studentName: string;
+  }>;
+  upcomingEvents: Array<{
+    id: string;
+    title: string;
+    time: string;
+    type: 'meeting' | 'activity' | 'assessment';
+  }>;
+  unreadMessages: number;
+}
+
 // Helper function to create empty dashboard data
 const createEmptyPrincipalData = (schoolName: string = 'No School Assigned'): PrincipalDashboardData => ({
   schoolName,
@@ -173,6 +202,17 @@ const createEmptyTeacherData = (): TeacherDashboardData => ({
   myClasses: [],
   recentAssignments: [],
   upcomingEvents: []
+});
+
+const createEmptyParentData = (): ParentDashboardData => ({
+  schoolName: 'No School Assigned',
+  totalChildren: 0,
+  children: [],
+  attendanceRate: 0,
+  presentToday: 0,
+  recentHomework: [],
+  upcomingEvents: [],
+  unreadMessages: 0
 });
 
 /**
@@ -1086,6 +1126,266 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
             id: 'error-notice',
             type: 'event', 
             message: `Teacher data error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            time: 'Just now'
+          }
+        ]
+      } as any);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, authLoading]);
+
+  useEffect(() => {
+    // Only fetch data if auth is not loading
+    if (!authLoading) {
+      fetchData();
+    }
+  }, [fetchData, authLoading]);
+
+  const refresh = useCallback(() => {
+    fetchData(true); // Force refresh from server
+  }, [fetchData]);
+
+  return { data, loading, error, refresh, isLoadingFromCache };
+};
+
+/**
+ * Hook for fetching Parent dashboard data
+ */
+export const useParentDashboard = () => {
+  const { user, loading: authLoading } = useAuth();
+  const [data, setData] = useState<ParentDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Wait for auth to complete loading before proceeding
+      if (authLoading) {
+        log('🔄 Waiting for auth to complete...');
+        setLoading(false);
+        return;
+      }
+
+      // Try to load from cache first (unless forced refresh)
+      if (!forceRefresh && user?.id) {
+        setIsLoadingFromCache(true);
+const cachedData = await offlineCacheService.getParentDashboard(
+          user.id
+        );
+        
+        if (cachedData) {
+          log('📱 Loading parent data from cache...');
+          setData(cachedData);
+          setLoading(false);
+          setIsLoadingFromCache(false);
+          // Continue to fetch fresh data in background
+          setTimeout(() => fetchData(true), 100);
+          return;
+        }
+        setIsLoadingFromCache(false);
+      }
+
+      if (!user?.id) {
+        if (!authLoading) {
+          // Auth has completed but no user - this is a real auth error
+          throw new Error('User not authenticated');
+        }
+        // Auth still loading, just return
+        setLoading(false);
+        return;
+      }
+      
+      // Ensure we have Supabase configured
+      const supabase = assertSupabase();
+      
+      // Verify authentication state
+      const { data: authCheck } = await supabase.auth.getUser();
+      if (!authCheck.user) {
+        throw new Error('Authentication session invalid');
+      }
+
+      // Fetch parent user from profiles table
+      const { data: parentUser, error: parentError } = await supabase
+        .from('profiles')
+        .select('id, preschool_id, first_name, last_name, role, organization_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (parentError) {
+        logError('Parent user fetch error:', parentError);
+      }
+
+      let dashboardData: ParentDashboardData;
+
+      if (parentUser) {
+        const schoolId = (parentUser as any).preschool_id || (parentUser as any).organization_id;
+        let schoolName = 'Unknown School';
+        
+        if (schoolId) {
+          const { data: school } = await supabase
+            .from('preschools')
+            .select('id, name')
+            .eq('id', schoolId)
+            .maybeSingle();
+          
+          // If not found in preschools, try organizations
+          if (!school) {
+            const { data: org } = await supabase
+              .from('organizations')
+              .select('id, name')
+              .eq('id', schoolId)
+              .maybeSingle();
+            schoolName = org?.name || schoolName;
+          } else {
+            schoolName = school.name || schoolName;
+          }
+        }
+
+        // Fetch children for this parent
+        const { data: childrenData } = await supabase
+          .from('students')
+          .select(`
+            id,
+            first_name,
+            last_name,
+            grade_level,
+            student_class:classes(id, name, teacher:users(first_name, last_name))
+          `)
+          .eq('parent_id', user.id);
+
+        const children = (childrenData || []).map((child: any) => ({
+          id: child.id,
+          firstName: child.first_name,
+          lastName: child.last_name,
+          grade: child.grade_level || 'Grade R',
+          className: child.student_class?.name || 'No Class',
+          teacher: child.student_class?.teacher ? 
+            `${child.student_class.teacher.first_name} ${child.student_class.teacher.last_name}` : 
+            'No Teacher Assigned'
+        }));
+
+        // Get today's attendance for all children
+        const today = new Date().toISOString().split('T')[0];
+        const childIds = children.map(child => child.id);
+        
+        let todayAttendanceData: any[] = [];
+        if (childIds.length > 0) {
+          const { data: attendanceData } = await supabase
+            .from('attendance_records')
+            .select('student_id, status')
+            .in('student_id', childIds)
+            .gte('date', today + 'T00:00:00')
+            .lt('date', today + 'T23:59:59');
+          
+          todayAttendanceData = attendanceData || [];
+        }
+
+        // Fetch recent homework assignments for children
+        const { data: assignmentsData } = await supabase
+          .from('homework_assignments')
+          .select(`
+            id,
+            title,
+            due_date,
+            homework_submissions!inner(
+              id,
+              status,
+              student_id
+            )
+          `)
+          .in('homework_submissions.student_id', childIds)
+          .order('due_date', { ascending: false })
+          .limit(5);
+
+        // Fetch upcoming events for the school
+        const { data: eventsData } = await supabase
+          .from('events')
+          .select('id, title, event_date, event_type, description')
+          .eq('preschool_id', schoolId)
+          .gte('event_date', new Date().toISOString())
+          .order('event_date', { ascending: true })
+          .limit(5);
+
+        // Process attendance data
+        const totalChildren = children.length;
+        const presentToday = todayAttendanceData.filter(a => a.status === 'present').length;
+        const attendanceRate = totalChildren > 0 ? Math.round((presentToday / totalChildren) * 100) : 0;
+
+        // Process homework data
+        const recentHomework = (assignmentsData || []).map((assignment: any) => {
+          const submission = assignment.homework_submissions?.[0];
+          return {
+            id: assignment.id,
+            title: assignment.title,
+            dueDate: formatDueDate(assignment.due_date),
+            status: submission?.status || 'not_submitted' as 'submitted' | 'graded' | 'not_submitted',
+            studentName: children.find(child => child.id === submission?.student_id)?.firstName || 'Unknown'
+          };
+        });
+
+        // Process upcoming events
+        const upcomingEvents = (eventsData || []).map((event: any) => {
+          const eventDate = new Date(event.event_date);
+          const now = new Date();
+          const diffInHours = Math.floor((eventDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+          
+          let timeStr = '';
+          if (diffInHours < 24) {
+            timeStr = diffInHours <= 2 ? 'Soon' : `In ${diffInHours} hours`;
+          } else {
+            const diffInDays = Math.floor(diffInHours / 24);
+            timeStr = diffInDays === 1 ? 'Tomorrow' : `In ${diffInDays} days`;
+          }
+          
+          return {
+            id: event.id,
+            title: event.title,
+            time: timeStr,
+            type: (event.event_type || 'event') as 'meeting' | 'activity' | 'assessment'
+          };
+        });
+
+        dashboardData = {
+          schoolName,
+          totalChildren,
+          children,
+          attendanceRate,
+          presentToday,
+          recentHomework,
+          upcomingEvents,
+          unreadMessages: 0 // TODO: Implement messaging system
+        };
+
+        // Cache the fresh data for offline use
+        if (user?.id && schoolId) {
+await offlineCacheService.cacheParentDashboard(
+            user.id,
+            dashboardData
+          );
+          log('💾 Parent dashboard data cached for offline use');
+        }
+      } else {
+        // No parent record found, use empty data
+        dashboardData = createEmptyParentData();
+      }
+
+      setData(dashboardData);
+    } catch (err) {
+      logError('Failed to fetch parent dashboard data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      // Fallback to empty data on error
+      setData({
+        ...createEmptyParentData(),
+        recentActivity: [
+          {
+            id: 'error-notice',
+            type: 'event', 
+            message: `Parent data error: ${err instanceof Error ? err.message : 'Unknown error'}`,
             time: 'Just now'
           }
         ]

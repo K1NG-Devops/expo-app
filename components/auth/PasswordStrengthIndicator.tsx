@@ -120,9 +120,9 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
         ]}>
           <View style={[
             styles.strengthBarFill,
-            {
+              {
               backgroundColor: strengthConfig.color,
-              width: strengthConfig.width
+              width: strengthConfig.width as any
             }
           ]} />
         </View>
@@ -310,7 +310,6 @@ const styles = StyleSheet.create({
   strengthBarFill: {
     height: '100%',
     borderRadius: 3,
-    transition: 'width 0.3s ease',
   },
   strengthText: {
     textAlign: 'center',

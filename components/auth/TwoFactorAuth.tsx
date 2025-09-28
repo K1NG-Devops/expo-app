@@ -463,7 +463,10 @@ export const TwoFactorAuth: React.FC<TwoFactorAuthProps> = ({
               {
                 backgroundColor: theme.surface,
                 borderColor: theme.border,
-                color: theme.text
+                color: theme.text,
+                letterSpacing: 4,
+                fontSize: 20,
+                textAlign: 'center' as const,
               }
             ]}
             value={verificationState.code}
@@ -478,9 +481,6 @@ export const TwoFactorAuth: React.FC<TwoFactorAuthProps> = ({
             autoComplete="one-time-code"
             textContentType="oneTimeCode"
             autoCapitalize="characters"
-            textAlign="center"
-            fontSize={20}
-            letterSpacing={4}
           />
         </View>
         

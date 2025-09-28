@@ -6,7 +6,6 @@ import { TeacherDashboard as TeacherDashboardImpl } from './TeacherDashboard';
 import { NewEnhancedTeacherDashboard } from './NewEnhancedTeacherDashboard';
 
 interface TeacherDashboardWrapperProps {
-  // Add any props that should be passed to both dashboard components
   refreshTrigger?: number;
 }
 
@@ -32,7 +31,6 @@ export const TeacherDashboardWrapper: React.FC<TeacherDashboardWrapperProps> = (
         <NewEnhancedTeacherDashboard 
           key="enhanced"
           refreshTrigger={refreshTrigger}
-          preferences={preferences}
         />
       );
     case 'classic':
@@ -40,7 +38,6 @@ export const TeacherDashboardWrapper: React.FC<TeacherDashboardWrapperProps> = (
       return (
         <TeacherDashboardImpl 
           key="classic"
-          refreshTrigger={refreshTrigger}
         />
       );
   }

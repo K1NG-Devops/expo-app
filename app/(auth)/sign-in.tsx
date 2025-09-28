@@ -46,15 +46,43 @@ export default function SignIn() {
       const redirectTo = Linking.createURL('/auth-callback');
       // Map UI provider name to Supabase provider id
       const mapped = provider === 'microsoft' ? 'azure' : provider; // 'azure' for Microsoft
-      await supabase.auth.signInWithOAuth({
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: mapped as any,
         options: {
           redirectTo,
           skipBrowserRedirect: Platform.OS !== 'web' ? false : undefined,
         },
       });
+      
+      if (error) {
+        console.error('OAuth Error:', error);
+        let errorMessage = 'Failed to start social login';
+        
+        if (error.message?.includes('provider is not enabled') || 
+            error.message?.includes('Unsupported provider')) {
+          errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
+        } else if (error.message?.includes('redirect_uri')) {
+          errorMessage = 'OAuth configuration error. Please contact support.';
+        } else {
+          errorMessage = error.message;
+        }
+        
+        Alert.alert('Sign-in Unavailable', errorMessage);
+        return;
+      }
     } catch (e: any) {
-      Alert.alert('OAuth Error', e?.message || 'Failed to start social login');
+      console.error('OAuth Exception:', e);
+      let errorMessage = 'Failed to start social login';
+      
+      if (e?.message?.includes('provider is not enabled') || 
+          e?.message?.includes('Unsupported provider')) {
+        errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
+      } else {
+        errorMessage = e?.message || 'An unexpected error occurred';
+      }
+      
+      Alert.alert('Sign-in Error', errorMessage);
     }
   };
 

@@ -260,7 +260,7 @@ export function useRevenueCatCustomerInfo() {
     fetchCustomerInfo();
 
     // Set up listener for customer info updates
-    const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+    Purchases.addCustomerInfoUpdateListener((info) => {
       if (isMounted) {
         setCustomerInfo(info);
       }
@@ -268,7 +268,7 @@ export function useRevenueCatCustomerInfo() {
 
     return () => {
       isMounted = false;
-      listener.remove();
+      // No explicit unsubscribe available in this SDK wrapper
     };
   }, []);
 

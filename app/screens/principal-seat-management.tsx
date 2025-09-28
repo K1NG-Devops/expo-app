@@ -117,33 +117,27 @@ export default function PrincipalSeatManagementScreen() {
         }
       }
 
-      // Overlay seat assignment if we have a subscription id
-      // Note: subscription_seats.user_id references users.id, but teacherList.id is profiles.id (auth user ID)
+      // Use the fixed RPC function to get seat assignments
+      // This function now properly returns auth_user_id as user_id for comparison
       let seatSet = new Set<string>();
       if (subscriptionId) {
-        // Get both user_id from subscription_seats and auth_user_id from users table to map them
-        const { data: seatsData } = await assertSupabase()
-          .from('subscription_seats')
-          .select(`
-            user_id,
-            users!subscription_seats_user_id_fkey!inner(auth_user_id)
-          `)
-          .eq('subscription_id', subscriptionId)
-          .is('revoked_at', null); // Only active seats
-        
-        // Create set of auth user IDs (to match with teacherList.id)
-        seatSet = new Set((seatsData || []).map((r: any) => r.users?.auth_user_id).filter(Boolean));
-        
-        // Fallback: if embed didn't return auth_user_id, resolve via separate query
-        if ((seatsData?.length || 0) > 0 && seatSet.size === 0) {
-          const userIds: string[] = (seatsData || []).map((r: any) => r.user_id).filter(Boolean);
-          if (userIds.length > 0) {
-            const { data: mapped } = await assertSupabase()
-              .from('users')
-              .select('id, auth_user_id')
-              .in('id', userIds);
-            seatSet = new Set((mapped || []).map((u: any) => u.auth_user_id).filter(Boolean));
+        try {
+          const { data: seatsData, error: seatsError } = await assertSupabase()
+            .rpc('rpc_list_teacher_seats');
+            
+          if (!seatsError && seatsData) {
+            // The RPC now returns auth_user_id as user_id, and only active seats (revoked_at IS NULL)
+            seatSet = new Set(
+              seatsData
+                .filter((seat: any) => seat.revoked_at === null) // Only active seats
+                .map((seat: any) => seat.user_id)
+                .filter(Boolean)
+            );
+          } else if (seatsError) {
+            console.warn('Failed to load seats via RPC:', seatsError);
           }
+        } catch (rpcErr) {
+          console.warn('RPC call failed:', rpcErr);
         }
       }
 
@@ -388,16 +382,46 @@ export default function PrincipalSeatManagementScreen() {
                         style={[styles.smallBtn, styles.btnDanger, (pendingTeacherId === t.id || !subscriptionId) && styles.btnDisabled]}
                         disabled={pendingTeacherId === t.id || !subscriptionId}
                         onPress={async () => {
-                          if (!subscriptionId) { setError('No active subscription for this school'); return; }
+                          if (!subscriptionId) { 
+                            setError('No active subscription for this school'); 
+                            return; 
+                          }
+                          
+                          console.log('[Seat Revoke] Starting revoke for:', {
+                            teacherId: t.id,
+                            teacherEmail: t.email,
+                            subscriptionId
+                          });
+                          
                           try {
-                            setPendingTeacherId(t.id); setError(null); setSuccess(null);
+                            setPendingTeacherId(t.id); 
+                            setError(null); 
+                            setSuccess(null);
+                            
+                            // Call the revoke RPC function
                             await revokeSeat(subscriptionId, t.id);
-                            // Optimistically update before reload
-                            setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, hasSeat: false } : x));
+                            
+                            console.log('[Seat Revoke] RPC call successful');
+                            
+                            // Optimistically update UI before reload
+                            setTeachers(prev => prev.map(x => 
+                              x.id === t.id ? { ...x, hasSeat: false } : x
+                            ));
+                            
                             setSuccess(`Seat revoked for ${t.email}`);
+                            
+                            // Reload data from server to ensure consistency
+                            console.log('[Seat Revoke] Reloading teacher data...');
                             await loadTeachers();
-                            try { await refresh(); } catch {}
+                            
+                            // Try to refresh subscription context
+                            try { 
+                              await refresh(); 
+                            } catch (refreshErr) {
+                              console.warn('[Seat Revoke] Subscription refresh failed:', refreshErr);
+                            }
                           } catch (error: any) {
+                            console.error('[Seat Revoke] Failed:', error);
                             setError(error?.message || `Failed to revoke seat for ${t.email}`);
                           } finally {
                             setPendingTeacherId(null);

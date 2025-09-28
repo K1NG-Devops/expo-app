@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import { toast } from '@/components/ui/ToastProvider'
 import { DashAIAssistant } from '@/services/DashAIAssistant'
+import { EducationalPDFService } from '@/lib/services/EducationalPDFService'
 
 export default function AILessonGeneratorScreen() {
   const { theme } = useTheme()
@@ -37,14 +38,20 @@ export default function AILessonGeneratorScreen() {
   const [gradeLevel, setGradeLevel] = useState('3')
   const [duration, setDuration] = useState('45')
   const [objectives, setObjectives] = useState('Understand proper fractions; Compare simple fractions')
-  const searchParams = useLocalSearchParams<{ topic?: string; subject?: string; gradeLevel?: string; duration?: string; objectives?: string; autogenerate?: string; model?: string }>()
+  const [language, setLanguage] = useState<'en' | 'es' | 'fr' | 'pt' | 'de' | 'af' | 'zu' | 'st'>('en')
+  const searchParams = useLocalSearchParams<{ topic?: string; subject?: string; gradeLevel?: string; duration?: string; objectives?: string; autogenerate?: string; model?: string; language?: string }>()
   const [saving, setSaving] = useState(false)
   const { loading: generating, result, generate } = useLessonGenerator() as any
   const [pending, setPending] = useState(false)
   const [progress, setProgress] = useState(0)
   const [progressMessage, setProgressMessage] = useState('')
   const [usage, setUsage] = useState<{ lesson_generation: number; grading_assistance: number; homework_help: number }>({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+  const [quotaStatus, setQuotaStatus] = useState<{ used: number; limit: number; remaining: number } | null>(null)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
+  const [progressInterval, setProgressInterval] = useState<ReturnType<typeof setTimeout> | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [lastPayload, setLastPayload] = useState<any | null>(null)
+  const [attempt, setAttempt] = useState(0)
   
   // Use tier-based model selection
   const {
@@ -89,6 +96,13 @@ export default function AILessonGeneratorScreen() {
     (async () => {
       // Use combined usage to show accurate cross-device counts
       setUsage(await getCombinedUsage())
+      try {
+        const s = await getQuotaStatus('lesson_generation')
+        setQuotaStatus(s)
+      } catch (err) {
+        console.warn('[Lesson Generator] Failed to load quota status:', err)
+        setQuotaStatus(null)
+      }
     })()
   }, [])
 
@@ -100,12 +114,14 @@ export default function AILessonGeneratorScreen() {
     const d = (searchParams?.duration || '').trim();
     const o = (searchParams?.objectives || '').trim();
     const m = (searchParams?.model || '').trim();
+    const lang = (searchParams?.language || '').trim().toLowerCase();
     
     if (t) setTopic(t);
     if (s) setSubject(s);
     if (g && /^\d+$/.test(g)) setGradeLevel(g);
     if (d && /^\d+$/.test(d)) setDuration(d);
     if (o) setObjectives(o);
+    if (lang && ['en','es','fr','pt','de','af','zu','st'].includes(lang)) setLanguage(lang as any)
     
     // Set model from Dash if provided and valid
     if (m && (m === 'claude-3-haiku' || m === 'claude-3-sonnet' || m === 'claude-3-opus')) {
@@ -113,10 +129,8 @@ export default function AILessonGeneratorScreen() {
       setSelectedModel(m as any);
     }
 
-    const auto = String(searchParams?.autogenerate || '').toLowerCase();
-    if (auto === '1' || auto === 'true' || auto === 'yes') {
-      setTimeout(() => onGenerate(), 300);
-    }
+    // Explicitly ignore any autogenerate flags: user must press Generate
+    // This preserves the requirement for a manual confirmation action.
   }, [searchParams, setSelectedModel])
   
   // Cleanup on component unmount
@@ -131,14 +145,27 @@ export default function AILessonGeneratorScreen() {
 
   const buildDashPrompt = () => {
     const objs = (objectives || '').split(';').map(s => s.trim()).filter(Boolean)
+    const langSuffix = language && language !== 'en' ? `\nPlease respond in ${language}.` : ''
     return `Generate a ${Number(duration) || 45} minute lesson plan for Grade ${Number(gradeLevel) || 3} in ${subject} on the topic "${topic}".
 Learning objectives: ${objs.join('; ') || 'derive reasonable objectives'}.
-Provide a structured plan with objectives, warm-up, core activities, assessment ideas, and closure. Use clear bullet points.`
+Provide a structured plan with objectives, warm-up, core activities, assessment ideas, and closure. Use clear bullet points.${langSuffix}`
   }
 
   const onOpenWithDash = () => {
     const initialMessage = buildDashPrompt()
     router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+  }
+  
+  const onExportPDF = async () => {
+    try {
+      const title = `${subject}: ${topic}`
+      const content = (result?.text || generated?.description || '').trim()
+      if (!content) { Alert.alert('Export PDF', 'Please generate a lesson first.'); return }
+      await EducationalPDFService.generateTextPDF(title, content)
+      toast.success('PDF generated');
+    } catch (e: any) {
+      toast.error('Failed to generate PDF')
+    }
   }
   
   const onCancel = () => {
@@ -148,17 +175,31 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       setAbortController(null)
     }
     
+    // Clear progress interval
+    if (progressInterval) {
+      clearInterval(progressInterval)
+      setProgressInterval(null)
+    }
+    
     // Reset state
     setPending(false)
     setProgress(0)
     setProgressMessage('')
+    setErrorMsg(null)
     
     toast.info('Generation cancelled')
     track('edudash.ai.lesson.generate_cancelled', {})
   }
   
+  // Promise.race helper with timeout
+  async function invokeWithTimeout<T>(p: Promise<T>, ms = 30000): Promise<T> {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Request timed out after ${ms/1000}s`)), ms))
+    ])
+  }
 
-  const onGenerate = async () => {
+  const onGenerate = async (payloadOverride?: any) => {
     try {
       // Create abort controller for cancellation
       const controller = new AbortController()
@@ -167,6 +208,26 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       setPending(true)
       setProgress(0)
       setProgressMessage('Initializing...')
+
+      // Start progress ticker immediately to avoid "stuck at 10%"
+      // Clear any existing interval first
+      if (progressInterval) { clearInterval(progressInterval); setProgressInterval(null); }
+      const earlyInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev < 90) {
+            const inc = Math.random() * 6 + 2
+            const next = Math.min(prev + inc, 90)
+            if (next < 30) setProgressMessage('Preparing...')
+            else if (next < 50) setProgressMessage('Checking quota...')
+            else if (next < 70) setProgressMessage('Generating lesson structure...')
+            else if (next < 85) setProgressMessage('Creating activities and assessments...')
+            else setProgressMessage('Finalizing...')
+            return next
+          }
+          return prev
+        })
+      }, 600)
+      setProgressInterval(earlyInterval)
       
       if (!AI_ENABLED || flags.ai_lesson_generation === false) {
         toast.warn('AI Lesson Generator is disabled in this build.');
@@ -175,9 +236,18 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       
       setProgress(10)
       setProgressMessage('Checking quota...')
+      setErrorMsg(null)
       
-      // Enforce quota before making a request
-      const gate = await canUseFeature('lesson_generation', 1)
+      // Enforce quota before making a request, but don't block indefinitely
+      let gate: any = null
+      try {
+        gate = await invokeWithTimeout(canUseFeature('lesson_generation', 1), 10000)
+      } catch (gateErr) {
+        console.warn('[Lesson Generator] Quota check timed out; proceeding with server-side enforcement')
+        toast.info('Network is slow; proceeding. If you are over your quota, the server will block this request.')
+        gate = { allowed: true }
+      }
+
       if (!gate.allowed) {
         const status = await getQuotaStatus('lesson_generation')
         Alert.alert(
@@ -196,55 +266,43 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       track('edudash.ai.lesson.generate_started', {})
       
       // Use the same AI service architecture as Dash AI Assistant
-      const payload = {
+      const payload = payloadOverride || {
         action: 'lesson_generation',
         topic: topic || 'Lesson Topic',
         subject: subject || 'General Studies',
         gradeLevel: Number(gradeLevel) || 3,
         duration: Number(duration) || 45,
         objectives: (objectives || '').split(';').map(s => s.trim()).filter(Boolean),
-        language: 'en',
+        language: language || 'en',
         model: selectedModel || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
       };
+      setLastPayload(payload)
+      setAttempt(a => a + 1)
 
       setProgress(30)
       setProgressMessage('Connecting to AI service...')
       
       // Simulate progress updates during AI generation
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          if (prev < 90) {
-            const increment = Math.random() * 10 + 5;
-            const newProgress = Math.min(prev + increment, 90);
-            
-            if (newProgress < 50) {
-              setProgressMessage('Analyzing lesson requirements...');
-            } else if (newProgress < 70) {
-              setProgressMessage('Generating lesson structure...');
-            } else if (newProgress < 85) {
-              setProgressMessage('Creating activities and assessments...');
-            } else {
-              setProgressMessage('Finalizing lesson plan...');
-            }
-            
-            return newProgress;
-          }
-          return prev;
-        });
-      }, 500);
+      // Replace early interval with a slightly faster interval during AI call
+      if (progressInterval) { clearInterval(progressInterval); }
+      const interval = setInterval(() => {
+        setProgress(prev => (prev < 90 ? Math.min(prev + (Math.random() * 8 + 4), 90) : prev))
+      }, 500)
+      setProgressInterval(interval)
 
       // Check if cancelled before making API call
       if (controller.signal.aborted) {
         throw new Error('Generation cancelled')
       }
       
-      const { data, error } = await assertSupabase().functions.invoke('ai-gateway', { 
+      const invokePromise = assertSupabase().functions.invoke('ai-gateway', { 
         body: payload,
-        // Note: Supabase client doesn't support AbortSignal directly
-        // but we check for cancellation at key points
-      });
+      }) as Promise<{ data: any; error: any }>
+
+      const { data, error } = await invokeWithTimeout(invokePromise, 30000)
       
-      clearInterval(progressInterval);
+      if (interval) clearInterval(interval);
+      setProgressInterval(null);
       setProgress(95)
       setProgressMessage('Processing results...')
       
@@ -313,6 +371,11 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       // Update usage stats display - use local data for now
       const localUsageAfterGeneration = await getUsage()
       setUsage(localUsageAfterGeneration)
+      // Refresh quota status after counting usage
+      try {
+        const sAfter = await getQuotaStatus('lesson_generation')
+        setQuotaStatus(sAfter)
+      } catch {}
       console.log('[Lesson Generator] Updated display with local usage:', localUsageAfterGeneration)
       
       // Show success toast
@@ -325,10 +388,16 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       track('edudash.ai.lesson.generate_completed', {})
     } catch (e: any) {
       track('edudash.ai.lesson.generate_failed', { error: e?.message })
-      toast.error(`Generation failed: ${e?.message || 'Please try again'}`)
+      const message = e?.message || 'Please try again'
+      setErrorMsg(message)
+      toast.error(`Generation failed: ${message}`)
     } finally {
-      // Clean up abort controller
+      // Clean up abort controller and progress interval
       setAbortController(null)
+      if (progressInterval) {
+        try { clearInterval(progressInterval) } catch {}
+        setProgressInterval(null)
+      }
       setPending(false)
       setSaving(false)
       setProgress(0)
@@ -373,6 +442,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       <ScreenHeader 
         title="AI Lesson Generator" 
         subtitle="Create AI-powered lesson plans" 
+        showBackButton={true}
       />
 
       {/* Dash-styled header row */}
@@ -382,6 +452,10 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         </View>
         <Text style={[styles.dashTitleText, { color: palette.text }]}>Dash • Lesson Generator</Text>
         <View style={{ flex: 1 }} />
+        <TouchableOpacity style={[styles.openWithDashBtn, { borderColor: palette.outline, marginRight: 8 }]} onPress={onExportPDF}>
+          <Ionicons name="document-outline" size={16} color={palette.text} />
+          <Text style={[styles.openWithDashText, { color: palette.text }]}>Export PDF</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.openWithDashBtn, { borderColor: palette.outline }]} onPress={onOpenWithDash}>
           <Ionicons name="chatbubbles-outline" size={16} color={palette.text} />
           <Text style={[styles.openWithDashText, { color: palette.text }]}>Open with Dash</Text>
@@ -423,10 +497,47 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Learning Objectives (separate with ;)</Text>
           <TextInput style={[styles.input, { color: palette.text, borderColor: palette.outline }]} value={objectives} onChangeText={setObjectives} placeholder="Objective A; Objective B" />
 
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.label, { color: palette.textSecondary, marginTop: 8 }]}>Language</Text>
+              <TextInput 
+                style={[styles.input, { color: palette.text, borderColor: palette.outline }]}
+                value={language}
+                onChangeText={t => setLanguage((t as any) as any)}
+                placeholder="en, es, fr, pt, de, af, zu, st"
+              />
+            </View>
+          </View>
+
           <Text style={{ color: palette.textSecondary, marginTop: 8 }}>
-            Monthly usage: Lessons generated {usage.lesson_generation}
+            This month: {usage.lesson_generation} lessons generated
           </Text>
           <QuotaBar feature="lesson_generation" color={theme.primary} />
+          {quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit && (
+            <View style={{
+              marginTop: 8,
+              padding: 10,
+              borderRadius: 8,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: '#EF4444',
+              backgroundColor: '#EF4444' + '10'
+            }}>
+              <Text style={{ color: '#EF4444', fontWeight: '700', marginBottom: 4 }}>
+                Monthly limit reached
+              </Text>
+              <Text style={{ color: palette.textSecondary, marginBottom: 8 }}>
+                You have used {quotaStatus.used} of {quotaStatus.limit} lesson generations for this month.
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={() => router.push('/pricing')} style={[styles.primaryBtn, { backgroundColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 8 }]}>
+                  <Text style={[styles.primaryBtnText, { color: '#FFFFFF' }]}>See plans</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => toast.info('Your quota resets at the start of next month.')} style={[styles.primaryBtn, { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 8 }]}>
+                  <Text style={[styles.primaryBtnText, { color: '#EF4444' }]}>When does it reset?</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
           {result?.__fallbackUsed && (
             <View style={[styles.fallbackChip, { borderColor: palette.outline, backgroundColor: theme.accent + '20' }]}>
               <Ionicons name={result.__savedToDatabase ? "checkmark-circle" : "information-circle"} size={16} color={result.__savedToDatabase ? theme.success : theme.accent} />
@@ -516,8 +627,24 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         )}
 
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <TouchableOpacity onPress={onGenerate} style={[styles.primaryBtn, { backgroundColor: theme.primary, flex: 1 }]} disabled={generating || pending}>
-            {(generating || pending) ? <ActivityIndicator color={theme.onPrimary} /> : <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Generate Lesson</Text>}
+          <TouchableOpacity
+            onPress={() => {
+              if (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) {
+                router.push('/pricing');
+                return;
+              }
+              onGenerate();
+            }}
+            style={[styles.primaryBtn, { backgroundColor: (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) ? '#9CA3AF' : theme.primary, flex: 1 }]}
+            disabled={(generating || pending || (quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit)) ? true : false}
+          >
+            {(generating || pending) ? (
+              <ActivityIndicator color={theme.onPrimary} />
+            ) : (
+              <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}> 
+                {(quotaStatus && quotaStatus.limit !== -1 && quotaStatus.used >= quotaStatus.limit) ? 'Upgrade to Generate' : 'Generate Lesson'}
+              </Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity onPress={onSave} style={[styles.primaryBtn, { backgroundColor: generated?.description ? theme.accent : palette.outline, flex: 1 }]} disabled={saving || !generated?.description}>
             {saving ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.primaryBtnText, { color: generated?.description ? theme.onAccent : palette.textSecondary }]}>Save Lesson</Text>}
@@ -528,11 +655,35 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         {/* Progress Bar */}
         {(generating || pending) && (
           <View style={[styles.card, { backgroundColor: palette.surface, borderColor: theme.primary, marginTop: 16 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
-                <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
+                  <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+                </View>
+                <Text style={[styles.cardTitle, { color: theme.primary, marginLeft: 8, marginBottom: 0 }]}>Generating Lesson...</Text>
               </View>
-              <Text style={[styles.cardTitle, { color: theme.primary, marginLeft: 8, marginBottom: 0 }]}>Generating Lesson...</Text>
+              
+              {/* Cancel Button */}
+              <TouchableOpacity 
+                style={[
+                  styles.cancelButton, 
+                  { 
+                    backgroundColor: theme.error, 
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 6
+                  }
+                ]}
+                onPress={onCancel}
+                accessibilityLabel="Cancel lesson generation"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="close" size={16} color={theme.onError || theme.background} style={{ marginRight: 4 }} />
+                  <Text style={{ color: theme.onError || theme.background, fontSize: 12, fontWeight: '600' }}>
+                    Cancel
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
             
             <Text style={{ color: palette.textSecondary, marginBottom: 12, fontSize: 13 }}>
@@ -563,6 +714,77 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
             }}>
               {Math.round(progress)}% complete
             </Text>
+            
+            <Text style={{ 
+              color: palette.textSecondary, 
+              marginTop: 4, 
+              fontSize: 11,
+              textAlign: 'center',
+              fontStyle: 'italic'
+            }}>
+              Press Cancel to stop generation at any time
+            </Text>
+          </View>
+        )}
+
+        {/* Error + Retry Section */}
+        {!!errorMsg && !pending && (
+          <View style={[styles.card, { backgroundColor: palette.surface, borderColor: '#EF4444', borderWidth: 1, marginTop: 16 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="warning-outline" size={18} color="#EF4444" style={{ marginRight: 8 }} />
+              <Text style={[styles.cardTitle, { color: '#EF4444', marginBottom: 0, flex: 1 }]}>Generation failed</Text>
+              {!!lastPayload && (
+                <TouchableOpacity 
+                  style={[styles.primaryBtn, { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth, borderColor: '#EF4444', paddingHorizontal: 12, paddingVertical: 6 }]}
+                  onPress={() => onGenerate(lastPayload)}
+                >
+                  <Text style={[styles.primaryBtnText, { color: '#EF4444', fontSize: 12 }]}>Retry</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <Text style={{ color: palette.textSecondary, fontSize: 13, marginBottom: 10 }}>{errorMsg}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {!!lastPayload && (
+                <TouchableOpacity onPress={() => onGenerate(lastPayload)} style={[styles.primaryBtn, { backgroundColor: theme.primary, flex: 1 }] }>
+                  <Text style={[styles.primaryBtnText, { color: theme.onPrimary }]}>Retry Same Request</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity 
+                onPress={async () => {
+                  try {
+                    setPending(true)
+                    setProgress(10)
+                    setProgressMessage('Using Dash fallback...')
+                    const text = await generate({
+                      topic,
+                      subject,
+                      gradeLevel: Number(gradeLevel) || 3,
+                      duration: Number(duration) || 45,
+                      learningObjectives: (objectives || '').split(';').map(s => s.trim()).filter(Boolean),
+                      language,
+                      model: selectedModel,
+                    })
+                    setGenerated({
+                      title: `${subject}: ${topic}`,
+                      description: String(text || ''),
+                      content: { sections: [] },
+                      activities: []
+                    })
+                    setErrorMsg(null)
+                    toast.success('Dash fallback succeeded')
+                  } catch (err: any) {
+                    toast.error(`Fallback failed: ${err?.message || 'Try again later'}`)
+                  } finally {
+                    setPending(false)
+                    setProgress(0)
+                    setProgressMessage('')
+                  }
+                }}
+                style={[styles.primaryBtn, { backgroundColor: palette.outline, flex: 1 }]}
+              >
+                <Text style={[styles.primaryBtnText, { color: palette.text }]}>Try Dash Fallback</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -775,16 +997,27 @@ function QuotaBar({ feature, planLimit, color }: { feature: 'lesson_generation' 
     return <Text style={{ color: '#6B7280', marginTop: 4 }}>Quota: Unlimited</Text>
   }
   
-  const pct = Math.max(0, Math.min(100, Math.round((status.used / Math.max(1, status.limit)) * 100)))
+  const used = status.used
+  const limit = status.limit
+  const remaining = Math.max(0, limit - used)
+  const overBy = Math.max(0, used - limit)
+  const pct = Math.max(0, Math.min(100, Math.round((Math.min(used, limit) / Math.max(1, limit)) * 100)))
+  const barColor = overBy > 0 ? '#EF4444' : color
   
   return (
     <View style={{ marginTop: 6 }}>
       <View style={{ height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' }}>
-        <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: color }} />
+        <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: barColor }} />
       </View>
-      <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 12 }}>
-        Quota: {status.used}/{status.limit} used · {Math.max(0, status.limit - status.used)} remaining
-      </Text>
+      {overBy > 0 ? (
+        <Text style={{ color: '#EF4444', marginTop: 4, fontSize: 12, fontWeight: '600' }}>
+          Monthly limit reached · {used}/{limit} used ({overBy} over)
+        </Text>
+      ) : (
+        <Text style={{ color: '#6B7280', marginTop: 4, fontSize: 12 }}>
+          Quota: {used}/{limit} used · {remaining} remaining
+        </Text>
+      )}
     </View>
   )
 }
@@ -806,4 +1039,11 @@ const styles = StyleSheet.create({
   openWithDashBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth },
   openWithDashText: { fontSize: 12, marginLeft: 6, fontWeight: '600' },
   fallbackChip: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  cancelButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 6
+  },
 })
