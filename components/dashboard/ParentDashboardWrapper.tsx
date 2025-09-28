@@ -6,7 +6,6 @@ import ParentDashboard from './ParentDashboard';
 import { NewEnhancedParentDashboard } from './NewEnhancedParentDashboard';
 
 interface ParentDashboardWrapperProps {
-  // Add any props that should be passed to both dashboard components
   refreshTrigger?: number;
 }
 
@@ -32,7 +31,6 @@ export const ParentDashboardWrapper: React.FC<ParentDashboardWrapperProps> = ({
         <NewEnhancedParentDashboard 
           key="enhanced"
           refreshTrigger={refreshTrigger}
-          preferences={preferences}
         />
       );
     case 'classic':
@@ -40,7 +38,6 @@ export const ParentDashboardWrapper: React.FC<ParentDashboardWrapperProps> = ({
       return (
         <ParentDashboard 
           key="classic"
-          refreshTrigger={refreshTrigger}
         />
       );
   }

@@ -219,9 +219,9 @@ export const CreateSubmissionSchema = z.object({
   
   ai_assistance_used: z.boolean().default(false),
   
-  ai_assistance_details: z.record(z.any()).default({}),
+  ai_assistance_details: z.record(z.string(), z.any()).default({}),
   
-  metadata: z.record(z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default({}),
 }).refine((data) => {
   // Validate content requirements based on submission type
   if (!data.is_draft) {
@@ -252,9 +252,9 @@ export const UpdateSubmissionSchema = z.object({
   
   ai_assistance_used: z.boolean().optional(),
   
-  ai_assistance_details: z.record(z.any()).optional(),
+  ai_assistance_details: z.record(z.string(), z.any()).optional(),
   
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 // Submission list params validation

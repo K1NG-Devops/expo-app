@@ -286,7 +286,7 @@ export function sanitizePreferences(
 
   // Validate events
   if (prefs.events) {
-    sanitized.events = {};
+    const eventsSanitized: Partial<typeof DEFAULT_INVOICE_NOTIFICATION_PREFERENCES.events> = {};
     Object.entries(prefs.events).forEach(([event, eventPrefs]) => {
       if (eventPrefs && typeof eventPrefs === 'object') {
         const sanitizedEvent: EventPreference = {
@@ -303,11 +303,15 @@ export function sanitizePreferences(
           }
         }
         
-        sanitized.events![event as NotificationEvent] = sanitizedEvent;
+        (eventsSanitized as any)[event as NotificationEvent] = sanitizedEvent;
       }
     });
+    // Assign sanitized events if any were processed
+    if (Object.keys(eventsSanitized as any).length > 0) {
+      sanitized.events = eventsSanitized as any;
+    }
   }
-
+  
   // Validate signature preferences
   if ('email_include_signature' in prefs) {
     sanitized.email_include_signature = Boolean(prefs.email_include_signature);

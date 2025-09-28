@@ -49,6 +49,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { canManageAllocationsRole, derivePreschoolId } from '@/lib/roleUtils';
 import type { TeacherAIAllocation } from '@/lib/ai/allocation';
 import { useTranslation } from 'react-i18next';
+import { useRouter } from 'expo-router';
 
 // Colors will be replaced with theme
 
@@ -64,6 +65,7 @@ export default function AllocationManagementScreen() {
   const { theme } = useTheme();
   const { profile, loading: authLoading } = useAuth();
   const { t } = useTranslation('common');
+  const router = useRouter();
   const {
     schoolSubscription,
     teacherAllocations,
@@ -82,11 +84,15 @@ export default function AllocationManagementScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Check profile data completeness
+  // Check profile data completeness and role permissions
   const preschoolId = derivePreschoolId(profile);
   const hasCompleteProfileData = !!(profile && preschoolId);
   const roleBasedAccess = canManageAllocationsRole(profile?.role);
   const showPartialDataBanner = roleBasedAccess && !hasCompleteProfileData;
+  
+  // Enhanced role checking - only principals, principal_admins, and super_admins can manage AI allocations
+  const allowedRoles = ['principal', 'principal_admin', 'super_admin'];
+  const hasValidRole = profile?.role && allowedRoles.includes(profile.role);
 
   // Filter teachers based on search
   const filteredTeachers = teacherAllocations.filter((teacher) =>
@@ -119,15 +125,19 @@ export default function AllocationManagementScreen() {
     );
   }
 
-  // Resilient role-based access control (already computed above)
-  
-  if (!roleBasedAccess && !canManageAllocations) {
+  // Enhanced role-based access control
+  if (!hasValidRole && !canManageAllocations) {
     return (
       <SafeAreaView style={baseContainerStyle}>
         <EmptyState
           icon="lock-closed-outline"
           title={t('ai_quota.access_restricted_title', { defaultValue: 'Access Restricted' })}
-          description={t('ai_quota.access_restricted_desc', { defaultValue: "You don't have permission to manage AI allocations." })}
+          description={t('ai_quota.access_restricted_desc', { defaultValue: "Only principals and administrators can manage AI allocations. Please contact your school administrator if you need access." })}
+          action={
+            <Button onPress={() => router.back()} variant="outline">
+              {t('common.go_back', { defaultValue: 'Go Back' })}
+            </Button>
+          }
         />
       </SafeAreaView>
     );
@@ -435,42 +445,64 @@ export default function AllocationManagementScreen() {
           </View>
         )}
 
-        {/* Fallback UI when APIs aren't available */}
-        <Card style={styles.fallbackCard}>
-          <View style={styles.fallbackHeader}>
-            <Ionicons name="construct" size={32} color={theme.warning} />
-            <Text variant="title2" style={styles.fallbackTitle}>
-              AI Quota Management
+        {/* Show fallback UI only when there's no data AND no subscription */}
+        {!schoolSubscription && filteredTeachers.length === 0 && (
+          <Card style={styles.fallbackCard}>
+            <View style={styles.fallbackHeader}>
+              <Ionicons name="construct" size={32} color={theme.warning} />
+              <Text variant="title2" style={styles.fallbackTitle}>
+                AI Quota Management
+              </Text>
+            </View>
+            
+            <Text variant="body" style={styles.fallbackDescription}>
+              This feature allows principals to allocate AI usage credits to teachers and manage AI resource distribution across your school.
             </Text>
+            
+            <View style={styles.featureList}>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                <Text variant="caption1" style={styles.featureText}>Allocate AI credits to individual teachers</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                <Text variant="caption1" style={styles.featureText}>Monitor usage across your school</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                <Text variant="caption1" style={styles.featureText}>Set usage limits and priorities</Text>
+              </View>
+              <View style={styles.featureItem}>
+                <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+                <Text variant="caption1" style={styles.featureText}>View allocation history and analytics</Text>
+              </View>
+            </View>
+            
+            <Text variant="caption2" style={styles.comingSoonText}>
+              📡 Setting up your school's AI quota system. You can start allocating quotas to your teachers.
+            </Text>
+          </Card>
+        )}
+        
+        {/* Add Allocation Button - only show if user can manage allocations */}
+        {canManageAllocations && (
+          <View style={styles.actionsContainer}>
+            <Button
+              onPress={() => setShowAllocationModal(true)}
+              variant="primary"
+              style={styles.primaryAction}
+            >
+              Allocate Quotas
+            </Button>
+            <Button
+              onPress={handleRefresh}
+              variant="outline"
+              style={styles.secondaryAction}
+            >
+              Refresh Data
+            </Button>
           </View>
-          
-          <Text variant="body" style={styles.fallbackDescription}>
-            This feature allows principals to allocate AI usage credits to teachers and manage AI resource distribution across your school.
-          </Text>
-          
-          <View style={styles.featureList}>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
-              <Text variant="caption1" style={styles.featureText}>Allocate AI credits to individual teachers</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
-              <Text variant="caption1" style={styles.featureText}>Monitor usage across your school</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
-              <Text variant="caption1" style={styles.featureText}>Set usage limits and priorities</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
-              <Text variant="caption1" style={styles.featureText}>View allocation history and analytics</Text>
-            </View>
-          </View>
-          
-          <Text variant="caption2" style={styles.comingSoonText}>
-            📡 API integration in progress. Full functionality will be available once the AI quota management functions are deployed.
-          </Text>
-        </Card>
+        )}
 
         {/* School Subscription Overview */}
         {schoolSubscription && (
@@ -544,7 +576,7 @@ export default function AllocationManagementScreen() {
         onSubmit={async (formData) => {
           try {
             await allocateQuotas({
-              teacherId: formData.teacher_id,
+              teacherId: formData.teacher_id || selectedTeacher?.user_id || '',
               quotas: formData.allocated_quotas,
               options: {
                 reason: formData.reason,
@@ -561,7 +593,11 @@ export default function AllocationManagementScreen() {
               `AI quotas allocated to ${selectedTeacher?.teacher_name || 'teacher'}`,
               [{ text: 'OK' }]
             );
+            
+            // Refresh data after successful allocation
+            await handleRefresh();
           } catch (error) {
+            console.error('Allocation error:', error);
             Alert.alert(
               'Error',
               error instanceof Error ? error.message : 'Failed to allocate quotas',
@@ -772,14 +808,19 @@ function AllocationModal({
   const [autoRenewal, setAutoRenewal] = useState<boolean>(teacher?.auto_renew || false);
   const [reason, setReason] = useState<string>('');
   
-  // Available services and their max allocations based on subscription
+// Available services and their max allocations based on subscription
 const availableServices = [
-    { key: 'lesson_generation', label: 'Lesson Generation', max: (schoolSubscription?.total_quotas?.lesson_generation || 1000) as number },
-    { key: 'grading_assistance', label: 'Grading Assistance', max: (schoolSubscription?.total_quotas?.grading_assistance || 500) as number },
-    { key: 'homework_help', label: 'Homework Help', max: (schoolSubscription?.total_quotas?.homework_help || 1500) as number },
+    { key: 'lesson_generation', label: 'Lesson Generation', max: Math.floor((schoolSubscription?.total_quotas?.lesson_generation || 50) / 2) },
+    { key: 'grading_assistance', label: 'Grading Assistance', max: Math.floor((schoolSubscription?.total_quotas?.grading_assistance || 25) / 2) },
+    { key: 'homework_help', label: 'Homework Help', max: Math.floor((schoolSubscription?.total_quotas?.homework_help || 75) / 2) },
   ];
   
   const handleSubmit = () => {
+    if (!teacher?.user_id && !teacher?.id) {
+      Alert.alert('Error', 'Please select a teacher to allocate quotas to.');
+      return;
+    }
+    
     const formData: AllocationFormData = {
       teacher_id: teacher?.user_id || teacher?.id || '',
       allocated_quotas: quotas,

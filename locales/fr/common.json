@@ -146,4 +146,25 @@
       "placeholder": "{{subject}} - Standards de Niveau {{grade}}"
     }
   }
+  ,
+  "subscription": {
+    "choose_your_plan": "Choisissez votre offre",
+    "managePlan": "Gérer l’abonnement",
+    "tiers": {
+      "free": "Gratuit",
+      "starter": "Démarrage",
+      "basic": "Basique",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Entreprise"
+    },
+    "tierSource": {
+      "caption": "Source : {{source}}",
+      "organization": "Offre de l’organisation",
+      "school_plan": "Abonnement de l’école",
+      "school_default": "Par défaut de l’école",
+      "user": "Paramètre utilisateur",
+      "unknown": "Inconnu"
+    }
+  }
 }

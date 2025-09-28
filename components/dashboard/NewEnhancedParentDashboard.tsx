@@ -35,6 +35,8 @@ import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext'
 import { track } from '@/lib/analytics';
 import { useUnreadMessageCount } from '@/hooks/useParentMessaging';
 import { usePOPStats } from '@/hooks/usePOPUploads';
+import { useParentDashboard } from '@/hooks/useDashboardData';
+import { logger } from '@/lib/logger';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -65,7 +67,6 @@ interface QuickActionProps {
 
 interface NewEnhancedParentDashboardProps {
   refreshTrigger?: number;
-  preferences?: any;
 }
 
 // Child Switcher Component
@@ -98,7 +99,7 @@ const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, 
         fontWeight: '600',
         color: theme.text,
         marginBottom: 12,
-      }}>{t('parent.selectChild')}</Text>
+      }}>{t('parent.selectChild', { defaultValue: 'Select Child' })}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           {children.map((child) => {
@@ -137,7 +138,7 @@ const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, 
               borderColor: theme.border,
             }}
           >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }}>{t('common.manage')}</Text>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }}>{t('common.manage', { defaultValue: 'Manage' })}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -146,14 +147,13 @@ const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, 
 };
 
 export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProps> = ({ 
-  refreshTrigger, 
-  preferences 
+  refreshTrigger
 }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady } = useSubscription();
-  const { preferences: dashPrefs, setLayout } = useDashboardPreferences();
+  const { preferences, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
   const [activeChildId, setActiveChildId] = useState<string | null>(null);
   const [children, setChildren] = useState<any[]>([]);
@@ -162,25 +162,49 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
+  // Main parent dashboard data hook
+  const {
+    data: dashboardData,
+    loading,
+    error,
+    refresh,
+    isLoadingFromCache,
+  } = useParentDashboard();
+  
   // Hooks for parent-specific data
   const { data: unreadMessageCount = 0 } = useUnreadMessageCount();
   const { data: popStats } = usePOPStats(activeChildId || undefined);
 
+  // Update children state when dashboard data changes
+  React.useEffect(() => {
+    if (dashboardData?.children) {
+      setChildren(dashboardData.children);
+      // Set first child as active if none selected
+      if (!activeChildId && dashboardData.children.length > 0) {
+        setActiveChildId(dashboardData.children[0].id);
+      }
+    }
+  }, [dashboardData?.children, activeChildId]);
+
   const getGreeting = (): string => {
     const hour = new Date().getHours();
     const parentName = profile?.first_name || user?.user_metadata?.first_name || 'Parent';
-    if (hour < 12) return t('dashboard.good_morning') + ', ' + parentName;
-    if (hour < 18) return t('dashboard.good_afternoon') + ', ' + parentName;
-    return t('dashboard.good_evening') + ', ' + parentName;
+    if (hour < 12) return t('dashboard.good_morning', { defaultValue: 'Good morning' }) + ', ' + parentName;
+    if (hour < 18) return t('dashboard.good_afternoon', { defaultValue: 'Good afternoon' }) + ', ' + parentName;
+    return t('dashboard.good_evening', { defaultValue: 'Good evening' }) + ', ' + parentName;
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // Refresh parent dashboard data
-      await Feedback.vibrate(10);
+      await refresh();
+      try {
+        await Feedback.vibrate(10);
+      } catch {
+        // Vibration not supported, ignore
+      }
     } catch (_error) {
-      console.error('Refresh error:', _error);
+      logger.error('Dashboard refresh failed:', _error);
     } finally {
       setRefreshing(false);
     }
@@ -236,8 +260,10 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
         if (disabled) return;
         try {
           await Feedback.vibrate(10);
-          onPress();
-        } catch { /* TODO: Implement */ }
+        } catch {
+          // Vibration not supported, ignore
+        }
+        onPress();
       }}
       activeOpacity={disabled ? 1 : 0.7}
     >
@@ -306,81 +332,127 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
         router.push('/screens/ai-homework-help');
         break;
       default:
-        Alert.alert(t('common.coming_soon'), t('dashboard.feature_coming_soon'));
+        Alert.alert(t('common.coming_soon', { defaultValue: 'Coming Soon' }), t('dashboard.feature_coming_soon', { defaultValue: 'This feature is coming soon!' }));
     }
   };
 
-  // Mock data for demonstration - in real app, this would come from actual data
-  const metrics = [
-    {
-      title: t('parent.unread_messages'),
-      value: unreadMessageCount || '2',
-      icon: 'mail-unread',
-      color: theme.primary,
-      trend: unreadMessageCount > 5 ? 'attention' : 'stable'
-    },
-    {
-      title: t('parent.homework_pending'),
-      value: '3',
-      icon: 'document-text',
-      color: theme.warning,
-      trend: 'attention'
-    },
-    {
-      title: t('parent.attendance_rate'),
-      value: '95%',
-      icon: 'calendar',
-      color: theme.success,
-      trend: 'good'
-    },
-    {
-      title: t('parent.average_grade'),
-      value: 'B+',
-      icon: 'trophy',
-      color: theme.secondary,
-      trend: 'up'
+  // Real data metrics from dashboard
+  const metrics = useMemo(() => {
+    if (!dashboardData) {
+      return [
+        {
+          title: t('parent.unread_messages', { defaultValue: 'Unread Messages' }),
+          value: '...',
+          icon: 'mail-unread',
+          color: theme.primary,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.homework_pending', { defaultValue: 'Homework Pending' }),
+          value: '...',
+          icon: 'document-text',
+          color: theme.warning,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.attendance_rate', { defaultValue: 'Attendance Rate' }),
+          value: '...',
+          icon: 'calendar',
+          color: theme.success,
+          trend: 'stable'
+        },
+        {
+          title: t('parent.total_children', { defaultValue: 'Total Children' }),
+          value: '...',
+          icon: 'people',
+          color: theme.secondary,
+          trend: 'stable'
+        }
+      ];
     }
-  ];
+
+    const pendingHomework = dashboardData.recentHomework.filter(hw => hw.status === 'not_submitted').length;
+    const attendancePercentage = `${dashboardData.attendanceRate}%`;
+    
+    return [
+      {
+        title: t('parent.unread_messages', { defaultValue: 'Unread Messages' }),
+        value: dashboardData.unreadMessages || unreadMessageCount || '0',
+        icon: 'mail-unread',
+        color: theme.primary,
+        trend: (dashboardData.unreadMessages || unreadMessageCount) > 5 ? 'attention' : 'stable'
+      },
+      {
+        title: t('parent.homework_pending', { defaultValue: 'Homework Pending' }),
+        value: pendingHomework.toString(),
+        icon: 'document-text',
+        color: theme.warning,
+        trend: pendingHomework > 3 ? 'attention' : pendingHomework === 0 ? 'good' : 'stable'
+      },
+      {
+        title: t('parent.attendance_rate', { defaultValue: 'Attendance Rate' }),
+        value: attendancePercentage,
+        icon: 'calendar',
+        color: theme.success,
+        trend: dashboardData.attendanceRate >= 90 ? 'good' : dashboardData.attendanceRate >= 75 ? 'stable' : 'attention'
+      },
+      {
+        title: t('parent.total_children', { defaultValue: 'Total Children' }),
+        value: dashboardData.totalChildren.toString(),
+        icon: 'people',
+        color: theme.secondary,
+        trend: 'stable'
+      }
+    ];
+  }, [dashboardData, unreadMessageCount, theme, t]);
 
   const quickActions = [
     {
-      title: t('parent.view_homework'),
+      title: t('parent.view_homework', { defaultValue: 'View Homework' }),
       icon: 'book',
       color: theme.primary,
       onPress: () => handleQuickAction('view_homework')
     },
     {
-      title: t('parent.check_attendance'),
+      title: t('parent.check_attendance', { defaultValue: 'Check Attendance' }),
       icon: 'calendar',
       color: theme.success,
       onPress: () => handleQuickAction('check_attendance')
     },
     {
-      title: t('parent.view_grades'),
+      title: t('parent.view_grades', { defaultValue: 'View Grades' }),
       icon: 'school',
       color: theme.secondary,
       onPress: () => handleQuickAction('view_grades')
     },
     {
-      title: t('parent.messages'),
+      title: t('parent.messages', { defaultValue: 'Messages' }),
       icon: 'chatbubbles',
       color: theme.info,
       onPress: () => handleQuickAction('messages')
     },
     {
-      title: t('parent.events'),
+      title: t('parent.events', { defaultValue: 'Events' }),
       icon: 'calendar-outline',
       color: theme.warning,
       onPress: () => handleQuickAction('events')
     },
     {
-      title: t('parent.ai_homework_help'),
+      title: t('parent.ai_homework_help', { defaultValue: 'AI Homework Help' }),
       icon: 'sparkles',
       color: '#8B5CF6',
       onPress: () => handleQuickAction('ai_homework_help'),
       disabled: tier === 'free'
     }
   ];
+
+  if (loading && !dashboardData) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>{t('common.loading', { defaultValue: 'Loading...' })}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -400,7 +472,7 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>{getGreeting()}</Text>
-          <Text style={styles.subtitle}>{t('parent.dashboard_subtitle')}</Text>
+          <Text style={styles.subtitle}>{t('parent.dashboard_subtitle', { defaultValue: 'Track your child\'s progress' })}</Text>
         </View>
 
         {/* Child Switcher */}
@@ -412,7 +484,7 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
 
         {/* Metrics Grid */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.overview')}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.overview', { defaultValue: 'Overview' })}</Text>
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => (
               <MetricCard
@@ -432,7 +504,7 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions')}</Text>
+          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
               <QuickAction
@@ -442,7 +514,7 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
                 color={action.color}
                 onPress={action.onPress}
                 disabled={action.disabled}
-                subtitle={action.disabled ? t('dashboard.upgrade_required') : undefined}
+                subtitle={action.disabled ? t('dashboard.upgrade_required', { defaultValue: 'Upgrade required' }) : undefined}
               />
             ))}
           </View>
@@ -453,10 +525,10 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
           <View style={styles.debugSection}>
             <TouchableOpacity
               style={styles.debugButton}
-              onPress={() => setLayout(dashPrefs.layout === 'enhanced' ? 'classic' : 'enhanced')}
+              onPress={() => setLayout(preferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
             >
               <Text style={styles.debugButtonText}>
-                Switch to {dashPrefs.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
+                Switch to {preferences.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
               </Text>
             </TouchableOpacity>
           </View>
@@ -481,6 +553,17 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     paddingTop: topInset || 20,
     paddingHorizontal: cardPadding,
     paddingBottom: bottomInset + 100,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: theme.background,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: theme.textSecondary,
+    marginTop: 16,
   },
   header: {
     marginBottom: 32,

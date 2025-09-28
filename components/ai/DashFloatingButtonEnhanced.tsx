@@ -27,6 +27,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
+import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -79,6 +80,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
   const [proactiveSuggestions, setProactiveSuggestions] = useState<ProactiveSuggestion[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
   const [hasNewInsights, setHasNewInsights] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
 
   // Animations
   const scaleAnimation = useRef(new Animated.Value(1)).current;
@@ -140,7 +142,8 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
             color: '#10B981',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/lesson-planner');
+              // Route to existing AI lesson generator (or Lessons Hub)
+              router.push('/screens/ai-lesson-generator');
             },
             priority: 'high',
             contextual: true
@@ -153,7 +156,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
             color: '#F59E0B',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/grading-assistant');
+              router.push('/screens/ai-homework-grader-live');
             },
             priority: 'high',
             contextual: true
@@ -166,7 +169,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
             color: '#8B5CF6',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/parent-communication');
+              router.push('/screens/parent-messages');
             },
             priority: 'medium',
             contextual: false
@@ -179,7 +182,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
             color: '#3B82F6',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/student-progress');
+              router.push('/screens/ai-progress-analysis');
             },
             priority: 'medium',
             contextual: false
@@ -454,7 +457,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
         if (showQuickActions && quickActions.length > 0) {
           setShowQuickActionsModal(true);
         } else {
-          router.push('/screens/dash-assistant');
+          setShowCommandPalette(true);
         }
       }
     } catch (error) {
@@ -640,6 +643,9 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
           </View>
         </View>
       </Modal>
+
+      {/* Command Palette */}
+      <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
 
       {/* Proactive Suggestions Modal */}
       <Modal

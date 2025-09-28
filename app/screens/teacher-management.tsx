@@ -379,14 +379,7 @@ if (!preschoolId) {
             improvementAreas: ['Professional development'],
             goals: ['Continuous improvement']
           },
-          documents: documents || {
-            cv: Boolean(dbTeacher.cv_file_path),
-            qualifications: Boolean(dbTeacher.qualifications_file_path),
-            idCopy: Boolean(dbTeacher.id_copy_file_path),
-            criminalRecord: false,
-            medicalCertificate: false,
-            contracts: Boolean(dbTeacher.contracts_file_path)
-          },
+documents: documents,
           attendance: {
             daysPresent: 180,
             daysAbsent: 5,
@@ -626,12 +619,9 @@ if (!preschoolId) {
       if (!preschoolId) { Alert.alert('No school linked', 'Cannot attach documents without a school context.'); return; }
       setIsUploadingDoc(true);
 
-      const res = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], multiple: false, copyToCacheDirectory: true });
-      // New API returns { canceled, assets }
-      // @ts-ignore tolerate shape differences across versions
-      if (res.canceled) { setIsUploadingDoc(false); return; }
-      // @ts-ignore
-      const asset = (res.assets && res.assets[0]) || res;
+const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf', 'image/*'], multiple: false, copyToCacheDirectory: true });
+      if (result.canceled) { setIsUploadingDoc(false); return; }
+      const asset = (result.assets?.[0]) as DocumentPicker.DocumentPickerAsset;
       const uri = asset.uri as string;
       const name = (asset.name as string) || uri.split('/').pop() || `${docType}.dat`;
       const mime = (asset.mimeType as string) || 'application/octet-stream';

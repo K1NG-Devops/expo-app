@@ -521,7 +521,7 @@ export const usePrincipalHub = () => {
       const financialSummary = {
         monthlyRevenue: monthlyRevenueTotal,
         previousMonthRevenue: finalPreviousRevenue,
-        operationalExpenses: totalExpenses,
+        estimatedExpenses: totalExpenses,
         netProfit,
         revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((monthlyRevenueTotal - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
         profitMargin,

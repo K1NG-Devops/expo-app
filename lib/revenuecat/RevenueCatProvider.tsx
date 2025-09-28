@@ -23,7 +23,8 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   
-  const { user, preschool } = useAuth();
+  const { user, profile } = useAuth();
+  const preschoolId = (profile as any)?.preschool_id || (profile as any)?.organization_id;
 
   // Initialize RevenueCat
   useEffect(() => {
@@ -55,7 +56,7 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
       try {
         if (user?.id) {
           // User is logged in - identify them with RevenueCat
-          await identifyRevenueCatUser(user.id, preschool?.id);
+          await identifyRevenueCatUser(user.id, preschoolId);
           
           // Fetch customer info
           const info = await getCustomerInfo();
@@ -72,19 +73,19 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
     };
 
     handleUserAuth();
-  }, [initialized, user?.id, preschool?.id]);
+  }, [initialized, user?.id, preschoolId]);
 
   // Set up customer info listener
   useEffect(() => {
     if (!initialized) return;
 
-    const listener = Purchases.addCustomerInfoUpdateListener((info) => {
+    Purchases.addCustomerInfoUpdateListener((info) => {
       console.log('RevenueCat Provider: Customer info updated');
       setCustomerInfo(info);
     });
 
     return () => {
-      listener.remove();
+      // SDK does not provide an unsubscribe function in this wrapper
     };
   }, [initialized]);
 

@@ -34,6 +34,7 @@ import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import TierBadge from '@/components/ui/TierBadge';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -61,7 +62,11 @@ interface QuickActionProps {
   subtitle?: string;
 }
 
-export const NewEnhancedPrincipalDashboard: React.FC = () => {
+interface NewEnhancedPrincipalDashboardProps {
+  refreshTrigger?: number;
+}
+
+export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = ({ refreshTrigger }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -331,21 +336,9 @@ export const NewEnhancedPrincipalDashboard: React.FC = () => {
                   <Text style={styles.headerIcon}>🏫</Text>
                   <Text style={styles.welcomeTitle}>{t('dashboard.school_overview')}</Text>
                 </View>
-                {/* Tier Badge - always on right side */}
+                {/* Tier Badge - unified component */}
                 {subscriptionReady && (
-                  <View style={[
-                    styles.tierBadge,
-                    tier === 'free' ? styles.freeTierBadge : styles.premiumTierBadge
-                  ]}>
-                    <Ionicons 
-                      name={tier === 'free' ? "flash" : "diamond"} 
-                      size={12} 
-                      color="#FFFFFF" 
-                    />
-                    <Text style={styles.tierBadgeText}>
-                      {tier?.toUpperCase() || 'FREE'}
-                    </Text>
-                  </View>
+                  <TierBadge size="md" showManageButton />
                 )}
               </View>
             <Text style={styles.welcomeGreeting}>
@@ -918,7 +911,6 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       color: theme.text,
       textAlign: 'center',
       lineHeight: isSmallScreen ? 16 : 18,
-      numberOfLines: 2,
     },
     actionSubtitle: {
       fontSize: 12,
