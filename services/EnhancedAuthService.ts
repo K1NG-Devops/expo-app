@@ -57,7 +57,7 @@ export class EnhancedAuthService extends AuthService {
         userAgent,
         metadata: {
           role: registration.role,
-          registrationType: registration.invitationToken ? 'invitation' : 'self-service'
+          registrationType: (registration as any).invitationToken ? 'invitation' : 'self-service'
         }
       });
 

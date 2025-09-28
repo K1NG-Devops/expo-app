@@ -26,6 +26,7 @@ import {
 } from '../models/Submission';
 import { UserRole } from '../security/rbac';
 import { canSubmitToAssignment } from '../models/Assignment';
+import type { Assignment } from '../models/Assignment';
 
 // ====================================================================
 // SERVICE RESPONSE TYPES
@@ -558,7 +559,7 @@ export class SubmissionService {
 
       // Check assignment constraints
       const assignment = submission.assignment;
-      if (!canSubmitToAssignment(assignment)) {
+      if (!canSubmitToAssignment(assignment as unknown as Assignment)) {
         return {
           success: false,
           error: 'Assignment is no longer accepting submissions',
@@ -850,7 +851,7 @@ export class SubmissionService {
     organizationId?: string
   ): Promise<boolean> {
     // Admins can access all submissions in their organization
-    if (userRole === UserRole.ADMIN && submission.assignment.course.organization_id === organizationId) {
+    if (userRole === UserRole.ADMIN && (submission.assignment.course as any).organization_id === organizationId) {
       return true;
     }
 
@@ -919,12 +920,16 @@ export class SubmissionService {
       }
 
       // Check instructor permission
-      if (userRole === UserRole.INSTRUCTOR && assignmentCheck.data.course.instructor_id !== userId) {
-        return {
-          success: false,
-          error: 'Can only view submissions from your courses',
-          code: 'INSUFFICIENT_PERMISSIONS'
-        };
+      if (userRole === UserRole.INSTRUCTOR) {
+        const courseData: any = (assignmentCheck.data as any).course;
+        const instructorId = Array.isArray(courseData) ? courseData[0]?.instructor_id : courseData?.instructor_id;
+        if (instructorId !== userId) {
+          return {
+            success: false,
+            error: 'Can only view submissions from your courses',
+            code: 'INSUFFICIENT_PERMISSIONS'
+          };
+        }
       }
 
       const { data: submissions, error } = await this.supabase
