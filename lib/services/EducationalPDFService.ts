@@ -67,6 +67,9 @@ export interface GeneratePDFOptions {
 // ====================================================================
 
 class EducationalPDFServiceImpl {
+  generateLessonPDF(lessonConfig: { subject: any; grade: any; duration: any; objectives: any; activities: any; resources: any; assessments: any; differentiation: any; extensions: any; }) {
+    throw new Error('Method not implemented.');
+  }
   
   /**
    * Generate a worksheet PDF from assignment data
