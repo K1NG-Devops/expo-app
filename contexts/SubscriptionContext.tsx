@@ -44,7 +44,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let mounted = true;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     // Add a small delay to prevent rapid successive calls
     const fetchSubscriptionData = async () => {

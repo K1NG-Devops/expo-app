@@ -323,11 +323,12 @@ export function isCourse(obj: any): obj is Course {
 
 export function isCourseWithInstructor(obj: any): obj is CourseWithInstructor {
   return (
-    isCourse(obj) &&
-    obj.instructor &&
-    typeof obj.instructor.id === 'string' &&
-    typeof obj.instructor.first_name === 'string' &&
-    typeof obj.instructor.last_name === 'string'
+    obj &&
+    typeof obj.id === 'string' &&
+    typeof obj.title === 'string' &&
+    typeof (obj as any).instructor?.id === 'string' &&
+    typeof (obj as any).instructor?.first_name === 'string' &&
+    typeof (obj as any).instructor?.last_name === 'string'
   );
 }
 

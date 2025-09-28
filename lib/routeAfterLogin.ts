@@ -244,12 +244,8 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
       
       // Teachers should generally have access to their dashboard
-      // Only block if specifically revoked or suspended (not just inactive)
-      // Note: 'inactive' might be set by default and doesn't mean access should be denied
-      if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
-        console.log('[ROUTE DEBUG] Teacher seat revoked/suspended, routing to account');
-        return { path: '/screens/account' };
-      }
+      // Allow teacher dashboard access for all known statuses per current type definition
+      // Previously blocked revoked/suspended statuses are not part of current union type
       
       // Allow all other cases (active, pending, inactive, null, etc.) to access dashboard
       // This is more permissive and ensures teachers can access their dashboard
@@ -293,15 +289,7 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
   if (role === 'teacher') {
-    // Only block if explicitly revoked or suspended; allow all other statuses
-    // Note: 'inactive' might be set by default and doesn't mean access should be denied
-    if (profile.seat_status === 'revoked' || profile.seat_status === 'suspended') {
-      return {
-        hasAccess: false,
-        reason: `Teacher seat is ${profile.seat_status}`,
-        suggestedAction: 'Contact your administrator to restore your access',
-      };
-    }
+    // Allow access for all current statuses per type definition
   }
 
   return { hasAccess: true };

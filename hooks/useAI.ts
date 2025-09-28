@@ -62,30 +62,6 @@ export function useAIUserLimits(userId?: string) {
     gcTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-    
-    
-    // Fallback to cached data on error
-    onError: async (error) => {
-      if (effectiveUserId) {
-        try {
-          const cached = await AsyncStorage.getItem(CACHE_KEYS.USER_LIMITS + effectiveUserId);
-          if (cached) {
-            const { data, timestamp } = JSON.parse(cached);
-            // Use cached data if less than 1 hour old
-            if (Date.now() - timestamp < 60 * 60 * 1000) {
-              return data;
-            }
-          }
-        } catch {
-          // Ignore cache errors
-        }
-      }
-      
-      track('edudash.ai.hooks.user_limits_error', {
-        user_id: effectiveUserId,
-        error: extractAPIError(error).message,
-      });
-    },
   });
 }
 
@@ -230,28 +206,6 @@ export function useAIInsights(
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(2000 * 2 ** attemptIndex, 10000),
-    
-    
-    onError: async (error) => {
-      // Try to use cached insights on error
-      try {
-        const cached = await AsyncStorage.getItem(CACHE_KEYS.INSIGHTS + cacheKey);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          // Use cached data if less than 4 hours old
-          if (Date.now() - timestamp < 4 * 60 * 60 * 1000) {
-            return data;
-          }
-        }
-      } catch {
-        // Ignore cache errors
-      }
-      
-      track('edudash.ai.hooks.insights_error', {
-        scope,
-        error: extractAPIError(error).message,
-      });
-    },
   });
 }
 

@@ -123,8 +123,7 @@ export class EducationalWorkflowService {
       const courseResult = await this.courseService.getCourseById(
         config.course_id,
         userId,
-        userRole,
-        organizationId
+        userRole
       );
 
       if (!courseResult.success) {
@@ -656,7 +655,7 @@ export class EducationalWorkflowService {
           const accessData = {
             assignment_id: config.assignment_id,
             student_id: member.student_id,
-            group_id: member.group.id,
+            group_id: (member as any).group?.id ?? (Array.isArray((member as any).group) ? (member as any).group[0]?.id : undefined),
             distributed_by: userId,
             distributed_at: new Date().toISOString(),
             is_active: !config.schedule_release,
@@ -689,7 +688,7 @@ export class EducationalWorkflowService {
           results.processed++;
           results.data.push({
             student_id: member.student_id,
-            group_id: member.group.id,
+            group_id: (member as any).group?.id ?? (Array.isArray((member as any).group) ? (member as any).group[0]?.id : undefined),
             assignment_id: config.assignment_id,
             released: !config.schedule_release
           });
