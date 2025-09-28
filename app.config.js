@@ -39,7 +39,8 @@ module.exports = ({ config }) => {
   return {
     ...config,
     name: 'EduDashPro',
-    slug: 'edudashpro',
+    slug: 'dashpro',
+    owner: 'edudashprotest',
     version: '1.0.2',
     runtimeVersion,
     orientation: 'portrait',

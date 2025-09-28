@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "EduDashPro",
-    "slug": "edudashpro",
+    "slug": "dashpro",
+    "owner": "edudashprotest",
     "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
