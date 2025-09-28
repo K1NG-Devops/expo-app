@@ -1397,11 +1397,7 @@ export class DashAIAssistant {
       
       // Import EducationalPDFService dynamically
       const { EducationalPDFService } = await import('../lib/services/EducationalPDFService');
-<<<<<<< HEAD
       const pdfService = new EducationalPDFService();
-=======
-      const pdfService = EducationalPDFService;
->>>>>>> 0fe525e
       
       // Map Dash parameters to PDF service parameters
       const lessonConfig = {
@@ -1421,7 +1417,6 @@ export class DashAIAssistant {
       };
       
       // Generate lesson plan using PDF service
-<<<<<<< HEAD
       const lessonResult = await pdfService.generateEnhancedLessonPlan(lessonConfig);
       
       if (lessonResult.success && lessonResult.content) {
@@ -1454,44 +1449,6 @@ export class DashAIAssistant {
           ]
         };
       }
-=======
-      await pdfService.generateLessonPDF(lessonConfig);
-      
-      // Since generateLessonPDF returns void, we'll create a synthetic lesson result
-      const lessonId = `lesson_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const lessonTitle = `${lessonConfig.subject} Lesson - ${lessonConfig.grade}`;
-      
-      // Store lesson data in memory for retrieval
-      await this.addMemoryItem({
-        type: 'context',
-        key: `generated_lesson_${lessonId}`,
-        value: {
-          id: lessonId,
-          title: lessonTitle,
-          subject: lessonConfig.subject,
-          grade: lessonConfig.grade,
-          duration: lessonConfig.duration,
-          objectives: lessonConfig.objectives,
-          createdBy: 'DashAI',
-          createdAt: new Date().toISOString()
-        },
-        confidence: 1.0,
-        expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
-      });
-      
-      return {
-        success: true,
-        lessonId,
-        title: lessonTitle,
-        features: [
-          'Learning objectives',
-          'Interactive activities',
-          'Assessment rubrics',
-          'Differentiation strategies',
-          'Resource recommendations'
-        ]
-      };
->>>>>>> 0fe525e
       
       return {
         success: false,
@@ -2672,11 +2629,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           try {
             const lessonResult = await this.generateLessonDirectly(params);
             if (lessonResult.success) {
-<<<<<<< HEAD
-              dashboard_action = { type: 'open_screen' as const, route: '/screens/lesson-viewer', params: { lessonId: lessonResult.lessonId, ...params } };
-=======
               dashboard_action = { type: 'open_screen' as const, route: '/screens/lesson-viewer', params: { lessonId: lessonResult.lessonId || '', ...params } };
->>>>>>> 0fe525e
               suggested_actions.push('download_lesson_pdf', 'edit_lesson', 'share_lesson', 'create_worksheet');
               
               // Update the AI response to reflect successful generation
@@ -2686,13 +2639,8 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
                 suggested_actions,
                 references: [{
                   type: 'lesson' as const,
-<<<<<<< HEAD
-                  id: lessonResult.lessonId,
-                  title: lessonResult.title
-=======
                   id: lessonResult.lessonId || 'unknown-lesson',
                   title: lessonResult.title || 'Generated Lesson'
->>>>>>> 0fe525e
                 }],
                 dashboard_action
               };
