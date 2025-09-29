@@ -112,6 +112,9 @@ module.exports = ({ config }) => {
     updates: {
       url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
     },
+    updates: {
+      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
+    },
     extra: {
       router: {},
       eas: {
