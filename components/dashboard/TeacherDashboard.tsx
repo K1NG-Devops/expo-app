@@ -952,24 +952,6 @@ export const TeacherDashboard: React.FC = () => {
 
   return (
     <>
-      <View style={styles.headerWithToggle}>
-        <TouchableOpacity
-          style={styles.dashboardToggleInHeader}
-          onPress={() => {
-            const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
-            setLayout(newLayout);
-            try { Feedback.vibrate(15); } catch {}
-          }}
-          accessibilityLabel={`Switch to ${preferences.layout === 'classic' ? 'enhanced' : 'classic'} layout`}
-          accessibilityHint="Toggles between classic and enhanced dashboard layouts"
-        >
-          <Ionicons 
-            name={preferences.layout === 'enhanced' ? 'grid-outline' : 'apps-outline'} 
-            size={16} 
-            color={theme.primary} 
-          />
-        </TouchableOpacity>
-      </View>
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -2092,28 +2074,6 @@ const getStyles = (theme: any, isDark: boolean) =>
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: theme.border,
-    },
-    headerWithToggle: {
-      position: 'relative',
-    },
-    dashboardToggleInHeader: {
-      position: 'absolute',
-      top: 10,
-      right: 90, // Adjusted to prevent overlap with header icons
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: theme.primaryLight || theme.primary + '20',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: theme.border,
-      zIndex: 10,
-      shadowColor: theme.shadow || '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
     },
     modalOverlay: {
       flex: 1,
