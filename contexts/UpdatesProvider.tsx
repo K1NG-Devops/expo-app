@@ -45,6 +45,13 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       console.log('[Updates] Updates are disabled - skipping check');
       return false;
     }
+
+    // Skip in development unless explicitly enabled
+    const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
+    if (__DEV__ && !enableOTAUpdates) {
+      console.log('[Updates] Skipping manual update check in development');
+      return false;
+    }
     
     console.log('[Updates] Manual update check initiated');
 
@@ -134,6 +141,12 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       return;
     }
 
+    // Skip in development unless explicitly enabled
+    const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
+    if (__DEV__ && !enableOTAUpdates) {
+      return;
+    }
+
     try {
       console.log('[Updates] Background check for updates...');
       const update = await Updates.checkForUpdateAsync();
@@ -181,18 +194,18 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       return;
     }
 
-    // Skip automatic background checks in development (but allow preview/production)
+    // Skip automatic background checks in development unless explicitly enabled
     const environment = process.env.EXPO_PUBLIC_ENVIRONMENT;
     const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
     
-    if (__DEV__ && environment === 'development' && !enableOTAUpdates) {
+    if (__DEV__ && !enableOTAUpdates) {
       console.log('[Updates] Skipping automatic background checks in development');
       return;
     }
     
     console.log(`[Updates] Environment: ${environment}, OTA enabled: ${enableOTAUpdates}, DEV: ${__DEV__}`);
 
-    // Initial background check (only in production)
+    // Initial background check
     backgroundCheck();
     
     // Check on app state changes

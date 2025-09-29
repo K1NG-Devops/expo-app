@@ -8,27 +8,97 @@ import {
   View,
   Alert,
   ScrollView,
-  Image,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTranslation } from "react-i18next";
-import { useTheme } from "@/contexts/ThemeContext";
+// import { useTranslation } from "react-i18next"; // TODO: Add i18n support
+// import { useTheme } from "@/contexts/ThemeContext"; // TODO: Add theme support
 import { supabase } from "@/lib/supabase";
 import { signInWithSession } from "@/lib/sessionManager";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authenticate, isHardwareAvailable, isEnrolled } from "@/lib/biometrics";
 
 export default function EnhancedSignIn() {
-  const { theme } = useTheme();
-  const { t } = useTranslation();
+  // const { theme } = useTheme(); // TODO: Apply theming to styles
+  // const { t } = useTranslation(); // TODO: Add i18n translations
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+  const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
   const canUseSupabase = !!supabase;
+
+  // Load saved credentials and check biometrics on mount
+  useEffect(() => {
+    loadSavedCredentials();
+    checkBiometrics();
+  }, []);
+
+  const loadSavedCredentials = async () => {
+    try {
+      const savedEmail = await AsyncStorage.getItem('@signin_email');
+      const savedRememberMe = await AsyncStorage.getItem('@signin_remember_me');
+      
+      if (savedEmail && savedRememberMe === 'true') {
+        setEmail(savedEmail);
+        setRememberMe(true);
+      }
+    } catch (error) {
+      console.error('Failed to load saved credentials:', error);
+    }
+  };
+
+  const saveBiometricsCredentials = async () => {
+    try {
+      await AsyncStorage.setItem('@biometric_email', email);
+      await AsyncStorage.setItem('@biometric_password', password);
+      setBiometricsEnabled(true);
+    } catch (error) {
+      console.error('Failed to save biometric credentials:', error);
+    }
+  };
+
+  const checkBiometrics = async () => {
+    try {
+      const hardwareAvailable = await isHardwareAvailable();
+      const enrolled = await isEnrolled();
+      setBiometricsAvailable(hardwareAvailable && enrolled);
+      
+      const savedBiometricsEnabled = await AsyncStorage.getItem('@biometrics_enabled');
+      setBiometricsEnabled(savedBiometricsEnabled === 'true');
+    } catch (error) {
+      console.error('Failed to check biometrics:', error);
+    }
+  };
+
+  const handleBiometricSignIn = async () => {
+    try {
+      const authenticated = await authenticate('Sign in to EduDash Pro');
+      
+      if (authenticated) {
+        const savedEmail = await AsyncStorage.getItem('@biometric_email');
+        const savedPassword = await AsyncStorage.getItem('@biometric_password');
+        
+        if (savedEmail && savedPassword) {
+          setEmail(savedEmail);
+          setPassword(savedPassword);
+          // Automatically sign in
+          handleEmailSignIn();
+        } else {
+          Alert.alert('Error', 'No saved credentials found. Please sign in once to enable biometric authentication.');
+        }
+      }
+    } catch (error) {
+      console.error('Biometric authentication failed:', error);
+      Alert.alert('Error', 'Biometric authentication failed.');
+    }
+  };
 
   // Social OAuth handlers
   const handleGoogleSignIn = async () => {
@@ -52,7 +122,7 @@ export default function EnhancedSignIn() {
           { text: "Cancel", style: "cancel" }
         ]
       );
-    } catch (error) {
+    } catch {
       setError("Google sign-in failed. Please try again.");
     } finally {
       setLoading(false);
@@ -79,7 +149,7 @@ export default function EnhancedSignIn() {
           { text: "Cancel", style: "cancel" }
         ]
       );
-    } catch (error) {
+    } catch {
       setError("Apple sign-in failed. Please try again.");
     } finally {
       setLoading(false);
@@ -106,7 +176,7 @@ export default function EnhancedSignIn() {
           { text: "Cancel", style: "cancel" }
         ]
       );
-    } catch (error) {
+    } catch {
       setError("Microsoft sign-in failed. Please try again.");
     } finally {
       setLoading(false);
@@ -129,7 +199,7 @@ export default function EnhancedSignIn() {
       setLoading(true);
       setError(null);
       
-      const { session, profile, error } = await signInWithSession(
+      const { session, error } = await signInWithSession(
         email.trim(),
         password
       );
@@ -139,12 +209,37 @@ export default function EnhancedSignIn() {
         return;
       }
       
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        await AsyncStorage.setItem('@signin_email', email);
+        await AsyncStorage.setItem('@signin_remember_me', 'true');
+      } else {
+        await AsyncStorage.removeItem('@signin_email');
+        await AsyncStorage.removeItem('@signin_remember_me');
+      }
+      
+      // Offer to save credentials for biometric authentication
+      if (biometricsAvailable && !biometricsEnabled) {
+        Alert.alert(
+          'Enable Biometric Sign-In?',
+          'Would you like to use fingerprint or face recognition to sign in next time?',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            { text: 'Enable', onPress: () => {
+              saveBiometricsCredentials();
+              AsyncStorage.setItem('@biometrics_enabled', 'true');
+            }}
+          ]
+        );
+      }
+      
       // Use proper post-login routing to direct to appropriate dashboard
       try {
         const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
         // session is UserSession type, need to get actual Supabase user for routing
         const { data: { user } } = await supabase.auth.getUser();
-        await routeAfterLogin(user, profile);
+        // Let routeAfterLogin fetch the enhanced profile since we only have a basic UserProfile
+        await routeAfterLogin(user, null);
       } catch (routingError) {
         console.error('Post-login routing failed:', routingError);
         // Fallback to profiles-gate if routing fails
@@ -183,6 +278,23 @@ export default function EnhancedSignIn() {
             <Text style={styles.description}>Sign in to your account</Text>
           </View>
         </View>
+
+        {/* Biometric Authentication */}
+        {biometricsAvailable && biometricsEnabled && (
+          <View style={styles.biometricSection}>
+            <TouchableOpacity 
+              style={styles.biometricButton}
+              onPress={handleBiometricSignIn}
+              disabled={loading}
+            >
+              <View style={styles.biometricIcon}>
+                <Ionicons name="finger-print" size={24} color="#00f5ff" />
+              </View>
+              <Text style={styles.biometricText}>Sign in with Biometrics</Text>
+              {loading && <ActivityIndicator size="small" color="#00f5ff" />}
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Social Authentication Buttons */}
         <View style={styles.socialSection}>
@@ -247,14 +359,26 @@ export default function EnhancedSignIn() {
           />
 
           <Text style={styles.fieldLabel}>Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#9ca3af"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              placeholder="••••••••"
+              placeholderTextColor="#9ca3af"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity 
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              <Ionicons 
+                name={showPassword ? "eye-off" : "eye"} 
+                size={20} 
+                color="#9ca3af" 
+              />
+            </TouchableOpacity>
+          </View>
 
           {/* Remember Me & Forgot Password */}
           <View style={styles.optionsRow}>
@@ -500,5 +624,44 @@ const styles = StyleSheet.create({
   signUpText: {
     color: "#00f5ff",
     fontWeight: "600",
+  },
+  biometricSection: {
+    marginBottom: 24,
+  },
+  biometricButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1f2937",
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#00f5ff",
+    marginBottom: 16,
+  },
+  biometricIcon: {
+    marginRight: 12,
+  },
+  biometricText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#00f5ff",
+    textAlign: "center",
+  },
+  passwordContainer: {
+    position: "relative",
+    marginBottom: 20,
+  },
+  passwordInput: {
+    marginBottom: 0,
+    paddingRight: 50,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 16,
+    top: 16,
+    padding: 4,
   },
 });

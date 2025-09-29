@@ -23,10 +23,11 @@ export enum LogLevel {
 /**
  * Current log level (can be configured via environment)
  */
-const currentLogLevel = isDevelopment 
-  ? LogLevel.DEBUG 
-  : isTest 
-    ? LogLevel.WARN 
+const enableConsole = process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true';
+const currentLogLevel = isDevelopment && enableConsole
+  ? LogLevel.DEBUG
+  : isTest
+    ? LogLevel.WARN
     : LogLevel.NONE;
 
 /**

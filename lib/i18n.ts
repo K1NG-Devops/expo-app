@@ -148,8 +148,8 @@ i18n
       useSuspense: false, // Avoid suspense in React Native
     },
     
-    // Debug in development
-    debug: process.env.NODE_ENV === 'development',
+    // Debug logging controlled by env
+    debug: process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true',
     
     // Return objects for complex translations
     returnObjects: true,
@@ -161,7 +161,7 @@ i18n
     pluralSeparator: '_',
     
     // Cache translations
-    saveMissing: process.env.NODE_ENV === 'development', // Only save missing keys in development
+    saveMissing: process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true',
     
     // Load path for additional resources (future enhancement)
     // backend: {

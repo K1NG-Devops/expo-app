@@ -23,7 +23,8 @@
     "check-*.js",
     "test-*.js",
     "create-*.sql",
-    "screens/**/*"
+    "screens/**/*",
+    "lib/api/**/*"
   ],
   "include": [
     "types/**/*.d.ts",

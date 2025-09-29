@@ -135,7 +135,10 @@ export default function ProfilesGateScreen() {
           } else {
             console.log('Successfully updated user metadata with role:', selectedRole);
           }
-        } catch {}
+        } catch (error) {
+          // Silently handle metadata update errors - not critical for routing
+          console.debug('Metadata update failed (non-critical):', error);
+        }
 
       } catch (metadataError) {
         console.error('Error updating user metadata:', metadataError);

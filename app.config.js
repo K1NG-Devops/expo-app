@@ -32,9 +32,9 @@ module.exports = ({ config }) => {
   // Only exclude for production EAS builds
   if (isDevBuild || !process.env.EAS_BUILD_PLATFORM) plugins.push('expo-dev-client');
 
-  // Use consistent runtimeVersion policy to avoid OTA compatibility issues
-  // appVersion works with remote version source and couples OTA compatibility to app version
-  const runtimeVersion = { policy: 'appVersion' };
+  // In bare workflow, runtimeVersion policies are not supported.
+  // Use a static runtimeVersion string to match the native build.
+  const runtimeVersion = '1.0.2';
 
   return {
     ...config,

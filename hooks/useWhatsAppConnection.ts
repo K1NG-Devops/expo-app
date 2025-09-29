@@ -422,42 +422,40 @@ export const useWhatsAppConnection = () => {
       })
     },
     optOut: () => optOutMutation.mutateAsync(),
-    hardDisconnect: () => {
+    hardDisconnect: async () => {
       // Complete disconnect - deletes the record entirely
-      return new Promise(async (resolve, reject) => {
-        try {
-          if (!user?.id || !profile?.organization_id) {
-            throw new Error('User or preschool not found')
-          }
+      if (!user?.id || !profile?.organization_id) {
+        throw new Error('User or preschool not found')
+      }
 
-          // Delete the WhatsApp contact record completely
-          const { error } = await assertSupabase()
-            .from('whatsapp_contacts')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('preschool_id', profile.organization_id)
+      try {
+        // Delete the WhatsApp contact record completely
+        const { error } = await assertSupabase()
+          .from('whatsapp_contacts')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('preschool_id', profile.organization_id)
 
-          if (error) {
-            console.error('Error deleting WhatsApp contact:', error)
-            throw error
-          }
-
-          // Force refresh
-          queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
-          queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
-
-          // Track complete disconnection
-          track('edudash.whatsapp.hard_disconnect', {
-            user_id: user.id,
-            preschool_id: profile.organization_id,
-            timestamp: new Date().toISOString()
-          })
-
-          resolve({ success: true })
-        } catch (error) {
-          reject(error)
+        if (error) {
+          console.error('Error deleting WhatsApp contact:', error)
+          throw error
         }
-      })
+
+        // Force refresh
+        queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+        queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+
+        // Track complete disconnection
+        track('edudash.whatsapp.hard_disconnect', {
+          user_id: user.id,
+          preschool_id: profile.organization_id,
+          timestamp: new Date().toISOString()
+        })
+
+        return { success: true }
+      } catch (error) {
+        throw error
+      }
     },
     sendTestMessage: sendTestMessageMutation.mutate,
 

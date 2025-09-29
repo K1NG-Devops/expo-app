@@ -222,8 +222,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       }
     };
 
-    // Only add event listener if we're in a web environment
-    if (typeof window !== 'undefined') {
+    // Only add event listener if we're in a web environment with proper DOM API
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -531,22 +531,21 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           isUser ? styles.userMessage : styles.assistantMessage,
         ]}
       >
+        {/* Avatar for assistant messages */}
+        {!isUser && (
+          <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
+            <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+          </View>
+        )}
         
         <View
           style={[
             styles.messageBubble,
             isUser
-              ? { backgroundColor: theme.primary, marginLeft: screenWidth * 0.15 }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, marginRight: screenWidth * 0.25 },
+              ? { backgroundColor: theme.primary }
+              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
           ]}
         >
-          {!isUser && (
-            <View style={styles.bubbleHeaderRow}>
-              <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
-                <Ionicons name="sparkles" size={14} color={theme.onPrimary} />
-              </View>
-            </View>
-          )}
           <View style={styles.messageContentRow}>
             <Text
               style={[
@@ -1130,13 +1129,16 @@ const styles = StyleSheet.create({
   messageContainer: {
     flexDirection: 'row',
     marginBottom: 16,
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    paddingHorizontal: 4,
   },
   userMessage: {
     justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
   },
   assistantMessage: {
     justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
   },
   avatarContainer: {
     width: 32,
@@ -1144,17 +1146,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
+    marginTop: 4,
+    flexShrink: 0,
   },
   messageBubble: {
-    maxWidth: screenWidth < 400 ? screenWidth * 0.8 : screenWidth * 0.75,
-    padding: screenWidth < 400 ? 10 : 12,
-    borderRadius: 18,
-    minHeight: 44,
+    maxWidth: screenWidth < 400 ? screenWidth * 0.85 : screenWidth * 0.82,
+    padding: screenWidth < 400 ? 12 : 16,
+    borderRadius: 20,
+    minHeight: 48,
+    flex: 1,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 21,
+    flexWrap: 'wrap',
   },
   messageContentRow: {
     flexDirection: 'row',

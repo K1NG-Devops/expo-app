@@ -4,6 +4,7 @@ import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { fetchEnhancedUserProfile, type EnhancedUserProfile, type Role } from '@/lib/rbac';
 import type { User } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 // Optional AsyncStorage for bridging plan selection across auth (no-op on web)
 let AsyncStorage: any = null;
@@ -96,12 +97,16 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     // Fetch enhanced profile if not provided
     let enhancedProfile = profile;
     if (!enhancedProfile) {
-      console.log('[ROUTE DEBUG] Fetching enhanced profile for user:', userId);
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('[ROUTE DEBUG] Fetching enhanced profile for user:', userId);
+      }
       enhancedProfile = await fetchEnhancedUserProfile(userId);
-      console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
-      if (enhancedProfile) {
-        console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
-        console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
+        if (enhancedProfile) {
+          console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
+          console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+        }
       }
     }
 
@@ -162,15 +167,26 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     });
 
     // Navigate to determined route (with params if needed)
-    console.log('Navigating to route:', route);
+    if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+      console.log('🚦 [ROUTE] Navigating to route:', route);
+    }
     try {
       if (route.params) {
+        if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+          console.log('🚦 [ROUTE] Using router.replace with params:', { pathname: route.path, params: route.params });
+        }
         router.replace({ pathname: route.path as any, params: route.params } as any);
       } else {
+        if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+          console.log('🚦 [ROUTE] Using router.replace without params:', route.path);
+        }
         router.replace(route.path as any);
       }
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('🚦 [ROUTE] router.replace call completed successfully');
+      }
     } catch (navigationError) {
-      console.error('Navigation failed, falling back to profiles-gate:', navigationError);
+      console.error('🚦 [ROUTE] Navigation failed, falling back to profiles-gate:', navigationError);
       // Fallback to profile gate to ensure user can access the app
       router.replace('/profiles-gate');
     }
@@ -191,12 +207,14 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
   let role = normalizeRole(profile.role) as Role | null;
   
-  console.log('[ROUTE DEBUG] ==> Determining route for user');
-  console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
-  console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
-  console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
-  console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
-  console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
+  if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+    console.log('[ROUTE DEBUG] ==> Determining route for user');
+    console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
+    console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
+    console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
+    console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
+    console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
+  }
   
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
@@ -223,8 +241,10 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       return { path: '/screens/super-admin-dashboard' };
     
     case 'principal_admin':
-      console.log('[ROUTE DEBUG] Principal admin routing - organization_id:', profile.organization_id);
-      console.log('[ROUTE DEBUG] Principal seat_status:', profile.seat_status);
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('[ROUTE DEBUG] Principal admin routing - organization_id:', profile.organization_id);
+        console.log('[ROUTE DEBUG] Principal seat_status:', profile.seat_status);
+      }
       
       // Principals with inactive seats can still access their dashboard (unlike teachers)
       // They may need to manage billing or school setup
@@ -241,7 +261,9 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       }
     
     case 'teacher':
-      console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
+      }
       
       // Teachers should generally have access to their dashboard
       // Allow teacher dashboard access for all known statuses per current type definition
@@ -249,7 +271,9 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       
       // Allow all other cases (active, pending, inactive, null, etc.) to access dashboard
       // This is more permissive and ensures teachers can access their dashboard
-      console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
+      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+        console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
+      }
       return { path: '/screens/teacher-dashboard' };
     
     case 'parent':

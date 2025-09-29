@@ -161,26 +161,29 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     const fieldErrors: string[] = [];
     
     switch (fieldName) {
-      case 'firstName':
+      case 'firstName': {
         const firstNameValidation = AuthValidation.validateName(value, 'First name');
         if (!firstNameValidation.isValid) {
           fieldErrors.push(...firstNameValidation.errors);
         }
         break;
+      }
         
-      case 'lastName':
+      case 'lastName': {
         const lastNameValidation = AuthValidation.validateName(value, 'Last name');
         if (!lastNameValidation.isValid) {
           fieldErrors.push(...lastNameValidation.errors);
         }
         break;
+      }
         
-      case 'email':
+      case 'email': {
         const emailValidation = AuthValidation.validateEmail(value);
         if (!emailValidation.isValid) {
           fieldErrors.push(...emailValidation.errors);
         }
         break;
+      }
         
       case 'phone':
         if (value) {
@@ -195,7 +198,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         // Password validation is handled by PasswordStrengthIndicator
         break;
         
-      case 'confirmPassword':
+      case 'confirmPassword': {
         const confirmValidation = AuthValidation.validateConfirmPassword(
           formState.password,
           value
@@ -204,6 +207,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           fieldErrors.push(...confirmValidation.errors);
         }
         break;
+      }
         
       case 'acceptTerms':
         if (!value) {
@@ -247,7 +251,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     let isValid = true;
     
     switch (currentStep) {
-      case 'personal_info':
+      case 'personal_info': {
         const personalFields = ['firstName', 'lastName', 'email', 'phone'];
         personalFields.forEach(field => {
           const fieldErrors = validateField(field, (formState as any)[field]);
@@ -263,6 +267,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
         
       case 'organization_setup':
         // Organization validation is handled by OrganizationSetup component
@@ -271,7 +276,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         }
         break;
         
-      case 'security_setup':
+      case 'security_setup': {
         // Password validation
         if (!passwordValidation?.isValid) {
           stepErrors.password = passwordValidation?.errors || ['Invalid password'];
@@ -291,6 +296,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
     }
     
     setErrors(stepErrors);
@@ -363,7 +369,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
       };
       
       switch (role) {
-        case 'principal':
+        case 'principal': {
           registration = {
             ...baseRegistration,
             role: 'principal',
@@ -377,8 +383,9 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             yearsExperience: formState.yearsExperience
           } as PrincipalRegistration;
           break;
+        }
           
-        case 'teacher':
+        case 'teacher': {
           registration = {
             ...baseRegistration,
             role: 'teacher',
@@ -390,8 +397,9 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             bio: formState.bio
           } as TeacherRegistration;
           break;
+        }
           
-        case 'parent':
+        case 'parent': {
           registration = {
             ...baseRegistration,
             role: 'parent',
@@ -400,9 +408,10 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             emergencyContact: formState.emergencyContact
           } as ParentRegistration;
           break;
+        }
           
         case 'student':
-        default:
+        default: {
           registration = {
             ...baseRegistration,
             role: 'student',
@@ -413,6 +422,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             interests: formState.interests
           } as StudentRegistration;
           break;
+        }
       }
       
       // Call success handler

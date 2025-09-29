@@ -63,6 +63,7 @@ export default function Landing() {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [webOptimized, setWebOptimized] = useState(false);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -88,33 +89,57 @@ export default function Landing() {
 
   const checkAuthAndRoute = async () => {
     try {
+      console.log('🔍 [INDEX] Starting auth check...');
+      
       // Import here to avoid circular dependency
       const { assertSupabase } = await import('@/lib/supabase');
       const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
       
+      console.log('🔍 [INDEX] Checking session...');
       // Check current session
       const { data: { session }, error } = await assertSupabase().auth.getSession();
       
       if (error) {
-        console.warn('Session check failed:', error.message);
+        console.warn('🔍 [INDEX] Session check failed:', error.message);
         // Don't redirect on error - let users stay on landing page
+        setAuthCheckComplete(true);
         return;
       }
       
       if (session?.user) {
         // User is authenticated, route them to appropriate screen
-        console.log('Authenticated user detected, routing to dashboard...');
+        console.log('🔍 [INDEX] Authenticated user detected, routing to dashboard...');
+        console.log('🔍 [INDEX] User ID:', session.user.id);
         await routeAfterLogin(session.user, null);
+        console.log('🔍 [INDEX] Route after login completed');
+        // Don't set authCheckComplete here - we're routing away
+        return;
+      } else {
+        console.log('🔍 [INDEX] No session found, staying on landing page');
       }
       
       // If no session, do nothing - let users stay on landing page
+      setAuthCheckComplete(true);
       
     } catch (error) {
-      console.error('Error checking authentication:', error);
+      console.error('🔍 [INDEX] Error checking authentication:', error);
       // Don't redirect on error - let users stay on landing page
+      setAuthCheckComplete(true);
     }
   };
 
+
+  // Show loading screen while checking authentication
+  if (!authCheckComplete) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <StatusBar style="light" translucent />
+        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={styles.loadingText}>🔍 Checking authentication...</Text>
+        </SafeAreaView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -392,6 +417,16 @@ const FooterSection = () => (
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: DesignSystem.colors.background },
+  loadingContainer: {
+    backgroundColor: '#0a0a0f',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#00f5ff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   scrollView: { flex: 1 },
   scrollContent: { paddingBottom: 0 },
   heroContainer: { minHeight: Math.max(600, height * 0.9) },

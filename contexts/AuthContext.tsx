@@ -146,19 +146,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentSession.user);
       }
       
-      // Refresh profile if we have a user
-      if (currentSession.user) {
+      // Refresh profile if we have a user - but only if not already loading
+      if (currentSession.user && !profileLoading) {
         console.log('Refreshing profile on visibility change');
-        const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
-        if (enhancedProfile) {
-          setProfile(enhancedProfile);
-          setPermissions(createPermissionChecker(enhancedProfile));
+        
+        // Set a timeout to prevent infinite loading
+        const timeoutId = setTimeout(() => {
+          setProfileLoading(false);
+          console.warn('Profile loading timeout, clearing loading state');
+        }, 10000); // 10 second timeout
+        
+        try {
+          const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
+          clearTimeout(timeoutId);
+          
+          if (enhancedProfile) {
+            setProfile(enhancedProfile);
+            setPermissions(createPermissionChecker(enhancedProfile));
+          }
+        } catch (profileError) {
+          clearTimeout(timeoutId);
+          console.error('Profile refresh failed:', profileError);
+          // Don't clear existing profile on refresh failure
         }
       }
     } catch (error) {
       console.error('Visibility refresh failed:', error);
+      // Ensure loading state is cleared on error
+      setProfileLoading(false);
     }
-  }, [session, lastRefreshAttempt]);
+  }, [session, lastRefreshAttempt, profileLoading]);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {

@@ -9,6 +9,8 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -173,7 +175,7 @@ export default function RootLayout() {
           
           const style = window.getComputedStyle(div);
           const hasWhiteBackground = style.backgroundColor === 'rgb(255, 255, 255)' || style.backgroundColor === 'white';
-          const hasBackButton = div.querySelector('button[aria-label="Go back"]') || div.querySelector('button[aria-label*="back"]');
+          // const hasBackButton = div.querySelector('button[aria-label="Go back"]') || div.querySelector('button[aria-label*="back"]'); // TODO: Use this for more precise hiding
           const hasScreensText = div.textContent?.trim() === 'screens'; // More specific match
           
           // Only hide if it's clearly a navigation header (not app content)
@@ -240,40 +242,35 @@ export default function RootLayout() {
   }, []);
   
   return (
-    <SafeAreaProvider>
-      <QueryProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <DashboardPreferencesProvider>
-              <UpdatesProvider>
-                <ToastProvider>
-                <View style={styles.container}>
-                  <StatusBar style="dark" />
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      presentation: 'card',
-                      animationTypeForReplace: 'push',
-                    }}
-                  >
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
-                    {/* Screens area manages headers via its own layout */}
-                    <Stack.Screen name="screens" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/teacher-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/principal-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/parent-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/super-admin-dashboard" options={{ headerShown: false }} />
-                  </Stack>
-                </View>
-                </ToastProvider>
-              </UpdatesProvider>
-            </DashboardPreferencesProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <DashboardPreferencesProvider>
+                <UpdatesProvider>
+                  <ToastProvider>
+                    <View style={styles.container}>
+                      <StatusBar style="dark" />
+                      <DashWakeWordListener />
+                      <Stack
+                        screenOptions={{
+                          headerShown: false,
+                          presentation: 'card',
+                          animationTypeForReplace: 'push',
+                        }}
+                      >
+                        {/* Let Expo Router auto-discover screens */}
+                      </Stack>
+                    </View>
+                  </ToastProvider>
+                </UpdatesProvider>
+              </DashboardPreferencesProvider>
+            </ThemeProvider>
+          </AuthProvider>
+        </QueryProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

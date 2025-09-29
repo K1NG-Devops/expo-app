@@ -7,6 +7,10 @@ require('dotenv').config();
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// Add support for .ppn files (Porcupine wake word models)
+config.resolver.assetExts.push('ppn');
+config.resolver.sourceExts = config.resolver.sourceExts.filter(ext => ext !== 'ppn');
+
 // Platform-specific resolver to exclude native-only modules from web
 config.resolver.platforms = ['ios', 'android', 'web'];
 
@@ -23,7 +27,7 @@ config.resolver.blockList = exclusionList([
 ]);
 
 
-// Block native-only modules on web platform
+// Only handle web-specific module resolution to avoid breaking native platforms
 const originalResolver = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (platform === 'web') {
@@ -36,9 +40,18 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       };
     }
     
+    // Handle ReactDevToolsSettingsManager issues on web
+    if (moduleName.includes('ReactDevToolsSettingsManager') || 
+        moduleName.includes('src/private/debugging/ReactDevToolsSettingsManager') ||
+        moduleName === '../../src/private/debugging/ReactDevToolsSettingsManager') {
+      return {
+        filePath: require.resolve('./lib/stubs/devtools-stub.js'),
+        type: 'sourceFile',
+      };
+    }
   }
   
-  // Use default resolver for other cases
+  // Use default resolver for all other cases
   if (originalResolver) {
     return originalResolver(context, moduleName, platform);
   }

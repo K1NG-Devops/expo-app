@@ -9,33 +9,10 @@ export default function NotFound() {
   
   useEffect(() => {
     if (__DEV__) {
-      // Gate debug logs to development only to avoid leaking routing internals
-       
-      console.log('🚨 [NOT-FOUND] Unmatched route detected!');
-       
-      console.log('🚨 [NOT-FOUND] Pathname:', pathname);
-       
-      console.log('🚨 [NOT-FOUND] Segments:', segments);
-       
-      console.log('🚨 [NOT-FOUND] Router state:', router);
-       
-      console.log('🚨 [NOT-FOUND] Full router object keys:', Object.keys(router));
-       
-      console.log('🚨 [NOT-FOUND] Router.canGoBack:', router.canGoBack?.());
-       
-      console.log('🚨 [NOT-FOUND] Window location:', typeof window !== 'undefined' ? window.location : 'N/A');
-      
-      try {
-         
-        console.log('🚨 [NOT-FOUND] Router push function:', typeof router.push);
-         
-        console.log('🚨 [NOT-FOUND] Process.env.NODE_ENV:', process.env.NODE_ENV);
-      } catch (error) {
-         
-        console.log('🚨 [NOT-FOUND] Error getting router debug info:', error);
-      }
+      // Minimal debug log - reduced verbosity
+      console.log('🚨 [NOT-FOUND] Unmatched route:', pathname);
     }
-  }, []);
+  }, [pathname]);
   
   return (
     <>

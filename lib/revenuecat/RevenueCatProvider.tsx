@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import Purchases, { CustomerInfo } from 'react-native-purchases';
+// Conditional import to prevent build failures if package not installed
+let Purchases: any = null;
+let CustomerInfo: any = null;
+try {
+  const purchases = require('react-native-purchases');
+  Purchases = purchases.default;
+  CustomerInfo = purchases.CustomerInfo;
+} catch (error) {
+  console.warn('RevenueCat not available - subscription features disabled');
+}
 import { useAuth } from '../../contexts/AuthContext';
 import { initializeRevenueCat, identifyRevenueCatUser, logoutRevenueCatUser, getCustomerInfo } from './config';
 
@@ -79,7 +88,7 @@ export function RevenueCatProvider({ children }: RevenueCatProviderProps) {
   useEffect(() => {
     if (!initialized) return;
 
-    Purchases.addCustomerInfoUpdateListener((info) => {
+    Purchases?.addCustomerInfoUpdateListener((info: any) => {
       console.log('RevenueCat Provider: Customer info updated');
       setCustomerInfo(info);
     });

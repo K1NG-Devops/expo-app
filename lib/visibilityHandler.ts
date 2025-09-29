@@ -146,14 +146,14 @@ class VisibilityHandler {
       clearTimeout(this.refreshTimeout);
     }
 
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && typeof (document as any).removeEventListener === 'function') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     }
 
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('focus', this.handleWindowFocus);
-      window.removeEventListener('blur', this.handleWindowBlur);
-      window.removeEventListener('pageshow', this.handlePageShow);
+    if (typeof window !== 'undefined' && typeof (window as any).removeEventListener === 'function') {
+      window.removeEventListener('focus', this.handleWindowFocus as any);
+      window.removeEventListener('blur', this.handleWindowBlur as any);
+      window.removeEventListener('pageshow', this.handlePageShow as any);
     }
   }
 }

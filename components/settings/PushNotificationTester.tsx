@@ -71,9 +71,9 @@ export const PushNotificationTester: React.FC = () => {
 
       // Get detailed permissions
       const permissions = await Notifications.getPermissionsAsync();
-      const canSetBadge = permissions.ios?.allowBadge || false;
-      const canPlaySound = permissions.ios?.allowSound || permissions.android?.allowSound || false;
-      const canAlert = permissions.ios?.allowAlert || permissions.android?.allowAlert || false;
+      const canSetBadge = permissions.ios?.allowsBadge || false;
+      const canPlaySound = permissions.ios?.allowsSound || false;
+      const canAlert = permissions.ios?.allowsAlert || false;
 
       // Get push tokens if we have permission
       let expoPushToken = null;

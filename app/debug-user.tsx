@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,9 +13,9 @@ export default function DebugUser() {
 
   useEffect(() => {
     loadDebugData();
-  }, [user]);
+  }, [user, loadDebugData]);
 
-  const loadDebugData = async () => {
+  const loadDebugData = useCallback(async () => {
     if (!user?.id) {
       setLoading(false);
       return;
@@ -34,7 +34,7 @@ export default function DebugUser() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   const testRouting = async () => {
     try {

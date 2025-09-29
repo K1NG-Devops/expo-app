@@ -134,8 +134,11 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
       // Normalize the profile data
       const normalizedProfile = {
         ...profile,
-        name: profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || null,
-        auth_user_id: profile.auth_user_id || profile.id,
+        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || null,
+        auth_user_id: profile.id, // Use id as auth_user_id
+        preschool: Array.isArray(profile.preschool) && profile.preschool.length > 0 
+          ? profile.preschool[0] 
+          : null,
       };
       
       return normalizedProfile as UserProfile;

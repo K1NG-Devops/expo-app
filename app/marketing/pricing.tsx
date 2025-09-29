@@ -165,7 +165,7 @@ const PricingGrid = () => (
   </View>
 );
 
-const PricingCard = ({ tier, index }: { tier: PricingTier; index?: number }) => (
+const PricingCard = ({ tier }: { tier: PricingTier; index?: number }) => (
   <View style={[
     styles.pricingCard,
     tier.recommended && styles.recommendedCard,

@@ -138,21 +138,23 @@ export class WorksheetService {
         question = `${num1} + ${num2} = ___`;
         answer = num1 + num2;
         break;
-      case 'subtraction':
+      case 'subtraction': {
         // Ensure positive result
         const larger = Math.max(num1, num2);
         const smaller = Math.min(num1, num2);
         question = `${larger} - ${smaller} = ___`;
         answer = larger - smaller;
         break;
-      case 'multiplication':
+      }
+      case 'multiplication': {
         // Keep numbers smaller for multiplication
         const mult1 = Math.min(num1, 12);
         const mult2 = Math.min(num2, 12);
         question = `${mult1} × ${mult2} = ___`;
         answer = mult1 * mult2;
         break;
-      case 'division':
+      }
+      case 'division': {
         // Ensure clean division
         const divisor = Math.max(2, Math.min(num2, 12));
         const quotient = Math.max(1, Math.min(num1, 12));
@@ -160,6 +162,7 @@ export class WorksheetService {
         question = `${dividend} ÷ ${divisor} = ___`;
         answer = quotient;
         break;
+      }
       default:
         question = `${num1} + ${num2} = ___`;
         answer = num1 + num2;
