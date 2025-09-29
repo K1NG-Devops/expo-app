@@ -90,20 +90,28 @@ export default function DashWakeWordListener() {
       
       // Debug: Log module structure
       console.log('[DashWakeWord] Porcupine module keys:', Object.keys(PorcupineModule));
+      console.log('[DashWakeWord] Module structure:', {
+        hasPorcupineManager: 'PorcupineManager' in PorcupineModule,
+        hasDefault: 'default' in PorcupineModule,
+        type: typeof PorcupineModule
+      });
       
-      // Try different export patterns
-      const PorcupineManager = PorcupineModule.PorcupineManager 
-        || PorcupineModule.default?.PorcupineManager
-        || PorcupineModule.default;
+      // The correct export is PorcupineModule.PorcupineManager (not a nested default)
+      const { PorcupineManager } = PorcupineModule;
       
       if (!PorcupineManager) {
         console.error('[DashWakeWord] PorcupineManager not found in module exports');
+        console.error('[DashWakeWord] Available exports:', Object.keys(PorcupineModule));
         return false;
       }
+      
+      console.log('[DashWakeWord] PorcupineManager type:', typeof PorcupineManager);
+      console.log('[DashWakeWord] PorcupineManager methods:', Object.getOwnPropertyNames(PorcupineManager));
       
       // Check if fromKeywordPaths exists
       if (typeof PorcupineManager.fromKeywordPaths !== 'function') {
         console.error('[DashWakeWord] PorcupineManager.fromKeywordPaths is not a function:', typeof PorcupineManager.fromKeywordPaths);
+        console.error('[DashWakeWord] Available static methods:', Object.getOwnPropertyNames(PorcupineManager).filter(name => typeof (PorcupineManager as any)[name] === 'function'));
         return false;
       }
       
@@ -135,42 +143,38 @@ export default function DashWakeWordListener() {
         }
       };
 
-      const errorCallback = (error: any) => {
+      const processErrorCallback = (error: any) => {
         console.error('[DashWakeWord] Processing error:', error);
+        console.error('[DashWakeWord] Error type:', typeof error);
+        console.error('[DashWakeWord] Error details:', JSON.stringify(error, null, 2));
       };
 
       // Create PorcupineManager using fromKeywordPaths for custom model
       try {
-        // Check if the module is properly initialized for React Native
-        if (typeof PorcupineManager.fromKeywordPaths === 'function') {
-          porcupineManagerRef.current = await PorcupineManager.fromKeywordPaths(
-            accessKey,
-            [modelPath], // Custom Hello Dash model path
-            detectionCallback,
-            errorCallback,
-            undefined, // modelPath (use default)
-            [0.65] // Higher sensitivity for custom model
-          );
-          
-          console.log('[DashWakeWord] PorcupineManager initialized successfully with Hello Dash model');
-          return true;
-        } else {
-          // Try alternative initialization method for newer versions
-          if (typeof PorcupineManager.create === 'function') {
-            porcupineManagerRef.current = await PorcupineManager.create(
-              accessKey,
-              [modelPath],
-              detectionCallback,
-              errorCallback
-            );
-            console.log('[DashWakeWord] PorcupineManager initialized with create() method');
-            return true;
-          } else {
-            console.warn('[DashWakeWord] PorcupineManager methods not available - wake word disabled');
-            console.log('[DashWakeWord] Available methods:', Object.getOwnPropertyNames(PorcupineManager));
-            return false;
-          }
-        }
+        console.log('[DashWakeWord] Attempting to create PorcupineManager with:');
+        console.log('  - Access key:', accessKey ? `${accessKey.substring(0, 10)}...` : 'MISSING');
+        console.log('  - Model path:', modelPath);
+        console.log('  - Sensitivity:', 0.65);
+        
+        // Use the correct Picovoice API for version 3.x
+        // API: PorcupineManager.fromKeywordPaths(accessKey, keywordPaths, detectionCallback, processErrorCallback, modelPath, sensitivities)
+        porcupineManagerRef.current = await PorcupineManager.fromKeywordPaths(
+          accessKey,
+          [modelPath], // Array of keyword model paths
+          detectionCallback, // Called when wake word detected
+          processErrorCallback, // Called on processing errors
+          undefined, // Use default Porcupine model (language model)
+          [0.65] // Sensitivity for the keyword (0-1, higher = more sensitive)
+        );
+        
+        console.log('[DashWakeWord] PorcupineManager created successfully');
+        console.log('[DashWakeWord] Manager instance:', {
+          hasStart: typeof porcupineManagerRef.current?.start === 'function',
+          hasStop: typeof porcupineManagerRef.current?.stop === 'function',
+          hasDelete: typeof porcupineManagerRef.current?.delete === 'function'
+        });
+        
+        return true;
       } catch (initError) {
         console.error('[DashWakeWord] PorcupineManager initialization failed:', initError);
         // Log more details about the error
