@@ -17,6 +17,7 @@ import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
+import DashNavigationHandler from './DashNavigationHandler';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -1397,50 +1398,27 @@ export class DashAIAssistant {
   }
   
   /**
-   * Navigate to a specific screen programmatically with intelligent route mapping
+   * Navigate to a specific screen using DashNavigationHandler
    */
   public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Dash] Navigating to screen:', route, params);
+      const navHandler = DashNavigationHandler.getInstance();
       
-      // Map common screen names to actual routes
-      const routeMap: Record<string, string> = {
-        'dashboard': '/',
-        'home': '/',
-        'students': '/screens/student-management',
-        // Map generic "lessons" to hub; AI generator is a separate intent
-        'lessons': '/screens/lessons-hub',
-        'ai-lesson': '/screens/ai-lesson-generator',
-        'worksheets': '/screens/worksheet-demo',
-        'assignments': '/screens/assign-homework',
-        // Map reports to teacher-reports screen
-        'reports': '/screens/teacher-reports',
-        'settings': '/screens/dash-ai-settings',
-        // Chat -> Dash Assistant
-        'chat': '/screens/dash-assistant',
-        // Fallbacks for common nouns to existing screens
-        'profile': '/screens/account',
-        // Not implemented screens are mapped to closest existing destinations
-        'calendar': '/screens/teacher-reports',
-        'gradebook': '/screens/teacher-reports',
-        // Parent messaging
-        'parents': '/screens/parent-messages',
-        'curriculum': '/screens/lessons-categories'
-      };
+      // Try navigation via voice command first (supports natural language)
+      const result = await navHandler.navigateByVoice(route);
       
-      // Resolve the actual route
-      const actualRoute = routeMap[route.toLowerCase().replace(/^\//, '')] || route;
-      
-      // Navigate to the specified route
-      if (params && Object.keys(params).length > 0) {
-        router.push({ pathname: actualRoute, params } as any);
-      } else {
-        router.push(actualRoute);
+      if (result.success) {
+        console.log(`[Dash] Successfully navigated to: ${result.screen}`);
+        return { success: true };
       }
       
-      // Log successful navigation
-      console.log(`[Dash] Successfully navigated to: ${actualRoute}`);
-      return { success: true };
+      // If voice command fails, try direct screen key
+      const directResult = await navHandler.navigateToScreen(route, params);
+      
+      return {
+        success: directResult.success,
+        error: directResult.error
+      };
       
     } catch (error) {
       console.error('[Dash] Navigation failed:', error);
