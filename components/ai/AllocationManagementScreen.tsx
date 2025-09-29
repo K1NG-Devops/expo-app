@@ -556,7 +556,7 @@ export default function AllocationManagementScreen() {
                 />
               )}
               keyExtractor={(item) => item.id}
-              estimatedItemSize={120}
+              estimatedSize={120}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
             />

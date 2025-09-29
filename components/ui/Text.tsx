@@ -6,12 +6,12 @@
  */
 
 import React from 'react';
-import { Text as RNText, StyleSheet, TextStyle, StyleProp } from 'react-native';
+import { Text as RNText, StyleSheet, TextStyle, StyleProp, Platform } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 
 export interface TextProps {
   children: React.ReactNode;
-  variant?: 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'callout' | 'caption1' | 'caption2' | 'footnote';
+  variant?: 'title1' | 'title2' | 'title3' | 'headline' | 'subheadline' | 'body' | 'callout' | 'caption1' | 'caption2' | 'footnote' | 'h1' | 'h2' | 'h3' | 'code';
   color?: 'primary' | 'secondary' | 'tertiary' | 'error' | 'success' | 'warning' | 'white';
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
@@ -70,6 +70,28 @@ const typography = {
     fontSize: 13,
     fontWeight: '400' as const,
     lineHeight: 18,
+  },
+  // Aliases for HTML-style heading variants  
+  h1: {
+    fontSize: 34,
+    fontWeight: '700' as const,
+    lineHeight: 41,
+  },
+  h2: {
+    fontSize: 28,
+    fontWeight: '700' as const,
+    lineHeight: 34,
+  },
+  h3: {
+    fontSize: 22,
+    fontWeight: '600' as const,
+    lineHeight: 28,
+  },
+  code: {
+    fontSize: 14,
+    fontWeight: '400' as const,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 };
 

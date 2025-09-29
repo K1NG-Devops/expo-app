@@ -108,7 +108,7 @@ export const useParentThreads = () => {
             .single();
           
           // Get unread count (messages after user's last_read_at)
-          const userParticipant = thread.participants?.find(p => p.user_id === user.id);
+          const userParticipant = thread.participants?.find((p: MessageParticipant) => p.user_id === user.id);
           let unreadCount = 0;
           
           if (userParticipant) {

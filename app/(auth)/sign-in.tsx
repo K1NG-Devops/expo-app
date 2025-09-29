@@ -142,7 +142,9 @@ export default function EnhancedSignIn() {
       // Use proper post-login routing to direct to appropriate dashboard
       try {
         const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-        await routeAfterLogin(session.user, profile);
+        // session is UserSession type, need to get actual Supabase user for routing
+        const { data: { user } } = await supabase.auth.getUser();
+        await routeAfterLogin(user, profile);
       } catch (routingError) {
         console.error('Post-login routing failed:', routingError);
         // Fallback to profiles-gate if routing fails

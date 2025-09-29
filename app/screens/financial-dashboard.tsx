@@ -72,12 +72,11 @@ export default function FinanceDashboard() {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
       const transactionData = await FinancialDataService.getTransactions(
-        preschoolId,
         {
-          startDate: thirtyDaysAgo.toISOString(),
-          endDate: new Date().toISOString(),
+          from: thirtyDaysAgo.toISOString(),
+          to: new Date().toISOString(),
         },
-        50
+        preschoolId
       );
       setTransactions(transactionData);
 
@@ -97,9 +96,9 @@ export default function FinanceDashboard() {
     }
 
     const summary = {
-      revenue: overview.monthlyRevenue,
-      expenses: overview.monthlyExpenses,
-      cashFlow: overview.netIncome,
+      revenue: overview.keyMetrics.monthlyRevenue,
+      expenses: overview.keyMetrics.monthlyExpenses,
+      cashFlow: overview.keyMetrics.cashFlow,
     };
 
     ExportService.exportFinancialData(transactions, summary, {

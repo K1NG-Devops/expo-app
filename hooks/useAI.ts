@@ -235,7 +235,7 @@ export function useAIRequest() {
       track('edudash.ai.request.succeeded', {
         service_type: variables.service_type,
         duration_ms: 0,
-        tokens_used: data.usage?.tokens_in + data.usage?.tokens_out || 0,
+        tokens_used: (data.usage?.tokens_in || 0) + (data.usage?.tokens_out || 0),
         cost_cents: 0,
       } as any);
     },
