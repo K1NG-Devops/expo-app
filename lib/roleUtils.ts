@@ -87,3 +87,51 @@ export function normalizeRole(role?: string | null): UserRole | null {
   
   return null;
 }
+
+/**
+ * Roles that can manage AI quota allocations
+ */
+export const PRINCIPAL_ROLES = new Set(['principal', 'principal_admin', 'super_admin']);
+
+/**
+ * Check if a user role can manage AI quota allocations
+ */
+export function canManageAllocationsRole(role?: string | null): boolean {
+  if (!role) return false;
+  const normalizedRole = String(role).trim().toLowerCase();
+  return PRINCIPAL_ROLES.has(normalizedRole as UserRole) || isSuperAdmin(role);
+}
+
+/**
+ * Check if a user is a teacher
+ */
+export function isTeacher(role?: string | null): boolean {
+  if (!role) return false;
+  const normalizedRole = String(role).trim().toLowerCase();
+  return normalizedRole === 'teacher';
+}
+
+/**
+ * Derive canonical preschool ID from enhanced profile
+ * Handles different profile structures for scope resolution
+ */
+export function derivePreschoolId(profile: any | null | undefined): string | null {
+  if (!profile) return null;
+  
+  // Try different possible field names based on your schema
+  return profile.preschool_id || 
+         profile.preschoolId || 
+         profile.organization_id || 
+         profile.organizationId || 
+         profile.school_id ||
+         profile.schoolId ||
+         null;
+}
+
+/**
+ * Get allocation scope for a profile
+ */
+export function getAllocationScope(profile: any | null | undefined) {
+  const preschoolId = derivePreschoolId(profile);
+  return { preschoolId };
+}

@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
+import { logger } from './logger';
 
 // Dynamically import SecureStore to avoid web issues
 let SecureStore: any = null;
@@ -14,7 +15,8 @@ try {
 // Dynamically require AsyncStorage to avoid web/test issues
 let AsyncStorage: any = null;
 try {
-  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  const mod = require('@react-native-async-storage/async-storage');
+  AsyncStorage = mod?.default ?? mod;
 } catch (e) {
   console.debug('AsyncStorage import failed (non-React Native env?)', e);
   // Web fallback using localStorage
@@ -48,14 +50,26 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Debug logging for environment variables (only in development)
-if (__DEV__) {
-  console.log('🔧 Supabase initialization:', {
-    hasUrl: !!url,
-    hasKey: !!anon,
-    urlPreview: url ? `${url.substring(0, 30)}...` : 'NOT_SET',
-    keyPreview: anon ? `${anon.substring(0, 20)}...` : 'NOT_SET',
-  });
+// Enhanced debugging for environment variable loading (development only)
+const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
+if (isDevelopment) {
+  try {
+    logger.debug('Supabase env check', { 
+      hasUrl: !!url, 
+      hasAnon: !!anon,
+      urlLength: url ? url.length : 0,
+      anonLength: anon ? anon.length : 0,
+      urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
+      anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING'
+    });
+    if (!url || !anon) {
+      logger.error('Missing Supabase environment variables!');
+      logger.error('EXPO_PUBLIC_SUPABASE_URL:', url ? 'present' : 'MISSING');
+      logger.error('EXPO_PUBLIC_SUPABASE_ANON_KEY:', anon ? 'present' : 'MISSING');
+    }
+  } catch (e) {
+    logger.error('Supabase debug error:', e);
+  }
 }
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
@@ -113,35 +127,64 @@ if (url && anon) {
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,
+      // Add debugging for token refresh issues
+      debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
     },
+  });
+
+  if (client && isDevelopment) {
+    logger.info('Supabase client initialized successfully');
+  }
+
+  // Add global error handler for auth errors
+  client.auth.onAuthStateChange((event, session) => {
+    if (event === 'TOKEN_REFRESHED') {
+      logger.info('Token refreshed successfully');
+    } else if (event === 'SIGNED_OUT') {
+      logger.info('User signed out');
+      // Clear any stale session data
+      storage.removeItem('edudash_user_session').catch(() => {});
+      storage.removeItem('edudash_user_profile').catch(() => {});
+    }
   });
 }
 
 // Helper function to assert supabase client exists
 export function assertSupabase(): SupabaseClient {
   if (!client) {
-    const debugInfo = {
-      url: process.env.EXPO_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING',
-      key: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'MISSING',
-      nodeEnv: process.env.NODE_ENV,
-      easProfile: process.env.EAS_BUILD_PROFILE,
-    };
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+    const isTest = process.env.NODE_ENV === 'test';
     
-    const errorMessage = [
-      'Supabase client not initialized.',
-      'Environment variables status:',
-      `  EXPO_PUBLIC_SUPABASE_URL: ${debugInfo.url}`,
-      `  EXPO_PUBLIC_SUPABASE_ANON_KEY: ${debugInfo.key}`,
-      `  NODE_ENV: ${debugInfo.nodeEnv}`,
-      `  EAS_BUILD_PROFILE: ${debugInfo.easProfile}`,
-      '',
-      'Solutions:',
-      '1. For local development: Make sure .env file exists with correct values',
-      '2. For EAS builds: Check eas.json environment configuration',
-      '3. Restart development server if you just added .env file'
-    ].join('\n');
-    
-    throw new Error(errorMessage);
+    if (isDev || isTest) {
+      // Development/test environment - show detailed debugging info
+      const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+      const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+      
+      let errorMsg = 'Supabase client not initialized.\n';
+      
+      if (!url && !anon) {
+        errorMsg += 'BOTH environment variables are missing:\n';
+        errorMsg += '- EXPO_PUBLIC_SUPABASE_URL\n';
+        errorMsg += '- EXPO_PUBLIC_SUPABASE_ANON_KEY\n';
+      } else if (!url) {
+        errorMsg += 'Missing: EXPO_PUBLIC_SUPABASE_URL\n';
+      } else if (!anon) {
+        errorMsg += 'Missing: EXPO_PUBLIC_SUPABASE_ANON_KEY\n';
+      } else {
+        errorMsg += 'Environment variables are present but client failed to initialize.\n';
+        errorMsg += `URL length: ${url.length}, Key length: ${anon.length}\n`;
+      }
+      
+      errorMsg += '\nTo fix:\n';
+      errorMsg += '1. Check that your .env file exists in the project root\n';
+      errorMsg += '2. Restart your development server (Metro/Expo)\n';
+      errorMsg += '3. Clear cache: npx expo start --clear\n';
+      
+      throw new Error(errorMsg);
+    } else {
+      // Production environment - show user-friendly message
+      throw new Error('Unable to connect to the service. Please check your internet connection and try again.');
+    }
   }
   return client;
 }

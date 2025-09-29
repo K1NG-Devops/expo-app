@@ -10,6 +10,7 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Vibration,
 } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -24,6 +25,7 @@ interface Subscription {
   billing_frequency: string;
   seats_total: number;
   school_id: string;
+  status?: string;
 }
 
 interface School {
@@ -259,15 +261,24 @@ export default function PlanChangeModal({
         freq: billingFrequency,
       });
 
-      // Show success state
+      // Show success state with haptic feedback
       setButtonState('success');
       setButtonMessage('Plan updated successfully!');
+      
+      // Haptic feedback for success
+      if (Platform.OS !== 'web') {
+        try {
+          Vibration.vibrate([100, 50, 100]); // Short success pattern
+        } catch (e) {
+          console.debug('Vibration not available');
+        }
+      }
       
       // Wait a moment for user to see success, then close
       setTimeout(() => {
         onSuccess();
         onClose();
-      }, 1500);
+      }, 2000); // Slightly longer to show success
       
     } catch (error: any) {
       console.error('Failed to update subscription:', error);
@@ -277,15 +288,24 @@ export default function PlanChangeModal({
         error: error.message,
       });
       
-      // Show error state
+      // Show error state with haptic feedback
       setButtonState('error');
       setButtonMessage(error.message || 'Failed to update subscription');
+      
+      // Haptic feedback for error
+      if (Platform.OS !== 'web') {
+        try {
+          Vibration.vibrate([200, 100, 200]); // Longer error pattern
+        } catch (e) {
+          console.debug('Vibration not available');
+        }
+      }
       
       // Reset to default after showing error
       setTimeout(() => {
         setButtonState('default');
         setButtonMessage('');
-      }, 3000);
+      }, 4000); // Slightly longer for error messages
       
     } finally {
       setLoading(false);
@@ -299,63 +319,92 @@ export default function PlanChangeModal({
       setLoading(true);
       setButtonState('default');
       
-      track('sa_subs_upgrade_payment_initiated', {
+      track('sa_subs_upgrade_payment_notification_sent', {
         subscription_id: subscription.id,
-        vendor: 'payfast',
         plan: selectedPlanId,
         freq: billingFrequency,
+        school_id: school.id,
       });
 
-      const checkoutResult = await createCheckout({
-        scope: 'school',
-        schoolId: school.id,
-        planTier: selectedPlanId,
-        billing: billingFrequency,
-        seats: parseInt(seatsTotal) || 1,
+      // Calculate the new plan amount for notification
+      const newPlan = getSelectedPlan();
+      const amount = billingFrequency === 'annual' ? (newPlan?.price_annual || 0) : (newPlan?.price_monthly || 0);
+      
+      // First update the subscription to pending_payment status
+      await adminUpdateSubscriptionPlan(assertSupabase(), {
+        subscriptionId: subscription.id,
+        newPlanId: selectedPlanId,
+        billingFrequency,
+        seatsTotal: parseInt(seatsTotal) || 1,
+        reason: reason || 'Plan change by SuperAdmin - requires payment confirmation',
+        metadata: {
+          changed_via: 'superadmin_dashboard',
+          payment_required: true,
+          previous_status: subscription.status,
+          payment_amount: amount,
+        }
       });
-
-      if (checkoutResult?.redirect_url) {
-        // Show success state for payment initiation
-        setButtonState('success');
-        setButtonMessage('Redirecting to PayFast...');
-        
-        // Store pending update info for post-payment processing
-        // This could be stored in AsyncStorage or passed via URL params
-        await Linking.openURL(checkoutResult.redirect_url);
-        
-        // Wait a moment before closing
-        setTimeout(() => {
-          onClose();
-        }, 1000);
-        
-      } else {
-        // Show error state
-        setButtonState('error');
-        setButtonMessage('Unable to initiate payment');
-        
-        // Reset after showing error
-        setTimeout(() => {
-          setButtonState('default');
-          setButtonMessage('');
-        }, 3000);
+      
+      // Send payment notification to school
+      try {
+        const { notifyPaymentRequired } = await import('@/lib/notify');
+        await notifyPaymentRequired(school.id, subscription.id, selectedPlanId, amount);
+      } catch (notificationError) {
+        console.warn('Failed to send payment notification:', notificationError);
       }
+
+      // Show success state
+      setButtonState('success');
+      setButtonMessage('✅ School notified to complete payment');
+      
+      // Haptic feedback for success
+      if (Platform.OS !== 'web') {
+        try {
+          Vibration.vibrate([100, 50, 100]); // Success pattern
+        } catch (e) {
+          console.debug('Vibration not available');
+        }
+      }
+      
+      track('sa_subs_upgrade_notification_sent', {
+        subscription_id: subscription.id,
+        new_plan: selectedPlanId,
+        freq: billingFrequency,
+        amount: amount,
+      });
+      
+      // Wait longer to show the success message
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 2500);
+      
     } catch (error: any) {
-      console.error('Payment flow error:', error);
+      console.error('Payment notification error:', error);
       
       track('sa_subs_upgrade_failed', {
         subscription_id: subscription.id,
-        error: `Payment error: ${error.message}`,
+        error: `Notification error: ${error.message}`,
       });
       
-      // Show error state
+      // Show error state with haptic feedback
       setButtonState('error');
-      setButtonMessage(error.message || 'Failed to start payment process');
+      setButtonMessage(error.message || 'Failed to notify school for payment');
+      
+      // Haptic feedback for error
+      if (Platform.OS !== 'web') {
+        try {
+          Vibration.vibrate([200, 100, 200]); // Error pattern
+        } catch (e) {
+          console.debug('Vibration not available');
+        }
+      }
       
       // Reset after showing error
       setTimeout(() => {
         setButtonState('default');
         setButtonMessage('');
-      }, 3000);
+      }, 4000);
       
     } finally {
       setLoading(false);
@@ -538,24 +587,59 @@ export default function PlanChangeModal({
           {/* Change Summary */}
           {newPlan && (
             <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.primary }]}>
-              <Text style={[styles.summaryTitle, { color: theme.text }]}>Change Summary</Text>
-              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
-                {currentPlan?.name || 'Unknown'} → {newPlan.name}
-              </Text>
-              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
-                {subscription.billing_frequency} → {billingFrequency}
-              </Text>
-              <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
-                {subscription.seats_total} → {seatsTotal} seats
-              </Text>
-              <Text style={[styles.summaryPrice, { color: theme.primary }]}>
-                R{currentPrice} → R{newPrice}/{billingFrequency === 'annual' ? 'year' : 'month'}
-              </Text>
+              <View style={styles.summaryHeader}>
+                <Text style={[styles.summaryTitle, { color: theme.text }]}>Change Summary</Text>
+                {newPrice > currentPrice && (
+                  <View style={[styles.upgradeBadge, { backgroundColor: theme.primary + '20' }]}>
+                    <Text style={[styles.upgradeBadgeText, { color: theme.primary }]}>UPGRADE</Text>
+                  </View>
+                )}
+                {newPrice < currentPrice && (
+                  <View style={[styles.downgradeBadge, { backgroundColor: '#ef4444' + '20' }]}>
+                    <Text style={[styles.downgradeBadgeText, { color: '#ef4444' }]}>DOWNGRADE</Text>
+                  </View>
+                )}
+              </View>
+              
+              <View style={styles.changeRow}>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Plan</Text>
+                <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                  {currentPlan?.name || 'Unknown'} → {newPlan.name}
+                </Text>
+              </View>
+              
+              <View style={styles.changeRow}>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Billing</Text>
+                <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                  {subscription.billing_frequency} → {billingFrequency}
+                </Text>
+              </View>
+              
+              <View style={styles.changeRow}>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Seats</Text>
+                <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
+                  {subscription.seats_total} → {seatsTotal} seats
+                </Text>
+              </View>
+              
+              <View style={[styles.priceRow, { borderTopColor: theme.border }]}>
+                <Text style={[styles.summaryPrice, { color: theme.primary }]}>
+                  R{currentPrice} → R{newPrice}/{billingFrequency === 'annual' ? 'year' : 'month'}
+                </Text>
+                {newPrice > currentPrice && (
+                  <Text style={[styles.priceIncrease, { color: theme.primary }]}>
+                    +R{newPrice - currentPrice}
+                  </Text>
+                )}
+              </View>
               
               {isPaymentRequired() && (
-                <Text style={[styles.billingNote, { color: theme.textTertiary }]}>
-                  💳 You may be redirected to PayFast to confirm new billing.
-                </Text>
+                <View style={[styles.paymentNotice, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
+                  <Text style={[styles.paymentIcon, { color: theme.primary }]}>💳</Text>
+                  <Text style={[styles.billingNote, { color: theme.primary, flex: 1 }]}>
+                    Payment required - The school principal will be notified via email and push notification to complete payment via PayFast.
+                  </Text>
+                </View>
               )}
             </View>
           )}
@@ -575,24 +659,51 @@ export default function PlanChangeModal({
               styles.confirmButton,
               { backgroundColor: theme.primary },
               (loading || !selectedPlanId) && { backgroundColor: theme.border, opacity: 0.6 },
-              buttonState === 'success' && { backgroundColor: '#10b981' },
-              buttonState === 'error' && { backgroundColor: '#ef4444' }
+              buttonState === 'success' && { 
+                backgroundColor: '#10b981',
+                shadowColor: '#10b981',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 4
+              },
+              buttonState === 'error' && { 
+                backgroundColor: '#ef4444',
+                shadowColor: '#ef4444',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 4
+              }
             ]}
             onPress={handleConfirm}
             disabled={loading || !selectedPlanId || buttonState === 'success'}
+            activeOpacity={0.8}
           >
             {loading ? (
-              <ActivityIndicator size="small" color={theme.onPrimary} />
+              <View style={styles.buttonContent}>
+                <ActivityIndicator size="small" color={theme.onPrimary} style={{ marginRight: 8 }} />
+                <Text style={[styles.confirmButtonText, { color: theme.onPrimary }]}>Processing...</Text>
+              </View>
             ) : (
               <View style={styles.buttonContent}>
                 {buttonState === 'success' && (
-                  <Text style={styles.buttonIcon}>✓</Text>
+                  <View style={styles.successIcon}>
+                    <Text style={styles.buttonIcon}>✓</Text>
+                  </View>
                 )}
                 {buttonState === 'error' && (
-                  <Text style={styles.buttonIcon}>⚠️</Text>
+                  <View style={styles.errorIcon}>
+                    <Text style={styles.buttonIcon}>⚠️</Text>
+                  </View>
+                )}
+                {buttonState === 'default' && (
+                  <Text style={[styles.buttonIcon, { opacity: 0.8 }]}>
+                    {isPaymentRequired() ? '💳' : '✨'}
+                  </Text>
                 )}
                 <Text style={[styles.confirmButtonText, { color: theme.onPrimary }]}>
-                  {buttonMessage || (isPaymentRequired() ? 'Proceed to Payment' : 'Confirm Change')}
+                  {buttonMessage || (isPaymentRequired() ? 'Notify School to Pay' : 'Confirm Change')}
                 </Text>
               </View>
             )}
@@ -804,8 +915,79 @@ const styles = StyleSheet.create({
     marginRight: 8,
     color: '#ffffff',
   },
+  successIcon: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: 4,
+    marginRight: 8,
+  },
+  errorIcon: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    padding: 4,
+    marginRight: 8,
+  },
   confirmButtonText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  upgradeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  upgradeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  downgradeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  downgradeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  changeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  changeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    width: 60,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  priceIncrease: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  paymentNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  paymentIcon: {
+    fontSize: 16,
+    marginRight: 8,
   },
 });

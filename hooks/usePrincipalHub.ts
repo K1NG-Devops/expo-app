@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { usePettyCashDashboard } from './usePettyCashDashboard';
+import { useTranslation } from 'react-i18next';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
@@ -145,6 +146,7 @@ const apiCall = async (endpoint: string, user?: any) => {
 export const usePrincipalHub = () => {
   const { user, profile } = useAuth();
   const { metrics: pettyCashMetrics } = usePettyCashDashboard();
+  const { t } = useTranslation();
   const [data, setData] = useState<PrincipalHubData>({
     stats: null,
     teachers: null,
@@ -153,7 +155,7 @@ export const usePrincipalHub = () => {
     capacityMetrics: null,
     recentActivities: null,
     schoolId: null,
-    schoolName: 'No School Assigned'
+    schoolName: t('dashboard.no_school_assigned_text')
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +226,9 @@ export const usePrincipalHub = () => {
         teachersResult,
         classesResult,
         applicationsResult,
+        approvedAppsResult,
+        rejectedAppsResult,
+        waitlistedAppsResult,
         attendanceResult,
         capacityResult,
         preschoolResult
@@ -233,24 +238,24 @@ export const usePrincipalHub = () => {
           .from('students')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
-        // Get teachers from users table with real data (CORRECTED)
+        // Get teachers from teachers table (CORRECTED)
         assertSupabase()
-          .from('users')
+          .from('teachers')
           .select(`
             id, 
-            auth_user_id,
+            user_id,
             email,
-            name,
+            first_name,
+            last_name,
             phone,
-            role,
+            subject_specialization,
             preschool_id,
             is_active,
             created_at
           `)
           .eq('preschool_id', preschoolId)
-          .eq('role', 'teacher')
           .eq('is_active', true),
           
         // Get classes count
@@ -258,7 +263,7 @@ export const usePrincipalHub = () => {
           .from('classes')
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
         // Get pending applications from enrollment_applications
         assertSupabase()
@@ -266,6 +271,23 @@ export const usePrincipalHub = () => {
           .select('id', { count: 'exact', head: true })
           .eq('preschool_id', preschoolId)
           .in('status', ['pending', 'under_review', 'interview_scheduled']),
+
+        // Approved/Rejected/Waitlisted - real counts
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'approved'),
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'rejected'),
+        assertSupabase()
+          .from('enrollment_applications')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'waitlisted'),
           
         // Get recent attendance records for attendance rate
         assertSupabase()
@@ -278,7 +300,7 @@ export const usePrincipalHub = () => {
         // Get preschool capacity info
         assertSupabase()
           .from('preschools')
-          .select('capacity, name')
+          .select('capacity:max_students, name')
           .eq('id', preschoolId)
           .single(),
           
@@ -295,6 +317,9 @@ export const usePrincipalHub = () => {
       const teachersData = teachersResult.status === 'fulfilled' ? (teachersResult.value.data || []) : [];
       const classesCount = classesResult.status === 'fulfilled' ? (classesResult.value.count || 0) : 0;
       const applicationsCount = applicationsResult.status === 'fulfilled' ? (applicationsResult.value.count || 0) : 0;
+      const approvedCount = approvedAppsResult.status === 'fulfilled' ? (approvedAppsResult.value.count || 0) : 0;
+      const rejectedCount = rejectedAppsResult.status === 'fulfilled' ? (rejectedAppsResult.value.count || 0) : 0;
+      const waitlistedCount = waitlistedAppsResult.status === 'fulfilled' ? (waitlistedAppsResult.value.count || 0) : 0;
       const attendanceData = attendanceResult.status === 'fulfilled' ? (attendanceResult.value.data || []) : [];
       const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
       const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
@@ -322,14 +347,14 @@ export const usePrincipalHub = () => {
           const { count: teacherClassesCount } = await assertSupabase()
             .from('classes')
             .select('id', { count: 'exact', head: true })
-            .eq('teacher_id', teacher.auth_user_id)
+            .eq('teacher_id', teacher.user_id)
             .eq('is_active', true) || { count: 0 };
             
           // Get students count for teacher's classes
           const { data: teacherClasses } = await assertSupabase()
             .from('classes')
             .select('id')
-            .eq('teacher_id', teacher.auth_user_id)
+            .eq('teacher_id', teacher.user_id)
             .eq('is_active', true) || { data: [] };
             
           const classIds = (teacherClasses || []).map((c: any) => c.id);
@@ -345,7 +370,7 @@ export const usePrincipalHub = () => {
           
           // Enhanced performance calculation based on multiple factors
           let status: 'excellent' | 'good' | 'needs_attention' = 'good';
-          let performanceIndicator = 'Active teacher';
+          let performanceIndicator = t('teacher.performance.active', { defaultValue: 'Active teacher' });
           
           // Calculate optimal ratios and workload
           const studentTeacherRatio = studentsInClasses > 0 ? studentsInClasses / Math.max(teacherClassesCount || 1, 1) : 0;
@@ -374,35 +399,35 @@ export const usePrincipalHub = () => {
           // Sophisticated performance evaluation
           if (teacherClassesCount === 0) {
             status = 'needs_attention';
-            performanceIndicator = 'No classes assigned - requires attention';
+            performanceIndicator = t('teacher.performance.no_classes', { defaultValue: 'No classes assigned - requires attention' });
           } else if (studentTeacherRatio > 25) {
             status = 'needs_attention';
-            performanceIndicator = `High student ratio (${Math.round(studentTeacherRatio)}:1) - may need support`;
+            performanceIndicator = t('teacher.performance.high_ratio', { ratio: Math.round(studentTeacherRatio), defaultValue: 'High student ratio ({{ratio}}:1) - may need support' });
           } else if ((teacherClassesCount ?? 0) >= 3 && studentTeacherRatio <= 20 && teacherAttendanceRate >= 85) {
             status = 'excellent';
-            performanceIndicator = `Excellent performance - ${teacherClassesCount} classes, ${Math.round(studentTeacherRatio)}:1 ratio, ${teacherAttendanceRate}% attendance`;
+            performanceIndicator = t('teacher.performance.excellent', { classes: teacherClassesCount ?? 0, ratio: Math.round(studentTeacherRatio), attendance: teacherAttendanceRate, defaultValue: 'Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance' });
           } else if ((teacherClassesCount ?? 0) >= 2 && studentTeacherRatio <= 22 && teacherAttendanceRate >= 80) {
             status = 'excellent';
-            performanceIndicator = `Strong performance - ${teacherClassesCount} classes, good attendance rates`;
+            performanceIndicator = t('teacher.performance.strong', { classes: teacherClassesCount ?? 0, defaultValue: 'Strong performance - {{classes}} classes, good attendance rates' });
           } else if (studentTeacherRatio <= 25 && teacherAttendanceRate >= 75) {
             status = 'good';
-            performanceIndicator = `Good performance - managing ${studentsInClasses} students effectively`;
+            performanceIndicator = t('teacher.performance.good', { students: studentsInClasses, defaultValue: 'Good performance - managing {{students}} students effectively' });
           } else {
             status = 'needs_attention';
-            performanceIndicator = `Performance review needed - ${teacherAttendanceRate}% attendance rate in classes`;
+            performanceIndicator = t('teacher.performance.review_needed', { attendance: teacherAttendanceRate, defaultValue: 'Performance review needed - {{attendance}}% attendance rate in classes' });
           }
           
-          // Split name into parts for display
-          const nameParts = (teacher.name || 'Unknown Teacher').split(' ');
-          const first_name = nameParts[0] || 'Unknown';
-          const last_name = nameParts.slice(1).join(' ') || 'Teacher';
+          // Use first_name and last_name from teachers table
+          const first_name = teacher.first_name || 'Unknown';
+          const last_name = teacher.last_name || 'Teacher';
+          const full_name = `${first_name} ${last_name}`.trim();
           
           return {
             id: teacher.id,
             email: teacher.email,
             first_name,
             last_name,
-            full_name: teacher.name || `${first_name} ${last_name}`,
+            full_name,
             phone: teacher.phone,
             subject_specialization: teacher.subject_specialization || 'General',
             hire_date: teacher.created_at,
@@ -450,9 +475,9 @@ export const usePrincipalHub = () => {
         return sum + (transaction.amount || 0);
       }, 0);
       
-      // Only use estimation as fallback if no real data exists
-      const estimatedMonthlyRevenue = currentMonthRevenue > 0 ? currentMonthRevenue : studentsCount * 1200;
-      const finalPreviousRevenue = previousMonthRevenue > 0 ? previousMonthRevenue : Math.round(estimatedMonthlyRevenue * 0.9);
+      // No estimates in production path per rules: use only real figures
+      const monthlyRevenueTotal = currentMonthRevenue;
+      const finalPreviousRevenue = previousMonthRevenue;
       
       // Build real stats object
       const stats = {
@@ -473,8 +498,8 @@ export const usePrincipalHub = () => {
           trend: applicationsCount > 5 ? 'high' : applicationsCount > 2 ? 'up' : 'stable' 
         },
         monthlyRevenue: { 
-          total: estimatedMonthlyRevenue, 
-          trend: estimatedMonthlyRevenue > finalPreviousRevenue ? 'up' : estimatedMonthlyRevenue < finalPreviousRevenue ? 'down' : 'stable' 
+          total: monthlyRevenueTotal, 
+          trend: monthlyRevenueTotal > finalPreviousRevenue ? 'up' : monthlyRevenueTotal < finalPreviousRevenue ? 'down' : 'stable' 
         },
         attendanceRate: { 
           percentage: attendanceRate || 0, 
@@ -488,19 +513,17 @@ export const usePrincipalHub = () => {
       // Use real petty cash data if available, otherwise fall back to basic estimates
       const realPettyCashExpenses = pettyCashMetrics?.monthlyExpenses || 0;
       
-      // For total expenses, include petty cash and estimate other operational costs
-      // This is more accurate than using a blanket percentage
-      const estimatedOperationalCosts = Math.round(estimatedMonthlyRevenue * 0.55); // Staff, utilities, materials
-      const totalExpenses = realPettyCashExpenses + estimatedOperationalCosts;
-      const netProfit = estimatedMonthlyRevenue - totalExpenses;
-      const profitMargin = estimatedMonthlyRevenue > 0 ? Math.round((netProfit / estimatedMonthlyRevenue) * 100) : 0;
+      // Expenses: Use only real petty cash expenses for now (no estimates)
+      const totalExpenses = realPettyCashExpenses;
+      const netProfit = monthlyRevenueTotal - totalExpenses;
+      const profitMargin = monthlyRevenueTotal > 0 ? Math.round((netProfit / monthlyRevenueTotal) * 100) : 0;
       
       const financialSummary = {
-        monthlyRevenue: estimatedMonthlyRevenue,
+        monthlyRevenue: monthlyRevenueTotal,
         previousMonthRevenue: finalPreviousRevenue,
         estimatedExpenses: totalExpenses,
         netProfit,
-        revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((estimatedMonthlyRevenue - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
+        revenueGrowth: finalPreviousRevenue > 0 ? Math.round(((monthlyRevenueTotal - finalPreviousRevenue) / finalPreviousRevenue) * 100) : 0,
         profitMargin,
         pettyCashBalance: pettyCashMetrics?.currentBalance || 0,
         pettyCashExpenses: realPettyCashExpenses,
@@ -525,10 +548,10 @@ export const usePrincipalHub = () => {
       
       const enrollmentPipeline = {
         pending: applicationsCount,
-        approved: Math.round(applicationsCount * 0.6),
-        rejected: Math.round(applicationsCount * 0.2),
-        waitlisted: Math.round(applicationsCount * 0.2),
-        total: applicationsCount + Math.round(applicationsCount * 0.8)
+        approved: approvedCount,
+        rejected: rejectedCount,
+        waitlisted: waitlistedCount,
+        total: applicationsCount + approvedCount + rejectedCount + waitlistedCount,
       };
       
       // Get real recent activities from database
@@ -589,7 +612,7 @@ export const usePrincipalHub = () => {
       });
       
       // Get real school name from database
-      const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || 'My School';
+      const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || t('dashboard.your_school');
 
       setData({
         stats,
@@ -633,42 +656,48 @@ export const usePrincipalHub = () => {
 
     return [
       {
-        title: 'Total Students',
+        id: 'students',
+        title: t('metrics.total_students'),
         value: data.stats.students.total,
         icon: 'people-outline',
         color: '#4F46E5',
         trend: data.stats.students.trend
       },
       {
-        title: 'Teaching Staff',
+        id: 'staff',
+        title: t('metrics.teaching_staff'),
         value: data.stats.staff.total,
         icon: 'school-outline', 
         color: '#059669',
         trend: data.stats.staff.trend
       },
       {
-        title: 'Active Classes',
+        id: 'classes',
+        title: t('metrics.active_classes', { defaultValue: 'Active Classes' }),
         value: data.stats.classes.total,
         icon: 'library-outline',
         color: '#7C3AED',
         trend: data.stats.classes.trend
       },
       {
-        title: 'Attendance Rate',
+        id: 'attendance',
+        title: t('metrics.attendance_rate'),
         value: `${data.stats.attendanceRate.percentage}%`,
         icon: 'checkmark-circle-outline',
         color: data.stats.attendanceRate.percentage >= 90 ? '#059669' : '#DC2626',
         trend: data.stats.attendanceRate.trend
       },
       {
-        title: 'Monthly Revenue',
+        id: 'revenue',
+        title: t('metrics.monthly_revenue'),
         value: formatCurrency(data.stats.monthlyRevenue.total),
         icon: 'card-outline',
         color: '#059669',
         trend: data.stats.monthlyRevenue.trend
       },
       {
-        title: 'Pending Applications',
+        id: 'applications',
+        title: t('metrics.pending_applications', { defaultValue: 'Pending Applications' }),
         value: data.stats.pendingApplications.total,
         icon: 'document-text-outline',
         color: '#F59E0B',

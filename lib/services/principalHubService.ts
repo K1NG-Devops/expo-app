@@ -384,7 +384,7 @@ export class PrincipalHubService {
       // Get school capacity from preschools table
       const { data: school } = await supabase
         .from('preschools')
-        .select('capacity')
+        .select('capacity:max_students')
         .eq('id', preschoolId)
         .single();
 

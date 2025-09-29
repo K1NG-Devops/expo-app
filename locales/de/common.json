@@ -53,6 +53,15 @@
       "error": "Fehler beim Generieren der Lektion. Bitte versuchen Sie es erneut."
     }
   },
+  "dashboard": {
+    "loading_profile": "Loading profile...",
+    "no_school_found_redirect": "No school found. Redirecting to onboarding…",
+    "principal_hub_load_error": "Unable to Load Principal Hub",
+    "your_school": "your school",
+    "unlock_premium_subtitle": "Advanced analytics, AI insights & more • Transform your school today!",
+    "capacity_students": "{{current}} / {{capacity}} students",
+    "utilized_percentage": "{{percentage}}% utilized"
+  },
   "settings": {
     "title": "Einstellungen",
     "profile": "Profileinstellungen",
@@ -83,16 +92,57 @@
     "termsOfService": "Nutzungsbedingungen",
     "privacyPolicy": "Datenschutzrichtlinie"
   },
+  "teacher": {
+    "performance": {
+      "active": "Active teacher",
+      "no_classes": "No classes assigned - requires attention",
+      "high_ratio": "High student ratio ({{ratio}}:1) - may need support",
+      "excellent": "Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance",
+      "strong": "Strong performance - {{classes}} classes, good attendance rates",
+      "good": "Good performance - managing {{students}} students effectively",
+      "review_needed": "Performance review needed - {{attendance}}% attendance rate in classes"
+    }
+  },
   "common": {
     "loading": "Laden...",
     "error": "Fehler",
     "success": "Erfolg",
     "warning": "Warnung",
-    "info": "Information"
+    "info": "Information",
+    "email": "Email",
+    "status": "Status",
+    "go_now": "Go now"
+  },
+  "quick_actions": {
+    "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "subscription": {
+    "choose_your_plan": "Choose Your Plan"
   },
   "curriculum": {
     "standards": {
       "placeholder": "{{subject}} - Klasse {{grade}} Standards"
+    }
+  }
+  ,
+  "subscription": {
+    "choose_your_plan": "Wählen Sie Ihren Tarif",
+    "managePlan": "Tarif verwalten",
+    "tiers": {
+      "free": "Kostenlos",
+      "starter": "Starter",
+      "basic": "Basis",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "tierSource": {
+      "caption": "Quelle: {{source}}",
+      "organization": "Organisationsplan",
+      "school_plan": "Schulabonnement",
+      "school_default": "Schulstandard",
+      "user": "Benutzereinstellung",
+      "unknown": "Unbekannt"
     }
   }
 }

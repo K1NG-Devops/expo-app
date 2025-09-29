@@ -1,43 +1,60 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 
 interface SubscriptionAdGateProps {
   children: React.ReactNode;
-  /** Override the default subscription check */
-  forceShow?: boolean;
-  /** Hide instead of show when subscription is active */
-  inverseLogic?: boolean;
+  /**
+   * Optional override for subscription readiness check.
+   * Useful for testing or specific conditions.
+   */
+  forceReady?: boolean;
+  /**
+   * Optional override for tier check.
+   * Useful for testing or specific conditions.
+   */
+  forceTier?: 'free' | 'starter' | 'premium' | 'enterprise';
 }
 
 /**
- * SubscriptionAdGate - Only shows children when user has free tier (or conditions are met)
- * Used to conditionally display ads based on subscription status
+ * SubscriptionAdGate - A gating component that only renders ad-related children
+ * when the user is on the free tier and ads are enabled.
+ * 
+ * This component respects:
+ * - Subscription tier (only free tier sees ads)
+ * - Platform restrictions (web excluded, Android-first in development)
+ * - Environment flags (EXPO_PUBLIC_ENABLE_ADS)
+ * 
+ * Usage:
+ * ```tsx
+ * <SubscriptionAdGate>
+ *   <AdBanner />
+ * </SubscriptionAdGate>
+ * ```
  */
-const SubscriptionAdGate: React.FC<SubscriptionAdGateProps> = ({
+export default function SubscriptionAdGate({
   children,
-  forceShow = false,
-  inverseLogic = false,
-}) => {
-  const { tier, ready: subscriptionReady } = useSubscription();
+  forceReady,
+  forceTier,
+}: SubscriptionAdGateProps) {
+  const { ready: subscriptionReady, tier } = useSubscription();
 
-  // Force show for testing/debug purposes
-  if (forceShow) {
-    return <>{children}</>;
-  }
+  // Use overrides if provided (useful for testing)
+  const isReady = forceReady ?? subscriptionReady;
+  const currentTier = forceTier ?? tier;
 
-  // Don't render anything until subscription status is loaded
-  if (!subscriptionReady) {
-    return null;
-  }
+  // Gate conditions that must all be true for ads to show
+  const shouldShowAds = (
+    isReady && // Subscription context is ready
+    currentTier === 'free' && // Only free tier users see ads
+    Platform.OS !== 'web' && // Exclude web platform
+    process.env.EXPO_PUBLIC_ENABLE_ADS !== '0' // Environment flag check
+  );
 
-  const shouldShowAds = tier === 'free';
-  const shouldRender = inverseLogic ? !shouldShowAds : shouldShowAds;
-
-  if (!shouldRender) {
+  // Only render children (ads) if all conditions are met
+  if (!shouldShowAds) {
     return null;
   }
 
   return <>{children}</>;
-};
-
-export default SubscriptionAdGate;
+}

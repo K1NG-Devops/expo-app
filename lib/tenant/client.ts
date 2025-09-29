@@ -64,12 +64,12 @@ export function useTenantInfo(): {
       let schoolName = profile?.organization_name;
       const role = profile?.role || 'unknown';
 
-      // If not in profile, query users table
+      // If not in profile, query profiles table
       if (!schoolId) {
         const { data: userProfile, error: userError } = await assertSupabase()
-          .from('users')
+          .from('profiles')
           .select('preschool_id, role')
-          .eq('auth_user_id', user.id)
+          .eq('id', user.id)
           .single();
 
         if (userError) {

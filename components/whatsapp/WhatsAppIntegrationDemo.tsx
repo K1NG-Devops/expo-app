@@ -6,7 +6,9 @@ import { useTranslation } from 'react-i18next'
 import { WhatsAppQuickAction } from './WhatsAppQuickAction'
 import { WhatsAppStatusChip } from './WhatsAppStatusChip'
 import { WhatsAppOptInModal } from './WhatsAppOptInModal'
+import { WhatsAppProfileGuard } from './WhatsAppProfileGuard'
 import { useWhatsAppConnection } from '../../hooks/useWhatsAppConnection'
+import { useAuth } from '../../contexts/AuthContext'
 import { track } from '../../lib/analytics'
 
 interface WhatsAppIntegrationDemoProps {
@@ -16,9 +18,42 @@ interface WhatsAppIntegrationDemoProps {
 export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = ({ onClose }) => {
   const { theme, isDark } = useTheme()
   const { t } = useTranslation()
+  const { profile } = useAuth()
   const { connectionStatus } = useWhatsAppConnection()
   const [showOptInModal, setShowOptInModal] = useState(false)
+  const [showProfileGuard, setShowProfileGuard] = useState(false)
   const [selectedFeature, setSelectedFeature] = useState<string | null>(null)
+
+  // Check if profile is complete for WhatsApp integration
+  const isProfileComplete = () => {
+    if (!profile) return false;
+    
+    const hasRequiredFields = !!
+      profile.first_name?.trim() &&
+      profile.last_name?.trim() &&
+      (profile as any).phone &&
+      profile.organization_id;
+    
+    return hasRequiredFields;
+  }
+
+  // Handle WhatsApp connection attempt with profile guard
+  const handleWhatsAppConnect = () => {
+    if (isProfileComplete()) {
+      setShowOptInModal(true);
+    } else {
+      setShowProfileGuard(true);
+      track('edudash.whatsapp.profile_incomplete', {
+        user_id: profile?.id,
+        missing_fields: [
+          !profile?.first_name ? 'first_name' : null,
+          !profile?.last_name ? 'last_name' : null,
+          !(profile as any)?.phone ? 'phone' : null,
+          !profile?.organization_id ? 'organization' : null,
+        ].filter(Boolean),
+      });
+    }
+  }
 
   const handleFeaturePress = (feature: string) => {
     setSelectedFeature(feature)
@@ -33,43 +68,43 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
     {
       id: 'instant_messages',
       icon: 'flash' as const,
-      title: t('whatsapp.features.instantMessages'),
-      description: t('whatsapp.features.instantMessagesDesc'),
+      title: t('whatsapp.features.instantMessages', { defaultValue: 'Instant Messages' }),
+      description: t('whatsapp.features.instantMessagesDesc', { defaultValue: 'Get school updates delivered instantly to WhatsApp' }),
       color: '#25D366',
     },
     {
       id: 'direct_chat',
       icon: 'chatbubbles' as const,
-      title: t('whatsapp.features.directChat'),
-      description: t('whatsapp.features.directChatDesc'),
+      title: t('whatsapp.features.directChat', { defaultValue: 'Direct Teacher Chat' }),
+      description: t('whatsapp.features.directChatDesc', { defaultValue: 'Chat directly with your child\'s teacher via WhatsApp' }),
       color: '#007AFF',
     },
     {
       id: 'homework_reminders',
       icon: 'notifications' as const,
-      title: t('whatsapp.features.homeworkReminders'),
-      description: t('whatsapp.features.homeworkRemindersDesc'),
+      title: t('whatsapp.features.homeworkReminders', { defaultValue: 'Homework Reminders' }),
+      description: t('whatsapp.features.homeworkRemindersDesc', { defaultValue: 'Never miss homework deadlines with WhatsApp reminders' }),
       color: '#FF9500',
     },
     {
       id: 'voice_messages',
       icon: 'mic' as const,
-      title: t('whatsapp.features.voiceMessages'),
-      description: t('whatsapp.features.voiceMessagesDesc'),
+      title: t('whatsapp.features.voiceMessages', { defaultValue: 'Voice Messages' }),
+      description: t('whatsapp.features.voiceMessagesDesc', { defaultValue: 'Send voice messages in your preferred language' }),
       color: '#34C759',
     },
     {
       id: 'media_sharing',
       icon: 'image' as const,
-      title: t('whatsapp.features.mediaSharing'),
-      description: t('whatsapp.features.mediaSharingDesc'),
+      title: t('whatsapp.features.mediaSharing', { defaultValue: 'Photo & Document Sharing' }),
+      description: t('whatsapp.features.mediaSharingDesc', { defaultValue: 'Share homework photos and documents easily' }),
       color: '#AF52DE',
     },
     {
       id: 'works_offline',
       icon: 'cloud-offline' as const,
-      title: t('whatsapp.features.workOffline'),
-      description: t('whatsapp.features.workOfflineDesc'),
+      title: t('whatsapp.features.workOffline', { defaultValue: 'Works Offline' }),
+      description: t('whatsapp.features.workOfflineDesc', { defaultValue: 'WhatsApp works even with poor internet connection' }),
       color: '#FF6B6B',
     },
   ]
@@ -288,15 +323,7 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
                 }
               </Text>
             </View>
-            <WhatsAppStatusChip onPress={() => setShowOptInModal(true)} />
-          </View>
-        </View>
-
-        {/* Quick Action */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Action</Text>
-          <View style={styles.quickActionContainer}>
-            <WhatsAppQuickAction size="large" />
+            <WhatsAppStatusChip onPress={handleWhatsAppConnect} />
           </View>
         </View>
 
@@ -342,30 +369,16 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
           </View>
         </View>
 
-        {/* Demo Actions */}
+        {/* Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Try It Out</Text>
+          <Text style={styles.sectionTitle}>Actions</Text>
           <View style={styles.demoActions}>
             <TouchableOpacity
               style={[styles.demoButton, styles.demoButtonSecondary]}
-              onPress={() => setShowOptInModal(true)}
+              onPress={handleWhatsAppConnect}
             >
               <Text style={[styles.demoButtonText, styles.demoButtonTextSecondary]}>
                 {connectionStatus.isConnected ? 'Manage Connection' : 'Connect WhatsApp'}
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.demoButton}
-              onPress={() => {
-                // Demo the quick action
-                track('edudash.whatsapp.demo_quick_action', {
-                  timestamp: new Date().toISOString()
-                })
-              }}
-            >
-              <Text style={styles.demoButtonText}>
-                Demo Quick Action
               </Text>
             </TouchableOpacity>
           </View>
@@ -386,6 +399,20 @@ export const WhatsAppIntegrationDemo: React.FC<WhatsAppIntegrationDemoProps> = (
         )}
       </ScrollView>
 
+      <WhatsAppProfileGuard
+        visible={showProfileGuard}
+        onClose={() => setShowProfileGuard(false)}
+        onProfileComplete={() => {
+          setShowProfileGuard(false);
+          setShowOptInModal(true);
+        }}
+        onNavigateToProfile={() => {
+          setShowProfileGuard(false);
+          // TODO: Navigate to profile page
+          // router.push('/profile');
+        }}
+      />
+      
       <WhatsAppOptInModal
         visible={showOptInModal}
         onClose={() => setShowOptInModal(false)}

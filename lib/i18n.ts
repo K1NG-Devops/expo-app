@@ -15,20 +15,42 @@ try {
 } catch {
   console.warn('expo-localization not available, using fallback');
 }
-import { getFeatureFlagsSync } from '@/lib/featureFlags';
+// Feature flags integration (fallback if not available)
+let getFeatureFlagsSync: () => any = () => ({ enableMultilanguageSupport: true });
+try {
+  const featureFlags = require('@/lib/featureFlags');
+  if (featureFlags.getFeatureFlagsSync) {
+    getFeatureFlagsSync = featureFlags.getFeatureFlagsSync;
+  }
+} catch {
+  console.debug('[i18n] Feature flags not available, using defaults');
+}
 
-// Import language resources
-import en from '../locales/en/common.json';
-import es from '../locales/es/common.json';
-import fr from '../locales/fr/common.json';
-import pt from '../locales/pt/common.json';
-import de from '../locales/de/common.json';
-// South African languages
-import af from '../locales/af/common.json';
-import zu from '../locales/zu/common.json';
-import st from '../locales/st/common.json';
-// WhatsApp translations
-import enWhatsApp from '../locales/en/whatsapp.json';
+// Import language resources with error handling
+let en, es, fr, pt, de, af, zu, st, enWhatsApp;
+try {
+  en = require('../locales/en/common.json');
+  es = require('../locales/es/common.json');
+  fr = require('../locales/fr/common.json');
+  pt = require('../locales/pt/common.json') || {};
+  de = require('../locales/de/common.json');
+  af = require('../locales/af/common.json');
+  zu = require('../locales/zu/common.json') || {};
+  st = require('../locales/st/common.json') || {};
+  enWhatsApp = require('../locales/en/whatsapp.json');
+} catch (error) {
+  console.warn('[i18n] Some translation files are missing:', error);
+  // Fallback to empty objects for missing translations
+  en = en || {};
+  es = es || {};
+  fr = fr || {};
+  pt = pt || {};
+  de = de || {};
+  af = af || {};
+  zu = zu || {};
+  st = st || {};
+  enWhatsApp = enWhatsApp || {};
+}
 
 // Supported languages for educational content
 export const SUPPORTED_LANGUAGES = {
@@ -127,7 +149,7 @@ i18n
     },
     
     // Debug in development
-    debug: __DEV__,
+    debug: process.env.NODE_ENV === 'development',
     
     // Return objects for complex translations
     returnObjects: true,
@@ -139,7 +161,7 @@ i18n
     pluralSeparator: '_',
     
     // Cache translations
-    saveMissing: __DEV__, // Only save missing keys in development
+    saveMissing: process.env.NODE_ENV === 'development', // Only save missing keys in development
     
     // Load path for additional resources (future enhancement)
     // backend: {
@@ -185,13 +207,17 @@ export const changeLanguage = async (language: SupportedLanguage): Promise<void>
       console.warn('[i18n] Failed to persist language', e);
     }
     
-    // Track language change
-    const { track } = await import('@/lib/analytics');
-    track('edudash.language.changed', {
-      from: i18n.language,
-      to: language,
-      timestamp: new Date().toISOString(),
-    });
+    // Track language change (if analytics available)
+    try {
+      const { track } = await import('@/lib/analytics');
+      track('edudash.language.changed', {
+        from: i18n.language,
+        to: language,
+        timestamp: new Date().toISOString(),
+      });
+    } catch {
+      console.debug('[i18n] Analytics not available for language tracking');
+    }
   } catch (error) {
     console.error('Failed to change language:', error);
   }

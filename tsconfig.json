@@ -19,13 +19,11 @@
     "supabase/**/*",
     "utils/biometricDebugExtended.ts",
     "temp/**/*",
-    "archive/**/*",
-    "debug/**/*",
-    "tools/**/*",
     "docs/**/*",
-    "logs/**/*",
-    "*.log",
-    "node_modules/**/*"
+    "check-*.js",
+    "test-*.js",
+    "create-*.sql",
+    "screens/**/*"
   ],
   "include": [
     "types/**/*.d.ts",

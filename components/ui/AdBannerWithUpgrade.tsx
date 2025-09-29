@@ -1,127 +1,113 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useSubscription } from '@/contexts/SubscriptionContext';
 import { router } from 'expo-router';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { track } from '@/lib/analytics';
+import AdBanner from './AdBanner';
+import SubscriptionAdGate from './SubscriptionAdGate';
 
 interface AdBannerWithUpgradeProps {
-  /** Screen identifier for tracking */
+  /**
+   * Screen identifier for analytics tracking
+   */
   screen: string;
-  /** Show upgrade CTA button */
+  /**
+   * Whether to show the upgrade CTA below the banner
+   */
   showUpgradeCTA?: boolean;
-  /** Margin around the banner */
+  /**
+   * Custom style for the container
+   */
+  containerStyle?: any;
+  /**
+   * Custom margin/padding
+   */
   margin?: number;
-  /** Custom height */
-  height?: number;
 }
 
 /**
- * AdBannerWithUpgrade - Shows ad banner or upgrade prompt
- * Displays actual ads for free users, upgrade prompt for others
+ * AdBannerWithUpgrade - Combines AdBanner with optional upgrade CTA
+ * 
+ * This component handles:
+ * - Banner ad display (gated by subscription tier)
+ * - Optional "Remove ads — Upgrade" CTA
+ * - Analytics tracking for upgrade clicks
+ * - Consistent styling across the app
+ * 
+ * Usage:
+ * ```tsx
+ * <AdBannerWithUpgrade 
+ *   screen="teacher_dashboard" 
+ *   showUpgradeCTA={true}
+ *   margin={8}
+ * />
+ * ```
  */
-const AdBannerWithUpgrade: React.FC<AdBannerWithUpgradeProps> = ({
+export default function AdBannerWithUpgrade({
   screen,
-  showUpgradeCTA = false,
-  margin = 0,
-  height = 60,
-}) => {
-  const { theme } = useTheme();
-  const { tier, ready: subscriptionReady } = useSubscription();
+  showUpgradeCTA = true,
+  containerStyle,
+  margin = 8,
+}: AdBannerWithUpgradeProps) {
+  const { tier } = useSubscription();
+  const { theme, isDark } = useTheme();
 
-  const handleUpgrade = () => {
-    try {
-      router.push('/screens/subscription-upgrade-post?reason=remove_ads');
-    } catch {
-      console.warn('Failed to navigate to upgrade screen');
-    }
+  const handleUpgradePress = () => {
+    track('ads.upgrade_cta_clicked', {
+      screen,
+      tier,
+      from: 'banner_upgrade_cta',
+    });
+
+    router.push({
+      pathname: '/screens/subscription-upgrade-post',
+      params: {
+        currentTier: tier,
+        reason: 'remove_ads',
+      },
+    });
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      margin,
-      height,
-      borderRadius: 8,
-      overflow: 'hidden',
-    },
-    adPlaceholder: {
-      flex: 1,
-      backgroundColor: '#f5f5f5',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 1,
-      borderColor: '#e0e0e0',
-      borderStyle: 'dashed',
-    },
-    adText: {
-      color: '#666',
-      fontSize: 12,
-      textAlign: 'center',
-    },
-    upgradePrompt: {
-      flex: 1,
-      backgroundColor: theme.primaryLight || '#e6f3ff',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 8,
-    },
-    upgradeText: {
-      color: theme.primary || '#0066cc',
-      fontSize: 12,
-      fontWeight: '600',
-      textAlign: 'center',
-    },
-    upgradeButton: {
-      backgroundColor: theme.primary || '#0066cc',
-      paddingHorizontal: 12,
-      paddingVertical: 4,
-      borderRadius: 4,
-      marginTop: 4,
-    },
-    upgradeButtonText: {
-      color: '#fff',
-      fontSize: 10,
-      fontWeight: '600',
-    },
-  });
+  return (
+    <SubscriptionAdGate>
+      <View style={[styles.container, { marginVertical: margin }, containerStyle]}>
+        {/* Banner Ad */}
+        <AdBanner />
 
-  if (!subscriptionReady) {
-    return null;
-  }
-
-  // For free tier users, show ad placeholder (replace with actual ad)
-  if (tier === 'free') {
-    return (
-      <View style={styles.container}>
-        <View style={styles.adPlaceholder}>
-          <Text style={styles.adText}>Advertisement</Text>
-          <Text style={[styles.adText, { fontSize: 10, marginTop: 2 }]}>
-            {screen}
-          </Text>
-        </View>
+        {/* Upgrade CTA */}
+        {showUpgradeCTA && (
+          <TouchableOpacity
+            style={styles.upgradeCTA}
+            onPress={handleUpgradePress}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Remove ads by upgrading to a paid plan"
+          >
+            <Text style={[styles.upgradeText, { color: isDark ? '#00f5ff' : theme.primary }]}>
+              Remove ads — Upgrade
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
-    );
-  }
+    </SubscriptionAdGate>
+  );
+}
 
-  // For paid users, optionally show upgrade-related message
-  if (showUpgradeCTA) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.upgradePrompt}>
-          <Text style={styles.upgradeText}>
-            🎉 Ad-free experience active
-          </Text>
-          {tier !== 'enterprise' && (
-            <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-              <Text style={styles.upgradeButtonText}>Upgrade More</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  // For paid users without CTA, don't show anything
-  return null;
-};
-
-export default AdBannerWithUpgrade;
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    marginHorizontal: 16,
+  },
+  upgradeCTA: {
+    marginTop: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+  },
+  upgradeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+});

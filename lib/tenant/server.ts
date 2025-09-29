@@ -30,14 +30,14 @@ export async function getTenantContext(): Promise<ServerTenantContext | null> {
 
     // Get user profile with organization info
     const { data: profile, error: profileError } = await assertSupabase()
-      .from('users')
+      .from('profiles')
       .select(`
         preschool_id,
         role,
         capabilities,
         preschools!inner(id, name)
       `)
-      .eq('auth_user_id', user.id)
+      .eq('id', user.id)
       .single();
 
     if (profileError || !profile) {
@@ -137,6 +137,7 @@ export async function requireSchoolAccess(schoolId: string): Promise<ServerTenan
 export function createTenantQuery(tableName: string, schoolId: string) {
   return assertSupabase()
     .from(tableName)
+    .select('*')
     .eq('preschool_id', schoolId) as any;
 }
 
@@ -159,6 +160,7 @@ export class TenantQueryBuilder {
   table(tableName: string) {
     return assertSupabase()
       .from(tableName)
+      .select('*')
       .eq('preschool_id', this.schoolId) as any;
   }
 

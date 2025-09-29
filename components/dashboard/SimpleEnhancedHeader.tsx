@@ -2,10 +2,14 @@ import React, { useEffect, useState } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
+import { useTranslation } from 'react-i18next'
+import { useSubscription } from '@/contexts/SubscriptionContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { router } from 'expo-router'
+import TierBadge from '@/components/ui/TierBadge'
 
 interface SimpleEnhancedHeaderProps {
   userName?: string
-  userRole?: string
   tier?: 'free' | 'pro' | 'enterprise'
   childrenCount?: number
   onWhatsAppPress?: () => void
@@ -14,12 +18,15 @@ interface SimpleEnhancedHeaderProps {
 
 export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   userName = 'Parent',
-  userRole = 'Parent',
   tier = 'free',
   childrenCount = 0,
   onWhatsAppPress,
   onProfilePress
 }) => {
+  const { tier: ctxTier } = useSubscription()
+  const { profile } = useAuth()
+  const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
+  const { t } = useTranslation('common')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [weatherGreeting, setWeatherGreeting] = useState('')
 
@@ -32,18 +39,18 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
     // Set weather-based greeting
     const hour = new Date().getHours()
     if (hour < 12) {
-      setWeatherGreeting('🌅 Good morning')
+      setWeatherGreeting('🌅 ' + t('dashboard.good_morning'))
     } else if (hour < 17) {
-      setWeatherGreeting('☀️ Good afternoon')  
+      setWeatherGreeting('☀️ ' + t('dashboard.good_afternoon'))  
     } else {
-      setWeatherGreeting('🌙 Good evening')
+      setWeatherGreeting('🌙 ' + t('dashboard.good_evening'))
     }
 
     return () => clearInterval(timer)
-  }, [])
+  }, [t])
 
   const getTierInfo = () => {
-    switch (tier) {
+    switch (effectiveTier) {
       case 'pro':
         return {
           label: 'Pro',
@@ -115,39 +122,21 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
         <View style={styles.mainContent}>
           <View style={styles.welcomeSection}>
             <Text style={styles.welcomeText}>
-              Welcome back, {userName}! 👨‍👩‍👧‍👦
+              {t('dashboard.welcome', { name: userName })} 👨‍👩‍👧‍👦
             </Text>
             
             {/* Tier and Role Info */}
             <View style={styles.infoRow}>
-              <View style={[styles.tierBadge, { backgroundColor: `${tierInfo.color}20` }]}>
-                <Ionicons 
-                  name={tierInfo.icon} 
-                  size={12} 
-                  color={tierInfo.color} 
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={[styles.tierText, { color: tierInfo.color }]}>
-                  {tierInfo.label} Tier
-                </Text>
-              </View>
-              
-              {tier === 'free' && (
-                <TouchableOpacity 
-                  style={styles.upgradeHint}
-                  onPress={() => console.log('Navigate to pricing')}
-                >
-                  <Text style={styles.upgradeText}>
-                    Upgrade for more ✨
-                  </Text>
-                </TouchableOpacity>
-              )}
+              {/* Unified Tier Badge component */}
+              <TierBadge showManageButton size="md" />
             </View>
 
             {/* Children Count */}
             {childrenCount > 0 && (
               <Text style={styles.childrenInfo}>
-                Managing {childrenCount} child{childrenCount !== 1 ? 'ren' : ''}
+                {childrenCount === 1 
+                  ? t('dashboard.managingChildren', { count: childrenCount })
+                  : t('dashboard.managingChildrenPlural', { count: childrenCount })}
               </Text>
             )}
           </View>
@@ -162,7 +151,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
             >
               <View style={styles.whatsappChip}>
                 <Ionicons name="logo-whatsapp" size={12} color="#25D366" />
-                <Text style={styles.whatsappText}>Not Connected</Text>
+                <Text style={styles.whatsappText}>{t('dashboard.whatsapp_not_connected', { defaultValue: 'Not Connected' })}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -172,7 +161,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
             <View style={styles.syncStatus}>
               <View style={[styles.syncDot, { backgroundColor: '#10B981' }]} />
               <Text style={styles.syncText}>
-                Synced
+                {t('dashboard.syncStatus')}
               </Text>
             </View>
           </View>

@@ -97,7 +97,11 @@ export const CacheIndicator: React.FC<CacheIndicatorProps> = ({
       <Animated.View style={[styles.compactContainer, { opacity }]}>
         <View style={[styles.compactBadge, { backgroundColor: status.backgroundColor }]}>
           <Ionicons name={status.icon} size={12} color={status.color} />
-          <Text style={[styles.compactText, { color: status.color }]}>
+          <Text 
+            style={[styles.compactText, { color: status.color }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {status.text}
           </Text>
         </View>
@@ -156,6 +160,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     gap: 4,
+    maxWidth: 80,
   },
   statusRow: {
     flexDirection: 'row',
@@ -169,6 +174,7 @@ const styles = StyleSheet.create({
   compactText: {
     fontSize: 12,
     fontWeight: '600',
+    flexShrink: 1,
   },
   timeText: {
     fontSize: 12,

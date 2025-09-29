@@ -61,7 +61,14 @@
     "ai_analytics": "IA et Analyse",
     "good_morning": "Bonjour",
     "good_afternoon": "Bon après-midi",
-    "good_evening": "Bonsoir"
+    "good_evening": "Bonsoir",
+    "loading_profile": "Loading profile...",
+    "no_school_found_redirect": "No school found. Redirecting to onboarding…",
+    "principal_hub_load_error": "Unable to Load Principal Hub",
+    "your_school": "your school",
+    "unlock_premium_subtitle": "Advanced analytics, AI insights & more • Transform your school today!",
+    "capacity_students": "{{current}} / {{capacity}} students",
+    "utilized_percentage": "{{percentage}}% utilized"
   },
   "ai": {
     "homework": {
@@ -107,16 +114,57 @@
     "termsOfService": "Conditions d'Utilisation",
     "privacyPolicy": "Politique de Confidentialité"
   },
+  "teacher": {
+    "performance": {
+      "active": "Active teacher",
+      "no_classes": "No classes assigned - requires attention",
+      "high_ratio": "High student ratio ({{ratio}}:1) - may need support",
+      "excellent": "Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance",
+      "strong": "Strong performance - {{classes}} classes, good attendance rates",
+      "good": "Good performance - managing {{students}} students effectively",
+      "review_needed": "Performance review needed - {{attendance}}% attendance rate in classes"
+    }
+  },
   "common": {
     "loading": "Chargement...",
     "error": "Erreur",
     "success": "Succès",
     "warning": "Avertissement",
-    "info": "Information"
+    "info": "Information",
+    "email": "Email",
+    "status": "Status",
+    "go_now": "Go now"
+  },
+  "quick_actions": {
+    "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "subscription": {
+    "choose_your_plan": "Choose Your Plan"
   },
   "curriculum": {
     "standards": {
       "placeholder": "{{subject}} - Standards de Niveau {{grade}}"
+    }
+  }
+  ,
+  "subscription": {
+    "choose_your_plan": "Choisissez votre offre",
+    "managePlan": "Gérer l’abonnement",
+    "tiers": {
+      "free": "Gratuit",
+      "starter": "Démarrage",
+      "basic": "Basique",
+      "premium": "Premium",
+      "pro": "Pro",
+      "enterprise": "Entreprise"
+    },
+    "tierSource": {
+      "caption": "Source : {{source}}",
+      "organization": "Offre de l’organisation",
+      "school_plan": "Abonnement de l’école",
+      "school_default": "Par défaut de l’école",
+      "user": "Paramètre utilisateur",
+      "unknown": "Inconnu"
     }
   }
 }

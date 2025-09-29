@@ -95,6 +95,9 @@ export const CAPABILITIES = {
   ai_grading_assistance: 'ai_grading_assistance',
   ai_homework_helper: 'ai_homework_helper',
   ai_stem_activities: 'ai_stem_activities',
+  ai_progress_analysis: 'ai_progress_analysis',
+  ai_insights: 'ai_insights',
+  ai_quota_management: 'ai_quota_management',
   
   // Premium/Enterprise capabilities
   advanced_analytics: 'advanced_analytics',
@@ -153,6 +156,9 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'whatsapp_opt_in',
     'whatsapp_send_messages',
     'whatsapp_receive_messages',
+    
+    // AI capabilities (basic tier)
+    'ai_homework_helper',
   ],
   teacher: [
     'view_dashboard',
@@ -162,6 +168,13 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'grade_assignments',
     'view_class_analytics',
     'communicate_with_parents',
+    
+    // AI capabilities for teachers
+    'ai_lesson_generation',
+    'ai_grading_assistance',
+    'ai_homework_helper',
+    'ai_progress_analysis',
+    'ai_insights',
   ],
   principal: [
     'view_dashboard',
@@ -178,6 +191,14 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'create_assignments',
     'grade_assignments',
     'view_class_analytics',
+    
+    // AI capabilities for principals
+    'ai_lesson_generation',
+    'ai_grading_assistance',
+    'ai_homework_helper',
+    'ai_progress_analysis',
+    'ai_insights',
+    'ai_quota_management',
   ],
   principal_admin: [
     'view_dashboard',
@@ -194,6 +215,14 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'create_assignments',
     'grade_assignments',
     'view_class_analytics',
+    
+    // AI capabilities for principal_admin (same as principal)
+    'ai_lesson_generation',
+    'ai_grading_assistance',
+    'ai_homework_helper',
+    'ai_progress_analysis',
+    'ai_insights',
+    'ai_quota_management',
   ],
   super_admin: [
     'view_dashboard',
@@ -210,6 +239,15 @@ const ROLE_CAPABILITIES: Record<Role, Capability[]> = {
     'custom_reports',
     'api_access',
     'priority_support',
+    
+    // All AI capabilities for super_admin
+    'ai_lesson_generation',
+    'ai_grading_assistance',
+    'ai_homework_helper',
+    'ai_stem_activities',
+    'ai_progress_analysis',
+    'ai_insights',
+    'ai_quota_management',
   ],
 };
 
@@ -224,23 +262,24 @@ const TIER_CAPABILITIES: Record<PlanTier | 'basic' | 'pro', Capability[]> = {
     'ai_lesson_generation', // Limited usage
     'view_engagement_metrics',
     'whatsapp_voice_messages', // Voice messages in WhatsApp
-    'access_ai_insights', // Basic AI insights
+    'ai_insights', // Basic AI insights
   ],
   basic: [
     'ai_homework_helper',
     'ai_lesson_generation',
     'view_engagement_metrics',
-    'access_ai_insights',
+    'ai_insights',
   ],
   pro: [
     'ai_homework_helper',
     'ai_lesson_generation',
     'ai_grading_assistance',
     'ai_stem_activities',
+    'ai_progress_analysis',
     'advanced_analytics',
     'view_engagement_metrics',
     'whatsapp_voice_messages',
-    'access_ai_insights',
+    'ai_insights',
     'use_whatsapp',
   ],
   premium: [
@@ -248,10 +287,11 @@ const TIER_CAPABILITIES: Record<PlanTier | 'basic' | 'pro', Capability[]> = {
     'ai_lesson_generation',
     'ai_grading_assistance',
     'ai_stem_activities',
+    'ai_progress_analysis',
     'advanced_analytics',
     'view_engagement_metrics',
     'whatsapp_voice_messages',
-    'access_ai_insights',
+    'ai_insights',
     'use_whatsapp', // Full WhatsApp integration
   ],
   enterprise: [
@@ -259,6 +299,7 @@ const TIER_CAPABILITIES: Record<PlanTier | 'basic' | 'pro', Capability[]> = {
     'ai_lesson_generation',
     'ai_grading_assistance',
     'ai_stem_activities',
+    'ai_progress_analysis',
     'advanced_analytics',
     'bulk_operations',
     'custom_reports',
@@ -266,7 +307,8 @@ const TIER_CAPABILITIES: Record<PlanTier | 'basic' | 'pro', Capability[]> = {
     'priority_support',
     'view_engagement_metrics',
     'whatsapp_voice_messages',
-    'access_ai_insights',
+    'ai_insights',
+    'ai_quota_management',
     'use_whatsapp',
   ],
 };

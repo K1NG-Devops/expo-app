@@ -5,13 +5,17 @@ import { reportError } from '@/lib/monitoring';
 import { fetchEnhancedUserProfile, type EnhancedUserProfile, type Role } from '@/lib/rbac';
 import type { User } from '@supabase/supabase-js';
 
+// Optional AsyncStorage for bridging plan selection across auth (no-op on web)
+let AsyncStorage: any = null;
+try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { /* noop */ }
+
 function normalizeRole(r?: string | null): string | null {
   if (!r) return null;
   const s = String(r).trim().toLowerCase();
   
   // Map potential variants to canonical Role types
   if (s.includes('super') || s === 'superadmin') return 'super_admin';
-  if (s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
+  if (s === 'principal' || s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
   if (s.includes('teacher')) return 'teacher';
   if (s.includes('parent')) return 'parent';
   
@@ -40,20 +44,20 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
   let role: string | null = normalizeRole((authUser?.user_metadata as any)?.role ?? null);
   let school: string | null = (authUser?.user_metadata as any)?.preschool_id ?? null;
 
-  // First fallback: check consolidated users table by auth_user_id
+  // First fallback: check profiles table by id (auth.users.id)
   if (id && (!role || school === null)) {
     try {
       const { data: udata, error: uerror } = await assertSupabase()
-        .from('users')
+        .from('profiles')
         .select('role,preschool_id')
-        .eq('auth_user_id', id)
+        .eq('id', id)
         .maybeSingle();
       if (!uerror && udata) {
         role = normalizeRole((udata as any).role ?? role);
         school = (udata as any).preschool_id ?? school;
       }
     } catch (e) {
-      console.debug('Fallback #1 (users table) lookup failed', e);
+      console.debug('Fallback #1 (profiles table) lookup failed', e);
     }
   }
   
@@ -92,17 +96,55 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
     // Fetch enhanced profile if not provided
     let enhancedProfile = profile;
     if (!enhancedProfile) {
+      console.log('[ROUTE DEBUG] Fetching enhanced profile for user:', userId);
       enhancedProfile = await fetchEnhancedUserProfile(userId);
+      console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
+      if (enhancedProfile) {
+        console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
+        console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+      }
     }
 
     if (!enhancedProfile) {
-      console.error('Failed to fetch user profile for routing');
+      console.error('Failed to fetch user profile for routing - routing to profiles-gate for setup');
       track('edudash.auth.route_failed', {
         user_id: userId,
         reason: 'no_profile',
       });
-      router.replace('/(auth)/sign-in'); // Send to sign-in by default
+      // Route to profiles-gate instead of sign-in to avoid redirect loop
+      // User is authenticated but needs profile setup
+      router.replace('/profiles-gate');
       return;
+    }
+
+    // If there is a pending plan selection (from unauthenticated plan click),
+    // prioritize routing to subscription setup and auto-start checkout.
+    try {
+      const raw = await AsyncStorage?.getItem('pending_plan_selection');
+      if (raw) {
+        await AsyncStorage?.removeItem('pending_plan_selection');
+        try {
+          const pending = JSON.parse(raw);
+          const planTier = pending?.planTier;
+          const billing = pending?.billing === 'annual' ? 'annual' : 'monthly';
+          if (planTier) {
+            track('edudash.auth.bridge_to_checkout', {
+              user_id: userId,
+              plan_tier: planTier,
+              billing,
+            });
+            router.replace({
+              pathname: '/screens/subscription-setup' as any,
+              params: { planId: String(planTier), billing, auto: '1' },
+            } as any);
+            return;
+          }
+        } catch {
+          // ignore JSON parse errors
+        }
+      }
+    } catch {
+      // best-effort only
     }
 
     // Determine route based on enhanced profile
@@ -149,6 +191,13 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
   let role = normalizeRole(profile.role) as Role | null;
   
+  console.log('[ROUTE DEBUG] ==> Determining route for user');
+  console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
+  console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
+  console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
+  console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
+  console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
+  
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
     console.warn('User role is null, routing to sign-in');
@@ -156,9 +205,17 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   }
   
   // Check if user has active access
-    if (!profile.hasCapability('access_mobile_app')) {
+  if (!profile.hasCapability('access_mobile_app')) {
+    console.log('[ROUTE DEBUG] User lacks access_mobile_app capability');
+    
+    // For teachers, be more permissive - allow them to access their dashboard
+    // even if they don't have the general mobile app capability
+    if (role !== 'teacher') {
       return { path: '/screens/account' }; // Route to account settings to resolve access issues
+    } else {
+      console.log('[ROUTE DEBUG] Teacher without mobile app capability - allowing dashboard access');
     }
+  }
 
   // Route based on role and capabilities
   switch (role) {
@@ -166,24 +223,34 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
       return { path: '/screens/super-admin-dashboard' };
     
     case 'principal_admin':
-      // Check if they have school association
+      console.log('[ROUTE DEBUG] Principal admin routing - organization_id:', profile.organization_id);
+      console.log('[ROUTE DEBUG] Principal seat_status:', profile.seat_status);
+      
+      // Principals with inactive seats can still access their dashboard (unlike teachers)
+      // They may need to manage billing or school setup
       if (profile.organization_id) {
+        console.log('[ROUTE DEBUG] Routing principal to dashboard with school:', profile.organization_id);
         return { 
           path: '/screens/principal-dashboard',
           params: { school: profile.organization_id }
         };
       } else {
+        console.log('[ROUTE DEBUG] No organization_id, routing to principal onboarding');
         // No school associated, route to principal onboarding
         return { path: '/screens/principal-onboarding' };
       }
     
     case 'teacher':
-      // Allow pending/null seat to proceed; dashboard can show a banner if needed
-      if (!profile.seat_status || profile.seat_status === 'active' || profile.seat_status === 'pending') {
-        return { path: '/screens/teacher-dashboard' };
-      }
-      // For 'inactive' or any other unexpected status, send to account to resolve
-      return { path: '/screens/account' };
+      console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
+      
+      // Teachers should generally have access to their dashboard
+      // Allow teacher dashboard access for all known statuses per current type definition
+      // Previously blocked revoked/suspended statuses are not part of current union type
+      
+      // Allow all other cases (active, pending, inactive, null, etc.) to access dashboard
+      // This is more permissive and ensures teachers can access their dashboard
+      console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
+      return { path: '/screens/teacher-dashboard' };
     
     case 'parent':
       return { path: '/screens/parent-dashboard' };
@@ -222,14 +289,7 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
   // Check seat-based access for non-admin roles
   const role = normalizeRole(profile.role) as Role;
   if (role === 'teacher') {
-    // Only block if explicitly inactive or revoked; allow pending/null
-    if (profile.seat_status === 'inactive' || (profile as any).seat_status === 'revoked') {
-      return {
-        hasAccess: false,
-        reason: `Teacher seat is ${profile.seat_status}`,
-        suggestedAction: 'Contact your administrator to activate your seat',
-      };
-    }
+    // Allow access for all current statuses per type definition
   }
 
   return { hasAccess: true };

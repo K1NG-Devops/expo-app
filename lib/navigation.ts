@@ -12,7 +12,10 @@ import { router } from 'expo-router';
 export function navigateBack(fallbackRoute?: string) {
   try {
     // Check if we can go back in the navigation stack
-    if (router.canGoBack && router.canGoBack()) {
+    // Note: router.canGoBack is a function, not a property
+    const canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+    
+    if (canGoBack) {
       router.back();
       return;
     }
@@ -36,8 +39,16 @@ export function navigateBack(fallbackRoute?: string) {
  * Navigate to main dashboard based on user role
  */
 export function navigateToMainDashboard() {
-  // For now, navigate to root - this will be enhanced with role-based routing
-  router.replace('/');
+  try {
+    // For now, navigate to root - this will be enhanced with role-based routing
+    router.replace('/');
+  } catch (error) {
+    console.error('Navigation to main dashboard failed:', error);
+    // Try alternative approach
+    if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  }
 }
 
 /**
@@ -66,20 +77,96 @@ export const navigateTo = {
 };
 
 /**
+ * Helper function to identify main dashboard and root routes where back buttons should be hidden
+ */
+function isMainDashboardRoute(routeName: string): boolean {
+  const n = (routeName || '').toLowerCase();
+  
+  // Root/landing routes
+  if (n === 'index' || n === 'landing' || n === '(tabs)' || n === '' || n === 'home') {
+    return true;
+  }
+  
+  // Dashboard routes - covers parent-dashboard, teacher-dashboard, principal-dashboard, super-admin-dashboard, etc.
+  if (n.includes('dashboard')) {
+    return true;
+  }
+  
+  // Screens-based dashboard routes
+  if (n.startsWith('screens/') && (n.endsWith('-dashboard') || n.endsWith('/dashboard'))) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Helper function to identify routes that should always show a back button
+ */
+function shouldAlwaysShowBackButton(routeName: string): boolean {
+  const n = (routeName || '').toLowerCase();
+  
+  // Modal screens and detail screens should always have back buttons
+  if (n.includes('modal') || n.includes('-modal') || n.includes('premium-feature')) {
+    return true;
+  }
+  
+  // Detail screens
+  if (n.includes('detail') || n.includes('-detail') || n.endsWith('detail')) {
+    return true;
+  }
+  
+  // Settings and configuration screens
+  if (n.includes('settings') || n.includes('config') || n.includes('preferences')) {
+    return true;
+  }
+  
+  // Account and profile screens
+  if (n.includes('account') || n.includes('profile') || n.includes('subscription')) {
+    return true;
+  }
+  
+  // Invite and request management screens
+  if (n.includes('invite') || n.includes('request') || n.includes('parent-invite') || n.includes('parent-request')) {
+    return true;
+  }
+  
+  // Principal management screens
+  if (n.includes('principal-parent') || n.includes('school-wide')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Determine if a back button should be shown based on current route
- * Updated to always show back buttons when navigation is possible
+ * Updated to treat all dashboards as main screens (no back button)
  */
 export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean): boolean {
-  // Always check if we can go back first
-  const canGoBack = router.canGoBack?.() ?? false;
+  // Some routes should always show a back button regardless of navigation stack
+  if (shouldAlwaysShowBackButton(routeName)) {
+    return true;
+  }
   
-  // If we can't go back in the stack, don't show the button
-  if (!canGoBack) {
+  // Never show back button on main dashboard routes
+  if (isMainDashboardRoute(routeName)) {
     return false;
   }
   
-  // Special handling for root/main dashboard screens - still don't show back button
-  if (routeName === 'index' || routeName === 'landing' || routeName === '(tabs)' || routeName === '') {
+  // Always check if we can go back first
+  // Ensure router.canGoBack is called correctly as a function
+  let canGoBack = false;
+  try {
+    canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+  } catch (error) {
+    // If there's an error checking canGoBack, assume we can't
+    console.debug('Error checking canGoBack:', error);
+    canGoBack = false;
+  }
+  
+  // If we can't go back in the stack, don't show the button
+  if (!canGoBack) {
     return false;
   }
   

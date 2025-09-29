@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -6,185 +6,327 @@ import {
   StyleSheet, 
   Linking, 
   Platform,
-  Dimensions
-} from 'react-native'
-import { LinearGradient } from 'expo-linear-gradient'
-import { Ionicons } from '@expo/vector-icons'
-import { useTheme } from '../../contexts/ThemeContext'
-import { track } from '../../lib/analytics'
-import { error as logError } from '../../lib/debug'
+  Dimensions,
+  ActivityIndicator,
+  AccessibilityInfo
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { track } from '@/lib/analytics';
+import { shouldShowAds } from '@/lib/ads/gating';
+import { getAdUnitId } from '@/lib/ads/config';
+import { PLACEMENT_KEYS } from '@/lib/ads/placements';
+import { router } from 'expo-router';
 
 interface NativeAdProps {
-  placement: 'quick-actions' | 'activity-feed' | 'children-list'
-  onClose?: () => void
-  style?: any
+  placement?: string;
+  onClose?: () => void;
+  style?: any;
+  itemIndex?: number; // For feed positioning logic
+  showFallback?: boolean;
 }
 
-// Mock ad data - in production this would come from an ad network
-const MOCK_ADS = {
-  'quick-actions': [
-    {
-      id: 'tutoring-1',
-      title: 'Need Extra Math Help?',
-      description: 'Connect with qualified SA teachers for 1-on-1 tutoring sessions',
-      sponsor: 'EduConnect Tutoring',
-      cta: 'Book Session',
-      url: 'https://example.com/tutoring',
-      icon: 'calculator',
-      color: ['#4F46E5', '#7C3AED']
-    },
-    {
-      id: 'supplies-1', 
-      title: 'School Supplies Delivered',
-      description: 'Get all your stationery needs delivered to your door',
-      sponsor: 'Staples South Africa',
-      cta: 'Shop Now',
-      url: 'https://example.com/supplies',
-      icon: 'pencil',
-      color: ['#059669', '#10B981']
-    }
-  ],
-  'activity-feed': [
-    {
-      id: 'app-1',
-      title: 'Educational Games for Kids',
-      description: 'Fun learning games aligned with CAPS curriculum',
-      sponsor: 'LearnPlay SA',
-      cta: 'Download Free',
-      url: 'https://example.com/games',
-      icon: 'game-controller',
-      color: ['#F59E0B', '#D97706']
-    }
-  ],
-  'children-list': [
-    {
-      id: 'aftercare-1',
-      title: 'After School Care Program',
-      description: 'Safe, educational after-school care in your area',
-      sponsor: 'KidZone After Care',
-      cta: 'Find Locations',
-      url: 'https://example.com/aftercare',
-      icon: 'school',
-      color: ['#DC2626', '#B91C1C']
-    }
-  ]
-}
+// Educational fallback content for when native ads aren't available
+const EDUCATIONAL_CONTENT = [
+  {
+    id: 'reading-tips',
+    title: 'Daily Reading Tips',
+    description: 'Build your child\'s literacy with 15 minutes of reading daily',
+    sponsor: 'EduDash Pro',
+    cta: 'Learn More',
+    icon: 'book',
+    color: ['#4F46E5', '#7C3AED'],
+    action: () => console.log('Navigate to reading tips'),
+  },
+  {
+    id: 'math-practice',
+    title: 'Fun Math Practice',
+    description: 'Make numbers exciting with games and activities',
+    sponsor: 'EduDash Pro',
+    cta: 'Try Now',
+    icon: 'calculator',
+    color: ['#059669', '#10B981'],
+    action: () => console.log('Navigate to math activities'),
+  },
+  {
+    id: 'communication',
+    title: 'Talk to Teachers',
+    description: 'Stay connected with your child\'s learning progress',
+    sponsor: 'EduDash Pro',
+    cta: 'Message Now',
+    icon: 'chatbubble',
+    color: ['#F59E0B', '#D97706'],
+    action: () => router.push('/messages'),
+  },
+  {
+    id: 'progress-tracking',
+    title: 'Track Progress',
+    description: 'Monitor your child\'s academic development',
+    sponsor: 'EduDash Pro',
+    cta: 'View Progress',
+    icon: 'trending-up',
+    color: ['#DC2626', '#B91C1C'],
+    action: () => router.push('/progress'),
+  },
+];
 
 export const NativeAdCard: React.FC<NativeAdProps> = ({ 
-  placement, 
+  placement = PLACEMENT_KEYS.NATIVE_PARENT_FEED, 
+  onClose, 
+  style,
+  itemIndex = 0,
+  showFallback = true,
+}) => {
+  const { theme } = useTheme();
+  const { user, profile } = useAuth();
+  const [showAds, setShowAds] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [nativeAdLoaded, setNativeAdLoaded] = useState(false);
+  const [nativeAdFailed, setNativeAdFailed] = useState(false);
+  const [fallbackContent, setFallbackContent] = useState<any>(null);
+
+  // Check if ads should be shown
+  useEffect(() => {
+    const checkAdsEligibility = async () => {
+      try {
+        const eligible = await shouldShowAds(profile, 'free');
+        setShowAds(eligible);
+        
+        if (eligible) {
+          track('edudash.ad.native_eligible', {
+            placement,
+            item_index: itemIndex,
+            user_id: user?.id,
+            platform: Platform.OS,
+          });
+        }
+        
+        // Select fallback content regardless of ad eligibility
+        const randomContent = EDUCATIONAL_CONTENT[Math.floor(Math.random() * EDUCATIONAL_CONTENT.length)];
+        setFallbackContent(randomContent);
+      } catch (error) {
+        console.warn('Error checking native ad eligibility:', error);
+        setShowAds(false);
+      }
+    };
+
+    checkAdsEligibility();
+  }, [placement, profile, user?.id, itemIndex]);
+
+  // Don't show if dismissed
+  if (dismissed) return null;
+
+  // If ads not eligible and no fallback, don't show anything
+  if (!showAds && !showFallback) return null;
+
+  // Show fallback if ads not eligible or failed
+  const shouldShowFallback = !showAds || (showAds && nativeAdFailed);
+  if (shouldShowFallback && showFallback && fallbackContent) {
+    return (
+      <FallbackNativeCard
+        content={fallbackContent}
+        theme={theme}
+        onClose={() => {
+          setDismissed(true);
+          onClose?.();
+        }}
+        style={style}
+      />
+    );
+  }
+
+  // Don't proceed with native ads if not eligible
+  if (!showAds) return null;
+
+  // Platform checks for native ads
+  if (Platform.OS === 'web') return null;
+  if (Platform.OS !== 'android') return null;
+
+  // Try to load native ad component
+  let NativeAd: any, NativeAdView: any;
+  try {
+    const ads = require('react-native-google-mobile-ads');
+    // Note: Native ads might not be available in current setup
+    // This is a placeholder for when native ads are properly configured
+    NativeAd = ads.NativeAd || null;
+    NativeAdView = ads.NativeAdView || null;
+  } catch (error) {
+    console.debug('Native ads module not available:', error);
+    // Show fallback instead
+    return showFallback && fallbackContent ? (
+      <FallbackNativeCard
+        content={fallbackContent}
+        theme={theme}
+        onClose={() => {
+          setDismissed(true);
+          onClose?.();
+        }}
+        style={style}
+      />
+    ) : null;
+  }
+
+  // If native ads not supported, show fallback
+  if (!NativeAd || !NativeAdView) {
+    return showFallback && fallbackContent ? (
+      <FallbackNativeCard
+        content={fallbackContent}
+        theme={theme}
+        onClose={() => {
+          setDismissed(true);
+          onClose?.();
+        }}
+        style={style}
+      />
+    ) : null;
+  }
+
+  const unitId = getAdUnitId(placement);
+
+  // Native ad event handlers
+  const handleNativeAdLoaded = () => {
+    setNativeAdLoaded(true);
+    setNativeAdFailed(false);
+    
+    track('edudash.ad.native_loaded', {
+      placement,
+      ad_unit_id: unitId.slice(-8),
+      item_index: itemIndex,
+      user_id: user?.id,
+      platform: Platform.OS,
+    });
+  };
+
+  const handleNativeAdFailed = (error: any) => {
+    setNativeAdFailed(true);
+    setNativeAdLoaded(false);
+    
+    track('edudash.ad.native_failed', {
+      placement,
+      error: error?.message || 'Unknown error',
+      item_index: itemIndex,
+      user_id: user?.id,
+      platform: Platform.OS,
+    });
+  };
+
+  const handleNativeAdClicked = () => {
+    track('edudash.ad.native_clicked', {
+      placement,
+      ad_unit_id: unitId.slice(-8),
+      item_index: itemIndex,
+      user_id: user?.id,
+      platform: Platform.OS,
+    });
+  };
+
+  return (
+    <View style={[styles.container, style]} accessibilityLabel="Sponsored content">
+      {/* Loading state */}
+      {!nativeAdLoaded && !nativeAdFailed && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading ad...</Text>
+        </View>
+      )}
+      
+      {/* Placeholder for actual native ad implementation */}
+      <View style={styles.nativeAdPlaceholder}>
+        <Text style={[styles.placeholderText, { color: theme.textSecondary }]}>
+          Native Ad Placeholder\n(Real implementation would go here)
+        </Text>
+        <Text style={[styles.placeholderSubtext, { color: theme.textTertiary }]}>
+          Unit ID: {unitId.slice(-8)}...\nPlacement: {placement}
+        </Text>
+      </View>
+      
+      {/* Ad disclosure */}
+      <Text style={[styles.disclosure, { color: theme.textTertiary }]}>
+        Sponsored content
+      </Text>
+    </View>
+  );
+};
+
+// Fallback native card component
+function FallbackNativeCard({ 
+  content, 
+  theme, 
   onClose, 
   style 
-}) => {
-  const { theme, isDark } = useTheme()
-  const [ad, setAd] = useState<any>(null)
-  const [dismissed, setDismissed] = useState(false)
-
-  // Only show mock native ads in dev or if explicitly enabled
-  const adsEnabled = Platform.OS !== 'web' && process.env.EXPO_PUBLIC_ENABLE_ADS !== '0'
-  const allowMock = (__DEV__ as boolean) || process.env.EXPO_PUBLIC_ENABLE_MOCK_ADS === 'true'
-
-  useEffect(() => {
-    if (!adsEnabled || !allowMock) return
-    // Simulate ad loading
-    const ads = MOCK_ADS[placement]
-    if (ads && ads.length > 0) {
-      const randomAd = ads[Math.floor(Math.random() * ads.length)]
-      setAd(randomAd)
-      
-      // Track ad impression
-      track('edudash.ad.impression', {
-        ad_id: randomAd.id,
-        placement,
-        sponsor: randomAd.sponsor,
-        platform: Platform.OS
-      })
+}: { 
+  content: any; 
+  theme: any; 
+  onClose: () => void; 
+  style?: any;
+}) {
+  const handleContentPress = () => {
+    track('edudash.ad.fallback_native_clicked', {
+      content_id: content.id,
+      platform: Platform.OS,
+    });
+    
+    if (content.action) {
+      content.action();
     }
-  }, [placement, adsEnabled, allowMock])
+  };
 
-  if (!adsEnabled || !allowMock) return null
-  if (!ad || dismissed) return null
-
-  const handleAdPress = async () => {
-    track('edudash.ad.clicked', {
-      ad_id: ad.id,
-      placement,
-      sponsor: ad.sponsor,
-      platform: Platform.OS
-    })
-
-    try {
-      const canOpen = await Linking.canOpenURL(ad.url)
-      if (canOpen) {
-        await Linking.openURL(ad.url)
-      }
-    } catch (error) {
-      logError('Failed to open ad URL:', error)
-    }
-  }
-
-  const handleDismiss = () => {
-    track('edudash.ad.dismissed', {
-      ad_id: ad.id,
-      placement,
-      sponsor: ad.sponsor,
-      platform: Platform.OS
-    })
-
-    setDismissed(true)
-    onClose?.()
-  }
-
-  const { width } = Dimensions.get('window')
-  const isFullWidth = placement === 'activity-feed'
-  const cardWidth = isFullWidth ? width - 32 : (width - 48) / 2
+  const { width } = Dimensions.get('window');
+  const cardWidth = Math.min(width - 32, 350);
 
   return (
     <View style={[styles.container, { width: cardWidth }, style]}>
       <TouchableOpacity 
         style={styles.adCard}
-        onPress={handleAdPress}
+        onPress={handleContentPress}
         activeOpacity={0.9}
+        accessibilityLabel="Educational tip"
+        accessibilityHint="Tap to learn more"
       >
         <LinearGradient
-          colors={ad.color}
+          colors={content.color}
           style={styles.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
-          {/* Sponsored Label */}
+          {/* Educational Label */}
           <View style={styles.sponsoredLabel}>
-            <Text style={styles.sponsoredText}>Sponsored</Text>
+            <Text style={styles.sponsoredText}>Educational Tip</Text>
           </View>
 
           {/* Close Button */}
           <TouchableOpacity 
             style={styles.closeButton}
-            onPress={handleDismiss}
+            onPress={onClose}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel="Close"
+            accessibilityHint="Dismiss this card"
           >
             <Ionicons name="close" size={16} color="rgba(255, 255, 255, 0.8)" />
           </TouchableOpacity>
 
-          {/* Ad Content */}
+          {/* Content */}
           <View style={styles.content}>
             <View style={styles.iconContainer}>
-              <Ionicons name={ad.icon as any} size={24} color="#FFFFFF" />
+              <Ionicons name={content.icon as any} size={24} color="#FFFFFF" />
             </View>
 
             <Text style={styles.title} numberOfLines={2}>
-              {ad.title}
+              {content.title}
             </Text>
 
-            <Text style={styles.description} numberOfLines={isFullWidth ? 2 : 3}>
-              {ad.description}
+            <Text style={styles.description} numberOfLines={3}>
+              {content.description}
             </Text>
 
             <View style={styles.footer}>
               <Text style={styles.sponsor}>
-                by {ad.sponsor}
+                by {content.sponsor}
               </Text>
               <View style={styles.ctaButton}>
-                <Text style={styles.ctaText}>{ad.cta}</Text>
+                <Text style={styles.ctaText}>{content.cta}</Text>
                 <Ionicons name="arrow-forward" size={12} color="#FFFFFF" />
               </View>
             </View>
@@ -192,15 +334,15 @@ export const NativeAdCard: React.FC<NativeAdProps> = ({
         </LinearGradient>
       </TouchableOpacity>
 
-      {/* Ad Disclosure */}
+      {/* Educational Disclosure */}
       <Text style={[styles.disclosure, { color: theme.textTertiary }]}>
-        Educational content from our partners
+        Educational content from EduDash Pro
       </Text>
     </View>
-  )
+  );
 }
 
-export default NativeAdCard
+export default NativeAdCard;
 
 const styles = StyleSheet.create({
   container: {
@@ -304,4 +446,36 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontStyle: 'italic',
   },
-})
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  nativeAdPlaceholder: {
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 128, 128, 0.2)',
+    borderStyle: 'dashed',
+  },
+  placeholderText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  placeholderSubtext: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: 'monospace',
+  },
+});

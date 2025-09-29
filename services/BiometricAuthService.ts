@@ -421,24 +421,8 @@ export class BiometricAuthService {
         disableDeviceFallback: false,
       };
 
-      // Only set biometricsSecurityLevel if we can determine it reliably
-      // Note: Some Android devices have issues with this parameter, so we'll be more careful
-      try {
-        // Don't set biometricsSecurityLevel for OPPO devices as they have casting issues
-        const isOPPODevice = deviceInfo.brand?.toLowerCase().includes('oppo');
-        if (!isOPPODevice) {
-          if (capabilities.securityLevel === "strong") {
-            (authConfig as any).biometricsSecurityLevel = LocalAuthentication.SecurityLevel.BIOMETRIC_STRONG;
-          } else {
-            (authConfig as any).biometricsSecurityLevel = LocalAuthentication.SecurityLevel.BIOMETRIC_WEAK;
-          }
-        } else {
-          console.log('Skipping biometricsSecurityLevel for OPPO device to avoid casting issues');
-        }
-      } catch (e) {
-        // Skip security level setting if it causes issues
-        console.warn('Skipping biometricsSecurityLevel setting:', e);
-      }
+      // Do not set biometricsSecurityLevel explicitly.
+      // Many Android devices exhibit casting/issues with this flag; letting the platform decide is more compatible.
 
       console.log('Attempting authentication with config:', authConfig);
       console.log('Device capabilities during auth:', {
@@ -469,7 +453,7 @@ export class BiometricAuthService {
       } else {
         return {
           success: false,
-          error: result.error || "Authentication failed",
+          error: "Authentication failed",
         };
       }
     } catch (error) {

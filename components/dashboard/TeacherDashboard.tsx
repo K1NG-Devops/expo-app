@@ -22,10 +22,13 @@ import {
   RefreshControl,
   Linking,
   Modal,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSubscription } from "@/contexts/SubscriptionContext";
+import { useAds } from "@/contexts/AdsContext";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useTeacherDashboard } from "@/hooks/useDashboardData";
@@ -41,9 +44,31 @@ import { CacheIndicator } from "@/components/ui/CacheIndicator";
 import { assertSupabase } from "@/lib/supabase";
 import { createCheckout } from "@/lib/payments";
 import { RoleBasedHeader } from "../RoleBasedHeader";
+import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
+import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
+import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
+import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import Feedback from '@/lib/feedback';
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+const isSmallScreen = width < 380;
+const isTablet = width > 768;
 const cardWidth = (width - 48) / 2;
+
+// Dynamic scaling functions
+const getScaledSize = (baseSize: number) => {
+  if (isTablet) return baseSize * 1.2;
+  if (isSmallScreen) return baseSize * 0.85;
+  return baseSize;
+};
+
+const getResponsivePadding = (basePadding: number) => {
+  if (isTablet) return basePadding * 1.5;
+  if (isSmallScreen) return basePadding * 0.8;
+  return basePadding;
+};
 
 interface ClassInfo {
   id: string;
@@ -78,10 +103,21 @@ export const TeacherDashboard: React.FC = () => {
     (process.env.EXPO_PUBLIC_AI_ENABLED !== "false") &&
     (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES !== "false");
   const { user, profile, refreshProfile } = useAuth();
+  const { ready: subscriptionReady, tier } = useSubscription();
+  const hasPremiumOrHigher = ['premium','pro','enterprise'].includes(String(tier || '')) as boolean;
+  const { maybeShowInterstitial, offerRewarded } = useAds();
+  const { preferences, setLayout } = useDashboardPreferences();
+  
+  // Ad gating logic
+  const showAds = subscriptionReady && tier === 'free';
+  
+  // Temporary AI tool unlocks via rewarded ads (ephemeral)
+  const [aiTempUnlocks, setAiTempUnlocks] = React.useState<Record<string, number>>({});
 
   // Seat and plan status must be computed before capability gating
   const seatStatus = profile?.seat_status || "inactive";
-  const hasActiveSeat = profile?.hasActiveSeat?.() || seatStatus === "active";
+  const teacherHasSeat = useTeacherHasSeat(user?.id || "");
+  const hasActiveSeat = teacherHasSeat || profile?.hasActiveSeat?.() || seatStatus === "active";
   const planTier = (profile as any)?.organization_membership?.plan_tier || (profile as any)?.plan_tier || 'unknown';
 
   // Capability-driven AI gating (seat + plan tier via capabilities)
@@ -99,7 +135,7 @@ export const TeacherDashboard: React.FC = () => {
   const aiHelperEnabled =
     (aiHelperCap || hasActiveSeat) && AI_ENABLED && flags.ai_homework_help !== false;
   const { t } = useTranslation();
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const styles = getStyles(theme, isDark);
 
   // Teacher info for header
@@ -112,14 +148,17 @@ export const TeacherDashboard: React.FC = () => {
 
   // Dev console debug for capabilities / seat / tier
   React.useEffect(() => {
-    const show = (process.env.EXPO_PUBLIC_SHOW_DEBUG_CAPS === 'true') || (typeof __DEV__ !== 'undefined' && __DEV__);
+    const show = true; // Force enable debug for troubleshooting
     if (!show) return;
     try {
       // Avoid noisy logs by summarizing
       const caps = Array.isArray((profile as any)?.capabilities) ? (profile as any).capabilities : [];
       console.log('[TeacherDashboard debug]', {
+        user_id: user?.id,
         seat_status: seatStatus,
-        hasActiveSeat,
+        teacherHasSeat_hook: teacherHasSeat,
+        profile_hasActiveSeat: profile?.hasActiveSeat?.(),
+        combined_hasActiveSeat: hasActiveSeat,
         plan_tier: planTier,
         ai_caps: {
           ai_lesson_generation: !!caps.includes?.('ai_lesson_generation'),
@@ -129,7 +168,7 @@ export const TeacherDashboard: React.FC = () => {
         all_caps_count: caps?.length || 0,
       });
     } catch {}
-  }, [seatStatus, hasActiveSeat, planTier, (profile as any)?.capabilities]);
+  }, [user?.id, seatStatus, teacherHasSeat, hasActiveSeat, planTier, (profile as any)?.capabilities]);
 
   // Use the custom data hook
   const {
@@ -170,6 +209,10 @@ export const TeacherDashboard: React.FC = () => {
   const [showOptionsMenu, setShowOptionsMenu] = React.useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = React.useState(false);
   const [upgrading, setUpgrading] = React.useState(false);
+  
+  // WhatsApp integration
+  const { connectionStatus, isWhatsAppEnabled } = useWhatsAppConnection();
+  const [showWhatsAppModal, setShowWhatsAppModal] = React.useState(false);
   React.useEffect(() => {
     const isTeacher = String(profile?.role || "")
       .toLowerCase()
@@ -414,12 +457,24 @@ export const TeacherDashboard: React.FC = () => {
       requiredCap: "manage_classes",
     },
     {
-      id: "create-lesson",
-      title: "Create Lesson",
-      icon: "add-circle",
+      id: "lessons-hub",
+      title: "Lessons Hub",
+      icon: "library-outline",
       color: "#4F46E5",
-      onPress: () => {
-        router.push("/screens/create-lesson");
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_lessons_hub');
+        router.push("/screens/lessons-hub");
+      },
+      requiredCap: "create_assignments",
+    },
+    {
+      id: "saved-lessons",
+      title: "Saved Lessons",
+      icon: "library",
+      color: "#EC4899",
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_saved_lessons');
+        router.push("/screens/lessons-hub");
       },
       requiredCap: "create_assignments",
     },
@@ -428,7 +483,8 @@ export const TeacherDashboard: React.FC = () => {
       title: "Message Parents",
       icon: "chatbubbles",
       color: "#7C3AED",
-      onPress: () => {
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_message_parents');
         router.push("/screens/teacher-messages");
       },
       requiredCap: "communicate_with_parents",
@@ -438,12 +494,28 @@ export const TeacherDashboard: React.FC = () => {
       title: "View Reports",
       icon: "document-text",
       color: "#DC2626",
-      onPress: () => {
+      onPress: async () => {
+        await maybeShowInterstitial('teacher_dashboard_view_reports');
         router.push("/screens/teacher-reports");
       },
       requiredCap: "view_class_analytics",
     },
-  ].filter((action: any) => !action.requiredCap || hasCap(action.requiredCap));
+    {
+      id: "whatsapp-connect",
+      title: connectionStatus.isConnected ? "WhatsApp Connected" : "Connect WhatsApp",
+      icon: "logo-whatsapp",
+      color: "#25D366",
+      onPress: () => {
+        track('edudash.whatsapp.quick_action_pressed', {
+          connected: connectionStatus.isConnected,
+          timestamp: new Date().toISOString()
+        });
+        setShowWhatsAppModal(true);
+      },
+      // Show only if WhatsApp integration is enabled
+      show: isWhatsAppEnabled(),
+    },
+  ].filter((action: any) => (!action.requiredCap || hasCap(action.requiredCap)) && (action.show !== false));
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -589,18 +661,33 @@ export const TeacherDashboard: React.FC = () => {
           : tool.id === "homework-helper"
             ? aiHelperEnabled
             : tool.id === "progress-analysis"
-              ? canViewAnalytics
+              ? (canViewAnalytics && hasPremiumOrHigher)
               : true;
+              
+    // Check if tool has temporary unlock from rewarded ad
+    const hasTemporaryUnlock = aiTempUnlocks[tool.id] > 0;
+    const isActuallyEnabled = enabled || hasTemporaryUnlock;
+
+    const handlePress = async () => {
+      if (hasTemporaryUnlock) {
+        // Consume one temporary unlock
+        setAiTempUnlocks(prev => ({
+          ...prev,
+          [tool.id]: Math.max(0, prev[tool.id] - 1)
+        }));
+      }
+      tool.onPress();
+    };
 
     return (
       <TouchableOpacity
         key={tool.id}
         style={[
           styles.aiToolCard,
-          { backgroundColor: tool.color + "10", opacity: enabled ? 1 : 0.5 },
+          { backgroundColor: tool.color + "10", opacity: isActuallyEnabled ? 1 : 0.5 },
         ]}
-        onPress={tool.onPress}
-        disabled={!enabled}
+        onPress={handlePress}
+        disabled={!isActuallyEnabled}
         accessibilityRole="button"
         accessibilityLabel={tool.title}
       >
@@ -610,12 +697,46 @@ export const TeacherDashboard: React.FC = () => {
         <View style={styles.aiToolContent}>
           <Text style={styles.aiToolTitle}>{tool.title}</Text>
           <Text style={styles.aiToolSubtitle}>{tool.subtitle}</Text>
-          {!enabled && (
+          {!enabled && hasTemporaryUnlock && (
+            <Text style={{ color: "#10B981", marginTop: 4, fontWeight: '600' }}>
+              {aiTempUnlocks[tool.id]} trial use{aiTempUnlocks[tool.id] !== 1 ? 's' : ''} remaining
+            </Text>
+          )}
+          {!enabled && !hasTemporaryUnlock && tool.id !== 'progress-analysis' && (
             <Text style={{ color: theme.textSecondary, marginTop: 4 }}>
               {t("dashboard.ai_upgrade_required_cta", {
                 defaultValue: "Upgrade to use",
               })}
             </Text>
+          )}
+          {!enabled && tool.id === 'progress-analysis' && (
+            <TouchableOpacity
+              style={{ marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#7C3AED', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push('/screens/subscription-upgrade-post?reason=ai_progress');
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Upgrade</Text>
+            </TouchableOpacity>
+          )}
+          {/* Rewarded ad offer for disabled premium AI tools */}
+          {!enabled && !hasTemporaryUnlock && showAds && ['lesson-generator', 'homework-grader'].includes(tool.id) && (
+            <TouchableOpacity
+              style={{ marginTop: 6, paddingVertical: 4 }}
+              onPress={async (e) => {
+                e.stopPropagation();
+                const { shown, rewarded } = await offerRewarded(`ai_tool_${tool.id}`);
+                if (rewarded) {
+                  setAiTempUnlocks(prev => ({ ...prev, [tool.id]: 1 }));
+                  Alert.alert('Unlocked!', 'You can try this AI tool once for free.');
+                }
+              }}
+            >
+              <Text style={{ color: theme.primary, fontWeight: '600', fontSize: 12 }}>
+                📺 Watch ad to try once
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
         <Ionicons
@@ -735,13 +856,15 @@ export const TeacherDashboard: React.FC = () => {
 
   // Live updates for seat status: subscribe to profile updates for current user
   React.useEffect(() => {
-    let channel: any;
+    let channelProfile: any;
+    let channelSeats: any;
     (async () => {
       try {
         const id = user?.id;
         if (!id) return;
         const client = assertSupabase();
-        channel = client
+        // Profile updates
+        channelProfile = client
           .channel("seat-status-profile")
           .on(
             "postgres_changes",
@@ -761,16 +884,34 @@ export const TeacherDashboard: React.FC = () => {
             },
           )
           .subscribe();
+        // Teacher seats assignment updates (seat assigned/revoked)
+        channelSeats = client
+          .channel("seat-status-teacher-seats")
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "subscription_seats",
+              filter: `user_id=eq.${id}`,
+            },
+            async () => {
+              try {
+                await refreshProfile();
+                await refresh();
+              } catch (err) {
+                console.warn("Failed to refresh after seat change:", err);
+              }
+            },
+          )
+          .subscribe();
       } catch (err) {
-        console.warn("Failed to set up subscription:", err);
+        console.warn("Failed to set up subscriptions:", err);
       }
     })();
     return () => {
-      try {
-        channel?.unsubscribe?.();
-      } catch (err) {
-        console.warn("Failed to unsubscribe:", err);
-      }
+      try { channelProfile?.unsubscribe?.(); } catch (err) { console.warn("Failed to unsubscribe profile:", err); }
+      try { channelSeats?.unsubscribe?.(); } catch (err) { console.warn("Failed to unsubscribe seats:", err); }
     };
   }, [user?.id, refreshProfile, refresh]);
 
@@ -811,7 +952,24 @@ export const TeacherDashboard: React.FC = () => {
 
   return (
     <>
-      <RoleBasedHeader title="Teacher Dashboard" showBackButton={false} />
+      <View style={styles.headerWithToggle}>
+        <TouchableOpacity
+          style={styles.dashboardToggleInHeader}
+          onPress={() => {
+            const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
+            setLayout(newLayout);
+            try { Feedback.vibrate(15); } catch {}
+          }}
+          accessibilityLabel={`Switch to ${preferences.layout === 'classic' ? 'enhanced' : 'classic'} layout`}
+          accessibilityHint="Toggles between classic and enhanced dashboard layouts"
+        >
+          <Ionicons 
+            name={preferences.layout === 'enhanced' ? 'grid-outline' : 'apps-outline'} 
+            size={16} 
+            color={theme.primary} 
+          />
+        </TouchableOpacity>
+      </View>
       <ScrollView
         style={styles.container}
         showsVerticalScrollIndicator={false}
@@ -831,16 +989,15 @@ export const TeacherDashboard: React.FC = () => {
                     color={theme.primary}
                     style={{ marginRight: 6 }}
                   />
-                  <Text style={styles.greeting}>
-                    {getGreeting()}, {teacherName}! 👩‍🏫
-                  </Text>
-                </View>
-                <View style={styles.subRow}>
-                  <Text style={styles.schoolName}>{schoolName}</Text>
+                <Text style={styles.greeting}>
+                  {getGreeting()}, {teacherName}! 👩‍🏫
+                </Text>
+              </View>
+              <View style={styles.subRow}>
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleBadgeText}>
                       {profile?.role === "teacher"
-                        ? `Teacher - ${teacherName}`
+                        ? "Teacher"
                         : "Teacher"}
                     </Text>
                   </View>
@@ -878,16 +1035,41 @@ export const TeacherDashboard: React.FC = () => {
                   </View>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.headerMenuButton}
-                onPress={() => setShowOptionsMenu(true)}
-              >
-                <Ionicons
-                  name="ellipsis-vertical"
-                  size={24}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.themeToggleButton}
+                  onPress={async () => {
+                    await toggleTheme();
+                    try { 
+                      if (Platform.OS !== 'web') {
+                        // Use platform-appropriate haptics
+                        if (Platform.OS === 'ios') {
+                          await require('expo-haptics').impactAsync(require('expo-haptics').ImpactFeedbackStyle.Light);
+                        } else {
+                          require('react-native').Vibration.vibrate(15);
+                        }
+                      }
+                    } catch {}
+                  }}
+                >
+                  <Ionicons 
+                    name={isDark ? 'sunny' : 'moon'} 
+                    size={20} 
+                    color={theme.primary} 
+                  />
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={styles.headerMenuButton}
+                  onPress={() => setShowOptionsMenu(true)}
+                >
+                  <Ionicons
+                    name="ellipsis-vertical"
+                    size={24}
+                    color={theme.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -936,6 +1118,15 @@ export const TeacherDashboard: React.FC = () => {
             {quickActions.map(renderQuickAction)}
           </View>
         </View>
+
+        {/* First Ad Placement: Below Quick Actions */}
+        {showAds && (
+          <AdBannerWithUpgrade
+            screen="teacher_dashboard"
+            showUpgradeCTA={true}
+            margin={12}
+          />
+        )}
 
         {/* AI Tools */}
         <View style={styles.section}>
@@ -1052,7 +1243,22 @@ export const TeacherDashboard: React.FC = () => {
           <Text style={styles.sectionTitle}>{t("dashboard.my_classes")}</Text>
           <View style={styles.classesContainer}>
             {dashboardData?.myClasses && dashboardData.myClasses.length > 0 ? (
-              dashboardData.myClasses.map(renderClassCard)
+              dashboardData.myClasses.map((classCard, index) => {
+                // Insert mid-feed ad after first 2 classes for scrollers
+                if (showAds && index === 2 && dashboardData.myClasses.length > 2) {
+                  return (
+                    <React.Fragment key={`class-${classCard.id}`}>
+                      {renderClassCard(classCard)}
+                      <AdBannerWithUpgrade
+                        screen="teacher_dashboard"
+                        showUpgradeCTA={false}
+                        margin={8}
+                      />
+                    </React.Fragment>
+                  );
+                }
+                return renderClassCard(classCard);
+              })
             ) : (
               <EmptyClassesState
                 onCreateClass={() => {
@@ -1134,6 +1340,15 @@ export const TeacherDashboard: React.FC = () => {
             )}
           </View>
         </View>
+
+        {/* Bottom Ad Placement: For long sessions */}
+        {showAds && (
+          <AdBannerWithUpgrade
+            screen="teacher_dashboard"
+            showUpgradeCTA={false}
+            margin={16}
+          />
+        )}
 
         {/* Bottom Padding */}
         <View style={{ height: 100 }} />
@@ -1360,6 +1575,22 @@ export const TeacherDashboard: React.FC = () => {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* WhatsApp Modal */}
+      <WhatsAppOptInModal
+        visible={showWhatsAppModal}
+        onClose={() => setShowWhatsAppModal(false)}
+        onSuccess={() => {
+          setShowWhatsAppModal(false);
+          Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
+        }}
+      />
+
+      {/* Dash AI Floating Button */}
+      <DashFloatingButton
+        position="bottom-right"
+        onPress={() => router.push('/screens/dash-assistant')}
+      />
     </>
   );
 };
@@ -1386,8 +1617,8 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     headerCard: {
       backgroundColor: theme.cardBackground,
-      borderRadius: 16,
-      padding: 20,
+      borderRadius: getResponsivePadding(16),
+      padding: getResponsivePadding(20),
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.08,
@@ -1418,29 +1649,29 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     roleBadgeText: {
       color: theme.primary,
-      fontSize: 12,
-      fontWeight: "700",
+      fontSize: 10,
+      fontWeight: "600",
       textTransform: "capitalize",
     },
     greeting: {
-      fontSize: 24,
-      fontWeight: "bold",
+      fontSize: getScaledSize(16),
+      fontWeight: "600",
       color: theme.text,
       marginBottom: 4,
     },
     schoolName: {
-      fontSize: 16,
+      fontSize: getScaledSize(16),
       color: theme.textSecondary,
       fontWeight: "500",
     },
     section: {
-      padding: 16,
+      padding: getResponsivePadding(16),
     },
     sectionTitle: {
-      fontSize: 18,
+      fontSize: getScaledSize(18),
       fontWeight: "bold",
       color: theme.text,
-      marginBottom: 16,
+      marginBottom: getResponsivePadding(16),
     },
     sectionCard: {
       backgroundColor: theme.cardBackground,
@@ -1459,8 +1690,8 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     metricCard: {
       backgroundColor: theme.cardBackground,
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: getResponsivePadding(12),
+      padding: getResponsivePadding(16),
       width: cardWidth,
       borderLeftWidth: 4,
       shadowColor: theme.shadow,
@@ -1476,12 +1707,12 @@ const getStyles = (theme: any, isDark: boolean) =>
       marginBottom: 8,
     },
     metricValue: {
-      fontSize: 24,
+      fontSize: getScaledSize(24),
       fontWeight: "bold",
       color: theme.text,
     },
     metricTitle: {
-      fontSize: 14,
+      fontSize: getScaledSize(14),
       fontWeight: "600",
       color: theme.text,
       marginBottom: 2,
@@ -1497,15 +1728,15 @@ const getStyles = (theme: any, isDark: boolean) =>
     },
     quickActionButton: {
       width: cardWidth,
-      padding: 16,
-      borderRadius: 12,
+      padding: getResponsivePadding(16),
+      borderRadius: getResponsivePadding(12),
       alignItems: "center",
       justifyContent: "center",
-      minHeight: 80,
+      minHeight: getScaledSize(80),
     },
     quickActionText: {
-      color: "white",
-      fontSize: 14,
+      color: theme.onPrimary || "white",
+      fontSize: getScaledSize(14),
       fontWeight: "600",
       marginTop: 8,
       textAlign: "center",
@@ -1846,6 +2077,43 @@ const getStyles = (theme: any, isDark: boolean) =>
       backgroundColor: isDark
         ? "rgba(255, 255, 255, 0.1)"
         : "rgba(75, 85, 99, 0.1)",
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    themeToggleButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: theme.surfaceVariant || theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    headerWithToggle: {
+      position: 'relative',
+    },
+    dashboardToggleInHeader: {
+      position: 'absolute',
+      top: 10,
+      right: 90, // Adjusted to prevent overlap with header icons
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.primaryLight || theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+      zIndex: 10,
+      shadowColor: theme.shadow || '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
     },
     modalOverlay: {
       flex: 1,

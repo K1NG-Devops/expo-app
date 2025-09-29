@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type GraderOptions = {
   submissionText: string;
@@ -18,7 +19,7 @@ export type GraderCallOptions = {
 export function useGrader() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<any | null>(null);
 
   const grade = useCallback(async (opts: GraderOptions, callOpts?: GraderCallOptions) => {
     setLoading(true);
@@ -54,7 +55,7 @@ export function useGrader() {
           const { data, error } = await assertSupabase().functions.invoke('ai-gateway', { body: { action: 'grading_assistance', ...basePayload } as any });
           if (error) throw error;
           const text: string = (data && data.content) || '';
-          setResult(text);
+          setResult({ text, __fallbackUsed: !!(data && (data as any).provider_error) });
           callOpts?.onFinal?.({ score: 0, feedback: text });
           return text;
         }
@@ -89,12 +90,26 @@ export function useGrader() {
         const { data, error } = await assertSupabase().functions.invoke('ai-gateway', { body: { action: 'grading_assistance', ...basePayload } as any });
         if (error) throw error;
         const text: string = (data && data.content) || '';
-        setResult(text);
+        setResult({ text, __fallbackUsed: !!(data && (data as any).provider_error) });
         return text;
       }
     } catch (e: any) {
-      setError(e?.message || 'Failed to grade submission');
-      throw e;
+      // Fallback to Dash assistant
+      try {
+        const dash = DashAIAssistant.getInstance();
+        await dash.initialize();
+        if (!dash.getCurrentConversationId()) {
+          await dash.startNewConversation('AI Grader');
+        }
+        const prompt = `Provide constructive feedback and a concise score (0-100) for the following student submission.\nGrade Level: ${opts.gradeLevel || 'N/A'}\nRubric: ${(opts.rubric || []).join(', ') || 'accuracy, completeness, clarity'}\nSubmission:\n${opts.submissionText}`;
+        const response = await dash.sendMessage(prompt);
+        const text = response.content || '';
+        setResult({ text, __fallbackUsed: true });
+        return text;
+      } catch (fallbackErr) {
+        setError(e?.message || 'Failed to grade submission');
+        throw e;
+      }
     } finally {
       setLoading(false);
     }

@@ -8,10 +8,14 @@ import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { router } from 'expo-router';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
 import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
+import ProfileImageService from '@/services/ProfileImageService';
+import TierBadge from '@/components/ui/TierBadge';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -32,6 +36,8 @@ interface RoleBasedHeaderProps {
   backgroundColor?: string;
   textColor?: string;
   onBackPress?: () => void;
+  onSubtitleTap?: () => void; // Tap handler for subtitle
+  canCycleChildren?: boolean; // Shows visual indicator for cycling
 }
 
 /**
@@ -47,15 +53,21 @@ export function RoleBasedHeader({
   backgroundColor,
   textColor,
   onBackPress,
+  onSubtitleTap,
+  canCycleChildren = false,
 }: RoleBasedHeaderProps) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [languageVisible, setLanguageVisible] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [displayUri, setDisplayUri] = useState<string | null>(null);
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const permissions = usePermissions();
   const { theme, mode, toggleTheme } = useTheme();
+  const { tier } = useSubscription();
+  // Dashboard layout preferences (used for grid/apps toggle)
+  const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
 
   // Load avatar URL from user metadata or profiles table
   useEffect(() => {
@@ -85,14 +97,45 @@ export function RoleBasedHeader({
         }
       }
       
+      // Check if URL is a local file:// URI on web platform - don't use these
+      if (Platform.OS === 'web' && url && url.startsWith('file://')) {
+        console.debug('Skipping local file:// URI on web platform:', url);
+        url = null;
+      }
+      
       setAvatarUrl(url || null);
     };
 
     loadAvatarUrl();
   }, [user?.id, user?.user_metadata?.avatar_url]);
 
-  // Use centralized navigation logic
-  const shouldShowBack = shouldShowBackButton(route.name, !!user) && showBackButton;
+  // Convert avatar URL to data URI for web compatibility
+  useEffect(() => {
+    const convertAvatarUri = async () => {
+      if (avatarUrl) {
+        try {
+          // Only convert for web platform and local URIs
+          if (Platform.OS === 'web' && (avatarUrl.startsWith('blob:') || avatarUrl.startsWith('file:'))) {
+            const dataUri = await ProfileImageService.convertToDataUri(avatarUrl);
+            setDisplayUri(dataUri);
+          } else {
+            // For mobile or remote URIs, use the original URI
+            setDisplayUri(avatarUrl);
+          }
+        } catch (error) {
+          console.error('Failed to convert avatar URI in header:', error);
+          setDisplayUri(null); // Fallback to initials
+        }
+      } else {
+        setDisplayUri(null);
+      }
+    };
+    
+    convertAvatarUri();
+  }, [avatarUrl]);
+
+  // Use centralized navigation logic - explicit false prop overrides, otherwise defer to shouldShowBackButton
+  const shouldShowBack = (showBackButton !== false) && shouldShowBackButton(route.name, !!user);
 
   const handleBackPress = () => {
     if (onBackPress) {
@@ -138,9 +181,16 @@ export function RoleBasedHeader({
     const profile = permissions?.enhancedProfile;
     if (!profile) return undefined;
 
-    // Show organization name for school-based roles
-    if (profile.organization_membership?.organization_name) {
-      return profile.organization_membership.organization_name;
+    // Prefer explicit tenant slug if available
+    const org = profile.organization_membership as any;
+    const slug = org?.organization_slug || org?.tenant_slug || org?.slug;
+    if (slug) {
+      return `Tenant: ${slug}`;
+    }
+
+    // Fallback to organization/school name
+    if (org?.organization_name) {
+      return org.organization_name;
     }
 
     // Show seat status for teachers
@@ -179,6 +229,24 @@ export function RoleBasedHeader({
     </View>
   ) : null;
 
+  // Tier chip
+  const tierColor = ((): string => {
+    const t = String(tier || '').toLowerCase();
+    if (t === 'starter') return '#059669';
+    if (t === 'basic') return '#10B981';
+    if (t === 'premium') return '#7C3AED';
+    if (t === 'pro') return '#2563EB';
+    if (t === 'enterprise') return '#DC2626';
+    return '#6B7280';
+  })();
+  const tierLabel = ((): string => {
+    const t = String(tier || '').toLowerCase();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Free';
+  })();
+  const tierChip = (
+    <TierBadge size="sm" showManageButton />
+  );
+
   return (
     <View style={[
       styles.container,
@@ -214,8 +282,8 @@ export function RoleBasedHeader({
               onPress={() => router.push('/screens/account')}
               accessibilityLabel="Go to account settings"
             >
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              {displayUri ? (
+                <Image source={{ uri: displayUri }} style={styles.avatarImage} />
               ) : (
                 <View style={[styles.avatarFallback, { 
                   backgroundColor: theme.primary, 
@@ -232,29 +300,63 @@ export function RoleBasedHeader({
 
         {/* Title Section */}
         <View style={styles.titleSection}>
-          <Text style={[styles.title, { color: headerTextColor }]} numberOfLines={1}>
-            {displayTitle}
-          </Text>
-          {displaySubtitle && (
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
-              {displaySubtitle}
+          <View style={styles.titleRow}>
+            {displayTitle === 'Teacher' && (
+              <Ionicons 
+                name="school" 
+                size={18} 
+                color={headerTextColor} 
+                style={{ marginRight: 6 }}
+              />
+            )}
+            <Text style={[styles.title, { color: headerTextColor }]} numberOfLines={1}>
+              {displayTitle}
             </Text>
+          </View>
+          {displaySubtitle && (
+            canCycleChildren && onSubtitleTap ? (
+              <TouchableOpacity onPress={onSubtitleTap} activeOpacity={0.7}>
+                <View style={styles.subtitleTouchable}>
+                  <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                    {displaySubtitle}
+                  </Text>
+                  <Ionicons 
+                    name="swap-horizontal" 
+                    size={12} 
+                    color={theme.textSecondary} 
+                    style={{ marginLeft: 4 }}
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]} numberOfLines={1}>
+                {displaySubtitle}
+              </Text>
+            )
           )}
         </View>
 
         {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
-          {/* Theme Toggle Button */}
-          <TouchableOpacity 
-            style={[styles.themeButton, { marginRight: 8 }]} 
-            onPress={toggleTheme}
-            accessibilityLabel="Toggle theme"
+          {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
+            <TouchableOpacity
+              style={[styles.managePlanBtn, { borderColor: theme.primary }]}
+              onPress={() => {
+                if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
+                else router.push('/pricing')
+              }}
+              accessibilityLabel="Manage subscription plan"
+            >
+              <Ionicons name="pricetags-outline" size={14} color={theme.primary} />
+            </TouchableOpacity>
+          )}
+          {/* Dashboard layout toggle (replaces theme toggle) */}
+          <TouchableOpacity
+            style={[styles.themeButton, { marginRight: 8 }]}
+            onPress={() => setDashboardLayout(dashboardPreferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
+            accessibilityLabel="Toggle dashboard layout"
           >
-            <Ionicons 
-              name={mode === 'dark' ? 'sunny' : 'moon'} 
-              size={20} 
-              color={headerTextColor} 
-            />
+            <Ionicons name={(dashboardPreferences.layout === 'enhanced' ? 'grid' : 'apps') as any} size={18} color={headerTextColor} />
           </TouchableOpacity>
           
           {/* Settings Button */}
@@ -365,6 +467,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: {
     fontSize: 18,
     fontWeight: '600',
@@ -375,6 +482,14 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     textAlign: 'center',
     marginTop: 2,
+  },
+  subtitleTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    borderRadius: 4,
   },
   rightSection: {
     width: 88, // Increased width to fit both buttons
@@ -441,6 +556,26 @@ const styles = StyleSheet.create({
   themeIndicator: {
     fontSize: 12,
     marginLeft: 'auto',
+  },
+  tierChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginRight: 8,
+  },
+  tierChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  managePlanBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   menuOverlay: {
     flex: 1,
