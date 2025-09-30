@@ -131,6 +131,9 @@ if (url && anon) {
       autoRefreshToken: autoRefresh,
       persistSession: true,
       detectSessionInUrl: false,
+      // Prevent storage sync events from triggering refreshes on web
+      storageKey: isWeb ? 'edudash-web-session' : 'sb-auth-token',
+      flowType: isWeb ? 'implicit' : 'pkce',
       // Add debugging for token refresh issues
       debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
     },

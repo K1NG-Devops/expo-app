@@ -117,51 +117,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Enhanced refresh for visibility handler - OPTIMIZED to prevent loading state
+  // NO-OP refresh handler for web - prevents infinite loading loops
   const handleVisibilityRefresh = useCallback(async () => {
+    // For web, we completely disable session refresh on visibility changes
+    // This prevents the infinite loading state when switching browser tabs
     const now = Date.now();
-    // Increase debounce threshold to 5 seconds to prevent aggressive refreshes
-    if (now - lastRefreshAttempt < 5000) {
-      console.log('[Auth] Skipping visibility refresh - too soon since last attempt');
-      return;
-    }
     
-    setLastRefreshAttempt(now);
+    // Only log the visibility event, don't do anything else
+    console.log('[Auth] Tab visibility changed (refresh disabled for web stability)');
     
-    try {
-      // Only validate session, don't trigger loading states
-      const { data: { session: currentSession }, error } = await assertSupabase().auth.getSession();
-      
-      if (error || !currentSession) {
-        console.log('[Auth] Session invalid on visibility change, clearing auth state');
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-        setPermissions(createPermissionChecker(null));
-        return;
-      }
-      
-      // Silently update session if token changed (don't trigger re-renders unless necessary)
-      if (currentSession && (!session || session.access_token !== currentSession.access_token)) {
-        console.log('[Auth] Session token updated on visibility change');
-        setSession(currentSession);
-        setUser(currentSession.user);
-      }
-      
-      // Only refresh profile if we don't have one OR if it's been more than 5 minutes
-      const shouldRefreshProfile = !profile || (now - lastRefreshAttempt > 300000);
-      if (currentSession.user && shouldRefreshProfile) {
-        console.log('[Auth] Refreshing profile on visibility change');
-        const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
-        if (enhancedProfile) {
-          setProfile(enhancedProfile);
-          setPermissions(createPermissionChecker(enhancedProfile));
-        }
-      }
-    } catch (error) {
-      console.error('[Auth] Visibility refresh failed:', error);
-    }
-  }, [session, lastRefreshAttempt, profile]);
+    // Track for analytics but don't refresh anything
+    track('auth.tab_visibility_change', {
+      platform: Platform.OS,
+      timestamp: new Date().toISOString(),
+    });
+    
+    // Don't check session, don't refresh profile - just continue where user left off
+  }, []);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {
@@ -313,47 +285,55 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Initialize visibility handler for browser tab focus/blur handling
+      // COMPLETELY DISABLE visibility handler for web to prevent loading loops
+      // The issue is that ANY session check triggers Supabase's internal refresh mechanism
       try {
-        const allowWebFocusRefresh = process.env.EXPO_PUBLIC_WEB_FOCUS_REFRESH === 'true';
         const isWeb = Platform.OS === 'web';
-        // Only enable on web if explicitly configured (disabled by default to prevent loading state loops)
-        if (isWeb && allowWebFocusRefresh) {
-          console.log('[Visibility] Initializing web visibility handler with optimized refresh');
+        
+        if (isWeb) {
+          // For web: ONLY track visibility, never refresh session
+          console.log('[Visibility] Web visibility tracking enabled (NO auto-refresh)');
           initializeVisibilityHandler({
-            onSessionRefresh: handleVisibilityRefresh,
             onVisibilityChange: (isVisible) => {
               if (isVisible && mounted) {
-                // Get current state at the time of visibility change
-                assertSupabase().auth.getSession().then(({ data: currentSessionData }) => {
-                  track('auth.tab_focused', {
-                    has_session: !!currentSessionData.session,
-                    has_profile: !!profile,
-                    timestamp: new Date().toISOString(),
-                  });
-                }).catch(() => {
-                  // Fallback tracking if session check fails
-                  track('auth.tab_focused', {
-                    has_session: false,
-                    has_profile: !!profile,
-                    timestamp: new Date().toISOString(),
-                  });
+                // Just track, don't check session
+                track('auth.tab_focused', {
+                  platform: 'web',
+                  timestamp: new Date().toISOString(),
                 });
               }
             },
-            refreshDelay: 2000, // 2 second delay to prevent loading loops
+            // No onSessionRefresh - this is the key fix
           });
-        } else if (isWeb) {
-          console.log('[Visibility] Web focus refresh disabled by default to prevent loading loops. Set EXPO_PUBLIC_WEB_FOCUS_REFRESH=true to enable.');
         } else {
-          // Mobile platforms can use visibility handler without issues
+          // Mobile platforms can use full refresh logic
           console.log('[Visibility] Initializing visibility handler for mobile platform');
           initializeVisibilityHandler({
-            onSessionRefresh: handleVisibilityRefresh,
+            onSessionRefresh: async () => {
+              const now = Date.now();
+              if (now - lastRefreshAttempt < 5000) return;
+              
+              setLastRefreshAttempt(now);
+              try {
+                const { data: { session: currentSession } } = await assertSupabase().auth.getSession();
+                if (currentSession && mounted) {
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  
+                  const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
+                  if (enhancedProfile && mounted) {
+                    setProfile(enhancedProfile);
+                    setPermissions(createPermissionChecker(enhancedProfile));
+                  }
+                }
+              } catch (error) {
+                console.error('[Visibility] Mobile refresh failed:', error);
+              }
+            },
             onVisibilityChange: (isVisible) => {
               if (isVisible && mounted) {
                 track('auth.tab_focused', {
-                  has_profile: !!profile,
+                  platform: 'mobile',
                   timestamp: new Date().toISOString(),
                 });
               }
