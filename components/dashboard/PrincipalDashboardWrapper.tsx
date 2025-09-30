@@ -11,11 +11,7 @@ interface PrincipalDashboardWrapperProps {
 }
 
 export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps> = () => {
-<<<<<<< HEAD
-  const { preferences } = useDashboardPreferences();
-=======
   const { preferences, isLoading } = useDashboardPreferences();
->>>>>>> 9714ed31cc299dd708052e7917a4b7b8cd2faa9a
   const { theme } = useTheme();
 
   // Render the appropriate dashboard based on layout preference

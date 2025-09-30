@@ -88,6 +88,12 @@ export default function Landing() {
   }, []);
 
   const checkAuthAndRoute = async () => {
+    // Set a timeout to prevent infinite hanging
+    const timeoutId = setTimeout(() => {
+      console.warn('🔍 [INDEX] Auth check timeout - proceeding to landing page');
+      setAuthCheckComplete(true);
+    }, 5000); // 5 second timeout
+
     try {
       console.log('🔍 [INDEX] Starting auth check...');
       
@@ -102,6 +108,7 @@ export default function Landing() {
       if (error) {
         console.warn('🔍 [INDEX] Session check failed:', error.message);
         // Don't redirect on error - let users stay on landing page
+        clearTimeout(timeoutId);
         setAuthCheckComplete(true);
         return;
       }
@@ -112,6 +119,7 @@ export default function Landing() {
         console.log('🔍 [INDEX] User ID:', session.user.id);
         await routeAfterLogin(session.user, null);
         console.log('🔍 [INDEX] Route after login completed');
+        clearTimeout(timeoutId);
         // Don't set authCheckComplete here - we're routing away
         return;
       } else {
@@ -119,11 +127,13 @@ export default function Landing() {
       }
       
       // If no session, do nothing - let users stay on landing page
+      clearTimeout(timeoutId);
       setAuthCheckComplete(true);
       
     } catch (error) {
       console.error('🔍 [INDEX] Error checking authentication:', error);
       // Don't redirect on error - let users stay on landing page
+      clearTimeout(timeoutId);
       setAuthCheckComplete(true);
     }
   };

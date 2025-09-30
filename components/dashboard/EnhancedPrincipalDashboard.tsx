@@ -79,6 +79,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     error,
     refresh,
     getMetrics,
+    getTeachersWithStatus,
     formatCurrency,
     isEmpty
   } = usePrincipalHub();
@@ -171,17 +172,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   // Create theme-aware styles
   const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
   
-  const {
-    data,
-    loading,
-    error,
-    refresh,
-    getMetrics,
-    getTeachersWithStatus,
-    formatCurrency,
-    isEmpty
-  } = usePrincipalHub();
-
   const getGreeting = (): string => {
     const hour = new Date().getHours();
     if (hour < 12) return t('dashboard.good_morning');
