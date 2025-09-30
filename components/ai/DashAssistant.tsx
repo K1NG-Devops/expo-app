@@ -20,10 +20,11 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Vibration,
+  ActionSheetIOS,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashMessage, DashConversation } from '@/services/DashAIAssistant';
+import { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
@@ -33,6 +34,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
+import { 
+  pickDocuments, 
+  pickImages, 
+  uploadAttachment,
+  getFileIconName,
+  formatFileSize 
+} from '@/services/AttachmentService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -60,6 +68,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
 
   const scrollViewRef = useRef<ScrollView>(null);
@@ -239,14 +249,44 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   }
 
   const sendMessage = async (text: string = inputText.trim()) => {
-    if (!text || !dashInstance || isLoading) return;
+    if ((!text && selectedAttachments.length === 0) || !dashInstance || isLoading) return;
 
     try {
       setIsLoading(true);
+      setIsUploading(true);
       setInputText('');
 
-      const userText = text
-      const response = await dashInstance.sendMessage(userText);
+      // Upload attachments first if any
+      const uploadedAttachments: DashAttachment[] = [];
+      if (selectedAttachments.length > 0 && conversation?.id) {
+        for (const attachment of selectedAttachments) {
+          try {
+            updateAttachmentProgress(attachment.id, 0, 'uploading');
+            const uploaded = await uploadAttachment(
+              attachment, 
+              conversation.id,
+              (progress) => updateAttachmentProgress(attachment.id, progress)
+            );
+            updateAttachmentProgress(attachment.id, 100, 'uploaded');
+            uploadedAttachments.push(uploaded);
+          } catch (error) {
+            console.error(`Failed to upload ${attachment.name}:`, error);
+            updateAttachmentProgress(attachment.id, 0, 'failed');
+            Alert.alert(
+              'Upload Failed', 
+              `Failed to upload ${attachment.name}. Please try again.`
+            );
+          }
+        }
+      }
+
+      setIsUploading(false);
+
+      const userText = text || 'Attached files';
+      const response = await dashInstance.sendMessage(userText, undefined, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+      
+      // Clear selected attachments after successful send
+      setSelectedAttachments([]);
       
       // Handle dashboard actions if present
       if (response.metadata?.dashboard_action?.type === 'switch_layout') {
@@ -318,6 +358,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       Alert.alert('Error', 'Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
+      setIsUploading(false);
     }
   };
 
@@ -507,6 +548,91 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       setIsSpeaking(false);
       setSpeakingMessageId(null);
     }
+  };
+
+  const handleAttachFile = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const options = [
+        'Documents',
+        'Photos',
+        'Cancel'
+      ];
+      
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options,
+            cancelButtonIndex: 2,
+            title: 'Select files to attach'
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) {
+              handlePickDocuments();
+            } else if (buttonIndex === 1) {
+              handlePickImages();
+            }
+          }
+        );
+      } else {
+        // For Android, show a simple alert
+        Alert.alert(
+          'Attach Files',
+          'Choose the type of files to attach',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Documents', onPress: handlePickDocuments },
+            { text: 'Photos', onPress: handlePickImages }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Failed to show file picker:', error);
+    }
+  };
+
+  const handlePickDocuments = async () => {
+    try {
+      const documents = await pickDocuments();
+      if (documents.length > 0) {
+        setSelectedAttachments(prev => [...prev, ...documents]);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to pick documents:', error);
+      Alert.alert('Error', 'Failed to select documents. Please try again.');
+    }
+  };
+
+  const handlePickImages = async () => {
+    try {
+      const images = await pickImages();
+      if (images.length > 0) {
+        setSelectedAttachments(prev => [...prev, ...images]);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to pick images:', error);
+      Alert.alert('Error', 'Failed to select images. Please try again.');
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedAttachments(prev => prev.filter(att => att.id !== attachmentId));
+    } catch (error) {
+      console.error('Failed to remove attachment:', error);
+    }
+  };
+
+  const updateAttachmentProgress = (attachmentId: string, progress: number, status?: DashAttachment['status']) => {
+    setSelectedAttachments(prev => prev.map(att => 
+      att.id === attachmentId 
+        ? { ...att, uploadProgress: progress, ...(status && { status }) }
+        : att
+    ));
   };
 
   const renderMessage = (message: DashMessage, index: number) => {
@@ -708,6 +834,95 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 {getActionDisplayText(action)}
               </Text>
             </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderAttachmentChips = () => {
+    if (selectedAttachments.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.attachmentChipsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {selectedAttachments.map((attachment) => (
+            <View 
+              key={attachment.id} 
+              style={[
+                styles.attachmentChip,
+                { 
+                  backgroundColor: theme.surface,
+                  borderColor: attachment.status === 'failed' ? theme.error : theme.border
+                }
+              ]}
+            >
+              <View style={styles.attachmentChipContent}>
+                <Ionicons 
+                  name={getFileIconName(attachment.kind)} 
+                  size={16} 
+                  color={attachment.status === 'failed' ? theme.error : theme.text} 
+                />
+                <View style={styles.attachmentChipText}>
+                  <Text 
+                    style={[
+                      styles.attachmentChipName, 
+                      { color: attachment.status === 'failed' ? theme.error : theme.text }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {attachment.name}
+                  </Text>
+                  <Text style={[styles.attachmentChipSize, { color: theme.textSecondary }]}>
+                    {formatFileSize(attachment.size)}
+                  </Text>
+                </View>
+                
+                {/* Progress indicator */}
+                {attachment.status === 'uploading' && (
+                  <View style={styles.attachmentProgressContainer}>
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  </View>
+                )}
+                
+                {/* Status indicator */}
+                {attachment.status === 'uploaded' && (
+                  <Ionicons name="checkmark-circle" size={16} color={theme.success} />
+                )}
+                
+                {attachment.status === 'failed' && (
+                  <Ionicons name="alert-circle" size={16} color={theme.error} />
+                )}
+                
+                {/* Remove button */}
+                {attachment.status !== 'uploading' && (
+                  <TouchableOpacity
+                    style={styles.attachmentChipRemove}
+                    onPress={() => handleRemoveAttachment(attachment.id)}
+                    accessibilityLabel={`Remove ${attachment.name}`}
+                  >
+                    <Ionicons name="close" size={14} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {/* Progress bar */}
+              {attachment.status === 'uploading' && attachment.uploadProgress !== undefined && (
+                <View style={[styles.attachmentProgressBar, { backgroundColor: theme.surfaceVariant }]}>
+                  <View 
+                    style={[
+                      styles.attachmentProgressFill,
+                      { 
+                        backgroundColor: theme.primary,
+                        width: `${attachment.uploadProgress}%`
+                      }
+                    ]} 
+                  />
+                </View>
+              )}
+            </View>
           ))}
         </ScrollView>
       </View>
@@ -941,7 +1156,37 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        {/* Attachment chips */}
+        {renderAttachmentChips()}
+        
         <View style={styles.inputRow}>
+          {/* Attach button */}
+          <TouchableOpacity
+            style={[
+              styles.attachButton,
+              { 
+                backgroundColor: selectedAttachments.length > 0 ? theme.primaryLight : 'transparent',
+                borderColor: theme.border
+              }
+            ]}
+            onPress={handleAttachFile}
+            disabled={isLoading || isRecording}
+            accessibilityLabel="Attach files"
+          >
+            <Ionicons 
+              name="attach" 
+              size={20} 
+              color={selectedAttachments.length > 0 ? theme.primary : theme.textSecondary} 
+            />
+            {selectedAttachments.length > 0 && (
+              <View style={[styles.attachBadge, { backgroundColor: theme.primary }]}>
+                <Text style={[styles.attachBadgeText, { color: theme.onPrimary }]}>
+                  {selectedAttachments.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+          
           <TextInput
             ref={inputRef}
             style={[
@@ -952,25 +1197,25 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 color: theme.inputText 
               }
             ]}
-            placeholder="Ask Dash anything..."
+            placeholder={selectedAttachments.length > 0 ? "Add a message (optional)..." : "Ask Dash anything..."}
             placeholderTextColor={theme.inputPlaceholder}
             value={inputText}
             onChangeText={setInputText}
             multiline={!enterToSend}
             maxLength={500}
-            editable={!isLoading && !isRecording}
+            editable={!isLoading && !isRecording && !isUploading}
             onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
             returnKeyType={enterToSend ? "send" : "default"}
             blurOnSubmit={enterToSend}
           />
           
-          {inputText.trim() ? (
+          {(inputText.trim() || selectedAttachments.length > 0) ? (
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: theme.primary }]}
               onPress={() => sendMessage()}
-              disabled={isLoading}
+              disabled={isLoading || isUploading}
             >
-              {isLoading ? (
+              {(isLoading || isUploading) ? (
                 <ActivityIndicator size="small" color={theme.onPrimary} />
               ) : (
                 <Ionicons name="send" size={20} color={theme.onPrimary} />
@@ -1313,6 +1558,81 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  attachmentChipsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    maxHeight: 120,
+  },
+  attachmentChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+    minWidth: 200,
+    maxWidth: 250,
+    overflow: 'hidden',
+  },
+  attachmentChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  attachmentChipText: {
+    flex: 1,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  attachmentChipName: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  attachmentChipSize: {
+    fontSize: 11,
+  },
+  attachmentChipRemove: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentProgressContainer: {
+    marginRight: 8,
+  },
+  attachmentProgressBar: {
+    height: 2,
+    marginHorizontal: 8,
+    marginBottom: 4,
+    borderRadius: 1,
+  },
+  attachmentProgressFill: {
+    height: '100%',
+    borderRadius: 1,
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    position: 'relative',
+  },
+  attachBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 
