@@ -36,9 +36,7 @@ import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
-import { Vibration } from 'react-native';
 import Feedback from '@/lib/feedback';
-import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
@@ -67,7 +65,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { theme, toggleTheme, isDark } = useTheme();
   const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
   const { preferences, setLayout } = useDashboardPreferences();
-  const { maybeShowInterstitial, offerRewarded } = useAds();
+  const { maybeShowInterstitial } = useAds();
+  const insets = useSafeAreaInsets();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
@@ -136,7 +135,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       try {
         await Linking.openURL(configuredLink);
         return;
-      } catch {}
+      } catch (error) {
+        // Fallback if WhatsApp deep link fails
+        console.log('WhatsApp link failed:', error);
+      }
     }
     Alert.alert(t('quick_actions.whatsapp_setup'), t('dashboard.whatsapp_not_configured'));
   };
@@ -186,8 +188,14 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       );
       
       if (result.success) {
-        try { await Feedback.vibrate(40); } catch {}
-        try { await Feedback.playSuccess(); } catch {}
+        try { await Feedback.vibrate(40); } catch (error) {
+          // Vibration not available on platform
+          console.log('Vibration not available:', error);
+        }
+        try { await Feedback.playSuccess(); } catch (error) {
+          // Sound not available on platform
+          console.log('Sound feedback not available:', error);
+        }
         Alert.alert(
           t('dashboard.announcement_send_success'),
           t('dashboard.announcement_send_details', {
@@ -333,8 +341,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   
   // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
   const allMetrics = [...metrics, ...pettyCashCards];
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>

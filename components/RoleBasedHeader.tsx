@@ -414,7 +414,16 @@ export function RoleBasedHeader({
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Switch account</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}>
+              <TouchableOpacity 
+                style={styles.menuItem} 
+                onPress={async () => {
+                  setMenuVisible(false);
+                  // Small delay to let modal close gracefully
+                  setTimeout(async () => {
+                    await signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' });
+                  }, 100);
+                }}
+              >
                 <Ionicons name="log-out-outline" size={18} color={theme.error} />
                 <Text style={[styles.menuItemText, { color: theme.error }]}>Sign out</Text>
               </TouchableOpacity>

@@ -23,6 +23,9 @@ import {
   Linking,
   Modal,
   Platform,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/Colors";
@@ -951,14 +954,20 @@ export const TeacherDashboard: React.FC = () => {
   }
 
   return (
-    <>
-      <ScrollView
-        style={styles.container}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refresh} />
-        }
-      >
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          style={styles.container}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={refresh} />
+          }
+        >
         {/* Teacher Greeting Header */}
         <View style={styles.header}>
           <View style={styles.headerCard}>
@@ -1573,7 +1582,9 @@ export const TeacherDashboard: React.FC = () => {
         position="bottom-right"
         onPress={() => router.push('/screens/dash-assistant')}
       />
-    </>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
