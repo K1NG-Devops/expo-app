@@ -8,16 +8,12 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  RefreshControl,
   Alert,
-  StatusBar,
   Platform,
-  Dimensions,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { EnhancedUser, SecurityEvent, EnhancedInvitation } from '../types/auth-enhanced';
+import { EnhancedUser, SecurityEvent } from '../types/auth-enhanced';
 
-const { width } = Dimensions.get('window');
 
 // Mock data that updates in real-time
 const MOCK_USERS: EnhancedUser[] = [

@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next'; // Translation not needed
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
@@ -70,15 +70,15 @@ interface FilterOptions {
 }
 
 export default function TeachersDetailScreen() {
-  const { t } = useTranslation(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // const { t } = useTranslation(); // Translation not needed for now
   const { user, profile } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showTeacherModal, setShowTeacherModal] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // const [showTeacherModal, setShowTeacherModal] = useState(false); // Modal not implemented yet
+  // const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null); // Modal not implemented yet
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 

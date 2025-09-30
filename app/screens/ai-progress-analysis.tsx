@@ -350,7 +350,7 @@ export default function AIProgressAnalysisScreen() {
             <Text style={styles.emptyText}>No student progress data available</Text>
           ) : (
             analysisData?.studentProgress
-              .filter(student => !selectedClass || 
+              .filter(() => !selectedClass || 
                 analysisData.classAnalytics.find(c => c.classId === selectedClass))
               .slice(0, 10) // Show top 10 students
               .map(renderStudentCard)

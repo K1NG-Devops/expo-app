@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useThemedStyles } from '@/hooks/useThemedStyles';
+// import { useThemedStyles } from '@/hooks/useThemedStyles'; // Not used currently
 import { Colors } from '@/constants/Colors';
 
 interface SchoolSettings {

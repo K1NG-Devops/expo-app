@@ -88,7 +88,7 @@ export default function PrincipalSeatManagementScreen() {
     if (!effectiveSchoolId) return;
     try {
       // Fetch teacher identities from profiles first
-      const { data: profs, error: profErr } = await assertSupabase()
+      const { data: profs } = await assertSupabase()
         .from('profiles')
         .select('id,email,role,preschool_id')
         .eq('preschool_id', effectiveSchoolId)
@@ -149,7 +149,9 @@ export default function PrincipalSeatManagementScreen() {
       try {
         const { notifySeatRequestApproved } = await import('@/lib/notify');
         await notifySeatRequestApproved(userId);
-      } catch {}
+      } catch {
+        // Notification failed but seat assignment succeeded
+      }
       setSuccess('Seat assigned successfully');
       setTeacherEmail('');
       await loadTeachers();
@@ -245,7 +247,9 @@ export default function PrincipalSeatManagementScreen() {
                   if (error) throw error;
                   // Optimistically set subscription id returned by RPC (enables bulk-assign immediately)
                   if (data) {
-                    try { setSubscriptionId(String(data)); } catch {}
+                  try { setSubscriptionId(String(data)); } catch {
+                    // ID parsing failed, will be loaded in next refresh
+                  }
                   }
                   setSuccess('Free trial started. You can now assign seats.');
                   await loadSubscription();
@@ -273,7 +277,9 @@ export default function PrincipalSeatManagementScreen() {
                     } else {
                       await Linking.openURL(webUrl);
                     }
-                  } catch {}
+                  } catch {
+                    // Link opening failed
+                  }
                 }}
               >
                 <Ionicons name="logo-whatsapp" size={16} color="#000" />
@@ -417,7 +423,9 @@ export default function PrincipalSeatManagementScreen() {
                             setPendingTeacherId(t.id); setError(null); setSuccess(null);
                             const ok = await assignSeat(subscriptionId, t.id);
                             if (!ok) { setError('Failed to assign seat'); return; }
-                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch {}
+                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch {
+                              // Notification failed but seat assignment succeeded
+                            }
                             setSuccess(`Seat assigned to ${t.email}`);
                             await loadTeachers();
                           } finally {

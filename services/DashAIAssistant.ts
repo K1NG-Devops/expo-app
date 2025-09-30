@@ -907,7 +907,7 @@ export class DashAIAssistant {
     }
 
     // Topic/theme: allow quoted phrases or after keywords
-    const topicQuoted = fullTextRaw.match(/topic\s*[:\-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
+    const topicQuoted = fullTextRaw.match(/topic\s*[:?-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
     if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
       const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
       if (t) params.topic = t;
@@ -921,7 +921,7 @@ export class DashAIAssistant {
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-    const numMatch = fullText.match(/(\d{1,3})\s*\-?\s*(?:minute|min)s?\b/i);
+    const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -2031,7 +2031,7 @@ export class DashAIAssistant {
     // User interaction patterns
     const interactionHistory = recentMemory.filter(item => item.type === 'interaction');
     if (interactionHistory.length > 10) {
-      insights.push(`You\'ve been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
+      insights.push(`You've been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
       
       // Suggest efficiency improvements
       const commonTasks = this.identifyCommonTaskPatterns(interactionHistory);
@@ -2113,7 +2113,7 @@ export class DashAIAssistant {
     );
     
     if (completedTasks.length > 0) {
-      insights.push(`You\'ve completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
+      insights.push(`You've completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
     }
     
     return {

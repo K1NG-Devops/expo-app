@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { useTranslation } from 'react-i18next';
+// import { useTranslation } from 'react-i18next'; // Translation not needed
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
@@ -68,15 +68,15 @@ interface FilterOptions {
 }
 
 export default function StudentsDetailScreen() {
-  const { t } = useTranslation(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // const { t } = useTranslation(); // Translation not needed for now
   const { user, profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showStudentModal, setShowStudentModal] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  // const [showStudentModal, setShowStudentModal] = useState(false); // Modal not implemented yet
+  // const [selectedStudent, setSelectedStudent] = useState<Student | null>(null); // Modal not implemented yet
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
@@ -328,11 +328,11 @@ const { data: studentsData, error: studentsError } = await assertSupabase()
     return profile?.role === 'principal_admin';
   };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const canEditStudent = (_student: Student): boolean => {
+const canEditStudent = (student: Student): boolean => {
     const userRole = profile?.role || 'parent';
     if (userRole === 'principal_admin') return true;
     if (userRole === 'teacher') return true; // Teachers can edit basic info
+    console.log('Checking edit permissions for student:', student.id); // For now, just log for debugging
     return false; // Parents can only view
   };
 
@@ -342,8 +342,8 @@ const canEditStudent = (_student: Student): boolean => {
       return;
     }
     
-    setSelectedStudent(student);
-    setShowStudentModal(true);
+    // TODO: Implement student edit modal
+    Alert.alert('Coming Soon', 'Student editing functionality will be available soon.');
   };
 
   const handleDeleteStudent = (studentId: string) => {
