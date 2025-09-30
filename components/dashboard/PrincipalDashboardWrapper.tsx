@@ -7,12 +7,10 @@ import { NewEnhancedPrincipalDashboard } from './NewEnhancedPrincipalDashboard';
 
 interface PrincipalDashboardWrapperProps {
   // Add any props that should be passed to both dashboard components
-  refreshTrigger?: number;
+  // refreshTrigger?: number; // Currently unused
 }
 
-export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps> = ({
-  refreshTrigger
-}) => {
+export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps> = () => {
   const { preferences, isLoading } = useDashboardPreferences();
   const { theme } = useTheme();
 

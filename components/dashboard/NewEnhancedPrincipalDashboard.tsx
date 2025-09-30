@@ -36,7 +36,7 @@ import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 const isTablet = width > 768;
 const isSmallScreen = width < 380;
 const cardPadding = isTablet ? 20 : isSmallScreen ? 10 : 14;
@@ -66,7 +66,7 @@ interface NewEnhancedPrincipalDashboardProps {
   refreshTrigger?: number;
 }
 
-export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = ({ refreshTrigger }) => {
+export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = () => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -75,7 +75,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   const { preferences, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
-  const userRole = (profile as any)?.role || 'principal';
+  // const userRole = (profile as any)?.role || 'principal'; // Currently unused
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
@@ -152,24 +152,28 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     </TouchableOpacity>
   );
 
-  const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle }) => (
-    <TouchableOpacity
-      style={styles.actionCard}
-      onPress={async () => {
-        try {
-          await Feedback.vibrate(10);
-          onPress();
-        } catch { /* TODO: Implement */ }
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.actionIcon, { backgroundColor: color + '15' }]}>
-        <Ionicons name={icon as any} size={isSmallScreen ? 20 : 24} color={color} />
-      </View>
-      <Text style={styles.actionTitle}>{title}</Text>
-      {subtitle && <Text style={styles.actionSubtitle}>{subtitle}</Text>}
-    </TouchableOpacity>
-  );
+  // QuickAction component - currently unused but kept for future use
+  // const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle }) => (
+  //   <TouchableOpacity
+  //     style={styles.actionCard}
+  //     onPress={async () => {
+  //       try {
+  //         await Feedback.vibrate(10);
+  //         onPress();
+  //       } catch (error) {
+  //         // Vibration may not be available on all platforms
+  //         console.log('Vibration not available:', error);
+  //       }
+  //     }}
+  //     activeOpacity={0.7}
+  //   >
+  //     <View style={[styles.actionIcon, { backgroundColor: color + '15' }]}>
+  //       <Ionicons name={icon as any} size={isSmallScreen ? 20 : 24} color={color} />
+  //     </View>
+  //     <Text style={styles.actionTitle}>{title}</Text>
+  //     {subtitle && <Text style={styles.actionSubtitle}>{subtitle}</Text>}
+  //   </TouchableOpacity>
+  // );
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
@@ -531,32 +535,32 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   );
 };
 
-// Teacher Card Component
-const TeacherCard: React.FC<{ teacher: any }> = ({ teacher }) => {
-  const { theme } = useTheme();
-  const cardStyles = useMemo(() => createStyles(theme), [theme]);
-  
-  return (
-    <TouchableOpacity style={[cardStyles.teacherCard, { backgroundColor: theme.cardBackground }]}>
-      <View style={cardStyles.teacherHeader}>
-        <View style={[cardStyles.teacherAvatar, { backgroundColor: theme.primary }]}>
-          <Text style={[cardStyles.teacherInitials, { color: theme.onPrimary }]}>
-            {teacher.first_name?.[0]}{teacher.last_name?.[0]}
-          </Text>
-        </View>
-        <View style={cardStyles.teacherInfo}>
-          <Text style={[cardStyles.teacherName, { color: theme.text }]}>{teacher.full_name}</Text>
-          <Text style={[cardStyles.teacherSpecialty, { color: theme.textSecondary }]}>
-            {teacher.subject_specialization || 'General'}
-          </Text>
-        </View>
-      </View>
-      <Text style={[cardStyles.teacherStats, { color: theme.textSecondary }]}>
-        {teacher.classes_assigned} classes • {teacher.students_count} students
-      </Text>
-    </TouchableOpacity>
-  );
-};
+// Teacher Card Component - currently unused but kept for future use
+// const TeacherCard: React.FC<{ teacher: any }> = ({ teacher }) => {
+//   const { theme } = useTheme();
+//   const cardStyles = useMemo(() => createStyles(theme), [theme]);
+//   
+//   return (
+//     <TouchableOpacity style={[cardStyles.teacherCard, { backgroundColor: theme.cardBackground }]}>
+//       <View style={cardStyles.teacherHeader}>
+//         <View style={[cardStyles.teacherAvatar, { backgroundColor: theme.primary }]}>
+//           <Text style={[cardStyles.teacherInitials, { color: theme.onPrimary }]}>
+//             {teacher.first_name?.[0]}{teacher.last_name?.[0]}
+//           </Text>
+//         </View>
+//         <View style={cardStyles.teacherInfo}>
+//           <Text style={[cardStyles.teacherName, { color: theme.text }]}>{teacher.full_name}</Text>
+//           <Text style={[cardStyles.teacherSpecialty, { color: theme.textSecondary }]}>
+//             {teacher.subject_specialization || 'General'}
+//           </Text>
+//         </View>
+//       </View>
+//       <Text style={[cardStyles.teacherStats, { color: theme.textSecondary }]}>
+//         {teacher.classes_assigned} classes • {teacher.students_count} students
+//       </Text>
+//     </TouchableOpacity>
+//   );
+// };
 
 // Loading Skeleton Component
 const LoadingSkeleton: React.FC = () => {

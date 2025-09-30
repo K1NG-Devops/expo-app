@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, ScrollView, View, Text, RefreshControl, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { Platform, ScrollView, View, Text, RefreshControl, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
@@ -1575,22 +1575,29 @@ case 'homework':
   }
 
   return (
-    <View style={styles.container}>
-      {/* Offline Banner */}
-      <OfflineBanner />
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
+      <View style={styles.container}>
+        {/* Offline Banner */}
+        <OfflineBanner />
 
-      {/* Fixed Header - Hidden for cleaner UI */}
-      
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#00f5ff"
-          />
-        }
-      >
+        {/* Fixed Header - Hidden for cleaner UI */}
+        
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor="#00f5ff"
+              />
+            }
+          >
         {/* Error Banner */}
         {error && (
           <ErrorBanner
@@ -2136,17 +2143,19 @@ case 'homework':
         {/* Additional spacing for bottom navigation */}
         <View style={{ height: 20 }} />
 
-      </ScrollView>
+          </ScrollView>
+        </TouchableWithoutFeedback>
 
-      {/* Homework Modal */}
-      <HomeworkModal visible={showHomeworkModal} onClose={() => setShowHomeworkModal(false)} />
-      
-      {/* Language Modal */}
-      <LanguageModal />
-      
-      {/* WhatsApp Modal */}
-      <WhatsAppOptInModal visible={showWhatsAppModal} onClose={() => setShowWhatsAppModal(false)} />
-    </View>
+        {/* Homework Modal */}
+        <HomeworkModal visible={showHomeworkModal} onClose={() => setShowHomeworkModal(false)} />
+        
+        {/* Language Modal */}
+        <LanguageModal />
+        
+        {/* WhatsApp Modal */}
+        <WhatsAppOptInModal visible={showWhatsAppModal} onClose={() => setShowWhatsAppModal(false)} />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
