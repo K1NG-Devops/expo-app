@@ -44,6 +44,8 @@ export interface DashMessage {
     language?: string;
     provider?: string;
   };
+  attachments?: DashAttachment[];
+  citations?: DashCitation[];
   metadata?: {
     context?: string;
     confidence?: number;
@@ -277,6 +279,70 @@ export interface DashInsight {
     value: number;
     unit: string;
   };
+}
+
+/**
+ * File attachment types for document upload and analysis
+ */
+export type DashAttachmentKind =
+  | 'document'
+  | 'image'
+  | 'pdf'
+  | 'spreadsheet'
+  | 'presentation'
+  | 'audio'
+  | 'other';
+
+export type DashAttachmentStatus =
+  | 'pending'
+  | 'uploading'
+  | 'uploaded'
+  | 'processing'
+  | 'ready'
+  | 'failed';
+
+/**
+ * File attachment interface
+ */
+export interface DashAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  bucket: string;
+  storagePath: string;
+  kind: DashAttachmentKind;
+  status: DashAttachmentStatus;
+  previewUri?: string;
+  pageCount?: number;
+  textBytes?: number;
+  sha256?: string;
+  meta?: Record<string, any>;
+  uploadProgress?: number; // 0-100
+}
+
+/**
+ * Citation reference for RAG responses
+ */
+export interface DashCitation {
+  attachmentId: string;
+  title?: string;
+  page?: number;
+  snippet?: string;
+  score?: number;
+}
+
+/**
+ * Attachment analysis results
+ */
+export interface DashAttachmentAnalysis {
+  attachmentId: string;
+  summary?: string;
+  keywords?: string[];
+  entities?: string[];
+  readingTimeMinutes?: number;
+  pageMap?: Array<{ page: number; tokens: number }>;
+  error?: string;
 }
 
 export interface DashPersonality {
