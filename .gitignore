@@ -49,3 +49,4 @@ build-*.apk
 # Personal/history folders accidentally committed
 memory_cleanup_*/
 backups/
+google-services-account.json
