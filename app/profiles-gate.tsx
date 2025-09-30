@@ -54,12 +54,23 @@ export default function ProfilesGateScreen() {
   const [accessValidation, setAccessValidation] = useState<ReturnType<typeof validateUserAccess> | null>(null);
 
   useEffect(() => {
+    // Prevent multiple routing attempts
+    const routingLock = 'profiles_gate_routing_' + (user?.id || 'anonymous');
+    if (typeof window !== 'undefined' && (window as any)[routingLock]) {
+      return; // Already routing, prevent duplicate
+    }
+
     // Special case: If user came from biometric login and has no profile data,
     // they might be an existing user - try to detect their role
     const handleExistingUser = async () => {
       if (!profile && user) {
         console.log('Profiles-gate: No profile found, checking if existing user...');
         try {
+          // Set routing lock
+          if (typeof window !== 'undefined') {
+            (window as any)[routingLock] = true;
+          }
+          
           // Try to detect user role from legacy methods
           const { detectRoleAndSchool } = await import('@/lib/routeAfterLogin');
           const { role } = await detectRoleAndSchool(user);
@@ -74,11 +85,22 @@ export default function ProfilesGateScreen() {
               'super_admin': '/screens/super-admin-dashboard'
             };
             const targetRoute = routes[role as keyof typeof routes] || '/(auth)/sign-in';
-            router.replace(targetRoute as any);
+            
+            // Use timeout to prevent blocking UI
+            setTimeout(() => {
+              router.replace(targetRoute as any);
+            }, 100);
             return;
           }
         } catch (error) {
           console.error('Error detecting existing user role:', error);
+        } finally {
+          // Clear routing lock after delay
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              delete (window as any)[routingLock];
+            }
+          }, 2000);
         }
       }
     };
@@ -89,13 +111,28 @@ export default function ProfilesGateScreen() {
       
       // If user has valid access, route them appropriately
       if (validation.hasAccess) {
-        routeAfterLogin(user, profile).catch(console.error);
+        // Set routing lock
+        if (typeof window !== 'undefined') {
+          (window as any)[routingLock] = true;
+        }
+        
+        // Use timeout to prevent blocking UI
+        setTimeout(() => {
+          routeAfterLogin(user, profile).catch(console.error).finally(() => {
+            // Clear routing lock after delay
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                delete (window as any)[routingLock];
+              }
+            }, 2000);
+          });
+        }, 100);
       }
-    } else {
-      // Try to handle existing users who may not have proper profile data
+    } else if (user && !loading) {
+      // Only try to handle existing users if we're not still loading
       handleExistingUser();
     }
-  }, [profile, user]);
+  }, [profile, user, loading]);
 
   const handleRoleSelection = (role: Role) => {
     setSelectedRole(role);
