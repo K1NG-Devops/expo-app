@@ -9,7 +9,7 @@
  * - Simple announcement creation
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useAds } from '@/contexts/AdsContext';
 import { useTranslation } from 'react-i18next';
 import { usePrincipalHub } from '@/hooks/usePrincipalHub';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import AnnouncementService from '@/lib/services/announcementService';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -62,6 +62,7 @@ interface TeacherCardProps {
 }
 
 export const EnhancedPrincipalDashboard: React.FC = () => {
+  // ALL HOOKS MUST BE AT THE TOP IN CONSISTENT ORDER
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme, toggleTheme, isDark } = useTheme();
@@ -69,8 +70,39 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { preferences, setLayout } = useDashboardPreferences();
   const { maybeShowInterstitial, offerRewarded } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
+  const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
+  const insets = useSafeAreaInsets();
+  const {
+    data,
+    loading,
+    error,
+    refresh,
+    getMetrics,
+    getTeachersWithStatus,
+    formatCurrency,
+    isEmpty
+  } = usePrincipalHub();
+  
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const hasRefreshedOnFocus = useRef(false);
+  
+  // Refresh on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (hasRefreshedOnFocus.current) {
+        console.log('🔄 Dashboard refocused - refreshing data');
+        refresh();
+      } else {
+        hasRefreshedOnFocus.current = true;
+      }
+    }, [refresh])
+  );
+  
+  // Theme-aware styles
+  const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
   
   // Ad gating logic
   const showAds = subscriptionReady && tier === 'free';
@@ -124,10 +156,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     action();
   };
   
-  // WhatsApp integration
-  const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-
   // Open WhatsApp using school deep link if available; fallback to support line
   const openWhatsAppWithFallback = async () => {
     // Prefer the school's configured WhatsApp number via deep link helper
@@ -141,25 +169,23 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     Alert.alert(t('quick_actions.whatsapp_setup'), t('dashboard.whatsapp_not_configured'));
   };
 
-  // Create theme-aware styles
-  const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
-  
-  const {
-    data,
-    loading,
-    error,
-    refresh,
-    getMetrics,
-    getTeachersWithStatus,
-    formatCurrency,
-    isEmpty
-  } = usePrincipalHub();
-
   const getGreeting = (): string => {
     const hour = new Date().getHours();
     if (hour < 12) return t('dashboard.good_morning');
     if (hour < 18) return t('dashboard.good_afternoon');
     return t('dashboard.good_evening');
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+      await Feedback.vibrate(10);
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleCreateAnnouncement = () => {
@@ -333,8 +359,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   
   // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
   const allMetrics = [...metrics, ...pettyCashCards];
-
-  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.container}>

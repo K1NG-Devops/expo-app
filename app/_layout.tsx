@@ -9,6 +9,27 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
+
+// Add polyfill for web environments
+if (Platform.OS === 'web') {
+  // Polyfill DeviceEventEmitter for web
+  if (typeof global !== 'undefined' && !(global as any).DeviceEventEmitter) {
+    try {
+      const EventEmitter = require('eventemitter3');
+      (global as any).DeviceEventEmitter = new EventEmitter();
+    } catch (error) {
+      // Fallback if eventemitter3 is not available
+      console.warn('EventEmitter3 not available, using basic polyfill');
+      (global as any).DeviceEventEmitter = {
+        addListener: () => ({ remove: () => {} }),
+        emit: () => {},
+        removeAllListeners: () => {}
+      };
+    }
+  }
+}
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -83,21 +104,6 @@ export default function RootLayout() {
           height: 0 !important;
         }
         
-        /* Hide any element containing "screens" text in navigation context */
-        *:has-text("screens"),
-        [role="navigation"]:has-text("screens"),
-        header:has-text("screens") {
-          display: none !important;
-        }
-        
-        /* More targeted Expo Router header hiding */
-        .expo-router-header:not([data-settings-screen]),
-        [data-expo-router-header]:not([data-settings-screen]) {
-          display: none !important;
-          visibility: hidden !important;
-          height: 0 !important;
-        }
-        
         /* Force full height for main content */
         #root,
         .expo-root,
@@ -105,175 +111,71 @@ export default function RootLayout() {
           height: 100vh !important;
           min-height: 100vh !important;
         }
-        
-        /* Protect settings screen from being hidden */
-        .settings-screen,
-        [data-settings-screen="true"] {
-          display: flex !important;
-          visibility: visible !important;
-          height: auto !important;
-          opacity: 1 !important;
-        }
-        
-        /* Allow natural display for settings content */
-        .settings-screen *,
-        [data-settings-screen="true"] * {
-          visibility: visible !important;
-          opacity: 1 !important;
-        }
-        
-        /* Hide back/forward buttons in development */
-        .expo-dev-buttons,
-        .expo-router-buttons,
-        [data-expo-dev-buttons] {
-          display: none !important;
-        }
       `;
       document.head.appendChild(style);
-      
-      // Also try to hide elements after they're rendered
-      const hideElements = () => {
-        const selectors = [
-          '.__expo-nav',
-          '.expo-web-dev-navigation',
-          '.expo-dev-navigation',
-          '.expo-router-dev-navigation',
-          '[data-expo-web-navigation]',
-          '.expo-web-navigation',
-          '.expo-dev-header',
-          '.expo-web-header',
-          '.expo-router-header',
-          '.expo-dev-nav',
-          '.expo-navigation-header',
-          '.expo-router-screens-nav',
-          '[data-expo-screens-nav]',
-          '.screens-navigation',
-          '.dev-screens-header',
-          '[data-expo-router-header]',
-          '.react-navigation-header',
-          '[data-react-navigation-header]'
-        ];
-        
-        selectors.forEach(selector => {
-          const elements = document.querySelectorAll(selector);
-          elements.forEach(el => {
-            (el as HTMLElement).style.display = 'none';
-            (el as HTMLElement).style.visibility = 'hidden';
-            (el as HTMLElement).style.height = '0';
+
+      // Add MutationObserver to dynamically hide elements
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === 1) { // Element node
+              const element = node as Element;
+              
+              // Check for development headers
+              if (element.classList?.contains('expo-dev-navigation') ||
+                  element.classList?.contains('expo-router-header') ||
+                  element.getAttribute('style')?.includes('background-color: rgb(255, 255, 255)')) {
+                (element as HTMLElement).style.display = 'none';
+              }
+              
+              // Check child elements
+              const devHeaders = element.querySelectorAll?.('.expo-dev-navigation, .expo-router-header, [class*="r-borderBottomWidth"][style*="background-color: rgb(255, 255, 255)"]');
+              devHeaders?.forEach((header) => {
+                (header as HTMLElement).style.display = 'none';
+              });
+            }
           });
         });
-        
-        // More careful hiding - only hide elements that are clearly navigation headers
-        const allDivs = document.querySelectorAll('div');
-        allDivs.forEach(div => {
-          // Skip elements that are inside the main app content
-          if (div.closest('[data-settings-screen]') || div.closest('.settings-screen')) {
-            return;
-          }
-          
-          const style = window.getComputedStyle(div);
-          const hasWhiteBackground = style.backgroundColor === 'rgb(255, 255, 255)' || style.backgroundColor === 'white';
-          const hasBackButton = div.querySelector('button[aria-label="Go back"]') || div.querySelector('button[aria-label*="back"]');
-          const hasScreensText = div.textContent?.trim() === 'screens'; // More specific match
-          
-          // Only hide if it's clearly a navigation header (not app content)
-          if (hasWhiteBackground && hasScreensText && div.children.length < 3) {
-            (div as HTMLElement).style.display = 'none';
-            (div as HTMLElement).style.visibility = 'hidden';
-            (div as HTMLElement).style.height = '0';
-          }
-        });
-        
-        // Hide any element containing "screens" text in navigation context
-        const elementsWithScreensText = document.querySelectorAll('*');
-        elementsWithScreensText.forEach(el => {
-          if (el.textContent?.trim() === 'screens' && el.closest('header, nav, [role="navigation"]')) {
-            const parent = el.closest('div, header, nav') as HTMLElement;
-            if (parent) {
-              parent.style.display = 'none';
-              parent.style.visibility = 'hidden';
-              parent.style.height = '0';
-            }
-          }
-        });
-      };
-      
-      // Run immediately and on DOM changes
-      hideElements();
-      const observer = new MutationObserver(hideElements);
-      observer.observe(document.body, { childList: true, subtree: true });
-      
-      // Additional aggressive hiding after a delay
-      setTimeout(() => {
-        hideElements();
-        // Try to find and remove the header with "screens" text
-        const headers = document.querySelectorAll('*');
-        headers.forEach(el => {
-          if (el.textContent === 'screens' || el.textContent?.trim() === 'screens') {
-            // Find the parent container that looks like a header
-            let parent = el.parentElement;
-            while (parent) {
-              const style = window.getComputedStyle(parent);
-              if (style.backgroundColor === 'rgb(255, 255, 255)' || style.backgroundColor === 'white') {
-                (parent as HTMLElement).style.display = 'none';
-                break;
-              }
-              parent = parent.parentElement;
-            }
-          }
-        });
-      }, 100);
-      
-      // Even more aggressive approach - continuous monitoring
-      const continuousHiding = setInterval(() => {
-        hideElements();
-      }, 500);
-      
-      return () => {
-        if (document.head.contains(style)) {
-          document.head.removeChild(style);
-        }
-        observer.disconnect();
-        clearInterval(continuousHiding);
-      };
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      return () => observer.disconnect();
     }
   }, []);
-  
+
   return (
-    <SafeAreaProvider>
-      <QueryProvider>
-        <AuthProvider>
-          <ThemeProvider>
-            <DashboardPreferencesProvider>
-              <UpdatesProvider>
-                <ToastProvider>
-                <View style={styles.container}>
-                  <StatusBar style="dark" />
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      presentation: 'card',
-                      animationTypeForReplace: 'push',
-                    }}
-                  >
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)/sign-in" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)/sign-up" options={{ headerShown: false }} />
-                    {/* Screens area manages headers via its own layout */}
-                    <Stack.Screen name="screens" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/teacher-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/principal-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/parent-dashboard" options={{ headerShown: false }} />
-                    <Stack.Screen name="screens/super-admin-dashboard" options={{ headerShown: false }} />
-                  </Stack>
-                </View>
-                </ToastProvider>
-              </UpdatesProvider>
-            </DashboardPreferencesProvider>
-          </ThemeProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </SafeAreaProvider>
+    <QueryProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <DashboardPreferencesProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  presentation: 'card',
+                  animationTypeForReplace: 'push',
+                }}
+              >
+                {/* Let Expo Router auto-discover screens */}
+              </Stack>
+            </GestureHandlerRootView>
+            
+            {/* Platform-specific components */}
+            {Platform.OS !== 'web' && (() => {
+              try {
+                return <DashWakeWordListener />;
+              } catch {
+                return null;
+              }
+            })()}
+          </DashboardPreferencesProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryProvider>
   );
 }
 
