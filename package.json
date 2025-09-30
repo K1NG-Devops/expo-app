@@ -28,7 +28,6 @@
         "react",
         "react-dom",
         "react-native",
-        "expo-router",
         "@react-native-community/datetimepicker",
         "@types/react"
       ]
