@@ -458,12 +458,15 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         </View>
 
       </ScrollView>
+<<<<<<< HEAD
 
       {/* Dash AI Floating Button */}
       <DashFloatingButton
         position="bottom-right"
         onPress={() => router.push('/screens/dash-assistant')}
       />
+=======
+>>>>>>> 9714ed31cc299dd708052e7917a4b7b8cd2faa9a
     </View>
   );
 };
