@@ -11,40 +11,26 @@ interface PrincipalDashboardWrapperProps {
 }
 
 export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps> = () => {
-  const { preferences, isLoading } = useDashboardPreferences();
+  const { preferences } = useDashboardPreferences();
   const { theme } = useTheme();
 
-  // Show loading indicator while preferences are being loaded
-  if (isLoading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
-  }
-
   // Render the appropriate dashboard based on layout preference
+  // No loading screen - dashboard should handle its own loading states
   switch (preferences.layout) {
     case 'enhanced':
       return (
-        <NewEnhancedPrincipalDashboard 
+        <NewEnhancedPrincipalDashboard
           key="enhanced"
         />
       );
     case 'classic':
     default:
       return (
-        <EnhancedPrincipalDashboard 
+        <EnhancedPrincipalDashboard
           key="classic"
         />
       );
   }
 };
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
+const styles = StyleSheet.create({});

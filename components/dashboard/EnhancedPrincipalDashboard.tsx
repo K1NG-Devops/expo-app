@@ -70,6 +70,18 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Add the principal hub hook for data loading
+  const {
+    data,
+    loading,
+    error,
+    refresh,
+    getMetrics,
+    formatCurrency,
+    isEmpty
+  } = usePrincipalHub();
   
   // Ad gating logic
   const showAds = subscriptionReady && tier === 'free';
@@ -91,6 +103,19 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         { text: t('dashboard.later'), style: 'cancel' },
       ]
     );
+  };
+
+  // Refresh handler
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh();
+      await Feedback.vibrate(10);
+    } catch (error) {
+      console.error('Refresh error:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   // Gate an action behind subscription with web compatibility
@@ -402,7 +427,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         {/* Welcome Section with Subscription Badge */}

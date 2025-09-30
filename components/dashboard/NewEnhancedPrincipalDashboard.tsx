@@ -11,7 +11,7 @@
  * - Optimized for touch interfaces and accessibility
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -39,10 +39,10 @@ import TierBadge from '@/components/ui/TierBadge';
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
 const isSmallScreen = width < 380;
-const cardPadding = isTablet ? 20 : isSmallScreen ? 10 : 14;
-const cardGap = isTablet ? 12 : isSmallScreen ? 6 : 8;
-const containerWidth = width - (cardPadding * 2);
-const cardWidth = isTablet ? (containerWidth - (cardGap * 3)) / 4 : (containerWidth - cardGap) / 2;
+// Simplified responsive values for better performance
+const cardPadding = isSmallScreen ? 12 : 16;
+const cardGap = isSmallScreen ? 8 : 12;
+const cardWidth = (width - (cardPadding * 2) - cardGap) / 2;
 
 interface MetricCardProps {
   title: string;
@@ -97,7 +97,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     return t('dashboard.good_evening');
   };
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await refresh();
@@ -107,7 +107,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     } finally {
       setRefreshing(false);
     }
-  };
+  }, [refresh]);
 
   const MetricCard: React.FC<MetricCardProps> = ({ 
     title, 
@@ -209,13 +209,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <LoadingSkeleton />
-      </View>
-    );
-  }
+  // Handle loading states internally - no loading screen for app startup
+  const showLoadingSkeleton = loading && !data.stats && !data.teachers;
 
   if (error && isEmpty) {
     return (
@@ -266,6 +261,13 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
 
   return (
     <View style={styles.container}>
+      {/* Loading Skeleton for initial data load only */}
+      {showLoadingSkeleton && (
+        <View style={[styles.container, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 }]}>
+          <LoadingSkeleton />
+        </View>
+      )}
+
       {/* Fixed App Header */}
       <View style={styles.appHeader}>
         <View style={styles.appHeaderContent}>
@@ -581,6 +583,9 @@ const LoadingSkeleton: React.FC = () => {
 };
 
 const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
+  // Pre-calculate common values to avoid repeated calculations
+  const headerHeight = isSmallScreen ? 48 : 56;
+
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -596,6 +601,7 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       paddingHorizontal: cardPadding,
       paddingTop: insetTop + (isSmallScreen ? 12 : 16),
       paddingBottom: isSmallScreen ? 12 : 16,
+      height: headerHeight + insetTop + (isSmallScreen ? 12 : 16) + (isSmallScreen ? 12 : 16),
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
       shadowColor: theme.shadow,
@@ -606,8 +612,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     scrollContainer: {
       flex: 1,
-      // Space below the fixed header including safe area inset (reduced for tighter layout)
-      marginTop: (isSmallScreen ? 32 : 38) + insetTop,
+      // Space below the fixed header using pre-calculated height
+      marginTop: headerHeight + insetTop,
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),
