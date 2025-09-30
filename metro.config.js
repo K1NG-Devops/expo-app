@@ -27,11 +27,20 @@ config.resolver.blockList = exclusionList([
 ]);
 
 
-// Only handle web-specific module resolution to avoid breaking native platforms
+// Comprehensive web-specific module resolution
 const originalResolver = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  if (platform === 'web') {
-    // Block Google Mobile Ads on web
+  // Only intercept for web platform
+  if (platform !== 'web') {
+    if (originalResolver) {
+      return originalResolver(context, moduleName, platform);
+    }
+    return context.resolveRequest(context, moduleName, platform);
+  }
+
+  // WEB PLATFORM RESOLUTIONS
+  try {
+    // 1. Block Google Mobile Ads on web
     if (moduleName === 'react-native-google-mobile-ads' || 
         moduleName.startsWith('react-native-google-mobile-ads/')) {
       return {
@@ -39,19 +48,60 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
         type: 'sourceFile',
       };
     }
-    
-    // Handle ReactDevToolsSettingsManager issues on web
-    if (moduleName.includes('ReactDevToolsSettingsManager') || 
-        moduleName.includes('src/private/debugging/ReactDevToolsSettingsManager') ||
-        moduleName === '../../src/private/debugging/ReactDevToolsSettingsManager') {
+
+    // 2. Block native-only modules
+    const nativeOnlyModules = [
+      '@picovoice/porcupine-react-native',
+      'expo-local-authentication',
+      'react-native-biometrics',
+    ];
+    if (nativeOnlyModules.includes(moduleName)) {
       return {
-        filePath: require.resolve('./lib/stubs/devtools-stub.js'),
+        filePath: require.resolve('./lib/stubs/native-module-stub.js'),
         type: 'sourceFile',
       };
     }
+
+    // 3. Handle React Native internal modules (the main issue)
+    // These are modules inside react-native/Libraries that have no web equivalent
+    const isReactNativeInternal = 
+      moduleName.includes('react-native/Libraries/') ||
+      moduleName.includes('/Utilities/') ||
+      moduleName.includes('/Network/') ||
+      moduleName.includes('/Core/') ||
+      moduleName.includes('/RCT') ||
+      moduleName.startsWith('./') && context.originModulePath?.includes('react-native/Libraries');
+
+    if (isReactNativeInternal) {
+      // Use universal stub for all React Native internals
+      return {
+        filePath: require.resolve('./lib/stubs/universal-rn-stub.js'),
+        type: 'sourceFile',
+      };
+    }
+
+    // 4. Specific stubs for known problematic modules
+    const stubMappings = {
+      'ReactDevToolsSettingsManager': './lib/stubs/devtools-stub.js',
+      '/src/private/debugging': './lib/stubs/devtools-stub.js',
+      '/Core/Devtools/': './lib/stubs/devtools-stub.js',
+    };
+
+    for (const [pattern, stubPath] of Object.entries(stubMappings)) {
+      if (moduleName.includes(pattern)) {
+        return {
+          filePath: require.resolve(stubPath),
+          type: 'sourceFile',
+        };
+      }
+    }
+
+  } catch (error) {
+    // If our stub resolution fails, fall through to default resolver
+    console.warn('[Metro Web] Stub resolution error:', error.message);
   }
   
-  // Use default resolver for all other cases
+  // Use default resolver for everything else
   if (originalResolver) {
     return originalResolver(context, moduleName, platform);
   }

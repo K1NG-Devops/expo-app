@@ -520,23 +520,7 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
           </View>
         </View>
 
-        {/* Layout Toggle for Testing */}
-        {process.env.NODE_ENV === 'development' && (
-          <View style={styles.debugSection}>
-            <TouchableOpacity
-              style={styles.debugButton}
-              onPress={() => setLayout(preferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
-            >
-              <Text style={styles.debugButtonText}>
-                Switch to {preferences.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
-
-      {/* AI Assistant Floating Button */}
-      <DashFloatingButton />
     </View>
   );
 };
@@ -689,19 +673,5 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontSize: isTablet ? 14 : isSmallScreen ? 10 : 12,
     color: theme.textSecondary,
     textAlign: 'center',
-  },
-  debugSection: {
-    marginTop: 32,
-    alignItems: 'center',
-  },
-  debugButton: {
-    backgroundColor: theme.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  debugButtonText: {
-    color: theme.onPrimary,
-    fontWeight: '600',
   },
 });
