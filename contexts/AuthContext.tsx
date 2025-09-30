@@ -117,11 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Enhanced refresh for visibility handler
+  // Enhanced refresh for visibility handler with debouncing
   const handleVisibilityRefresh = useCallback(async () => {
     const now = Date.now();
-    // Avoid rapid successive refreshes
-    if (now - lastRefreshAttempt < 2000) {
+    // Increase debounce time to prevent excessive refreshes
+    if (now - lastRefreshAttempt < 5000) {
+      return;
+    }
+    
+    // Skip refresh during dashboard switches to prevent freezing
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('Skipping visibility refresh during dashboard switch');
       return;
     }
     
@@ -146,15 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentSession.user);
       }
       
-      // Refresh profile if we have a user - but only if not already loading
-      if (currentSession.user && !profileLoading) {
-        console.log('Refreshing profile on visibility change');
+      // Only refresh profile if really necessary and not during navigation
+      if (currentSession.user && !profileLoading && !profile) {
+        console.log('Refreshing profile on visibility change (no existing profile)');
         
-        // Set a timeout to prevent infinite loading
+        // Set a shorter timeout to prevent hanging
         const timeoutId = setTimeout(() => {
           setProfileLoading(false);
           console.warn('Profile loading timeout, clearing loading state');
-        }, 10000); // 10 second timeout
+        }, 5000); // 5 second timeout
         
         try {
           const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
@@ -175,7 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Ensure loading state is cleared on error
       setProfileLoading(false);
     }
-  }, [session, lastRefreshAttempt, profileLoading]);
+  }, [session, lastRefreshAttempt, profileLoading, profile]);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {

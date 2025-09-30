@@ -1343,7 +1343,8 @@ export const TeacherDashboard: React.FC = () => {
 
         {/* Bottom Padding */}
         <View style={{ height: 100 }} />
-      </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
 
       {/* Upgrade Modal */}
       <Modal
@@ -1582,8 +1583,6 @@ export const TeacherDashboard: React.FC = () => {
         position="bottom-right"
         onPress={() => router.push('/screens/dash-assistant')}
       />
-        </ScrollView>
-      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 };

@@ -166,29 +166,65 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
       has_params: !!route.params,
     });
 
+    // Prevent concurrent navigation attempts
+    const navLock = 'route_after_login_' + userId;
+    if (typeof window !== 'undefined' && (window as any)[navLock]) {
+      console.log('🚦 [ROUTE] Navigation already in progress, skipping');
+      return;
+    }
+    
+    // Set navigation lock and dashboard switching flag
+    if (typeof window !== 'undefined') {
+      (window as any)[navLock] = true;
+      (window as any).dashboardSwitching = true;
+    }
+    
     // Navigate to determined route (with params if needed)
     if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
       console.log('🚦 [ROUTE] Navigating to route:', route);
     }
+    
     try {
-      if (route.params) {
-        if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
-          console.log('🚦 [ROUTE] Using router.replace with params:', { pathname: route.path, params: route.params });
+      // Use setTimeout to prevent blocking the UI thread
+      setTimeout(() => {
+        try {
+          if (route.params) {
+            if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+              console.log('🚦 [ROUTE] Using router.replace with params:', { pathname: route.path, params: route.params });
+            }
+            router.replace({ pathname: route.path as any, params: route.params } as any);
+          } else {
+            if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+              console.log('🚦 [ROUTE] Using router.replace without params:', route.path);
+            }
+            router.replace(route.path as any);
+          }
+          
+          if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+            console.log('🚦 [ROUTE] router.replace call completed successfully');
+          }
+        } catch (navigationError) {
+          console.error('🚦 [ROUTE] Navigation failed, falling back to profiles-gate:', navigationError);
+          // Fallback to profile gate to ensure user can access the app
+          router.replace('/profiles-gate');
+        } finally {
+          // Clear locks after navigation
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              delete (window as any)[navLock];
+              delete (window as any).dashboardSwitching;
+            }
+          }, 1000);
         }
-        router.replace({ pathname: route.path as any, params: route.params } as any);
-      } else {
-        if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
-          console.log('🚦 [ROUTE] Using router.replace without params:', route.path);
-        }
-        router.replace(route.path as any);
+      }, 50);
+    } catch (error) {
+      console.error('🚦 [ROUTE] Unexpected error during navigation setup:', error);
+      // Clear locks on error
+      if (typeof window !== 'undefined') {
+        delete (window as any)[navLock];
+        delete (window as any).dashboardSwitching;
       }
-      if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
-        console.log('🚦 [ROUTE] router.replace call completed successfully');
-      }
-    } catch (navigationError) {
-      console.error('🚦 [ROUTE] Navigation failed, falling back to profiles-gate:', navigationError);
-      // Fallback to profile gate to ensure user can access the app
-      router.replace('/profiles-gate');
+      throw error;
     }
   } catch (error) {
     reportError(new Error('Post-login routing failed'), {

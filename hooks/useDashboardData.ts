@@ -237,6 +237,13 @@ export const usePrincipalDashboard = () => {
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     const startTime = Date.now();
+    
+    // Prevent data fetching during dashboard switches
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('🏫 Skipping principal dashboard data fetch during switch');
+      return;
+    }
+    
     log('🏫 Loading Principal Dashboard data...');
     
     try {
@@ -846,6 +853,12 @@ export const useTeacherDashboard = () => {
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    // Prevent data fetching during dashboard switches
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('👨‍🏫 Skipping teacher dashboard data fetch during switch');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -1160,6 +1173,12 @@ export const useParentDashboard = () => {
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    // Prevent data fetching during dashboard switches
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('👨‍👩‍👧‍👦 Skipping parent dashboard data fetch during switch');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
