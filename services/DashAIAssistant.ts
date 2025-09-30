@@ -629,7 +629,7 @@ export class DashAIAssistant {
   /**
    * Send a text message to Dash
    */
-  public async sendMessage(content: string, conversationId?: string): Promise<DashMessage> {
+  public async sendMessage(content: string, conversationId?: string, attachments?: DashAttachment[]): Promise<DashMessage> {
     const convId = conversationId || this.currentConversationId;
     if (!convId) {
       throw new Error('No active conversation');
@@ -640,14 +640,15 @@ export class DashAIAssistant {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: 'user',
       content,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      attachments
     };
 
     // Add to conversation
     await this.addMessageToConversation(convId, userMessage);
 
-    // Generate AI response
-    const assistantResponse = await this.generateResponse(content, convId);
+    // Generate AI response (pass attachments for context)
+    const assistantResponse = await this.generateResponse(content, convId, attachments);
     await this.addMessageToConversation(convId, assistantResponse);
 
     return assistantResponse;
@@ -1073,13 +1074,557 @@ export class DashAIAssistant {
   }
   
   /**
+   * Extract a suitable title for PDF export from user input and AI response
+   */
+  private extractContentTitle(userInput: string, responseContent: string): string {
+    const fullText = `${userInput} ${responseContent}`.toLowerCase();
+    
+    // Try to detect subject and type
+    let subject = '';
+    let type = '';
+    
+    // Extract subject
+    if (fullText.includes('math')) subject = 'Math';
+    else if (fullText.includes('science')) subject = 'Science';
+    else if (fullText.includes('english') || fullText.includes('literacy')) subject = 'Literacy';
+    else if (fullText.includes('reading')) subject = 'Reading';
+    else if (fullText.includes('writing')) subject = 'Writing';
+    
+    // Extract content type
+    if (fullText.includes('test')) type = 'Test';
+    else if (fullText.includes('quiz')) type = 'Quiz';
+    else if (fullText.includes('worksheet')) type = 'Worksheet';
+    else if (fullText.includes('practice')) type = 'Practice';
+    else if (fullText.includes('exercise')) type = 'Exercise';
+    else if (fullText.includes('assessment')) type = 'Assessment';
+    
+    // Build title
+    if (subject && type) {
+      return `${subject} ${type}`;
+    } else if (subject) {
+      return `${subject} Learning Material`;
+    } else if (type) {
+      return `Educational ${type}`;
+    }
+    
+    return 'Educational Content';
+  }
+  
+  /**
+   * Detect if user is requesting a PDF about an educational topic
+   */
+  private detectEducationalPDFRequest(input: string): {
+    topic: string;
+    audience: string;
+    type: string;
+    keywords: string[];
+  } | null {
+    const inputLower = input.toLowerCase();
+    
+    // Check for PDF/guide generation intent with educational topics
+    const pdfKeywords = ['generate', 'create', 'make', 'explain', 'pdf', 'document', 'guide', 'teach'];
+    const hasPDFIntent = pdfKeywords.some(keyword => inputLower.includes(keyword));
+    
+    // Check if it's about an educational topic (not just a worksheet/test)
+    const hasEducationalTopic = /\b(about|on|explaining|teach.+about|guide.+to)\s+\w+/i.test(input);
+    
+    if (!hasPDFIntent || !hasEducationalTopic) return null;
+    
+    // Extract the actual topic
+    const topic = this.extractTopic(input);
+    if (!topic || topic === 'General Education') return null;
+    
+    // Determine audience
+    let audience = 'students';
+    if (/preschool|kids|children|young learners|toddlers/i.test(input)) audience = 'preschool';
+    else if (/teacher|educator/i.test(input)) audience = 'teachers';
+    else if (/parent|family/i.test(input)) audience = 'parents';
+    
+    // Extract additional keywords for context
+    const keywords = this.extractKeywords(input);
+    
+    return {
+      topic,
+      audience,
+      type: 'educational_guide',
+      keywords
+    };
+  }
+  
+  /**
+   * Extract topic from user input using multiple patterns
+   */
+  private extractTopic(input: string): string {
+    const inputLower = input.toLowerCase();
+    
+    // Pattern 1: "PDF on [topic]" or "guide about [topic]"
+    const pattern1 = /(?:pdf|guide|document|explain|teach|tell|show)(?:\s+me)?(?:\s+on|\s+about|\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+with|\?|$)/i;
+    const match1 = input.match(pattern1);
+    if (match1 && match1[1]) {
+      const topic = match1[1].trim();
+      // Filter out common filler words
+      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
+      if (filtered.length > 2 && filtered.length < 50) {
+        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
+      }
+    }
+    
+    // Pattern 2: "explain [topic]" or "teach about [topic]"
+    const pattern2 = /(?:explain|teach|tell|show)(?:\s+me)?(?:\s+about)?(?:\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+\?|$)/i;
+    const match2 = input.match(pattern2);
+    if (match2 && match2[1]) {
+      const topic = match2[1].trim();
+      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
+      if (filtered.length > 2 && filtered.length < 50) {
+        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
+      }
+    }
+    
+    // Pattern 3: Look for quoted topics
+    const pattern3 = /["']([^"']{3,50})["']/;
+    const match3 = input.match(pattern3);
+    if (match3 && match3[1]) {
+      return match3[1].trim();
+    }
+    
+    // Pattern 4: Common educational subjects
+    const subjects = [
+      'robotics', 'mathematics', 'science', 'history', 'geography',
+      'biology', 'chemistry', 'physics', 'literature', 'art', 'music',
+      'photosynthesis', 'dinosaurs', 'planets', 'animals', 'plants',
+      'weather', 'insects', 'ocean', 'space', 'coding', 'programming',
+      'solar system', 'water cycle', 'food chain', 'human body',
+      'recycling', 'electricity', 'magnetism', 'sound', 'light',
+      'fractions', 'multiplication', 'division', 'shapes', 'colors'
+    ];
+    
+    for (const subject of subjects) {
+      if (inputLower.includes(subject)) {
+        return subject.charAt(0).toUpperCase() + subject.slice(1);
+      }
+    }
+    
+    return 'General Education';
+  }
+  
+  /**
+   * Extract contextual keywords to help AI generate better content
+   */
+  private extractKeywords(input: string): string[] {
+    const keywords: string[] = [];
+    const inputLower = input.toLowerCase();
+    
+    // Age-related keywords
+    if (/preschool|toddler|3-5/i.test(input)) keywords.push('preschool-level');
+    if (/elementary|primary|6-12/i.test(input)) keywords.push('elementary-level');
+    
+    // Content style keywords
+    if (/fun|entertaining|engaging/i.test(input)) keywords.push('fun', 'engaging');
+    if (/simple|easy|basic/i.test(input)) keywords.push('simplified', 'basic');
+    if (/detailed|comprehensive|thorough/i.test(input)) keywords.push('detailed', 'thorough');
+    if (/activity|activities|hands-on/i.test(input)) keywords.push('hands-on', 'activities');
+    if (/visual|pictures|illustrations/i.test(input)) keywords.push('visual', 'illustrated');
+    if (/interactive|practical/i.test(input)) keywords.push('interactive', 'practical');
+    
+    // Language/curriculum
+    if (/caps|south african/i.test(input)) keywords.push('CAPS-aligned', 'South African');
+    if (/afrikaans/i.test(input)) keywords.push('bilingual', 'Afrikaans');
+    if (/isiZulu|zulu/i.test(input)) keywords.push('isiZulu');
+    
+    return keywords;
+  }
+  
+  /**
+   * Generate educational content for any topic using AI
+   */
+  private async generateEducationalContent(request: {
+    topic: string;
+    audience: string;
+    type: string;
+    keywords: string[];
+  }): Promise<string> {
+    
+    // Build AI prompt for educational content
+    const aiPrompt = this.buildEducationalContentPrompt(request);
+    
+    try {
+      console.log('[Dash] Generating educational content for:', request.topic);
+      
+      // Call AI service
+      const response = await assertSupabase().functions.invoke('ai-proxy', {
+        body: {
+          model: 'claude-3-5-sonnet-20241022',
+          messages: [{
+            role: 'user',
+            content: aiPrompt
+          }],
+          temperature: 0.7,
+          max_tokens: 4000
+        }
+      });
+      
+      if (response.data?.content) {
+        console.log('[Dash] AI content generated successfully');
+        return response.data.content;
+      } else if (response.error) {
+        console.error('[Dash] AI service error:', response.error);
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to generate educational content:', error);
+    }
+    
+    // Fallback to template-based content
+    console.log('[Dash] Using fallback content template');
+    return this.generateFallbackContent(request.topic, request.audience);
+  }
+  
+  /**
+   * Build AI prompt for educational content generation
+   */
+  private buildEducationalContentPrompt(request: {
+    topic: string;
+    audience: string;
+    keywords: string[];
+  }): string {
+    const { topic, audience, keywords } = request;
+    
+    // Adjust complexity based on audience
+    let complexity = '';
+    let ageGroup = '';
+    
+    switch (audience) {
+      case 'preschool':
+        complexity = 'very simple, child-friendly language with lots of examples and analogies';
+        ageGroup = '3-6 year olds';
+        break;
+      case 'students':
+        complexity = 'clear and engaging language appropriate for elementary students';
+        ageGroup = '7-12 year olds';
+        break;
+      case 'teachers':
+        complexity = 'professional and comprehensive with teaching strategies';
+        ageGroup = 'educators';
+        break;
+      case 'parents':
+        complexity = 'accessible and practical with tips for home learning';
+        ageGroup = 'parents and caregivers';
+        break;
+      default:
+        complexity = 'clear and informative';
+        ageGroup = 'general learners';
+    }
+    
+    // Additional context from keywords
+    const contextualHints = keywords.length > 0 
+      ? `\n\nAdditional requirements: ${keywords.join(', ')}`
+      : '';
+    
+    return `Create a comprehensive educational guide about "${topic}" for ${ageGroup}.
+
+**Target Audience:** ${audience} (${ageGroup})
+**Language Complexity:** ${complexity}${contextualHints}
+
+**Required Sections:**
+
+## Introduction
+Provide 2-3 paragraphs explaining:
+- What is ${topic}?
+- Why is it important?
+- Real-world relevance and applications
+
+## Main Concepts
+Break down 3-5 key concepts or ideas:
+- Use clear headings for each concept
+- Include age-appropriate explanations
+- Use analogies and everyday examples
+- Make connections to things learners already know
+
+## Fun Facts
+Include 3-5 interesting and memorable facts about ${topic} that will engage learners.
+
+## Hands-On Activities
+Provide 2-3 age-appropriate activities:
+- Clear step-by-step instructions
+- List of materials needed
+- Learning objectives for each activity
+- Safety notes if applicable
+
+## Key Vocabulary
+Define 5-10 important terms related to ${topic}:
+- Use simple definitions
+- Provide usage examples
+- Connect to concepts explained earlier
+
+## Discussion Questions
+Include 3-5 thought-provoking questions to:
+- Encourage critical thinking
+- Promote further exploration
+- Connect to learners' experiences
+
+${audience === 'teachers' ? `## Teaching Tips
+Provide practical strategies for teaching ${topic} effectively in the classroom.` : ''}
+
+${audience === 'parents' ? `## Learning at Home
+Suggest ways parents can reinforce ${topic} learning at home with everyday activities.` : ''}
+
+**Format Guidelines:**
+- Use markdown formatting (## for headers, ** for bold, - for lists)
+- Keep paragraphs short and focused
+- Use emojis sparingly for visual appeal
+- Make content engaging and educational
+- Ensure age-appropriate language throughout
+
+**Tone:** ${audience === 'preschool' ? 'Fun, encouraging, and very simple' : audience === 'teachers' ? 'Professional and instructional' : 'Friendly and informative'}`;
+  }
+  
+  /**
+   * Generate fallback content when AI is unavailable
+   */
+  private generateFallbackContent(topic: string, audience: string): string {
+    return `## Understanding ${topic}
+
+### Introduction
+${topic} is an important subject that helps us understand the world around us. This guide will introduce you to the key concepts and provide practical activities to deepen your learning.
+
+### What You'll Learn
+- The fundamentals of ${topic}
+- Real-world applications and examples
+- Hands-on activities to practice what you've learned
+- Key vocabulary and concepts
+
+### Getting Started
+${audience === 'preschool' ? 
+  `This guide is designed for young learners. Parents and teachers can use these simple activities to introduce ${topic} in a fun and engaging way.` :
+  audience === 'teachers' ?
+  `This resource provides teaching strategies and classroom activities for introducing ${topic} to your students.` :
+  `Explore ${topic} through clear explanations, examples, and activities suitable for all ages.`
+}
+
+### Key Concepts
+1. **Foundation** - Understanding the basic principles
+2. **Application** - How ${topic} relates to everyday life
+3. **Exploration** - Activities to deepen understanding
+
+### Activities
+**Activity 1: Observation**
+Observe examples of ${topic} in your environment. Take notes or draw pictures of what you find.
+
+**Activity 2: Discussion**
+Talk about ${topic} with friends or family. Share what you've learned and ask questions.
+
+**Activity 3: Practice**
+Create something related to ${topic}. This could be a drawing, model, or experiment.
+
+### Further Learning
+Continue exploring ${topic} through books, videos, and hands-on experiences. The more you engage with the subject, the better you'll understand it!
+
+---
+*This guide was created to support learning about ${topic}. For more detailed information, consult educational resources or speak with a teacher.*`;
+  }
+  
+  /**
+   * Format educational content as beautiful HTML for PDF export
+   */
+  private formatEducationalHTML(content: string, topic: string): string {
+    // Convert markdown to HTML
+    const htmlContent = this.convertMarkdownToHTML(content);
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding ${topic}</title>
+    <style>
+        @page {
+            margin: 2cm;
+            size: A4;
+        }
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 100%);
+        }
+        h1 {
+            color: #1565c0;
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 10px;
+            border-bottom: 4px solid #42a5f5;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #0277bd;
+            font-size: 28px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-left: 6px solid #4fc3f7;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #01579b;
+            font-size: 22px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .intro-box {
+            background-color: #fff3e0;
+            border: 3px solid #ff9800;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .fun-fact {
+            background-color: #e8f5e9;
+            border-left: 5px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .fun-fact strong {
+            color: #2e7d32;
+            font-size: 18px;
+        }
+        .activity-box {
+            background-color: #f3e5f5;
+            border: 2px dashed #9c27b0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .activity-box h3 {
+            color: #7b1fa2;
+            margin-top: 0;
+        }
+        .vocab-box {
+            background-color: #e1f5fe;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .vocab-box h4 {
+            color: #0277bd;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        ul {
+            font-size: 16px;
+            line-height: 1.8;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #ccc;
+            color: #666;
+            font-size: 14px;
+        }
+        strong {
+            color: #0277bd;
+        }
+    </style>
+</head>
+<body>
+    <h1>📚 Understanding ${topic}</h1>
+    <div style="text-align: center; color: #666; font-size: 18px; margin-bottom: 30px; font-style: italic;">
+        A Comprehensive Educational Guide
+    </div>
+    
+    ${htmlContent}
+    
+    <div class="footer">
+        <p>Created by Dash AI • EduDash Pro</p>
+        <p>© ${new Date().getFullYear()} | For Educational Use</p>
+    </div>
+</body>
+</html>`;
+  }
+  
+  /**
+   * Convert markdown-style text to HTML with proper styling
+   */
+  private convertMarkdownToHTML(markdown: string): string {
+    let html = markdown;
+    
+    // Convert ## headers to h2
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    
+    // Convert ### headers to h3
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    
+    // Convert #### headers to h4
+    html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+    
+    // Convert **bold** to <strong>
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert *italic* to <em>
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // Wrap fun facts in styled boxes
+    html = html.replace(/🎉 Fun Fact:([^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="fun-fact"><strong>🎉 Fun Fact:</strong>$1</div>');
+    
+    // Wrap activities in styled boxes
+    html = html.replace(/(#+\s*Activity \d+:[^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="activity-box">$1</div>');
+    
+    // Wrap vocabulary items
+    html = html.replace(/\*\*([^*:]+):\*\* ([^\n]+)/g, '<div class="vocab-box"><h4>$1</h4><p>$2</p></div>');
+    
+    // Convert bullet lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>${match}</ul>`);
+    
+    // Convert numbered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => {
+      if (!match.includes('<ul>')) {
+        return `<ol>${match}</ol>`;
+      }
+      return match;
+    });
+    
+    // Convert paragraphs (text not already in tags)
+    html = html.replace(/^(?!<[hduol]|<div|<li)(.+)$/gm, '<p>$1</p>');
+    
+    // Clean up extra paragraph tags
+    html = html.replace(/<p><\/p>/g, '');
+    html = html.replace(/<p>(<[hduol])/g, '$1');
+    html = html.replace(/(<\/[hduol]l?>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<div)/g, '$1');
+    html = html.replace(/(<\/div>)<\/p>/g, '$1');
+    
+    // Wrap introduction sections in intro-box
+    html = html.replace(/(<h2>Introduction<\/h2>\s*(?:<p>.*?<\/p>\s*)+)/i, '<div class="intro-box">$1</div>');
+    
+    return html;
+  }
+  
+  /**
    * Intelligent text normalization for smart reading
    * Handles numbers, dates, special characters, and formatting
    */
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
-    // Handle bullet points and list formatting FIRST (before other transformations)
+    // Remove markdown formatting FIRST (before other transformations)
+    normalized = this.removeMarkdownFormatting(normalized);
+    
+    // Handle bullet points and list formatting
     normalized = this.normalizeBulletPoints(normalized);
     
     // Handle numbers intelligently
@@ -1107,6 +1652,34 @@ export class DashAIAssistant {
       .trim();
     
     return normalized;
+  }
+  
+  /**
+   * Remove markdown formatting for speech
+   */
+  private removeMarkdownFormatting(text: string): string {
+    return text
+      // Remove bold/italic markers (**, *, __, _)
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** -> bold
+      .replace(/\*([^*]+)\*/g, '$1')      // *italic* -> italic
+      .replace(/__([^_]+)__/g, '$1')      // __bold__ -> bold
+      .replace(/_([^_]+)_/g, '$1')        // _italic_ -> italic
+      // Remove answer blanks (_____ or ____)
+      .replace(/_{3,}/g, 'blank')         // _____ -> blank
+      // Remove code blocks
+      .replace(/```[\s\S]*?```/g, '')     // Remove code blocks
+      .replace(/`([^`]+)`/g, '$1')        // `code` -> code
+      // Remove strikethrough
+      .replace(/~~([^~]+)~~/g, '$1')      // ~~strike~~ -> strike
+      // Remove headers (# ## ###)
+      .replace(/^#{1,6}\s+/gm, '')        // # Header -> Header
+      // Remove horizontal rules
+      .replace(/^[-*_]{3,}$/gm, '')       // --- -> (removed)
+      // Remove blockquotes
+      .replace(/^>\s+/gm, '')             // > quote -> quote
+      // Remove link formatting but keep text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [text](url) -> text
+      .trim();
   }
   
   /**
@@ -1519,10 +2092,32 @@ export class DashAIAssistant {
   /**
    * Export provided text as a PDF via EducationalPDFService
    */
-  public async exportTextAsPDF(title: string, content: string): Promise<{ success: boolean; error?: string }> {
+  public async exportTextAsPDF(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; error?: string }> {
     try {
-      await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
+      // Check if content is HTML (contains HTML tags)
+      const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
+      
+      if (isHTML) {
+        // Use HTML PDF generation for rich content
+        await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', content || '', opts);
+      } else {
+        // Use text PDF generation for plain text
+        await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '', opts);
+      }
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'PDF export failed' };
+    }
+  }
+
+  /**
+   * Export text as PDF and return a downloadable URI (web: data URI; native: file URI)
+   * Useful for showing a "Download PDF" action in the chat UI.
+   */
+  public async exportTextAsPDFForDownload(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
+    try {
+      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '', opts);
+      return { success: true, uri, filename };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
     }
@@ -2362,10 +2957,40 @@ export class DashAIAssistant {
   }
 
   /**
-   * Generate AI response based on user input and context
+   * Generate AI response based on user input
    */
-  private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
+  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[]): Promise<DashMessage> {
     try {
+      // FIRST: Check if this is a request for educational PDF generation
+      const educationalPDFRequest = this.detectEducationalPDFRequest(userInput);
+      
+      if (educationalPDFRequest) {
+        console.log('[Dash] Educational PDF request detected:', educationalPDFRequest);
+        
+        // Generate educational content using AI
+        const educationalContent = await this.generateEducationalContent(educationalPDFRequest);
+        
+        // Format content as HTML for PDF
+        const htmlContent = this.formatEducationalHTML(educationalContent, educationalPDFRequest.topic);
+        
+        // Return response with PDF export action
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: `I've created a comprehensive guide about ${educationalPDFRequest.topic} for ${educationalPDFRequest.audience}! 📚\n\nThis guide includes:\n- Clear introduction and explanations\n- Key concepts and main ideas\n- Fun facts to engage learners\n- Hands-on activities\n- Important vocabulary\n- Discussion questions\n\nClick the button below to download your PDF guide!`,
+          timestamp: Date.now(),
+          metadata: {
+            confidence: 0.95,
+            suggested_actions: ['download_pdf', 'create_another'],
+            dashboard_action: {
+              type: 'export_pdf',
+              title: `Understanding ${educationalPDFRequest.topic}`,
+              content: htmlContent
+            }
+          }
+        };
+      }
+      
       // Get conversation history for context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
@@ -2382,6 +3007,7 @@ export class DashAIAssistant {
         memory: Array.from(this.memory.values()),
         personality: this.personality,
         timestamp: new Date().toISOString(),
+        attachments  // Add attachments to context
       };
 
       // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
@@ -2479,10 +3105,21 @@ RESPONSE GUIDELINES:
 - Keep responses focused and avoid unnecessary elaboration
 - When suggesting actions, be specific about next steps
 
+EDUCATIONAL CONTENT GENERATION:
+- When users request tests, worksheets, practice materials, or exercises, GENERATE the actual content directly
+- Include clear questions, answer options, instructions, and structure appropriate for preschool/early childhood education
+- For math: use age-appropriate counting, shapes, basic addition/subtraction problems
+- For science: use simple observation questions, categorization, nature/weather/animal topics
+- For literacy: use letter recognition, phonics, simple words, story comprehension
+- IMPORTANT: Format content with numbered questions (1., 2., 3., etc.) so it can be easily exported
+- After generating content, ALWAYS end with: "I've prepared this content for you. You'll see a prompt to download it as a PDF."
+- Use markdown formatting for structure (**, ##) but keep content clear and printable
+
 SPECIAL DASHBOARD ACTIONS:
 - If user asks about dashboard layouts, include dashboard_action in response
 - For lesson planning requests, suggest opening the lesson generator
-- For assessment tasks, recommend relevant tools`;
+- For assessment tasks, recommend relevant tools
+- When generating educational content (tests, worksheets, exercises), mention PDF export availability`;
 
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
@@ -2512,14 +3149,23 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         }
       }
       
-      // Add current user input
-      messages.push({ role: 'user', content: context.userInput });
+      // Add current user input with attachments if present
+      const contextAttachments = context.attachments;
+      if (contextAttachments && contextAttachments.length > 0) {
+        // Process attachments for AI
+        const attachmentContext = await this.processAttachmentsForAI(contextAttachments);
+        const userMessageWithAttachments = `${context.userInput}\n\n${attachmentContext}`;
+        messages.push({ role: 'user', content: userMessageWithAttachments });
+      } else {
+        messages.push({ role: 'user', content: context.userInput });
+      }
       
       const aiResponse = await this.callAIService({
         action: 'general_assistance',
         messages: messages,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
-        gradeLevel: 'General'
+        gradeLevel: 'General',
+        attachments: contextAttachments  // Pass attachments to AI service
       });
 
       // Parse AI response and add contextual actions and dashboard behaviors
@@ -2610,10 +3256,28 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         suggested_actions.push('view_financial_dashboard');
       }
       
-      // PDF export intent
-      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput)) {
-        dashboard_action = { type: 'export_pdf' as const, title: 'Dash Export', content: aiResponse?.content || context.userInput };
+      // PDF export intent - trigger on explicit request OR when educational content is generated
+      const responseContent = aiResponse?.content || '';
+      const hasEducationalKeywords = /\b(test|worksheet|practice|exercise|quiz|assessment|activity)\b/i.test(userInput);
+      const hasNumberedItems = /\d+\.|question\s*\d+|problem\s*\d+/i.test(responseContent);
+      const hasMinimalContent = responseContent.length > 100; // Lowered threshold
+      const hasGeneratedContent = hasEducationalKeywords && hasNumberedItems && hasMinimalContent;
+      
+      // Debug logging
+      console.log('[Dash] PDF Export Check:', {
+        userInput: userInput.substring(0, 50),
+        responseLength: responseContent.length,
+        hasEducationalKeywords,
+        hasNumberedItems,
+        hasMinimalContent,
+        hasGeneratedContent
+      });
+      
+      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput) || hasGeneratedContent) {
+        const title = this.extractContentTitle(userInput, responseContent) || 'Dash Export';
+        dashboard_action = { type: 'export_pdf' as const, title, content: responseContent || context.userInput };
         suggested_actions.push('export_pdf');
+        console.log('[Dash] PDF Export action set:', { title, contentLength: responseContent.length });
       }
       
       // Add worksheet generation actions with voice command handling
@@ -3878,6 +4542,39 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
   }
 
   /**
+   * Process attachments for AI context
+   */
+  private async processAttachmentsForAI(attachments: DashAttachment[]): Promise<string> {
+    const parts: string[] = [];
+    
+    for (const attachment of attachments) {
+      if (attachment.kind === 'image') {
+        // Images can be shown to Claude with vision
+        parts.push(`[Image attached: ${attachment.name} (${this.formatFileSize(attachment.size)})]`);
+      } else if (attachment.kind === 'pdf') {
+        parts.push(`[PDF document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
+      } else if (attachment.kind === 'document') {
+        parts.push(`[Document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
+      } else {
+        parts.push(`[File attached: ${attachment.name}, Type: ${attachment.mimeType}, Size: ${this.formatFileSize(attachment.size)}]`);
+      }
+    }
+    
+    return `\n\n📎 Attachments (${attachments.length}):\n${parts.join('\n')}`;
+  }
+  
+  /**
+   * Format file size for display
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  /**
    * Call AI service with enhanced context
    */
   private async callAIService(params: any): Promise<any> {
@@ -3889,6 +4586,18 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         ...params,
         model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
       };
+      
+      // If attachments with images are present, add them for vision analysis
+      if (params.attachments && Array.isArray(params.attachments)) {
+        const imageAttachments = params.attachments.filter((a: DashAttachment) => a.kind === 'image');
+        if (imageAttachments.length > 0) {
+          requestBody.images = imageAttachments.map((img: DashAttachment) => ({
+            name: img.name,
+            url: img.previewUri,
+            mimeType: img.mimeType
+          }));
+        }
+      }
       
       const { data, error } = await supabase.functions.invoke('ai-gateway', {
         body: requestBody
