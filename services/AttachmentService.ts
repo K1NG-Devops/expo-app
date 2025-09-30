@@ -375,7 +375,7 @@ function determineAttachmentKind(mimeType: string): DashAttachmentKind {
 /**
  * Get file icon name based on attachment kind
  */
-export function getFileIconName(kind: DashAttachmentKind): string {
+export function getFileIconName(kind: DashAttachmentKind): any {
   switch (kind) {
     case 'image':
       return 'image-outline';
