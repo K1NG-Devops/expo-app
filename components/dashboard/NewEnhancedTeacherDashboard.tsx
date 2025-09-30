@@ -11,7 +11,7 @@
  * - Optimized for touch interfaces and accessibility
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
   Dimensions,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +36,7 @@ import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
 import { logger } from '@/lib/logger';
+import { usePageVisibility } from '@/hooks/usePageVisibility';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -78,6 +80,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const userRole = (profile as any)?.role || 'teacher';
+  const isRefreshingRef = useRef(false);
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
@@ -88,6 +91,51 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
     refresh,
     isLoadingFromCache,
   } = useTeacherDashboard();
+
+  // Handle page visibility changes (tab switching) on web
+  const handleVisibilityChange = useCallback(async () => {
+    // Prevent multiple simultaneous refreshes
+    if (isRefreshingRef.current) {
+      logger.debug('Skipping visibility refresh - already refreshing');
+      return;
+    }
+
+    try {
+      isRefreshingRef.current = true;
+      logger.debug('Page became visible - refreshing dashboard data');
+      
+      // Only refresh if we have stale data (been away for more than 30 seconds)
+      // Use sessionStorage on web, or in-memory fallback
+      let shouldRefresh = true;
+      
+      if (Platform.OS === 'web' && typeof sessionStorage !== 'undefined') {
+        const lastRefreshTime = sessionStorage.getItem('dashboard_last_refresh');
+        const now = Date.now();
+        
+        if (lastRefreshTime && (now - parseInt(lastRefreshTime)) < 30000) {
+          shouldRefresh = false;
+          logger.debug('Skipping refresh - data is fresh (< 30s old)');
+        } else {
+          sessionStorage.setItem('dashboard_last_refresh', now.toString());
+        }
+      }
+      
+      if (shouldRefresh) {
+        await refresh();
+      }
+    } catch (error) {
+      logger.error('Failed to refresh dashboard on visibility change:', error);
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, [refresh]);
+
+  // Use page visibility hook
+  usePageVisibility({
+    onVisible: handleVisibilityChange,
+    debounceDelay: 500, // Wait 500ms before triggering refresh
+    enableTracking: true,
+  });
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();

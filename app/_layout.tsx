@@ -11,6 +11,7 @@ import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesCon
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
+import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -252,6 +253,7 @@ export default function RootLayout() {
                   <ToastProvider>
                     <View style={styles.container}>
                       <StatusBar style="dark" />
+                      <GlobalUpdateBanner />
                       <DashWakeWordListener />
                       <Stack
                         screenOptions={{

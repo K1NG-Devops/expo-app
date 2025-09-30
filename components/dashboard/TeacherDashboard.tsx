@@ -54,6 +54,8 @@ import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import Feedback from '@/lib/feedback';
+import { usePageVisibility } from '@/hooks/usePageVisibility';
+import { logger } from '@/lib/logger';
 
 const { width, height } = Dimensions.get("window");
 const isSmallScreen = width < 380;
@@ -181,6 +183,53 @@ export const TeacherDashboard: React.FC = () => {
     refresh,
     isLoadingFromCache,
   } = useTeacherDashboard();
+
+  // Track refresh state to prevent duplicate refreshes
+  const isRefreshingRef = React.useRef(false);
+
+  // Handle page visibility changes (tab switching) on web
+  const handleVisibilityChange = React.useCallback(async () => {
+    // Prevent multiple simultaneous refreshes
+    if (isRefreshingRef.current) {
+      logger.debug('Skipping visibility refresh - already refreshing');
+      return;
+    }
+
+    try {
+      isRefreshingRef.current = true;
+      logger.debug('Page became visible - refreshing dashboard data');
+      
+      // Only refresh if we have stale data (been away for more than 30 seconds)
+      let shouldRefresh = true;
+      
+      if (Platform.OS === 'web' && typeof sessionStorage !== 'undefined') {
+        const lastRefreshTime = sessionStorage.getItem('dashboard_last_refresh');
+        const now = Date.now();
+        
+        if (lastRefreshTime && (now - parseInt(lastRefreshTime)) < 30000) {
+          shouldRefresh = false;
+          logger.debug('Skipping refresh - data is fresh (< 30s old)');
+        } else {
+          sessionStorage.setItem('dashboard_last_refresh', now.toString());
+        }
+      }
+      
+      if (shouldRefresh) {
+        await refresh();
+      }
+    } catch (error) {
+      logger.error('Failed to refresh dashboard on visibility change:', error);
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, [refresh]);
+
+  // Use page visibility hook
+  usePageVisibility({
+    onVisible: handleVisibilityChange,
+    debounceDelay: 500, // Wait 500ms before triggering refresh
+    enableTracking: true,
+  });
 
   // Capability gating (teacher features depend on active seat)
   const hasCap = React.useCallback(
