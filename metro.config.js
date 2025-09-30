@@ -85,6 +85,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       'ReactDevToolsSettingsManager': './lib/stubs/devtools-stub.js',
       '/src/private/debugging': './lib/stubs/devtools-stub.js',
       '/Core/Devtools/': './lib/stubs/devtools-stub.js',
+      'DeviceEventEmitter': './lib/stubs/DeviceEventEmitter-stub.js',
+      'NativeEventEmitter': './lib/stubs/NativeEventEmitter-stub.js',
+      '/EventEmitter/': './lib/stubs/NativeEventEmitter-stub.js',
     };
 
     for (const [pattern, stubPath] of Object.entries(stubMappings)) {
