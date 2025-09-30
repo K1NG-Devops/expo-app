@@ -9,6 +9,7 @@ const path = require('path');
 module.exports = ({ config }) => {
   const profile = process.env.EAS_BUILD_PROFILE || process.env.NODE_ENV || '';
   const isDevBuild = profile === 'development' || profile === 'dev';
+  const isWeb = process.env.EXPO_PUBLIC_PLATFORM === 'web';
 
   const plugins = [
     'expo-router',
@@ -28,9 +29,9 @@ module.exports = ({ config }) => {
     'expo-notifications',
   ];
 
-  // Always include expo-dev-client for local development
-  // Only exclude for production EAS builds
-  if (isDevBuild || !process.env.EAS_BUILD_PLATFORM) plugins.push('expo-dev-client');
+  // Include expo-dev-client for mobile development only, not for web
+  // Only exclude for production EAS builds or web platform
+  if (!isWeb && (isDevBuild || !process.env.EAS_BUILD_PLATFORM)) plugins.push('expo-dev-client');
 
   // In bare workflow, runtimeVersion policies are not supported.
   // Use a static runtimeVersion string to match the native build.
@@ -106,6 +107,10 @@ module.exports = ({ config }) => {
       startUrl: '/',
       display: 'standalone',
       orientation: 'any',
+      bundler: 'metro',
+    },
+    updates: {
+      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
     },
     extra: {
       router: {},
