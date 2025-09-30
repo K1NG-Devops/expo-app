@@ -117,22 +117,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Enhanced refresh for visibility handler
+  // Enhanced refresh for visibility handler - OPTIMIZED to prevent loading state
   const handleVisibilityRefresh = useCallback(async () => {
     const now = Date.now();
-    // Avoid rapid successive refreshes
-    if (now - lastRefreshAttempt < 2000) {
+    // Increase debounce threshold to 5 seconds to prevent aggressive refreshes
+    if (now - lastRefreshAttempt < 5000) {
+      console.log('[Auth] Skipping visibility refresh - too soon since last attempt');
       return;
     }
     
     setLastRefreshAttempt(now);
     
     try {
-      // Check if session is still valid
+      // Only validate session, don't trigger loading states
       const { data: { session: currentSession }, error } = await assertSupabase().auth.getSession();
       
       if (error || !currentSession) {
-        console.log('Session invalid on visibility change, clearing auth state');
+        console.log('[Auth] Session invalid on visibility change, clearing auth state');
         setUser(null);
         setSession(null);
         setProfile(null);
@@ -140,15 +141,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       
-      // Update session if it's different
+      // Silently update session if token changed (don't trigger re-renders unless necessary)
       if (currentSession && (!session || session.access_token !== currentSession.access_token)) {
+        console.log('[Auth] Session token updated on visibility change');
         setSession(currentSession);
         setUser(currentSession.user);
       }
       
-      // Refresh profile if we have a user
-      if (currentSession.user) {
-        console.log('Refreshing profile on visibility change');
+      // Only refresh profile if we don't have one OR if it's been more than 5 minutes
+      const shouldRefreshProfile = !profile || (now - lastRefreshAttempt > 300000);
+      if (currentSession.user && shouldRefreshProfile) {
+        console.log('[Auth] Refreshing profile on visibility change');
         const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
         if (enhancedProfile) {
           setProfile(enhancedProfile);
@@ -156,9 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error) {
-      console.error('Visibility refresh failed:', error);
+      console.error('[Auth] Visibility refresh failed:', error);
     }
-  }, [session, lastRefreshAttempt]);
+  }, [session, lastRefreshAttempt, profile]);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {
@@ -314,7 +317,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const allowWebFocusRefresh = process.env.EXPO_PUBLIC_WEB_FOCUS_REFRESH === 'true';
         const isWeb = Platform.OS === 'web';
-        if (!isWeb || allowWebFocusRefresh) {
+        // Only enable on web if explicitly configured (disabled by default to prevent loading state loops)
+        if (isWeb && allowWebFocusRefresh) {
+          console.log('[Visibility] Initializing web visibility handler with optimized refresh');
           initializeVisibilityHandler({
             onSessionRefresh: handleVisibilityRefresh,
             onVisibilityChange: (isVisible) => {
@@ -336,13 +341,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
               }
             },
-            refreshDelay: 1000, // 1 second delay for superadmin dashboard
+            refreshDelay: 2000, // 2 second delay to prevent loading loops
           });
+        } else if (isWeb) {
+          console.log('[Visibility] Web focus refresh disabled by default to prevent loading loops. Set EXPO_PUBLIC_WEB_FOCUS_REFRESH=true to enable.');
         } else {
-          console.log('[Visibility] Web focus refresh disabled by EXPO_PUBLIC_WEB_FOCUS_REFRESH');
+          // Mobile platforms can use visibility handler without issues
+          console.log('[Visibility] Initializing visibility handler for mobile platform');
+          initializeVisibilityHandler({
+            onSessionRefresh: handleVisibilityRefresh,
+            onVisibilityChange: (isVisible) => {
+              if (isVisible && mounted) {
+                track('auth.tab_focused', {
+                  has_profile: !!profile,
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            },
+            refreshDelay: 1000,
+          });
         }
       } catch (e) {
-        console.debug('Visibility handler initialization failed (mobile platform?)', e);
+        console.debug('[Visibility] Handler initialization failed', e);
       }
 
       // Subscribe to auth changes

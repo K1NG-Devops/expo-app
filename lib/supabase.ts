@@ -121,10 +121,14 @@ function chooseStorage() {
 let client: SupabaseClient | null = null;
 if (url && anon) {
   const storage = chooseStorage();
+  // Disable aggressive auto-refresh on web to prevent loading state loops
+  const isWeb = Platform?.OS === 'web';
+  const autoRefresh = isWeb ? false : true; // Only auto-refresh on mobile
+  
   client = createClient(url, anon, {
     auth: {
       storage: storage as any,
-      autoRefreshToken: true,
+      autoRefreshToken: autoRefresh,
       persistSession: true,
       detectSessionInUrl: false,
       // Add debugging for token refresh issues
