@@ -100,10 +100,37 @@ const MemoryStorageAdapter = {
   },
 };
 
+// Custom storage adapter for web that prevents cross-tab sync
+const IsolatedWebStorageAdapter = typeof window !== 'undefined' && Platform?.OS === 'web' ? {
+  getItem: async (key: string) => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      window.localStorage.setItem(key, value);
+      // Don't dispatch storage events to prevent cross-tab triggers
+    } catch {
+      // ignore
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  },
+} : null;
+
 function chooseStorage() {
   try {
-    // Web platform: use localStorage via AsyncStorage or memory fallback
+    // Web platform: use isolated storage to prevent cross-tab sync
     if (Platform?.OS === 'web') {
+      if (IsolatedWebStorageAdapter) return IsolatedWebStorageAdapter;
       if (AsyncStorageAdapter) return AsyncStorageAdapter;
       return MemoryStorageAdapter;
     }
@@ -154,6 +181,20 @@ if (url && anon) {
       storage.removeItem('edudash_user_profile').catch(() => {});
     }
   });
+  
+  // CRITICAL FIX: Block storage event listeners on web that trigger cross-tab refresh
+  if (isWeb && typeof window !== 'undefined') {
+    // Intercept and block storage events that Supabase listens to
+    const originalAddEventListener = window.addEventListener;
+    window.addEventListener = function(type: string, listener: any, options?: any) {
+      if (type === 'storage') {
+        // Block storage event listeners to prevent cross-tab sync
+        console.log('[Supabase] Blocking storage event listener to prevent cross-tab refresh');
+        return;
+      }
+      return originalAddEventListener.call(this, type, listener, options);
+    };
+  }
 }
 
 // Helper function to assert supabase client exists
