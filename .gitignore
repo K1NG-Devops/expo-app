@@ -50,3 +50,5 @@ build-*.apk
 memory_cleanup_*/
 backups/
 google-services-account.json
+
+docs/*
