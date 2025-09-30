@@ -26,7 +26,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
-import { DeviceEventEmitter } from '@/lib/utils/eventEmitter';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -35,14 +34,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
-// TODO: AttachmentService needs to be implemented
-// import { 
-//   pickDocuments, 
-//   pickImages, 
-//   uploadAttachment,
-//   getFileIconName,
-//   formatFileSize 
-// } from '@/services/AttachmentService';
+import { 
+  pickDocuments, 
+  pickImages, 
+  uploadAttachment,
+  getFileIconName,
+  formatFileSize 
+} from '@/services/AttachmentService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -156,25 +154,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
     initializeDash();
   }, [conversationId, initialMessage]);
-
-  // Platform-safe event listeners
-  useEffect(() => {
-    let subscription: any;
-    
-    try {
-      subscription = DeviceEventEmitter.addListener('dashAIResponse', (data: any) => {
-        console.log('Dash AI Response:', data);
-      });
-    } catch (error) {
-      console.warn('Failed to set up event listener:', error);
-    }
-
-    return () => {
-      if (subscription && typeof subscription.remove === 'function') {
-        subscription.remove();
-      }
-    };
-  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -304,7 +283,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       setIsUploading(false);
 
       const userText = text || 'Attached files';
-      const response = await dashInstance.sendMessage(userText, undefined);
+      const response = await dashInstance.sendMessage(userText, undefined, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
       
       // Clear selected attachments after successful send
       setSelectedAttachments([]);
@@ -882,7 +861,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             >
               <View style={styles.attachmentChipContent}>
                 <Ionicons 
-                  name={getFileIconName(attachment.kind) as any} 
+                  name={getFileIconName(attachment.kind)}
                   size={16} 
                   color={attachment.status === 'failed' ? theme.error : theme.text} 
                 />
