@@ -35,6 +35,7 @@ import AnnouncementService from '@/lib/services/announcementService';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import { useSchoolSettings } from '@/lib/hooks/useSchoolSettings';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
 import { Vibration } from 'react-native';
@@ -74,6 +75,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { maybeShowInterstitial, offerRewarded } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
+  const schoolSettingsQuery = useSchoolSettings((profile as any)?.organization_id);
+  const isWAConfigured = !!schoolSettingsQuery.data?.whatsapp_number;
+  const isWAEnabled = isWhatsAppEnabled() || isWAConfigured;
   const insets = useSafeAreaInsets();
   const {
     data,
@@ -252,7 +256,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, color, trend, onPress }) => (
     <TouchableOpacity
-      style={[styles.metricCard, { borderLeftColor: color }]}
+      style={[styles.metricCard, { borderLeftColor: color, shadowColor: color }]}
       onPress={onPress}
       disabled={!onPress}
     >
@@ -298,10 +302,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
-      case 'good': case 'excellent': case 'up': return { color: '#059669' };
-      case 'warning': case 'attention': return { color: '#F59E0B' };
-      case 'low': case 'needs_attention': return { color: '#DC2626' };
-      default: return { color: '#6B7280' };
+      case 'good': case 'excellent': case 'up': return { color: theme.success };
+      case 'warning': case 'attention': return { color: theme.warning };
+      case 'low': case 'needs_attention': return { color: theme.error };
+      default: return { color: theme.textSecondary };
     }
   };
 
@@ -317,10 +321,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'excellent': return { backgroundColor: '#059669' };
-      case 'good': return { backgroundColor: '#7C3AED' };
-      case 'needs_attention': return { backgroundColor: '#DC2626' };
-      default: return { backgroundColor: '#6B7280' };
+      case 'excellent': return { backgroundColor: theme.success };
+      case 'good': return { backgroundColor: theme.accent };
+      case 'needs_attention': return { backgroundColor: theme.error };
+      default: return { backgroundColor: theme.textSecondary };
     }
   };
 
@@ -358,11 +362,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar 
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={theme.background}
-        translucent={false}
-      />
       {/* Fixed top header to match enhanced dashboard */}
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
@@ -469,9 +468,14 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 />
               </TouchableOpacity>
               {/* WhatsApp Status */}
-              {isWhatsAppEnabled() && (
+              {isWAEnabled && (
                 <TouchableOpacity onPress={() => setShowWhatsAppModal(true)}>
                   <WhatsAppStatusChip size="small" showText={false} />
+                </TouchableOpacity>
+              )}
+              {!isWAEnabled && (
+                <TouchableOpacity onPress={() => router.push('/screens/school-settings')} style={{ marginLeft: 8 }}>
+                  <Ionicons name="settings" size={18} color={theme.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -707,13 +711,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           {/* Real Petty Cash Balance - Only show when meaningful */}
           {data.financialSummary.pettyCashBalance > 50 && (
             <View style={styles.financialGrid}>
-              <View style={styles.financialCard}>
+              <View style={[styles.financialCard, { borderLeftColor: '#F59E0B', shadowColor: '#F59E0B' }]}>
                 <Text style={styles.financialLabel}>{t('dashboard.petty_cash_balance')}</Text>
                 <Text style={[styles.financialValue, { color: '#F59E0B' }]}>
                   {formatCurrency(data.financialSummary.pettyCashBalance)}
                 </Text>
               </View>
-              <View style={styles.financialCard}>
+              <View style={[styles.financialCard, { borderLeftColor: '#DC2626', shadowColor: '#DC2626' }]}>
                 <Text style={styles.financialLabel}>{t('dashboard.monthly_expenses')}</Text>
                 <Text style={[styles.financialValue, { color: '#DC2626' }]}>
                   {formatCurrency(data.financialSummary.pettyCashExpenses || 0)}
@@ -735,11 +739,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             router.push('/screens/principal-analytics');
           }, { needs: 'premium' })}
           disabled={subscriptionReady && !hasPremiumOrHigher}
-        >
-          <View style={styles.aiInsightsHeader}>
-            <View style={styles.aiInsightsIcon}>
-              <Ionicons name="sparkles" size={20} color={'#7C3AED'} />
-            </View>
+          >
+            <View style={styles.aiInsightsHeader}>
+              <View style={styles.aiInsightsIcon}>
+                <Ionicons name="sparkles" size={20} color={'#7C3AED'} />
+              </View>
             <View style={styles.aiInsightsContent}>
               <Text style={styles.aiInsightsTitle}>{t('dashboard.ai_insights')}</Text>
               <Text style={styles.aiInsightsSubtitle}>{t('dashboard.smart_analytics_recommendations')}</Text>
@@ -963,7 +967,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
         <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/student-enrollment') }}
           >
             <Ionicons name="person-add" size={24} color={theme.primary} />
@@ -971,7 +975,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/teacher-management') }}
           >
             <Ionicons name="people" size={24} color={theme.success} />
@@ -979,7 +983,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; handleCreateAnnouncement(); }}
           >
             <Ionicons name="megaphone" size={24} color={theme.accent} />
@@ -987,7 +991,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-requests') }}
           >
             <Ionicons name="people-circle" size={24} color={theme.primary} />
@@ -995,7 +999,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-seat-management') }}
           >
             <Ionicons name="id-card" size={24} color={theme.success} />
@@ -1003,7 +1007,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-invite-code') }}
           >
             <Ionicons name="key" size={24} color={theme.accent} />
@@ -1011,7 +1015,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin/data-export') }}
           >
             <Ionicons name="cloud-download" size={24} color={theme.accent} />
@@ -1019,7 +1023,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => {
               // Quick school stats action
               try { await Feedback.vibrate(15); } catch {}
@@ -1048,9 +1052,9 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <Text style={styles.actionText}>{t('quick_actions.todays_stats')}</Text>
           </TouchableOpacity>
           
-          {isWhatsAppEnabled() && (
+          {isWAEnabled && (
             <TouchableOpacity 
-              style={styles.actionCard}
+              style={[styles.actionCard, { borderLeftColor: '#25D366', shadowColor: '#25D366' }]}
               onPress={async () => {
                 try { await Feedback.vibrate(15); } catch {}
                 setShowWhatsAppModal(true);
@@ -1061,9 +1065,9 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             </TouchableOpacity>
           )}
           
-          {!isWhatsAppEnabled() && (
+          {!isWAEnabled && (
             <TouchableOpacity 
-              style={styles.actionCard}
+              style={[styles.actionCard, { borderLeftColor: theme.textSecondary, shadowColor: theme.textSecondary }]}
               onPress={async () => {
                 try { await Feedback.vibrate(15); } catch {}
                 Alert.alert(
@@ -1527,6 +1531,7 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     flex: 1,
     marginHorizontal: 4,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1555,9 +1560,12 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     alignItems: 'center',
     width: '30%',
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -1782,9 +1790,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     borderRadius: 12,
     backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },

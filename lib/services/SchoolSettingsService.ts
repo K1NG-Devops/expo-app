@@ -195,39 +195,22 @@ export class SchoolSettingsService {
     schoolId: string,
     updates: Partial<SchoolSettings>
   ): Promise<SchoolSettings> {
-    // Merge server current settings with updates, then persist
-    const { data: current } = await assertSupabase()
-      .from('preschools')
-      .select('settings')
-      .eq('id', schoolId)
-      .single();
-
-    const merged = deepMerge(
-      deepMerge(DEFAULT_SCHOOL_SETTINGS, (current?.settings || {}) as Partial<SchoolSettings>),
-      updates
-    );
-
-    const { error } = await assertSupabase()
-      .from('preschools')
-      .update({ settings: merged })
-      .eq('id', schoolId);
-
+    // Use RBAC-safe RPC to update allowed keys server-side
+    const { data, error } = await assertSupabase().rpc('update_school_settings', {
+      p_preschool_id: schoolId,
+      p_patch: updates as any,
+    });
     if (error) throw error;
+    // Deep merge defaults client-side for completeness
+    const merged = deepMerge(DEFAULT_SCHOOL_SETTINGS, (data || {}) as Partial<SchoolSettings>);
     return merged;
   }
 
   static async updateWhatsAppNumber(schoolId: string, whatsappE164: string): Promise<void> {
-    const { data: current } = await assertSupabase()
-      .from('preschools')
-      .select('settings')
-      .eq('id', schoolId)
-      .single();
-
-    const settings = { ...(current?.settings || {}), whatsapp_number: whatsappE164 };
-    const { error } = await assertSupabase()
-      .from('preschools')
-      .update({ settings })
-      .eq('id', schoolId);
+    const { error } = await assertSupabase().rpc('update_school_settings', {
+      p_preschool_id: schoolId,
+      p_patch: { whatsapp_number: whatsappE164 } as any,
+    });
     if (error) throw error;
   }
 }
