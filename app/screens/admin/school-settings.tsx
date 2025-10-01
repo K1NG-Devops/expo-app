@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
+import { useSchoolSettings, useUpdateSchoolSettings } from '@/lib/hooks/useSchoolSettings';
 import { useTheme } from '@/contexts/ThemeContext';
 // import { useThemedStyles } from '@/hooks/useThemedStyles'; // TODO: Use for theme-aware styles
 import { Colors } from '@/constants/Colors';
@@ -186,10 +187,16 @@ export default function SchoolSettingsScreen() {
   const [saving, setSaving] = useState(false);
   const insets = useSafeAreaInsets();
 
+  const schoolId = profile?.organization_id;
+  const settingsQuery = useSchoolSettings(schoolId);
+  const updateMutation = useUpdateSchoolSettings(schoolId);
+
   useEffect(() => {
-    loadSettings();
+    if (settingsQuery.data) {
+      setSettings(prev => ({ ...prev, ...settingsQuery.data! }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [settingsQuery.data]);
 
   const canAccessSettings = (): boolean => {
     return profile?.role === 'principal' || profile?.role === 'principal_admin';
@@ -197,12 +204,12 @@ export default function SchoolSettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const schoolId = profile?.organization_id || 'school-123';
-      const cached = await offlineCacheService.get(`school_settings`, schoolId, user?.id || '');
+      const cached = schoolId ? await offlineCacheService.get(`school_settings`, schoolId, user?.id || '') : null;
       if (cached) {
         const parsed = typeof cached === 'string' ? JSON.parse(cached) : cached;
         setSettings({ ...DEFAULT_SETTINGS, ...(parsed as Partial<SchoolSettings>) });
       }
+      // Server data comes via React Query effect above
     } catch (error) {
       console.error('Failed to load school settings:', error);
     }
@@ -211,14 +218,12 @@ export default function SchoolSettingsScreen() {
   const saveSettings = async () => {
     try {
       setSaving(true);
-      const schoolId = profile?.organization_id || 'school-123';
-      
-      // Save to local cache first
-      await offlineCacheService.set(`school_settings`, schoolId, settings, user?.id || '', schoolId);
-      
-      // Here you would normally sync to your backend
-      // await syncSettingsToBackend(settings);
-      
+      if (schoolId) {
+        // Optimistically cache
+        await offlineCacheService.set(`school_settings`, schoolId, settings, user?.id || '', schoolId);
+        // Persist to backend
+        await updateMutation.mutateAsync(settings);
+      }
       Alert.alert(
         'Settings Saved', 
         'Your school settings have been updated successfully.\n\nChanges will take effect immediately.',
