@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as Sentry from 'sentry-expo';
 import { assertSupabase } from '@/lib/supabase';
@@ -124,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const now = Date.now();
     
     // Only log the visibility event, don't do anything else
-    console.log('[Auth] Tab visibility changed (refresh disabled for web stability)');
+    logger.info('[Auth] Tab visibility changed (refresh disabled for web stability)');
     
     // Track for analytics but don't refresh anything
     track('auth.tab_visibility_change', {
@@ -252,7 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const fresh = await fetchProfileLocal(data.session.user.id);
             if (fresh) currentProfile = fresh;
           } catch (e) {
-            console.debug('Initial profile refresh failed', e);
+            logger.debug('Initial profile refresh failed', e);
           }
         }
 
@@ -268,7 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             ph?.identify(data.session.user.id, phProps);
           } catch (e) {
-            console.debug('PostHog identify failed', e);
+            logger.debug('PostHog identify failed', e);
           }
           try {
             Sentry.Native.setUser({ 
@@ -276,7 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: data.session.user.email || undefined 
             } as any);
           } catch (e) {
-            console.debug('Sentry setUser failed', e);
+            logger.debug('Sentry setUser failed', e);
           }
         }
       } finally {
@@ -292,7 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (isWeb) {
           // For web: ONLY track visibility, never refresh session
-          console.log('[Visibility] Web visibility tracking enabled (NO auto-refresh)');
+          logger.info('[Visibility] Web visibility tracking enabled (NO auto-refresh)');
           initializeVisibilityHandler({
             onVisibilityChange: (isVisible) => {
               if (isVisible && mounted) {
@@ -307,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         } else {
           // Mobile platforms can use full refresh logic
-          console.log('[Visibility] Initializing visibility handler for mobile platform');
+          logger.info('[Visibility] Initializing visibility handler for mobile platform');
           initializeVisibilityHandler({
             onSessionRefresh: async () => {
               const now = Date.now();
@@ -342,7 +343,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
         }
       } catch (e) {
-        console.debug('[Visibility] Handler initialization failed', e);
+        logger.debug('[Visibility] Handler initialization failed', e);
       }
 
       // Subscribe to auth changes
@@ -364,15 +365,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               
               // Log result for debugging (no sensitive data)
               if (result.status === 'error') {
-                console.debug('Push registration failed:', result.reason);
+                logger.debug('Push registration failed:', result.reason);
               } else if (result.status === 'denied') {
-                console.debug('Push permissions denied');
+                logger.debug('Push permissions denied');
                 // Could surface a non-blocking UI hint here in the future
               } else if (result.status === 'registered') {
-                console.debug('Push registration successful');
+                logger.debug('Push registration successful');
               }
             } catch (e) {
-              console.debug('Push registration exception:', e);
+              logger.debug('Push registration exception:', e);
             }
             
             // Identify in monitoring tools
@@ -387,7 +388,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 };
                 ph?.identify(s.user.id, phProps);
               } catch (e) {
-                console.debug('PostHog identify (auth change) failed', e);
+                logger.debug('PostHog identify (auth change) failed', e);
               }
               try {
                 Sentry.Native.setUser({ 
@@ -395,7 +396,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   email: s.user.email || undefined 
                 } as any);
               } catch (e) {
-                console.debug('Sentry setUser (auth change) failed', e);
+                logger.debug('Sentry setUser (auth change) failed', e);
               }
 
               track('edudash.auth.signed_in', {
@@ -421,16 +422,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               const { deregisterPushDevice } = await import('@/lib/notifications');
               await deregisterPushDevice(assertSupabase(), { id: s?.user?.id || user?.id });
             } catch (e) {
-              console.debug('Push deregistration failed', e);
+              logger.debug('Push deregistration failed', e);
             }
             
-            try { await getPostHog()?.reset(); } catch (e) { console.debug('PostHog reset failed', e); }
-            try { Sentry.Native.setUser(null as any); } catch (e) { console.debug('Sentry clear user failed', e); }
+            try { await getPostHog()?.reset(); } catch (e) { logger.debug('PostHog reset failed', e); }
+            try { Sentry.Native.setUser(null as any); } catch (e) { logger.debug('Sentry clear user failed', e); }
             
             track('edudash.auth.signed_out', {});
             
             // Ensure we fall back to the sign-in screen on sign out or session loss
-            try { router.replace('/sign-in'); } catch (navErr) { console.debug('Navigation to sign-in failed', navErr); }
+            try { router.replace('/sign-in'); } catch (navErr) { logger.debug('Navigation to sign-in failed', navErr); }
           }
         } catch (error) {
           console.error('Auth state change handler error:', error);
@@ -441,8 +442,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      try { unsub?.subscription?.unsubscribe(); } catch (e) { console.debug('Auth listener unsubscribe failed', e); }
-      try { destroyVisibilityHandler(); } catch (e) { console.debug('Visibility handler cleanup failed', e); }
+      try { unsub?.subscription?.unsubscribe(); } catch (e) { logger.debug('Auth listener unsubscribe failed', e); }
+      try { destroyVisibilityHandler(); } catch (e) { logger.debug('Visibility handler cleanup failed', e); }
     };
   }, []);
 

@@ -75,7 +75,7 @@ export default function DashWakeWordListener() {
 
     try {
       // Dynamic import to avoid hard dependency when module isn't installed
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const Porcupine = require('@picovoice/porcupine-react-native');
       const accessKey = process.env.EXPO_PUBLIC_PICOVOICE_ACCESS_KEY || '';
 

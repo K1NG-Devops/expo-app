@@ -80,15 +80,43 @@ The following enhancements are documented inline as code comments for future imp
 - [ ] Caching for performance optimization
 - [ ] Tier display name localization
 
+## In Progress: DashAIAssistant Integration ✅
+
+### Files Modified
+1. **`services/DashAIAssistant.ts`**
+   - Added capability system imports
+   - Added tier tracking: `userTier` and `availableCapabilities`
+   - Implemented `loadUserTier()` method to fetch tier from user profile
+   - Added public methods:
+     - `updateTier(tier)` - Update tier when subscription changes
+     - `hasCapability(capability)` - Check if capability available
+     - `getUserTier()` - Get current tier
+     - `getAvailableCapabilities()` - Get all capabilities for tier
+   - Integrated capability checks:
+     - `sendMessage()` - Check multimodal capabilities for attachments
+     - `getAllConversations()` - Check memory capabilities for history access
+   - Throws `FeatureGatedError` when capabilities not available
+
+### Integration Points
+- Tier loaded from `getCurrentProfile().user_metadata.subscription_tier`
+- Falls back to 'free' tier if unavailable
+- Capability checks integrated at API boundaries
+- Proper error handling with upgrade messaging
+
+### Testing Status
+- ✅ Type-checking: No file-specific errors
+- ✅ Linting: No file-specific warnings
+- ⏳ Manual testing required for tier gating
+
 ### Next Steps (Week 1 Continued)
 According to the quick-start guide and enhancement plan:
 
-1. **Augment DashAIAssistant for Tier-Aware Capability Checks**
-   - Integrate capability system into existing DashAIAssistant
-   - Add tier checks before AI operations
-   - Implement upgrade prompts for gated features
+1. ~~**Augment DashAIAssistant for Tier-Aware Capability Checks**~~ ✅
+   - ✅ Integrate capability system into existing DashAIAssistant
+   - ✅ Add tier checks before AI operations
+   - ✅ Implement upgrade prompts for gated features
 
-2. **Create Modern Chat UI Components**
+2. **Create Modern Chat UI Components** (NEXT)
    - Message bubble components (user/assistant)
    - Conversation sidebar
    - Tier badges

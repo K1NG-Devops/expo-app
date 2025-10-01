@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Enhanced Biometric Debug Utility
  * 
@@ -14,31 +15,31 @@ export class BiometricDebugExtended {
    * Run comprehensive biometric authentication tests
    */
   static async runAllTests(): Promise<void> {
-    console.log('🧪 Starting Enhanced Biometric Authentication Tests');
-    console.log('=================================================');
+    logger.info('🧪 Starting Enhanced Biometric Authentication Tests');
+    logger.info('=================================================');
 
     try {
       // Test 1: Check capabilities
-      console.log('\n1️⃣ Testing Biometric Capabilities...');
+      logger.info('\n1️⃣ Testing Biometric Capabilities...');
       const capabilities = await BiometricAuthService.checkCapabilities();
-      console.log('Capabilities:', JSON.stringify(capabilities, null, 2));
+      logger.info('Capabilities:', JSON.stringify(capabilities, null, 2));
 
       // Test 2: Check security info
-      console.log('\n2️⃣ Testing Security Info...');
+      logger.info('\n2️⃣ Testing Security Info...');
       const securityInfo = await BiometricAuthService.getSecurityInfo();
-      console.log('Security Info:', JSON.stringify(securityInfo, null, 2));
+      logger.info('Security Info:', JSON.stringify(securityInfo, null, 2));
 
       // Test 3: Check stored biometric data
-      console.log('\n3️⃣ Testing Stored Biometric Data...');
+      logger.info('\n3️⃣ Testing Stored Biometric Data...');
       const storedData = await BiometricAuthService.getStoredBiometricData();
-      console.log('Stored Data:', storedData);
+      logger.info('Stored Data:', storedData);
 
       // Test 4: Check enhanced biometric session
-      console.log('\n4️⃣ Testing Enhanced Biometric Session...');
+      logger.info('\n4️⃣ Testing Enhanced Biometric Session...');
       const enhancedSession = await EnhancedBiometricAuth.getBiometricSession();
-      console.log('Enhanced Session:', enhancedSession ? 'Found' : 'Not found');
+      logger.info('Enhanced Session:', enhancedSession ? 'Found' : 'Not found');
       if (enhancedSession) {
-        console.log('Session Details:', {
+        logger.info('Session Details:', {
           userId: enhancedSession.userId,
           email: enhancedSession.email,
           expiresAt: enhancedSession.expiresAt,
@@ -48,29 +49,29 @@ export class BiometricDebugExtended {
       }
 
       // Test 5: Check session manager data
-      console.log('\n5️⃣ Testing Session Manager Data...');
+      logger.info('\n5️⃣ Testing Session Manager Data...');
       const currentSession = await getCurrentSession();
       const currentProfile = await getCurrentProfile();
-      console.log('Current Session:', currentSession ? 'Found' : 'Not found');
+      logger.info('Current Session:', currentSession ? 'Found' : 'Not found');
       if (currentSession) {
-        console.log('Session Details:', {
+        logger.info('Session Details:', {
           userId: currentSession.user_id,
           email: currentSession.email,
           expiresAt: new Date(currentSession.expires_at * 1000).toISOString()
         });
       }
-      console.log('Current Profile:', currentProfile ? currentProfile.role : 'Not found');
+      logger.info('Current Profile:', currentProfile ? currentProfile.role : 'Not found');
 
       // Test 6: Check Supabase session
-      console.log('\n6️⃣ Testing Supabase Session...');
+      logger.info('\n6️⃣ Testing Supabase Session...');
       try {
         const { data, error } = await assertSupabase().auth.getSession();
-        console.log('Supabase Session:', data.session ? 'Active' : 'None');
-        console.log('Supabase User:', data.session?.user?.email || 'None');
-        if (error) console.log('Supabase Error:', error);
+        logger.info('Supabase Session:', data.session ? 'Active' : 'None');
+        logger.info('Supabase User:', data.session?.user?.email || 'None');
+        if (error) logger.info('Supabase Error:', error);
       } catch {}
 
-      console.log('\n✅ All tests completed!');
+      logger.info('\n✅ All tests completed!');
       
     } catch (error) {
       console.error('❌ Test failed:', error);
@@ -81,71 +82,71 @@ export class BiometricDebugExtended {
    * Test the complete biometric login flow
    */
   static async testCompleteLoginFlow(): Promise<void> {
-    console.log('🔐 Testing Complete Biometric Login Flow');
-    console.log('=========================================');
+    logger.info('🔐 Testing Complete Biometric Login Flow');
+    logger.info('=========================================');
 
     try {
       // Step 1: Check if biometric is available and enabled
-      console.log('\n1️⃣ Checking Biometric Availability...');
+      logger.info('\n1️⃣ Checking Biometric Availability...');
       const securityInfo = await BiometricAuthService.getSecurityInfo();
       
       if (!securityInfo.isEnabled || !securityInfo.capabilities.isAvailable) {
-        console.log('❌ Biometric authentication is not available or enabled');
-        console.log('Security Info:', securityInfo);
+        logger.info('❌ Biometric authentication is not available or enabled');
+        logger.info('Security Info:', securityInfo);
         return;
       }
       
-      console.log('✅ Biometric authentication is available and enabled');
+      logger.info('✅ Biometric authentication is available and enabled');
 
       // Step 2: Check for stored session data
-      console.log('\n2️⃣ Checking Stored Session Data...');
+      logger.info('\n2️⃣ Checking Stored Session Data...');
       const enhancedSession = await EnhancedBiometricAuth.getBiometricSession();
       
       if (!enhancedSession) {
-        console.log('❌ No enhanced biometric session found');
-        console.log('ℹ️ User needs to log in with password first to enable biometric authentication');
+        logger.info('❌ No enhanced biometric session found');
+        logger.info('ℹ️ User needs to log in with password first to enable biometric authentication');
         return;
       }
       
-      console.log('✅ Enhanced biometric session found');
-      console.log('Session expires:', enhancedSession.expiresAt);
+      logger.info('✅ Enhanced biometric session found');
+      logger.info('Session expires:', enhancedSession.expiresAt);
 
       // Step 3: Test biometric authentication
-      console.log('\n3️⃣ Testing Biometric Authentication...');
+      logger.info('\n3️⃣ Testing Biometric Authentication...');
       const basicAuth = await BiometricAuthService.authenticate('Test biometric login flow');
       
       if (!basicAuth.success) {
-        console.log('❌ Biometric authentication failed:', basicAuth.error);
+        logger.info('❌ Biometric authentication failed:', basicAuth.error);
         return;
       }
       
-      console.log('✅ Biometric authentication successful');
+      logger.info('✅ Biometric authentication successful');
 
       // Step 4: Test enhanced authentication with session restoration
-      console.log('\n4️⃣ Testing Enhanced Authentication with Session Restoration...');
+      logger.info('\n4️⃣ Testing Enhanced Authentication with Session Restoration...');
       const enhancedAuth = await EnhancedBiometricAuth.authenticateWithBiometric();
       
       if (!enhancedAuth.success) {
-        console.log('❌ Enhanced authentication failed:', enhancedAuth.error);
+        logger.info('❌ Enhanced authentication failed:', enhancedAuth.error);
         return;
       }
       
-      console.log('✅ Enhanced authentication successful');
-      console.log('Session restored:', enhancedAuth.sessionRestored);
+      logger.info('✅ Enhanced authentication successful');
+      logger.info('Session restored:', enhancedAuth.sessionRestored);
 
       // Step 5: Verify Supabase session
-      console.log('\n5️⃣ Verifying Supabase Session...');
+      logger.info('\n5️⃣ Verifying Supabase Session...');
       if (supabase) {
         const { data } = await supabase.auth.getSession();
         if (data.session?.user) {
-          console.log('✅ Supabase session is active');
-          console.log('User:', data.session.user.email);
+          logger.info('✅ Supabase session is active');
+          logger.info('User:', data.session.user.email);
         } else {
-          console.log('❌ No active Supabase session');
+          logger.info('❌ No active Supabase session');
         }
       }
 
-      console.log('\n🎉 Complete biometric login flow test successful!');
+      logger.info('\n🎉 Complete biometric login flow test successful!');
       
     } catch (error) {
       console.error('❌ Login flow test failed:', error);
@@ -156,26 +157,26 @@ export class BiometricDebugExtended {
    * Test session restoration specifically
    */
   static async testSessionRestoration(): Promise<void> {
-    console.log('🔄 Testing Session Restoration');
-    console.log('===============================');
+    logger.info('🔄 Testing Session Restoration');
+    logger.info('===============================');
 
     try {
       // Check current state
-      console.log('\n1️⃣ Checking Current State...');
+      logger.info('\n1️⃣ Checking Current State...');
       const currentSession = await getCurrentSession();
       const enhancedSession = await EnhancedBiometricAuth.getBiometricSession();
       
-      console.log('Session Manager Session:', currentSession ? 'Present' : 'Missing');
-      console.log('Enhanced Biometric Session:', enhancedSession ? 'Present' : 'Missing');
+      logger.info('Session Manager Session:', currentSession ? 'Present' : 'Missing');
+      logger.info('Enhanced Biometric Session:', enhancedSession ? 'Present' : 'Missing');
       
       try {
         let { data } = await assertSupabase().auth.getSession();
-        console.log('Initial Supabase Session:', data.session ? 'Active' : 'None');
+        logger.info('Initial Supabase Session:', data.session ? 'Active' : 'None');
 
         // If no active session, try to restore
         if (!data.session?.user && currentSession) {
-          console.log('\n2️⃣ Attempting Session Restoration...');
-          console.log('Using stored session:', {
+          logger.info('\n2️⃣ Attempting Session Restoration...');
+          logger.info('Using stored session:', {
             userId: currentSession.user_id,
             email: currentSession.email,
             expiresAt: new Date(currentSession.expires_at * 1000).toISOString()
@@ -187,20 +188,20 @@ export class BiometricDebugExtended {
           });
           
           if (!error) {
-            console.log('✅ Session restoration successful!');
+            logger.info('✅ Session restoration successful!');
             const { data: newData } = await assertSupabase().auth.getSession();
-            console.log('Restored Session User:', newData.session?.user?.email);
-            console.log('Session expires at:', new Date((newData.session?.expires_at || 0) * 1000).toISOString());
+            logger.info('Restored Session User:', newData.session?.user?.email);
+            logger.info('Session expires at:', new Date((newData.session?.expires_at || 0) * 1000).toISOString());
           } else {
-            console.log('❌ Session restoration failed:', error.message);
+            logger.info('❌ Session restoration failed:', error.message);
           }
         } else if (data.session?.user) {
-          console.log('✅ Active session already exists, no restoration needed');
+          logger.info('✅ Active session already exists, no restoration needed');
         } else {
-          console.log('❌ No stored session available for restoration');
+          logger.info('❌ No stored session available for restoration');
         }
       } catch (e) {
-        console.warn('Supabase session check failed:', e);
+        logger.warn('Supabase session check failed:', e);
       }
 
     } catch (error) {
@@ -349,29 +350,29 @@ export class BiometricDebugExtended {
    * Test biometric authentication with detailed logging
    */
   static async testAuthWithLogging(): Promise<void> {
-    console.log('🔍 Testing Biometric Authentication with Detailed Logging');
-    console.log('========================================================');
+    logger.info('🔍 Testing Biometric Authentication with Detailed Logging');
+    logger.info('========================================================');
 
     try {
       // Pre-auth checks
-      console.log('\n📋 Pre-Authentication Checks:');
+      logger.info('\n📋 Pre-Authentication Checks:');
       const securityInfo = await BiometricAuthService.getSecurityInfo();
-      console.log('Capabilities:', securityInfo.capabilities);
-      console.log('Is Enabled:', securityInfo.isEnabled);
-      console.log('Available Types:', securityInfo.availableTypes);
+      logger.info('Capabilities:', securityInfo.capabilities);
+      logger.info('Is Enabled:', securityInfo.isEnabled);
+      logger.info('Available Types:', securityInfo.availableTypes);
 
       if (!securityInfo.capabilities.isAvailable || !securityInfo.capabilities.isEnrolled) {
-        console.log('❌ Cannot proceed: Biometric not available or not enrolled');
+        logger.info('❌ Cannot proceed: Biometric not available or not enrolled');
         return;
       }
 
       if (!securityInfo.isEnabled) {
-        console.log('❌ Cannot proceed: Biometric authentication not enabled');
+        logger.info('❌ Cannot proceed: Biometric authentication not enabled');
         return;
       }
 
       // Attempt authentication
-      console.log('\n🔐 Attempting Authentication...');
+      logger.info('\n🔐 Attempting Authentication...');
       const startTime = Date.now();
       
       const result = await BiometricAuthService.authenticate(
@@ -381,14 +382,14 @@ export class BiometricDebugExtended {
       const endTime = Date.now();
       const duration = endTime - startTime;
       
-      console.log(`Authentication completed in ${duration}ms`);
-      console.log('Result:', result);
+      logger.info(`Authentication completed in ${duration}ms`);
+      logger.info('Result:', result);
       
       if (result.success) {
-        console.log('✅ Authentication successful!');
-        console.log('Biometric type used:', result.biometricType || 'Unknown');
+        logger.info('✅ Authentication successful!');
+        logger.info('Biometric type used:', result.biometricType || 'Unknown');
       } else {
-        console.log('❌ Authentication failed:', result.error);
+        logger.info('❌ Authentication failed:', result.error);
       }
 
     } catch (error) {
@@ -400,16 +401,16 @@ export class BiometricDebugExtended {
    * Clean up all biometric data (for troubleshooting)
    */
   static async cleanupAllData(): Promise<void> {
-    console.log('🧹 Cleaning up all biometric data...');
+    logger.info('🧹 Cleaning up all biometric data...');
     
     try {
       await BiometricAuthService.disableBiometric();
-      console.log('✅ Disabled biometric service');
+      logger.info('✅ Disabled biometric service');
       
       await EnhancedBiometricAuth.clearBiometricSession();
-      console.log('✅ Cleared enhanced biometric session');
+      logger.info('✅ Cleared enhanced biometric session');
       
-      console.log('✅ All biometric data cleaned up');
+      logger.info('✅ All biometric data cleaned up');
     } catch (error) {
       console.error('❌ Error cleaning up biometric data:', error);
     }

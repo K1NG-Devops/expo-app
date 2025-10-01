@@ -321,12 +321,12 @@ EduDash Pro demonstrates **strong foundational capabilities** for principal-led 
 5. As a principal, I can generate offer letters (template-based), track acceptance status
 
 **Acceptance Criteria:**
-- [ ] Job postings table schema created with RLS policies
+- [x] Job postings table schema created with RLS policies
 - [ ] Resume upload to Supabase Storage (50MB max per file)
 - [ ] Application status workflow: `new` → `under_review` → `shortlisted` → `interview_scheduled` → `offered` → `accepted`/`rejected`
 - [ ] Email notifications for status changes (candidate and principal)
-- [ ] Principal dashboard shows: active job postings, applications by status, interview calendar
-- [ ] Mobile-optimized UI (resume preview in-app, no external downloads)
+- [x] Principal dashboard shows: active job postings, applications by status, interview calendar
+- [x] Mobile-optimized UI (resume preview in-app, no external downloads)
 - [ ] Search/filter candidates by skills, experience, location
 
 **Required Data Structures:**
@@ -342,11 +342,11 @@ EduDash Pro demonstrates **strong foundational capabilities** for principal-led 
 - `POST /api/offers/generate` – Generate offer letter
 
 **UI Surfaces:**
-- `app/screens/hiring-hub.tsx` – Principal dashboard (list jobs, applications)
-- `app/screens/job-posting-create.tsx` – Create/edit job posting
-- `app/screens/application-review.tsx` – Review candidate application with resume preview
-- `app/screens/interview-scheduler.tsx` – Calendar-based interview scheduling
-- Public route: `app/(public)/apply/[job_id].tsx` – Candidate application form
+- [x] `app/screens/hiring-hub.tsx` – Principal dashboard (list jobs, applications)
+- [x] `app/screens/job-posting-create.tsx` – Create/edit job posting
+- [x] `app/screens/application-review.tsx` – Review candidate application with resume preview
+- [ ] `app/screens/interview-scheduler.tsx` – Calendar-based interview scheduling
+- [ ] Public route: `app/(public)/apply/[job_id].tsx` – Candidate application form
 
 **Metrics:**
 - Time-to-hire (days from job posting → offer accepted)

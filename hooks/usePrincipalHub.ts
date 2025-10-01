@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -108,7 +109,7 @@ const apiCall = async (endpoint: string, user?: any) => {
     const { data: { session }, error } = await assertSupabase().auth.getSession();
     
     if (error) {
-      console.warn('Session error:', error);
+      logger.warn('Session error:', error);
     }
     
     if (session?.access_token) {
@@ -204,7 +205,7 @@ export const usePrincipalHub = () => {
   const fetchData = useCallback(async (forceRefresh = false) => {
     const preschoolId = getPreschoolId();
     
-    console.log('📊 Principal Hub Debug:', {
+    logger.info('📊 Principal Hub Debug:', {
       preschoolId,
       userId: user?.id,
       profileOrgId: profile?.organization_id,
@@ -212,7 +213,7 @@ export const usePrincipalHub = () => {
     });
     
     if (!preschoolId) {
-      console.warn('No preschool ID available for Principal Hub');
+      logger.warn('No preschool ID available for Principal Hub');
       setError('School not assigned');
       setLoading(false);
       return;
@@ -229,10 +230,10 @@ export const usePrincipalHub = () => {
       setError(null);
       setLastRefresh(new Date());
 
-      console.log('🏫 Loading REAL Principal Hub data from database for preschool:', preschoolId);
+      logger.info('🏫 Loading REAL Principal Hub data from database for preschool:', preschoolId);
 
       // **FETCH REAL DATA FROM DATABASE INSTEAD OF API/MOCK**
-      console.log('📊 Fetching real data from Supabase tables...');
+      logger.info('📊 Fetching real data from Supabase tables...');
       
       const [
         studentsResult,
@@ -337,7 +338,7 @@ export const usePrincipalHub = () => {
       const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
       const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
       
-      console.log('📊 REAL DATA FETCHED:', {
+      logger.info('📊 REAL DATA FETCHED:', {
         studentsCount,
         teachersCount: teachersData.length,
         classesCount,
@@ -366,7 +367,7 @@ export const usePrincipalHub = () => {
           });
         });
       } catch (e) {
-        console.warn('[PrincipalHub] vw_teacher_overview fetch failed, falling back to per-teacher queries:', e);
+        logger.warn('[PrincipalHub] vw_teacher_overview fetch failed, falling back to per-teacher queries:', e);
       }
 
       // Process teachers data with database information (using view when available)
@@ -681,7 +682,7 @@ export const usePrincipalHub = () => {
         }
       ];
       
-      console.log('✅ REAL DATABASE DATA PROCESSED:', {
+      logger.info('✅ REAL DATABASE DATA PROCESSED:', {
         totalStudents: stats.students.total,
         totalTeachers: stats.staff.total,
         totalClasses: stats.classes.total,
@@ -704,8 +705,8 @@ export const usePrincipalHub = () => {
         schoolName
       });
 
-      console.log('✅ REAL Principal Hub data loaded successfully from database');
-      console.log('🎯 Final dashboard summary:', {
+      logger.info('✅ REAL Principal Hub data loaded successfully from database');
+      logger.info('🎯 Final dashboard summary:', {
         school: schoolName,
         students: stats.students.total,
         teachers: stats.staff.total,

@@ -21,6 +21,7 @@ import {
   Alert,
   Modal,
   Linking,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -357,6 +358,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar 
+        barStyle={isDark ? "light-content" : "dark-content"}
+        backgroundColor={theme.background}
+        translucent={false}
+      />
       {/* Fixed top header to match enhanced dashboard */}
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
@@ -1203,7 +1209,7 @@ const createStyles = (theme: any, preferences: any = {}) => {
   return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f1419',
+    backgroundColor: theme.background,
   },
   appHeader: {
     position: 'absolute',
@@ -1211,11 +1217,16 @@ const createStyles = (theme: any, preferences: any = {}) => {
     left: 0,
     right: 0,
     zIndex: 100,
-    backgroundColor: '#0f1419',
+    backgroundColor: theme.surface,
     paddingHorizontal: 16,
     paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1f2937',
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   appHeaderContent: {
     flexDirection: 'row',
@@ -1229,18 +1240,25 @@ const createStyles = (theme: any, preferences: any = {}) => {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#00f5ff',
+    backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  userAvatarText: { color: '#000', fontSize: 14, fontWeight: '700' },
+  userAvatarText: { color: theme.onPrimary, fontSize: 14, fontWeight: '700' },
   settingsButton: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: theme.surfaceVariant,
+    borderWidth: 1,
+    borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
 
   scrollContainer: {
@@ -1292,6 +1310,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   themeToggle: {
     width: 36,
@@ -1302,6 +1325,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   section: {
     paddingHorizontal: 20,
@@ -1340,11 +1368,13 @@ const createStyles = (theme: any, preferences: any = {}) => {
     marginBottom: 12,
     width: cardWidth,
     borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   metricHeader: {
     flexDirection: 'row',
@@ -1379,9 +1409,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 12,
     marginRight: 12,
     width: 200,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },

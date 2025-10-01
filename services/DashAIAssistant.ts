@@ -16,6 +16,14 @@ import { router } from 'expo-router';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
 import { postAIRequest } from '@/lib/ai/api';
+import {
+  type Tier,
+  type DashCapability,
+  hasCapability,
+  getCapabilities,
+  assertCapability,
+  FeatureGatedError,
+} from '@/lib/ai/capabilities';
 // Note: DashTaskAutomation would be implemented in the future
 // import { DashTaskAutomation } from './DashTaskAutomation';
 import DashNavigationHandler from './DashNavigationHandler';
@@ -522,6 +530,10 @@ export class DashAIAssistant {
   private prePreparedRecording: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
   
+  // Tier-based capability gating
+  private userTier: Tier = 'free';
+  private availableCapabilities: readonly DashCapability[] = [];
+  
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
   private activeTasks: Map<string, DashTask> = new Map();
@@ -567,14 +579,65 @@ export class DashAIAssistant {
       await this.loadMemory();
       await this.loadPersonality();
       
-      // Load user context
+      // Load user context and tier
       await this.loadUserContext();
+      await this.loadUserTier();
       
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
       console.error('[Dash] Failed to initialize AI Assistant:', error);
       throw error;
     }
+  }
+
+  /**
+   * Load user subscription tier from SubscriptionContext
+   */
+  private async loadUserTier(): Promise<void> {
+    try {
+      const profile = await getCurrentProfile();
+      if (profile?.user_metadata?.subscription_tier) {
+        this.userTier = profile.user_metadata.subscription_tier as Tier;
+      } else {
+        this.userTier = 'free';
+      }
+      this.availableCapabilities = getCapabilities(this.userTier);
+      console.log(`[Dash] User tier: ${this.userTier}, Capabilities: ${this.availableCapabilities.length}`);
+    } catch (error) {
+      console.warn('[Dash] Failed to load user tier, defaulting to free', error);
+      this.userTier = 'free';
+      this.availableCapabilities = getCapabilities('free');
+    }
+  }
+
+  /**
+   * Update user tier (call when subscription changes)
+   */
+  public updateTier(tier: Tier): void {
+    this.userTier = tier;
+    this.availableCapabilities = getCapabilities(tier);
+    console.log(`[Dash] Tier updated to: ${tier}`);
+  }
+
+  /**
+   * Check if a capability is available for current user
+   */
+  public hasCapability(capability: DashCapability): boolean {
+    return hasCapability(this.userTier, capability);
+  }
+
+  /**
+   * Get current user tier
+   */
+  public getUserTier(): Tier {
+    return this.userTier;
+  }
+
+  /**
+   * Get all available capabilities for current tier
+   */
+  public getAvailableCapabilities(): readonly DashCapability[] {
+    return this.availableCapabilities;
   }
 
   /**
@@ -635,6 +698,30 @@ export class DashAIAssistant {
     const convId = conversationId || this.currentConversationId;
     if (!convId) {
       throw new Error('No active conversation');
+    }
+
+    // Check capability for document/image attachments
+    if (attachments && attachments.length > 0) {
+      const hasDocuments = attachments.some(a => ['document', 'pdf', 'spreadsheet'].includes(a.kind));
+      const hasImages = attachments.some(a => a.kind === 'image');
+      
+      if (hasDocuments && !this.hasCapability('multimodal.documents')) {
+        throw new FeatureGatedError(
+          'Document processing requires Premium subscription',
+          'multimodal.documents',
+          'premium',
+          this.userTier
+        );
+      }
+      
+      if (hasImages && !this.hasCapability('multimodal.vision')) {
+        throw new FeatureGatedError(
+          'Image analysis requires Premium subscription',
+          'multimodal.vision',
+          'premium',
+          this.userTier
+        );
+      }
     }
 
     // Create user message
@@ -3904,6 +3991,16 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    * Get all conversations
    */
   public async getAllConversations(): Promise<DashConversation[]> {
+    // Check if user has access to conversation history
+    if (!this.hasCapability('memory.lite') && !this.hasCapability('memory.standard')) {
+      throw new FeatureGatedError(
+        'Conversation history requires Starter subscription or higher',
+        'memory.standard',
+        'starter',
+        this.userTier
+      );
+    }
+
     try {
       const conversationKeys = await this.getConversationKeys();
       const conversations: DashConversation[] = [];

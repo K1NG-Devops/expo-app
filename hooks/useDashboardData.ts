@@ -346,7 +346,7 @@ export const usePrincipalDashboard = () => {
               warn('⚠️ Self users row did not contain preschool_id');
             }
           } catch (e) {
-            console.warn('Self users row lookup threw:', e);
+            warn('Self users row lookup threw:', e);
           }
         }
       } else {
@@ -606,7 +606,7 @@ export const usePrincipalDashboard = () => {
             }
           }
         } catch (fetchUsersErr) {
-          console.warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
+          warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
         }
 
         // Enhanced logging with actual data counts and sample records
