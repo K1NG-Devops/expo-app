@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "EduDashPro",
-    "slug": "edudashpro",
-    "owner": "edudashpro",
+    "slug": "dashpro",
+    "owner": "edudashprotest",
     "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -115,11 +115,11 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
+        "projectId": "eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
+      "url": "https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
     }
   }
 }
