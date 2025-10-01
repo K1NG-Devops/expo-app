@@ -59,7 +59,7 @@ USING (
     EXISTS (
         SELECT 1 FROM public.users u 
         WHERE u.auth_user_id = auth.uid() 
-        AND u.preschool_id = petty_cash_accounts.preschool_id
+        AND u.preschool_id = petty_cash_accounts.school_id
     )
 );
 
@@ -69,7 +69,7 @@ WITH CHECK (
     EXISTS (
         SELECT 1 FROM public.users u 
         WHERE u.auth_user_id = auth.uid() 
-        AND u.preschool_id = petty_cash_accounts.preschool_id
+        AND u.preschool_id = petty_cash_accounts.school_id
         AND u.role IN ('principal', 'admin', 'superadmin')
     )
 );
@@ -80,7 +80,7 @@ USING (
     EXISTS (
         SELECT 1 FROM public.users u 
         WHERE u.auth_user_id = auth.uid() 
-        AND u.preschool_id = petty_cash_accounts.preschool_id
+        AND u.preschool_id = petty_cash_accounts.school_id
         AND u.role IN ('principal', 'admin', 'superadmin')
     )
 );
@@ -91,7 +91,7 @@ USING (
     EXISTS (
         SELECT 1 FROM public.users u 
         WHERE u.auth_user_id = auth.uid() 
-        AND u.preschool_id = petty_cash_accounts.preschool_id
+        AND u.preschool_id = petty_cash_accounts.school_id
         AND u.role IN ('principal', 'admin', 'superadmin')
     )
 );
