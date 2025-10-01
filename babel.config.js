@@ -12,6 +12,18 @@ module.exports = function (api) {
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },
       ],
+      [
+        'transform-inline-environment-variables',
+        {
+          include: [
+            'EXPO_PUBLIC_SUPABASE_URL',
+            'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+            'EXPO_PUBLIC_TENANT_SLUG',
+            'EXPO_PUBLIC_ENVIRONMENT',
+            'EXPO_PUBLIC_APP_SCHEME',
+          ],
+        },
+      ],
       'react-native-reanimated/plugin',
     ],
   };

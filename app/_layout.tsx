@@ -34,6 +34,12 @@ if (Platform.OS === 'web') {
 export default function RootLayout() {
   // Hide development navigation header on web
   useEffect(() => {
+    // Track OTA/app launch (non-blocking)
+    try {
+      const { trackAppLaunch } = require('@/lib/otaObservability');
+      trackAppLaunch();
+    } catch {}
+
     if (Platform.OS === 'web') {
       const style = document.createElement('style');
       style.textContent = `

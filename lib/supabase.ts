@@ -50,26 +50,27 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Enhanced debugging for environment variable loading (development only)
+// Enhanced debugging for environment variable loading
 const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
-if (isDevelopment) {
-  try {
-    logger.debug('Supabase env check', { 
-      hasUrl: !!url, 
-      hasAnon: !!anon,
-      urlLength: url ? url.length : 0,
-      anonLength: anon ? anon.length : 0,
-      urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
-      anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING'
-    });
-    if (!url || !anon) {
-      logger.error('Missing Supabase environment variables!');
-      logger.error('EXPO_PUBLIC_SUPABASE_URL:', url ? 'present' : 'MISSING');
-      logger.error('EXPO_PUBLIC_SUPABASE_ANON_KEY:', anon ? 'present' : 'MISSING');
-    }
-  } catch (e) {
-    logger.error('Supabase debug error:', e);
+const envName = process.env.EXPO_PUBLIC_ENVIRONMENT || process.env.NODE_ENV || 'unknown';
+try {
+  const meta = { 
+    hasUrl: !!url, 
+    hasAnon: !!anon,
+    urlLength: url ? url.length : 0,
+    anonLength: anon ? anon.length : 0,
+    urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
+    anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING',
+    env: envName,
+  };
+  if (isDevelopment) {
+    logger.debug('Supabase env check', meta);
+  } else if (envName === 'preview') {
+    // Log minimally in preview to help diagnose missing env in release builds (no secrets)
+    console.log('[Supabase] Env summary', meta);
   }
+} catch (e) {
+  try { logger.error('Supabase debug error:', e); } catch {}
 }
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
