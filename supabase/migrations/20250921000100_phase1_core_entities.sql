@@ -11,74 +11,74 @@ BEGIN;
 
 -- Courses Table
 CREATE TABLE IF NOT EXISTS public.courses (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Basic course information
-    title TEXT NOT NULL CHECK (LENGTH(title) >= 1 AND LENGTH(title) <= 255),
-    description TEXT,
-    course_code TEXT CHECK (LENGTH(course_code) <= 20),
-    
-    -- Relationships
-    instructor_id UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
-    organization_id UUID NOT NULL REFERENCES preschools(id) ON DELETE CASCADE,
-    
-    -- Course settings
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    max_students INTEGER CHECK (max_students > 0),
-    join_code TEXT UNIQUE, -- Generated join code for student enrollment
-    join_code_expires_at TIMESTAMPTZ,
-    
-    -- Academic periods
-    start_date DATE,
-    end_date DATE CHECK (end_date IS NULL OR end_date > start_date),
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Soft delete support
-    deleted_at TIMESTAMPTZ,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    CONSTRAINT courses_dates_check CHECK (start_date IS NULL OR end_date IS NULL OR end_date > start_date),
-    CONSTRAINT courses_join_code_check CHECK (join_code IS NULL OR LENGTH(join_code) >= 6)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Basic course information
+  title TEXT NOT NULL CHECK (length(title) >= 1 AND length(title) <= 255),
+  description TEXT,
+  course_code TEXT CHECK (length(course_code) <= 20),
+
+  -- Relationships
+  instructor_id UUID NOT NULL REFERENCES profiles (id) ON DELETE RESTRICT,
+  organization_id UUID NOT NULL REFERENCES preschools (id) ON DELETE CASCADE,
+
+  -- Course settings
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  max_students INTEGER CHECK (max_students > 0),
+  join_code TEXT UNIQUE, -- Generated join code for student enrollment
+  join_code_expires_at TIMESTAMPTZ,
+
+  -- Academic periods
+  start_date DATE,
+  end_date DATE CHECK (end_date IS NULL OR end_date > start_date),
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Soft delete support
+  deleted_at TIMESTAMPTZ,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  CONSTRAINT courses_dates_check CHECK (start_date IS NULL OR end_date IS NULL OR end_date > start_date),
+  CONSTRAINT courses_join_code_check CHECK (join_code IS NULL OR length(join_code) >= 6)
 );
 
 -- Enrollments Table (Many-to-Many relationship between students and courses)
 CREATE TABLE IF NOT EXISTS public.enrollments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Relationships
-    student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-    
-    -- Enrollment details
-    enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    enrollment_method TEXT NOT NULL DEFAULT 'manual' CHECK (
-        enrollment_method IN ('manual', 'join_code', 'admin_assigned', 'imported')
-    ),
-    
-    -- Status tracking
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    dropped_at TIMESTAMPTZ,
-    drop_reason TEXT,
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    UNIQUE(student_id, course_id), -- One enrollment per student per course
-    CONSTRAINT enrollments_drop_check CHECK (
-        (is_active = true AND dropped_at IS NULL) OR 
-        (is_active = false AND dropped_at IS NOT NULL)
-    )
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  student_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+  course_id UUID NOT NULL REFERENCES courses (id) ON DELETE CASCADE,
+
+  -- Enrollment details
+  enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  enrollment_method TEXT NOT NULL DEFAULT 'manual' CHECK (
+    enrollment_method IN ('manual', 'join_code', 'admin_assigned', 'imported')
+  ),
+
+  -- Status tracking
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  dropped_at TIMESTAMPTZ,
+  drop_reason TEXT,
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  UNIQUE (student_id, course_id), -- One enrollment per student per course
+  CONSTRAINT enrollments_drop_check CHECK (
+    (is_active = TRUE AND dropped_at IS NULL)
+    OR (is_active = FALSE AND dropped_at IS NOT NULL)
+  )
 );
 
 -- Add missing columns to existing assignments table
@@ -159,83 +159,83 @@ END $$;
 
 -- Submissions Table
 CREATE TABLE IF NOT EXISTS public.submissions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Relationships
-    assignment_id UUID NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
-    student_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    
-    -- Submission content
-    content TEXT, -- Text submission
-    attachments JSONB DEFAULT '[]'::jsonb, -- File attachments (URLs)
-    submission_type TEXT NOT NULL DEFAULT 'text' CHECK (
-        submission_type IN ('text', 'file', 'url', 'multiple')
-    ),
-    
-    -- Submission tracking
-    attempt_number INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number > 0),
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    is_late BOOLEAN NOT NULL DEFAULT false,
-    is_draft BOOLEAN NOT NULL DEFAULT false,
-    
-    -- AI assistance tracking (for academic integrity)
-    ai_assistance_used BOOLEAN NOT NULL DEFAULT false,
-    ai_assistance_details JSONB DEFAULT '{}'::jsonb,
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    UNIQUE(assignment_id, student_id, attempt_number), -- One submission per attempt
-    CONSTRAINT submissions_content_check CHECK (
-        (submission_type = 'text' AND content IS NOT NULL) OR
-        (submission_type IN ('file', 'url', 'multiple') AND attachments != '[]'::jsonb) OR
-        is_draft = true
-    )
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  assignment_id UUID NOT NULL REFERENCES assignments (id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+
+  -- Submission content
+  content TEXT, -- Text submission
+  attachments JSONB DEFAULT '[]'::JSONB, -- File attachments (URLs)
+  submission_type TEXT NOT NULL DEFAULT 'text' CHECK (
+    submission_type IN ('text', 'file', 'url', 'multiple')
+  ),
+
+  -- Submission tracking
+  attempt_number INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number > 0),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  is_late BOOLEAN NOT NULL DEFAULT FALSE,
+  is_draft BOOLEAN NOT NULL DEFAULT FALSE,
+
+  -- AI assistance tracking (for academic integrity)
+  ai_assistance_used BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_assistance_details JSONB DEFAULT '{}'::JSONB,
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  UNIQUE (assignment_id, student_id, attempt_number), -- One submission per attempt
+  CONSTRAINT submissions_content_check CHECK (
+    (submission_type = 'text' AND content IS NOT NULL)
+    OR (submission_type IN ('file', 'url', 'multiple') AND attachments != '[]'::JSONB)
+    OR is_draft = TRUE
+  )
 );
 
 -- Grades Table
 CREATE TABLE IF NOT EXISTS public.grades (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Relationships
-    submission_id UUID NOT NULL REFERENCES submissions(id) ON DELETE CASCADE,
-    graded_by UUID NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
-    
-    -- Grade information
-    points_earned DECIMAL(8,2) NOT NULL CHECK (points_earned >= 0),
-    points_possible DECIMAL(8,2) NOT NULL CHECK (points_possible > 0),
-    percentage DECIMAL(5,2) GENERATED ALWAYS AS ((points_earned / points_possible) * 100) STORED,
-    
-    -- Letter grade (optional)
-    letter_grade TEXT CHECK (letter_grade ~ '^[A-F][+-]?$|^Pass$|^Fail$|^Incomplete$'),
-    
-    -- Feedback
-    feedback TEXT,
-    rubric_scores JSONB DEFAULT '{}'::jsonb, -- Structured rubric scoring
-    
-    -- AI assistance in grading
-    ai_assistance_used BOOLEAN NOT NULL DEFAULT false,
-    ai_suggestions JSONB DEFAULT '{}'::jsonb,
-    
-    -- Status
-    is_final BOOLEAN NOT NULL DEFAULT true,
-    is_published BOOLEAN NOT NULL DEFAULT false, -- Students can see published grades
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    UNIQUE(submission_id), -- One grade per submission
-    CONSTRAINT grades_points_check CHECK (points_earned <= points_possible)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  submission_id UUID NOT NULL REFERENCES submissions (id) ON DELETE CASCADE,
+  graded_by UUID NOT NULL REFERENCES profiles (id) ON DELETE RESTRICT,
+
+  -- Grade information
+  points_earned DECIMAL(8, 2) NOT NULL CHECK (points_earned >= 0),
+  points_possible DECIMAL(8, 2) NOT NULL CHECK (points_possible > 0),
+  percentage DECIMAL(5, 2) GENERATED ALWAYS AS ((points_earned / points_possible) * 100) STORED,
+
+  -- Letter grade (optional)
+  letter_grade TEXT CHECK (letter_grade ~ '^[A-F][+-]?$|^Pass$|^Fail$|^Incomplete$'),
+
+  -- Feedback
+  feedback TEXT,
+  rubric_scores JSONB DEFAULT '{}'::JSONB, -- Structured rubric scoring
+
+  -- AI assistance in grading
+  ai_assistance_used BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_suggestions JSONB DEFAULT '{}'::JSONB,
+
+  -- Status
+  is_final BOOLEAN NOT NULL DEFAULT TRUE,
+  is_published BOOLEAN NOT NULL DEFAULT FALSE, -- Students can see published grades
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  UNIQUE (submission_id), -- One grade per submission
+  CONSTRAINT grades_points_check CHECK (points_earned <= points_possible)
 );
 
 -- ====================================================================
@@ -243,36 +243,37 @@ CREATE TABLE IF NOT EXISTS public.grades (
 -- ====================================================================
 
 -- Courses indexes
-CREATE INDEX IF NOT EXISTS idx_courses_instructor_id ON courses(instructor_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_courses_organization_id ON courses(organization_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_courses_active ON courses(is_active) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_courses_join_code ON courses(join_code) WHERE join_code IS NOT NULL AND deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_courses_dates ON courses(start_date, end_date) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_courses_instructor_id ON courses (instructor_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_courses_organization_id ON courses (organization_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_courses_active ON courses (is_active) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_courses_join_code ON courses (join_code) WHERE join_code IS NOT NULL
+AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_courses_dates ON courses (start_date, end_date) WHERE deleted_at IS NULL;
 
 -- Enrollments indexes
-CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments(student_id);
-CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments(course_id);
-CREATE INDEX IF NOT EXISTS idx_enrollments_active ON enrollments(is_active);
-CREATE INDEX IF NOT EXISTS idx_enrollments_enrolled_at ON enrollments(enrolled_at);
+CREATE INDEX IF NOT EXISTS idx_enrollments_student_id ON enrollments (student_id);
+CREATE INDEX IF NOT EXISTS idx_enrollments_course_id ON enrollments (course_id);
+CREATE INDEX IF NOT EXISTS idx_enrollments_active ON enrollments (is_active);
+CREATE INDEX IF NOT EXISTS idx_enrollments_enrolled_at ON enrollments (enrolled_at);
 
 -- Assignments indexes
-CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments(course_id) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_assignments_due_at ON assignments(due_at) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_assignments_assigned_at ON assignments(assigned_at) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_assignments_type ON assignments(assignment_type) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_assignments_course_id ON assignments (course_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_assignments_due_at ON assignments (due_at) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_assignments_assigned_at ON assignments (assigned_at) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_assignments_type ON assignments (assignment_type) WHERE deleted_at IS NULL;
 
 -- Submissions indexes
-CREATE INDEX IF NOT EXISTS idx_submissions_assignment_id ON submissions(assignment_id);
-CREATE INDEX IF NOT EXISTS idx_submissions_student_id ON submissions(student_id);
-CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at);
-CREATE INDEX IF NOT EXISTS idx_submissions_is_draft ON submissions(is_draft);
-CREATE INDEX IF NOT EXISTS idx_submissions_is_late ON submissions(is_late);
+CREATE INDEX IF NOT EXISTS idx_submissions_assignment_id ON submissions (assignment_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_student_id ON submissions (student_id);
+CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions (submitted_at);
+CREATE INDEX IF NOT EXISTS idx_submissions_is_draft ON submissions (is_draft);
+CREATE INDEX IF NOT EXISTS idx_submissions_is_late ON submissions (is_late);
 
 -- Grades indexes
-CREATE INDEX IF NOT EXISTS idx_grades_submission_id ON grades(submission_id);
-CREATE INDEX IF NOT EXISTS idx_grades_graded_by ON grades(graded_by);
-CREATE INDEX IF NOT EXISTS idx_grades_is_published ON grades(is_published);
-CREATE INDEX IF NOT EXISTS idx_grades_created_at ON grades(created_at);
+CREATE INDEX IF NOT EXISTS idx_grades_submission_id ON grades (submission_id);
+CREATE INDEX IF NOT EXISTS idx_grades_graded_by ON grades (graded_by);
+CREATE INDEX IF NOT EXISTS idx_grades_is_published ON grades (is_published);
+CREATE INDEX IF NOT EXISTS idx_grades_created_at ON grades (created_at);
 
 -- ====================================================================
 -- PART 3: UTILITY FUNCTIONS

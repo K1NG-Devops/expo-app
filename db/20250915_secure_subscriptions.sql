@@ -2,8 +2,8 @@
 -- Run this in Supabase SQL editor with service role or via CLI
 
 -- 1) Public read access to active plans via RPC (keeps RLS intact)
-create or replace function public.public_list_plans()
-returns table (
+CREATE OR REPLACE FUNCTION public.public_list_plans()
+RETURNS TABLE (
   id uuid,
   name text,
   tier text,
@@ -12,51 +12,51 @@ returns table (
   max_teachers int,
   max_students int,
   is_active boolean
-) language sql stable security definer as $$
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$
   select p.id, p.name, p.tier, p.price_monthly, p.price_annual, p.max_teachers, p.max_students, coalesce(p.is_active, true)
   from public.subscription_plans p
   where coalesce(p.is_active, true) = true
   order by p.price_monthly nulls last;
 $$;
 
-revoke all on function public.public_list_plans from public;
-grant execute on function public.public_list_plans() to anon, authenticated;
+REVOKE ALL ON FUNCTION public.public_list_plans FROM public;
+GRANT EXECUTE ON FUNCTION public.public_list_plans() TO anon, authenticated;
 
 -- 2) Public read access to schools list via RPC (minimal columns)
-create or replace function public.public_list_schools()
-returns table (
+CREATE OR REPLACE FUNCTION public.public_list_schools()
+RETURNS TABLE (
   id uuid,
   name text,
   tenant_slug text,
   subscription_tier text
-) language sql stable security definer as $$
+) LANGUAGE sql STABLE SECURITY DEFINER AS $$
   select s.id, s.name, s.tenant_slug, s.subscription_tier
   from public.preschools s
   order by s.name asc
 $$;
 
-revoke all on function public.public_list_schools from public;
-grant execute on function public.public_list_schools() to authenticated;
+REVOKE ALL ON FUNCTION public.public_list_schools FROM public;
+GRANT EXECUTE ON FUNCTION public.public_list_schools() TO authenticated;
 
 -- 3) Admin RPC to create a school-owned subscription safely (checks role)
 -- Ensure only one canonical signature exists by dropping possible overloads first
 -- Variations that may have been created previously (varchar/uuid variations etc.)
-drop function if exists public.admin_create_school_subscription(uuid, text, text, int);
-drop function if exists public.admin_create_school_subscription(uuid, text, text, integer);
-drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar, int);
-drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar, integer);
-drop function if exists public.admin_create_school_subscription(uuid, text, text);
-drop function if exists public.admin_create_school_subscription(uuid, varchar, varchar);
-drop function if exists public.admin_create_school_subscription(uuid, uuid, text, int);
-drop function if exists public.admin_create_school_subscription(uuid, uuid, text, integer);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, text, text, int);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, text, text, integer);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, varchar, varchar, int);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, varchar, varchar, integer);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, text, text);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, varchar, varchar);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, uuid, text, int);
+DROP FUNCTION IF EXISTS public.admin_create_school_subscription(uuid, uuid, text, integer);
 
-create or replace function public.admin_create_school_subscription(
+CREATE OR REPLACE FUNCTION public.admin_create_school_subscription(
   p_school_id uuid,
   p_plan_id text,
   p_billing_frequency text,
-  p_seats_total int default 1
-) returns uuid
-language plpgsql security definer as $$
+  p_seats_total int DEFAULT 1
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER AS $$
 declare
   v_sub_id uuid;
   v_is_admin boolean;
@@ -99,18 +99,18 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_create_school_subscription(uuid, text, text, int) from public;
-grant execute on function public.admin_create_school_subscription(uuid, text, text, int) to authenticated;
+REVOKE ALL ON FUNCTION public.admin_create_school_subscription(uuid, text, text, int) FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_create_school_subscription(uuid, text, text, int) TO authenticated;
 
 -- 4) Optional: RLS policies for read-only access if not present
 -- Allow read of subscriptions to authenticated users who are super admins
-create or replace function public.app_is_super_admin()
-returns boolean language sql stable as $$
+CREATE OR REPLACE FUNCTION public.app_is_super_admin()
+RETURNS boolean LANGUAGE sql STABLE AS $$
   select exists (
     select 1 from public.profiles p where p.id = auth.uid() and p.role in ('superadmin','super_admin')
   );
 $$;
 
-drop policy if exists subscriptions_admin_read on public.subscriptions;
-create policy subscriptions_admin_read on public.subscriptions
-for select using (public.app_is_super_admin());
+DROP POLICY IF EXISTS subscriptions_admin_read ON public.subscriptions;
+CREATE POLICY subscriptions_admin_read ON public.subscriptions
+FOR SELECT USING (public.app_is_super_admin());

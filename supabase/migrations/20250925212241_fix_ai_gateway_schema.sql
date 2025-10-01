@@ -34,8 +34,8 @@ BEGIN
 END $$;
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS ai_services_provider_idx ON public.ai_services(provider);
-CREATE INDEX IF NOT EXISTS ai_services_active_idx ON public.ai_services(is_active, is_available);
+CREATE INDEX IF NOT EXISTS ai_services_provider_idx ON public.ai_services (provider);
+CREATE INDEX IF NOT EXISTS ai_services_active_idx ON public.ai_services (is_active, is_available);
 
 -- ====================================================================
 -- 2. CREATE AI_USAGE_LOGS TABLE  
@@ -43,54 +43,54 @@ CREATE INDEX IF NOT EXISTS ai_services_active_idx ON public.ai_services(is_activ
 -- This table has different schema than ai_usage table, matching AI Gateway expectations
 
 CREATE TABLE IF NOT EXISTS public.ai_usage_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Service and model information
-    ai_service_id TEXT REFERENCES public.ai_services(id),
-    ai_model_used TEXT NOT NULL,
-    
-    -- Request details
-    system_prompt TEXT,
-    input_text TEXT,
-    output_text TEXT,
-    service_type TEXT NOT NULL, -- 'lesson_generation', 'homework_help', 'grading_assistance'
-    
-    -- Usage metrics
-    input_tokens INTEGER,
-    output_tokens INTEGER,
-    total_cost DECIMAL(10,6),
-    processing_time_ms INTEGER,
-    
-    -- User and organization
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    organization_id UUID REFERENCES public.preschools(id) ON DELETE CASCADE,
-    preschool_id UUID REFERENCES public.preschools(id) ON DELETE CASCADE,
-    
-    -- Status and error handling
-    status TEXT NOT NULL DEFAULT 'success', -- 'success', 'error', 'timeout'
-    error_message TEXT,
-    
-    -- Metadata
-    metadata JSONB DEFAULT '{}'::jsonb,
-    request_id TEXT, -- For tracing
-    user_agent TEXT,
-    ip_address INET,
-    
-    -- Timestamps
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    CHECK (status IN ('success', 'error', 'timeout', 'cancelled')),
-    CHECK (service_type IN ('lesson_generation', 'homework_help', 'grading_assistance', 'general'))
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Service and model information
+  ai_service_id TEXT REFERENCES public.ai_services (id),
+  ai_model_used TEXT NOT NULL,
+
+  -- Request details
+  system_prompt TEXT,
+  input_text TEXT,
+  output_text TEXT,
+  service_type TEXT NOT NULL, -- 'lesson_generation', 'homework_help', 'grading_assistance'
+
+  -- Usage metrics
+  input_tokens INTEGER,
+  output_tokens INTEGER,
+  total_cost DECIMAL(10, 6),
+  processing_time_ms INTEGER,
+
+  -- User and organization
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.preschools (id) ON DELETE CASCADE,
+  preschool_id UUID REFERENCES public.preschools (id) ON DELETE CASCADE,
+
+  -- Status and error handling
+  status TEXT NOT NULL DEFAULT 'success', -- 'success', 'error', 'timeout'
+  error_message TEXT,
+
+  -- Metadata
+  metadata JSONB DEFAULT '{}'::JSONB,
+  request_id TEXT, -- For tracing
+  user_agent TEXT,
+  ip_address INET,
+
+  -- Timestamps
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  CHECK (status IN ('success', 'error', 'timeout', 'cancelled')),
+  CHECK (service_type IN ('lesson_generation', 'homework_help', 'grading_assistance', 'general'))
 );
 
 -- Add indexes for performance and queries
-CREATE INDEX IF NOT EXISTS ai_usage_logs_user_id_idx ON public.ai_usage_logs(user_id);
-CREATE INDEX IF NOT EXISTS ai_usage_logs_org_id_idx ON public.ai_usage_logs(organization_id);
-CREATE INDEX IF NOT EXISTS ai_usage_logs_service_type_idx ON public.ai_usage_logs(service_type);
-CREATE INDEX IF NOT EXISTS ai_usage_logs_status_idx ON public.ai_usage_logs(status);
-CREATE INDEX IF NOT EXISTS ai_usage_logs_created_at_idx ON public.ai_usage_logs(created_at);
-CREATE INDEX IF NOT EXISTS ai_usage_logs_user_created_idx ON public.ai_usage_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_user_id_idx ON public.ai_usage_logs (user_id);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_org_id_idx ON public.ai_usage_logs (organization_id);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_service_type_idx ON public.ai_usage_logs (service_type);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_status_idx ON public.ai_usage_logs (status);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_created_at_idx ON public.ai_usage_logs (created_at);
+CREATE INDEX IF NOT EXISTS ai_usage_logs_user_created_idx ON public.ai_usage_logs (user_id, created_at);
 
 -- ====================================================================
 -- 3. ENABLE RLS ON BOTH TABLES
@@ -104,35 +104,36 @@ ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
 -- ====================================================================
 
 -- AI Services - Public read access for service info, admin write access
-DROP POLICY IF EXISTS "ai_services_read_policy" ON public.ai_services;
-CREATE POLICY "ai_services_read_policy" ON public.ai_services
-    FOR SELECT TO authenticated
-    USING (is_active = true AND is_available = true);
+DROP POLICY IF EXISTS ai_services_read_policy ON public.ai_services;
+CREATE POLICY ai_services_read_policy ON public.ai_services
+FOR SELECT TO authenticated
+USING (is_active = TRUE AND is_available = TRUE);
 
-DROP POLICY IF EXISTS "ai_services_write_policy" ON public.ai_services;  
-CREATE POLICY "ai_services_write_policy" ON public.ai_services
-    FOR INSERT TO authenticated
-    WITH CHECK (true); -- Allow upserts from Edge Functions
+DROP POLICY IF EXISTS ai_services_write_policy ON public.ai_services;
+CREATE POLICY ai_services_write_policy ON public.ai_services
+FOR INSERT TO authenticated
+WITH CHECK (TRUE); -- Allow upserts from Edge Functions
 
 -- AI Usage Logs - Users can only see their own logs
-DROP POLICY IF EXISTS "ai_usage_logs_read_policy" ON public.ai_usage_logs;
-CREATE POLICY "ai_usage_logs_read_policy" ON public.ai_usage_logs
-    FOR SELECT TO authenticated
-    USING (
-        user_id = auth.uid() 
-        OR 
-        organization_id IN (
-            SELECT organization_id 
-            FROM public.profiles 
-            WHERE id = auth.uid() 
-            AND role IN ('principal', 'admin')
-        )
-    );
+DROP POLICY IF EXISTS ai_usage_logs_read_policy ON public.ai_usage_logs;
+CREATE POLICY ai_usage_logs_read_policy ON public.ai_usage_logs
+FOR SELECT TO authenticated
+USING (
+  user_id = auth.uid()
+  OR
+  organization_id IN (
+    SELECT organization_id
+    FROM public.profiles
+    WHERE
+      id = auth.uid()
+      AND role IN ('principal', 'admin')
+  )
+);
 
-DROP POLICY IF EXISTS "ai_usage_logs_write_policy" ON public.ai_usage_logs;
-CREATE POLICY "ai_usage_logs_write_policy" ON public.ai_usage_logs
-    FOR INSERT TO authenticated
-    WITH CHECK (user_id = auth.uid());
+DROP POLICY IF EXISTS ai_usage_logs_write_policy ON public.ai_usage_logs;
+CREATE POLICY ai_usage_logs_write_policy ON public.ai_usage_logs
+FOR INSERT TO authenticated
+WITH CHECK (user_id = auth.uid());
 
 -- ====================================================================
 -- 5. GRANT PERMISSIONS
@@ -243,15 +244,15 @@ END $$;
 
 -- Function to get AI usage statistics
 CREATE OR REPLACE FUNCTION public.get_user_ai_usage_stats(
-    p_user_id UUID DEFAULT auth.uid(),
-    p_period_days INTEGER DEFAULT 30
+  p_user_id UUID DEFAULT auth.uid(),
+  p_period_days INTEGER DEFAULT 30
 )
 RETURNS TABLE (
-    service_type TEXT,
-    total_requests BIGINT,
-    total_tokens BIGINT,
-    total_cost DECIMAL,
-    avg_tokens_per_request DECIMAL
+  service_type TEXT,
+  total_requests BIGINT,
+  total_tokens BIGINT,
+  total_cost DECIMAL,
+  avg_tokens_per_request DECIMAL
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -278,15 +279,15 @@ $$;
 
 -- Function to check if user has exceeded quota
 CREATE OR REPLACE FUNCTION public.check_ai_quota(
-    p_user_id UUID DEFAULT auth.uid(),
-    p_service_type TEXT DEFAULT 'lesson_generation',
-    p_period_days INTEGER DEFAULT 30
+  p_user_id UUID DEFAULT auth.uid(),
+  p_service_type TEXT DEFAULT 'lesson_generation',
+  p_period_days INTEGER DEFAULT 30
 )
 RETURNS TABLE (
-    requests_used BIGINT,
-    quota_limit INTEGER,
-    quota_remaining INTEGER,
-    is_over_quota BOOLEAN
+  requests_used BIGINT,
+  quota_limit INTEGER,
+  quota_remaining INTEGER,
+  is_over_quota BOOLEAN
 )
 LANGUAGE plpgsql
 SECURITY DEFINER

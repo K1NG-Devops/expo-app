@@ -2,17 +2,17 @@
 -- Run this in Supabase SQL Editor with service role permissions
 
 -- 1. First, let's create the admin_create_school_subscription function
-create or replace function public.admin_create_school_subscription(
+CREATE OR REPLACE FUNCTION public.admin_create_school_subscription(
   p_school_id uuid,
   p_plan_id text,
   p_billing_frequency text,
-  p_seats_total int default 1,
-  p_start_trial boolean default false
-) returns uuid 
-language plpgsql 
-security definer 
-set search_path = public
-as $$
+  p_seats_total int DEFAULT 1,
+  p_start_trial boolean DEFAULT FALSE
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 declare 
   v_id uuid; 
   v_start timestamptz := now(); 
@@ -119,18 +119,18 @@ end;
 $$;
 
 -- 2. Update the admin_update_subscription_plan function with correct parameter order
-create or replace function public.admin_update_subscription_plan(
+CREATE OR REPLACE FUNCTION public.admin_update_subscription_plan(
   p_billing_frequency text,
   p_metadata jsonb,
   p_new_plan_id text,
   p_reason text,
   p_seats_total int,
   p_subscription_id uuid
-) returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 declare
   v_is_admin boolean;
   v_sub record;
@@ -261,11 +261,11 @@ end;
 $$;
 
 -- 3. Grant proper permissions
-revoke all on function public.admin_create_school_subscription from public;
-grant execute on function public.admin_create_school_subscription(uuid, text, text, int, boolean) to authenticated;
+REVOKE ALL ON FUNCTION public.admin_create_school_subscription FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_create_school_subscription(uuid, text, text, int, boolean) TO authenticated;
 
-revoke all on function public.admin_update_subscription_plan from public;
-grant execute on function public.admin_update_subscription_plan(text, jsonb, text, text, int, uuid) to authenticated;
+REVOKE ALL ON FUNCTION public.admin_update_subscription_plan FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_update_subscription_plan(text, jsonb, text, text, int, uuid) TO authenticated;
 
 -- 4. Add subscription status enum if missing
 DO $$ 
@@ -281,11 +281,12 @@ BEGIN
 END $$;
 
 -- Verify functions exist
-SELECT 
+SELECT
   routine_name,
   routine_type,
   specific_name
-FROM information_schema.routines 
-WHERE routine_schema = 'public' 
+FROM information_schema.routines
+WHERE
+  routine_schema = 'public'
   AND routine_name IN ('admin_create_school_subscription', 'admin_update_subscription_plan')
 ORDER BY routine_name;

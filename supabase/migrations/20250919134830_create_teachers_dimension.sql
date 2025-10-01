@@ -7,16 +7,16 @@
 
 -- 1) Table: teachers
 CREATE TABLE IF NOT EXISTS public.teachers (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id uuid NOT NULL UNIQUE REFERENCES public.users (id) ON DELETE CASCADE,
-    auth_user_id uuid REFERENCES auth.users (id) ON DELETE CASCADE,
-    preschool_id uuid REFERENCES public.preschools (id) ON DELETE SET NULL,
-    full_name text,
-    email text,
-    role text NOT NULL DEFAULT 'teacher' CHECK (role = 'teacher'),
-    is_active boolean NOT NULL DEFAULT true,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL UNIQUE REFERENCES public.users (id) ON DELETE CASCADE,
+  auth_user_id uuid REFERENCES auth.users (id) ON DELETE CASCADE,
+  preschool_id uuid REFERENCES public.preschools (id) ON DELETE SET NULL,
+  full_name text,
+  email text,
+  role text NOT NULL DEFAULT 'teacher' CHECK (role = 'teacher'),
+  is_active boolean NOT NULL DEFAULT TRUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 -- 2) Updated-at trigger (reuse if helper exists)
@@ -157,7 +157,7 @@ GRANT EXECUTE ON FUNCTION public.refresh_teachers_dimension() TO authenticated;
 
 -- 6) Indexes
 CREATE INDEX IF NOT EXISTS idx_teachers_preschool_id ON public.teachers (
-    preschool_id
+  preschool_id
 );
 CREATE INDEX IF NOT EXISTS idx_teachers_user_id ON public.teachers (user_id);
 
@@ -171,9 +171,9 @@ ON public.teachers
 FOR SELECT
 TO authenticated
 USING (
-    app_auth.is_superadmin()
-    OR (preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id())
-    OR user_id IS NOT DISTINCT FROM app_auth.current_user_id()
+  app_auth.is_superadmin()
+  OR (preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id())
+  OR user_id IS NOT DISTINCT FROM app_auth.current_user_id()
 );
 
 -- Write: superadmin OR principal in same tenant with capability
@@ -183,20 +183,20 @@ ON public.teachers
 FOR ALL
 TO authenticated
 USING (
-    app_auth.is_superadmin()
-    OR (
-        preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id()
-        AND app_auth.is_principal()
-        AND app_auth.has_cap('manage_teachers')
-    )
+  app_auth.is_superadmin()
+  OR (
+    preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id()
+    AND app_auth.is_principal()
+    AND app_auth.has_cap('manage_teachers')
+  )
 )
 WITH CHECK (
-    app_auth.is_superadmin()
-    OR (
-        preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id()
-        AND app_auth.is_principal()
-        AND app_auth.has_cap('manage_teachers')
-    )
+  app_auth.is_superadmin()
+  OR (
+    preschool_id IS NOT DISTINCT FROM app_auth.current_user_org_id()
+    AND app_auth.is_principal()
+    AND app_auth.has_cap('manage_teachers')
+  )
 );
 
 -- 8) Completion notice

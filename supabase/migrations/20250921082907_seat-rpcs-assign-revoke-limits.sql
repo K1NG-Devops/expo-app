@@ -237,7 +237,7 @@ $$;
 -- ====================================================================
 
 CREATE OR REPLACE FUNCTION public.rpc_teacher_seat_limits()
-RETURNS TABLE("limit" int, used int, available int)
+RETURNS TABLE ("limit" int, used int, available int)
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
@@ -297,9 +297,9 @@ $$;
 -- ====================================================================
 
 CREATE OR REPLACE FUNCTION public.rpc_list_teacher_seats()
-RETURNS TABLE(
-  user_id uuid, 
-  assigned_at timestamptz, 
+RETURNS TABLE (
+  user_id uuid,
+  assigned_at timestamptz,
   revoked_at timestamptz,
   assigned_by uuid,
   revoked_by uuid
@@ -367,16 +367,16 @@ GRANT EXECUTE ON FUNCTION public.rpc_list_teacher_seats() TO authenticated, serv
 -- PART 7: FUNCTION COMMENTS
 -- ====================================================================
 
-COMMENT ON FUNCTION public.rpc_assign_teacher_seat(uuid) IS 
+COMMENT ON FUNCTION public.rpc_assign_teacher_seat(uuid) IS
 'Assigns a teacher seat to a user. Principals only. Enforces plan limits and same-school validation.';
 
-COMMENT ON FUNCTION public.rpc_revoke_teacher_seat(uuid) IS 
+COMMENT ON FUNCTION public.rpc_revoke_teacher_seat(uuid) IS
 'Revokes a teacher seat from a user. Principals only. Soft delete via revoked_at timestamp.';
 
-COMMENT ON FUNCTION public.rpc_teacher_seat_limits() IS 
+COMMENT ON FUNCTION public.rpc_teacher_seat_limits() IS
 'Returns seat limits for callers school: limit, used, available. For UI display.';
 
-COMMENT ON FUNCTION public.rpc_list_teacher_seats() IS 
+COMMENT ON FUNCTION public.rpc_list_teacher_seats() IS
 'Lists teacher seats. Principals see all school seats, teachers see own seats only.';
 
 -- ====================================================================
@@ -402,7 +402,7 @@ VALUES (
   'Seat management RPCs completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SEAT MANAGEMENT RPCS CREATED' AS status;

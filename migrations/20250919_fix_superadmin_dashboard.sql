@@ -278,7 +278,7 @@ $$;
 -- Function to create/promote user to superadmin
 CREATE OR REPLACE FUNCTION public.promote_user_to_superadmin(
   target_user_id uuid,
-  target_email text DEFAULT null
+  target_email text DEFAULT NULL
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -504,7 +504,7 @@ VALUES (
     'total_functions', 9
   ),
   'Superadmin dashboard functions fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();

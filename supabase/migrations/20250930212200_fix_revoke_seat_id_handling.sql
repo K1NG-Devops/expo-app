@@ -125,7 +125,7 @@ VALUES (
   'Fix for seat revocation ID type handling',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SEAT REVOCATION ID HANDLING FIXED' AS status;

@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS petty_cash_accounts (
   opening_balance NUMERIC(12, 2) NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'ZAR',
   low_balance_threshold NUMERIC(12, 2) DEFAULT 1000.00,
-  is_active BOOLEAN DEFAULT true,
+  is_active BOOLEAN DEFAULT TRUE,
   notes TEXT,
 
   -- Audit fields
@@ -63,11 +63,11 @@ CREATE TABLE IF NOT EXISTS petty_cash_transactions (
 
   -- Constraints
   CONSTRAINT approved_transactions_have_approver CHECK (
-    (status = 'approved' AND approved_by IS NOT null AND approved_at IS NOT null)
+    (status = 'approved' AND approved_by IS NOT NULL AND approved_at IS NOT NULL)
     OR (status != 'approved')
   ),
   CONSTRAINT rejected_transactions_have_reason CHECK (
-    (status = 'rejected' AND rejection_reason IS NOT null)
+    (status = 'rejected' AND rejection_reason IS NOT NULL)
     OR (status != 'rejected')
   )
 );
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS petty_cash_receipts (
 -- Petty cash accounts indexes
 CREATE INDEX IF NOT EXISTS idx_petty_cash_accounts_school_id ON petty_cash_accounts (school_id);
 CREATE INDEX IF NOT EXISTS idx_petty_cash_accounts_active ON petty_cash_accounts (school_id, is_active) WHERE is_active
-= true;
+= TRUE;
 
 -- Petty cash transactions indexes
 CREATE INDEX IF NOT EXISTS idx_petty_cash_transactions_school_id ON petty_cash_transactions (school_id);
@@ -355,7 +355,7 @@ SELECT
   (a.opening_balance + coalesce(sum(t.signed_amount), 0)) < a.low_balance_threshold AS is_low_balance
 FROM petty_cash_accounts AS a
 LEFT JOIN petty_cash_approved_transactions AS t ON a.id = t.account_id
-WHERE a.is_active = true
+WHERE a.is_active = TRUE
 GROUP BY a.id, a.school_id, a.opening_balance, a.low_balance_threshold;
 
 -- ============================================================================
@@ -377,8 +377,8 @@ $$;
 -- Get petty cash summary for a date range
 CREATE OR REPLACE FUNCTION get_petty_cash_summary(
   school_uuid UUID,
-  start_date TIMESTAMPTZ DEFAULT null,
-  end_date TIMESTAMPTZ DEFAULT null
+  start_date TIMESTAMPTZ DEFAULT NULL,
+  end_date TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS TABLE (
   total_expenses NUMERIC(12, 2),

@@ -67,16 +67,16 @@ END $$;
 -- ====================================================================
 
 -- Index for active seats per subscription
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_active 
-ON public.subscription_seats(subscription_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_active
+ON public.subscription_seats (subscription_id) WHERE revoked_at IS NULL;
 
 -- Index for finding user's seats  
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_user 
-ON public.subscription_seats(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_user
+ON public.subscription_seats (user_id);
 
 -- Index for audit queries by assigned_by
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_assigned_by 
-ON public.subscription_seats(assigned_by) WHERE assigned_by IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_assigned_by
+ON public.subscription_seats (assigned_by) WHERE assigned_by IS NOT NULL;
 
 -- ====================================================================
 -- PART 3: ADD CONSTRAINTS FOR DATA INTEGRITY
@@ -145,14 +145,15 @@ VALUES (
   jsonb_build_object(
     'completed_at', now(),
     'added_columns', ARRAY['assigned_by', 'revoked_at', 'revoked_by', 'is_active'],
-    'added_indexes', ARRAY['idx_subscription_seats_active', 'idx_subscription_seats_user', 'idx_subscription_seats_assigned_by'],
+    'added_indexes',
+    ARRAY['idx_subscription_seats_active', 'idx_subscription_seats_user', 'idx_subscription_seats_assigned_by'],
     'added_constraints', ARRAY['subscription_seats_unique_active_user', 'subscription_seats_revoked_consistency'],
     'rls_enabled', TRUE
   ),
   'Subscription seats table enhancement completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SUBSCRIPTION SEATS TABLE ENHANCED' AS status;

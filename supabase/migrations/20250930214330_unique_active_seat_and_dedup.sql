@@ -43,18 +43,19 @@ WITH ranked AS (
 )
 
 UPDATE public.subscription_seats AS s
-  SET
-    revoked_at = NOW(),
-    revoked_by = COALESCE(auth.uid(), s.assigned_by)
+SET
+  revoked_at = NOW(),
+  revoked_by = COALESCE(auth.uid(), s.assigned_by)
 FROM ranked AS r
-WHERE s.id = r.id
+WHERE
+  s.id = r.id
   AND r.rn > 1;
 
 -- 4) Recalculate seats_used counts on subscriptions
 UPDATE public.subscriptions AS sub
-  SET
-    seats_used = x.active_count,
-    updated_at = NOW()
+SET
+  seats_used = x.active_count,
+  updated_at = NOW()
 FROM (
   SELECT
     subscription_id,

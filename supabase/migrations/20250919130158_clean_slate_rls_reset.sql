@@ -10,19 +10,19 @@ BEGIN;
 -- ============================================================================
 
 -- Drop all known policies on users table
-DROP POLICY IF EXISTS "users_select_own_data" ON public.users;
-DROP POLICY IF EXISTS "users_select_same_preschool" ON public.users;
-DROP POLICY IF EXISTS "users_insert_own_profile" ON public.users;
-DROP POLICY IF EXISTS "users_update_own_profile" ON public.users;
-DROP POLICY IF EXISTS "users_principal_update" ON public.users;
+DROP POLICY IF EXISTS users_select_own_data ON public.users;
+DROP POLICY IF EXISTS users_select_same_preschool ON public.users;
+DROP POLICY IF EXISTS users_insert_own_profile ON public.users;
+DROP POLICY IF EXISTS users_update_own_profile ON public.users;
+DROP POLICY IF EXISTS users_principal_update ON public.users;
 DROP POLICY IF EXISTS "User access control" ON public.users;
-DROP POLICY IF EXISTS "super_admin_users_access" ON public.users;
-DROP POLICY IF EXISTS "principal_users_access" ON public.users;
-DROP POLICY IF EXISTS "users_own_data" ON public.users;
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.users;
-DROP POLICY IF EXISTS "users_rls_read" ON public.users;
-DROP POLICY IF EXISTS "users_rls_write" ON public.users;
-DROP POLICY IF EXISTS "users_table_access" ON public.users;
+DROP POLICY IF EXISTS super_admin_users_access ON public.users;
+DROP POLICY IF EXISTS principal_users_access ON public.users;
+DROP POLICY IF EXISTS users_own_data ON public.users;
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.users;
+DROP POLICY IF EXISTS users_rls_read ON public.users;
+DROP POLICY IF EXISTS users_rls_write ON public.users;
+DROP POLICY IF EXISTS users_table_access ON public.users;
 
 -- Drop any other policies that might exist
 DO $$
@@ -46,14 +46,14 @@ $$;
 -- ============================================================================
 
 -- Drop all known policies on students table
-DROP POLICY IF EXISTS "students_select_same_preschool" ON public.students;
-DROP POLICY IF EXISTS "students_insert_same_preschool" ON public.students;
-DROP POLICY IF EXISTS "students_update_same_preschool" ON public.students;
-DROP POLICY IF EXISTS "students_delete_same_preschool" ON public.students;
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.students;
-DROP POLICY IF EXISTS "students_rls_read" ON public.students;
-DROP POLICY IF EXISTS "students_rls_write" ON public.students;
-DROP POLICY IF EXISTS "students_table_access" ON public.students;
+DROP POLICY IF EXISTS students_select_same_preschool ON public.students;
+DROP POLICY IF EXISTS students_insert_same_preschool ON public.students;
+DROP POLICY IF EXISTS students_update_same_preschool ON public.students;
+DROP POLICY IF EXISTS students_delete_same_preschool ON public.students;
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.students;
+DROP POLICY IF EXISTS students_rls_read ON public.students;
+DROP POLICY IF EXISTS students_rls_write ON public.students;
+DROP POLICY IF EXISTS students_table_access ON public.students;
 
 -- Drop any other policies that might exist on students
 DO $$
@@ -140,7 +140,7 @@ VALUES (
     'next_phase', 'Foundation functions and SELECT policies'
   ),
   'Clean slate reset of RLS policies for systematic rebuild',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();
@@ -148,7 +148,7 @@ VALUES (
 COMMIT;
 
 -- Final verification query
-SELECT 
-    'Clean Slate Reset Complete' AS status,
-    'Users and Students tables ready for incremental RLS implementation' AS message,
-    now() AS reset_timestamp;
+SELECT
+  'Clean Slate Reset Complete' AS status,
+  'Users and Students tables ready for incremental RLS implementation' AS message,
+  now() AS reset_timestamp;

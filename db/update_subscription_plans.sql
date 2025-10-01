@@ -2,9 +2,9 @@
 -- This script will clear old test plans and insert proper subscription tiers
 
 -- First, deactivate all existing plans to avoid conflicts
-UPDATE subscription_plans 
-SET is_active = false 
-WHERE is_active = true;
+UPDATE subscription_plans
+SET is_active = FALSE
+WHERE is_active = TRUE;
 
 -- Insert Free Tier
 INSERT INTO subscription_plans (
@@ -35,19 +35,19 @@ INSERT INTO subscription_plans (
     'Basic reporting',
     'Mobile app access'
   ],
-  true,
+  TRUE,
   ARRAY['preschool', 'k12_school', 'hybrid'],
   now(),
   now()
 ) ON CONFLICT (tier) DO UPDATE SET
-  name = EXCLUDED.name,
-  price_monthly = EXCLUDED.price_monthly,
-  price_annual = EXCLUDED.price_annual,
-  max_teachers = EXCLUDED.max_teachers,
-  max_students = EXCLUDED.max_students,
-  features = EXCLUDED.features,
-  is_active = EXCLUDED.is_active,
-  school_types = EXCLUDED.school_types,
+  name = excluded.name,
+  price_monthly = excluded.price_monthly,
+  price_annual = excluded.price_annual,
+  max_teachers = excluded.max_teachers,
+  max_students = excluded.max_students,
+  features = excluded.features,
+  is_active = excluded.is_active,
+  school_types = excluded.school_types,
   updated_at = now();
 
 -- Insert Starter Tier  
@@ -83,19 +83,19 @@ INSERT INTO subscription_plans (
     'Payment tracking',
     'Petty cash management'
   ],
-  true,
+  TRUE,
   ARRAY['preschool', 'k12_school', 'hybrid'],
   now(),
   now()
 ) ON CONFLICT (tier) DO UPDATE SET
-  name = EXCLUDED.name,
-  price_monthly = EXCLUDED.price_monthly,
-  price_annual = EXCLUDED.price_annual,
-  max_teachers = EXCLUDED.max_teachers,
-  max_students = EXCLUDED.max_students,
-  features = EXCLUDED.features,
-  is_active = EXCLUDED.is_active,
-  school_types = EXCLUDED.school_types,
+  name = excluded.name,
+  price_monthly = excluded.price_monthly,
+  price_annual = excluded.price_annual,
+  max_teachers = excluded.max_teachers,
+  max_students = excluded.max_students,
+  features = excluded.features,
+  is_active = excluded.is_active,
+  school_types = excluded.school_types,
   updated_at = now();
 
 -- Insert Premium Tier
@@ -133,19 +133,19 @@ INSERT INTO subscription_plans (
     'Multiple school support',
     'Advanced user roles'
   ],
-  true,
+  TRUE,
   ARRAY['preschool', 'k12_school', 'hybrid'],
   now(),
   now()
 ) ON CONFLICT (tier) DO UPDATE SET
-  name = EXCLUDED.name,
-  price_monthly = EXCLUDED.price_monthly,
-  price_annual = EXCLUDED.price_annual,
-  max_teachers = EXCLUDED.max_teachers,
-  max_students = EXCLUDED.max_students,
-  features = EXCLUDED.features,
-  is_active = EXCLUDED.is_active,
-  school_types = EXCLUDED.school_types,
+  name = excluded.name,
+  price_monthly = excluded.price_monthly,
+  price_annual = excluded.price_annual,
+  max_teachers = excluded.max_teachers,
+  max_students = excluded.max_students,
+  features = excluded.features,
+  is_active = excluded.is_active,
+  school_types = excluded.school_types,
   updated_at = now();
 
 -- Insert Enterprise Tier
@@ -184,35 +184,35 @@ INSERT INTO subscription_plans (
     'API access',
     'Custom development'
   ],
-  true,
+  TRUE,
   ARRAY['preschool', 'k12_school', 'hybrid'],
   now(),
   now()
 ) ON CONFLICT (tier) DO UPDATE SET
-  name = EXCLUDED.name,
-  price_monthly = EXCLUDED.price_monthly,
-  price_annual = EXCLUDED.price_annual,
-  max_teachers = EXCLUDED.max_teachers,
-  max_students = EXCLUDED.max_students,
-  features = EXCLUDED.features,
-  is_active = EXCLUDED.is_active,
-  school_types = EXCLUDED.school_types,
+  name = excluded.name,
+  price_monthly = excluded.price_monthly,
+  price_annual = excluded.price_annual,
+  max_teachers = excluded.max_teachers,
+  max_students = excluded.max_students,
+  features = excluded.features,
+  is_active = excluded.is_active,
+  school_types = excluded.school_types,
   updated_at = now();
 
 -- Verify the plans were inserted/updated
-SELECT 
+SELECT
   tier,
   name,
   price_monthly,
   price_annual,
   max_teachers,
   max_students,
-  array_length(features, 1) as feature_count,
-  is_active
-FROM subscription_plans 
-WHERE is_active = true
-ORDER BY 
-  CASE tier 
+  is_active,
+  array_length(features, 1) AS feature_count
+FROM subscription_plans
+WHERE is_active = TRUE
+ORDER BY
+  CASE tier
     WHEN 'free' THEN 1
     WHEN 'starter' THEN 2
     WHEN 'premium' THEN 3
@@ -221,8 +221,8 @@ ORDER BY
   END;
 
 -- Show summary
-SELECT 
-  'Subscription plans updated successfully!' as status,
-  count(*) as active_plans
-FROM subscription_plans 
-WHERE is_active = true;
+SELECT
+  'Subscription plans updated successfully!' AS status,
+  count(*) AS active_plans
+FROM subscription_plans
+WHERE is_active = TRUE;

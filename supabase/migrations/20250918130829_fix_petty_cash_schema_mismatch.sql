@@ -62,20 +62,20 @@ END $$;
 
 -- Create the missing get_petty_cash_summary function with correct parameter names
 CREATE OR REPLACE FUNCTION public.get_petty_cash_summary(
-    preschool_uuid UUID,  -- Keep the parameter name as expected by TypeScript
-    start_date TIMESTAMPTZ DEFAULT NULL,
-    end_date TIMESTAMPTZ DEFAULT NULL
+  preschool_uuid UUID,  -- Keep the parameter name as expected by TypeScript
+  start_date TIMESTAMPTZ DEFAULT NULL,
+  end_date TIMESTAMPTZ DEFAULT NULL
 )
 RETURNS TABLE (
-    total_expenses NUMERIC,
-    total_replenishments NUMERIC,
-    total_adjustments NUMERIC,
-    transaction_count INTEGER,
-    pending_count INTEGER,
-    current_balance NUMERIC,
-    is_low_balance BOOLEAN,
-    low_balance_threshold NUMERIC
-) 
+  total_expenses NUMERIC,
+  total_replenishments NUMERIC,
+  total_adjustments NUMERIC,
+  transaction_count INTEGER,
+  pending_count INTEGER,
+  current_balance NUMERIC,
+  is_low_balance BOOLEAN,
+  low_balance_threshold NUMERIC
+)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -135,4 +135,6 @@ GRANT EXECUTE ON FUNCTION public.get_petty_cash_summary(UUID, TIMESTAMPTZ, TIMES
 -- Refresh the schema cache
 NOTIFY pgrst, 'reload schema';
 
-COMMENT ON FUNCTION public.get_petty_cash_summary(UUID, TIMESTAMPTZ, TIMESTAMPTZ) IS 'Returns petty cash summary statistics with current balance calculation';
+COMMENT ON FUNCTION public.get_petty_cash_summary(
+  UUID, TIMESTAMPTZ, TIMESTAMPTZ
+) IS 'Returns petty cash summary statistics with current balance calculation';

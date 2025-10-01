@@ -6,15 +6,16 @@
 -- ============================================
 
 -- First, check current RLS status
-SELECT 
-  'Current RLS Status Check' as section,
+SELECT
+  'Current RLS Status Check' AS section,
   pt.tablename,
-  CASE WHEN pc.relrowsecurity THEN 'RLS ENABLED ✅' ELSE 'RLS DISABLED ❌' END as rls_status
-FROM pg_tables pt
-JOIN pg_class pc ON pt.tablename = pc.relname
-JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-WHERE pt.schemaname = 'public'
-AND pn.nspname = 'public'
+  CASE WHEN pc.relrowsecurity THEN 'RLS ENABLED ✅' ELSE 'RLS DISABLED ❌' END AS rls_status
+FROM pg_tables AS pt
+INNER JOIN pg_class AS pc ON pt.tablename = pc.relname
+INNER JOIN pg_namespace AS pn ON pc.relnamespace = pn.oid
+WHERE
+  pt.schemaname = 'public'
+  AND pn.nspname = 'public'
 ORDER BY pt.tablename;
 
 -- Enable RLS on all critical tables
@@ -192,38 +193,48 @@ BEGIN
 END $$;
 
 -- Final status check - show which tables now have RLS enabled
-SELECT 
-  'FINAL RLS STATUS' as section,
-  pt.tablename,
-  CASE WHEN pc.relrowsecurity THEN '✅ ENABLED' ELSE '❌ DISABLED' END as rls_status,
-  COALESCE(pp.policy_count, 0) as policy_count
-FROM pg_tables pt
-JOIN pg_class pc ON pt.tablename = pc.relname
-JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-LEFT JOIN (
-  SELECT tablename, COUNT(*) as policy_count 
-  FROM pg_policies 
-  WHERE schemaname = 'public' 
+WITH pp AS (
+  SELECT
+    tablename,
+    COUNT(*) AS policy_count
+  FROM pg_policies
+  WHERE schemaname = 'public'
   GROUP BY tablename
-) pp ON pt.tablename = pp.tablename
-WHERE pt.schemaname = 'public'
-AND pn.nspname = 'public'
-ORDER BY rls_status DESC, pt.tablename;
+)
+
+SELECT
+  'FINAL RLS STATUS' AS section,
+  pt.tablename,
+  CASE WHEN pc.relrowsecurity THEN '✅ ENABLED' ELSE '❌ DISABLED' END AS rls_status,
+  COALESCE(pp.policy_count, 0) AS policy_count
+FROM pg_tables AS pt
+INNER JOIN pg_class AS pc ON pt.tablename = pc.relname
+INNER JOIN pg_namespace AS pn ON pc.relnamespace = pn.oid
+LEFT JOIN pp ON pt.tablename = pp.tablename
+WHERE
+  pt.schemaname = 'public'
+  AND pn.nspname = 'public'
+ORDER BY rls_status DESC, pt.tablename ASC;
 
 -- Summary
-SELECT 
-  '🎯 RLS ENABLEMENT COMPLETE' as status,
-  COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) as tables_with_rls_enabled,
-  COUNT(*) as total_public_tables,
-  COALESCE(SUM(pp.policy_count), 0) as total_policies
-FROM pg_tables pt
-JOIN pg_class pc ON pt.tablename = pc.relname
-JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-LEFT JOIN (
-  SELECT tablename, COUNT(*) as policy_count 
-  FROM pg_policies 
-  WHERE schemaname = 'public' 
+WITH pp AS (
+  SELECT
+    tablename,
+    COUNT(*) AS policy_count
+  FROM pg_policies
+  WHERE schemaname = 'public'
   GROUP BY tablename
-) pp ON pt.tablename = pp.tablename
-WHERE pt.schemaname = 'public'
-AND pn.nspname = 'public';
+)
+
+SELECT
+  '🎯 RLS ENABLEMENT COMPLETE' AS status,
+  COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) AS tables_with_rls_enabled,
+  COUNT(*) AS total_public_tables,
+  COALESCE(SUM(pp.policy_count), 0) AS total_policies
+FROM pg_tables AS pt
+INNER JOIN pg_class AS pc ON pt.tablename = pc.relname
+INNER JOIN pg_namespace AS pn ON pc.relnamespace = pn.oid
+LEFT JOIN pp ON pt.tablename = pp.tablename
+WHERE
+  pt.schemaname = 'public'
+  AND pn.nspname = 'public';

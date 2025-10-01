@@ -6,11 +6,20 @@
 -- 1) Create private bucket for voice notes with 50MB size limit
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-  'voice-notes', 
-  'voice-notes', 
-  false, 
+  'voice-notes',
+  'voice-notes',
+  FALSE,
   52428800,  -- 50MB limit
-  ARRAY['audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm', 'audio/ogg', 'audio/m4a', 'audio/aac', 'application/octet-stream']
+  ARRAY[
+    'audio/mp4',
+    'audio/mpeg',
+    'audio/wav',
+    'audio/webm',
+    'audio/ogg',
+    'audio/m4a',
+    'audio/aac',
+    'application/octet-stream'
+  ]
 )
 ON CONFLICT (id) DO UPDATE SET
   file_size_limit = 52428800,
@@ -21,7 +30,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "insert own voice note" ON storage.objects;
-DROP POLICY IF EXISTS "select own voice note" ON storage.objects;  
+DROP POLICY IF EXISTS "select own voice note" ON storage.objects;
 DROP POLICY IF EXISTS "update own voice note" ON storage.objects;
 DROP POLICY IF EXISTS "delete own voice note" ON storage.objects;
 
@@ -96,8 +105,8 @@ USING (
 );
 
 -- 3) Create helper function for generating signed URLs for voice notes
-CREATE OR REPLACE FUNCTION get_voice_note_signed_url(file_path TEXT, expires_in INTEGER DEFAULT 3600)
-RETURNS TEXT
+CREATE OR REPLACE FUNCTION get_voice_note_signed_url(file_path text, expires_in integer DEFAULT 3600)
+RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -125,7 +134,7 @@ COMMENT ON FUNCTION get_voice_note_signed_url IS 'Helper function to generate si
 
 -- 4) Optional: Create cleanup function to remove old voice notes (older than 30 days)
 CREATE OR REPLACE FUNCTION cleanup_old_voice_notes()
-RETURNS INTEGER
+RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$

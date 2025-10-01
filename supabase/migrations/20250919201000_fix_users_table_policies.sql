@@ -11,14 +11,15 @@ BEGIN;
 -- ============================================================================
 
 -- Ensure auth_user_id is populated correctly if it was added
-UPDATE public.users 
-SET auth_user_id = id 
-WHERE auth_user_id IS NULL 
+UPDATE public.users
+SET auth_user_id = id
+WHERE
+  auth_user_id IS NULL
   AND id IS NOT NULL;
 
 -- Ensure is_active has proper values
-UPDATE public.users 
-SET is_active = COALESCE(is_active, true) 
+UPDATE public.users
+SET is_active = COALESCE(is_active, TRUE)
 WHERE is_active IS NULL;
 
 -- ============================================================================
@@ -26,174 +27,203 @@ WHERE is_active IS NULL;
 -- ============================================================================
 
 -- Drop all existing policies
-DROP POLICY IF EXISTS "superadmin_full_access" ON public.users;
-DROP POLICY IF EXISTS "users_own_data" ON public.users;
-DROP POLICY IF EXISTS "principal_school_access" ON public.users;
-DROP POLICY IF EXISTS "teacher_school_view" ON public.users;
+DROP POLICY IF EXISTS superadmin_full_access ON public.users;
+DROP POLICY IF EXISTS users_own_data ON public.users;
+DROP POLICY IF EXISTS principal_school_access ON public.users;
+DROP POLICY IF EXISTS teacher_school_view ON public.users;
 
 -- ============================================================================
 -- PART 3: CREATE ROBUST, FLEXIBLE RLS POLICIES
 -- ============================================================================
 
 -- Policy 1: Superadmin full access (with multiple auth methods)
-CREATE POLICY "users_superadmin_access"
+CREATE POLICY users_superadmin_access
 ON public.users FOR ALL
 TO authenticated
 USING (
   -- Check via JWT claims
   (
-    lower(coalesce((current_setting('request.jwt.claims', true)::jsonb ->> 'role'), '')) IN ('super_admin', 'superadmin')
+    LOWER(COALESCE((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb ->> 'role'), '')) IN (
+      'super_admin', 'superadmin'
+    )
   )
   OR
   -- Check via database (multiple ID matching methods)
   EXISTS (
-    SELECT 1 FROM public.users su
+    SELECT 1 FROM public.users AS su
     WHERE (
-      su.id = auth.uid() OR 
-      su.auth_user_id = auth.uid()
+      su.id = auth.uid()
+      OR su.auth_user_id = auth.uid()
     )
-    AND lower(su.role) IN ('super_admin', 'superadmin')
-    AND coalesce(su.is_active, true) = true
+    AND LOWER(su.role) IN ('super_admin', 'superadmin')
+    AND COALESCE(su.is_active, TRUE) = TRUE
   )
 )
 WITH CHECK (
   -- Same check for modifications
   (
-    lower(coalesce((current_setting('request.jwt.claims', true)::jsonb ->> 'role'), '')) IN ('super_admin', 'superadmin')
+    LOWER(COALESCE((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb ->> 'role'), '')) IN (
+      'super_admin', 'superadmin'
+    )
   )
   OR
   EXISTS (
-    SELECT 1 FROM public.users su
+    SELECT 1 FROM public.users AS su
     WHERE (
-      su.id = auth.uid() OR 
-      su.auth_user_id = auth.uid()
+      su.id = auth.uid()
+      OR su.auth_user_id = auth.uid()
     )
-    AND lower(su.role) IN ('super_admin', 'superadmin')
-    AND coalesce(su.is_active, true) = true
+    AND LOWER(su.role) IN ('super_admin', 'superadmin')
+    AND COALESCE(su.is_active, TRUE) = TRUE
   )
 );
 
 -- Policy 2: Users can access their own data (flexible ID matching)
-CREATE POLICY "users_own_profile_access"
+CREATE POLICY users_own_profile_access
 ON public.users FOR ALL
 TO authenticated
 USING (
-  id = auth.uid() 
+  id = auth.uid()
   OR auth_user_id = auth.uid()
 )
 WITH CHECK (
-  id = auth.uid() 
+  id = auth.uid()
   OR auth_user_id = auth.uid()
 );
 
 -- Policy 3: Principals can manage users in their organization (with fallbacks)
-CREATE POLICY "users_principal_management"
+CREATE POLICY users_principal_management
 ON public.users FOR ALL
 TO authenticated
 USING (
   -- JWT-based check
   (
-    lower(coalesce((current_setting('request.jwt.claims', true)::jsonb ->> 'role'), '')) IN ('principal', 'principal_admin')
+    LOWER(COALESCE((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb ->> 'role'), '')) IN (
+      'principal', 'principal_admin'
+    )
     AND (
       -- Organization ID from JWT
-      coalesce(
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'organization_id'), '')::uuid,
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'preschool_id'), '')::uuid
-      ) = coalesce(users.organization_id, users.preschool_id)
+      COALESCE(
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'organization_id'), '')::uuid,
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'preschool_id'), '')::uuid
+      ) = COALESCE(users.organization_id, users.preschool_id)
     )
   )
   OR
   -- Database fallback check
   EXISTS (
-    SELECT 1 FROM public.users principal
+    SELECT 1 FROM public.users AS principal
     WHERE (
-      principal.id = auth.uid() OR 
-      principal.auth_user_id = auth.uid()
+      principal.id = auth.uid()
+      OR principal.auth_user_id = auth.uid()
     )
-    AND lower(principal.role) IN ('principal', 'principal_admin')
-    AND coalesce(principal.is_active, true) = true
+    AND LOWER(principal.role) IN ('principal', 'principal_admin')
+    AND COALESCE(principal.is_active, TRUE) = TRUE
     AND (
       -- Organization ID match
-      (principal.organization_id IS NOT NULL 
-       AND users.organization_id = principal.organization_id)
+      (
+        principal.organization_id IS NOT NULL
+        AND users.organization_id = principal.organization_id
+      )
       OR
       -- Preschool ID match
-      (principal.preschool_id IS NOT NULL 
-       AND users.preschool_id = principal.preschool_id)
+      (
+        principal.preschool_id IS NOT NULL
+        AND users.preschool_id = principal.preschool_id
+      )
       OR
       -- Flexible org/preschool matching
-      (coalesce(principal.organization_id, principal.preschool_id) IS NOT NULL 
-       AND coalesce(users.organization_id, users.preschool_id) = coalesce(principal.organization_id, principal.preschool_id))
+      (
+        COALESCE(principal.organization_id, principal.preschool_id) IS NOT NULL
+        AND COALESCE(users.organization_id, users.preschool_id)
+        = COALESCE(principal.organization_id, principal.preschool_id)
+      )
     )
   )
 )
 WITH CHECK (
   -- Same logic for modifications
   (
-    lower(coalesce((current_setting('request.jwt.claims', true)::jsonb ->> 'role'), '')) IN ('principal', 'principal_admin')
+    LOWER(COALESCE((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb ->> 'role'), '')) IN (
+      'principal', 'principal_admin'
+    )
     AND (
-      coalesce(
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'organization_id'), '')::uuid,
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'preschool_id'), '')::uuid
-      ) = coalesce(users.organization_id, users.preschool_id)
+      COALESCE(
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'organization_id'), '')::uuid,
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'preschool_id'), '')::uuid
+      ) = COALESCE(users.organization_id, users.preschool_id)
     )
   )
   OR
   EXISTS (
-    SELECT 1 FROM public.users principal
+    SELECT 1 FROM public.users AS principal
     WHERE (
-      principal.id = auth.uid() OR 
-      principal.auth_user_id = auth.uid()
+      principal.id = auth.uid()
+      OR principal.auth_user_id = auth.uid()
     )
-    AND lower(principal.role) IN ('principal', 'principal_admin')
-    AND coalesce(principal.is_active, true) = true
+    AND LOWER(principal.role) IN ('principal', 'principal_admin')
+    AND COALESCE(principal.is_active, TRUE) = TRUE
     AND (
-      (principal.organization_id IS NOT NULL 
-       AND users.organization_id = principal.organization_id)
+      (
+        principal.organization_id IS NOT NULL
+        AND users.organization_id = principal.organization_id
+      )
       OR
-      (principal.preschool_id IS NOT NULL 
-       AND users.preschool_id = principal.preschool_id)
+      (
+        principal.preschool_id IS NOT NULL
+        AND users.preschool_id = principal.preschool_id
+      )
       OR
-      (coalesce(principal.organization_id, principal.preschool_id) IS NOT NULL 
-       AND coalesce(users.organization_id, users.preschool_id) = coalesce(principal.organization_id, principal.preschool_id))
+      (
+        COALESCE(principal.organization_id, principal.preschool_id) IS NOT NULL
+        AND COALESCE(users.organization_id, users.preschool_id)
+        = COALESCE(principal.organization_id, principal.preschool_id)
+      )
     )
   )
 );
 
 -- Policy 4: Teachers can view colleagues in their organization
-CREATE POLICY "users_teacher_view_colleagues"
+CREATE POLICY users_teacher_view_colleagues
 ON public.users FOR SELECT
 TO authenticated
 USING (
   -- JWT-based check  
   (
-    lower(coalesce((current_setting('request.jwt.claims', true)::jsonb ->> 'role'), '')) = 'teacher'
+    LOWER(COALESCE((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb ->> 'role'), '')) = 'teacher'
     AND (
-      coalesce(
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'organization_id'), '')::uuid,
-        nullif(((current_setting('request.jwt.claims', true)::jsonb) ->> 'preschool_id'), '')::uuid
-      ) = coalesce(users.organization_id, users.preschool_id)
+      COALESCE(
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'organization_id'), '')::uuid,
+        NULLIF(((CURRENT_SETTING('request.jwt.claims', TRUE)::jsonb) ->> 'preschool_id'), '')::uuid
+      ) = COALESCE(users.organization_id, users.preschool_id)
     )
   )
   OR
   -- Database fallback check
   EXISTS (
-    SELECT 1 FROM public.users teacher
+    SELECT 1 FROM public.users AS teacher
     WHERE (
-      teacher.id = auth.uid() OR 
-      teacher.auth_user_id = auth.uid()
+      teacher.id = auth.uid()
+      OR teacher.auth_user_id = auth.uid()
     )
-    AND lower(teacher.role) = 'teacher'
-    AND coalesce(teacher.is_active, true) = true
+    AND LOWER(teacher.role) = 'teacher'
+    AND COALESCE(teacher.is_active, TRUE) = TRUE
     AND (
-      (teacher.organization_id IS NOT NULL 
-       AND users.organization_id = teacher.organization_id)
+      (
+        teacher.organization_id IS NOT NULL
+        AND users.organization_id = teacher.organization_id
+      )
       OR
-      (teacher.preschool_id IS NOT NULL 
-       AND users.preschool_id = teacher.preschool_id)
+      (
+        teacher.preschool_id IS NOT NULL
+        AND users.preschool_id = teacher.preschool_id
+      )
       OR
-      (coalesce(teacher.organization_id, teacher.preschool_id) IS NOT NULL 
-       AND coalesce(users.organization_id, users.preschool_id) = coalesce(teacher.organization_id, teacher.preschool_id))
+      (
+        COALESCE(teacher.organization_id, teacher.preschool_id) IS NOT NULL
+        AND COALESCE(users.organization_id, users.preschool_id)
+        = COALESCE(teacher.organization_id, teacher.preschool_id)
+      )
     )
   )
 );
@@ -216,7 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_users_org_lookup
 ON public.users (organization_id, preschool_id) WHERE organization_id IS NOT NULL OR preschool_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_role_active_lookup
-ON public.users (role, is_active) WHERE coalesce(is_active, true) = true;
+ON public.users (role, is_active) WHERE COALESCE(is_active, TRUE) = TRUE;
 
 -- ============================================================================
 -- PART 5: CREATE A SAFER USER ACCESS FUNCTION
@@ -299,19 +329,19 @@ GRANT EXECUTE ON FUNCTION public.can_manage_user(uuid) TO authenticated;
 INSERT INTO public.config_kv (key, value, description, is_public)
 VALUES (
   'users_table_policies_fix_20250919201000',
-  json_build_object(
+  JSON_BUILD_OBJECT(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', NOW()::text,
     'issue_fixed', 'Fixed restrictive RLS policies on users table',
     'policies_fixed', 4,
     'auth_methods', 'JWT + Database fallback',
     'id_matching', 'Flexible (id or auth_user_id)'
   ),
   'Users table RLS policies fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = now();
+  value = excluded.value,
+  updated_at = NOW();
 
 SELECT 'USERS TABLE POLICIES FIXED - MORE ROBUST ACCESS CONTROL' AS status;
 

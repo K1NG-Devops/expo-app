@@ -11,99 +11,99 @@ BEGIN;
 -- ============================================================================
 
 -- Drop the policies that broke user counting
-DROP POLICY IF EXISTS "users_superadmin_access" ON public.users;
-DROP POLICY IF EXISTS "users_own_profile_access" ON public.users;
-DROP POLICY IF EXISTS "users_principal_management" ON public.users;
-DROP POLICY IF EXISTS "users_teacher_view_colleagues" ON public.users;
+DROP POLICY IF EXISTS users_superadmin_access ON public.users;
+DROP POLICY IF EXISTS users_own_profile_access ON public.users;
+DROP POLICY IF EXISTS users_principal_management ON public.users;
+DROP POLICY IF EXISTS users_teacher_view_colleagues ON public.users;
 
 -- ============================================================================
 -- PART 2: RESTORE THE WORKING POLICIES USING app_auth FUNCTIONS
 -- ============================================================================
 
 -- Policy 1: Superadmin can access all users
-CREATE POLICY "users_superadmin_full_access"
+CREATE POLICY users_superadmin_full_access
 ON public.users FOR ALL
 TO authenticated
 USING (
-    app_auth.is_superadmin()
+  app_auth.is_superadmin()
 )
 WITH CHECK (
-    app_auth.is_superadmin()
+  app_auth.is_superadmin()
 );
 
 -- Policy 2: Users can access their own profile
-CREATE POLICY "users_own_profile"
+CREATE POLICY users_own_profile
 ON public.users FOR ALL
 TO authenticated
 USING (
-    id = app_auth.current_user_id()
-    OR id = auth.uid()
-    OR auth_user_id = auth.uid()
+  id = app_auth.current_user_id()
+  OR id = auth.uid()
+  OR auth_user_id = auth.uid()
 )
 WITH CHECK (
-    id = app_auth.current_user_id()
-    OR id = auth.uid()
-    OR auth_user_id = auth.uid()
+  id = app_auth.current_user_id()
+  OR id = auth.uid()
+  OR auth_user_id = auth.uid()
 );
 
 -- Policy 3: Principal can manage users in their organization (WORKING VERSION)
-CREATE POLICY "users_principal_organization_access"
+CREATE POLICY users_principal_organization_access
 ON public.users FOR ALL
 TO authenticated
 USING (
-    app_auth.is_superadmin()
-    OR id = app_auth.current_user_id()
-    OR id = auth.uid()
-    OR auth_user_id = auth.uid()
-    OR (
-        app_auth.is_principal()
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
-    OR (
-        app_auth.is_teacher()
-        AND role IN ('student', 'parent')
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
-    OR (
-        app_auth.is_parent()
-        AND role = 'teacher'
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  app_auth.is_superadmin()
+  OR id = app_auth.current_user_id()
+  OR id = auth.uid()
+  OR auth_user_id = auth.uid()
+  OR (
+    app_auth.is_principal()
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
+  OR (
+    app_auth.is_teacher()
+    AND role IN ('student', 'parent')
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
+  OR (
+    app_auth.is_parent()
+    AND role = 'teacher'
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    app_auth.is_superadmin()
-    OR id = app_auth.current_user_id()
-    OR id = auth.uid()
-    OR auth_user_id = auth.uid()
-    OR (
-        app_auth.is_principal()
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  app_auth.is_superadmin()
+  OR id = app_auth.current_user_id()
+  OR id = auth.uid()
+  OR auth_user_id = auth.uid()
+  OR (
+    app_auth.is_principal()
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Policy 4: Teachers can view colleagues in their organization
-CREATE POLICY "users_teacher_colleague_view"
+CREATE POLICY users_teacher_colleague_view
 ON public.users FOR SELECT
 TO authenticated
 USING (
-    app_auth.is_superadmin()
-    OR id = app_auth.current_user_id()
-    OR id = auth.uid()
-    OR auth_user_id = auth.uid()
-    OR (
-        app_auth.is_teacher()
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
-    OR (
-        app_auth.is_principal()
-        AND COALESCE(preschool_id, organization_id)
-            = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  app_auth.is_superadmin()
+  OR id = app_auth.current_user_id()
+  OR id = auth.uid()
+  OR auth_user_id = auth.uid()
+  OR (
+    app_auth.is_teacher()
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
+  OR (
+    app_auth.is_principal()
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- ============================================================================
@@ -235,19 +235,19 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app_auth TO authenticated;
 INSERT INTO public.config_kv (key, value, description, is_public)
 VALUES (
   'users_policies_restoration_20250919202500',
-  json_build_object(
+  JSON_BUILD_OBJECT(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', NOW()::text,
     'issue_fixed', 'Restored working users table policies with app_auth functions',
-    'user_counts_restored', true,
+    'user_counts_restored', TRUE,
     'superadmin_access', 'Full access restored',
     'principal_access', 'Organization-scoped access restored'
   ),
   'Users table policies restoration to working state',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = now();
+  value = excluded.value,
+  updated_at = NOW();
 
 SELECT 'USERS TABLE POLICIES RESTORED - USER COUNTS SHOULD NOW WORK' AS status;
 

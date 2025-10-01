@@ -15,8 +15,10 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.content_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  reporter_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('lesson', 'homework', 'message', 'comment', 'announcement', 'activity', 'assessment')),
+  reporter_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  content_type VARCHAR(50) NOT NULL CHECK (
+    content_type IN ('lesson', 'homework', 'message', 'comment', 'announcement', 'activity', 'assessment')
+  ),
   content_id UUID NOT NULL, -- References the actual content (lessons, messages, etc.)
   content_title TEXT,
   content_excerpt TEXT,
@@ -24,25 +26,25 @@ CREATE TABLE IF NOT EXISTS public.content_reports (
   report_details TEXT,
   severity VARCHAR(20) DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'resolved', 'dismissed')),
-  school_id UUID REFERENCES public.preschools(id) ON DELETE SET NULL,
-  author_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  school_id UUID REFERENCES public.preschools (id) ON DELETE SET NULL,
+  author_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  reviewed_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
   reviewed_at TIMESTAMP WITH TIME ZONE,
   resolution_notes TEXT,
   auto_flagged BOOLEAN DEFAULT FALSE,
-  
+
   -- Add indexes for performance
   CONSTRAINT content_reports_unique UNIQUE (reporter_id, content_type, content_id, report_reason)
 );
 
 -- Add indexes
-CREATE INDEX IF NOT EXISTS idx_content_reports_status ON public.content_reports(status);
-CREATE INDEX IF NOT EXISTS idx_content_reports_severity ON public.content_reports(severity);
-CREATE INDEX IF NOT EXISTS idx_content_reports_school ON public.content_reports(school_id);
-CREATE INDEX IF NOT EXISTS idx_content_reports_author ON public.content_reports(author_id);
-CREATE INDEX IF NOT EXISTS idx_content_reports_created ON public.content_reports(created_at);
+CREATE INDEX IF NOT EXISTS idx_content_reports_status ON public.content_reports (status);
+CREATE INDEX IF NOT EXISTS idx_content_reports_severity ON public.content_reports (severity);
+CREATE INDEX IF NOT EXISTS idx_content_reports_school ON public.content_reports (school_id);
+CREATE INDEX IF NOT EXISTS idx_content_reports_author ON public.content_reports (author_id);
+CREATE INDEX IF NOT EXISTS idx_content_reports_created ON public.content_reports (created_at);
 
 -- ============================================================================
 -- TABLE: MODERATION_QUEUE
@@ -51,32 +53,34 @@ CREATE INDEX IF NOT EXISTS idx_content_reports_created ON public.content_reports
 
 CREATE TABLE IF NOT EXISTS public.moderation_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content_type VARCHAR(50) NOT NULL CHECK (content_type IN ('lesson', 'homework', 'message', 'comment', 'announcement', 'activity', 'assessment')),
+  content_type VARCHAR(50) NOT NULL CHECK (
+    content_type IN ('lesson', 'homework', 'message', 'comment', 'announcement', 'activity', 'assessment')
+  ),
   content_id UUID NOT NULL,
   content_title TEXT NOT NULL,
   content_body TEXT,
-  author_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  school_id UUID REFERENCES public.preschools(id) ON DELETE SET NULL,
+  author_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  school_id UUID REFERENCES public.preschools (id) ON DELETE SET NULL,
   priority INTEGER DEFAULT 3 CHECK (priority BETWEEN 1 AND 5), -- 1 = highest priority
-  flags TEXT[] DEFAULT '{}', -- Array of flag reasons
+  flags TEXT [] DEFAULT '{}', -- Array of flag reasons
   report_count INTEGER DEFAULT 0,
   severity VARCHAR(20) DEFAULT 'medium' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'reviewing', 'approved', 'rejected', 'escalated')),
   auto_flagged BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  flagged_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  flagged_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  reviewed_by UUID REFERENCES public.users (id) ON DELETE SET NULL,
   reviewed_at TIMESTAMP WITH TIME ZONE,
   review_notes TEXT,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
 -- Add indexes
-CREATE INDEX IF NOT EXISTS idx_moderation_queue_status ON public.moderation_queue(status);
-CREATE INDEX IF NOT EXISTS idx_moderation_queue_priority ON public.moderation_queue(priority);
-CREATE INDEX IF NOT EXISTS idx_moderation_queue_severity ON public.moderation_queue(severity);
-CREATE INDEX IF NOT EXISTS idx_moderation_queue_school ON public.moderation_queue(school_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_queue_flagged ON public.moderation_queue(flagged_at);
+CREATE INDEX IF NOT EXISTS idx_moderation_queue_status ON public.moderation_queue (status);
+CREATE INDEX IF NOT EXISTS idx_moderation_queue_priority ON public.moderation_queue (priority);
+CREATE INDEX IF NOT EXISTS idx_moderation_queue_severity ON public.moderation_queue (severity);
+CREATE INDEX IF NOT EXISTS idx_moderation_queue_school ON public.moderation_queue (school_id);
+CREATE INDEX IF NOT EXISTS idx_moderation_queue_flagged ON public.moderation_queue (flagged_at);
 
 -- ============================================================================
 -- TABLE: MODERATION_ACTIONS
@@ -85,22 +89,24 @@ CREATE INDEX IF NOT EXISTS idx_moderation_queue_flagged ON public.moderation_que
 
 CREATE TABLE IF NOT EXISTS public.moderation_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  queue_item_id UUID REFERENCES public.moderation_queue(id) ON DELETE CASCADE,
-  moderator_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-  action VARCHAR(30) NOT NULL CHECK (action IN ('approve', 'reject', 'flag', 'escalate', 'warn_author', 'suspend_user')),
+  queue_item_id UUID REFERENCES public.moderation_queue (id) ON DELETE CASCADE,
+  moderator_id UUID REFERENCES public.users (id) ON DELETE SET NULL,
+  action VARCHAR(30) NOT NULL CHECK (
+    action IN ('approve', 'reject', 'flag', 'escalate', 'warn_author', 'suspend_user')
+  ),
   reason TEXT,
   details JSONB DEFAULT '{}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+
   -- Ensure we track the chain of actions
   previous_status VARCHAR(20),
   new_status VARCHAR(20)
 );
 
 -- Add indexes
-CREATE INDEX IF NOT EXISTS idx_moderation_actions_queue ON public.moderation_actions(queue_item_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_actions_moderator ON public.moderation_actions(moderator_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_actions_created ON public.moderation_actions(created_at);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_queue ON public.moderation_actions (queue_item_id);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_moderator ON public.moderation_actions (moderator_id);
+CREATE INDEX IF NOT EXISTS idx_moderation_actions_created ON public.moderation_actions (created_at);
 
 -- ============================================================================
 -- RPC FUNCTION: GET_MODERATION_ITEMS
@@ -362,46 +368,50 @@ GRANT EXECUTE ON FUNCTION public.get_moderation_stats TO authenticated;
 ALTER TABLE public.content_reports ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Superadmins can view all reports" ON public.content_reports
-  FOR ALL TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.users 
-    WHERE id = auth.uid() 
+FOR ALL TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM public.users
+  WHERE
+    id = auth.uid()
     AND role = 'superadmin'
-  ));
+));
 
 CREATE POLICY "Users can create reports" ON public.content_reports
-  FOR INSERT TO authenticated
-  WITH CHECK (reporter_id = auth.uid());
+FOR INSERT TO authenticated
+WITH CHECK (reporter_id = auth.uid());
 
 -- Set up RLS policies for moderation_queue
 ALTER TABLE public.moderation_queue ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Superadmins can manage moderation queue" ON public.moderation_queue
-  FOR ALL TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.users 
-    WHERE id = auth.uid() 
+FOR ALL TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM public.users
+  WHERE
+    id = auth.uid()
     AND role = 'superadmin'
-  ));
+));
 
 -- Set up RLS policies for moderation_actions
 ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Superadmins can view moderation actions" ON public.moderation_actions
-  FOR SELECT TO authenticated
-  USING (EXISTS (
-    SELECT 1 FROM public.users 
-    WHERE id = auth.uid() 
+FOR SELECT TO authenticated
+USING (EXISTS (
+  SELECT 1 FROM public.users
+  WHERE
+    id = auth.uid()
     AND role = 'superadmin'
-  ));
+));
 
 CREATE POLICY "Superadmins can create moderation actions" ON public.moderation_actions
-  FOR INSERT TO authenticated
-  WITH CHECK (moderator_id = auth.uid() AND EXISTS (
-    SELECT 1 FROM public.users 
-    WHERE id = auth.uid() 
+FOR INSERT TO authenticated
+WITH CHECK (moderator_id = auth.uid() AND EXISTS (
+  SELECT 1 FROM public.users
+  WHERE
+    id = auth.uid()
     AND role = 'superadmin'
-  ));
+));
 
 -- ============================================================================
 -- LOG MIGRATION COMPLETION
@@ -412,7 +422,7 @@ VALUES (
   'content_moderation_system_20250919231545',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', NOW()::TEXT,
+    'completed_at', now()::TEXT,
     'tables_created', json_build_array(
       'content_reports',
       'moderation_queue',
@@ -428,8 +438,8 @@ VALUES (
   'Content moderation system completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'CONTENT MODERATION SYSTEM COMPLETED' AS status;
 

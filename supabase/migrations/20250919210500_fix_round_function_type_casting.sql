@@ -195,14 +195,14 @@ VALUES (
   'fix_round_function_20250919210500',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'functions_fixed', 2,
     'migration_file', '20250919210500_fix_round_function_type_casting.sql'
   ),
   'Fix ROUND function type casting migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'ROUND FUNCTION TYPE CASTING FIXED' AS status;

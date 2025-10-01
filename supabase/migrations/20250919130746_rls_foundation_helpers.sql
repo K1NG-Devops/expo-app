@@ -291,7 +291,7 @@ $$;
 COMMIT;
 
 -- Test query to verify functions work
-SELECT 
-    'RLS Foundation Ready' AS status,
-    'Helper functions created successfully' AS message,
-    now() AS created_at;
+SELECT
+  'RLS Foundation Ready' AS status,
+  'Helper functions created successfully' AS message,
+  now() AS created_at;

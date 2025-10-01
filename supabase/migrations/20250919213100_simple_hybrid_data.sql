@@ -40,13 +40,13 @@ VALUES (
   json_build_object(
     'version', '1.0.0',
     'completed_at', now()::text,
-    'supports_hybrid_model', true,
+    'supports_hybrid_model', TRUE,
     'migration_file', '20250919213100_simple_hybrid_data.sql'
   ),
   'Simple hybrid data migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'EDUCATIONAL INSTITUTIONS DATA ADDED' AS status;

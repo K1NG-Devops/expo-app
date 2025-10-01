@@ -14,52 +14,54 @@ DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
 DROP POLICY IF EXISTS "Admins can view profiles in their organization" ON profiles;
 DROP POLICY IF EXISTS "Users can update their own profile" ON profiles;
 DROP POLICY IF EXISTS "Admins can update profiles in their organization" ON profiles;
-DROP POLICY IF EXISTS "service_role_full_access_profiles" ON profiles;
+DROP POLICY IF EXISTS service_role_full_access_profiles ON profiles;
 
 -- Create simple, working policies without app_auth dependencies
 
 -- 1. SERVICE ROLE BYPASS - Critical for API operations
-CREATE POLICY "service_role_full_access"
+CREATE POLICY service_role_full_access
 ON profiles FOR ALL
 TO service_role
-USING (true)
-WITH CHECK (true);
+USING (TRUE)
+WITH CHECK (TRUE);
 
 -- 2. USER SELF ACCESS - Users can see and update their own profiles
-CREATE POLICY "users_own_profile_access"
+CREATE POLICY users_own_profile_access
 ON profiles FOR ALL
 TO authenticated
 USING (id = auth.uid())
 WITH CHECK (id = auth.uid());
 
 -- 3. ADMIN ACCESS - Simplified admin access without app_auth
-CREATE POLICY "admin_organization_access"
+CREATE POLICY admin_organization_access
 ON profiles FOR SELECT
 TO authenticated
 USING (
   -- Superadmins can see all profiles
   EXISTS (
-    SELECT 1 FROM profiles admin
-    WHERE admin.id = auth.uid()
-    AND admin.role = 'superadmin'
+    SELECT 1 FROM profiles AS admin
+    WHERE
+      admin.id = auth.uid()
+      AND admin.role = 'superadmin'
   )
   OR
   -- Admins can see profiles in their organization (if both have valid org_id)
   EXISTS (
-    SELECT 1 FROM profiles admin
-    WHERE admin.id = auth.uid()
-    AND admin.role IN ('admin', 'principal')
-    AND admin.organization_id IS NOT NULL
-    AND profiles.organization_id IS NOT NULL
-    AND admin.organization_id = profiles.organization_id
+    SELECT 1 FROM profiles AS admin
+    WHERE
+      admin.id = auth.uid()
+      AND admin.role IN ('admin', 'principal')
+      AND admin.organization_id IS NOT NULL
+      AND profiles.organization_id IS NOT NULL
+      AND admin.organization_id = profiles.organization_id
   )
 );
 
 -- 4. ANON DEBUG ACCESS (temporary) - for testing
-CREATE POLICY "temp_anon_debug_access"
+CREATE POLICY temp_anon_debug_access
 ON profiles FOR SELECT
 TO anon
-USING (true);
+USING (TRUE);
 
 -- ====================================================================
 -- PART 2: CHECK AND FIX OTHER TABLES WITH APP_AUTH REFERENCES
@@ -147,22 +149,23 @@ $$;
 -- ====================================================================
 
 -- Test basic access to profiles
-SELECT 'Testing profiles access:' as test;
-SELECT COUNT(*) as total_profiles FROM profiles;
+SELECT 'Testing profiles access:' AS test;
+SELECT COUNT(*) AS total_profiles FROM profiles;
 
 -- Test basic access to preschools
-SELECT 'Testing preschools access:' as test;
-SELECT COUNT(*) as total_preschools FROM preschools;
+SELECT 'Testing preschools access:' AS test;
+SELECT COUNT(*) AS total_preschools FROM preschools;
 
 -- Show current profiles policies
-SELECT 
-  'Current profiles policies:' as info,
+SELECT
+  'Current profiles policies:' AS info,
   policyname,
   roles,
   cmd
-FROM pg_policies 
-WHERE schemaname = 'public' 
-AND tablename = 'profiles'
+FROM pg_policies
+WHERE
+  schemaname = 'public'
+  AND tablename = 'profiles'
 ORDER BY policyname;
 
 -- Reload schema cache
@@ -178,7 +181,7 @@ COMMIT;
 This migration fixes the "permission denied for schema app_auth" errors by:
 
 1. Removing all RLS policies that reference app_auth schema functions
-2. Creating simple, working policies that use only built-in auth.uid() 
+2. Creating simple, working policies that use only built-in auth.uid()
 3. Adding service_role bypass for all critical tables
 4. Adding temporary anon access for debugging
 

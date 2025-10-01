@@ -6,9 +6,9 @@
 -- 1) Create private bucket for signatures with 1MB size limit
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-  'signatures', 
-  'signatures', 
-  false, 
+  'signatures',
+  'signatures',
+  FALSE,
   1048576,  -- 1MB limit
   ARRAY['image/png', 'image/jpeg', 'image/jpg', 'image/gif']
 )
@@ -21,7 +21,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Drop existing policies if they exist
 DROP POLICY IF EXISTS "insert own signature" ON storage.objects;
-DROP POLICY IF EXISTS "select own signature" ON storage.objects;  
+DROP POLICY IF EXISTS "select own signature" ON storage.objects;
 DROP POLICY IF EXISTS "update own signature" ON storage.objects;
 DROP POLICY IF EXISTS "delete own signature" ON storage.objects;
 
@@ -66,8 +66,8 @@ USING (
 );
 
 -- 3) Optional: Create helper function for generating signed URLs for signatures
-CREATE OR REPLACE FUNCTION get_signature_signed_url(file_path TEXT, expires_in INTEGER DEFAULT 3600)
-RETURNS TEXT
+CREATE OR REPLACE FUNCTION get_signature_signed_url(file_path text, expires_in integer DEFAULT 3600)
+RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$

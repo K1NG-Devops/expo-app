@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS revenuecat_webhook_events (
   raw JSONB NOT NULL,
   processed BOOLEAN DEFAULT FALSE,
   processed_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Create indexes for efficient querying

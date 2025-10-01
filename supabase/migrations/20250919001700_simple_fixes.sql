@@ -13,9 +13,9 @@ CREATE TABLE IF NOT EXISTS billing_plans (
   max_teachers integer NOT NULL DEFAULT 1,
   max_parents integer NOT NULL DEFAULT 10,
   max_students integer NOT NULL DEFAULT 20,
-  ads_enabled boolean NOT NULL DEFAULT true,
+  ads_enabled boolean NOT NULL DEFAULT TRUE,
   features jsonb NOT NULL DEFAULT '{}',
-  active boolean NOT NULL DEFAULT true,
+  active boolean NOT NULL DEFAULT TRUE,
   sort_order integer DEFAULT 0,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
@@ -25,9 +25,9 @@ CREATE TABLE IF NOT EXISTS billing_plans (
 ALTER TABLE billing_plans ENABLE ROW LEVEL SECURITY;
 
 -- Create public read policy for billing plans
-CREATE POLICY "billing_plans_public_read" 
-  ON billing_plans FOR SELECT 
-  USING (active = true);
+CREATE POLICY billing_plans_public_read
+ON billing_plans FOR SELECT
+USING (active = TRUE);
 
 -- Add organization_id to users table if it doesn't exist
 DO $$
@@ -96,20 +96,40 @@ BEGIN
 END $$;
 
 -- Insert default billing plans
-INSERT INTO billing_plans (name, display_name, description, price_cents, ai_monthly_credits, max_teachers, max_parents, max_students, ads_enabled, features, sort_order)
-VALUES 
-  ('free', 'Free', 'Get started with basic features', 0, 10, 1, 5, 10, true, 
-   '{"basic_dashboard": true, "limited_ai": true}', 1),
-  ('parent_starter', 'Parent Starter', 'Perfect for families', 4900, 50, 1, 10, 20, true, 
-   '{"parent_portal": true, "homework_help": true}', 2),
-  ('teacher_pro', 'Teacher Pro', 'Professional tools for educators', 9900, 200, 3, 30, 50, false, 
-   '{"advanced_analytics": true, "lesson_planning": true}', 3),
-  ('school_premium', 'School Premium', 'Complete institutional solution', 19900, 500, 10, 100, 200, false, 
-   '{"multi_class": true, "admin_dashboard": true}', 4)
+INSERT INTO billing_plans (
+  name,
+  display_name,
+  description,
+  price_cents,
+  ai_monthly_credits,
+  max_teachers,
+  max_parents,
+  max_students,
+  ads_enabled,
+  features,
+  sort_order
+)
+VALUES
+(
+  'free', 'Free', 'Get started with basic features', 0, 10, 1, 5, 10, TRUE,
+  '{"basic_dashboard": true, "limited_ai": true}', 1
+),
+(
+  'parent_starter', 'Parent Starter', 'Perfect for families', 4900, 50, 1, 10, 20, TRUE,
+  '{"parent_portal": true, "homework_help": true}', 2
+),
+(
+  'teacher_pro', 'Teacher Pro', 'Professional tools for educators', 9900, 200, 3, 30, 50, FALSE,
+  '{"advanced_analytics": true, "lesson_planning": true}', 3
+),
+(
+  'school_premium', 'School Premium', 'Complete institutional solution', 19900, 500, 10, 100, 200, FALSE,
+  '{"multi_class": true, "admin_dashboard": true}', 4
+)
 ON CONFLICT (name) DO NOTHING;
 
 -- Grant permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION current_preschool_id() TO authenticated, service_role;
 
-SELECT 'Simple fixes applied successfully' as status;
+SELECT 'Simple fixes applied successfully' AS status;

@@ -256,7 +256,7 @@ VALUES (
     'total_views_secured', 9
   ),
   'Security definer views fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();

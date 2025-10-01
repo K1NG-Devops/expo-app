@@ -12,12 +12,12 @@ BEGIN;
 
 -- Helper used across policies/RPCs: super admin check
 -- Re-create to ensure it exists in environments where prior migration didn't run
-create or replace function public.app_is_super_admin()
-returns boolean
-language plpgsql
-security definer
-set search_path = public, extensions
-as $$
+CREATE OR REPLACE FUNCTION public.app_is_super_admin()
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
 declare
   v_is_admin boolean;
 begin
@@ -32,19 +32,19 @@ begin
 end;
 $$;
 
-revoke all on function public.app_is_super_admin() from public;
-grant execute on function public.app_is_super_admin() to authenticated, anon;
+REVOKE ALL ON FUNCTION public.app_is_super_admin() FROM public;
+GRANT EXECUTE ON FUNCTION public.app_is_super_admin() TO authenticated, anon;
 
 -- Main RPC: classes with teachers for current user/tenant
-create or replace function public.get_my_classes_with_teachers(
-  p_limit int default 50,
-  p_only_active boolean default true
+CREATE OR REPLACE FUNCTION public.get_my_classes_with_teachers(
+  p_limit int DEFAULT 50,
+  p_only_active boolean DEFAULT TRUE
 )
-returns setof public.classes_with_teachers
-language sql
-stable
-security invoker
-as $$
+RETURNS SETOF public.classes_with_teachers
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+AS $$
   select cwt.*
   from public.classes_with_teachers cwt
   where
@@ -66,7 +66,7 @@ as $$
   limit greatest(1, p_limit);
 $$;
 
-revoke all on function public.get_my_classes_with_teachers(int, boolean) from public;
-grant execute on function public.get_my_classes_with_teachers(int, boolean) to authenticated;
+REVOKE ALL ON FUNCTION public.get_my_classes_with_teachers(int, boolean) FROM public;
+GRANT EXECUTE ON FUNCTION public.get_my_classes_with_teachers(int, boolean) TO authenticated;
 
 COMMIT;

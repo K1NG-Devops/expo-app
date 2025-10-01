@@ -238,7 +238,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_superadmin_ai_quotas() TO authenticated;
 
 -- Add function documentation
-COMMENT ON FUNCTION public.get_superadmin_ai_quotas() IS 
+COMMENT ON FUNCTION public.get_superadmin_ai_quotas() IS
 'Fetch AI quota data for superadmin quota management screen. Returns school quotas, usage stats, and global config. Super admin access required.';
 
 -- ============================================================================
@@ -251,14 +251,14 @@ VALUES (
   'superadmin_ai_quotas_rpc_created',
   json_build_object(
     'version', '1.0.0',
-    'created_at', now()::text,
+    'created_at', now()::TEXT,
     'function_name', 'get_superadmin_ai_quotas',
     'purpose', 'Real AI quota data for superadmin quota management'
   ),
   'Superadmin AI quotas RPC function created',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 COMMIT;

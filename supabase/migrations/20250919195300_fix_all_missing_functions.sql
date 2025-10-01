@@ -11,9 +11,9 @@
 
 CREATE OR REPLACE FUNCTION superadmin_request_user_deletion(
   target_user_id UUID,
-  deletion_type deletion_type_enum,
+  deletion_type DELETION_TYPE_ENUM,
   reason TEXT,
-  scheduled_date TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days'
+  scheduled_date TIMESTAMPTZ DEFAULT now() + INTERVAL '7 days'
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -74,7 +74,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION superadmin_suspend_user(
   target_user_id UUID,
-  suspension_type suspension_status_enum,
+  suspension_type SUSPENSION_STATUS_ENUM,
   reason TEXT,
   duration_days INTEGER DEFAULT NULL
 )
@@ -192,8 +192,10 @@ $$;
 -- ============================================================================
 
 -- Grant execute permissions to authenticated users (will be checked by functions internally)
-GRANT EXECUTE ON FUNCTION superadmin_request_user_deletion(UUID, deletion_type_enum, TEXT, TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION superadmin_suspend_user(UUID, suspension_status_enum, TEXT, INTEGER) TO authenticated;  
+GRANT EXECUTE ON FUNCTION superadmin_request_user_deletion(
+  UUID, DELETION_TYPE_ENUM, TEXT, TIMESTAMPTZ
+) TO authenticated;
+GRANT EXECUTE ON FUNCTION superadmin_suspend_user(UUID, SUSPENSION_STATUS_ENUM, TEXT, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION superadmin_update_user_role(UUID, TEXT, TEXT) TO authenticated;
 
 -- ============================================================================

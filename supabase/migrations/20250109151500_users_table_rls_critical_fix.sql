@@ -24,20 +24,20 @@ DROP POLICY IF EXISTS users_public_profile_read ON public.users;
 CREATE POLICY users_superadmin_access ON public.users
 FOR ALL
 TO service_role
-USING (true)
-WITH CHECK (true);
+USING (TRUE)
+WITH CHECK (TRUE);
 
 -- CRITICAL: Users can manage their own profile
 CREATE POLICY users_self_access ON public.users
 FOR ALL
 TO authenticated
 USING (
-    id = auth.uid()
-    OR auth_user_id = auth.uid()
+  id = auth.uid()
+  OR auth_user_id = auth.uid()
 )
 WITH CHECK (
-    id = auth.uid()
-    OR auth_user_id = auth.uid()
+  id = auth.uid()
+  OR auth_user_id = auth.uid()
 );
 
 -- CRITICAL: Principal/Admin access to users in their preschool
@@ -45,38 +45,38 @@ CREATE POLICY users_tenant_admin_access ON public.users
 FOR ALL
 TO authenticated
 USING (
-    -- User is principal/admin in the same preschool
-    EXISTS (
-        SELECT 1 FROM public.users AS admin_user
-        WHERE
-            admin_user.id = auth.uid()
-            AND admin_user.role IN (
-                'principal', 'preschool_admin', 'superadmin'
-            )
-            AND admin_user.preschool_id = users.preschool_id
-    )
-    -- Or user is platform superadmin
-    OR EXISTS (
-        SELECT 1 FROM public.users AS admin_user
-        WHERE
-            admin_user.id = auth.uid()
-            AND admin_user.role = 'superadmin'
-    )
+  -- User is principal/admin in the same preschool
+  EXISTS (
+    SELECT 1 FROM public.users AS admin_user
+    WHERE
+      admin_user.id = auth.uid()
+      AND admin_user.role IN (
+        'principal', 'preschool_admin', 'superadmin'
+      )
+      AND admin_user.preschool_id = users.preschool_id
+  )
+  -- Or user is platform superadmin
+  OR EXISTS (
+    SELECT 1 FROM public.users AS admin_user
+    WHERE
+      admin_user.id = auth.uid()
+      AND admin_user.role = 'superadmin'
+  )
 )
 WITH CHECK (
-    -- Only allow creating/updating users in same preschool for admins
-    EXISTS (
-        SELECT 1 FROM public.users AS admin_user
-        WHERE
-            admin_user.id = auth.uid()
-            AND admin_user.role IN (
-                'principal', 'preschool_admin', 'superadmin'
-            )
-            AND (
-                admin_user.preschool_id = users.preschool_id
-                OR admin_user.role = 'superadmin'
-            )
-    )
+  -- Only allow creating/updating users in same preschool for admins
+  EXISTS (
+    SELECT 1 FROM public.users AS admin_user
+    WHERE
+      admin_user.id = auth.uid()
+      AND admin_user.role IN (
+        'principal', 'preschool_admin', 'superadmin'
+      )
+      AND (
+        admin_user.preschool_id = users.preschool_id
+        OR admin_user.role = 'superadmin'
+      )
+  )
 );
 
 -- CRITICAL: Limited visibility for users in same preschool (read-only)
@@ -84,28 +84,28 @@ CREATE POLICY users_tenant_visibility ON public.users
 FOR SELECT
 TO authenticated
 USING (
-    -- Users can see other users in their preschool (limited fields)
-    preschool_id IN (
-        SELECT u.preschool_id
-        FROM public.users AS u
-        WHERE u.id = auth.uid()
-    )
-    -- Teachers can see other teachers and parents of their students
-    OR EXISTS (
-        SELECT 1 FROM public.users AS u
-        WHERE
-            u.id = auth.uid()
-            AND u.role = 'teacher'
-            AND u.preschool_id = users.preschool_id
-    )
-    -- Parents can see teachers of their children's classes
-    OR EXISTS (
-        SELECT 1 FROM public.students AS s
-        INNER JOIN public.classes AS c ON s.class_id = c.id
-        WHERE
-            (s.parent_id = auth.uid() OR s.guardian_id = auth.uid())
-            AND c.teacher_id = users.id
-    )
+  -- Users can see other users in their preschool (limited fields)
+  preschool_id IN (
+    SELECT u.preschool_id
+    FROM public.users AS u
+    WHERE u.id = auth.uid()
+  )
+  -- Teachers can see other teachers and parents of their students
+  OR EXISTS (
+    SELECT 1 FROM public.users AS u
+    WHERE
+      u.id = auth.uid()
+      AND u.role = 'teacher'
+      AND u.preschool_id = users.preschool_id
+  )
+  -- Parents can see teachers of their children's classes
+  OR EXISTS (
+    SELECT 1 FROM public.students AS s
+    INNER JOIN public.classes AS c ON s.class_id = c.id
+    WHERE
+      (s.parent_id = auth.uid() OR s.guardian_id = auth.uid())
+      AND c.teacher_id = users.id
+  )
 );
 
 -- =============================================
@@ -114,21 +114,21 @@ USING (
 
 -- Critical performance indexes for RLS policies
 CREATE INDEX IF NOT EXISTS idx_users_auth_user_id
-ON public.users (auth_user_id) WHERE auth_user_id IS NOT null;
+ON public.users (auth_user_id) WHERE auth_user_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_preschool_tenant
-ON public.users (preschool_id) WHERE preschool_id IS NOT null;
+ON public.users (preschool_id) WHERE preschool_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_role_preschool
-ON public.users (role, preschool_id) WHERE preschool_id IS NOT null;
+ON public.users (role, preschool_id) WHERE preschool_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_users_active_status
-ON public.users (is_active, preschool_id) WHERE is_active = true;
+ON public.users (is_active, preschool_id) WHERE is_active = TRUE;
 
 -- Composite index for complex admin queries
 CREATE INDEX IF NOT EXISTS idx_users_preschool_role_active
 ON public.users (preschool_id, role, is_active)
-WHERE preschool_id IS NOT null AND is_active = true;
+WHERE preschool_id IS NOT NULL AND is_active = TRUE;
 
 -- =============================================
 -- SECURITY VALIDATION FUNCTION
@@ -220,29 +220,29 @@ FOR EACH ROW EXECUTE FUNCTION public.audit_user_changes();
 -- Add configuration record for compliance tracking
 INSERT INTO public.config_kv (key, value, description, is_public)
 VALUES (
-    'users_table_rls_deployed',
-    jsonb_build_object(
-        'deployed_at', now(),
-        'version', '3.1.0',
-        'security_level', 'CRITICAL',
-        'compliance_status', 'SECURED',
-        'policies_count', 4,
-        'indexes_count', 5,
-        'audit_enabled', true
-    ),
-    'Users table RLS policies deployment - CRITICAL SECURITY FIX',
-    false
+  'users_table_rls_deployed',
+  jsonb_build_object(
+    'deployed_at', now(),
+    'version', '3.1.0',
+    'security_level', 'CRITICAL',
+    'compliance_status', 'SECURED',
+    'policies_count', 4,
+    'indexes_count', 5,
+    'audit_enabled', TRUE
+  ),
+  'Users table RLS policies deployment - CRITICAL SECURITY FIX',
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-    value = jsonb_build_object(
-        'deployed_at', now(),
-        'version', '3.1.0',
-        'security_level', 'CRITICAL',
-        'compliance_status', 'SECURED',
-        'policies_count', 4,
-        'indexes_count', 5,
-        'audit_enabled', true
-    ),
-    updated_at = now();
+  value = jsonb_build_object(
+    'deployed_at', now(),
+    'version', '3.1.0',
+    'security_level', 'CRITICAL',
+    'compliance_status', 'SECURED',
+    'policies_count', 4,
+    'indexes_count', 5,
+    'audit_enabled', TRUE
+  ),
+  updated_at = now();
 
 -- =============================================
 -- MIGRATION COMPLETE - CRITICAL FIX APPLIED

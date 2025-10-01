@@ -2,18 +2,18 @@
 -- Run this in Supabase SQL editor with service role or via CLI
 
 -- Safely change an existing subscription's plan and related metadata
-create or replace function public.admin_update_subscription_plan(
+CREATE OR REPLACE FUNCTION public.admin_update_subscription_plan(
   p_subscription_id uuid,
   p_new_plan_id text,
-  p_billing_frequency text default null, -- 'monthly' | 'annual' | null (keep current)
-  p_seats_total int default null,
-  p_reason text default null,
-  p_metadata jsonb default '{}'::jsonb
-) returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
+  p_billing_frequency text DEFAULT NULL, -- 'monthly' | 'annual' | null (keep current)
+  p_seats_total int DEFAULT NULL,
+  p_reason text DEFAULT NULL,
+  p_metadata jsonb DEFAULT '{}'::jsonb
+) RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 declare
   v_is_admin boolean;
   v_sub record;
@@ -122,5 +122,5 @@ end;
 $$;
 
 -- Grant execute permissions
-revoke all on function public.admin_update_subscription_plan from public;
-grant execute on function public.admin_update_subscription_plan(uuid, text, text, int, text, jsonb) to authenticated;
+REVOKE ALL ON FUNCTION public.admin_update_subscription_plan FROM public;
+GRANT EXECUTE ON FUNCTION public.admin_update_subscription_plan(uuid, text, text, int, text, jsonb) TO authenticated;

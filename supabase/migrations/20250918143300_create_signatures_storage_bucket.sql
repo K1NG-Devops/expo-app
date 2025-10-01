@@ -8,7 +8,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES (
   'signatures',
   'signatures',
-  false,
+  FALSE,
   1048576, -- 1MB limit
   ARRAY['image/png', 'image/jpeg', 'image/jpg']
 )
@@ -20,46 +20,46 @@ ON CONFLICT (id) DO NOTHING;
 -- Allow users to insert their own signatures
 DROP POLICY IF EXISTS "Users can upload own signatures" ON storage.objects;
 CREATE POLICY "Users can upload own signatures"
-  ON storage.objects FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'signatures'
-    AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
-  );
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'signatures'
+  AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
+);
 
 -- Allow users to view their own signatures
 DROP POLICY IF EXISTS "Users can view own signatures" ON storage.objects;
 CREATE POLICY "Users can view own signatures"
-  ON storage.objects FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'signatures'
-    AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
-  );
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'signatures'
+  AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
+);
 
 -- Allow users to update their own signatures
 DROP POLICY IF EXISTS "Users can update own signatures" ON storage.objects;
 CREATE POLICY "Users can update own signatures"
-  ON storage.objects FOR UPDATE
-  TO authenticated
-  USING (
-    bucket_id = 'signatures'
-    AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
-  )
-  WITH CHECK (
-    bucket_id = 'signatures'
-    AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
-  );
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'signatures'
+  AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
+)
+WITH CHECK (
+  bucket_id = 'signatures'
+  AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
+);
 
 -- Allow users to delete their own signatures
 DROP POLICY IF EXISTS "Users can delete own signatures" ON storage.objects;
 CREATE POLICY "Users can delete own signatures"
-  ON storage.objects FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'signatures'
-    AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
-  );
+ON storage.objects FOR DELETE
+TO authenticated
+USING (
+  bucket_id = 'signatures'
+  AND (SPLIT_PART(name, '/', 1) = auth.uid()::TEXT)
+);
 
 -- 3) Comment on the bucket for documentation
 COMMENT ON TABLE storage.buckets IS 'Storage buckets including private signatures bucket for user digital signatures';

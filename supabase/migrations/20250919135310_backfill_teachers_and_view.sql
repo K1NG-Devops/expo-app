@@ -44,7 +44,7 @@ END $$;
 
 ALTER TABLE public.teachers
 ADD COLUMN IF NOT EXISTS is_active boolean
-DEFAULT true
+DEFAULT TRUE
 NOT NULL;
 
 ALTER TABLE public.teachers
@@ -64,9 +64,9 @@ ON public.teachers (user_id);
 -- Remove orphaned teacher rows that violate FK to users
 DELETE FROM public.teachers AS t
 WHERE NOT EXISTS (
-    SELECT 1
-    FROM public.users AS u
-    WHERE u.id = t.user_id
+  SELECT 1
+  FROM public.users AS u
+  WHERE u.id = t.user_id
 );
 
 -- 1) Backfill skipped due to existing schema differences
@@ -80,36 +80,36 @@ END $$;
 --    falls back to users if missing
 CREATE OR REPLACE VIEW public.teachers_resolved AS
 WITH has_teachers AS (
-    SELECT exists(SELECT 1 FROM public.teachers) AS any_rows
+  SELECT exists(SELECT 1 FROM public.teachers) AS any_rows
 )
 
 SELECT
-    t.user_id,
-    t.auth_user_id,
-    t.preschool_id,
-    t.full_name,
-    t.email,
-    t.is_active
+  t.user_id,
+  t.auth_user_id,
+  t.preschool_id,
+  t.full_name,
+  t.email,
+  t.is_active
 FROM public.teachers AS t
 UNION ALL
 SELECT
-    u.id AS user_id,
-    u.auth_user_id,
-    coalesce(u.preschool_id, u.organization_id) AS preschool_id,
-    trim(
-        BOTH FROM coalesce(
-            concat(u.first_name, ' ', u.last_name), u.name, u.email
-        )
-    ) AS full_name,
-    u.email,
-    coalesce(u.is_active, true) AS is_active
+  u.id AS user_id,
+  u.auth_user_id,
+  coalesce(u.preschool_id, u.organization_id) AS preschool_id,
+  trim(
+    BOTH FROM coalesce(
+      concat(u.first_name, ' ', u.last_name), u.name, u.email
+    )
+  ) AS full_name,
+  u.email,
+  coalesce(u.is_active, TRUE) AS is_active
 FROM public.users AS u
 LEFT JOIN public.teachers AS t2 ON u.id = t2.user_id
 CROSS JOIN has_teachers AS ht
 WHERE
-    ht.any_rows = false -- only fallback when there are no teacher rows at all
-    AND u.role = 'teacher'
-    AND t2.user_id IS null;
+  ht.any_rows = FALSE -- only fallback when there are no teacher rows at all
+  AND u.role = 'teacher'
+  AND t2.user_id IS NULL;
 
 -- 3) Optional: grant read on the view to authenticated
 --    (RLS applies on base tables)

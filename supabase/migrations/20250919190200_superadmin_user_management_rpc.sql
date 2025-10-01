@@ -30,7 +30,7 @@ $$;
 CREATE OR REPLACE FUNCTION is_superadmin_by_id(user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
-STABLE 
+STABLE
 SECURITY DEFINER
 AS $$
   SELECT EXISTS (
@@ -79,14 +79,14 @@ VALUES (
   'superadmin_rpc_migration_20250919190200',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'functions_created', 9,
     'migration_file', '20250919190200_superadmin_user_management_rpc.sql'
   ),
   'Superadmin user management RPC functions migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'SUPERADMIN RPC FUNCTIONS MIGRATION COMPLETED' AS status;

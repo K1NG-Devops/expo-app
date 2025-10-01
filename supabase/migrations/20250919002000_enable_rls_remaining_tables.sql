@@ -216,21 +216,22 @@ BEGIN
 END $$;
 
 -- Final summary
-SELECT 
-  '🎯 COMPREHENSIVE RLS ENABLEMENT COMPLETE!' as status,
-  'All 130+ additional tables now have RLS enabled with appropriate policies' as summary;
+SELECT
+  '🎯 COMPREHENSIVE RLS ENABLEMENT COMPLETE!' AS status,
+  'All 130+ additional tables now have RLS enabled with appropriate policies' AS summary;
 
 -- Show final RLS status
-SELECT 
-  'FINAL COMPREHENSIVE RLS STATUS' as section,
-  COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) as tables_with_rls_enabled,
-  COUNT(*) as total_public_tables,
+SELECT
+  'FINAL COMPREHENSIVE RLS STATUS' AS section,
+  COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) AS tables_with_rls_enabled,
+  COUNT(*) AS total_public_tables,
   ROUND(
-    100.0 * COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) / COUNT(*), 
+    100.0 * COUNT(CASE WHEN pc.relrowsecurity THEN 1 END) / COUNT(*),
     1
-  ) as rls_coverage_percentage
-FROM pg_tables pt
-JOIN pg_class pc ON pt.tablename = pc.relname
-JOIN pg_namespace pn ON pc.relnamespace = pn.oid
-WHERE pt.schemaname = 'public'
-AND pn.nspname = 'public';
+  ) AS rls_coverage_percentage
+FROM pg_tables AS pt
+INNER JOIN pg_class AS pc ON pt.tablename = pc.relname
+INNER JOIN pg_namespace AS pn ON pc.relnamespace = pn.oid
+WHERE
+  pt.schemaname = 'public'
+  AND pn.nspname = 'public';
