@@ -363,6 +363,613 @@ EduDash Pro demonstrates **strong foundational capabilities** for principal-led 
 
 ---
 
+### Geo-Location & Job Distribution Strategy
+
+#### Problem Statement
+1. **Discovery Issue**: How do teachers find job postings if they don't have the app installed?
+2. **Proximity Matching**: Schools want to hire teachers nearby (reduce commute, improve retention)
+3. **Distribution Channels**: Job postings need visibility beyond the app
+
+#### Proposed Solutions
+
+##### 1. Geo-Location Implementation
+
+**Database Schema Additions:**
+```sql
+-- Add coordinates to job_postings table
+ALTER TABLE public.job_postings 
+ADD COLUMN latitude DECIMAL(10, 8),
+ADD COLUMN longitude DECIMAL(11, 8),
+ADD COLUMN commute_radius_km INTEGER DEFAULT 20;
+
+-- Add spatial index for proximity searches
+CREATE INDEX idx_job_postings_location 
+ON public.job_postings USING GIST (
+  ll_to_earth(latitude, longitude)
+) WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+
+-- Add coordinates to candidate_profiles
+ALTER TABLE public.candidate_profiles
+ADD COLUMN preferred_location_lat DECIMAL(10, 8),
+ADD COLUMN preferred_location_lng DECIMAL(11, 8),
+ADD COLUMN willing_to_commute_km INTEGER DEFAULT 30;
+
+-- Create function to find nearby jobs
+CREATE OR REPLACE FUNCTION public.get_nearby_jobs(
+  candidate_lat DECIMAL,
+  candidate_lng DECIMAL,
+  max_distance_km INTEGER DEFAULT 50
+)
+RETURNS TABLE (
+  job_id UUID,
+  title TEXT,
+  school_name TEXT,
+  distance_km DECIMAL,
+  employment_type TEXT,
+  salary_range_min DECIMAL,
+  salary_range_max DECIMAL
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    jp.id,
+    jp.title,
+    p.name as school_name,
+    ROUND(
+      earth_distance(
+        ll_to_earth(jp.latitude, jp.longitude),
+        ll_to_earth(candidate_lat, candidate_lng)
+      ) / 1000, 1
+    ) AS distance_km,
+    jp.employment_type,
+    jp.salary_range_min,
+    jp.salary_range_max
+  FROM public.job_postings jp
+  INNER JOIN public.preschools p ON jp.preschool_id = p.id
+  WHERE 
+    jp.status = 'active'
+    AND (jp.expires_at IS NULL OR jp.expires_at > NOW())
+    AND earth_distance(
+      ll_to_earth(jp.latitude, jp.longitude),
+      ll_to_earth(candidate_lat, candidate_lng)
+    ) <= (max_distance_km * 1000)
+  ORDER BY distance_km ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+**Job Posting Form Enhancement:**
+```typescript
+// In job-posting-create.tsx, add location autocomplete
+import * as Location from 'expo-location';
+
+const [coordinates, setCoordinates] = useState<{lat: number, lng: number} | null>(null);
+const [commuteRadius, setCommuteRadius] = useState(20); // km
+
+// Auto-detect school location or use Google Places API
+const handleLocationSelect = async (address: string) => {
+  // Option 1: Use school's saved location
+  const schoolLocation = profile?.location_coordinates;
+  
+  // Option 2: Geocode address using Google Places/Mapbox
+  const geocoded = await geocodeAddress(address);
+  
+  setCoordinates({ lat: geocoded.lat, lng: geocoded.lng });
+  setLocation(address);
+};
+
+// Add to form submission
+const jobData = {
+  ...existingFields,
+  latitude: coordinates?.lat,
+  longitude: coordinates?.lng,
+  commute_radius_km: commuteRadius,
+};
+```
+
+**Candidate Profile Enhancement:**
+```typescript
+// In candidate profile/preferences screen
+const [preferredLocation, setPreferredLocation] = useState('');
+const [willingToCommuteKm, setWillingToCommuteKm] = useState(30);
+
+// Get current location or let user search address
+const getCurrentLocation = async () => {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status === 'granted') {
+    const location = await Location.getCurrentPositionAsync({});
+    return { lat: location.coords.latitude, lng: location.coords.longitude };
+  }
+};
+```
+
+##### 2. Job Distribution Channels
+
+**Multi-Channel Strategy:**
+
+**A. Public Job Board (Web + Mobile Web)**
+```typescript
+// Create public job board at: app/(public)/jobs/browse.tsx
+// Features:
+// - No login required
+// - Filter by location, salary, employment type
+// - Google-indexed (SEO optimized)
+// - Shareable links: https://edudashpro.com/jobs?location=johannesburg
+
+// SEO Metadata for each job:
+<Head>
+  <title>{jobTitle} - {schoolName} | EduDash Pro Jobs</title>
+  <meta name="description" content={jobDescription} />
+  <meta property="og:type" content="job" />
+  <meta property="og:title" content={jobTitle} />
+  <link rel="canonical" href={`https://edudashpro.com/jobs/${jobId}`} />
+</Head>
+```
+
+**B. WhatsApp Broadcast Integration**
+```typescript
+// When job is posted, principal can broadcast to WhatsApp
+// Uses existing WhatsApp integration
+
+const broadcastJobPosting = async (jobId: string) => {
+  const message = `
+🎓 *New Teaching Position Available!*
+
+*Position:* ${job.title}
+*School:* ${school.name}
+*Location:* ${job.location} (${job.commute_radius_km}km radius)
+*Salary:* R${job.salary_range_min} - R${job.salary_range_max}
+*Type:* ${job.employment_type}
+
+Apply now: ${APP_URL}/apply/${jobId}
+  `;
+  
+  // Send to:
+  // 1. School's teacher contact list
+  // 2. Community groups (opt-in)
+  // 3. Job seeker subscribers
+  
+  await WhatsAppService.broadcastMessage({
+    recipients: await getJobSeekerContacts(job.location),
+    message,
+    mediaUrl: school.logo_url,
+  });
+};
+```
+
+**C. Email Newsletter (Weekly Digest)**
+```typescript
+// Weekly job digest sent to registered teachers
+// Cron job: Every Monday 8 AM
+
+const sendWeeklyJobDigest = async () => {
+  const teachers = await getTeachersWithJobAlerts();
+  
+  for (const teacher of teachers) {
+    const nearbyJobs = await getNearbyJobs(
+      teacher.preferred_location_lat,
+      teacher.preferred_location_lng,
+      teacher.willing_to_commute_km
+    );
+    
+    if (nearbyJobs.length > 0) {
+      await sendEmail({
+        to: teacher.email,
+        subject: `${nearbyJobs.length} Teaching Jobs Near You`,
+        template: 'job-digest',
+        data: { jobs: nearbyJobs, teacher },
+      });
+    }
+  }
+};
+```
+
+**D. SMS Notifications (Critical Jobs)**
+```typescript
+// For urgent positions, send SMS to nearby teachers
+// Uses Twilio/Africa's Talking
+
+const notifyNearbyTeachers = async (jobId: string) => {
+  const job = await getJobPosting(jobId);
+  const nearbyTeachers = await findTeachersInRadius(
+    job.latitude,
+    job.longitude,
+    job.commute_radius_km
+  );
+  
+  const smsText = `New teaching job near you: ${job.title} at ${school.name}. Apply: ${SHORT_URL}/j/${jobId}`;
+  
+  for (const teacher of nearbyTeachers) {
+    await SMSService.send(teacher.phone, smsText);
+  }
+};
+```
+
+**E. Social Media Auto-Post**
+```typescript
+// Auto-post to school's social media
+// Facebook, LinkedIn, Twitter/X
+
+const shareJobOnSocialMedia = async (jobId: string) => {
+  const job = await getJobPosting(jobId);
+  
+  const post = {
+    text: `We're hiring! ${job.title} at ${school.name}. ${job.location}. Apply: ${APP_URL}/apply/${jobId}`,
+    hashtags: ['TeachingJobs', 'ECDJobs', job.location.replace(' ', '')],
+    image: school.logo_url,
+  };
+  
+  // Post via Buffer/Hootsuite API or direct social media APIs
+  await SocialMediaService.post('facebook', post);
+  await SocialMediaService.post('linkedin', post);
+};
+```
+
+##### 3. Teacher Job Discovery Features
+
+**A. Job Alerts (Push Notifications)**
+```typescript
+// Teachers set job preferences in app
+// Get notified when matching jobs posted
+
+interface JobAlert {
+  candidate_id: string;
+  preferred_locations: string[]; // ["Johannesburg", "Pretoria"]
+  max_commute_km: number;
+  employment_types: EmploymentType[];
+  min_salary: number;
+  notification_enabled: boolean;
+}
+
+// When job is posted, trigger alerts
+const triggerJobAlerts = async (jobId: string) => {
+  const job = await getJobPosting(jobId);
+  const matchingAlerts = await findMatchingAlerts(job);
+  
+  for (const alert of matchingAlerts) {
+    await sendPushNotification({
+      userId: alert.candidate_id,
+      title: '🎓 New Job Match!',
+      body: `${job.title} at ${school.name} - ${job.distance_km}km away`,
+      data: { jobId, screen: 'JobDetail' },
+    });
+  }
+};
+```
+
+**B. Interactive Map View**
+```typescript
+// Create map view of jobs: app/(public)/jobs/map.tsx
+import MapView, { Marker } from 'react-native-maps';
+
+<MapView
+  initialRegion={{
+    latitude: userLocation.lat,
+    longitude: userLocation.lng,
+    latitudeDelta: 0.5,
+    longitudeDelta: 0.5,
+  }}
+>
+  {nearbyJobs.map(job => (
+    <Marker
+      key={job.id}
+      coordinate={{ latitude: job.latitude, longitude: job.longitude }}
+      title={job.title}
+      description={`${job.distance_km}km away`}
+      onPress={() => navigateToJobDetail(job.id)}
+    >
+      <View style={styles.markerContainer}>
+        <Text style={styles.markerText}>{job.distance_km}km</Text>
+      </View>
+    </Marker>
+  ))}
+  
+  {/* User's location */}
+  <Marker
+    coordinate={{ latitude: userLocation.lat, longitude: userLocation.lng }}
+    pinColor="blue"
+  />
+</MapView>
+```
+
+##### 4. Implementation Priority
+
+**Phase 1 (Immediate - Add to current epic):**
+- [x] Database migration: Add lat/lng, job_alerts, job_distributions tables
+- [ ] Candidate registration page: Public form to register with location preferences
+- [ ] Job posting form: Location autocomplete with coordinates  
+- [ ] WhatsApp broadcast: Share job link when posting job
+- [ ] Email notifications: Job alerts to registered candidates
+- [ ] Social media auto-post: Share to Facebook/LinkedIn when job created
+
+**Phase 2 (Next Sprint):**
+- [ ] Proximity search: `get_nearby_jobs()` function in candidate dashboard
+- [ ] Job alerts dashboard: Candidates manage notification preferences
+- [ ] Email digest: Weekly summary of nearby jobs
+- [ ] Analytics: Track distribution effectiveness by channel
+
+**Phase 3 (Future Enhancement):**
+- [ ] SMS notifications: For urgent positions (optional)
+- [ ] Interactive map view: See jobs on map
+- [ ] Job board partnerships: Post to external sites (PNet, CareerJunction)
+- [ ] Commute calculator: Estimate travel time (Google Maps API)
+
+**FOCUSED DISTRIBUTION CHANNELS (Approved):**
+1. ✅ **WhatsApp** - Broadcast to school's contact list + teacher groups
+2. ✅ **Email** - Send to registered candidates matching criteria
+3. ✅ **Social Media** - Auto-post to Facebook/LinkedIn
+4. ✅ **Candidate Registration** - Public page for teachers to register with location
+
+**NOT IMPLEMENTING (Removed from scope):**
+- ❌ SMS notifications (too expensive at scale, R0.15/SMS)
+- ❌ Public job board website (use social media instead)
+- ❌ External job board APIs (focus on owned channels)
+
+##### 5. Cost Considerations
+
+**Free/Low-Cost Options:**
+- Geocoding: Use Nominatim (OpenStreetMap) - Free, open-source
+- Maps: Mapbox free tier (50k map loads/month)
+- Email: Resend/SendGrid free tier (100 emails/day)
+- SMS: Africa's Talking (R0.15/SMS in South Africa)
+
+**Paid Options (Scale):**
+- Google Maps API: $5/1000 geocoding requests
+- Twilio SMS: $0.05/SMS
+- Social media APIs: Free (rate-limited)
+- Job board listings: R500-R2000/post (PNet, Indeed)
+
+##### 6. Privacy & Compliance
+
+**Location Data Handling:**
+- Candidate location is **optional** (not required to apply)
+- Stored location is approximate (suburb-level, not exact address)
+- Candidates can opt-out of location-based notifications
+- Location data deleted upon request (GDPR/POPIA)
+
+**Job Posting Visibility:**
+- Public jobs indexed by Google (opt-in per school)
+- Schools can choose: Public (anyone) vs. Network-only (app users)
+- Expired jobs auto-hidden from public view
+
+---
+
+### Testing & Usage Instructions for Hiring Hub
+
+#### Database Setup (Already Completed)
+
+**Migrations Applied:**
+- ✅ `20251001210700_create_hiring_hub_tables.sql` - All 5 tables created
+- ✅ `20251001211500_create_candidate_resumes_storage.sql` - Storage bucket configured
+
+**Verify Database Setup:**
+```bash
+# Connect to database
+psql -h aws-0-ap-southeast-1.pooler.supabase.com -p 6543 -U postgres.lvvvjywrmpcqrpvuptdi -d postgres
+
+# Check tables exist
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public' 
+AND table_name IN ('job_postings', 'candidate_profiles', 'job_applications', 'interview_schedules', 'offer_letters');
+
+# Check storage bucket
+SELECT name, public, file_size_limit FROM storage.buckets WHERE name = 'candidate-resumes';
+```
+
+#### How to Test the Features
+
+**1. Test Job Posting Creation (Principal)**
+
+```typescript
+// Navigate to: /screens/hiring-hub
+// 1. Tap the floating action button (FAB) with '+' icon
+// 2. Fill in the form:
+{
+  title: "Early Childhood Teacher",
+  description: "Looking for passionate educator...",
+  requirements: "Bachelor's degree in Education, 3+ years experience",
+  salary_min: 15000,
+  salary_max: 25000,
+  location: "Johannesburg, Gauteng",
+  employment_type: "full-time",
+  expires_at: "2025-12-31" // Optional
+}
+// 3. Submit - should navigate back to hiring hub with new job posted
+```
+
+**Expected Results:**
+- Job posting appears in "Active Jobs" list
+- Stats update (total job postings count increases)
+- No errors in console
+
+**2. Test Application Review (Principal)**
+
+```typescript
+// Navigate to: /screens/hiring-hub
+// 1. Tap on an application card
+// 2. You should see:
+//    - Candidate information (name, email, phone)
+//    - Cover letter (if provided)
+//    - Resume download button (if uploaded)
+//    - Status badge (NEW, UNDER_REVIEW, etc.)
+//    - Action buttons based on current status
+
+// 3. Test status workflow:
+// NEW → tap "Review" → Status changes to UNDER_REVIEW
+// UNDER_REVIEW → tap "Shortlist" → Status changes to SHORTLISTED
+// UNDER_REVIEW → tap "Reject" → Enter reason → Status changes to REJECTED
+```
+
+**Expected Results:**
+- Status updates immediately in UI
+- Application moves to appropriate tab in hiring-hub
+- Stats update (pending reviews decreases when reviewed)
+
+**3. Test Resume Viewing**
+
+```typescript
+// In application-review screen:
+// 1. Tap "View Resume" button
+// 2. Should open resume in external app/browser
+// 3. If no resume: "No resume uploaded" message shown
+```
+
+**Testing with Mock Data:**
+
+```sql
+-- Insert test job posting (as principal)
+INSERT INTO public.job_postings (
+  preschool_id,
+  title,
+  description,
+  employment_type,
+  created_by,
+  status
+) VALUES (
+  'YOUR_PRESCHOOL_ID',
+  'Test Teaching Position',
+  'This is a test job posting',
+  'full-time',
+  'YOUR_USER_ID',
+  'active'
+);
+
+-- Insert test candidate profile
+INSERT INTO public.candidate_profiles (
+  email,
+  first_name,
+  last_name,
+  experience_years
+) VALUES (
+  'test.candidate@example.com',
+  'John',
+  'Doe',
+  5
+);
+
+-- Insert test application
+INSERT INTO public.job_applications (
+  job_posting_id,
+  candidate_profile_id,
+  cover_letter,
+  status
+) VALUES (
+  'JOB_POSTING_ID_FROM_ABOVE',
+  'CANDIDATE_PROFILE_ID_FROM_ABOVE',
+  'I am interested in this position...',
+  'new'
+);
+```
+
+#### User Workflows
+
+**Principal Workflow: Create Job & Review Applications**
+
+1. **Create Job Posting**
+   - Open app → Navigate to Hiring Hub
+   - Tap FAB (+ button)
+   - Fill form → Submit
+   - Job appears in "Active Jobs" list
+
+2. **Review New Applications**
+   - Open Hiring Hub
+   - Tap "New" tab (shows count badge)
+   - Tap on an application card
+   - Review candidate details
+   - Take action: Review/Shortlist/Reject
+
+3. **Shortlist Candidates**
+   - From application detail screen
+   - Tap "Shortlist" button
+   - Candidate moves to "Shortlisted" tab
+
+4. **Schedule Interview** (Coming in 1.1.12)
+   - From shortlisted application
+   - Tap "Schedule Interview"
+   - Pick date/time
+   - Enter meeting link (optional)
+   - Submit → Sends email to candidate
+
+**Candidate Workflow: Apply for Job** (Coming in 1.1.13)
+
+1. **Find Job Posting**
+   - Public link shared by school: `https://app.com/apply/[JOB_ID]`
+   - No login required
+
+2. **Submit Application**
+   - Fill personal info
+   - Upload resume (PDF/DOCX, max 50MB)
+   - Write cover letter
+   - Submit
+   - Confirmation email sent
+
+3. **Track Application Status** (Future)
+   - Receive email when status changes
+   - Can view application status via public link
+
+#### Common Issues & Troubleshooting
+
+**Issue: "Failed to create job posting"**
+- Check user has valid preschool_id in profile
+- Check user role is 'principal' or 'superadmin'
+- Verify RLS policies allow insert
+
+**Issue: "No applications showing"**
+- Check RLS policies are filtering correctly
+- Verify applications exist for your school's jobs:
+  ```sql
+  SELECT * FROM job_applications ja
+  JOIN job_postings jp ON ja.job_posting_id = jp.id
+  WHERE jp.preschool_id = 'YOUR_PRESCHOOL_ID';
+  ```
+
+**Issue: "Can't view resume"**
+- Check resume_file_path is not null in database
+- Verify storage bucket RLS policies allow read
+- Check file exists in storage:
+  ```sql
+  SELECT name FROM storage.objects WHERE bucket_id = 'candidate-resumes';
+  ```
+
+#### Performance Considerations
+
+**Pagination:**
+- Currently loads all applications for school (client-side filtering)
+- Recommended limit: <100 applications per school
+- For schools with >100 applications, implement server-side pagination (coming in 1.1.15)
+
+**Resume File Sizes:**
+- Max file size: 50MB (enforced by storage bucket)
+- Recommended: Compress PDFs before upload
+- Use streaming for large file downloads
+
+**RLS Performance:**
+- All queries use indexes on (preschool_id, status, created_at)
+- Principals can only see their school's data
+- No full table scans expected
+
+#### Security Notes
+
+**Row-Level Security (RLS):**
+- All tables have RLS enabled
+- Principals can only access their school's data
+- Candidates can only see their own applications
+- Public can view active job postings (for application form)
+
+**Storage Bucket Security:**
+- Bucket is private (not publicly accessible)
+- Principals can view resumes for applications to their jobs
+- Candidates can view/update their own resumes
+- Anonymous users can upload (for public application form)
+
+**Data Retention:**
+- Job postings: Archived when closed (not deleted)
+- Applications: Retained for 12 months after rejection
+- Resumes: Deleted when application is rejected >90 days
+- Candidates can request data deletion (GDPR/POPIA compliance)
+
+---
+
 #### Epic 1.2: Auto-Allocation Engine
 **Scope:** Algorithmic allocation of students to classes and teachers with conflict detection
 
