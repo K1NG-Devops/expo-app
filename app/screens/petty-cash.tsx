@@ -754,30 +754,34 @@ const { error } = await assertSupabase()
 
   const handleReverseTransaction = async (transaction: PettyCashTransaction) => {
     try {
-const { data: userProfile } = await assertSupabase()
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
       const oppositeType = transaction.type === 'expense' ? 'replenishment' : 'expense';
-const { error } = await assertSupabase()
+      const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           school_id: userProfile?.preschool_id,
           account_id: accountId,
           amount: transaction.amount,
-          description: `Reversal of ${transaction.type} (${transaction.id}) - ${transaction.description}`,
+          description: `Reversal of ${transaction.type} (${transaction.id.substring(0, 8)}) - ${transaction.description}`,
           category: 'Other',
           type: oppositeType as any,
           created_by: user?.id,
           status: 'approved',
-          metadata: { reversed_of: transaction.id },
         });
-      if (error) throw error;
+      if (error) {
+        console.error('Error reversing transaction:', error);
+        throw error;
+      }
+      Alert.alert(t('common.success'), t('transaction.reversal_success', 'Transaction reversed successfully'));
       loadPettyCashData();
-    } catch {
-      Alert.alert(t('common.error'), t('transaction.failed_reverse', 'Failed to create reversal'));
+    } catch (error: any) {
+      console.error('Reversal error:', error);
+      Alert.alert(t('common.error'), error?.message || t('transaction.failed_reverse', 'Failed to create reversal'));
     }
   };
 
@@ -989,7 +993,11 @@ const { error } = await assertSupabase()
                       {transaction.category}
                     </Text>
                     <Text style={styles.transactionDate}>
-                      {new Date(transaction.created_at).toLocaleDateString()}
+                      {new Date(transaction.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                      })}
                     </Text>
                   </View>
                 </View>

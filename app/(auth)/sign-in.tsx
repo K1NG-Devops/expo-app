@@ -49,8 +49,9 @@ export default function SignIn() {
           setRememberMe(true);
           setStoredUserEmail(savedEmail);
           
-          // Try to load saved password from secure store
-          const savedPassword = await SecureStore.getItemAsync(`password_${savedEmail}`);
+          // Try to load saved password from secure store (sanitize email for secure store key)
+          const sanitizedKey = `password_${savedEmail.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          const savedPassword = await SecureStore.getItemAsync(sanitizedKey);
           if (savedPassword) {
             setPassword(savedPassword);
           }
@@ -83,12 +84,18 @@ export default function SignIn() {
         if (rememberMe) {
           await AsyncStorage.setItem('rememberMe', 'true');
           await AsyncStorage.setItem('savedEmail', email.trim());
-          // Save password securely for quick access
-          await SecureStore.setItemAsync(`password_${email.trim()}`, password);
+          // Save password securely for quick access (sanitize email for secure store key)
+          const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          await SecureStore.setItemAsync(sanitizedKey, password);
         } else {
           await AsyncStorage.removeItem('rememberMe');
           await AsyncStorage.removeItem('savedEmail');
-          await SecureStore.deleteItemAsync(`password_${email.trim()}`);
+          const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+          try {
+            await SecureStore.deleteItemAsync(sanitizedKey);
+          } catch (e) {
+            // Key might not exist, ignore
+          }
         }
         // The AuthContext will handle routing automatically
       }
