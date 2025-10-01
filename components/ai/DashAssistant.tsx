@@ -1262,9 +1262,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                     backgroundColor: vc.state === 'listening' ? theme.error : theme.accent 
                   }
                 ]}
-                onPress={async () => { try { await vc.startPress(); } catch {} }}
-                onLongPress={async () => { try { await vc.startPress(); vc.lock(); } catch {} }}
-                onPressOut={async () => { try { if (vc.state === 'listening' && !vc.isLocked) await vc.release(); } catch {} }}
+                onPress={async () => {
+                  try {
+                    if (vc.state === 'listening') await vc.release();
+                    else await vc.startPress();
+                  } catch {}
+                }}
+                onLongPress={async () => { try { if (vc.state !== 'listening') { await vc.startPress(); } vc.lock(); } catch {} }}
                 delayLongPress={150}
                 disabled={isLoading}
               >

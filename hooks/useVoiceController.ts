@@ -73,6 +73,10 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
   const startPress = useCallback(async () => {
     try {
       if (!dash) return;
+      if (state === 'listening' || state === 'transcribing' || state === 'thinking') {
+        // Already engaged in recording or processing; ignore start
+        return;
+      }
       if (state === 'speaking') {
         try { await dash.stopSpeaking(); } catch {}
       }

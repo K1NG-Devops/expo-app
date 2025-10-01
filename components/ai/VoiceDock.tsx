@@ -94,7 +94,7 @@ export function VoiceDock({ vc }: { vc: VoiceController }) {
             <Text style={[styles.label, { color: theme.text }]}>Speaking…</Text>
           )}
           {!isListening && !isThinking && !isSpeaking && (
-            <Text style={[styles.label, { color: theme.textSecondary }]}>Tap to talk. Long-press to hold (lock).</Text>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>Tap to talk. Tap again to stop. Long‑press to lock.</Text>
           )}
         </View>
 
