@@ -584,27 +584,15 @@ export async function signInWithSession(
       storeProfile(profile),
     ]);
 
-    // Update last login - try both auth_user_id and id fields for compatibility
+    // Update last login via RPC to avoid REST conflicts on public.users
     try {
-      let updateResult = await assertSupabase()
-        .from('users')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('auth_user_id', data.user.id);
-        
-      if (updateResult.error) {
-        // Fallback to id field
-        updateResult = await assertSupabase()
-          .from('users')
-          .update({ last_login_at: new Date().toISOString() })
-          .eq('id', data.user.id);
-      }
-      
-      if (updateResult.error) {
-        console.warn('Could not update last_login_at:', updateResult.error);
-        // Continue anyway - this is not critical for login success
+      const { error: lastLoginError } = await assertSupabase()
+        .rpc('update_user_last_login');
+      if (lastLoginError) {
+        console.warn('Could not update last_login_at via RPC:', lastLoginError);
       }
     } catch (updateError) {
-      console.warn('Error updating last_login_at:', updateError);
+      console.warn('Error updating last_login_at via RPC:', updateError);
       // Continue anyway - this is not critical for login success
     }
 

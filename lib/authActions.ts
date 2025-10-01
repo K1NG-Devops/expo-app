@@ -33,6 +33,7 @@ export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: bo
     Sentry.Native.setUser(null as any);
   } catch { /* noop */ void 0; }
 
+  // Always redirect to landing page (root index)
   router.replace(options?.redirectTo ?? '/');
 }
 

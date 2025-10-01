@@ -66,6 +66,7 @@ interface FormState {
   bio?: string;
   
   // Parent
+  invitationCode?: string;
   children?: Array<{
     firstName: string;
     lastName: string;
@@ -395,7 +396,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           registration = {
             ...baseRegistration,
             role: 'parent',
-            invitationToken,
+            invitationToken: invitationToken || formState.invitationCode,
             children: formState.children || [],
             emergencyContact: formState.emergencyContact
           } as ParentRegistration;
@@ -475,6 +476,32 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         
         {renderTextField('email', 'Email Address', 'john.doe@example.com', true, 'email-address')}
         {renderTextField('phone', 'Phone Number', '(555) 123-4567', false, 'phone-pad')}
+        
+        {role === 'parent' && !invitationToken && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={[
+              styles.label,
+              { 
+                color: theme.colors.onBackground,
+                fontSize: theme.typography.body2.fontSize,
+                marginBottom: 4
+              }
+            ]}>
+              School Invitation Code (Optional)
+            </Text>
+            <Text style={[
+              styles.helperText,
+              { 
+                color: theme.colors.onSurfaceVariant,
+                fontSize: theme.typography.caption.fontSize,
+                marginBottom: 8
+              }
+            ]}>
+              If your school provided an invitation code, enter it here to link your account
+            </Text>
+            {renderTextField('invitationCode', 'Invitation Code', 'ABC12345', false, 'default')}
+          </View>
+        )}
         
         {role === 'principal' && (
           <>
@@ -1040,6 +1067,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontWeight: '600',
+  },
+  label: {
+    fontWeight: '600',
+  },
+  helperText: {
+    lineHeight: 18,
   },
   textInput: {
     borderWidth: 1,

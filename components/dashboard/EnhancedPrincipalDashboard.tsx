@@ -42,6 +42,7 @@ import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 
@@ -391,15 +392,17 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Ionicons name="settings-outline" size={20} color={theme.text} />
             </TouchableOpacity>
 
-            {/* Avatar (initials) */}
+{/* Avatar (image or initials) */}
             <TouchableOpacity
-              style={styles.userAvatar}
+              style={{ borderRadius: 18, overflow: 'hidden' }}
               onPress={() => router.push('/screens/account')}
               activeOpacity={0.7}
             >
-              <Text style={styles.userAvatarText}>
-                {(user?.user_metadata?.first_name?.[0] || '') + (user?.user_metadata?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || '?'}
-              </Text>
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
             </TouchableOpacity>
           </View>
         </View>

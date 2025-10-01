@@ -56,15 +56,71 @@ interface PettyCashSummary {
 }
 
 const EXPENSE_CATEGORIES = [
+  // Office & Educational
   'Stationery & Supplies',
+  'Teaching Materials',
+  'Art & Craft Supplies',
+  'Books & Educational Resources',
+  'Printing & Photocopying',
+  
+  // Food & Refreshments
   'Refreshments',
+  'Staff Tea & Coffee',
+  'Student Snacks',
+  'Kitchen Supplies',
+  
+  // Maintenance & Facilities
   'Maintenance & Repairs',
-  'Travel & Transport',
-  'Communication',
-  'Medical & First Aid',
   'Cleaning Supplies',
+  'Cleaning Services',
+  'Pest Control',
+  'Waste Removal',
+  'Minor Repairs',
+  
+  // Utilities & Services
   'Utilities (small amounts)',
+  'Electricity (top-ups)',
+  'Water (top-ups)',
+  'Internet & Wi-Fi',
+  'Telephone & Mobile',
+  
+  // Medical & Safety
+  'Medical & First Aid',
+  'First Aid Supplies',
+  'Sanitizers & Disinfectants',
+  'Safety Equipment',
+  
+  // Transport & Logistics
+  'Travel & Transport',
+  'Fuel (petty amounts)',
+  'Parking Fees',
+  'Taxi/Uber Fares',
+  'Vehicle Maintenance',
+  
+  // Communication & Marketing
+  'Communication',
+  'Postage & Courier',
+  'Advertising Materials',
+  'Signage & Banners',
+  
+  // Staff & Administration
+  'Staff Welfare',
+  'Staff Uniforms',
+  'Staff Training Materials',
+  'Office Furniture (small items)',
+  
+  // Events & Activities
+  'Events & Celebrations',
+  'Birthday Parties',
+  'Sports Day Supplies',
+  'Field Trip Expenses',
+  'Parent Meeting Refreshments',
+  
+  // Emergency & Miscellaneous
   'Emergency Expenses',
+  'Bank Charges',
+  'Petty Licensing Fees',
+  'Subscriptions (small)',
   'Other',
 ];
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from "react-native";
-import { Stack } from "expo-router";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, ScrollView, KeyboardAvoidingView } from "react-native";
+import { Stack, router } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { assertSupabase } from "@/lib/supabase";
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -187,11 +187,50 @@ export default function SignIn() {
       flex: 1,
       backgroundColor: theme.background,
     },
+    keyboardView: {
+      flex: 1,
+    },
+    logoContainer: {
+      alignItems: 'center',
+      marginBottom: 24,
+      paddingTop: 20,
+    },
+    logoCircle: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: theme.surfaceVariant,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: theme.border,
+    },
+    logoText: {
+      fontSize: 24,
+      fontWeight: '800',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    logoSubtext: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      fontWeight: '500',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingBottom: Platform.OS === 'ios' ? 20 : 40,
+    },
     content: {
       flex: 1,
       paddingHorizontal: 20,
+      paddingTop: 20,
+      paddingBottom: 20,
       justifyContent: 'center',
-      alignItems: 'center',
+      minHeight: Platform.OS === 'web' ? 'auto' : undefined,
     },
     card: {
       width: '100%',
@@ -205,20 +244,21 @@ export default function SignIn() {
       shadowOpacity: 0.15,
       shadowRadius: 12,
       elevation: 4,
+      alignSelf: 'center',
     },
     header: {
-      marginBottom: 16,
+      marginBottom: 20,
       alignItems: 'center',
-      gap: 6,
+      gap: 4,
     },
     title: {
-      fontSize: 24,
-      fontWeight: '800',
+      fontSize: 22,
+      fontWeight: '700',
       color: theme.text,
       textAlign: 'center',
     },
     subtitle: {
-      fontSize: 14,
+      fontSize: 13,
       color: theme.textSecondary,
       textAlign: 'center',
     },
@@ -338,22 +378,88 @@ export default function SignIn() {
       color: theme.textSecondary,
       marginHorizontal: 12,
     },
+    signupPrompt: {
+      marginTop: 20,
+      paddingTop: 16,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+    },
+    divider: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    signupOptions: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 12,
+    },
+    signupButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      padding: 12,
+      backgroundColor: theme.surfaceVariant,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    signupButtonText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    schoolSignupLink: {
+      alignItems: 'center',
+      padding: 12,
+    },
+    schoolSignupText: {
+      fontSize: 13,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    schoolSignupLinkText: {
+      color: theme.primary,
+      fontWeight: '600',
+      textDecorationLine: 'underline',
+    },
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={['top','bottom','left','right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
 
-      <View style={styles.content}>
-        <View style={styles.card}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Welcome to EduDash Pro</Text>
-            <Text style={styles.subtitle}>Fast, secure sign-in to your AI-powered dashboard</Text>
-          </View>
+      <KeyboardAvoidingView 
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.content}>
+            {/* Logo Section */}
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Ionicons name="school" size={32} color={theme.primary} />
+              </View>
+              <Text style={styles.logoText}>EduDash Pro</Text>
+              <Text style={styles.logoSubtext}>AI-Powered Education Platform</Text>
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.header}>
+                <Text style={styles.title}>Welcome Back</Text>
+                <Text style={styles.subtitle}>Sign in to your account</Text>
+              </View>
 
           {/* Biometric Login Section */}
           {biometricAvailable && storedUserEmail && (
@@ -458,8 +564,46 @@ export default function SignIn() {
           </View>
 
           <SocialLoginButtons onSocialLogin={handleSocialLogin} />
-        </View>
-      </View>
+
+          {/* Sign-up options for parents and teachers */}
+          <View style={styles.signupPrompt}>
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>Don't have an account?</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            
+            <View style={styles.signupOptions}>
+              <TouchableOpacity
+                style={styles.signupButton}
+                onPress={() => router.push('/screens/parent-registration' as any)}
+              >
+                <Ionicons name="people" size={20} color={theme.primary} />
+                <Text style={styles.signupButtonText}>Sign up as Parent</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.signupButton}
+                onPress={() => router.push('/screens/teacher-registration' as any)}
+              >
+                <Ionicons name="school" size={20} color={theme.primary} />
+                <Text style={styles.signupButtonText}>Sign up as Teacher</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.schoolSignupLink}
+              onPress={() => router.push('/screens/principal-onboarding' as any)}
+            >
+              <Text style={styles.schoolSignupText}>
+                Looking to register a school? <Text style={styles.schoolSignupLinkText}>Click here</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+          </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

@@ -10,6 +10,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { log, warn, debug, error as logError } from '@/lib/debug';
 
+// Polyfill for Promise.allSettled (for older JavaScript engines)
+if (!Promise.allSettled) {
+  Promise.allSettled = function <T>(promises: Array<Promise<T>>): Promise<Array<PromiseSettledResult<T>>> {
+    return Promise.all(
+      promises.map((promise) =>
+        Promise.resolve(promise)
+          .then((value) => ({ status: 'fulfilled' as const, value }))
+          .catch((reason) => ({ status: 'rejected' as const, reason }))
+      )
+    );
+  };
+}
+
 // Helper functions for business logic
 const formatTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);

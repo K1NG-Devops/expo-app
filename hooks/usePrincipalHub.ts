@@ -4,6 +4,19 @@ import { assertSupabase } from '@/lib/supabase';
 import { usePettyCashDashboard } from './usePettyCashDashboard';
 import { useTranslation } from 'react-i18next';
 
+// Polyfill for Promise.allSettled (for older JavaScript engines)
+if (!Promise.allSettled) {
+  Promise.allSettled = function <T>(promises: Array<Promise<T>>): Promise<Array<PromiseSettledResult<T>>> {
+    return Promise.all(
+      promises.map((promise) =>
+        Promise.resolve(promise)
+          .then((value) => ({ status: 'fulfilled' as const, value }))
+          .catch((reason) => ({ status: 'rejected' as const, reason }))
+      )
+    );
+  };
+}
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
 
@@ -256,7 +269,7 @@ export const usePrincipalHub = () => {
             created_at
           `)
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
         // Get classes count
         assertSupabase()
@@ -343,19 +356,60 @@ export const usePrincipalHub = () => {
       // Process teachers data with real database information
       const processedTeachers = await Promise.all(
         teachersData.map(async (teacher: any) => {
-          // Get classes assigned to this teacher
-          const { count: teacherClassesCount } = await assertSupabase()
-            .from('classes')
-            .select('id', { count: 'exact', head: true })
-            .eq('teacher_id', teacher.user_id)
-            .eq('is_active', true) || { count: 0 };
-            
-          // Get students count for teacher's classes
-          const { data: teacherClasses } = await assertSupabase()
-            .from('classes')
-            .select('id')
-            .eq('teacher_id', teacher.user_id)
-            .eq('is_active', true) || { data: [] };
+          // Determine the effective user ID for this teacher.
+          // classes.teacher_id references users.id. Some teacher rows may not yet have user_id linked.
+          let effectiveUserId: string | null = teacher.user_id || null;
+          if (!effectiveUserId && teacher.email) {
+            // Fallback: try resolve users.id by teacher email within the same preschool
+            try {
+              const { data: fallbackUser } = await assertSupabase()
+                .from('users')
+                .select('id')
+                .eq('email', teacher.email)
+                .eq('preschool_id', preschoolId)
+                .maybeSingle();
+              if (fallbackUser?.id) effectiveUserId = fallbackUser.id;
+            } catch {}
+          }
+
+          // Get classes assigned to this teacher (by effective user id)
+          let teacherClassesCount = 0;
+          let teacherClasses: any[] = [];
+          if (effectiveUserId) {
+            const classesCountRes = await assertSupabase()
+              .from('classes')
+              .select('id', { count: 'exact', head: true })
+              .eq('teacher_id', effectiveUserId)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            teacherClassesCount = classesCountRes?.count || 0;
+
+            const classesRes = await assertSupabase()
+              .from('classes')
+              .select('id')
+              .eq('teacher_id', effectiveUserId)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            teacherClasses = classesRes?.data || [];
+          }
+
+          // Fallback: if there is only one active teacher in the school and
+          // this teacher has zero classes assigned, attribute currently unassigned
+          // active classes to this teacher for dashboard context. This matches
+          // School Overview which counts all active classes regardless of assignment.
+          if ((teacherClassesCount === 0) && (teachersData?.length === 1)) {
+            const unassignedRes = await assertSupabase()
+              .from('classes')
+              .select('id')
+              .is('teacher_id', null)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            const unassigned = unassignedRes?.data || [];
+            if (unassigned.length > 0) {
+              teacherClasses = unassigned;
+              teacherClassesCount = unassigned.length;
+            }
+          }
             
           const classIds = (teacherClasses || []).map((c: any) => c.id);
           let studentsInClasses = 0;

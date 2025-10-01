@@ -33,6 +33,7 @@ import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { Avatar } from '@/components/ui/Avatar';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -300,15 +301,17 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               <Ionicons name="settings-outline" size={20} color={theme.text} />
             </TouchableOpacity>
             
-            {/* User Avatar (now second) */}
+{/* User Avatar */}
             <TouchableOpacity 
-              style={styles.userAvatar}
+              style={{ borderRadius: 18, overflow: 'hidden' }}
               onPress={() => router.push('/screens/account')}
               activeOpacity={0.7}
             >
-              <Text style={styles.userAvatarText}>
-                {(user?.user_metadata?.first_name?.[0] || '') + (user?.user_metadata?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || '?'}
-              </Text>
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
             </TouchableOpacity>
           </View>
         </View>

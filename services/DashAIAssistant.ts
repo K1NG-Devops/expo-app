@@ -2094,14 +2094,29 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
    */
   public async exportTextAsPDF(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if content is HTML (contains HTML tags)
       const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
-      
+
+      // Detect simple markdown (headers, lists, bold) and convert to HTML for better formatting
+      const looksLikeMarkdown = /(^##\s|^###\s|\n-\s|\n\d+\.\s|\*\*[^*]+\*\*)/m.test(content);
+
       if (isHTML) {
-        // Use HTML PDF generation for rich content
         await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', content || '', opts);
+      } else if (looksLikeMarkdown) {
+        const htmlBody = this.convertMarkdownToHTML(content || '');
+        const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title>
+          <style>
+            @page { size: ${(opts?.paperSize || 'A4')} ${(opts?.orientation || 'portrait')}; margin: 20mm; }
+            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+            h1,h2,h3{ color:#1565c0; }
+            ul,ol{ margin-left:16px; }
+            .footer{ margin-top:24px; font-size:12px; color:#999; text-align:center; }
+          </style></head><body>
+          <h1 style=\"text-align:center;\">${title || 'Dash Export'}</h1>
+          ${htmlBody}
+          <div class=\"footer\">Exported by Dash • EduDash Pro</div>
+        </body></html>`;
+        await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', html, opts);
       } else {
-        // Use text PDF generation for plain text
         await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '', opts);
       }
       return { success: true };
@@ -2116,6 +2131,32 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
    */
   public async exportTextAsPDFForDownload(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
     try {
+      const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
+      const looksLikeMarkdown = /(^##\s|^###\s|\n-\s|\n\d+\.\s|\*\*[^*]+\*\*)/m.test(content);
+
+      if (isHTML) {
+        const { uri, filename } = await EducationalPDFService.generateHTMLPDFUri(title || 'Dash Export', content || '');
+        return { success: true, uri, filename };
+      }
+
+      if (looksLikeMarkdown) {
+        const htmlBody = this.convertMarkdownToHTML(content || '');
+        const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title>
+          <style>
+            @page { size: ${(opts?.paperSize || 'A4')} ${(opts?.orientation || 'portrait')}; margin: 20mm; }
+            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
+            h1,h2,h3{ color:#1565c0; }
+            ul,ol{ margin-left:16px; }
+            .footer{ margin-top:24px; font-size:12px; color:#999; text-align:center; }
+          </style></head><body>
+          <h1 style=\"text-align:center;\">${title || 'Dash Export'}</h1>
+          ${htmlBody}
+          <div class=\"footer\">Exported by Dash • EduDash Pro</div>
+        </body></html>`;
+        const { uri, filename } = await EducationalPDFService.generateHTMLPDFUri(title || 'Dash Export', html);
+        return { success: true, uri, filename };
+      }
+
       const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '', opts);
       return { success: true, uri, filename };
     } catch (error: any) {
@@ -3831,6 +3872,22 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
     } catch (error) {
       console.error('[Dash] Failed to add message to conversation:', error);
     }
+  }
+
+  /**
+   * Public helper: add an attachment message to the current conversation
+   */
+  public async addAttachmentMessage(content: string, attachments: DashAttachment[], conversationId?: string): Promise<void> {
+    const convId = conversationId || this.currentConversationId;
+    if (!convId) throw new Error('No active conversation');
+    const message: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'assistant',
+      content,
+      timestamp: Date.now(),
+      attachments
+    };
+    await this.addMessageToConversation(convId, message);
   }
 
   /**

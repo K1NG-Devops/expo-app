@@ -45,6 +45,22 @@ export class InviteCodeService {
   }): Promise<SchoolInvitationCode> {
     const length = params.codeLength ?? 8;
 
+    // If there is already an active parent invite for this school, reuse it
+    try {
+      const { data: existing } = await assertSupabase()
+        .from('school_invitation_codes')
+        .select('*')
+        .eq('preschool_id', params.preschoolId)
+        .eq('invitation_type', 'parent')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing) {
+        return existing as unknown as SchoolInvitationCode;
+      }
+    } catch {}
+
     // Try up to 3 attempts in case of code collision
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateReadableCode(length);
@@ -69,9 +85,23 @@ export class InviteCodeService {
         return data as unknown as SchoolInvitationCode;
       }
 
-      // If duplicate or unique violation, retry; otherwise throw
+      // If duplicate/unique or single-row mismatch (409), return the latest active code instead
+      const codeStr = (error as any)?.code || '';
       const msg = String(error?.message || '').toLowerCase();
-      if (!(msg.includes('duplicate') || msg.includes('unique'))) {
+      const isConflict = codeStr === '23505' || msg.includes('duplicate') || msg.includes('unique') || msg.includes('json object requested');
+      if (isConflict) {
+        try {
+          const { data: existing } = await assertSupabase()
+            .from('school_invitation_codes')
+            .select('*')
+            .eq('preschool_id', params.preschoolId)
+            .eq('invitation_type', 'parent')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existing) return existing as unknown as SchoolInvitationCode;
+        } catch {}
+      } else {
         throw error;
       }
     }

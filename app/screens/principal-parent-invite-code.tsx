@@ -58,6 +58,8 @@ export default function PrincipalParentInviteCodeScreen() {
         expiresAt,
         description: 'Parent school-wide invite',
       });
+      // Optimistically show the new/active code at the top while we refresh from server
+      setCodes(prev => [created, ...prev.filter(c => c.id !== created.id)]);
       await load();
       Alert.alert('Invite created', `Code: ${created.code}`);
     } catch (e: any) {
@@ -97,8 +99,8 @@ export default function PrincipalParentInviteCodeScreen() {
       <Stack.Screen 
         options={{ 
           title: 'Create School-wide Invite',
-          headerShown: true,
-          headerBackVisible: true,
+          headerShown: false,
+          headerBackVisible: false,
         }} 
       />
       <ScrollView contentContainerStyle={styles.content}>

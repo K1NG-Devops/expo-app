@@ -34,6 +34,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
+import * as FileSystem from 'expo-file-system';
 import { 
   pickDocuments, 
   pickImages, 
@@ -424,9 +425,41 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             'Create a PDF from the latest Dash response?',
             [
               { text: 'Cancel', style: 'cancel' },
-              { text: 'Generate', onPress: async () => {
-                try { await dashInstance.exportTextAsPDF(title || 'Dash Export', content || response.content || ''); }
-                catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
+              { text: 'Download Only', onPress: async () => {
+                try {
+                  const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || response.content || '');
+                  if (!res.success) throw new Error(res.error || 'Export failed');
+                } catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
+              } },
+              { text: 'Download + Attach', onPress: async () => {
+                try {
+                  const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || response.content || '');
+                  if (!res.success || !res.uri || !res.filename) throw new Error(res.error || 'Export failed');
+                  // Build attachment and upload
+                  const name = res.filename;
+                  const previewUri = res.uri;
+                  let size = 0;
+                  try {
+                    const info = await FileSystem.getInfoAsync(previewUri);
+                    size = (info && (info as any).size) || 0;
+                  } catch {}
+                  const attachment: DashAttachment = {
+                    id: `attach_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    name,
+                    mimeType: 'application/pdf',
+                    size,
+                    bucket: 'attachments',
+                    storagePath: '',
+                    kind: 'pdf',
+                    status: 'pending',
+                    previewUri
+                  };
+                  const convId = dashInstance.getCurrentConversationId() || (await dashInstance.startNewConversation('Chat with Dash'));
+                  const uploaded = await uploadAttachment(attachment, convId);
+                  await dashInstance.addAttachmentMessage(`📄 PDF generated: ${name}`, [uploaded], convId);
+                  try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+                  Alert.alert('PDF Ready', 'The PDF was attached to this conversation.');
+                } catch (e) { Alert.alert('PDF Export', 'Failed to generate or attach PDF'); }
               } }
             ]
           );

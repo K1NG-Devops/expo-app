@@ -69,7 +69,7 @@ export function RoleBasedHeader({
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
 
-  // Load avatar URL from user metadata or profiles table
+  // Load avatar URL from user metadata, profiles, or users table
   useEffect(() => {
     const loadAvatarUrl = async () => {
       if (!user?.id) {
@@ -96,6 +96,24 @@ export function RoleBasedHeader({
           console.debug('Failed to load avatar from profiles:', error);
         }
       }
+
+      // If still not found, try users table (fallback)
+      if (!url) {
+        try {
+          const { data: userData } = await assertSupabase()
+            .from('users')
+            .select('avatar_url')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+          
+          if (userData?.avatar_url) {
+            url = userData.avatar_url;
+            console.log('✓ Avatar loaded from users table:', url);
+          }
+        } catch (error) {
+          console.debug('Failed to load avatar from users:', error);
+        }
+      }
       
       // Check if URL is a local file:// URI on web platform - don't use these
       if (Platform.OS === 'web' && url && url.startsWith('file://')) {
@@ -103,6 +121,7 @@ export function RoleBasedHeader({
         url = null;
       }
       
+      console.log('Avatar URL loaded:', url ? 'Found' : 'Not found');
       setAvatarUrl(url || null);
     };
 

@@ -650,6 +650,7 @@ class EducationalPDFServiceImpl {
 
   /**
    * Generate a text PDF and return a downloadable URI (web: data URI; native: file URI)
+   * NOTE: This method does NOT open a share sheet; it only returns the URI
    */
   public async generateTextPDFUri(title: string, body: string, opts?: TextPDFOptions): Promise<{ uri: string; filename: string }> {
     const safeBody = (body || '')
@@ -674,8 +675,36 @@ class EducationalPDFServiceImpl {
       <div class="footer">Exported by Dash • EduDash Pro</div>
     </body></html>`;
     const filename = (title || 'dash-export').toLowerCase().replace(/\s+/g, '-');
-    const uri = await this.generateAndSharePDF(html, filename);
+    const uri = await this.createPDFFile(html);
     return { uri, filename: `${filename}.pdf` };
+  }
+
+  /**
+   * Generate an HTML PDF and return a downloadable URI (web: data URI; native: file URI)
+   * NOTE: This method does NOT open a share sheet; it only returns the URI
+   */
+  public async generateHTMLPDFUri(title: string, htmlContent: string): Promise<{ uri: string; filename: string }> {
+    let html = htmlContent;
+    if (!htmlContent.includes('<!DOCTYPE html>') && !htmlContent.includes('<html')) {
+      html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title></head><body>${htmlContent}</body></html>`;
+    }
+    const filename = (title || 'educational-guide').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const uri = await this.createPDFFile(html);
+    return { uri, filename: `${filename}.pdf` };
+  }
+
+  /**
+   * Create a PDF file from HTML and return its URI without sharing (web: data URI; native: file URI)
+   */
+  private async createPDFFile(html: string): Promise<string> {
+    // Web: return base64 data URI to enable direct downloads or upload
+    if (Platform.OS === 'web') {
+      const result: any = await Print.printToFileAsync({ html, base64: true });
+      return `data:application/pdf;base64,${result.base64}`;
+    }
+    // Native: return file URI
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    return uri;
   }
 
   /**
