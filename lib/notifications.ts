@@ -51,9 +51,18 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
   }
   if (status !== 'granted') return null
 
-  // Bind token to this Expo project to ensure it works in internal/dev builds
-  const token = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID })
-  return token.data ?? null
+  try {
+    // Bind token to this Expo project to ensure it works in internal/dev builds
+    const token = await Notifications.getExpoPushTokenAsync({ projectId: EXPO_PROJECT_ID })
+    return token.data ?? null
+  } catch (error: any) {
+    // Firebase/FCM not configured - gracefully skip in dev mode
+    if (error?.message?.includes('FirebaseApp') || error?.message?.includes('FCM')) {
+      console.log('[Push Registration] FCM not configured - skipping (dev mode)')
+      return null
+    }
+    throw error
+  }
 }
 
 export async function registerPushDevice(supabase: any, user: any): Promise<PushRegistrationResult> {
@@ -64,6 +73,12 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
     if (Platform.OS === 'web' || !Device.isDevice) {
       console.log('[Push Registration] Skipping - unsupported platform')
       return { status: 'skipped', reason: 'unsupported_platform' }
+    }
+    
+    // Skip if no user
+    if (!user?.id) {
+      console.log('[Push Registration] Skipping - no user ID')
+      return { status: 'skipped', reason: 'no_user' }
     }
 
     // Get device metadata
@@ -124,8 +139,12 @@ export async function registerPushDevice(supabase: any, user: any): Promise<Push
     console.log('[Push Registration] Successfully registered device')
     return { status: 'registered', token }
   } catch (error: any) {
-    console.error('Push registration exception:', error)
-    return { status: 'error', reason: 'exception', message: String(error) }
+    console.error('[Push Registration] Exception:', error?.message || error)
+    // Log full error details in dev mode
+    if (__DEV__) {
+      console.error('[Push Registration] Full error:', error)
+    }
+    return { status: 'error', reason: 'exception', message: error?.message || String(error) }
   }
 }
 

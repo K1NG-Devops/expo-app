@@ -937,17 +937,18 @@ const { error } = await assertSupabase()
           </ScrollView>
 
           {/* Date Range Filters */}
-          <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-            {[
-              { key: '7d', label: t('common.last_7_days', { defaultValue: 'Last 7 days' }) },
-              { key: '30d', label: t('common.last_30_days', { defaultValue: 'Last 30 days' }) },
-              { key: 'all', label: t('common.all_time', { defaultValue: 'All time' }) },
-              { key: 'custom', label: t('common.custom_range', { defaultValue: 'Custom range' }) },
-            ].map(({ key, label }) => (
-              <TouchableOpacity
-                key={key}
-                onPress={() => {
-                  if (key === 'custom') { setShowCustomRange(true); } else { setSelectedRange(key as any); }
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row' }}>
+              {[
+                { key: '7d', label: t('common.last_7_days', { defaultValue: 'Last 7 days' }) },
+                { key: '30d', label: t('common.last_30_days', { defaultValue: 'Last 30 days' }) },
+                { key: 'all', label: t('common.all_time', { defaultValue: 'All time' }) },
+                { key: 'custom', label: t('common.custom_range', { defaultValue: 'Custom range' }) },
+              ].map(({ key, label }) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => {
+                    if (key === 'custom') { setShowCustomRange(true); } else { setSelectedRange(key as any); }
                 }}
                 style={[styles.filterChip, selectedRange === key && styles.filterChipActive]}
               >
@@ -956,7 +957,8 @@ const { error } = await assertSupabase()
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+            </View>
+          </ScrollView>
 
           {filteredTransactions.length === 0 ? (
             <View style={styles.emptyState}>

@@ -43,6 +43,7 @@ import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -325,20 +326,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <View style={styles.loadingSkeleton}>
-          <View style={styles.skeletonHeader} />
-          <View style={styles.skeletonMetrics}>
-            {[1, 2, 3].map(i => (
-              <View key={i} style={styles.skeletonMetric} />
-            ))}
-          </View>
-          <View style={styles.skeletonSection} />
-        </View>
-      </View>
-    );
+  if (loading && isEmpty) {
+    return <LoadingScreen message="Loading your dashboard..." />;
   }
 
   if (error && isEmpty) {
@@ -366,7 +355,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
           <View style={styles.headerLeft}>
-            <Text style={styles.tenantName}>
+            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
               {(profile as any)?.organization_membership?.organization_slug ||
                (profile as any)?.organization_membership?.tenant_slug ||
                (profile as any)?.organization_membership?.slug ||
@@ -409,7 +398,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               activeOpacity={0.7}
             >
               <Text style={styles.userAvatarText}>
-                {user?.user_metadata?.first_name?.[0] || '?'}
+                {(user?.user_metadata?.first_name?.[0] || '') + (user?.user_metadata?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || '?'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1253,8 +1242,9 @@ const createStyles = (theme: any, preferences: any = {}) => {
 
   scrollContainer: {
     flex: 1,
-    // Reduced top margin for classic layout, more space for enhanced layout
-    marginTop: isClassicLayout ? 36 : 62,
+    // Increased top margin to ensure greeting section is visible below fixed header
+    // Accounts for header height including safe area insets and content
+    marginTop: isClassicLayout ? 80 : 95,
   },
   welcomeSection: {
     backgroundColor: theme.surface,

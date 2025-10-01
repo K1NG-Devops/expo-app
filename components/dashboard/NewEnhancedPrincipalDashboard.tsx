@@ -35,6 +35,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -205,12 +206,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <LoadingSkeleton />
-      </View>
-    );
+  if (loading && isEmpty) {
+    return <LoadingScreen message="Loading your dashboard..." />;
   }
 
   if (error && isEmpty) {
@@ -267,7 +264,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         <View style={styles.appHeaderContent}>
           {/* Left side - Tenant/School name */}
           <View style={styles.headerLeft}>
-            <Text style={styles.tenantName}>
+            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
               {(profile as any)?.organization_membership?.organization_slug ||
                (profile as any)?.organization_membership?.tenant_slug ||
                (profile as any)?.organization_membership?.slug ||
@@ -310,7 +307,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               activeOpacity={0.7}
             >
               <Text style={styles.userAvatarText}>
-                {user?.user_metadata?.first_name?.[0] || '?'}
+                {(user?.user_metadata?.first_name?.[0] || '') + (user?.user_metadata?.last_name?.[0] || '') || user?.email?.[0]?.toUpperCase() || '?'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -602,8 +599,10 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     scrollContainer: {
       flex: 1,
-      // Space below the fixed header including safe area inset (reduced for tighter layout)
-      marginTop: (isSmallScreen ? 32 : 38) + insetTop,
+      // Space below the fixed header including safe area inset and header content height
+      // Header height = insetTop + top padding (12-16) + content height (~32-36) + bottom padding (12-16) + border (1)
+      // Increased further to ensure greeting card is fully visible on mobile
+      marginTop: (isSmallScreen ? 80 : 90) + insetTop,
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),

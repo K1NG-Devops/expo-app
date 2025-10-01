@@ -427,14 +427,19 @@ async function sendMessage(request: Request): Promise<Response> {
     // Validate environment variables before processing
     if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
       console.error('❌ Missing WhatsApp credentials')
+      console.error('Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in Supabase Edge Functions environment variables')
+      console.error('Documentation: https://docs.edudashpro.com/whatsapp-setup')
+      
       return json({ 
         error: 'whatsapp_not_configured',
-        message: 'WhatsApp credentials not properly configured. Please contact support.',
+        message: 'WhatsApp Business API is not configured for this organization. Please complete the WhatsApp setup in your settings.',
+        action: 'configure_whatsapp',
         details: {
           hasAccessToken: !!WHATSAPP_ACCESS_TOKEN,
-          hasPhoneNumberId: !!WHATSAPP_PHONE_NUMBER_ID
+          hasPhoneNumberId: !!WHATSAPP_PHONE_NUMBER_ID,
+          setup_guide: 'Go to Settings > WhatsApp Integration to complete setup'
         }
-      }, { status: 500 })
+      }, { status: 503 })
     }
 
     const sendRequest: SendMessageRequest = await request.json()

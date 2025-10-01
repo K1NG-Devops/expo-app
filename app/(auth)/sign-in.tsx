@@ -1,17 +1,66 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator } from "react-native";
 import { Stack } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { assertSupabase } from "@/lib/supabase";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 import { SocialLoginButtons } from '@/components/ui/SocialLoginButtons';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BiometricAuthService } from '@/services/BiometricAuthService';
+import * as SecureStore from 'expo-secure-store';
 
 export default function SignIn() {
   const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricType, setBiometricType] = useState<string | null>(null);
+  const [storedUserEmail, setStoredUserEmail] = useState<string | null>(null);
+
+  // Load saved credentials and check biometric availability
+  useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        // Check biometric availability
+        const securityInfo = await BiometricAuthService.getSecurityInfo();
+        const isAvailable = securityInfo.capabilities.isAvailable && securityInfo.capabilities.isEnrolled;
+        setBiometricAvailable(isAvailable && securityInfo.isEnabled);
+        
+        // Determine biometric type
+        const availableTypes = securityInfo.availableTypes;
+        if (availableTypes.includes('Fingerprint')) {
+          setBiometricType('fingerprint');
+        } else if (availableTypes.includes('Face ID')) {
+          setBiometricType('face');
+        } else {
+          setBiometricType('biometric');
+        }
+        
+        // Load saved email from remember me
+        const savedRememberMe = await AsyncStorage.getItem('rememberMe');
+        const savedEmail = await AsyncStorage.getItem('savedEmail');
+        if (savedRememberMe === 'true' && savedEmail) {
+          setEmail(savedEmail);
+          setRememberMe(true);
+          setStoredUserEmail(savedEmail);
+          
+          // Try to load saved password from secure store
+          const savedPassword = await SecureStore.getItemAsync(`password_${savedEmail}`);
+          if (savedPassword) {
+            setPassword(savedPassword);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load saved credentials:', error);
+      }
+    };
+    loadSavedCredentials();
+  }, []);
 
   const handleSignIn = async () => {
     if (!email || !password) {
@@ -30,11 +79,51 @@ export default function SignIn() {
         Alert.alert("Sign In Failed", error.message);
       } else {
         console.log("Sign in successful:", data.user?.email);
+        // Save remember me preference and credentials
+        if (rememberMe) {
+          await AsyncStorage.setItem('rememberMe', 'true');
+          await AsyncStorage.setItem('savedEmail', email.trim());
+          // Save password securely for quick access
+          await SecureStore.setItemAsync(`password_${email.trim()}`, password);
+        } else {
+          await AsyncStorage.removeItem('rememberMe');
+          await AsyncStorage.removeItem('savedEmail');
+          await SecureStore.deleteItemAsync(`password_${email.trim()}`);
+        }
         // The AuthContext will handle routing automatically
       }
     } catch (_error) {
       console.error("Sign in error:", _error);
       Alert.alert("Error", "An unexpected error occurred");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    if (!biometricAvailable) {
+      Alert.alert('Biometric Not Available', 'Please use your password to sign in.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Authenticate with biometrics
+      const authResult = await BiometricAuthService.authenticate('Sign in to EduDash Pro');
+      
+      if (authResult.success) {
+        // Use stored credentials to sign in
+        if (email && password) {
+          await handleSignIn();
+        } else {
+          Alert.alert('Error', 'No saved credentials found. Please sign in with your password.');
+        }
+      } else {
+        Alert.alert('Authentication Failed', authResult.error || 'Biometric authentication failed');
+      }
+    } catch (error) {
+      console.error('Biometric login error:', error);
+      Alert.alert('Error', 'An error occurred during biometric authentication');
     } finally {
       setLoading(false);
     }
@@ -153,6 +242,95 @@ export default function SignIn() {
     buttonDisabled: {
       backgroundColor: theme.textSecondary,
     },
+    passwordContainer: {
+      position: 'relative',
+    },
+    passwordInput: {
+      paddingRight: 48,
+    },
+    eyeButton: {
+      position: 'absolute',
+      right: 12,
+      top: 14,
+      padding: 4,
+    },
+    rememberMeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    checkbox: {
+      width: 20,
+      height: 20,
+      borderRadius: 4,
+      borderWidth: 2,
+      borderColor: theme.border,
+      marginRight: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.inputBackground,
+    },
+    checkboxChecked: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    rememberMeText: {
+      fontSize: 14,
+      color: theme.text,
+    },
+    biometricSection: {
+      marginTop: 16,
+      marginBottom: 16,
+      alignItems: 'center',
+      padding: 16,
+      backgroundColor: theme.surfaceVariant,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    biometricWelcome: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    biometricEmail: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginBottom: 12,
+    },
+    biometricButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: theme.primary,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      marginBottom: 12,
+    },
+    biometricButtonText: {
+      color: theme.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    dividerContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: '100%',
+      marginVertical: 8,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginHorizontal: 12,
+    },
   });
 
   return (
@@ -170,6 +348,48 @@ export default function SignIn() {
             <Text style={styles.subtitle}>Fast, secure sign-in to your AI-powered dashboard</Text>
           </View>
 
+          {/* Biometric Login Section */}
+          {biometricAvailable && storedUserEmail && (
+            <View style={styles.biometricSection}>
+              <Text style={styles.biometricWelcome}>Welcome back!</Text>
+              <Text style={styles.biometricEmail}>{storedUserEmail}</Text>
+              <TouchableOpacity
+                style={styles.biometricButton}
+                onPress={handleBiometricLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color={theme.onPrimary} />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={
+                        biometricType === 'face' ? 'scan' :
+                        biometricType === 'fingerprint' ? 'finger-print' :
+                        'lock-closed'
+                      }
+                      size={22}
+                      color={theme.onPrimary}
+                    />
+                    <Text style={styles.biometricButtonText}>
+                      {biometricType === 'face' ? 'Use Face ID' :
+                       biometricType === 'fingerprint' ? 'Use Fingerprint' :
+                       'Use Biometric'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              
+              {/* Divider */}
+              <View style={styles.dividerContainer}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </View>
+          )}
+
           <View style={styles.form}>
             <TextInput
               style={styles.input}
@@ -182,16 +402,42 @@ export default function SignIn() {
               autoCorrect={false}
             />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Password"
-              placeholderTextColor={theme.inputPlaceholder}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                placeholder="Password"
+                placeholderTextColor={theme.inputPlaceholder}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={22}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.rememberMeContainer}
+              onPress={() => setRememberMe(!rememberMe)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && (
+                  <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                )}
+              </View>
+              <Text style={styles.rememberMeText}>Remember me</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.button, loading && styles.buttonDisabled]}
