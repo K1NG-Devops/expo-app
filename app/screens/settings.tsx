@@ -46,6 +46,7 @@ const useSafeUpdates = () => {
   }
 };
 import { useAuth } from '@/contexts/AuthContext';
+import { useSchoolSettings } from '@/lib/hooks/useSchoolSettings';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Haptics temporarily disabled to prevent device-specific crashes
 // import { Vibration } from 'react-native';
@@ -64,6 +65,8 @@ export default function SettingsScreen() {
   const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [loading, setLoading] = useState(true);
   const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useSafeUpdates();
+  const schoolId = profile?.organization_id || undefined;
+  const schoolSettingsQuery = useSchoolSettings(schoolId);
   
   // Feedback preferences
   const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(true);
@@ -597,21 +600,55 @@ export default function SettingsScreen() {
 
         {/* School Settings */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>School settings</Text>
+          <Text style={styles.sectionTitle}>{t('settings.schoolOverview')}</Text>
           <View style={styles.settingsCard}>
-            <TouchableOpacity
-              style={[styles.settingItem, styles.lastSettingItem]}
-              onPress={() => router.push('/screens/school-settings')}
-            >
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="business" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.schoolName')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {schoolSettingsQuery.data?.schoolName || t('dashboard.your_school')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="time" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.timezone')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {schoolSettingsQuery.data?.timezone || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="cash" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.currency')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {schoolSettingsQuery.data?.currency || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View style={[styles.settingItem, styles.lastSettingItem]}>
               <View style={styles.settingLeft}>
                 <Ionicons name="logo-whatsapp" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>WhatsApp number</Text>
-                  <Text style={styles.settingSubtitle}>Configure your school’s WhatsApp number</Text>
+                  <Text style={styles.settingTitle}>{t('settings.whatsappConfigured')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {(schoolSettingsQuery.data?.whatsapp_number ? t('settings.whatsappYes') : t('settings.whatsappNo'))}
+                  </Text>
                 </View>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push('/screens/school-settings')} style={styles.settingRight}>
+                <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
