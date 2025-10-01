@@ -290,5 +290,187 @@ CREATE POLICY "Users can view own notifications" ON notifications
 
 ---
 
-*Last Updated: 2025-09-19*  
-*Version: 1.1.0*
+## 🧹 CODEBASE CLEANLINESS RULES [MANDATORY]
+
+### Root Directory Policy
+
+**Allowed Files in Project Root:**
+- README.md, WARP.md (documentation)
+- package.json, package-lock.json (dependencies)
+- tsconfig.json, eslint.config.mjs (TypeScript/linting config)
+- babel.config.js, babel.config.production.js (transpilation)
+- metro.config.js (bundler config)
+- app.json, app.config.js, eas.json (Expo configuration)
+- .env.example, .gitignore (environment/git)
+- index.js, App.js (entry points)
+- Other essential project-level configs only
+
+**❌ NOT Allowed in Root:**
+- Loose markdown files (except README.md and WARP.md)
+- SQL files or migrations
+- Shell scripts
+- Build artifacts (APKs, AABs, IPAs)
+- Keystores or certificates
+- Test files or debug scripts
+- Backup files (*-backup, *.bak, *OLD*)
+- Temporary files
+
+**✅ Proper Organization:**
+- Documentation → `docs/` with subdirectories (deployment/, features/, security/, governance/)
+- SQL scripts → `sql/archive/` (active migrations go in `supabase/migrations/` only)
+- Scripts → `scripts/` (production) or `scripts/archive/` (test/debug)
+- Source code → `app/`, `components/`, `lib/`, `services/`, `hooks/`, `contexts/`
+
+### Logging Standards
+
+**Use Centralized Logger:**
+```typescript
+import { logger } from '@/lib/logger';
+
+logger.debug('Verbose debugging info');  // Dev only
+logger.info('General information');      // Dev only
+logger.warn('Warning messages');         // Dev only
+logger.error('Error messages');          // Always logged
+```
+
+**Severity Mapping:**
+- `debug()` - Verbose, detailed diagnostic information
+- `info()` - High-level operational messages
+- `warn()` - Recoverable issues or deprecation warnings
+- `error()` - Failures, exceptions, critical errors
+
+**Console Ban:**
+- ❌ **NEVER** use `console.log()`, `console.warn()`, or `console.debug()` in production code
+- ✅ Use `logger.*` methods instead
+- ✅ Exception: `console.error()` for critical early-stage triage only
+- ✅ All non-error logs are automatically stripped from production builds
+
+**Production Behavior:**
+- Non-error logs (`debug`, `info`, `warn`) are no-ops in production
+- Error logs route to monitoring (Sentry/PostHog)
+- Build pipeline strips console.* calls via Babel transform-remove-console
+
+**ESLint Enforcement:**
+```javascript
+rules: {
+  'no-console': ['error', { allow: ['error'] }]
+}
+```
+
+### File Organization Rules
+
+**Documentation:**
+- All `.md` files (except README.md and WARP.md) must live under `docs/`
+- Status reports → `docs/status/`
+- Deployment guides → `docs/deployment/`
+- Feature specs → `docs/features/`
+- Security policies → `docs/security/`
+- Governance → `docs/governance/`
+
+**SQL Files:**
+- Active migrations → `supabase/migrations/` only
+- Archive/ad-hoc scripts → `sql/archive/`
+- Never commit loose SQL files to root
+
+**Scripts:**
+- Production scripts → `scripts/`
+- Test/debug scripts → `scripts/archive/`
+- Add headers with usage instructions to all scripts
+
+**Source Code:**
+- Follow established directory structure
+- No loose files in root except designated entry points
+
+### Debug Code Policy
+
+**Development Utilities:**
+- ❌ No debug utilities in main production branches
+- ✅ Use feature flags or `__DEV__` guards for dev-only code
+- ✅ Clearly document any retained debug helpers
+- ✅ Gate debug code: `if (__DEV__) { ... }`
+
+**Test Files:**
+- Tests belong in `__tests__/` directories or `*.test.ts` files
+- No test harnesses in production code paths
+- Archive obsolete test scripts to `scripts/archive/`
+
+### Build Artifact Management
+
+**Never Commit:**
+- ❌ APK files (*.apk)
+- ❌ AAB files (*.aab)
+- ❌ IPA files (*.ipa)
+- ❌ Keystores (*.jks, *.keystore)
+- ❌ Certificates (*.p12, *.p8, *.pem)
+- ❌ Build outputs (build/, dist/, coverage/)
+- ❌ Large binaries
+
+**Gitignore Patterns:**
+```gitignore
+# Root markdown only
+/*.md
+!/README.md
+!/WARP.md
+
+# Build artifacts
+*.apk
+*.aab
+*.ipa
+*.jks
+*.keystore
+build/
+dist/
+coverage/
+
+# Backups and temp files
+*-backup
+*-old
+*OLD*
+*.bak
+*.tmp
+*.log
+
+# Test scripts
+test-*.sh
+debug-*.sh
+check-*.js
+
+# SQL temp
+/sql/tmp/
+/sql/archive/*.tmp
+```
+
+### Codebase Cleanliness Checklist
+
+**Before Committing:**
+- [ ] No console.log/warn/debug in code (except in logger utilities)
+- [ ] No loose files in project root
+- [ ] Documentation in proper `docs/` subdirectory
+- [ ] Scripts organized in `scripts/` or `scripts/archive/`
+- [ ] No build artifacts or keystores
+- [ ] No backup files (*-backup, *.bak)
+- [ ] .gitignore patterns prevent future clutter
+
+**Code Review Checklist:**
+- [ ] Logging uses `logger.*` not `console.*`
+- [ ] No new files added to project root (except configs)
+- [ ] Debug code properly gated with `__DEV__`
+- [ ] Tests in appropriate directories
+- [ ] Documentation updated if needed
+
+### Enforcement
+
+**Automated:**
+- ESLint blocks console.* usage
+- Babel strips console.* from production builds
+- Pre-commit hooks (optional) verify cleanliness
+
+**Manual:**
+- Code review blocks for violations
+- Regular audits of root directory
+- Team education on standards
+
+---
+
+*Last Updated: 2025-10-01*  
+*Version: 2.0.0 - Added cleanliness and logging standards*
