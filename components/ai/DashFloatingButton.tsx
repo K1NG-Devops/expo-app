@@ -45,7 +45,7 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
   const tooltipAnimation = useRef(new Animated.Value(0)).current;
   const rotationAnimation = useRef(new Animated.Value(0)).current;
 
-  // Auto-hide tooltip after 3 seconds
+  // Auto-hide tooltip after ~12 seconds (longer instruction window)
   useEffect(() => {
     if (showTooltip) {
       Animated.timing(tooltipAnimation, {
@@ -56,7 +56,7 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
 
       const timer = setTimeout(() => {
         hideTooltip();
-      }, 3000);
+      }, 12000);
 
       return () => clearTimeout(timer);
     }

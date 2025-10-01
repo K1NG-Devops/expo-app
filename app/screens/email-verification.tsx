@@ -12,11 +12,12 @@ import {
   KeyboardAvoidingView
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface VerificationStatus {
   success: boolean;
@@ -27,6 +28,7 @@ interface VerificationStatus {
 
 export default function EmailVerificationScreen() {
   const params = useLocalSearchParams();
+  const { theme } = useTheme();
   const { token, email, schoolName } = params as { token?: string; email?: string; schoolName?: string };
 
   const [verificationToken, setVerificationToken] = useState(token || '');
@@ -200,11 +202,11 @@ export default function EmailVerificationScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Email Verification',
-        headerStyle: { backgroundColor: '#0b1220' },
-        headerTitleStyle: { color: '#fff' },
-        headerTintColor: '#00f5ff'
+        headerStyle: { backgroundColor: theme.headerBackground },
+        headerTitleStyle: { color: theme.headerText },
+        headerTintColor: theme.headerTint
       }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
+      <ThemedStatusBar />
       
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <KeyboardAvoidingView 

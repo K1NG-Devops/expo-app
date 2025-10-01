@@ -353,7 +353,23 @@ export const usePrincipalHub = () => {
         attendanceRate = Math.round((presentCount / attendanceData.length) * 100);
       }
       
-      // Process teachers data with real database information
+      // Preload secure per-teacher stats from view (tenant-isolated)
+      let overviewByEmail: Map<string, { class_count: number; student_count: number }> = new Map();
+      try {
+        const { data: overviewRows } = await assertSupabase()
+          .from('vw_teacher_overview')
+          .select('email, class_count, student_count');
+        (overviewRows || []).forEach((row: any) => {
+          if (row?.email) overviewByEmail.set(String(row.email).toLowerCase(), {
+            class_count: Number(row.class_count || 0),
+            student_count: Number(row.student_count || 0)
+          });
+        });
+      } catch (e) {
+        console.warn('[PrincipalHub] vw_teacher_overview fetch failed, falling back to per-teacher queries:', e);
+      }
+
+      // Process teachers data with database information (using view when available)
       const processedTeachers = await Promise.all(
         teachersData.map(async (teacher: any) => {
           // Determine the effective user ID for this teacher.
@@ -375,7 +391,13 @@ export const usePrincipalHub = () => {
           // Get classes assigned to this teacher (by effective user id)
           let teacherClassesCount = 0;
           let teacherClasses: any[] = [];
-          if (effectiveUserId) {
+
+          // Prefer view-provided counts
+          const viewStats = overviewByEmail.get(String(teacher.email || '').toLowerCase());
+          if (viewStats) {
+            teacherClassesCount = viewStats.class_count || 0;
+            // We don't have per-class IDs in the view; only counts. We'll keep teacherClasses empty and use counts.
+          } else if (effectiveUserId) {
             const classesCountRes = await assertSupabase()
               .from('classes')
               .select('id', { count: 'exact', head: true })
@@ -414,7 +436,10 @@ export const usePrincipalHub = () => {
           const classIds = (teacherClasses || []).map((c: any) => c.id);
           let studentsInClasses = 0;
           
-          if (classIds.length > 0) {
+          // Prefer view-provided student count
+          if (viewStats) {
+            studentsInClasses = viewStats.student_count || 0;
+          } else if (classIds.length > 0) {
             const { count: studentsCount } = await assertSupabase()
               .from('students')
               .select('id', { count: 'exact', head: true })

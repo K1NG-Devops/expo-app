@@ -78,6 +78,11 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const userRole = (profile as any)?.role || 'principal';
+  // Prefer explicit tenant slug when available
+  const tenantSlug = (profile as any)?.organization_membership?.tenant_slug 
+    || (profile as any)?.organization_membership?.organization_slug 
+    || (profile as any)?.organization_membership?.slug 
+    || '';
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
@@ -263,19 +268,28 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       {/* Fixed App Header */}
       <View style={styles.appHeader}>
         <View style={styles.appHeaderContent}>
-          {/* Left side - Tenant/School name */}
+          {/* Left side - Avatar + Tenant/School name */}
           <View style={styles.headerLeft}>
+            <TouchableOpacity 
+              style={{ borderRadius: 18, overflow: 'hidden', marginRight: 10 }}
+              onPress={() => router.push('/screens/account')}
+              activeOpacity={0.7}
+              accessibilityLabel={t('common.account')}
+            >
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
+            </TouchableOpacity>
             <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
-              {(profile as any)?.organization_membership?.organization_slug ||
-               (profile as any)?.organization_membership?.tenant_slug ||
-               (profile as any)?.organization_membership?.slug ||
-               data.schoolName || t('dashboard.your_school')}
+              {tenantSlug || data.schoolName || t('dashboard.your_school')}
             </Text>
           </View>
           
-          {/* Right side - Dashboard Toggle, Settings & Avatar */}
+          {/* Right side - Dashboard Toggle + Settings */}
           <View style={styles.headerRight}>
-            {/* Dashboard Layout Toggle (first) */}
+            {/* Dashboard Layout Toggle */}
             <TouchableOpacity
               style={styles.dashboardToggle}
               onPress={() => {
@@ -292,26 +306,13 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               />
             </TouchableOpacity>
             
-            {/* Settings Icon (now second) */}
+            {/* Settings Icon */}
             <TouchableOpacity 
               style={styles.settingsButton}
               onPress={() => router.push('/screens/settings')}
               activeOpacity={0.7}
             >
               <Ionicons name="settings-outline" size={20} color={theme.text} />
-            </TouchableOpacity>
-            
-{/* User Avatar */}
-            <TouchableOpacity 
-              style={{ borderRadius: 18, overflow: 'hidden' }}
-              onPress={() => router.push('/screens/account')}
-              activeOpacity={0.7}
-            >
-              <Avatar 
-                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
-                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
-                size={36}
-              />
             </TouchableOpacity>
           </View>
         </View>
@@ -603,9 +604,9 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     scrollContainer: {
       flex: 1,
       // Space below the fixed header including safe area inset and header content height
-      // Header height = insetTop + top padding (12-16) + content height (~32-36) + bottom padding (12-16) + border (1)
-      // Increased further to ensure greeting card is fully visible on mobile
-      marginTop: (isSmallScreen ? 80 : 90) + insetTop,
+      // Header height = insetTop + top padding + content + bottom padding + border
+      // Increased to prevent the welcome card from being hidden under the header
+      marginTop: (isSmallScreen ? 104 : 124) + insetTop,
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),
@@ -617,6 +618,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     headerLeft: {
       flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     headerRight: {
       flexDirection: 'row',
@@ -628,6 +631,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       fontWeight: '700',
       color: theme.text,
       marginBottom: 2,
+      flexShrink: 1,
+      minWidth: 0,
     },
     titleRow: {
       flexDirection: 'row',

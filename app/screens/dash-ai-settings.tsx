@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Switch,
   Alert,
-  ActivityIndicator 
+  ActivityIndicator,
+  TextInput 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -210,6 +211,31 @@ export default function DashAISettingsScreen() {
         console.warn(`Failed to load ${key}:`, error);
       }
     }
+  };
+
+  // Voice chat preferences (dock)
+  const [voiceDefaultLock, setVoiceDefaultLock] = useState(false);
+  const [voiceAutoSpeak, setVoiceAutoSpeak] = useState(true);
+  const [voiceAutoSilenceMs, setVoiceAutoSilenceMs] = useState('7000');
+  const [voiceListenCapMs, setVoiceListenCapMs] = useState('15000');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const vdl = await AsyncStorage.getItem('@voice_default_lock');
+        const vas = await AsyncStorage.getItem('@voice_auto_speak');
+        const asMs = await AsyncStorage.getItem('@voice_auto_silence_ms');
+        const capMs = await AsyncStorage.getItem('@voice_listen_cap_ms');
+        if (vdl !== null) setVoiceDefaultLock(vdl === 'true');
+        if (vas !== null) setVoiceAutoSpeak(vas === 'true');
+        if (asMs) setVoiceAutoSilenceMs(asMs);
+        if (capMs) setVoiceListenCapMs(capMs);
+      } catch {}
+    })();
+  }, []);
+
+  const persistVoicePref = async (key: string, value: string) => {
+    try { await AsyncStorage.setItem(key, value); } catch {}
   };
 
   const showSettingsToast = (message: string) => {
@@ -988,4 +1014,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  inputCompact: { minWidth: 110, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, textAlign: 'right' }
 });

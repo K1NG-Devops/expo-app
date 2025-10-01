@@ -22,6 +22,7 @@ import {
   Vibration,
   ActionSheetIOS,
 } from 'react-native';
+import { FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
@@ -29,12 +30,16 @@ import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext'
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useVoiceController } from '@/hooks/useVoiceController';
+import { VoiceDock } from '@/components/ai/VoiceDock';
 import { assertSupabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { 
   pickDocuments, 
   pickImages, 
@@ -57,11 +62,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   initialMessage
 }: DashAssistantProps) => {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { setLayout } = useDashboardPreferences();
   const [messages, setMessages] = useState<DashMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<DashConversation | null>(null);
@@ -72,11 +77,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
+  const [showLockHint, setShowLockHint] = useState(true);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+
+// Show quick voice instruction on startup (~12s)
+  useEffect(() => {
+    const t = setTimeout(() => setShowLockHint(false), 12000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Initialize Dash AI Assistant
   useEffect(() => {
@@ -156,34 +169,22 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
+  // Pre-warm recorder after initialization for faster start
+  useEffect(() => {
+    if (dashInstance && isInitialized) {
+      try { dashInstance.preWarmRecorder(); } catch {}
+    }
+  }, [dashInstance, isInitialized]);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
+      try {
+        (flatListRef.current as any)?.scrollToEnd?.({ animated: true });
+      } catch {}
     }, 100);
   }, [messages]);
 
-  // Pulse animation for recording
-  useEffect(() => {
-    if (isRecording) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnimation, {
-            toValue: 1.2,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    }
-  }, [isRecording, pulseAnimation]);
 
   // Focus effect to refresh when screen comes into focus
   useFocusEffect(
@@ -363,145 +364,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   };
 
-  const startRecording = async () => {
-    if (!dashInstance || isRecording) return;
-
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setIsRecording(true);
-      await dashInstance.startRecording();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!dashInstance || !isRecording) return;
-
-    try {
-      setIsRecording(false);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      const audioUri = await dashInstance.stopRecording();
-      if (audioUri) {
-        setIsLoading(true);
-        const response = await dashInstance.sendVoiceMessage(audioUri);
-        
-        // Handle dashboard actions if present
-        if (response.metadata?.dashboard_action?.type === 'switch_layout') {
-          const newLayout = response.metadata.dashboard_action.layout;
-          if (newLayout && (newLayout === 'classic' || newLayout === 'enhanced')) {
-            console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
-            setLayout(newLayout);
-
-            // Provide haptic feedback
-            try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            } catch { /* Haptics not available */ }
-          }
-        }
-
-        if (response.metadata?.dashboard_action?.type === 'open_screen') {
-          const { route, params } = response.metadata.dashboard_action as any;
-          console.log(`[Dash] Proposed open_screen: ${route}`, params || {});
-          if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
-            Alert.alert(
-              'Open Lesson Generator?',
-              'Dash suggests opening the AI Lesson Generator with prefilled details. Please confirm the fields in the next screen, then press Generate to start.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
-              ]
-            );
-          } else {
-            try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
-          }
-        } else if ((response.metadata?.dashboard_action?.type as string) === 'export_pdf') {
-          const { title, content } = (response.metadata?.dashboard_action as any) || {};
-          Alert.alert(
-            'Generate PDF?',
-            'Create a PDF from the latest Dash response?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Download Only', onPress: async () => {
-                try {
-                  const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || response.content || '');
-                  if (!res.success) throw new Error(res.error || 'Export failed');
-                } catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
-              } },
-              { text: 'Download + Attach', onPress: async () => {
-                try {
-                  const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || response.content || '');
-                  if (!res.success || !res.uri || !res.filename) throw new Error(res.error || 'Export failed');
-                  // Build attachment and upload
-                  const name = res.filename;
-                  const previewUri = res.uri;
-                  let size = 0;
-                  try {
-                    const info = await FileSystem.getInfoAsync(previewUri);
-                    size = (info && (info as any).size) || 0;
-                  } catch {}
-                  const attachment: DashAttachment = {
-                    id: `attach_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                    name,
-                    mimeType: 'application/pdf',
-                    size,
-                    bucket: 'attachments',
-                    storagePath: '',
-                    kind: 'pdf',
-                    status: 'pending',
-                    previewUri
-                  };
-                  const convId = dashInstance.getCurrentConversationId() || (await dashInstance.startNewConversation('Chat with Dash'));
-                  const uploaded = await uploadAttachment(attachment, convId);
-                  await dashInstance.addAttachmentMessage(`📄 PDF generated: ${name}`, [uploaded], convId);
-                  try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-                  Alert.alert('PDF Ready', 'The PDF was attached to this conversation.');
-                } catch (e) { Alert.alert('PDF Export', 'Failed to generate or attach PDF'); }
-              } }
-            ]
-          );
-        }
-        
-        // Update messages from conversation
-        const updatedConv = await dashInstance.getConversation(dashInstance.getCurrentConversationId()!);
-        if (updatedConv) {
-          setMessages(updatedConv.messages);
-          setConversation(updatedConv);
-        }
-
-        // Offer to open Lesson Generator when intent detected
-        try {
-          const intentType = response?.metadata?.user_intent?.primary_intent || ''
-          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator('voice input', response?.content)
-          if (shouldOpen) {
-            setTimeout(() => {
-              Alert.alert(
-                'Open Lesson Generator?',
-                'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
-                [
-                  { text: 'Not now', style: 'cancel' },
-                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext('voice input', response?.content || '') }
-                ]
-              )
-            }, 200)
-          }
-        } catch {}
-
-        // Auto-speak response
-        setTimeout(() => {
-          speakResponse(response);
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to process voice message. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const speakResponse = async (message: DashMessage) => {
     console.log(`[DashAssistant] speakResponse called for message: ${message.id}`);
@@ -668,6 +530,61 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     ));
   };
 
+  // Download a PDF proposed by Dash (web: browser download; native: share sheet)
+  const handleDownloadPdf = async (title: string, content: string) => {
+    try {
+      if (!dashInstance) return;
+      const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || '');
+      if (!res.success || !res.uri) {
+        Alert.alert('PDF Export', 'Failed to generate PDF');
+        return;
+      }
+      if (Platform.OS === 'web') {
+        try {
+          const a = document.createElement('a');
+          a.href = res.uri;
+          a.download = res.filename || 'dash-export.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch {
+          Alert.alert('PDF Ready', 'Your PDF is ready. If download did not start, long-press the link to save.');
+        }
+      } else {
+        try {
+          await Sharing.shareAsync(res.uri, { mimeType: 'application/pdf' });
+        } catch {
+          Alert.alert('PDF Ready', `Saved as ${res.filename || 'export.pdf'}`);
+        }
+      }
+    } catch (e) {
+      console.error('handleDownloadPdf error', e);
+      Alert.alert('PDF Export', 'Failed to generate PDF');
+    }
+  };
+
+  // Open or share an attachment chip inside a message
+  const handleOpenAttachment = async (att: DashAttachment) => {
+    try {
+      if (att.previewUri) {
+        if (Platform.OS === 'web') {
+          const a = document.createElement('a');
+          a.href = att.previewUri;
+          a.download = att.name || 'attachment';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          await Sharing.shareAsync(att.previewUri, { mimeType: att.mimeType || 'application/octet-stream' });
+        }
+        return;
+      }
+      Alert.alert('Attachment', 'This attachment is not immediately downloadable in this build.');
+    } catch (e) {
+      Alert.alert('Error', 'Unable to open attachment');
+    }
+  };
+
   const renderMessage = (message: DashMessage, index: number) => {
     const isUser = message.type === 'user';
     const isLastMessage = index === messages.length - 1;
@@ -730,6 +647,22 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               </TouchableOpacity>
             )}
           </View>
+
+          {/* Render message attachments as actionable chips */}
+          {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 && (
+            <View style={{ marginTop: 8, gap: 6 }}>
+              {(message as any).attachments.map((att: DashAttachment) => (
+                <TouchableOpacity key={att.id}
+                  onPress={() => handleOpenAttachment(att)}
+                  style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10,
+                           backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
+                  <Ionicons name="document" size={16} color={theme.text} />
+                  <Text numberOfLines={1} style={{ marginLeft: 8, color: theme.text, flex: 1 }}>{att.name}</Text>
+                  <Ionicons name="download" size={16} color={theme.primary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           
           {message.voiceNote && (
             <View style={styles.voiceNoteIndicator}>
@@ -749,7 +682,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             </View>
           )}
           
-          {/* Bottom row with speak button (left) and timestamp (right) */}
+          {/* Bottom row: speak button + optional PDF actions + timestamp */}
           <View style={styles.messageBubbleFooter}>
             {!isUser && (
               <TouchableOpacity
@@ -760,9 +693,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                   }
                 ]}
                 onPress={() => {
-                  console.log(`[DashAssistant] Speak button pressed for message ${message.id}`);
-                  console.log(`[DashAssistant] Currently speaking: ${speakingMessageId}`);
-                  console.log(`[DashAssistant] Is same message: ${speakingMessageId === message.id}`);
                   speakResponse(message);
                 }}
                 activeOpacity={0.7}
@@ -775,6 +705,32 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 />
               </TouchableOpacity>
             )}
+
+            {/* Inline Download PDF buttons when AI proposes export */}
+            {!isUser && (message as any)?.metadata?.dashboard_action?.type === 'export_pdf' && (
+              <View style={{ flexDirection: 'row', marginLeft: 8 }}>
+                <TouchableOpacity
+                  style={[styles.inlineActionButton, { backgroundColor: theme.primary }]}
+                  onPress={() => handleDownloadPdf((message as any).metadata.dashboard_action.title || 'Dash Export', (message as any).metadata.dashboard_action.content || message.content || '')}
+                >
+                  <Text style={{ color: theme.onPrimary, fontSize: 12, fontWeight: '700' }}>Download PDF</Text>
+                </TouchableOpacity>
+                <View style={{ width: 6 }} />
+                <TouchableOpacity
+                  style={[styles.inlineActionButton, { backgroundColor: theme.surfaceVariant }]}
+                  onPress={async () => {
+                    const da: any = (message as any).metadata?.dashboard_action || {};
+                    try {
+                      const res = await dashInstance?.exportTextAsPDFForDownload(da.title || 'Dash Export', da.content || message.content || '');
+                      if (res?.success && res.uri) await Sharing.shareAsync(res.uri, { mimeType: 'application/pdf' });
+                    } catch {}
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>Share</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             <View style={{ flex: 1 }} />
             <Text
               style={[
@@ -1035,6 +991,25 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     );
   };
 
+  // Voice Dock controller (initialized even if dashInstance is null; it will no-op)
+  const vc = useVoiceController(dashInstance, {
+    onResponse: async (response) => {
+      try {
+        const updatedConv = await dashInstance?.getConversation(dashInstance?.getCurrentConversationId()!);
+        if (updatedConv) {
+          setMessages(updatedConv.messages);
+          setConversation(updatedConv);
+        }
+      } catch {}
+      setTimeout(() => { try { speakResponse(response); } catch {} }, 400);
+    }
+  });
+
+  // Voice Dock controller + auto speak preference
+  const [autoSpeak, setAutoSpeak] = React.useState(true);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
+
+
   if (!isInitialized) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -1053,9 +1028,25 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
+
+      {showLockHint && (
+        <View style={[styles.hintOverlay, { backgroundColor: theme.surface + 'E6', borderColor: theme.border }]}> 
+          <Ionicons name="information-circle" size={18} color={theme.primary} style={{ marginRight: 8 }} />
+          <Text style={{ color: theme.text, fontWeight: '600' }}>Tip:</Text>
+          <Text style={{ color: theme.textSecondary, marginLeft: 6 }}>Tap to talk. Long‑press to hold. Swipe up to lock.</Text>
+        </View>
+      )}
       
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: theme.surface, 
+          borderBottomColor: theme.border,
+          // Ensure the header sits below the status bar / camera notch on all devices
+          paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 16 : 8) + 8,
+        }
+      ]}>
         <View style={styles.headerLeft}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -1174,18 +1165,26 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       </View>
 
       {/* Messages */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messagesContainer}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item: any) => item.id}
+        renderItem={({ item, index }: any) => renderMessage(item, index)}
         contentContainerStyle={styles.messagesContent}
+        style={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
-      >
-        {messages.map((message: any, index: number) => renderMessage(message, index))}
-        
-        {renderTypingIndicator()}
+        ListFooterComponent={(
+          <>
+            {renderTypingIndicator()}
+            {renderSuggestedActions()}
+          </>
+        )}
+        onContentSizeChange={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: true }); } catch {} }}
+        onLayout={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: false }); } catch {} }}
+      />
 
-        {renderSuggestedActions()}
-      </ScrollView>
+      {/* Voice Dock */}
+      <VoiceDock vc={vc} />
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -1203,7 +1202,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               }
             ]}
             onPress={handleAttachFile}
-            disabled={isLoading || isRecording}
+            disabled={isLoading || isUploading || vc.state === 'listening'}
             accessibilityLabel="Attach files"
           >
             <Ionicons 
@@ -1236,7 +1235,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             onChangeText={setInputText}
             multiline={!enterToSend}
             maxLength={500}
-            editable={!isLoading && !isRecording && !isUploading}
+            editable={!isLoading && vc.state !== 'listening' && !isUploading}
             onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
             returnKeyType={enterToSend ? "send" : "default"}
             blurOnSubmit={enterToSend}
@@ -1255,20 +1254,22 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               )}
             </TouchableOpacity>
           ) : (
-            <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnimation : 1 }] }}>
+            <Animated.View style={{ transform: [{ scale: vc.state === 'listening' ? pulseAnimation : 1 }] }}>
               <TouchableOpacity
                 style={[
                   styles.recordButton,
                   { 
-                    backgroundColor: isRecording ? theme.error : theme.accent 
+                    backgroundColor: vc.state === 'listening' ? theme.error : theme.accent 
                   }
                 ]}
-                onLongPress={startRecording}
-                onPressOut={stopRecording}
+                onPress={async () => { try { await vc.startPress(); } catch {} }}
+                onLongPress={async () => { try { await vc.startPress(); vc.lock(); } catch {} }}
+                onPressOut={async () => { try { if (vc.state === 'listening' && !vc.isLocked) await vc.release(); } catch {} }}
+                delayLongPress={150}
                 disabled={isLoading}
               >
                 <Ionicons 
-                  name={isRecording ? "stop" : "mic"} 
+                  name={"mic"} 
                   size={20} 
                   color={theme.onAccent} 
                 />
@@ -1277,11 +1278,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           )}
         </View>
         
-        {isRecording && (
+        {vc.state === 'listening' && (
           <View style={styles.recordingIndicator}>
             <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
             <Text style={[styles.recordingText, { color: theme.error }]}>
-              Recording... Release to send
+              Listening... Release to send
             </Text>
           </View>
         )}
@@ -1402,6 +1403,19 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     padding: 16,
+  },
+  hintOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 88,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingBottom: 8,
   },
   messageContainer: {
@@ -1591,6 +1605,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  inlineActionButton: {
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attachmentChipsContainer: {
     paddingHorizontal: 16,

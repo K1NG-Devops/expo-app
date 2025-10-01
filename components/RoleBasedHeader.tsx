@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 56,
+    height: 64,
     paddingHorizontal: 16,
   },
   leftSection: {
@@ -511,10 +511,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   rightSection: {
-    width: 88, // Increased width to fit both buttons
-    alignItems: 'flex-end',
+    minWidth: 120,
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
   },
   themeButton: {
     width: 32,

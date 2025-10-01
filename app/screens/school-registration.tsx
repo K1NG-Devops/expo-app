@@ -12,11 +12,12 @@ import {
   KeyboardAvoidingView
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { useTheme } from '@/contexts/ThemeContext';
 
 // Form data interface
 interface RegistrationData {
@@ -61,6 +62,7 @@ const GRADE_LEVELS = {
 
 export default function SchoolRegistrationScreen() {
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
   const params = useLocalSearchParams<{ schoolType?: string; from?: string }>();
   const [loading, setLoading] = useState(false);
   const [registering, setRegistering] = useState(false);
@@ -487,11 +489,11 @@ export default function SchoolRegistrationScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'School Registration',
-        headerStyle: { backgroundColor: '#0b1220' },
-        headerTitleStyle: { color: '#fff' },
-        headerTintColor: '#00f5ff'
+        headerStyle: { backgroundColor: theme.headerBackground },
+        headerTitleStyle: { color: theme.headerText },
+        headerTintColor: theme.headerTint
       }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
+      <ThemedStatusBar />
       
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <KeyboardAvoidingView 

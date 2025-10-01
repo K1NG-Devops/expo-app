@@ -249,3 +249,34 @@ REVENUECAT_WEBHOOK_SECRET=your-webhook-secret
 ---
 
 **🔒 Remember: These environment variables contain sensitive credentials. Keep them secure!**
+
+---
+
+## 🎤 OpenAI Transcription Settings (Quick Win)
+
+```bash
+# Select provider (ensure your ENV has this set to openai)
+TRANSCRIPTION_PROVIDER=openai
+# Low-latency OpenAI transcription model (default in code)
+OPENAI_TRANSCRIPTION_MODEL=gpt-4o-mini-transcribe
+```
+
+## ⚡ OpenAI Realtime Tokens (Streaming Scaffold)
+
+- Function: `supabase/functions/openai-realtime-token/`
+- Env vars:
+
+```bash
+OPENAI_API_KEY=sk-... # server-side only
+OPENAI_REALTIME_MODEL=gpt-4o-realtime-preview
+```
+
+- Returns ephemeral `client_secret` for WebRTC sessions with the OpenAI Realtime API.
+
+### Deployment
+
+```bash
+# Deploy updated transcription and new realtime token function
+supabase functions deploy transcribe-audio
+supabase functions deploy openai-realtime-token
+```

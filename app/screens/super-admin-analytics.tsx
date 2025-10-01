@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
@@ -268,7 +268,7 @@ export default function SuperAdminAnalyticsScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Platform Analytics', headerShown: false }} />
-        <StatusBar style="light" />
+        <ThemedStatusBar />
         <SafeAreaView style={styles.deniedContainer}>
           <Text style={styles.deniedText}>Access Denied - Super Admin Only</Text>
         </SafeAreaView>
@@ -279,7 +279,7 @@ export default function SuperAdminAnalyticsScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Platform Analytics', headerShown: false }} />
-      <StatusBar style="light" />
+      <ThemedStatusBar />
       
       {/* Header */}
       <SafeAreaView style={styles.header}>

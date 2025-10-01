@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Linking } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { assertSupabase } from '@/lib/supabase';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -12,10 +12,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { navigateBack } from '@/lib/navigation';
 
 export default function PrincipalSeatManagementScreen() {
-  const { theme } = useTheme();
-  // Fix for "Invalid value used as weak map key" error - ensure theme is stable
-  const memoizedTheme = React.useMemo(() => theme, [theme]);
-  const styles = React.useMemo(() => createStyles(memoizedTheme), [memoizedTheme]);
+  const { theme, isDark } = useTheme();
+  // Use theme tokens and explicit isDark flag for styling
+  const styles = React.useMemo(() => createStyles(theme, isDark), [theme, isDark]);
   const params = useLocalSearchParams<{ school?: string }>();
   const routeSchoolId = (params?.school ? String(params.school) : null);
   const { seats, assignSeat, revokeSeat, refresh } = useSubscription();
@@ -212,10 +211,10 @@ export default function PrincipalSeatManagementScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Seat Management', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
-      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}>
+      <Stack.Screen options={{ title: 'Seat Management', headerStyle: { backgroundColor: theme.headerBackground }, headerTitleStyle: { color: theme.headerText }, headerTintColor: theme.headerTint }} />
+      <ThemedStatusBar />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
+      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}>
         <View style={styles.backRow}>
           <TouchableOpacity style={styles.backLink} onPress={() => navigateBack('/screens/principal-dashboard')}>
             <Ionicons name="chevron-back" size={20} color={styles.accentColor} />
@@ -494,18 +493,18 @@ export default function PrincipalSeatManagementScreen() {
   );
 }
 
-const createStyles = (theme: any) => {
-  // Define the beautiful seat management theme colors
-  const darkBg = theme?.isDark !== false ? '#0b1220' : '#f8fafc';
-  const cardBg = theme?.isDark !== false ? '#111827' : '#ffffff';
-  const borderColor = theme?.isDark !== false ? '#1f2937' : '#e2e8f0';
-  const textPrimary = theme?.isDark !== false ? '#FFFFFF' : '#333333';
-  const textSecondary = theme?.isDark !== false ? '#9CA3AF' : '#666666';
-  const accentColor = theme?.primary || '#00f5ff';
-  const successColor = theme?.success || '#10b981';
-  const warningColor = theme?.warning || '#f59e0b';
-  const errorColor = theme?.error || '#ff6b6b';
-  const dangerColor = theme?.error || '#ff0080';
+const createStyles = (theme: any, isDark: boolean) => {
+  // Theme-respecting tokens
+  const darkBg = theme.background;
+  const cardBg = theme.surface;
+  const borderColor = theme.border;
+  const textPrimary = theme.text;
+  const textSecondary = theme.textSecondary;
+  const accentColor = theme.primary;
+  const successColor = theme.success;
+  const warningColor = theme.warning;
+  const errorColor = theme.error;
+  const dangerColor = theme.error;
 
   // Create styles object with theme colors accessible separately
   const styles = StyleSheet.create({
@@ -523,16 +522,16 @@ const createStyles = (theme: any) => {
     contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
     contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
     contactBtnEmail: { backgroundColor: accentColor },
-    contactBtnText: { color: '#000', fontWeight: '800' },
+    contactBtnText: { color: theme.onPrimary, fontWeight: '800' },
     inputGroup: { gap: 6 },
     label: { color: textPrimary },
     input: { backgroundColor: cardBg, color: textPrimary, borderRadius: 10, borderWidth: 1, borderColor: borderColor, padding: 12 },
     row: { flexDirection: 'row', gap: 12 },
     btn: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 12 },
     btnPrimary: { backgroundColor: accentColor },
-    btnPrimaryText: { color: '#000', fontWeight: '800' },
+    btnPrimaryText: { color: theme.onPrimary, fontWeight: '800' },
     btnDanger: { backgroundColor: dangerColor },
-    btnDangerText: { color: '#000', fontWeight: '800' },
+    btnDangerText: { color: theme.onError, fontWeight: '800' },
   
   // New teacher management section styles
   teachersSection: {

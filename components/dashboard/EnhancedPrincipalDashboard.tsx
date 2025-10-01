@@ -86,6 +86,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   } = usePrincipalHub();
   
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  // Prefer explicit tenant slug where available
+  const tenantSlug = (profile as any)?.organization_membership?.tenant_slug 
+    || (profile as any)?.organization_membership?.organization_slug 
+    || (profile as any)?.organization_membership?.slug 
+    || '';
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -356,11 +361,19 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
           <View style={styles.headerLeft}>
+            <TouchableOpacity
+              style={{ borderRadius: 18, overflow: 'hidden', marginRight: 10 }}
+              onPress={() => router.push('/screens/account')}
+              activeOpacity={0.7}
+            >
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
+            </TouchableOpacity>
             <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
-              {(profile as any)?.organization_membership?.organization_slug ||
-               (profile as any)?.organization_membership?.tenant_slug ||
-               (profile as any)?.organization_membership?.slug ||
-               data.schoolName ||
+              {tenantSlug || data.schoolName ||
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
@@ -390,19 +403,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               activeOpacity={0.7}
             >
               <Ionicons name="settings-outline" size={20} color={theme.text} />
-            </TouchableOpacity>
-
-{/* Avatar (image or initials) */}
-            <TouchableOpacity
-              style={{ borderRadius: 18, overflow: 'hidden' }}
-              onPress={() => router.push('/screens/account')}
-              activeOpacity={0.7}
-            >
-              <Avatar 
-                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
-                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
-                size={36}
-              />
             </TouchableOpacity>
           </View>
         </View>
@@ -1222,9 +1222,9 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerLeft: { flex: 1 },
+  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap', minWidth: 0 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tenantName: { fontSize: 18, fontWeight: '700', color: '#e5e7eb' },
+  tenantName: { fontSize: 18, fontWeight: '700', color: theme.text, flexShrink: 1, minWidth: 0, overflow: 'hidden' },
   userAvatar: {
     width: 36,
     height: 36,
@@ -1247,7 +1247,8 @@ const createStyles = (theme: any, preferences: any = {}) => {
     flex: 1,
     // Increased top margin to ensure greeting section is visible below fixed header
     // Accounts for header height including safe area insets and content
-    marginTop: isClassicLayout ? 80 : 95,
+    // Add a bit of space between the header and greetings card
+    marginTop: isClassicLayout ? 104 : 120,
   },
   welcomeSection: {
     backgroundColor: theme.surface,

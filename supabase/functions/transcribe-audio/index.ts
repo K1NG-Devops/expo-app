@@ -7,6 +7,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY')
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'deepgram' // 'deepgram' or 'openai'
+const OPENAI_TRANSCRIPTION_MODEL = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe'
 
 // Create Supabase client with service role for bypassing RLS
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -137,7 +138,7 @@ async function transcribeWithOpenAI(audioUrl: string, language?: string): Promis
   
   // Create a file from blob
   formData.append('file', audioBlob, 'audio.m4a')
-  formData.append('model', 'whisper-1')
+  formData.append('model', OPENAI_TRANSCRIPTION_MODEL)
   
   if (language) {
     // Map our language codes to OpenAI language codes

@@ -15,6 +15,7 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
+import { postAIRequest } from '@/lib/ai/api';
 // Note: DashTaskAutomation would be implemented in the future
 // import { DashTaskAutomation } from './DashTaskAutomation';
 import DashNavigationHandler from './DashNavigationHandler';
@@ -518,6 +519,7 @@ export class DashAIAssistant {
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
   private recordingObject: Audio.Recording | null = null;
+  private prePreparedRecording: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
   
   // Enhanced agentic capabilities
@@ -702,6 +704,45 @@ export class DashAIAssistant {
   }
 
   /**
+   * Pre-warm the recorder by preparing a recording instance ahead of time.
+   * This significantly reduces startRecording latency on mobile.
+   */
+  public async preWarmRecorder(): Promise<void> {
+    if (this.prePreparedRecording || this.isRecording) return;
+    try {
+      // Ensure audio is initialized
+      await this.initializeAudio();
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      } as Audio.RecordingOptions);
+      this.prePreparedRecording = rec;
+      console.log('[Dash] Recorder pre-warmed');
+    } catch (e) {
+      console.warn('[Dash] Failed to pre-warm recorder:', e);
+      this.prePreparedRecording = null;
+    }
+  }
+
+  /**
    * Start voice recording
    */
   public async startRecording(): Promise<void> {
@@ -752,30 +793,34 @@ export class DashAIAssistant {
       }
 
       console.log('[Dash] Starting recording...');
-      this.recordingObject = new Audio.Recording();
-
-      // Use the Expo AV recording API: prepareToRecordAsync + startAsync
-      await this.recordingObject.prepareToRecordAsync({
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.MAX,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-      } as Audio.RecordingOptions);
+      if (this.prePreparedRecording) {
+        this.recordingObject = this.prePreparedRecording;
+        this.prePreparedRecording = null;
+      } else {
+        this.recordingObject = new Audio.Recording();
+        // Use the Expo AV recording API: prepareToRecordAsync + startAsync
+        await this.recordingObject.prepareToRecordAsync({
+          android: {
+            extension: '.m4a',
+            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+            audioEncoder: Audio.AndroidAudioEncoder.AAC,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+          },
+          ios: {
+            extension: '.m4a',
+            outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+            audioQuality: Audio.IOSAudioQuality.MAX,
+            sampleRate: 44100,
+            numberOfChannels: 2,
+            bitRate: 128000,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+        } as Audio.RecordingOptions);
+      }
 
       await this.recordingObject.startAsync();
       this.isRecording = true;
@@ -813,6 +858,8 @@ export class DashAIAssistant {
       // Clean up state
       this.recordingObject = null;
       this.isRecording = false;
+      // Prepare the next recording quickly
+      try { this.preWarmRecorder(); } catch {}
       
       // Validate that we got a valid URI
       if (!recordingUri) {
@@ -1250,27 +1297,30 @@ export class DashAIAssistant {
     try {
       console.log('[Dash] Generating educational content for:', request.topic);
       
-      // Call AI service
-      const response = await assertSupabase().functions.invoke('ai-proxy', {
-        body: {
-          model: 'claude-3-5-sonnet-20241022',
-          messages: [{
-            role: 'user',
-            content: aiPrompt
-          }],
-          temperature: 0.7,
-          max_tokens: 4000
-        }
-      });
+      // Determine scope based on role; default to 'teacher'
+      const role = (this.userProfile?.role || 'teacher') as any;
+      const scope: 'teacher' | 'principal' | 'parent' =
+        role === 'principal' || role === 'principal_admin' ? 'principal' :
+        role === 'parent' ? 'parent' : 'teacher';
+
+      // Call AI service via secure proxy with expected schema
+      const result = await postAIRequest({
+        scope,
+        service_type: 'homework_help',
+        payload: { prompt: aiPrompt, context: 'educational_guide' },
+        metadata: { topic: request.topic, audience: request.audience }
+      } as any);
       
-      if (response.data?.content) {
+      if ((result as any)?.success && (result as any)?.content) {
         console.log('[Dash] AI content generated successfully');
-        return response.data.content;
-      } else if (response.error) {
-        console.error('[Dash] AI service error:', response.error);
+        return (result as any).content as string;
+      }
+      
+      if ((result as any)?.error) {
+        console.warn('[Dash] AI proxy returned error (using fallback):', (result as any).error);
       }
     } catch (error) {
-      console.error('[Dash] Failed to generate educational content:', error);
+      console.warn('[Dash] Failed to generate educational content (using fallback):', error);
     }
     
     // Fallback to template-based content
@@ -2984,6 +3034,44 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       callbacks?.onError?.(error);
       throw error;
     }
+  }
+
+  /**
+   * Public: transcribe only (no conversation updates)
+   */
+  public async transcribeOnly(audioUri: string): Promise<{ transcript: string; duration: number; contentType?: string }> {
+    const tr = await this.transcribeAudio(audioUri);
+    // Get duration
+    const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
+    const status = await sound.getStatusAsync();
+    const duration = status.isLoaded ? status.durationMillis || 0 : 0;
+    await sound.unloadAsync();
+    return { transcript: tr.transcript, duration, contentType: tr.contentType };
+  }
+
+  /**
+   * Send pre-transcribed voice message without re-transcribing
+   */
+  public async sendPreparedVoiceMessage(audioUri: string, transcript: string, duration: number, conversationId?: string): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId;
+    if (!convId) throw new Error('No active conversation');
+
+    const userMessage: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: transcript,
+      timestamp: Date.now(),
+      voiceNote: {
+        audioUri,
+        duration,
+        transcript,
+      }
+    };
+
+    await this.addMessageToConversation(convId, userMessage);
+    const assistantResponse = await this.generateResponse(transcript, convId);
+    await this.addMessageToConversation(convId, assistantResponse);
+    return assistantResponse;
   }
 
   /**

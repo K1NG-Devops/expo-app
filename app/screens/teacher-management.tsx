@@ -48,6 +48,7 @@ interface Teacher {
   classes: string[];
   subjects: string[];
   qualifications: string[];
+  studentCount?: number;
   hireDate: string;
   contractEndDate?: string;
   emergencyContact: {
@@ -202,6 +203,28 @@ if (!preschoolId) {
       
       console.log('✅ Real teachers fetched:', teachersData?.length || 0);
       
+      // Query secure tenant-isolated view for per-teacher class and student stats
+      const { data: overviewRows, error: overviewError } = await assertSupabase()
+        .from('vw_teacher_overview')
+        .select('email, class_count, student_count, classes_text');
+      if (overviewError) {
+        console.warn('[TeacherManagement] vw_teacher_overview error:', overviewError);
+      }
+      const overviewByEmail = new Map<string, { class_count: number; student_count: number; classes_text: string }>();
+      (overviewRows || []).forEach((row: any) => {
+        if (row?.email) overviewByEmail.set(String(row.email).toLowerCase(), {
+          class_count: Number(row.class_count || 0),
+          student_count: Number(row.student_count || 0),
+          classes_text: String(row.classes_text || ''),
+        });
+      });
+      
+      const parseClasses = (text?: string): string[] => {
+        const t = (text || '').trim();
+        if (!t) return [];
+        return t.split(',').map(s => s.trim()).filter(Boolean);
+      };
+      
       // Transform database data to match Teacher interface
       const transformedTeachersRaw: (Teacher | null)[] = (teachersData || []).map((dbTeacher: any) => {
         // Try to get name from teachers table first, fallback to users/profiles table
@@ -354,9 +377,11 @@ if (!preschoolId) {
           idNumber: 'ID not available',
           status: 'active' as const,
           contractType: 'permanent' as const,
-          classes: ['Classes loading...'], // TODO: Fetch actual classes
+          // Use secure view stats by email (tenant-isolated)
+          classes: parseClasses(overviewByEmail.get(String(dbTeacher.email || '').toLowerCase())?.classes_text),
           subjects: ['General Education'], // TODO: Get from teacher specialization
           qualifications: ['Teaching Qualification'],
+          studentCount: overviewByEmail.get(String(dbTeacher.email || '').toLowerCase())?.student_count || 0,
           hireDate: dbTeacher.created_at?.split('T')[0] || '2024-01-01',
           // Use resolved fullName instead of dbTeacher.full_name
           fullName: fullName,
@@ -843,7 +868,10 @@ const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf',
             </Text>
             <Text style={styles.teacherEmail}>{item.email}</Text>
             <Text style={styles.teacherClasses}>
-              Classes: {item.classes.join(', ')}
+              {item.classes.length > 0 ? `Classes: ${item.classes.join(', ')}` : 'No classes assigned'}
+            </Text>
+            <Text style={styles.teacherStudentCount}>
+              Students: {item.studentCount || 0}
             </Text>
             <View style={styles.seatStatusContainer}>
               <Ionicons 
@@ -863,7 +891,7 @@ const result = await DocumentPicker.getDocumentAsync({ type: ['application/pdf',
             <Text style={styles.statusText}>{item.status}</Text>
           </View>
 
-          <View style={styles.seatActionsStack}>
+          <View style={styles.seatActionButtons}>
             {teacherHasSeat ? (
               <TouchableOpacity
                 style={[styles.seatActionButton, styles.revokeButton]}
@@ -1492,18 +1520,18 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   // Teacher Cards
   teacherCard: {
-    backgroundColor: theme?.cardBackground || '#10172a',
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 6,
+    backgroundColor: theme?.surface || 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: theme?.border || '#1e293b',
-    gap: 18,
+    borderColor: theme?.border || '#f3f4f6',
   },
   teacherTopRow: {
     flexDirection: 'row',
@@ -1528,19 +1556,25 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
   teacherName: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: theme?.text || '#e2e8f0',
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme?.text || '#1f2937',
     marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: theme?.textSecondary || '#94a3b8',
+    color: theme?.textSecondary || '#6b7280',
     marginBottom: 4,
   },
   teacherClasses: {
     fontSize: 13,
-    color: theme?.textTertiary || '#64748b',
+    color: theme?.textTertiary || '#9ca3af',
+  },
+  teacherStudentCount: {
+    fontSize: 13,
+    color: theme?.textSecondary || '#6b7280',
+    marginTop: 2,
+    fontWeight: '600',
   },
   teacherRole: {
     fontSize: 13,
@@ -1969,17 +2003,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   seatStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: '#0f172a',
+    marginTop: 6,
   },
   seatStatusText: {
     fontSize: 12,
     fontWeight: '600',
-    marginLeft: 6,
-    color: '#e2e8f0',
+    marginLeft: 4,
   },
   teacherActions: {
     alignItems: 'flex-end',
@@ -1993,39 +2022,43 @@ const createStyles = (theme: any) => StyleSheet.create({
   seatActionsStack: {
     gap: 8,
   },
+  seatActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginLeft: 'auto',
+  },
   seatActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 14,
-    minWidth: 110,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 95,
     justifyContent: 'center',
-    gap: 6,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 3,
+    gap: 4,
+    borderWidth: 1,
   },
   assignButton: {
-    backgroundColor: '#0f172a',
+    backgroundColor: '#059669',
+    borderColor: '#059669',
   },
   revokeButton: {
-    backgroundColor: '#1f2937',
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
   },
   disabledButton: {
-    backgroundColor: '#0f172a',
-    opacity: 0.4,
+    backgroundColor: '#e5e7eb',
+    borderColor: '#e5e7eb',
+    opacity: 0.6,
   },
   seatActionText: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginLeft: 4,
-    color: '#e2e8f0',
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'white',
   },
   messageQuickAction: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
   },
   // Missing styles for search interface
   searchRow: {

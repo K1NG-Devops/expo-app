@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Switch, Share, Linking } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -82,6 +82,35 @@ export default function PrincipalParentInviteCodeScreen() {
     }
   };
 
+  const buildShareMessage = (code: string) => {
+    const deeplink = `app://parent-registration?invitationCode=${code}`;
+    return `Join our school on EduDash Pro\n\nUse this code: ${code}\n\nOpen the app and go to Parent Registration, or use this link: ${deeplink}`;
+  };
+
+  const shareInvite = async (item: SchoolInvitationCode) => {
+    try {
+      const message = buildShareMessage(item.code);
+      await Share.share({ message });
+    } catch (e: any) {
+      Alert.alert('Share failed', e?.message || 'Unable to open share dialog');
+    }
+  };
+
+  const shareWhatsApp = async (item: SchoolInvitationCode) => {
+    try {
+      const message = encodeURIComponent(buildShareMessage(item.code));
+      const url = `whatsapp://send?text=${message}`;
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('WhatsApp not available', 'Please install WhatsApp or use Share/Copy instead.');
+      }
+    } catch (e: any) {
+      Alert.alert('Share failed', e?.message || 'Unable to share via WhatsApp');
+    }
+  };
+
   const toggleActive = async (item: SchoolInvitationCode) => {
     try {
       setLoading(true);
@@ -141,6 +170,10 @@ export default function PrincipalParentInviteCodeScreen() {
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/screens/principal-parents')}>
+              <Text style={styles.buttonText}>View Parents</Text>
+            </TouchableOpacity>
+
             <Text style={styles.sectionTitle}>Existing Codes</Text>
             {codes.length === 0 ? (
               <Text style={styles.muted}>No invite codes yet.</Text>
@@ -161,6 +194,12 @@ export default function PrincipalParentInviteCodeScreen() {
                     <View style={styles.row}>
                       <TouchableOpacity style={styles.smallButton} onPress={() => copyToClipboard(item.code)}>
                         <Text style={styles.smallButtonText}>Copy</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.smallButton} onPress={() => shareInvite(item)}>
+                        <Text style={styles.smallButtonText}>Share</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallButton, styles.whatsapp]} onPress={() => shareWhatsApp(item)}>
+                        <Text style={[styles.smallButtonText, styles.smallButtonTextDark]}>WhatsApp</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.smallButton, active ? styles.deactivate : styles.activate]} onPress={() => toggleActive(item)}>
                         <Text style={[styles.smallButtonText, styles.smallButtonTextDark]}>{active ? 'Deactivate' : 'Activate'}</Text>
@@ -203,4 +242,5 @@ const createStyles = (theme: any) => StyleSheet.create({
   smallButtonTextDark: { color: '#000' },
   deactivate: { backgroundColor: '#F59E0B' },
   activate: { backgroundColor: '#22C55E' },
+  whatsapp: { backgroundColor: '#25D366' },
 });

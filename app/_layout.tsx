@@ -11,6 +11,11 @@ import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesCon
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+
+// Initialize i18n BEFORE any components render
+import '@/lib/i18n';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Add polyfill for web environments
 if (Platform.OS === 'web') {
@@ -154,10 +159,13 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryProvider>
-      <AuthProvider>
+    <ErrorBoundary>
+      <QueryProvider>
+        <AuthProvider>
         <ThemeProvider>
           <DashboardPreferencesProvider>
+            {/* Global themed status bar for consistent visibility across screens */}
+            <ThemedStatusBar />
             <GestureHandlerRootView style={{ flex: 1 }}>
               <Stack
                 screenOptions={{
@@ -171,17 +179,18 @@ export default function RootLayout() {
             </GestureHandlerRootView>
             
             {/* Platform-specific components */}
-            {Platform.OS !== 'web' && (() => {
-              try {
-                return <DashWakeWordListener />;
-              } catch {
-                return null;
-              }
-            })()}
-          </DashboardPreferencesProvider>
-        </ThemeProvider>
-      </AuthProvider>
-    </QueryProvider>
+              {Platform.OS !== 'web' && (() => {
+                try {
+                  return <DashWakeWordListener />;
+                } catch {
+                  return null;
+                }
+              })()}
+            </DashboardPreferencesProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </QueryProvider>
+    </ErrorBoundary>
   );
 }
 

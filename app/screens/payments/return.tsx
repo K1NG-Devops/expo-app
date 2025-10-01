@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { assertSupabase } from '@/lib/supabase';
@@ -193,7 +193,7 @@ Thanks!`);
           headerLeft: () => null, // Prevent back navigation during processing
         }} 
       />
-      <StatusBar style="light" />
+      <ThemedStatusBar />
       
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.content}>

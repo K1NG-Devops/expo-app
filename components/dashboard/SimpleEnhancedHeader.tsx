@@ -7,6 +7,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { router } from 'expo-router'
 import TierBadge from '@/components/ui/TierBadge'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 interface SimpleEnhancedHeaderProps {
   userName?: string
@@ -27,6 +28,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   const { profile } = useAuth()
   const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
   const { t } = useTranslation('common')
+  const insets = useSafeAreaInsets()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [weatherGreeting, setWeatherGreeting] = useState('')
 
@@ -75,7 +77,7 @@ export const SimpleEnhancedHeader: React.FC<SimpleEnhancedHeaderProps> = ({
   const tierInfo = getTierInfo()
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 8) }]}>
       <LinearGradient
         colors={['#1a1a1a', '#2a2a2a', '#1a1a1a']}
         style={styles.headerCard}

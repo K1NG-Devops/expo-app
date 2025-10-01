@@ -675,8 +675,9 @@ class EducationalPDFServiceImpl {
       <div class="footer">Exported by Dash • EduDash Pro</div>
     </body></html>`;
     const filename = (title || 'dash-export').toLowerCase().replace(/\s+/g, '-');
-    const uri = await this.createPDFFile(html);
-    return { uri, filename: `${filename}.pdf` };
+    const fullFilename = `${filename}.pdf`;
+    const uri = await this.createPDFFile(html, fullFilename);
+    return { uri, filename: fullFilename };
   }
 
   /**
@@ -689,22 +690,47 @@ class EducationalPDFServiceImpl {
       html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title></head><body>${htmlContent}</body></html>`;
     }
     const filename = (title || 'educational-guide').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const uri = await this.createPDFFile(html);
-    return { uri, filename: `${filename}.pdf` };
+    const fullFilename = `${filename}.pdf`;
+    const uri = await this.createPDFFile(html, fullFilename);
+    return { uri, filename: fullFilename };
   }
 
   /**
    * Create a PDF file from HTML and return its URI without sharing (web: data URI; native: file URI)
+   * For mobile, this now saves to a more accessible location
    */
-  private async createPDFFile(html: string): Promise<string> {
+  private async createPDFFile(html: string, filename?: string): Promise<string> {
     // Web: return base64 data URI to enable direct downloads or upload
     if (Platform.OS === 'web') {
       const result: any = await Print.printToFileAsync({ html, base64: true });
       return `data:application/pdf;base64,${result.base64}`;
     }
-    // Native: return file URI
-    const { uri } = await Print.printToFileAsync({ html, base64: false });
-    return uri;
+    
+    // Native: Generate PDF and copy to accessible location
+    const { uri: tempUri } = await Print.printToFileAsync({ html, base64: false });
+    
+    // For mobile, move the file to document directory where it's more accessible
+    if (filename) {
+      try {
+        const finalFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;
+        const documentDirectory = FileSystem.documentDirectory;
+        const finalUri = `${documentDirectory}${finalFilename}`;
+        
+        // Copy the temporary file to document directory
+        await FileSystem.copyAsync({
+          from: tempUri,
+          to: finalUri
+        });
+        
+        console.log('[EducationalPDFService] PDF saved to:', finalUri);
+        return finalUri;
+      } catch (error) {
+        console.error('[EducationalPDFService] Failed to move PDF to document directory:', error);
+        return tempUri; // Fallback to temp URI
+      }
+    }
+    
+    return tempUri;
   }
 
   /**

@@ -26,31 +26,12 @@ try {
   console.debug('[i18n] Feature flags not available, using defaults');
 }
 
-// Import language resources with error handling
-let en, es, fr, pt, de, af, zu, st, enWhatsApp;
-try {
-  en = require('../locales/en/common.json');
-  es = require('../locales/es/common.json');
-  fr = require('../locales/fr/common.json');
-  pt = require('../locales/pt/common.json') || {};
-  de = require('../locales/de/common.json');
-  af = require('../locales/af/common.json');
-  zu = require('../locales/zu/common.json') || {};
-  st = require('../locales/st/common.json') || {};
-  enWhatsApp = require('../locales/en/whatsapp.json');
-} catch (error) {
-  console.warn('[i18n] Some translation files are missing:', error);
-  // Fallback to empty objects for missing translations
-  en = en || {};
-  es = es || {};
-  fr = fr || {};
-  pt = pt || {};
-  de = de || {};
-  af = af || {};
-  zu = zu || {};
-  st = st || {};
-  enWhatsApp = enWhatsApp || {};
-}
+// Only load English eagerly to reduce bundle size
+// Other languages are lazy-loaded on demand
+const en = require('../locales/en/common.json');
+const enWhatsApp = (() => {
+  try { return require('../locales/en/whatsapp.json'); } catch { return {}; }
+})();
 
 // Supported languages for educational content
 export const SUPPORTED_LANGUAGES = {
@@ -77,17 +58,21 @@ export const COMING_SOON_LANGUAGES = {
 
 export type SupportedLanguage = keyof typeof SUPPORTED_LANGUAGES;
 
-// Language resources
-const resources = {
+// Eager resources (English only)
+const baseResources: Record<string, any> = {
   en: { common: en, whatsapp: enWhatsApp },
-  es: { common: es },
-  fr: { common: fr },
-  pt: { common: pt },
-  de: { common: de },
-  // South African languages
-  af: { common: af },
-  zu: { common: zu },
-  st: { common: st },
+};
+
+// Dynamic loaders for other languages - ensures Metro bundles these files
+const LANGUAGE_LOADERS: Record<SupportedLanguage, () => Promise<any>> = {
+  en: async () => ({ common: (await import('../locales/en/common.json')).default || en }),
+  es: async () => ({ common: (await import('../locales/es/common.json')).default }),
+  fr: async () => ({ common: (await import('../locales/fr/common.json')).default }),
+  pt: async () => ({ common: (await import('../locales/pt/common.json')).default }),
+  de: async () => ({ common: (await import('../locales/de/common.json')).default }),
+  af: async () => ({ common: (await import('../locales/af/common.json')).default }),
+  zu: async () => ({ common: (await import('../locales/zu/common.json')).default }),
+  st: async () => ({ common: (await import('../locales/st/common.json')).default }),
 };
 
 // Detect user's preferred language
@@ -127,53 +112,46 @@ function detectLanguage(): string {
   }
 }
 
-// Initialize i18n
+// Initialize i18n with English only
 i18n
   .use(initReactI18next)
   .init({
-    resources,
+    resources: baseResources,
     lng: detectLanguage(),
     fallbackLng: 'en',
-    
-    // Namespace configuration
     defaultNS: 'common',
     ns: ['common', 'whatsapp'],
-    
-    interpolation: {
-      escapeValue: false, // React already does escaping
-    },
-    
-    // React-specific options
-    react: {
-      useSuspense: false, // Avoid suspense in React Native
-    },
-    
-    // Debug in development
+    interpolation: { escapeValue: false },
+    react: { useSuspense: false },
     debug: process.env.NODE_ENV === 'development',
-    
-    // Return objects for complex translations
     returnObjects: true,
-    
-    // Key separator for nested translations
     keySeparator: '.',
-    
-    // Plural handling
     pluralSeparator: '_',
-    
-    // Cache translations
-    saveMissing: process.env.NODE_ENV === 'development', // Only save missing keys in development
-    
-    // Load path for additional resources (future enhancement)
-    // backend: {
-    //   loadPath: '/locales/{{lng}}/{{ns}}.json',
-    // },
+    saveMissing: process.env.NODE_ENV === 'development',
   });
+
+/**
+ * Lazy load language resources if not loaded yet
+ */
+export const lazyLoadLanguage = async (language: SupportedLanguage) => {
+  if (!SUPPORTED_LANGUAGES[language]) return;
+  if ((i18n.options?.resources as any)?.[language]) return; // already added
+  try {
+    const bundle = await LANGUAGE_LOADERS[language]();
+    // Add as resource bundle
+    Object.keys(bundle).forEach((ns) => {
+      i18n.addResourceBundle(language, ns, (bundle as any)[ns], true, true);
+    });
+  } catch (e) {
+    console.warn(`[i18n] Failed to lazy-load language: ${language}`, e);
+  }
+};
 
 /**
  * Get the current language
  */
 export const getCurrentLanguage = (): SupportedLanguage => {
-  return i18n.language as SupportedLanguage || 'en';
+  return (i18n.language as SupportedLanguage) || 'en';
 };
 
 /**
@@ -192,10 +170,11 @@ export const isRTL = (lang?: SupportedLanguage): boolean => {
 };
 
 /**
- * Change language dynamically
+ * Change language dynamically (lazy loads resources first)
  */
 export const changeLanguage = async (language: SupportedLanguage): Promise<void> => {
   try {
+    await lazyLoadLanguage(language);
     await i18n.changeLanguage(language);
 
     // Persist language selection
@@ -264,48 +243,7 @@ export const getComingSoonLanguages = (): Array<{
  */
 export const validateTranslationKey = (key: string, namespace = 'common'): boolean => {
   if (!__DEV__) return true;
-  
   return i18n.exists(key, { ns: namespace });
-};
-
-/**
- * Format educational content based on language
- */
-export const formatEducationalContent = (
-  content: string,
-  language?: SupportedLanguage
-): string => {
-  const lang = language || getCurrentLanguage();
-  const langInfo = SUPPORTED_LANGUAGES[lang];
-  
-  // Apply language-specific formatting
-  if (langInfo.rtl) {
-    // RTL languages might need special handling
-    return content;
-  }
-  
-  return content;
-};
-
-/**
- * Get localized curriculum standards
- */
-export const getCurriculumStandards = (
-  subject: string,
-  gradeLevel: number,
-  language?: SupportedLanguage
-): string[] => {
-  const lang = language || getCurrentLanguage();
-  
-  // This would typically fetch from a database or API
-  // For now, return a placeholder
-  return [
-    i18n.t('curriculum.standards.placeholder', {
-      subject,
-      grade: gradeLevel,
-      lng: lang,
-    }),
-  ];
 };
 
 export default i18n;

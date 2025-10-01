@@ -7,6 +7,10 @@ const config = getDefaultConfig(__dirname);
 // Platform-specific resolver to exclude native-only modules from web
 config.resolver.platforms = ['ios', 'android', 'web'];
 
+// Ensure JSON files (including locales) are treated as source files
+config.resolver.assetExts = config.resolver.assetExts.filter(ext => ext !== 'json');
+config.resolver.sourceExts = [...config.resolver.sourceExts, 'json'];
+
 config.resolver.resolverMainFields = ['react-native', 'browser', 'main'];
 
 // Exclude debug/test/mock files from production bundle
@@ -40,6 +44,17 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return originalResolver(context, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
+};
+
+// Enable inline requires for faster startup
+config.transformer = {
+  ...(config.transformer || {}),
+  getTransformOptions: async () => ({
+    transform: {
+      experimentalImportSupport: false,
+      inlineRequires: true,
+    },
+  }),
 };
 
 module.exports = config;

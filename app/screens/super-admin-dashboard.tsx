@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -440,7 +440,7 @@ export default function SuperAdminDashboardScreen() {
   if (authLoading || profileLoading) {
     return (
       <View style={styles.container}>
-        <StatusBar style={isDark ? "light" : "dark"} />
+        <ThemedStatusBar />
         <SafeAreaView style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
@@ -455,7 +455,7 @@ export default function SuperAdminDashboardScreen() {
   if (!profile || !isSuperAdmin(profile.role)) {
     return (
       <View style={styles.container}>
-        <StatusBar style={isDark ? "light" : "dark"} />
+        <ThemedStatusBar />
         <SafeAreaView style={styles.accessDeniedContainer}>
           <Ionicons name="shield-checkmark" size={64} color={theme.error} />
           <Text style={[styles.accessDeniedText, { color: theme.text }]}>
@@ -482,7 +482,7 @@ export default function SuperAdminDashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <ThemedStatusBar />
       
       {/* Header */}
       <SafeAreaView style={[styles.header, { backgroundColor: theme.background }]}>

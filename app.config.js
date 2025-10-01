@@ -57,6 +57,10 @@ module.exports = ({ config }) => {
     userInterfaceStyle: 'light',
     scheme: 'edudashpro',
     newArchEnabled: true,
+    assetBundlePatterns: [
+      '**/*',
+      'locales/**/*.json',
+    ],
     splash: {
       image: './assets/splash-icon.png',
       resizeMode: 'contain',
