@@ -26,7 +26,15 @@ module.exports = ({ config }) => {
     ],
     'expo-localization',
     'expo-secure-store',
-    'expo-notifications',
+    [
+      'expo-notifications',
+      {
+        icon: './assets/notification-icon.png',
+        color: '#00f5ff',
+        defaultChannel: 'default',
+        sounds: ['./assets/sounds/notification.wav'],
+      },
+    ],
   ];
 
   // Include expo-dev-client for mobile development only, not for web
@@ -61,17 +69,41 @@ module.exports = ({ config }) => {
     android: {
       edgeToEdgeEnabled: true,
       package: 'com.edudashpro',
-      googleServicesFile: fs.existsSync(path.resolve(__dirname, 'app/google-services.json')) 
-        ? './app/google-services.json' 
-        : fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'))
-          ? './android/app/google-services.json'
-          : fs.existsSync(path.resolve(__dirname, 'google-services.json'))
-            ? './google-services.json'
-            : undefined,
+      googleServicesFile:
+        fs.existsSync(path.resolve(__dirname, 'app/google-services.json'))
+          ? './app/google-services.json'
+          : fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'))
+            ? './android/app/google-services.json'
+            : fs.existsSync(path.resolve(__dirname, 'google-services.json'))
+              ? './google-services.json'
+              : undefined,
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#ffffff',
       },
+      permissions: [
+        'android.permission.INTERNET',
+        'android.permission.ACCESS_NETWORK_STATE',
+        'android.permission.WAKE_LOCK',
+        'android.permission.RECEIVE_BOOT_COMPLETED',
+        'android.permission.VIBRATE',
+        'android.permission.RECORD_AUDIO',
+        'android.permission.READ_EXTERNAL_STORAGE',
+        'android.permission.WRITE_EXTERNAL_STORAGE',
+        'android.permission.MODIFY_AUDIO_SETTINGS',
+        'android.permission.SYSTEM_ALERT_WINDOW',
+        'android.permission.USE_BIOMETRIC',
+        'android.permission.USE_FINGERPRINT',
+      ],
+      blockedPermissions: [
+        'android.permission.CAMERA',
+        'android.permission.ACCESS_FINE_LOCATION',
+        'android.permission.ACCESS_COARSE_LOCATION',
+      ],
+      compileSdkVersion: 34,
+      targetSdkVersion: 34,
+      minSdkVersion: 21,
+      versionCode: 3,
     },
     plugins,
     experiments: {
@@ -108,12 +140,6 @@ module.exports = ({ config }) => {
       display: 'standalone',
       orientation: 'any',
       bundler: 'metro',
-    },
-    updates: {
-      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
-    },
-    updates: {
-      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
     },
     updates: {
       url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',

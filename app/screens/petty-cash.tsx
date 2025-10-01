@@ -62,13 +62,14 @@ const EXPENSE_CATEGORIES = [
   'Art & Craft Supplies',
   'Books & Educational Resources',
   'Printing & Photocopying',
-  
+
   // Food & Refreshments
+  'Groceries',
   'Refreshments',
   'Staff Tea & Coffee',
   'Student Snacks',
   'Kitchen Supplies',
-  
+
   // Maintenance & Facilities
   'Maintenance & Repairs',
   'Cleaning Supplies',
@@ -76,46 +77,49 @@ const EXPENSE_CATEGORIES = [
   'Pest Control',
   'Waste Removal',
   'Minor Repairs',
-  
+
   // Utilities & Services
   'Utilities (small amounts)',
   'Electricity (top-ups)',
   'Water (top-ups)',
   'Internet & Wi-Fi',
   'Telephone & Mobile',
-  
+  'Airtime (Mobile)',
+  'Data Bundles',
+
   // Medical & Safety
   'Medical & First Aid',
   'First Aid Supplies',
   'Sanitizers & Disinfectants',
   'Safety Equipment',
-  
+
   // Transport & Logistics
+  'Transport',
   'Travel & Transport',
   'Fuel (petty amounts)',
   'Parking Fees',
   'Taxi/Uber Fares',
   'Vehicle Maintenance',
-  
+
   // Communication & Marketing
   'Communication',
   'Postage & Courier',
   'Advertising Materials',
   'Signage & Banners',
-  
+
   // Staff & Administration
   'Staff Welfare',
   'Staff Uniforms',
   'Staff Training Materials',
   'Office Furniture (small items)',
-  
+
   // Events & Activities
   'Events & Celebrations',
   'Birthday Parties',
   'Sports Day Supplies',
   'Field Trip Expenses',
   'Parent Meeting Refreshments',
-  
+
   // Emergency & Miscellaneous
   'Emergency Expenses',
   'Bank Charges',
@@ -148,6 +152,9 @@ export default function PettyCashScreen() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReplenishment, setShowReplenishment] = useState(false);
   const [showWithdrawal, setShowWithdrawal] = useState(false);
+  // Category picker modal state
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   
   // Form states
   const [expenseForm, setExpenseForm] = useState({
@@ -506,6 +513,10 @@ const { error } = await assertSupabase()
       case 'Medical & First Aid': return 'medical';
       case 'Cleaning Supplies': return 'sparkles';
       case 'Utilities (small amounts)': return 'flash';
+      case 'Airtime (Mobile)': return 'phone-portrait';
+      case 'Data Bundles': return 'wifi';
+      case 'Groceries': return 'cart';
+      case 'Transport': return 'car';
       case 'Emergency Expenses': return 'alert-circle';
       case 'Replenishment': return 'add-circle';
       case 'Withdrawal/Adjustment': return 'arrow-down-circle';
@@ -841,6 +852,12 @@ const { error } = await assertSupabase()
     }
   };
 
+  const filteredCategoriesList = React.useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return EXPENSE_CATEGORIES;
+    return EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q));
+  }, [categorySearch]);
+
   const filteredTransactions = React.useMemo(() => {
     let list = transactions;
 
@@ -1155,18 +1172,8 @@ const { error } = await assertSupabase()
               <TouchableOpacity 
                 style={styles.categorySelector}
                 onPress={() => {
-                  Alert.alert(
-                    t('petty_cash.select_category'),
-                    t('category.choose_expense_category', 'Choose an expense category:'),
-                    [
-                      ...EXPENSE_CATEGORIES.map(category => ({
-                        text: category,
-                        onPress: () => setExpenseForm(prev => ({ ...prev, category }))
-                      })),
-                      { text: t('common.cancel'), style: 'cancel' }
-                    ],
-                    { cancelable: true }
-                  );
+                  setCategorySearch('');
+                  setShowCategoryPicker(true);
                 }}
               >
                 <Text style={[styles.categoryText, !expenseForm.category && styles.placeholder]}>
@@ -1299,6 +1306,53 @@ const { error } = await assertSupabase()
               ))
             )}
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Category Picker Modal */}
+      <Modal
+        visible={showCategoryPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCategoryPicker(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.modalCancel}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{t('petty_cash.select_category')}</Text>
+            <View style={{ width: 48 }} />
+          </View>
+
+          <View style={styles.modalContent}>
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.formInput}
+                value={categorySearch}
+                onChangeText={setCategorySearch}
+                placeholder={t('category.search_categories', { defaultValue: 'Search categories' })}
+              />
+            </View>
+
+            <ScrollView style={styles.categoryList} keyboardShouldPersistTaps="handled">
+              {filteredCategoriesList.map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  style={styles.categoryItem}
+                  onPress={() => {
+                    setExpenseForm(prev => ({ ...prev, category }));
+                    setShowCategoryPicker(false);
+                  }}
+                >
+                  <Text style={styles.categoryItemText}>{category}</Text>
+                  {expenseForm.category === category && (
+                    <Ionicons name="checkmark-circle" size={20} color={theme?.primary || '#007AFF'} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </SafeAreaView>
       </Modal>
 
@@ -1678,6 +1732,25 @@ const createStyles = (theme: any) => StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 16,
+  },
+  categoryList: {
+    flex: 1,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: theme?.surface || '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme?.border || '#e1e5e9',
+    marginBottom: 8,
+  },
+  categoryItemText: {
+    fontSize: 16,
+    color: theme?.text || '#333',
   },
   formGroup: {
     marginBottom: 20,
