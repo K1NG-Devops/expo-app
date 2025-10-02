@@ -36,7 +36,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 
 export function ThemeLanguageSettings() {
   const { theme, mode, setMode, isDark } = useTheme();
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   const { preferences, setLayout } = useDashboardPreferences();
   const currentLanguage = getCurrentLanguage();
   const availableLanguages = getAvailableLanguages();

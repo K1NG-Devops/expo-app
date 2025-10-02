@@ -54,7 +54,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   const { profile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
