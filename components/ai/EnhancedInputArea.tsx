@@ -27,8 +27,8 @@ export interface EnhancedInputAreaProps {
   onAttachmentsChange?: (attachments: DashAttachment[]) => void;
   onVoiceStart?: () => void; // When user presses down on mic
   onVoiceEnd?: () => void;   // When user releases mic (send)
-  onVoiceLock?: () => void;  // When user locks
-  onVoiceCancel?: () => void; // When user slides left to cancel
+  onVoiceLock?: () => void;  // When user locks recording
+  onVoiceCancel?: () => void; // When user cancels recording
   voiceState?: VoiceState;
   isVoiceLocked?: boolean;
   voiceTimerMs?: number;
@@ -46,47 +46,51 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
   
   const hasContent = text.trim().length > 0;
 
-  // Gesture state for WhatsApp-like mic interactions
-  const [gestureActive, setGestureActive] = useState(false);
-  const [dx, setDx] = useState(0);
+  // Gesture state for mic interactions with slide-up-to-lock
+  const [isRecording, setIsRecording] = useState(false);
   const [dy, setDy] = useState(0);
+  const [dx, setDx] = useState(0);
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
 
-  const CANCEL_THRESHOLD = -80; // slide left to cancel
-  const LOCK_THRESHOLD = -80;   // slide up to lock
+  const LOCK_THRESHOLD = -80; // slide up threshold in pixels
+  const CANCEL_THRESHOLD = -80; // slide left threshold in pixels
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
-        setGestureActive(true);
-        setDx(0); setDy(0);
-        try { onVoiceStart?.(); } catch {}
+        setIsRecording(true);
+        setDy(0);
+        setDx(0);
+        try { onVoiceStart?.(); } catch (e) { console.error('Voice start error:', e); }
       },
       onPanResponderMove: (_, gesture) => {
-        setDx(gesture.dx);
         setDy(gesture.dy);
+        setDx(gesture.dx);
         pan.setValue({ x: gesture.dx, y: gesture.dy });
       },
       onPanResponderRelease: () => {
-        // Decide action based on gesture
+        // Priority: cancel (left) > lock (up) > send
         if (dx < CANCEL_THRESHOLD) {
-          try { onVoiceCancel?.(); } catch {}
+          try { onVoiceCancel?.(); } catch (e) { console.error('Voice cancel error:', e); }
         } else if (dy < LOCK_THRESHOLD) {
-          try { onVoiceLock?.(); } catch {}
+          try { onVoiceLock?.(); } catch (e) { console.error('Voice lock error:', e); }
         } else {
-          try { onVoiceEnd?.(); } catch {}
+          // Normal release - send
+          try { onVoiceEnd?.(); } catch (e) { console.error('Voice end error:', e); }
         }
-        setGestureActive(false);
-        setDx(0); setDy(0);
+        setIsRecording(false);
+        setDy(0);
+        setDx(0);
         pan.setValue({ x: 0, y: 0 });
       },
       onPanResponderTerminate: () => {
         // Treat as cancel on interruption
-        try { onVoiceCancel?.(); } catch {}
-        setGestureActive(false);
-        setDx(0); setDy(0);
+        try { onVoiceCancel?.(); } catch (e) { console.error('Voice cancel error:', e); }
+        setIsRecording(false);
+        setDy(0);
+        setDx(0);
         pan.setValue({ x: 0, y: 0 });
       },
     })
@@ -158,7 +162,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         ) : (
           <Animated.View {...panResponder.panHandlers}>
             <View 
-              style={[styles.actionButton, { backgroundColor: theme.accent, position: 'relative' }]}
+              style={[styles.actionButton, { backgroundColor: isRecording ? theme.error : theme.accent }]}
             > 
               <Ionicons name="mic" size={20} color="#fff" />
             </View>
@@ -166,41 +170,50 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         )}
       </View>
 
-      {/* Gesture hints when recording */}
-      {gestureActive && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
-        <View style={styles.gestureHints}>
-          <View style={styles.hintRow}>
-            <Ionicons name="chevron-up" size={18} color={theme.textSecondary} />
-            <Text style={[styles.hintText, { color: theme.textSecondary }]}>Slide up to lock</Text>
+      {/* Recording indicator - show when recording but not locked */}
+      {isRecording && !isVoiceLocked && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
+        <View style={styles.recordingIndicator}>
+          <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
+          <Text style={[styles.recordingText, { color: theme.text }]}>
+            Recording... {Math.floor((voiceTimerMs || 0) / 1000)}s
+          </Text>
+          {/* Slide up to lock hint */}
+          <View style={styles.gestureHintRow}>
+            <Ionicons name="chevron-up" size={14} color={theme.textSecondary} />
+            <Text style={[styles.recordingHint, { color: theme.textSecondary }]}>Slide up to lock</Text>
           </View>
-          <View style={[styles.hintRow, { marginTop: 6 }]}>
-            <Ionicons name="chevron-back" size={18} color={theme.error} />
-            <Text style={[styles.hintText, { color: theme.error }]}>Slide left to cancel</Text>
+          {/* Slide left to cancel hint */}
+          <View style={styles.gestureHintRow}>
+            <Ionicons name="chevron-back" size={14} color={theme.textSecondary} />
+            <Text style={[styles.recordingHint, { color: theme.textSecondary }]}>Slide left to cancel</Text>
           </View>
         </View>
       )}
 
-      {/* Locked controls (show when locked) */}
-      {isVoiceLocked && (
+      {/* Locked controls - show when recording is locked */}
+      {isVoiceLocked && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
         <View style={styles.lockedRow}>
-          <View style={styles.timerPill}>
+          <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
+          <View style={[styles.timerPill, { backgroundColor: theme.surfaceVariant }]}>
             <Text style={[styles.timerText, { color: theme.text }]}>
               {Math.floor((voiceTimerMs || 0) / 1000)}s
             </Text>
           </View>
           <View style={{ flex: 1 }} />
-          <TouchableOpacity style={[styles.lockedAction, { backgroundColor: theme.error }]}
+          <TouchableOpacity 
+            style={[styles.lockedAction, { backgroundColor: theme.error }]}
             onPress={onVoiceCancel}
           >
-            <Ionicons name="trash" size={16} color={theme.onError || '#fff'} />
-            <Text style={[styles.lockedActionText, { color: theme.onError || '#fff' }]}>Delete</Text>
+            <Ionicons name="trash" size={16} color="#fff" />
+            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Cancel</Text>
           </TouchableOpacity>
           <View style={{ width: 8 }} />
-          <TouchableOpacity style={[styles.lockedAction, { backgroundColor: theme.primary }]}
+          <TouchableOpacity 
+            style={[styles.lockedAction, { backgroundColor: theme.primary }]}
             onPress={onVoiceEnd}
           >
-            <Ionicons name="send" size={16} color={theme.onPrimary || '#fff'} />
-            <Text style={[styles.lockedActionText, { color: theme.onPrimary || '#fff' }]}>Send</Text>
+            <Ionicons name="send" size={16} color="#fff" />
+            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Send</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -255,29 +268,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  gestureHints: {
-    marginTop: 6,
-    paddingHorizontal: 6,
-  },
-  hintRow: {
+  recordingIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 12,
+    gap: 8,
   },
-  hintText: {
-    fontSize: 12,
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  recordingText: {
+    fontSize: 13,
     fontWeight: '600',
+  },
+  gestureHintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 8,
+  },
+  recordingHint: {
+    fontSize: 11,
   },
   lockedRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
+    paddingHorizontal: 12,
+    gap: 8,
   },
   timerPill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    backgroundColor: 'rgba(127,127,127,0.12)',
   },
   timerText: {
     fontSize: 12,

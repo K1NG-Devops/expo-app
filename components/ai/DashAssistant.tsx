@@ -36,7 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
-import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
+// VoiceRecordingModal removed - using inline mic button only
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
 import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
@@ -73,7 +73,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  // Modal removed - using inline mic only
   const [voiceTimerMs, setVoiceTimerMs] = useState(0);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -82,8 +82,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
-  const [showLockHint, setShowLockHint] = useState(true);
-
   const scrollViewRef = useRef<ScrollView>(null);
   const flatListRef = useRef<FlatList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
@@ -91,12 +89,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   // Track the last synced conversation state to avoid redundant updates that can cause loops
   const lastSyncRef = useRef<{ convId?: string; lastId?: string; length: number } | null>(null);
-
-// Show quick voice instruction on startup (~12s)
-  useEffect(() => {
-    const t = setTimeout(() => setShowLockHint(false), 12000);
-    return () => clearTimeout(t);
-  }, []);
 
   // Initialize Dash AI Assistant
   useEffect(() => {
@@ -957,15 +949,6 @@ return (
     }
   }, [vc.state]);
 
-  // Toggle WhatsApp-style voice modal based on voice controller state
-  useEffect(() => {
-    if (vc.state === 'prewarm' || vc.state === 'listening' || vc.state === 'transcribing' || vc.state === 'thinking') {
-      setShowVoiceModal(true);
-    } else {
-      setShowVoiceModal(false);
-    }
-  }, [vc.state]);
-
   // Notify on voice errors (e.g., permission denied)
   useEffect(() => {
     if (vc.state === 'error') {
@@ -1001,14 +984,6 @@ return (
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar style={isDark ? 'light' : 'dark'} />
-
-      {showLockHint && (
-        <View style={[styles.hintOverlay, { backgroundColor: theme.surface + 'E6', borderColor: theme.border }]}> 
-          <Ionicons name="information-circle" size={18} color={theme.primary} style={{ marginRight: 8 }} />
-          <Text style={{ color: theme.text, fontWeight: '600' }}>Tip:</Text>
-          <Text style={{ color: theme.textSecondary, marginLeft: 6 }}>Tap to talk. Long‑press to hold. Swipe up to lock.</Text>
-        </View>
-      )}
       
       {/* Header */}
       <View style={[
@@ -1188,15 +1163,13 @@ ListFooterComponent={(
         }}
         onVoiceLock={() => {
           try {
-            // Lock for hands-free recording
-            vc.lock().catch((e) => console.error('Voice lock error:', e));
+            vc.lock();
           } catch (e) {
             console.error('Voice lock error:', e);
           }
         }}
         onVoiceCancel={() => {
           try {
-            // Cancel recording
             vc.cancel().catch((e) => console.error('Voice cancel error:', e));
           } catch (e) {
             console.error('Voice cancel error:', e);
@@ -1204,13 +1177,7 @@ ListFooterComponent={(
         }}
       />
 
-      {/* WhatsApp-style Voice Recording Modal */}
-      <VoiceRecordingModal
-        vc={vc}
-        visible={showVoiceModal}
-        onClose={() => setShowVoiceModal(false)}
-      />
-{/* Command Palette Modal */}
+      {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
     </KeyboardAvoidingView>
   );

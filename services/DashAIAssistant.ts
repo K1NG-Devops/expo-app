@@ -651,7 +651,15 @@ export class DashAIAssistant {
         return;
       }
 
-      await Audio.requestPermissionsAsync();
+      // Request permissions
+      console.log('[Dash] Requesting audio permissions during initialization...');
+      const { granted } = await Audio.requestPermissionsAsync();
+      console.log('[Dash] Audio permission result during initialization:', granted);
+      
+      if (!granted) {
+        console.warn('[Dash] Audio permission not granted during initialization');
+        // Don't throw - just log warning. Permission will be checked again when recording starts
+      }
 
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({
@@ -666,6 +674,7 @@ export class DashAIAssistant {
       }
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
+      // Don't throw - allow app to continue, will fail when recording actually starts
     }
   }
 
@@ -799,6 +808,16 @@ export class DashAIAssistant {
     try {
       // Ensure audio is initialized
       await this.initializeAudio();
+      
+      // Check permissions before preparing
+      if (Platform.OS !== 'web') {
+        const { granted } = await Audio.getPermissionsAsync();
+        if (!granted) {
+          console.log('[Dash] Skipping pre-warm: microphone permission not granted');
+          return;
+        }
+      }
+      
       const rec = new Audio.Recording();
       await rec.prepareToRecordAsync({
         android: {
@@ -850,6 +869,24 @@ export class DashAIAssistant {
     }
 
     try {
+      // Check and request microphone permissions on mobile
+      if (Platform.OS !== 'web') {
+        console.log('[Dash] Checking microphone permissions...');
+        const { status, granted, canAskAgain } = await Audio.getPermissionsAsync();
+        console.log('[Dash] Current permission status:', { status, granted, canAskAgain });
+        
+        if (!granted) {
+          console.log('[Dash] Microphone permission not granted, requesting...');
+          const { status: newStatus, granted: newGranted } = await Audio.requestPermissionsAsync();
+          console.log('[Dash] Permission request result:', { status: newStatus, granted: newGranted });
+          
+          if (!newGranted) {
+            throw new Error('Microphone permission denied. Please grant microphone access in your device settings.');
+          }
+        }
+        console.log('[Dash] Microphone permissions confirmed');
+      }
+      
       // Web compatibility checks for recording support and secure context
       if (Platform.OS === 'web') {
         try {

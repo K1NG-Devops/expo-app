@@ -275,19 +275,22 @@ serve(async (req: Request): Promise<Response> => {
         .insert({
           user_id: user.id,
           preschool_id: preschoolId,
+          organization_id: preschoolId,
           service_type: service_type,
+          ai_model_used: 'claude-3-haiku-20240307',
           status: 'success',
           input_tokens: aiResult.tokensIn,
           output_tokens: aiResult.tokensOut,
-          input_cost: aiResult.tokensIn * 0.00000025,
-          output_cost: aiResult.tokensOut * 0.00000125,
           total_cost: aiResult.cost,
-          response_time_ms: Date.now() - startTime,
+          processing_time_ms: Date.now() - startTime,
+          input_text: redactedText,
+          output_text: aiResult.content,
           metadata: {
             ...metadata,
             scope,
             redaction_count: redactionCount,
-            model: 'claude-3-haiku-20240307'
+            input_cost: aiResult.tokensIn * 0.00000025,
+            output_cost: aiResult.tokensOut * 0.00000125
           }
         })
         .select('id')
@@ -319,14 +322,16 @@ serve(async (req: Request): Promise<Response> => {
         .insert({
           user_id: user.id,
           preschool_id: preschoolId,
+          organization_id: preschoolId,
           service_type: service_type,
+          ai_model_used: 'claude-3-haiku-20240307',
           status: 'error',
           input_tokens: 0,
           output_tokens: 0,
-          input_cost: 0,
-          output_cost: 0,
           total_cost: 0,
-          response_time_ms: Date.now() - startTime,
+          processing_time_ms: Date.now() - startTime,
+          error_message: (aiError as Error).message,
+          input_text: redactedText,
           metadata: {
             ...metadata,
             scope,
