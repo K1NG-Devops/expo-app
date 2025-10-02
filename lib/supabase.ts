@@ -69,9 +69,9 @@ try {
     // Log minimally in preview to help diagnose missing env in release builds (no secrets)
     console.log('[Supabase] Env summary', meta);
   }
-} catch (e) {
-  try { logger.error('Supabase debug error:', e); } catch {}
-}
+  } catch (e) {
+    try { logger.error('Supabase debug error:', e); } catch { /* Logger unavailable */ }
+  }
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
 const SecureStoreAdapter = SecureStore ? {
@@ -192,7 +192,7 @@ if (url && anon) {
   }
 
   // Add global error handler for auth errors
-  client.auth.onAuthStateChange((event, session) => {
+  client.auth.onAuthStateChange((event) => {
     if (event === 'TOKEN_REFRESHED') {
       logger.info('Token refreshed successfully');
     } else if (event === 'SIGNED_OUT') {

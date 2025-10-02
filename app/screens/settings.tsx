@@ -26,6 +26,7 @@ import Constants from 'expo-constants';
 const useSafeUpdates = () => {
   try {
     const { useUpdates } = require('@/contexts/UpdatesProvider');
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useUpdates();
   } catch (error) {
     console.warn('[Settings] UpdatesProvider not available:', error instanceof Error ? error.message : String(error));
