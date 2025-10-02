@@ -68,6 +68,22 @@ BEGIN
   SET settings = v_merged
   WHERE id = p_preschool_id;
 
+  -- Best-effort audit log (ignore if table doesn't exist)
+  BEGIN
+    INSERT INTO audit_logs (admin_user_id, action, details)
+    VALUES (
+      v_user_id,
+      'update_school_settings',
+      jsonb_build_object(
+        'preschool_id', p_preschool_id,
+        'patch', v_allowed_patch
+      )
+    );
+  EXCEPTION WHEN undefined_table THEN
+    -- audit_logs table not present; ignore
+    NULL;
+  END;
+
   RETURN v_merged;
 END;
 $$;
