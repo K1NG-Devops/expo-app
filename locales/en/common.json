@@ -721,7 +721,9 @@
     "create_lessons": "Create Lessons",
     "create_lessons_subtitle": "Generate lessons & assessments with AI",
     "advanced_analytics_subtitle": "Deep insights & forecasting",
-    "seat_management_subtitle": "Assign or revoke teacher seats"
+    "seat_management_subtitle": "Assign or revoke teacher seats",
+    "configure_in_settings": "Configure in Settings",
+    "go_to_settings": "Go to Settings"
   },
   "ai": {
     "homework": {
@@ -1170,7 +1172,35 @@
       "unlockApp": "Unlock EduDash Pro",
       "authRequired": "Biometric authentication is required to continue",
       "authenticate": "Authenticate"
-    }
+    },
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "timezone": "Timezone",
+    "currency": "Currency",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "Configured",
+    "whatsappNotConfigured": "Not Configured",
+    "whatsappYes": "Yes, configured",
+    "whatsappNo": "Not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "loadingSchoolSettings": "Loading school settings...",
+    "failedToLoadSettings": "Failed to load settings",
+    "securityPrivacy": "Security & Privacy",
+    "dataProtection": "Data Protection",
+    "learnDataProtection": "Learn about data protection",
+    "notifications": "Notifications & Alerts",
+    "appearanceLanguage": "Appearance & Language",
+    "aboutSupport": "About & Support",
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financials",
+      "pettyCash": "Petty Cash"
+    },
+    "noFeaturesEnabled": "No features enabled"
   },
   "trends": {
     "up": "Up",
