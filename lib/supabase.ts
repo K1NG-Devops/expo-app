@@ -162,10 +162,30 @@ if (url && anon) {
       // Prevent storage sync events from triggering refreshes on web
       storageKey: isWeb ? 'edudash-web-session' : 'sb-auth-token',
       flowType: isWeb ? 'implicit' : 'pkce',
-      // Add debugging for token refresh issues
+      // Disable noisy debug logs (only enable explicitly for auth debugging)
       debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
     },
   });
+  
+  // Suppress excessive GoTrueClient debug logs in development
+  if (isDevelopment && typeof global !== 'undefined') {
+    const originalConsoleLog = console.log;
+    console.log = (...args: any[]) => {
+      // Filter out GoTrueClient session management spam
+      const msg = args[0];
+      if (typeof msg === 'string' && (
+        msg.includes('GoTrueClient@') && (
+          msg.includes('#_acquireLock') ||
+          msg.includes('#__loadSession()') ||
+          msg.includes('#_useSession') ||
+          msg.includes('#getSession() session from storage')
+        )
+      )) {
+        return; // Suppress
+      }
+      originalConsoleLog.apply(console, args);
+    };
+  }
 
   if (client && isDevelopment) {
     logger.info('Supabase client initialized successfully');
