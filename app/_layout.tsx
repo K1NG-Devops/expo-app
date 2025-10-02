@@ -9,6 +9,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
@@ -177,19 +178,21 @@ export default function RootLayout() {
                   >
                     {/* Let Expo Router auto-discover screens */}
                   </Stack>
-                </GestureHandlerRootView>
-                
-                {/* Platform-specific components */}
-                  {Platform.OS !== 'web' && (() => {
-                    try {
-                      return <DashWakeWordListener />;
-                    } catch {
-                      return null;
-                    }
-                  })()}
-                </DashboardPreferencesProvider>
-              </ThemeProvider>
-            </UpdatesProvider>
+            </GestureHandlerRootView>
+            
+            {/* OTA Update Banner */}
+            <GlobalUpdateBanner />
+            
+            {/* Platform-specific components */}
+              {Platform.OS !== 'web' && (() => {
+                try {
+                  return <DashWakeWordListener />;
+                } catch {
+                  return null;
+                }
+              })()}
+            </DashboardPreferencesProvider>
+          </ThemeProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

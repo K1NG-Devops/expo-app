@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 export default function PrincipalDashboardScreen() {
-  const { profile, profileLoading, loading } = useAuth();
+  const { user, profile, profileLoading, loading } = useAuth();
   const { theme } = useTheme();
   const { t } = useTranslation();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -21,6 +21,8 @@ export default function PrincipalDashboardScreen() {
   useEffect(() => {
     // Only make routing decisions after profile has loaded
     if (!isStillLoading && !orgId) {
+      // If user is not authenticated, do not route to onboarding
+      if (!user) return;
       console.log('Principal dashboard: No school found, redirecting to onboarding', {
         profile,
         organization_id: profile?.organization_id,
@@ -33,7 +35,7 @@ export default function PrincipalDashboardScreen() {
         console.debug('Redirect to onboarding failed', e);
       }
     }
-  }, [orgId, isStillLoading, profile, profileLoading, loading]);
+  }, [user, orgId, isStillLoading, profile, profileLoading, loading]);
 
   // Show loading state while auth/profile is loading
   if (isStillLoading) {
@@ -46,6 +48,14 @@ export default function PrincipalDashboardScreen() {
 
   // Show redirect message if no organization after loading is complete
   if (!orgId) {
+    // If not authenticated, avoid onboarding redirect here
+    if (!user) {
+      return (
+        <View style={styles.empty}>
+          <Text style={styles.text}>{t('dashboard.loading_profile')}</Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.empty}>
         <Text style={styles.text}>{t('dashboard.no_school_found_redirect')}</Text>
