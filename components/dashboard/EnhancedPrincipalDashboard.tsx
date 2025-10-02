@@ -21,7 +21,6 @@ import {
   Alert,
   Modal,
   Linking,
-  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,9 +37,7 @@ import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 import { useSchoolSettings } from '@/lib/hooks/useSchoolSettings';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
-import { Vibration } from 'react-native';
 import Feedback from '@/lib/feedback';
-import { track } from '@/lib/analytics';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
@@ -72,7 +69,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { theme, toggleTheme, isDark } = useTheme();
   const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
   const { preferences, setLayout } = useDashboardPreferences();
-  const { maybeShowInterstitial, offerRewarded } = useAds();
+  const { maybeShowInterstitial } = useAds();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
   const schoolSettingsQuery = useSchoolSettings((profile as any)?.organization_id);
@@ -83,7 +80,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const isWAEnabled = isWhatsAppEnabled() || isWAConfigured;
   
   // Derived state from centralized settings
-  const quickActionsEnabled = schoolSettings?.features?.activityFeed?.enabled ?? true;
   const financialsEnabled = schoolSettings?.features?.financialReports?.enabled ?? true;
   const pettyCashEnabled = schoolSettings?.features?.pettyCash?.enabled ?? true;
   const insets = useSafeAreaInsets();
@@ -106,7 +102,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     || '';
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const hasRefreshedOnFocus = useRef(false);
   
   // Refresh on focus
@@ -189,7 +184,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       try {
         await Linking.openURL(waLink);
         return;
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('Failed to open WhatsApp link:', err);
       }
     }
@@ -200,7 +195,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       try {
         await Linking.openURL(fallbackLink);
         return;
-      } catch {}
+      } catch (err: unknown) {
+        console.error('Failed to open fallback WhatsApp link:', err);
+      }
     }
     
     Alert.alert(
@@ -219,19 +216,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     if (hour < 18) return t('dashboard.good_afternoon');
     return t('dashboard.good_evening');
   };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await refresh();
-      await Feedback.vibrate(10);
-    } catch (error) {
-      console.error('Refresh error:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   const handleCreateAnnouncement = () => {
     setShowAnnouncementModal(true);
   };
@@ -255,8 +239,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       );
       
       if (result.success) {
-        try { await Feedback.vibrate(40); } catch {}
-        try { await Feedback.playSuccess(); } catch {}
+        try { await Feedback.vibrate(40); } catch { /* Haptics unavailable */ }
+        try { await Feedback.playSuccess(); } catch { /* Audio unavailable */ }
         Alert.alert(
           t('dashboard.announcement_send_success'),
           t('dashboard.announcement_send_details', {
@@ -421,7 +405,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               onPress={() => {
                 const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
                 setLayout(newLayout);
-                try { Feedback.vibrate(15); } catch {}
+                try { Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
               }}
               activeOpacity={0.7}
             >
@@ -487,10 +471,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               {/* Theme Toggle */}
               <TouchableOpacity
                 style={styles.themeToggle}
-                onPress={async () => {
-                  await toggleTheme();
-                  try { Feedback.vibrate(15); } catch {}
-                }}
+              onPress={async () => {
+                await toggleTheme();
+                try { Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
+              }}
               >
                 <Ionicons 
                   name={isDark ? 'sunny' : 'moon'} 
@@ -535,7 +519,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                     // Minimal navigation: no haptics, no delays, no fallbacks
                     const route = `/screens/subscription-upgrade-post?currentTier=${encodeURIComponent(tier || 'free')}&reason=manual_upgrade`;
                     if (__DEV__) console.log('🧪 Minimal nav to upgrade screen:', route);
-                    try { router.push(route); } catch {}
+                    try { router.push(route); } catch { /* Haptics unavailable */ }
                   }}
                 >
                   <View style={styles.upgradeBannerButtonGlow}>
@@ -563,7 +547,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               color={metric.color}
               trend={metric.trend}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 
                 // Show interstitial ad before navigating (free tier only)
                 await maybeShowInterstitial('principal_metrics_nav');
@@ -765,7 +749,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         <TouchableOpacity 
           style={[styles.aiInsightsBanner, (subscriptionReady && !hasPremiumOrHigher) ? styles.disabledCard : null]}
           onPress={gate(async () => {
-            try { await Feedback.vibrate(15); } catch {}
+            try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
             router.push('/screens/principal-analytics');
           }, { needs: 'premium' })}
           disabled={subscriptionReady && !hasPremiumOrHigher}
@@ -816,7 +800,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         <View style={styles.toolsGrid}>
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#4F46E5' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-dashboard') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-dashboard') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#4F46E5' }]}>
               <Ionicons name="analytics" size={20} color="white" />
@@ -830,7 +814,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#059669' + '10' }]}
-onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-transactions') }}
+onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-transactions') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#059669' }]}>
               <Ionicons name="list" size={20} color="white" />
@@ -844,7 +828,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#DC2626' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-reports') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-reports') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#DC2626' }]}>
               <Ionicons name="bar-chart" size={20} color="white" />
@@ -859,7 +843,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           {pettyCashEnabled && (
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/petty-cash') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/petty-cash') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
               <Ionicons name="wallet" size={20} color="white" />
@@ -874,7 +858,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#10B981' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/class-teacher-management') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/class-teacher-management') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#10B981' }]}>
               <Ionicons name="school" size={20} color="white" />
@@ -920,7 +904,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }, (subscriptionReady && !hasStarterAIFeatures) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin-ai-allocation') }, { needs: 'starter' })}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/admin-ai-allocation') }, { needs: 'starter' })}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
               <Ionicons name="settings" size={20} color="white" />
@@ -972,7 +956,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#0891B2' + '10' }, (subscriptionReady && !hasAdvancedAnalytics) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-analytics') }, { needs: 'advanced' })}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-analytics') }, { needs: 'advanced' })}
             disabled={subscriptionReady && !hasAdvancedAnalytics}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#0891B2' }]}>
@@ -1002,7 +986,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/student-enrollment') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/student-enrollment') }}
           >
             <Ionicons name="person-add" size={24} color={theme.primary} />
             <Text style={styles.actionText}>{t('quick_actions.enroll_student')}</Text>
@@ -1010,7 +994,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/teacher-management') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/teacher-management') }}
           >
             <Ionicons name="people" size={24} color={theme.success} />
             <Text style={styles.actionText}>{t('quick_actions.manage_teachers')}</Text>
@@ -1018,7 +1002,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; handleCreateAnnouncement(); }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; handleCreateAnnouncement(); }}
           >
             <Ionicons name="megaphone" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.send_announcement')}</Text>
@@ -1026,7 +1010,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-requests') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-parent-requests') }}
           >
             <Ionicons name="people-circle" size={24} color={theme.primary} />
             <Text style={styles.actionText}>{t('quick_actions.parent_requests')}</Text>
@@ -1034,7 +1018,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
 
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-seat-management') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-seat-management') }}
           >
             <Ionicons name="id-card" size={24} color={theme.success} />
             <Text style={styles.actionText}>{t('quick_actions.seat_management')}</Text>
@@ -1042,7 +1026,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-invite-code') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-parent-invite-code') }}
           >
             <Ionicons name="key" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.invite_parents')}</Text>
@@ -1050,7 +1034,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin/data-export') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/admin/data-export') }}
           >
             <Ionicons name="cloud-download" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.export_data')}</Text>
@@ -1060,7 +1044,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => {
               // Quick school stats action
-              try { await Feedback.vibrate(15); } catch {}
+              try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
               const content = t('common.school_stats_content', {
                 studentsPresent: 87,
                 totalStudents: 92,
@@ -1090,7 +1074,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <TouchableOpacity 
               style={[styles.actionCard, { borderLeftColor: '#25D366', shadowColor: '#25D366' }]}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 setShowWhatsAppModal(true);
               }}
             >
@@ -1103,7 +1087,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <TouchableOpacity 
               style={[styles.actionCard, { borderLeftColor: theme.textSecondary, shadowColor: theme.textSecondary }]}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 Alert.alert(
                   t('common.quick_settings_content'),
                   t('common.quick_settings_description'),
