@@ -932,7 +932,38 @@
     "about": "About",
     "support": "Support",
     "termsOfService": "Terms of Service",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "dashboard": {
+      "title": "Dashboard Layout",
+      "current": "Current Layout",
+      "available": "Available Layouts",
+      "classic": "Classic",
+      "classicDesc": "Traditional dashboard with familiar layout and navigation",
+      "enhanced": "Enhanced",
+      "enhancedDesc": "Modern dashboard with improved design and new features"
+    },
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "timezone": "Timezone",
+    "currency": "Currency",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "Configured",
+    "whatsappNotConfigured": "Not Configured",
+    "whatsappYes": "Yes, configured",
+    "whatsappNo": "Not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "loadingSchoolSettings": "Loading school settings...",
+    "failedToLoadSettings": "Failed to load settings",
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financials",
+      "pettyCash": "Petty Cash"
+    },
+    "noFeaturesEnabled": "No features enabled"
   },
   "teacher": {
     "performance": {
@@ -1193,72 +1224,6 @@
     "no_financial_data_title": "No Financial Data",
     "no_financial_data_description": "Financial reports and revenue data will be shown here once available.",
     "view_reports": "View Reports"
-  },
-  "settings": {
-    "theme": {
-      "title": "Theme",
-      "light": "Light",
-      "dark": "Dark",
-      "system": "System",
-      "preview": "Preview",
-      "primary": "Primary",
-      "secondary": "Secondary",
-      "accent": "Accent"
-    },
-    "language": {
-      "title": "Language",
-      "current": "Current Language",
-      "available": "Available Languages",
-      "comingSoon": "Coming Soon",
-      "soon": "Soon"
-    },
-    "dashboard": {
-      "title": "Dashboard Layout",
-      "current": "Current Layout",
-      "available": "Available Layouts",
-      "classic": "Classic",
-      "classicDesc": "Traditional dashboard with familiar layout and navigation",
-      "enhanced": "Enhanced",
-      "enhancedDesc": "Modern dashboard with improved design and new features"
-    },
-    "preferences": {
-      "title": "Preferences",
-      "autoTheme": "Auto Theme",
-      "autoThemeDesc": "Automatically switch between light and dark themes based on system settings"
-    },
-    "biometric": {
-      "unlockApp": "Unlock EduDash Pro",
-      "authRequired": "Biometric authentication is required to continue",
-      "authenticate": "Authenticate"
-    },
-    "schoolOverview": "School Overview",
-    "schoolName": "School Name",
-    "timezone": "Timezone",
-    "currency": "Currency",
-    "regionalSettings": "Regional Settings",
-    "whatsappIntegration": "WhatsApp Integration",
-    "whatsappConfigured": "Configured",
-    "whatsappNotConfigured": "Not Configured",
-    "whatsappYes": "Yes, configured",
-    "whatsappNo": "Not configured",
-    "active": "Active",
-    "activeFeatures": "Active Features",
-    "editFullSettings": "Edit Full Settings",
-    "configureAllSchoolSettings": "Configure all school settings",
-    "loadingSchoolSettings": "Loading school settings...",
-    "failedToLoadSettings": "Failed to load settings",
-    "securityPrivacy": "Security & Privacy",
-    "dataProtection": "Data Protection",
-    "learnDataProtection": "Learn about data protection",
-    "notifications": "Notifications & Alerts",
-    "appearanceLanguage": "Appearance & Language",
-    "aboutSupport": "About & Support",
-    "feature": {
-      "activityFeed": "Activity Feed",
-      "financials": "Financials",
-      "pettyCash": "Petty Cash"
-    },
-    "noFeaturesEnabled": "No features enabled"
   },
   "trends": {
     "up": "Up",
