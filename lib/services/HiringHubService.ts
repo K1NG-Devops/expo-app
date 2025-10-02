@@ -663,6 +663,38 @@ export class HiringHubService {
   }
 
   // =====================================================
+  // JOB DISTRIBUTION TRACKING
+  // =====================================================
+
+  /**
+   * Track job distribution event across different channels
+   */
+  static async trackJobDistribution(data: {
+    job_posting_id: string;
+    channel: 'whatsapp' | 'email' | 'sms' | 'social_media' | 'public_board';
+    distributed_by: string;
+    recipients_count?: number;
+    metadata?: Record<string, any>;
+  }): Promise<void> {
+    const supabase = assertSupabase();
+
+    const { error } = await supabase
+      .from('job_distributions')
+      .insert({
+        job_posting_id: data.job_posting_id,
+        channel: data.channel,
+        distributed_by: data.distributed_by,
+        recipients_count: data.recipients_count || 0,
+        metadata: data.metadata || {},
+      });
+
+    if (error) {
+      console.error('Error tracking job distribution:', error);
+      // Non-fatal - don't throw, just log
+    }
+  }
+
+  // =====================================================
   // STORAGE HELPERS
   // =====================================================
 

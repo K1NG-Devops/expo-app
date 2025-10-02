@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { router } from 'expo-router'
 import { useTranslation } from 'react-i18next'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface EnhancedQuickActionProps {
   icon: keyof typeof Ionicons.glyphMap
@@ -54,7 +55,11 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.quickActionCard, { width: cardWidth }, (disabled || isPremiumBlocked) && styles.disabledCard]}
+      style={[
+        styles.quickActionCard,
+        { width: cardWidth, borderLeftColor: (disabled && !isPremiumBlocked) ? '#6B7280' : gradientColors[0], shadowColor: (disabled && !isPremiumBlocked) ? '#6B7280' : gradientColors[0] },
+        (disabled || isPremiumBlocked) && styles.disabledCard
+      ]}
       onPress={handlePress}
       disabled={disabled && !isPremiumBlocked} // Allow press for premium blocked to show upgrade
       activeOpacity={0.8}
@@ -96,13 +101,14 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
   onWhatsAppPress,
   onUpgradePress: _onUpgradePress
 }) => {
+  const { theme } = useTheme()
   const { t } = useTranslation('common')
   const remaining = aiHelpLimit === 'unlimited' ? 'unlimited' : Number(aiHelpLimit) - aiHelpUsage
   const isHomeworkDisabled = aiHelpLimit !== 'unlimited' && aiHelpUsage >= Number(aiHelpLimit)
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{t('quick_actions.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('quick_actions.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
       <View style={styles.quickActionsGrid}>
         <EnhancedQuickAction
           icon="help-circle"
@@ -171,6 +177,7 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     borderRadius: 16,
+    borderLeftWidth: 4,
     // Do not use overflow: 'hidden' on Android when using elevation; it will clip shadows
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },

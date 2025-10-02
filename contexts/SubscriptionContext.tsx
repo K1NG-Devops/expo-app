@@ -18,7 +18,7 @@ type Ctx = {
   refresh: () => void;
 };
 
-const SubscriptionContext = createContext<Ctx>({
+export const SubscriptionContext = createContext<Ctx>({
   ready: false,
   tier: 'free',
   seats: null,

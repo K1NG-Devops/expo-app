@@ -1278,6 +1278,7 @@ case 'homework':
       padding: 16,
       flexDirection: 'row',
       alignItems: 'center',
+      borderLeftWidth: 4,
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
@@ -1587,7 +1588,7 @@ case 'homework':
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#00f5ff"
+            tintColor={theme.primary}
           />
         }
       >
@@ -1980,7 +1981,7 @@ case 'homework':
           
           <View style={styles.toolsGrid}>
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.primary + '10' }]}
+              style={[styles.toolCard, { backgroundColor: theme.primary + '10', borderLeftColor: theme.primary, shadowColor: theme.primary }]}
               onPress={() => router.push('/screens/parent-messages')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.primary }]}>
@@ -1994,7 +1995,7 @@ case 'homework':
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.success + '10' }]}
+              style={[styles.toolCard, { backgroundColor: theme.success + '10', borderLeftColor: theme.success, shadowColor: theme.success }]}
               onPress={() => router.push('/screens/parent-announcements')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.success }]}>
@@ -2008,7 +2009,7 @@ case 'homework':
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.warning + '10' }]}
+              style={[styles.toolCard, { backgroundColor: theme.warning + '10', borderLeftColor: theme.warning, shadowColor: theme.warning }]}
               onPress={() => router.push('/screens/parent-meetings')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.warning }]}>

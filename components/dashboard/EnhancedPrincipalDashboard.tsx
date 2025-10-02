@@ -73,6 +73,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
   const schoolSettingsQuery = useSchoolSettings((profile as any)?.organization_id);
+  const { refetch: refetchSchoolSettings } = schoolSettingsQuery;
   
   // Real-time school settings from database
   const schoolSettings = schoolSettingsQuery.data;
@@ -110,11 +111,11 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       if (hasRefreshedOnFocus.current) {
         refresh();
         // Also refresh school settings to ensure latest config
-        schoolSettingsQuery.refetch();
+        refetchSchoolSettings?.();
       } else {
         hasRefreshedOnFocus.current = true;
       }
-    }, [refresh, schoolSettingsQuery])
+    }, [refresh, refetchSchoolSettings])
   );
   
   // Theme-aware styles
@@ -518,7 +519,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   onPress={() => {
                     // Minimal navigation: no haptics, no delays, no fallbacks
                     const route = `/screens/subscription-upgrade-post?currentTier=${encodeURIComponent(tier || 'free')}&reason=manual_upgrade`;
-                    if (__DEV__) console.log('🧪 Minimal nav to upgrade screen:', route);
                     try { router.push(route); } catch { /* Haptics unavailable */ }
                   }}
                 >

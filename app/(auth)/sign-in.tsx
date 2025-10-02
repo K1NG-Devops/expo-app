@@ -4,6 +4,7 @@ import { Stack, router } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
 import { assertSupabase } from "@/lib/supabase";
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import * as Linking from 'expo-linking';
 import { SocialLoginButtons } from '@/components/ui/SocialLoginButtons';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +13,7 @@ import { BiometricAuthService } from '@/services/BiometricAuthService';
 import * as SecureStore from 'expo-secure-store';
 
 export default function SignIn() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,7 +67,7 @@ export default function SignIn() {
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please enter email and password");
+      Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.sign_in.enter_email_password', { defaultValue: 'Please enter email and password' }));
       return;
     }
 
@@ -77,7 +79,7 @@ export default function SignIn() {
       });
 
       if (error) {
-        Alert.alert("Sign In Failed", error.message);
+        Alert.alert(t('auth.sign_in.failed', { defaultValue: 'Sign In Failed' }), error.message);
       } else {
         console.log("Sign in successful:", data.user?.email);
         // Save remember me preference and credentials
@@ -101,7 +103,7 @@ export default function SignIn() {
       }
     } catch (_error) {
       console.error("Sign in error:", _error);
-      Alert.alert("Error", "An unexpected error occurred");
+      Alert.alert(t('common.error', { defaultValue: 'Error' }), t('common.unexpected_error', { defaultValue: 'An unexpected error occurred' }));
     } finally {
       setLoading(false);
     }
@@ -109,28 +111,28 @@ export default function SignIn() {
 
   const handleBiometricLogin = async () => {
     if (!biometricAvailable) {
-      Alert.alert('Biometric Not Available', 'Please use your password to sign in.');
+      Alert.alert(t('auth.biometric_not_available.title', { defaultValue: 'Biometric Not Available' }), t('auth.biometric_not_available.desc', { defaultValue: 'Please use your password to sign in.' }));
       return;
     }
 
     setLoading(true);
     try {
       // Authenticate with biometrics
-      const authResult = await BiometricAuthService.authenticate('Sign in to EduDash Pro');
+      const authResult = await BiometricAuthService.authenticate(t('auth.biometric.prompt', { defaultValue: 'Sign in to EduDash Pro' }));
       
       if (authResult.success) {
         // Use stored credentials to sign in
         if (email && password) {
           await handleSignIn();
         } else {
-          Alert.alert('Error', 'No saved credentials found. Please sign in with your password.');
+          Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.sign_in.no_saved_credentials', { defaultValue: 'No saved credentials found. Please sign in with your password.' }));
         }
       } else {
-        Alert.alert('Authentication Failed', authResult.error || 'Biometric authentication failed');
+        Alert.alert(t('auth.biometric_failed.title', { defaultValue: 'Authentication Failed' }), authResult.error || t('auth.biometric_failed.desc', { defaultValue: 'Biometric authentication failed' }));
       }
     } catch (error) {
       console.error('Biometric login error:', error);
-      Alert.alert('Error', 'An error occurred during biometric authentication');
+      Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.biometric_failed.unexpected', { defaultValue: 'An error occurred during biometric authentication' }));
     } finally {
       setLoading(false);
     }
@@ -153,32 +155,32 @@ export default function SignIn() {
       
       if (error) {
         console.error('OAuth Error:', error);
-        let errorMessage = 'Failed to start social login';
+        let errorMessage = t('auth.oauth.failed_start', { defaultValue: 'Failed to start social login' });
         
         if (error.message?.includes('provider is not enabled') || 
             error.message?.includes('Unsupported provider')) {
           errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
         } else if (error.message?.includes('redirect_uri')) {
-          errorMessage = 'OAuth configuration error. Please contact support.';
+          errorMessage = t('auth.oauth.config_error', { defaultValue: 'OAuth configuration error. Please contact support.' });
         } else {
           errorMessage = error.message;
         }
         
-        Alert.alert('Sign-in Unavailable', errorMessage);
+        Alert.alert(t('auth.oauth.unavailable', { defaultValue: 'Sign-in Unavailable' }), errorMessage);
         return;
       }
     } catch (e: any) {
       console.error('OAuth Exception:', e);
-      let errorMessage = 'Failed to start social login';
+      let errorMessage = t('auth.oauth.failed_start', { defaultValue: 'Failed to start social login' });
       
       if (e?.message?.includes('provider is not enabled') || 
           e?.message?.includes('Unsupported provider')) {
         errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
       } else {
-        errorMessage = e?.message || 'An unexpected error occurred';
+        errorMessage = e?.message || t('common.unexpected_error', { defaultValue: 'An unexpected error occurred' });
       }
       
-      Alert.alert('Sign-in Error', errorMessage);
+      Alert.alert(t('auth.oauth.error', { defaultValue: 'Sign-in Error' }), errorMessage);
     }
   };
 
@@ -486,9 +488,9 @@ export default function SignIn() {
                       color={theme.onPrimary}
                     />
                     <Text style={styles.biometricButtonText}>
-                      {biometricType === 'face' ? 'Use Face ID' :
-                       biometricType === 'fingerprint' ? 'Use Fingerprint' :
-                       'Use Biometric'}
+                      {biometricType === 'face' ? t('auth.biometric.use_face_id', { defaultValue: 'Use Face ID' }) :
+                       biometricType === 'fingerprint' ? t('auth.biometric.use_fingerprint', { defaultValue: 'Use Fingerprint' }) :
+                       t('auth.biometric.use_biometric', { defaultValue: 'Use Biometric' })}
                     </Text>
                   </>
                 )}
@@ -497,7 +499,7 @@ export default function SignIn() {
               {/* Divider */}
               <View style={styles.dividerContainer}>
                 <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or</Text>
+                <Text style={styles.dividerText}>{t('common.or', { defaultValue: 'or' })}</Text>
                 <View style={styles.dividerLine} />
               </View>
             </View>
@@ -506,7 +508,7 @@ export default function SignIn() {
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t('auth.email', { defaultValue: 'Email' })}
               placeholderTextColor={theme.inputPlaceholder}
               value={email}
               onChangeText={setEmail}
@@ -518,7 +520,7 @@ export default function SignIn() {
             <View style={styles.passwordContainer}>
               <TextInput
                 style={[styles.input, styles.passwordInput]}
-                placeholder="Password"
+                placeholder={t('auth.password', { defaultValue: 'Password' })}
                 placeholderTextColor={theme.inputPlaceholder}
                 value={password}
                 onChangeText={setPassword}
@@ -549,7 +551,7 @@ export default function SignIn() {
                   <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
                 )}
               </View>
-              <Text style={styles.rememberMeText}>Remember me</Text>
+              <Text style={styles.rememberMeText}>{t('auth.remember_me', { defaultValue: 'Remember me' })}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -558,7 +560,7 @@ export default function SignIn() {
               disabled={loading}
             >
               <Text style={styles.buttonText}>
-                {loading ? "Signing In..." : "Sign In"}
+                {loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}
               </Text>
             </TouchableOpacity>
           </View>
@@ -569,7 +571,7 @@ export default function SignIn() {
           <View style={styles.signupPrompt}>
             <View style={styles.divider}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>Don't have an account?</Text>
+              <Text style={styles.dividerText}>{t('auth.dont_have_account', { defaultValue: "Don't have an account?" })}</Text>
               <View style={styles.dividerLine} />
             </View>
             
@@ -579,7 +581,7 @@ export default function SignIn() {
                 onPress={() => router.push('/screens/parent-registration' as any)}
               >
                 <Ionicons name="people" size={20} color={theme.primary} />
-                <Text style={styles.signupButtonText}>Sign up as Parent</Text>
+                <Text style={styles.signupButtonText}>{t('auth.sign_up_parent', { defaultValue: 'Sign up as Parent' })}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -587,7 +589,7 @@ export default function SignIn() {
                 onPress={() => router.push('/screens/teacher-registration' as any)}
               >
                 <Ionicons name="school" size={20} color={theme.primary} />
-                <Text style={styles.signupButtonText}>Sign up as Teacher</Text>
+                <Text style={styles.signupButtonText}>{t('auth.sign_up_teacher', { defaultValue: 'Sign up as Teacher' })}</Text>
               </TouchableOpacity>
             </View>
 
@@ -596,7 +598,7 @@ export default function SignIn() {
               onPress={() => router.push('/screens/principal-onboarding' as any)}
             >
               <Text style={styles.schoolSignupText}>
-                Looking to register a school? <Text style={styles.schoolSignupLinkText}>Click here</Text>
+                {t('auth.school_register_q', { defaultValue: 'Looking to register a school?' })} <Text style={styles.schoolSignupLinkText}>{t('common.click_here', { defaultValue: 'Click here' })}</Text>
               </Text>
             </TouchableOpacity>
           </View>

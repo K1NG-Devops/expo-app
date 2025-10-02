@@ -195,7 +195,7 @@ export default function SchoolSettingsScreen() {
     if (settingsQuery.data) {
       setSettings(prev => ({ ...prev, ...settingsQuery.data! }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [settingsQuery.data]);
 
   const canAccessSettings = (): boolean => {

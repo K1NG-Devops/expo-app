@@ -36,7 +36,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
-import { VoiceDock } from '@/components/ai/VoiceDock';
+import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
+import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
+import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
+import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
 import { assertSupabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -65,11 +68,12 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const insets = useSafeAreaInsets();
   const { setLayout } = useDashboardPreferences();
   const [messages, setMessages] = useState<DashMessage[]>([]);
+  const [conversation, setConversation] = useState<DashConversation | null>(null);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const [conversation, setConversation] = useState<DashConversation | null>(null);
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
@@ -84,6 +88,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const inputRef = useRef<TextInput>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+  // Track the last synced conversation state to avoid redundant updates that can cause loops
+  const lastSyncRef = useRef<{ convId?: string; lastId?: string; length: number } | null>(null);
 
 // Show quick voice instruction on startup (~12s)
   useEffect(() => {
@@ -189,18 +195,39 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   // Focus effect to refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // Refresh conversation when screen focuses
-      if (dashInstance && conversation) {
-        dashInstance.getConversation(conversation.id).then((updatedConv: any) => {
-          if (updatedConv && updatedConv.messages.length !== messages.length) {
-            setMessages(updatedConv.messages);
+      let cancelled = false;
+
+      const refreshConversation = async () => {
+        try {
+          if (!dashInstance || !conversation?.id) return;
+          const updatedConv = await dashInstance.getConversation(conversation.id);
+          if (!updatedConv || cancelled) return;
+
+          const msgs: DashMessage[] = updatedConv.messages || [];
+          const lastId = msgs.length > 0 ? msgs[msgs.length - 1].id : 'none';
+          const prev = lastSyncRef.current;
+
+          const changed =
+            !prev ||
+            prev.convId !== updatedConv.id ||
+            prev.length !== msgs.length ||
+            prev.lastId !== lastId;
+
+          if (changed) {
             setConversation(updatedConv);
+            setMessages(msgs);
+            lastSyncRef.current = { convId: updatedConv.id, lastId, length: msgs.length };
           }
-        });
-      }
+        } catch {
+          // ignore
+        }
+      };
+
+      refreshConversation();
 
       // Return cleanup function that runs when screen loses focus
       return () => {
+        cancelled = true;
         if (dashInstance && isSpeaking) {
           setIsSpeaking(false);
           dashInstance.stopSpeaking().catch(() => {
@@ -208,7 +235,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           });
         }
       };
-    }, [dashInstance, conversation, messages.length, isSpeaking])
+    }, [dashInstance, conversation?.id])
   );
 
   // Cleanup effect to stop speech when component unmounts
@@ -250,8 +277,9 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     return false
   }
 
-  const sendMessage = async (text: string = inputText.trim()) => {
-    if ((!text && selectedAttachments.length === 0) || !dashInstance || isLoading) return;
+const sendMessage = async (text: string = inputText.trim(), attachmentsOverride?: DashAttachment[]) => {
+const attachmentsToUpload = attachmentsOverride ?? selectedAttachments;
+if ((!text && attachmentsToUpload.length === 0) || !dashInstance || isLoading) return;
 
     try {
       setIsLoading(true);
@@ -260,8 +288,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
       // Upload attachments first if any
       const uploadedAttachments: DashAttachment[] = [];
-      if (selectedAttachments.length > 0 && conversation?.id) {
-        for (const attachment of selectedAttachments) {
+if (attachmentsToUpload.length > 0 && conversation?.id) {
+for (const attachment of attachmentsToUpload) {
           try {
             updateAttachmentProgress(attachment.id, 0, 'uploading');
             const uploaded = await uploadAttachment(
@@ -599,7 +627,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       return false;
     })();
     
-    return (
+return (
       <View
         key={message.id}
         style={[
@@ -607,146 +635,30 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           isUser ? styles.userMessage : styles.assistantMessage,
         ]}
       >
-        {/* Avatar for assistant messages */}
-        {!isUser && (
-          <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
-            <Ionicons name="sparkles" size={16} color={theme.onPrimary} />
+        <MessageBubbleModern
+          message={message}
+          showIcon={!isUser}
+          onRegenerate={!isUser ? () => {
+            const prev = messages[index - 1];
+            const retryText = prev && prev.type === 'user' ? prev.content : message.content;
+            sendMessage(retryText);
+          } : undefined}
+        />
+
+        {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 && (
+          <View style={{ marginTop: 8, gap: 6 }}>
+            {(message as any).attachments.map((att: DashAttachment) => (
+              <TouchableOpacity key={att.id}
+                onPress={() => handleOpenAttachment(att)}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10,
+                         backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
+                <Ionicons name="document" size={16} color={theme.text} />
+                <Text numberOfLines={1} style={{ marginLeft: 8, color: theme.text, flex: 1 }}>{att.name}</Text>
+                <Ionicons name="download" size={16} color={theme.primary} />
+              </TouchableOpacity>
+            ))}
           </View>
         )}
-        
-        <View
-          style={[
-            styles.messageBubble,
-            isUser
-              ? { backgroundColor: theme.primary }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
-          ]}
-        >
-          <View style={styles.messageContentRow}>
-            <Text
-              style={[
-                styles.messageText,
-                { color: isUser ? theme.onPrimary : theme.text, flex: 1 },
-              ]}
-            >
-              {message.content}
-            </Text>
-            
-            {isUser && isLastUserMessage && !isLoading && (
-              <TouchableOpacity
-                style={styles.inlineBubbleRetryButton}
-                onPress={() => sendMessage(message.content)}
-                accessibilityLabel="Try again"
-                activeOpacity={0.7}
-              >
-                <Ionicons 
-                  name="refresh" 
-                  size={14} 
-                  color={theme.onPrimary} 
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Render message attachments as actionable chips */}
-          {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 && (
-            <View style={{ marginTop: 8, gap: 6 }}>
-              {(message as any).attachments.map((att: DashAttachment) => (
-                <TouchableOpacity key={att.id}
-                  onPress={() => handleOpenAttachment(att)}
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10,
-                           backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
-                  <Ionicons name="document" size={16} color={theme.text} />
-                  <Text numberOfLines={1} style={{ marginLeft: 8, color: theme.text, flex: 1 }}>{att.name}</Text>
-                  <Ionicons name="download" size={16} color={theme.primary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          
-          {message.voiceNote && (
-            <View style={styles.voiceNoteIndicator}>
-              <Ionicons 
-                name="mic" 
-                size={12} 
-                color={isUser ? theme.onPrimary : theme.textSecondary} 
-              />
-              <Text
-                style={[
-                  styles.voiceNoteDuration,
-                  { color: isUser ? theme.onPrimary : theme.textSecondary },
-                ]}
-              >
-                {Math.round((message.voiceNote.duration || 0) / 1000)}s
-              </Text>
-            </View>
-          )}
-          
-          {/* Bottom row: speak button + optional PDF actions + timestamp */}
-          <View style={styles.messageBubbleFooter}>
-            {!isUser && (
-              <TouchableOpacity
-                style={[
-                  styles.inlineSpeakButton, 
-                  { 
-                    backgroundColor: speakingMessageId === message.id ? theme.error : theme.accent,
-                  }
-                ]}
-                onPress={() => {
-                  speakResponse(message);
-                }}
-                activeOpacity={0.7}
-                accessibilityLabel={speakingMessageId === message.id ? "Stop speaking" : "Speak message"}
-              >
-                <Ionicons 
-                  name={speakingMessageId === message.id ? "stop" : "volume-high"} 
-                  size={12} 
-                  color={speakingMessageId === message.id ? theme.onError || theme.background : theme.onAccent} 
-                />
-              </TouchableOpacity>
-            )}
-
-            {/* Inline Download PDF buttons when AI proposes export */}
-            {!isUser && (message as any)?.metadata?.dashboard_action?.type === 'export_pdf' && (
-              <View style={{ flexDirection: 'row', marginLeft: 8 }}>
-                <TouchableOpacity
-                  style={[styles.inlineActionButton, { backgroundColor: theme.primary }]}
-                  onPress={() => handleDownloadPdf((message as any).metadata.dashboard_action.title || 'Dash Export', (message as any).metadata.dashboard_action.content || message.content || '')}
-                >
-                  <Text style={{ color: theme.onPrimary, fontSize: 12, fontWeight: '700' }}>Download PDF</Text>
-                </TouchableOpacity>
-                <View style={{ width: 6 }} />
-                <TouchableOpacity
-                  style={[styles.inlineActionButton, { backgroundColor: theme.surfaceVariant }]}
-                  onPress={async () => {
-                    const da: any = (message as any).metadata?.dashboard_action || {};
-                    try {
-                      const res = await dashInstance?.exportTextAsPDFForDownload(da.title || 'Dash Export', da.content || message.content || '');
-                      if (res?.success && res.uri) await Sharing.shareAsync(res.uri, { mimeType: 'application/pdf' });
-                    } catch {}
-                  }}
-                >
-                  <Text style={{ color: theme.text, fontSize: 12, fontWeight: '700' }}>Share</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={{ flex: 1 }} />
-            <Text
-              style={[
-                styles.messageTime,
-                { color: isUser ? theme.onPrimary : theme.textTertiary },
-              ]}
-            >
-              {new Date(message.timestamp).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </Text>
-          </View>
-        </View>
-        
-
       </View>
     );
   };
@@ -1173,9 +1085,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         contentContainerStyle={styles.messagesContent}
         style={styles.messagesContainer}
         showsVerticalScrollIndicator={false}
-        ListFooterComponent={(
+ListFooterComponent={(
           <>
-            {renderTypingIndicator()}
+            {isLoading && (
+              <StreamingIndicator showThinking thinkingText="Thinking..." />
+            )}
             {renderSuggestedActions()}
           </>
         )}
@@ -1183,115 +1097,50 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         onLayout={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: false }); } catch {} }}
       />
 
-      {/* Voice Dock */}
-      <VoiceDock vc={vc} />
-
       {/* Input Area */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-        {/* Attachment chips */}
-        {renderAttachmentChips()}
-        
-        <View style={styles.inputRow}>
-          {/* Attach button */}
-          <TouchableOpacity
-            style={[
-              styles.attachButton,
-              { 
-                backgroundColor: selectedAttachments.length > 0 ? theme.primaryLight : 'transparent',
-                borderColor: theme.border
-              }
-            ]}
-            onPress={handleAttachFile}
-            disabled={isLoading || isUploading || vc.state === 'listening'}
-            accessibilityLabel="Attach files"
-          >
-            <Ionicons 
-              name="attach" 
-              size={20} 
-              color={selectedAttachments.length > 0 ? theme.primary : theme.textSecondary} 
-            />
-            {selectedAttachments.length > 0 && (
-              <View style={[styles.attachBadge, { backgroundColor: theme.primary }]}>
-                <Text style={[styles.attachBadgeText, { color: theme.onPrimary }]}>
-                  {selectedAttachments.length}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.textInput,
-              { 
-                backgroundColor: theme.inputBackground, 
-                borderColor: theme.inputBorder,
-                color: theme.inputText 
-              }
-            ]}
-            placeholder={selectedAttachments.length > 0 ? "Add a message (optional)..." : "Ask Dash anything..."}
-            placeholderTextColor={theme.inputPlaceholder}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline={!enterToSend}
-            maxLength={500}
-            editable={!isLoading && vc.state !== 'listening' && !isUploading}
-            onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
-            returnKeyType={enterToSend ? "send" : "default"}
-            blurOnSubmit={enterToSend}
-          />
-          
-          {(inputText.trim() || selectedAttachments.length > 0) ? (
-            <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: theme.primary }]}
-              onPress={() => sendMessage()}
-              disabled={isLoading || isUploading}
-            >
-              {(isLoading || isUploading) ? (
-                <ActivityIndicator size="small" color={theme.onPrimary} />
-              ) : (
-                <Ionicons name="send" size={20} color={theme.onPrimary} />
-              )}
-            </TouchableOpacity>
-          ) : (
-            <Animated.View style={{ transform: [{ scale: vc.state === 'listening' ? pulseAnimation : 1 }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.recordButton,
-                  { 
-                    backgroundColor: vc.state === 'listening' ? theme.error : theme.accent 
-                  }
-                ]}
-                onPress={async () => {
-                  try {
-                    if (vc.state === 'listening') await vc.release();
-                    else await vc.startPress();
-                  } catch {}
-                }}
-                onLongPress={async () => { try { if (vc.state !== 'listening') { await vc.startPress(); } vc.lock(); } catch {} }}
-                delayLongPress={150}
-                disabled={isLoading}
-              >
-                <Ionicons 
-                  name={"mic"} 
-                  size={20} 
-                  color={theme.onAccent} 
-                />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-        </View>
-        
-        {vc.state === 'listening' && (
-          <View style={styles.recordingIndicator}>
-            <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-            <Text style={[styles.recordingText, { color: theme.error }]}>
-              Listening... Release to send
-            </Text>
-          </View>
-        )}
-      </View>
-      {/* Command Palette Modal */}
+      <EnhancedInputArea
+        sending={isLoading || isUploading}
+        onSend={async (text, atts) => {
+          try {
+            setSelectedAttachments(atts || []);
+            await sendMessage(text, atts || []);
+          } catch {}
+        }}
+        onAttachmentsChange={(atts) => setSelectedAttachments(atts)}
+        onVoiceStart={() => {
+          try {
+            setShowVoiceModal(true);
+            vc.startPress().catch((e) => console.error('Voice start error:', e));
+          } catch (e) {
+            console.error('Voice start error:', e);
+          }
+        }}
+        onVoiceEnd={() => {
+          try {
+            // Only release if not locked; the controller ignores if not listening yet
+            vc.release().catch((e) => console.error('Voice end error:', e));
+          } catch (e) {
+            console.error('Voice end error:', e);
+          }
+        }}
+        onVoiceLock={() => {
+          try {
+            setShowVoiceModal(true);
+            // Start if not started, then lock
+            vc.startPress().then(() => vc.lock()).catch((e) => console.error('Voice lock error:', e));
+          } catch (e) {
+            console.error('Voice lock error:', e);
+          }
+        }}
+      />
+
+      {/* WhatsApp-style Voice Recording Modal */}
+      <VoiceRecordingModal
+        vc={vc}
+        visible={showVoiceModal}
+        onClose={() => setShowVoiceModal(false)}
+      />
+{/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
     </KeyboardAvoidingView>
   );

@@ -8,6 +8,13 @@
     "tagline": "Empowering Education Through AI",
     "version": "1.0.0"
   },
+  "common": {
+    "error": "Error",
+    "unexpected_error": "An unexpected error occurred",
+    "or": "or",
+    "click_here": "Click here",
+    "try_again": "Try Again"
+  },
   "navigation": {
     "dashboard": "Dashboard",
     "profile": "Profile",
@@ -41,7 +48,40 @@
     "signingUp": "Creating account...",
     "invalidCredentials": "Invalid email or password",
     "accountCreated": "Account created successfully",
-    "passwordResetSent": "Password reset link sent to your email"
+    "passwordResetSent": "Password reset link sent to your email",
+    "remember_me": "Remember me",
+    "dont_have_account": "Don't have an account?",
+    "sign_in": {
+      "enter_email_password": "Please enter email and password",
+      "failed": "Sign In Failed",
+      "signing_in": "Signing In...",
+      "cta": "Sign In",
+      "no_saved_credentials": "No saved credentials found. Please sign in with your password."
+    },
+    "biometric": {
+      "prompt": "Sign in to EduDash Pro",
+      "use_face_id": "Use Face ID",
+      "use_fingerprint": "Use Fingerprint",
+      "use_biometric": "Use Biometric"
+    },
+    "biometric_not_available": {
+      "title": "Biometric Not Available",
+      "desc": "Please use your password to sign in."
+    },
+    "biometric_failed": {
+      "title": "Authentication Failed",
+      "desc": "Biometric authentication failed",
+      "unexpected": "An error occurred during biometric authentication"
+    },
+    "oauth": {
+      "failed_start": "Failed to start social login",
+      "config_error": "OAuth configuration error. Please contact support.",
+      "unavailable": "Sign-in Unavailable",
+      "error": "Sign-in Error"
+    },
+    "sign_up_parent": "Sign up as Parent",
+    "sign_up_teacher": "Sign up as Teacher",
+    "school_register_q": "Looking to register a school?"
   },
   "roles": {
     "parent": "Parent",
@@ -49,6 +89,24 @@
     "principal": "Principal",
     "admin": "Administrator",
     "superAdmin": "Super Admin"
+  },
+  "pricing": {
+    "load_error": "Unable to load pricing information. Please try again later.",
+    "loading": "Loading pricing plans...",
+    "unable_title": "Unable to Load Pricing",
+    "cta": {
+      "contact_sales": "Contact Sales",
+      "start_free": "Start Free",
+      "choose_named": "Choose {{name}}"
+    },
+    "tier": {
+      "free": { "desc": "Perfect for small preschools getting started" },
+      "starter": { "desc": "Essential features for growing schools" },
+      "basic": { "desc": "Comprehensive tools for active schools" },
+      "premium": { "desc": "Professional features for established schools" },
+      "pro": { "desc": "Advanced solution for large schools" },
+      "enterprise": { "desc": "Complete solution for large organizations" }
+    }
   },
   "dashboard": {
     "parentDashboard": "Parent Dashboard",

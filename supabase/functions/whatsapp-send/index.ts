@@ -59,6 +59,9 @@ interface SendMessageRequest {
   template_params?: string[]
   media_url?: string
   filename?: string
+  broadcast?: boolean
+  preschool_id?: string
+  job_posting_id?: string
 }
 
 interface WhatsAppResponse {
@@ -420,6 +423,104 @@ async function recordOutboundMessage(contact: any, request: SendMessageRequest, 
 }
 
 /**
+ * Broadcast message to all opted-in contacts for a preschool
+ */
+async function broadcastMessage(sendRequest: SendMessageRequest): Promise<Response> {
+  if (!sendRequest.preschool_id) {
+    return json({ error: 'preschool_id is required for broadcast' }, { status: 400 })
+  }
+
+  console.log('Broadcasting message for preschool:', sendRequest.preschool_id)
+
+  // Get all opted-in contacts for the preschool
+  const { data: contacts, error: contactsError } = await supabase
+    .from('whatsapp_contacts')
+    .select('*')
+    .eq('preschool_id', sendRequest.preschool_id)
+    .eq('consent_status', 'opted_in')
+
+  if (contactsError) {
+    console.error('Error fetching contacts for broadcast:', contactsError)
+    return json({ error: 'Failed to fetch contacts' }, { status: 500 })
+  }
+
+  if (!contacts || contacts.length === 0) {
+    return json({ 
+      success: true, 
+      message: 'No opted-in contacts found for broadcast',
+      sent_count: 0 
+    }, { status: 200 })
+  }
+
+  console.log(`Broadcasting to ${contacts.length} contacts`)
+
+  // Send message to each contact
+  const results = await Promise.allSettled(
+    contacts.map(async (contact) => {
+      try {
+        let waResponse: WhatsAppResponse | null = null
+
+        switch (sendRequest.message_type) {
+          case 'text':
+            if (!sendRequest.content) throw new Error('content required')
+            waResponse = await sendTextMessage(contact.phone_e164, sendRequest.content)
+            break
+          case 'template':
+            if (!sendRequest.template_name) throw new Error('template_name required')
+            waResponse = await sendTemplateMessage(
+              contact.phone_e164,
+              sendRequest.template_name,
+              sendRequest.template_params || []
+            )
+            break
+          default:
+            throw new Error('Unsupported broadcast message type')
+        }
+
+        // Record the message
+        if (waResponse) {
+          await recordOutboundMessage(contact, sendRequest, waResponse)
+        }
+
+        return { success: true, contact_id: contact.id, phone: contact.phone_e164 }
+      } catch (error) {
+        console.error(`Failed to send to ${contact.phone_e164}:`, error)
+        return { success: false, contact_id: contact.id, phone: contact.phone_e164, error: String(error) }
+      }
+    })
+  )
+
+  const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length
+  const failureCount = results.length - successCount
+
+  // Update job_distributions table if job_posting_id provided
+  if (sendRequest.job_posting_id) {
+    try {
+      await supabase
+        .from('job_distributions')
+        .update({ recipients_count: successCount })
+        .eq('job_posting_id', sendRequest.job_posting_id)
+        .eq('channel', 'whatsapp')
+    } catch (error) {
+      console.warn('Failed to update distribution count:', error)
+    }
+  }
+
+  return json({
+    success: true,
+    broadcast: true,
+    sent_count: successCount,
+    failed_count: failureCount,
+    total_contacts: contacts.length,
+    results: results.map((r, i) => ({
+      contact_id: contacts[i].id,
+      status: r.status,
+      ...(r.status === 'fulfilled' ? r.value : { error: (r.reason as any)?.message || String(r.reason) })
+    }))
+  }, { status: 200 })
+}
+
+/**
  * Main send message handler
  */
 async function sendMessage(request: Request): Promise<Response> {
@@ -448,8 +549,14 @@ async function sendMessage(request: Request): Promise<Response> {
       hasContactId: !!sendRequest.contact_id,
       hasPhoneNumber: !!sendRequest.phone_number,
       hasContent: !!sendRequest.content,
-      templateName: sendRequest.template_name
+      templateName: sendRequest.template_name,
+      broadcast: !!sendRequest.broadcast
     })
+
+    // Handle broadcast mode
+    if (sendRequest.broadcast) {
+      return await broadcastMessage(sendRequest)
+    }
 
     // Validate request
     if (!sendRequest.message_type) {

@@ -17,6 +17,7 @@ export interface MessageBubbleModernProps {
   onCopy?: () => void;
   onRegenerate?: () => void;
   showActions?: boolean;
+  showIcon?: boolean;
 }
 
 export function MessageBubbleModern({
@@ -24,6 +25,7 @@ export function MessageBubbleModern({
   onCopy,
   onRegenerate,
   showActions = true,
+  showIcon = false,
 }: MessageBubbleModernProps) {
   const { theme, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -125,9 +127,81 @@ export function MessageBubbleModern({
           },
         ]}
       >
+        {/* Icon for assistant messages */}
+        {showIcon && !isUser && !isSystem && (
+          <View style={[styles.iconContainer, { backgroundColor: theme.primary }]}>
+            <Ionicons name="sparkles" size={16} color={theme.onPrimary || '#fff'} />
+          </View>
+        )}
+        
         {/* Message content */}
-        <View style={styles.content}>
-          {renderMarkdown(message.content)}
+        <View style={[styles.content, { color: isUser ? '#fff' : theme.text }]}>
+          <View style={{ opacity: 1 }}>
+            {message.content.split('\n').map((line, index) => {
+              // Simple rendering with proper color
+              if (line.startsWith('### ')) {
+                return (
+                  <Text key={index} style={[styles.text, styles.h3, { color: isUser ? '#fff' : theme.text }]}>
+                    {line.replace('### ', '')}
+                  </Text>
+                );
+              }
+              if (line.startsWith('## ')) {
+                return (
+                  <Text key={index} style={[styles.text, styles.h2, { color: isUser ? '#fff' : theme.text }]}>
+                    {line.replace('## ', '')}
+                  </Text>
+                );
+              }
+              if (line.startsWith('# ')) {
+                return (
+                  <Text key={index} style={[styles.text, styles.h1, { color: isUser ? '#fff' : theme.text }]}>
+                    {line.replace('# ', '')}
+                  </Text>
+                );
+              }
+              
+              // Bold
+              const boldRegex = /\*\*(.*?)\*\*/g;
+              if (boldRegex.test(line)) {
+                const parts = line.split(boldRegex);
+                return (
+                  <Text key={index} style={[styles.text, { color: isUser ? '#fff' : theme.text }]}>
+                    {parts.map((part, i) =>
+                      i % 2 === 1 ? (
+                        <Text key={i} style={styles.bold}>{part}</Text>
+                      ) : (
+                        part
+                      )
+                    )}
+                  </Text>
+                );
+              }
+              
+              // List items
+              if (line.startsWith('- ') || line.startsWith('• ')) {
+                return (
+                  <Text key={index} style={[styles.text, styles.listItem, { color: isUser ? '#fff' : theme.text }]}>
+                    • {line.replace(/^[-•]\s*/, '')}
+                  </Text>
+                );
+              }
+              
+              // Code blocks
+              if (line.startsWith('```')) {
+                return null;
+              }
+              
+              // Regular text
+              return line ? (
+                <Text key={index} style={[styles.text, { color: isUser ? '#fff' : theme.text }]}>
+                  {line}
+                </Text>
+              ) : (
+                <View key={index} style={styles.lineBreak} />
+              );
+            })}
+          </View>
         </View>
 
         {/* Timestamp */}
@@ -194,8 +268,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bubble: {
-    maxWidth: '80%',
-    minWidth: 100,
+    maxWidth: '90%',
+    minWidth: 140,
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -225,6 +299,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     marginVertical: 2,
+    color: 'inherit',
   },
   h1: {
     fontSize: 20,
@@ -274,5 +349,13 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  iconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
 });

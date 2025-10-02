@@ -14,12 +14,14 @@ import {
   Dimensions,
   Platform,
   Text,
+  PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -30,6 +32,9 @@ interface DashFloatingButtonProps {
   style?: any;
 }
 
+const FAB_POSITION_KEY = '@dash_fab_position';
+const FAB_SIZE = 56;
+
 export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
   position = 'bottom-right',
   onPress,
@@ -39,11 +44,73 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
   const { theme } = useTheme();
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isPressed, setIsPressed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
   const tooltipAnimation = useRef(new Animated.Value(0)).current;
   const rotationAnimation = useRef(new Animated.Value(0)).current;
+  
+  // Pan responder for dragging
+  const pan = useRef(new Animated.ValueXY()).current;
+  const lastTap = useRef<number>(0);
+
+  // Load saved position on mount
+  useEffect(() => {
+    loadSavedPosition();
+  }, []);
+  
+  const loadSavedPosition = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(FAB_POSITION_KEY);
+      const margin = 20;
+      const minLeftOffset = -(screenWidth - FAB_SIZE - margin * 2);
+      const minUpOffset = -(screenHeight - FAB_SIZE - (Platform.OS === 'ios' ? 60 : 20));
+      const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+
+      if (saved) {
+        const { x, y } = JSON.parse(saved);
+        // Clamp to keep within screen bounds relative to bottom-right anchor
+        const clampedX = clamp(x, minLeftOffset, 0);
+        const clampedY = clamp(y, minUpOffset, 0);
+        pan.setValue({ x: clampedX, y: clampedY });
+      } else {
+        // Set initial position based on prop
+        const initialPos = getInitialPosition();
+        pan.setValue(initialPos);
+      }
+    } catch (e) {
+      console.error('Failed to load FAB position:', e);
+    }
+  };
+  
+  const savePosition = async (x: number, y: number) => {
+    try {
+      await AsyncStorage.setItem(FAB_POSITION_KEY, JSON.stringify({ x, y }));
+    } catch (e) {
+      console.error('Failed to save FAB position:', e);
+    }
+  };
+  
+  const getInitialPosition = () => {
+    const margin = 20;
+    const safeAreaBottom = Platform.OS === 'ios' ? 34 : 0;
+    
+    switch (position) {
+      case 'bottom-left':
+        // Anchor is bottom-right; move left by screen width minus margins, keep vertical offset at 0
+        return { x: -(screenWidth - FAB_SIZE - margin * 2), y: 0 };
+      case 'top-right':
+        // Move up to top area from bottom-right anchor
+        return { x: 0, y: -(screenHeight - FAB_SIZE - (Platform.OS === 'ios' ? 60 : 20)) };
+      case 'top-left':
+        // Move left and up from bottom-right anchor
+        return { x: -(screenWidth - FAB_SIZE - margin * 2), y: -(screenHeight - FAB_SIZE - (Platform.OS === 'ios' ? 60 : 20)) };
+      default: // bottom-right
+        // Keep at bottom-right anchor with no additional offset
+        return { x: 0, y: 0 };
+    }
+  };
 
   // Auto-hide tooltip after ~12 seconds (longer instruction window)
   useEffect(() => {
@@ -93,6 +160,78 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
     });
   };
 
+  // Pan responder for dragging
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => {
+        // Only start dragging if moved more than 5px
+        return Math.abs(gesture.dx) > 5 || Math.abs(gesture.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        setIsDragging(false);
+        pan.setOffset({
+          // @ts-ignore
+          x: pan.x._value,
+          // @ts-ignore
+          y: pan.y._value,
+        });
+        handlePressIn();
+      },
+      onPanResponderMove: (_, gesture) => {
+        if (Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10) {
+          setIsDragging(true);
+          if (showTooltip) hideTooltip();
+        }
+        Animated.event([null, { dx: pan.x, dy: pan.y }], {
+          useNativeDriver: false,
+        })(_, gesture);
+      },
+      onPanResponderRelease: (_, gesture) => {
+        pan.flattenOffset();
+        handlePressOut();
+        
+        // Save position (clamped within screen bounds)
+        const margin = 20;
+        const minLeftOffset = -(screenWidth - FAB_SIZE - margin * 2);
+        const minUpOffset = -(screenHeight - FAB_SIZE - (Platform.OS === 'ios' ? 60 : 20));
+        const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+        // @ts-ignore
+        const rawX = pan.x._value;
+        // @ts-ignore
+        const rawY = pan.y._value;
+        const finalX = clamp(rawX, minLeftOffset, 0);
+        const finalY = clamp(rawY, minUpOffset, 0);
+        // Snap to clamped bounds if needed
+        Animated.timing(pan, {
+          toValue: { x: finalX, y: finalY },
+          duration: 120,
+          useNativeDriver: false,
+        }).start();
+        savePosition(finalX, finalY);
+        
+        // If not dragged much, treat as tap
+        if (!isDragging && Math.abs(gesture.dx) < 10 && Math.abs(gesture.dy) < 10) {
+          const now = Date.now();
+          if (now - lastTap.current < 300) {
+            // Double tap - reset position
+            Animated.spring(pan, {
+              toValue: getInitialPosition(),
+              useNativeDriver: false,
+              friction: 7,
+            }).start();
+          } else {
+            // Single tap - open assistant
+            setTimeout(() => handlePress(), 100);
+          }
+          lastTap.current = now;
+        }
+        
+        setTimeout(() => setIsDragging(false), 200);
+      },
+    })
+  ).current;
+  
   const handlePressIn = () => {
     setIsPressed(true);
     Animated.parallel([
@@ -144,43 +283,7 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
     }
   };
 
-  const getPositionStyle = () => {
-    const margin = 20;
-    const safeAreaBottom = Platform.OS === 'ios' ? 34 : 0;
-    
-    switch (position) {
-      case 'bottom-right':
-        return {
-          position: 'absolute',
-          bottom: margin + safeAreaBottom,
-          right: margin,
-        };
-      case 'bottom-left':
-        return {
-          position: 'absolute',
-          bottom: margin + safeAreaBottom,
-          left: margin,
-        };
-      case 'top-right':
-        return {
-          position: 'absolute',
-          top: Platform.OS === 'ios' ? 60 : 20,
-          right: margin,
-        };
-      case 'top-left':
-        return {
-          position: 'absolute',
-          top: Platform.OS === 'ios' ? 60 : 20,
-          left: margin,
-        };
-      default:
-        return {
-          position: 'absolute',
-          bottom: margin + safeAreaBottom,
-          right: margin,
-        };
-    }
-  };
+  // Position is now handled by pan values, removed static positioning
 
   const rotation = rotationAnimation.interpolate({
     inputRange: [0, 1],
@@ -188,7 +291,23 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
   });
 
   return (
-    <View style={[getPositionStyle(), style]}>
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[
+        {
+          position: 'absolute',
+          right: 20,
+          bottom: 20 + (Platform.OS === 'ios' ? 34 : 0),
+        },
+        {
+          transform: [
+            { translateX: pan.x },
+            { translateY: pan.y },
+          ],
+        },
+        style,
+      ]}
+    >
       {/* Tooltip */}
       {showTooltip && (
         <Animated.View
@@ -280,7 +399,7 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
           ]}
         />
       )}
-    </View>
+    </Animated.View>
   );
 };
 

@@ -187,7 +187,10 @@ export class SchoolSettingsService {
 
     if (error) throw error;
     const merged = deepMerge(DEFAULT_SCHOOL_SETTINGS, (data?.settings || {}) as Partial<SchoolSettings>);
-    if (!merged.schoolName && data?.name) merged.schoolName = data.name;
+    // If the merged name is the default sentinel or missing, prefer the DB school name
+    if ((merged.schoolName === DEFAULT_SCHOOL_SETTINGS.schoolName || !merged.schoolName) && data?.name) {
+      merged.schoolName = data.name;
+    }
     return merged;
   }
 

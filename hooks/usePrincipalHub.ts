@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { usePettyCashDashboard } from './usePettyCashDashboard';
@@ -187,27 +187,29 @@ export const usePrincipalHub = () => {
     }
   };
 
-  const getPreschoolId = useCallback((): string | null => {
-    // Try from profile (assuming it has organization_id that can be used as preschool_id)
+  const userId = user?.id ?? null;
+
+  const preschoolId = useMemo((): string | null => {
     if (profile?.organization_id) {
       return profile.organization_id as string;
     }
-    
-    // Try from user metadata
     const userMetaPreschoolId = user?.user_metadata?.preschool_id;
-    if (userMetaPreschoolId) {
-      return userMetaPreschoolId;
-    }
+    return userMetaPreschoolId ?? null;
+  }, [profile?.organization_id, user?.user_metadata?.preschool_id]);
 
-    return null;
-  }, [profile, user]);
+  const isMountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
-    const preschoolId = getPreschoolId();
-    
     logger.info('📊 Principal Hub Debug:', {
       preschoolId,
-      userId: user?.id,
+      userId,
       profileOrgId: profile?.organization_id,
       userMetadata: user?.user_metadata
     });
@@ -215,18 +217,24 @@ export const usePrincipalHub = () => {
     if (!preschoolId) {
       logger.warn('No preschool ID available for Principal Hub');
       setError('School not assigned');
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
       return;
     }
 
-    if (!user?.id) {
+    if (!userId) {
       setError('User not authenticated');
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
       return;
     }
+
+    if (inFlightRef.current && !forceRefresh) {
+      logger.info('Fetch already in flight, skipping');
+      return;
+    }
+    inFlightRef.current = true;
 
     try {
-      setLoading(true);
+      if (isMountedRef.current) setLoading(true);
       setError(null);
       setLastRefresh(new Date());
 
@@ -694,16 +702,18 @@ export const usePrincipalHub = () => {
       // Get real school name from database
       const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || t('dashboard.your_school');
 
-      setData({
-        stats,
-        teachers,
-        financialSummary,
-        enrollmentPipeline,
-        capacityMetrics,
-        recentActivities,
-        schoolId: preschoolId,
-        schoolName
-      });
+      if (isMountedRef.current) {
+        setData({
+          stats,
+          teachers,
+          financialSummary,
+          enrollmentPipeline,
+          capacityMetrics,
+          recentActivities,
+          schoolId: preschoolId,
+          schoolName
+        });
+      }
 
       logger.info('✅ REAL Principal Hub data loaded successfully from database');
       logger.info('🎯 Final dashboard summary:', {
@@ -718,13 +728,15 @@ export const usePrincipalHub = () => {
       console.error('Failed to fetch Principal Hub data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
+      inFlightRef.current = false;
     }
-  }, [user, profile, getPreschoolId]);
+  }, [userId, preschoolId, t]);
 
   useEffect(() => {
+    if (!userId || !preschoolId) return;
     fetchData();
-  }, [fetchData]);
+  }, [userId, preschoolId]);
 
   const refresh = useCallback(() => {
     fetchData(true);

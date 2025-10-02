@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,6 +53,7 @@ interface PricingTier {
 }
 
 export default function PricingPage() {
+  const { t } = useTranslation();
   const { profile } = useAuth();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ export default function PricingPage() {
       
     } catch (err: any) {
       console.error('Failed to load pricing plans:', err);
-      setError('Unable to load pricing information. Please try again later.');
+      setError(t('pricing.load_error', { defaultValue: 'Unable to load pricing information. Please try again later.' }));
     } finally {
       setLoading(false);
     }
@@ -130,10 +132,10 @@ export default function PricingPage() {
       tier: plan.tier,
       price: price === 0 ? 'Free' : (isEnterprise ? 'Custom' : `R${price}`),
       period: price === 0 || isEnterprise ? '' : `/${isAnnual ? 'year' : 'month'}`,
-      description: tierConfig.description,
+      description: t(tierConfig.descriptionKey, { defaultValue: tierConfig.description }),
       features: planFeatures.length > 0 ? planFeatures : tierConfig.defaultFeatures,
       recommended: tierConfig.recommended,
-      cta: isEnterprise ? 'Contact Sales' : (price === 0 ? 'Start Free' : `Choose ${plan.name}`),
+      cta: isEnterprise ? t('pricing.cta.contact_sales', { defaultValue: 'Contact Sales' }) : (price === 0 ? t('pricing.cta.start_free', { defaultValue: 'Start Free' }) : t('pricing.cta.choose_named', { defaultValue: `Choose ${plan.name}`, name: plan.name })),
       color: tierConfig.color,
       isEnterprise,
     };
@@ -144,43 +146,50 @@ export default function PricingPage() {
     const configs: Record<string, any> = {
       free: {
         description: 'Perfect for small preschools getting started',
+        descriptionKey: 'pricing.tier.free.desc',
         defaultFeatures: ['Basic dashboard', 'Student management', 'Parent communication'],
         recommended: false,
         color: ['#00f5ff', '#0080ff'],
       },
       starter: {
         description: 'Essential features for growing schools',
+        descriptionKey: 'pricing.tier.starter.desc',
         defaultFeatures: ['Advanced dashboard', 'AI-powered insights', 'Priority support'],
         recommended: true,
         color: ['#8000ff', '#ff0080'],
       },
       basic: {
         description: 'Comprehensive tools for active schools',
+        descriptionKey: 'pricing.tier.basic.desc',
         defaultFeatures: ['Full feature set', 'Advanced analytics', 'Multi-teacher support'],
         recommended: false,
         color: ['#00f5ff', '#8000ff'],
       },
       premium: {
         description: 'Professional features for established schools',
+        descriptionKey: 'pricing.tier.premium.desc',
         defaultFeatures: ['Premium features', 'Advanced reporting', 'Priority support'],
         recommended: false,
         color: ['#ff0080', '#8000ff'],
       },
       pro: {
         description: 'Advanced solution for large schools',
+        descriptionKey: 'pricing.tier.pro.desc',
         defaultFeatures: ['All features', 'Custom integrations', 'Dedicated support'],
         recommended: false,
         color: ['#ff8000', '#ff0080'],
       },
       enterprise: {
         description: 'Complete solution for large organizations',
+        descriptionKey: 'pricing.tier.enterprise.desc',
         defaultFeatures: ['Unlimited features', 'Custom integrations', 'Dedicated success manager'],
         recommended: false,
         color: ['#ff8000', '#ff0080'],
       },
     };
     
-    return configs[tierLower] || configs.basic;
+    const cfg = configs[tierLower] || configs.basic;
+    return cfg;
   };
   
   const pricingTiers = plans.map(convertToDisplayTier);
@@ -192,7 +201,7 @@ export default function PricingPage() {
         <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#00f5ff" />
-            <Text style={styles.loadingText}>Loading pricing plans...</Text>
+            <Text style={styles.loadingText}>{t('pricing.loading', { defaultValue: 'Loading pricing plans...' })}</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -206,10 +215,10 @@ export default function PricingPage() {
         <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
           <View style={styles.errorContainer}>
             <IconSymbol name="exclamationmark.triangle" size={48} color="#ef4444" />
-            <Text style={styles.errorTitle}>Unable to Load Pricing</Text>
+            <Text style={styles.errorTitle}>{t('pricing.unable_title', { defaultValue: 'Unable to Load Pricing' })}</Text>
             <Text style={styles.errorMessage}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.retryButtonText}>{t('common.try_again', { defaultValue: 'Try Again' })}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>

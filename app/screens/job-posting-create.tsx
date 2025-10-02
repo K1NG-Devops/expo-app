@@ -68,6 +68,82 @@ export default function JobPostingCreateScreen() {
     return true;
   };
 
+  const handleWhatsAppShare = async (jobPosting: any) => {
+    try {
+      // Format job details for WhatsApp message
+      const jobTitle = jobPosting.title || title;
+      const jobLocation = jobPosting.location || location || 'Location TBA';
+      const salaryRange =
+        jobPosting.salary_range_min && jobPosting.salary_range_max
+          ? `R${jobPosting.salary_range_min} - R${jobPosting.salary_range_max}`
+          : jobPosting.salary_range_min
+          ? `From R${jobPosting.salary_range_min}`
+          : 'Negotiable';
+      const employmentTypeDisplay =
+        jobPosting.employment_type === 'full_time'
+          ? 'Full-Time'
+          : jobPosting.employment_type === 'part_time'
+          ? 'Part-Time'
+          : jobPosting.employment_type === 'contract'
+          ? 'Contract'
+          : 'Employment Type TBA';
+
+      // Generate application link (assuming web app URL pattern)
+      const appUrl = process.env.EXPO_PUBLIC_APP_WEB_URL || 'https://edudashpro.app';
+      const applicationLink = `${appUrl}/jobs/${jobPosting.id}/apply`;
+
+      // Compose WhatsApp message
+      const whatsappMessage = `🎓 *New Teaching Opportunity!*\n\n` +
+        `*Position:* ${jobTitle}\n` +
+        `*Type:* ${employmentTypeDisplay}\n` +
+        `*Location:* ${jobLocation}\n` +
+        `*Salary:* ${salaryRange}\n\n` +
+        `📝 *Apply Now:* ${applicationLink}\n\n` +
+        `Posted via EduDash Pro Hiring Hub`;
+
+      // Call WhatsApp broadcast service
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/whatsapp-send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          message_type: 'text',
+          content: whatsappMessage,
+          broadcast: true, // Indicates broadcast to contact list
+          preschool_id: preschoolId,
+          job_posting_id: jobPosting.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send WhatsApp broadcast');
+      }
+
+      // Track distribution event
+      await HiringHubService.trackJobDistribution({
+        job_posting_id: jobPosting.id,
+        channel: 'whatsapp',
+        distributed_by: user.id,
+        recipients_count: 0, // Will be updated by backend with actual count
+      });
+
+      Alert.alert(
+        'Success! 🎉',
+        'Job posting has been shared via WhatsApp to your contact list.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    } catch (error: any) {
+      console.error('Error sharing on WhatsApp:', error);
+      Alert.alert(
+        'Sharing Failed',
+        'Could not share job posting via WhatsApp. You can still share it manually.',
+        [{ text: 'OK', onPress: () => router.back() }]
+      );
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     if (!preschoolId || !user?.id) {
@@ -80,7 +156,7 @@ export default function JobPostingCreateScreen() {
       const minSalary = salaryMin ? parseFloat(salaryMin) : undefined;
       const maxSalary = salaryMax ? parseFloat(salaryMax) : undefined;
 
-      await HiringHubService.createJobPosting(
+      const newJobPosting = await HiringHubService.createJobPosting(
         {
           preschool_id: preschoolId,
           title: title.trim(),
@@ -95,9 +171,22 @@ export default function JobPostingCreateScreen() {
         user.id
       );
 
-      Alert.alert('Success', 'Job posting created successfully', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // Offer to share on WhatsApp
+      Alert.alert(
+        'Job Posted Successfully! 🎉',
+        'Would you like to share this job posting via WhatsApp?',
+        [
+          {
+            text: 'Share on WhatsApp',
+            onPress: () => handleWhatsAppShare(newJobPosting),
+          },
+          {
+            text: 'Not Now',
+            style: 'cancel',
+            onPress: () => router.back(),
+          },
+        ]
+      );
     } catch (error: any) {
       console.error('Error creating job posting:', error);
       Alert.alert('Error', error.message || 'Failed to create job posting');
