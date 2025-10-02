@@ -54,6 +54,7 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
+      "expo-updates",
       "sentry-expo",
       [
         "react-native-google-mobile-ads",

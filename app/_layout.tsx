@@ -162,32 +162,34 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-        <ThemeProvider>
-          <DashboardPreferencesProvider>
-            {/* Global themed status bar for consistent visibility across screens */}
-            <ThemedStatusBar />
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  presentation: 'card',
-                  animationTypeForReplace: 'push',
-                }}
-              >
-                {/* Let Expo Router auto-discover screens */}
-              </Stack>
-            </GestureHandlerRootView>
-            
-            {/* Platform-specific components */}
-              {Platform.OS !== 'web' && (() => {
-                try {
-                  return <DashWakeWordListener />;
-                } catch {
-                  return null;
-                }
-              })()}
-            </DashboardPreferencesProvider>
-          </ThemeProvider>
+          <UpdatesProvider>
+            <ThemeProvider>
+              <DashboardPreferencesProvider>
+                {/* Global themed status bar for consistent visibility across screens */}
+                <ThemedStatusBar />
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      presentation: 'card',
+                      animationTypeForReplace: 'push',
+                    }}
+                  >
+                    {/* Let Expo Router auto-discover screens */}
+                  </Stack>
+                </GestureHandlerRootView>
+                
+                {/* Platform-specific components */}
+                  {Platform.OS !== 'web' && (() => {
+                    try {
+                      return <DashWakeWordListener />;
+                    } catch {
+                      return null;
+                    }
+                  })()}
+                </DashboardPreferencesProvider>
+              </ThemeProvider>
+            </UpdatesProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

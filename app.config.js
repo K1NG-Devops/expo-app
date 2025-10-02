@@ -13,6 +13,7 @@ module.exports = ({ config }) => {
 
   const plugins = [
     'expo-router',
+    'expo-updates',
     'sentry-expo',
     [
       'react-native-google-mobile-ads',
