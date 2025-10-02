@@ -394,7 +394,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               />
             </TouchableOpacity>
               <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
-              {schoolSettings?.schoolName || tenantSlug || data.schoolName ||
+              {data.schoolName ||
+               (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : undefined) ||
+               tenantSlug ||
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
@@ -444,7 +446,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
               </Text>
               <Text style={styles.welcomeSubtitle}>
-                {t('dashboard.managing_school', { schoolName: schoolSettings?.schoolName || data.schoolName || t('dashboard.your_school') })} • {t('dashboard.school_overview')}
+                {t('dashboard.managing_school', { schoolName: data.schoolName || (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : t('dashboard.your_school')) })} • {t('dashboard.school_overview')}
               </Text>
             </View>
             <View style={styles.headerActions}>
