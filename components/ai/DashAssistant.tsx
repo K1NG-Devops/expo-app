@@ -660,6 +660,32 @@ return (
             ))}
           </View>
         )}
+
+        {/* Export PDF action when suggested by Dash */}
+        {message.metadata?.dashboard_action?.type === 'export_pdf' && (
+          <View style={{ marginTop: 10 }}>
+            <TouchableOpacity
+              onPress={() => handleDownloadPdf(
+                (message.metadata?.dashboard_action as any)?.title || 'Dash Export',
+                (message.metadata?.dashboard_action as any)?.content || message.content
+              )}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.border,
+                gap: 8,
+              }}
+            >
+              <Ionicons name="download-outline" size={18} color={theme.primary} />
+              <Text style={{ color: theme.primary, fontWeight: '600' }}>Download PDF</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -931,6 +957,15 @@ return (
     }
   }, [vc.state]);
 
+  // Toggle WhatsApp-style voice modal based on voice controller state
+  useEffect(() => {
+    if (vc.state === 'prewarm' || vc.state === 'listening' || vc.state === 'transcribing' || vc.state === 'thinking') {
+      setShowVoiceModal(true);
+    } else {
+      setShowVoiceModal(false);
+    }
+  }, [vc.state]);
+
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
   React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
@@ -1122,7 +1157,7 @@ ListFooterComponent={(
         }}
         onAttachmentsChange={(atts) => setSelectedAttachments(atts)}
         voiceState={vc.state}
-        isVoiceLocked={vc.locked}
+        isVoiceLocked={vc.isLocked}
         voiceTimerMs={voiceTimerMs}
         onVoiceStart={() => {
           try {
