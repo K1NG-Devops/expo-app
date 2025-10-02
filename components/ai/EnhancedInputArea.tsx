@@ -5,12 +5,13 @@
  * Tier-aware gating for attachments.
  */
 
-import React, { useMemo, useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import { View, TextInput, StyleSheet, TouchableOpacity, Text, Platform, Animated, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCapability } from '@/hooks/useCapability';
 import type { DashAttachment } from '@/services/DashAIAssistant';
+import type { VoiceState } from '@/hooks/useVoiceController';
 import { UpgradePromptModal } from './UpgradePromptModal';
 import {
   pickDocuments,
@@ -25,11 +26,15 @@ export interface EnhancedInputAreaProps {
   onSend: (text: string, attachments: DashAttachment[]) => Promise<void> | void;
   onAttachmentsChange?: (attachments: DashAttachment[]) => void;
   onVoiceStart?: () => void; // When user presses down on mic
-  onVoiceEnd?: () => void;   // When user releases mic
-  onVoiceLock?: () => void;  // When user long-presses to lock
+  onVoiceEnd?: () => void;   // When user releases mic (send)
+  onVoiceLock?: () => void;  // When user locks
+  onVoiceCancel?: () => void; // When user slides left to cancel
+  voiceState?: VoiceState;
+  isVoiceLocked?: boolean;
+  voiceTimerMs?: number;
 }
 
-export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = false, onSend, onAttachmentsChange, onVoiceStart, onVoiceEnd, onVoiceLock }: EnhancedInputAreaProps) {
+export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = false, onSend, onAttachmentsChange, onVoiceStart, onVoiceEnd, onVoiceLock, onVoiceCancel, voiceState, isVoiceLocked, voiceTimerMs }: EnhancedInputAreaProps) {
   const { theme, isDark } = useTheme();
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<DashAttachment[]>([]);
@@ -40,6 +45,52 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
   const canDocs = can('multimodal.documents');
   
   const hasContent = text.trim().length > 0;
+
+  // Gesture state for WhatsApp-like mic interactions
+  const [gestureActive, setGestureActive] = useState(false);
+  const [dx, setDx] = useState(0);
+  const [dy, setDy] = useState(0);
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const CANCEL_THRESHOLD = -80; // slide left to cancel
+  const LOCK_THRESHOLD = -80;   // slide up to lock
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        setGestureActive(true);
+        setDx(0); setDy(0);
+        try { onVoiceStart?.(); } catch {}
+      },
+      onPanResponderMove: (_, gesture) => {
+        setDx(gesture.dx);
+        setDy(gesture.dy);
+        pan.setValue({ x: gesture.dx, y: gesture.dy });
+      },
+      onPanResponderRelease: () => {
+        // Decide action based on gesture
+        if (dx < CANCEL_THRESHOLD) {
+          try { onVoiceCancel?.(); } catch {}
+        } else if (dy < LOCK_THRESHOLD) {
+          try { onVoiceLock?.(); } catch {}
+        } else {
+          try { onVoiceEnd?.(); } catch {}
+        }
+        setGestureActive(false);
+        setDx(0); setDy(0);
+        pan.setValue({ x: 0, y: 0 });
+      },
+      onPanResponderTerminate: () => {
+        // Treat as cancel on interruption
+        try { onVoiceCancel?.(); } catch {}
+        setGestureActive(false);
+        setDx(0); setDy(0);
+        pan.setValue({ x: 0, y: 0 });
+      },
+    })
+  ).current;
 
   const addAttachments = (items: DashAttachment[]) => {
     const next = [...attachments, ...items];
@@ -105,18 +156,54 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity 
-            onPressIn={onVoiceStart}  // Start recording when pressed
-            onPressOut={() => { setTimeout(() => onVoiceEnd?.(), 180); }}   // Slight delay to allow start
-            onLongPress={onVoiceLock}
-            delayLongPress={300}
-            activeOpacity={0.8}
-            style={[styles.actionButton, { backgroundColor: theme.accent }]}
-          > 
-            <Ionicons name="mic" size={20} color="#fff" />
-          </TouchableOpacity>
+          <Animated.View {...panResponder.panHandlers}>
+            <View 
+              style={[styles.actionButton, { backgroundColor: theme.accent, position: 'relative' }]}
+            > 
+              <Ionicons name="mic" size={20} color="#fff" />
+            </View>
+          </Animated.View>
         )}
       </View>
+
+      {/* Gesture hints when recording */}
+      {gestureActive && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
+        <View style={styles.gestureHints}>
+          <View style={styles.hintRow}>
+            <Ionicons name="chevron-up" size={18} color={theme.textSecondary} />
+            <Text style={[styles.hintText, { color: theme.textSecondary }]}>Slide up to lock</Text>
+          </View>
+          <View style={[styles.hintRow, { marginTop: 6 }]}>
+            <Ionicons name="chevron-back" size={18} color={theme.error} />
+            <Text style={[styles.hintText, { color: theme.error }]}>Slide left to cancel</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Locked controls (show when locked) */}
+      {isVoiceLocked && (
+        <View style={styles.lockedRow}>
+          <View style={styles.timerPill}>
+            <Text style={[styles.timerText, { color: theme.text }]}>
+              {Math.floor((voiceTimerMs || 0) / 1000)}s
+            </Text>
+          </View>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity style={[styles.lockedAction, { backgroundColor: theme.error }]}
+            onPress={onVoiceCancel}
+          >
+            <Ionicons name="trash" size={16} color={theme.onError || '#fff'} />
+            <Text style={[styles.lockedActionText, { color: theme.onError || '#fff' }]}>Delete</Text>
+          </TouchableOpacity>
+          <View style={{ width: 8 }} />
+          <TouchableOpacity style={[styles.lockedAction, { backgroundColor: theme.primary }]}
+            onPress={onVoiceEnd}
+          >
+            <Ionicons name="send" size={16} color={theme.onPrimary || '#fff'} />
+            <Text style={[styles.lockedActionText, { color: theme.onPrimary || '#fff' }]}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <UpgradePromptModal
         visible={showUpgrade}
@@ -167,5 +254,45 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  gestureHints: {
+    marginTop: 6,
+    paddingHorizontal: 6,
+  },
+  hintRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  hintText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  lockedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  timerPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(127,127,127,0.12)',
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  lockedAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+  lockedActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

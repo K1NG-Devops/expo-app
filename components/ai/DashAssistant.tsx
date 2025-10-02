@@ -74,6 +74,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceTimerMs, setVoiceTimerMs] = useState(0);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
@@ -917,6 +918,19 @@ return (
     }
   });
 
+  // Voice timer effect (tracks duration during prewarm/listening)
+  useEffect(() => {
+    if (vc.state === 'prewarm' || vc.state === 'listening') {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        setVoiceTimerMs(Date.now() - start);
+      }, 100);
+      return () => clearInterval(interval);
+    } else {
+      setVoiceTimerMs(0);
+    }
+  }, [vc.state]);
+
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
   React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
@@ -1107,9 +1121,11 @@ ListFooterComponent={(
           } catch {}
         }}
         onAttachmentsChange={(atts) => setSelectedAttachments(atts)}
+        voiceState={vc.state}
+        isVoiceLocked={vc.locked}
+        voiceTimerMs={voiceTimerMs}
         onVoiceStart={() => {
           try {
-            setShowVoiceModal(true);
             vc.startPress().catch((e) => console.error('Voice start error:', e));
           } catch (e) {
             console.error('Voice start error:', e);
@@ -1117,7 +1133,7 @@ ListFooterComponent={(
         }}
         onVoiceEnd={() => {
           try {
-            // Only release if not locked; the controller ignores if not listening yet
+            // Release voice recording (send)
             vc.release().catch((e) => console.error('Voice end error:', e));
           } catch (e) {
             console.error('Voice end error:', e);
@@ -1125,11 +1141,18 @@ ListFooterComponent={(
         }}
         onVoiceLock={() => {
           try {
-            setShowVoiceModal(true);
-            // Start if not started, then lock
-            vc.startPress().then(() => vc.lock()).catch((e) => console.error('Voice lock error:', e));
+            // Lock for hands-free recording
+            vc.lock().catch((e) => console.error('Voice lock error:', e));
           } catch (e) {
             console.error('Voice lock error:', e);
+          }
+        }}
+        onVoiceCancel={() => {
+          try {
+            // Cancel recording
+            vc.cancel().catch((e) => console.error('Voice cancel error:', e));
+          } catch (e) {
+            console.error('Voice cancel error:', e);
           }
         }}
       />

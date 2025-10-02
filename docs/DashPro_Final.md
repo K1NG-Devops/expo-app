@@ -321,13 +321,16 @@ EduDash Pro demonstrates **strong foundational capabilities** for principal-led 
 5. As a principal, I can generate offer letters (template-based), track acceptance status
 
 **Acceptance Criteria:**
-- [x] Job postings table schema created with RLS policies
-- [ ] Resume upload to Supabase Storage (50MB max per file)
-- [ ] Application status workflow: `new` → `under_review` → `shortlisted` → `interview_scheduled` → `offered` → `accepted`/`rejected`
-- [ ] Email notifications for status changes (candidate and principal)
-- [x] Principal dashboard shows: active job postings, applications by status, interview calendar
-- [x] Mobile-optimized UI (resume preview in-app, no external downloads)
-- [ ] Search/filter candidates by skills, experience, location
+- [x] Job postings table schema created with RLS policies ✅ **DONE (Oct 1, 2025)**
+- [x] Resume upload to Supabase Storage (50MB max per file) ✅ **DONE (Oct 1, 2025)**
+- [x] Application status workflow: `new` → `under_review` → `shortlisted` → `interview_scheduled` → `offered` → `accepted`/`rejected` ✅ **DONE (Oct 1, 2025)**
+- [ ] Email notifications for status changes (candidate and principal) 🚧 **IN PROGRESS**
+- [x] Principal dashboard shows: active job postings, applications by status, interview calendar ✅ **DONE (Oct 1, 2025)**
+- [x] Mobile-optimized UI (resume preview in-app, no external downloads) ✅ **DONE (Oct 1, 2025)**
+- [x] WhatsApp broadcast for job postings to opted-in contacts ✅ **DONE (Oct 2, 2025)**
+- [x] Geo-location support (latitude, longitude, commute radius) ✅ **DONE (Oct 2, 2025)**
+- [x] Job distribution tracking across channels (WhatsApp, email, SMS, social, public board) ✅ **DONE (Oct 2, 2025)**
+- [ ] Search/filter candidates by skills, experience, location 🔜 **NEXT**
 
 **Required Data Structures:**
 - Tables: `job_postings`, `job_applications`, `candidate_profiles`, `interview_schedules`, `offer_letters`
@@ -342,11 +345,17 @@ EduDash Pro demonstrates **strong foundational capabilities** for principal-led 
 - `POST /api/offers/generate` – Generate offer letter
 
 **UI Surfaces:**
-- [x] `app/screens/hiring-hub.tsx` – Principal dashboard (list jobs, applications)
-- [x] `app/screens/job-posting-create.tsx` – Create/edit job posting
-- [x] `app/screens/application-review.tsx` – Review candidate application with resume preview
-- [ ] `app/screens/interview-scheduler.tsx` – Calendar-based interview scheduling
-- [ ] Public route: `app/(public)/apply/[job_id].tsx` – Candidate application form
+- [x] `app/screens/hiring-hub.tsx` – Principal dashboard (list jobs, applications) ✅ **DONE**
+- [x] `app/screens/job-posting-create.tsx` – Create/edit job posting ✅ **DONE** (with WhatsApp broadcast)
+- [x] `app/screens/application-review.tsx` – Review candidate application with resume preview ✅ **DONE**
+- [ ] `app/screens/interview-scheduler.tsx` – Calendar-based interview scheduling 🔜 **NEXT SPRINT**
+- [ ] Public route: `app/(public)/apply/[job_id].tsx` – Candidate application form 🔜 **NEXT SPRINT**
+
+**New Features Completed (Oct 2, 2025):**
+- [x] `handleWhatsAppShare()` – Broadcast job postings via WhatsApp to all opted-in contacts
+- [x] `broadcastMessage()` – Backend edge function for parallel WhatsApp message sending
+- [x] `trackJobDistribution()` – Service layer method for multi-channel distribution tracking
+- [x] Storage bucket RLS policies fixed – Signatures bucket fully operational
 
 **Metrics:**
 - Time-to-hire (days from job posting → offer accepted)
