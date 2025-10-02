@@ -807,7 +807,7 @@ export default function AccountScreen() {
                 <Ionicons name="school-outline" size={20} color={theme.textSecondary} />
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>School ID</Text>
-                  <Text style={styles.infoValue}>{school}</Text>
+                  <Text style={styles.infoValue}>{String(school).slice(0, 8)}</Text>
                 </View>
               </View>
             </View>
