@@ -181,10 +181,23 @@ async function getStoredProfile(): Promise<UserProfile | null> {
  */
 async function clearStoredData(): Promise<void> {
   try {
+    console.log('[SessionManager] Clearing all stored data...');
     await Promise.all([
       storage.removeItem(SESSION_STORAGE_KEY),
       storage.removeItem(PROFILE_STORAGE_KEY),
     ]);
+    
+    // Also clear from AsyncStorage if it's available (extra safety)
+    if (AsyncStorage) {
+      try {
+        await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
+        await AsyncStorage.removeItem(PROFILE_STORAGE_KEY);
+      } catch (e) {
+        console.debug('AsyncStorage clear skipped:', e);
+      }
+    }
+    
+    console.log('[SessionManager] All stored data cleared successfully');
   } catch (error) {
     console.error('Failed to clear stored data:', error);
   }
@@ -543,12 +556,51 @@ export async function signInWithSession(
   error?: string;
 }> {
   try {
+    console.log('[SessionManager] signInWithSession called for:', email);
+    
+    // Clear any stale session data before attempting new sign-in
+    console.log('[SessionManager] Clearing stale session data before sign-in...');
+    await clearStoredData();
+    
+    // Small delay to ensure storage is cleared
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     const { data, error } = await assertSupabase().auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
+      console.error('[SessionManager] Supabase auth error:', error.message);
+      
+      // Special handling for "already signed in" errors
+      if (error.message?.includes('already') || error.message?.includes('signed in')) {
+        console.log('[SessionManager] User already signed in, attempting to get session...');
+        try {
+          const { data: sessionData } = await assertSupabase().auth.getSession();
+          if (sessionData?.session) {
+            console.log('[SessionManager] Retrieved existing session');
+            // Use the existing session
+            const session: UserSession = {
+              access_token: sessionData.session.access_token,
+              refresh_token: sessionData.session.refresh_token,
+              expires_at: sessionData.session.expires_at || Date.now() / 1000 + 3600,
+              user_id: sessionData.session.user.id,
+              email: sessionData.session.user.email,
+            };
+            const profile = await fetchUserProfile(sessionData.session.user.id);
+            if (profile) {
+              await storeSession(session);
+              await storeProfile(profile);
+              setupAutoRefresh(session);
+              return { session, profile };
+            }
+          }
+        } catch (recoveryError) {
+          console.error('[SessionManager] Session recovery failed:', recoveryError);
+        }
+      }
+      
       track('edudash.auth.sign_in', {
         method: 'email',
         role: 'unknown',
@@ -572,17 +624,27 @@ export async function signInWithSession(
     };
 
     // Fetch user profile
+    console.log('[SessionManager] Fetching user profile for:', data.user.id);
     const profile = await fetchUserProfile(data.user.id);
 
     if (!profile) {
+      console.error('[SessionManager] Failed to load user profile for user:', data.user.id);
       return { session: null, profile: null, error: 'Failed to load user profile' };
     }
+    console.log('[SessionManager] Profile loaded successfully. Role:', profile.role, 'Org:', profile.organization_id);
 
     // Store session and profile
-    await Promise.all([
-      storeSession(session),
-      storeProfile(profile),
-    ]);
+    console.log('[SessionManager] Storing session and profile...');
+    try {
+      await Promise.all([
+        storeSession(session),
+        storeProfile(profile),
+      ]);
+      console.log('[SessionManager] Session and profile stored successfully');
+    } catch (storeError) {
+      console.error('[SessionManager] Storage error:', storeError);
+      throw new Error(`Storage failed: ${storeError instanceof Error ? storeError.message : 'Unknown error'}`);
+    }
 
     // Update last login via RPC to avoid REST conflicts on public.users
     try {
@@ -621,6 +683,12 @@ export async function signInWithSession(
     return { session, profile };
 
   } catch (error) {
+    console.error('[SessionManager] signInWithSession caught error:', error);
+    console.error('[SessionManager] Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack',
+    });
     reportError(new Error('Sign-in failed'), { email, error });
     return { 
       session: null, 
@@ -635,6 +703,7 @@ export async function signInWithSession(
  */
 export async function signOut(): Promise<void> {
   try {
+    console.log('[SessionManager] Starting sign-out process...');
     const session = await getStoredSession();
     const sessionDuration = session 
       ? Math.round((Date.now() - (session.expires_at * 1000 - 3600000)) / 1000 / 60)
@@ -646,8 +715,31 @@ export async function signOut(): Promise<void> {
       sessionRefreshTimer = null;
     }
 
-    // Sign out from Supabase
-    await assertSupabase().auth.signOut();
+    try {
+      // Sign out from Supabase and clear local session
+      console.log('[SessionManager] Signing out from Supabase (local scope)...');
+      await assertSupabase().auth.signOut({ scope: 'local' } as any);
+      console.log('[SessionManager] Supabase sign-out (local) successful');
+    } catch (supabaseLocalError) {
+      console.warn('[SessionManager] Supabase local sign-out error:', supabaseLocalError);
+      try {
+        // Fallback: try default signOut without scope
+        console.log('[SessionManager] Attempting Supabase sign-out (default scope)...');
+        await assertSupabase().auth.signOut();
+        console.log('[SessionManager] Supabase sign-out (default) successful');
+      } catch (supabaseDefaultError) {
+        console.warn('[SessionManager] Supabase default sign-out error:', supabaseDefaultError);
+        try {
+          // Last resort: try global (revokes refresh token); safe for client sign-out
+          console.log('[SessionManager] Attempting Supabase sign-out (global scope)...');
+          await assertSupabase().auth.signOut({ scope: 'global' } as any);
+          console.log('[SessionManager] Supabase sign-out (global) successful');
+        } catch (supabaseGlobalError) {
+          // Continue even if Supabase sign-out ultimately fails (network issues, etc.)
+          console.warn('[SessionManager] Supabase sign-out failed across all scopes (continuing):', supabaseGlobalError);
+        }
+      }
+    }
 
     // Clear stored data
     await clearStoredData();
@@ -656,7 +748,16 @@ export async function signOut(): Promise<void> {
       session_duration_minutes: sessionDuration,
     });
 
+    console.log('[SessionManager] Sign-out completed successfully');
+
   } catch (error) {
+    console.error('[SessionManager] Sign-out failed:', error);
+    // Still try to clear local data even if other steps failed
+    try {
+      await clearStoredData();
+    } catch (clearError) {
+      console.error('[SessionManager] Failed to clear data during error recovery:', clearError);
+    }
     reportError(new Error('Sign-out failed'), { error });
   }
 }

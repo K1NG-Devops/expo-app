@@ -816,7 +816,7 @@ export default function AccountScreen() {
 
         {/* Switch Account and Sign Out Buttons */}
         <TouchableOpacity
-          onPress={() => router.push('/(auth)/sign-in?switch=1')}
+          onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in?switch=1' })}
           style={[styles.signOutButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border }]}
         >
           <SafeIcon name="swap-horizontal" size={20} color={theme.primary} fallback="🔄" />

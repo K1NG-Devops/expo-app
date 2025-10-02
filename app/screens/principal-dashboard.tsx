@@ -18,10 +18,19 @@ export default function PrincipalDashboardScreen() {
   // Wait for auth and profile to finish loading before making routing decisions
   const isStillLoading = loading || profileLoading;
 
+  // Guard: if not authenticated, always route to sign-in
+  useEffect(() => {
+    if (!isStillLoading && !user) {
+      try { router.replace('/(auth)/sign-in'); } catch (e) {
+        try { router.replace('/sign-in'); } catch {}
+      }
+    }
+  }, [isStillLoading, user]);
+
   useEffect(() => {
     // Only make routing decisions after profile has loaded
     if (!isStillLoading && !orgId) {
-      // If user is not authenticated, do not route to onboarding
+      // If user is not authenticated, the guard above will handle navigation
       if (!user) return;
       console.log('Principal dashboard: No school found, redirecting to onboarding', {
         profile,

@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
 import * as SecureStore from 'expo-secure-store';
+import { signInWithSession } from '@/lib/sessionManager';
 
 export default function SignIn() {
   const { t } = useTranslation();
@@ -72,39 +73,69 @@ export default function SignIn() {
     }
 
     setLoading(true);
+    let signInSuccess = false;
+    
     try {
-      const { data, error } = await assertSupabase().auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      });
+      // Use centralized session manager to avoid throwing on network/storage quirks
+      const res = await signInWithSession(email.trim(), password);
+      if (res.error) {
+        Alert.alert(t('auth.sign_in.failed', { defaultValue: 'Sign In Failed' }), res.error);
+        setLoading(false);
+        return;
+      }
 
-      if (error) {
-        Alert.alert(t('auth.sign_in.failed', { defaultValue: 'Sign In Failed' }), error.message);
-      } else {
-        console.log("Sign in successful:", data.user?.email);
-        // Save remember me preference and credentials
+      console.log('Sign in successful:', email.trim());
+      signInSuccess = true;
+
+      // Save remember me preference and credentials (best-effort; do not block sign-in)
+      try {
         if (rememberMe) {
           await AsyncStorage.setItem('rememberMe', 'true');
           await AsyncStorage.setItem('savedEmail', email.trim());
-          // Save password securely for quick access (sanitize email for secure store key)
           const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
           await SecureStore.setItemAsync(sanitizedKey, password);
         } else {
           await AsyncStorage.removeItem('rememberMe');
           await AsyncStorage.removeItem('savedEmail');
           const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          try {
-            await SecureStore.deleteItemAsync(sanitizedKey);
-          } catch (e) {
-            // Key might not exist, ignore
-          }
+          try { await SecureStore.deleteItemAsync(sanitizedKey); } catch {}
         }
-        // The AuthContext will handle routing automatically
+      } catch (credErr) {
+        console.warn('Remember me save failed:', credErr);
       }
-    } catch (_error) {
-      console.error("Sign in error:", _error);
-      Alert.alert(t('common.error', { defaultValue: 'Error' }), t('common.unexpected_error', { defaultValue: 'An unexpected error occurred' }));
-    } finally {
+
+      // Set a fallback timeout to route if AuthContext doesn't handle it
+      // This handles edge cases where auth state change event might not fire immediately after sign-out
+      setTimeout(async () => {
+        // Check if we're still on sign-in screen
+        console.log('[Sign-In] Fallback routing check after 2s...');
+        try {
+          const { data: { user } } = await assertSupabase().auth.getUser();
+          if (user) {
+            console.log('[Sign-In] User still authenticated, triggering fallback routing');
+            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
+            await routeAfterLogin(user);
+          }
+        } catch (fallbackErr) {
+          console.error('[Sign-In] Fallback routing failed:', fallbackErr);
+        }
+      }, 2000);
+
+      // Keep loading true - AuthContext will handle routing and the screen will unmount
+      // Don't set loading false when sign-in succeeds
+    } catch (_error: any) {
+      // Enhanced debug logging to trace error source
+      console.error('=== SIGN IN ERROR DEBUG ===');
+      console.error('Error object:', _error);
+      console.error('Error name:', _error?.name);
+      console.error('Error message:', _error?.message);
+      console.error('Error stack:', _error?.stack);
+      console.error('Error cause:', _error?.cause);
+      console.error('Error keys:', Object.keys(_error || {}));
+      console.error('========================');
+      
+      const msg = _error?.message || t('common.unexpected_error', { defaultValue: 'An unexpected error occurred' });
+      Alert.alert(t('common.error', { defaultValue: 'Error' }), msg);
       setLoading(false);
     }
   };

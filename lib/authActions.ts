@@ -1,39 +1,42 @@
-import * as Sentry from 'sentry-expo';
 import { router } from 'expo-router';
-import { getPostHog } from '@/lib/posthogClient';
-import { signOut as signOutSession } from '@/lib/sessionManager';
-import { EnhancedBiometricAuth } from '@/services/EnhancedBiometricAuth';
-import { BiometricAuthService } from '@/services/BiometricAuthService';
-import { BiometricBackupManager } from '@/lib/BiometricBackupManager';
 
+// Prevent duplicate sign-out calls
+let isSigningOut = false;
+
+/**
+ * Simplified sign-out: just navigate to sign-in screen
+ * The sign-in process will handle clearing the old session when user signs in again
+ * This avoids lock contention and makes the flow more reliable
+ */
 export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: boolean; redirectTo?: string } | any): Promise<void> {
-  try {
-    // Sign out via unified session manager: clears stored session/profile and Supabase auth
-    await signOutSession();
-  } catch { /* noop */ void 0; }
-
+  if (isSigningOut) {
+    console.log('[authActions] Sign-out already in progress, skipping...');
+    return;
+  }
+  isSigningOut = true;
+  
   // If invoked as onPress handler, first argument will be an event; ignore it
   const options = (optionsOrEvent && typeof optionsOrEvent === 'object' && (
     Object.prototype.hasOwnProperty.call(optionsOrEvent, 'clearBiometrics') ||
     Object.prototype.hasOwnProperty.call(optionsOrEvent, 'redirectTo')
   )) ? (optionsOrEvent as { clearBiometrics?: boolean; redirectTo?: string }) : undefined;
 
-  if (options?.clearBiometrics) {
-    // Optionally clear all biometric-related data so user must use password next time
-    try { await EnhancedBiometricAuth.clearBiometricSession(); } catch { /* noop */ void 0; }
-    try { await BiometricAuthService.disableBiometric(); } catch { /* noop */ void 0; }
-    try { await BiometricBackupManager.disableBiometricBackup(); } catch { /* noop */ void 0; }
+  const targetRoute = options?.redirectTo ?? '/(auth)/sign-in';
+  
+  // Simply navigate to sign-in - that's it!
+  console.log('[authActions] Sign-out: navigating to sign-in screen');
+  try {
+    router.replace(targetRoute);
+  } catch (navError) {
+    console.error('[authActions] Navigation failed:', navError);
+    // Try fallback routes
+    try { router.replace('/(auth)/sign-in'); } catch {}
+    try { router.replace('/sign-in'); } catch {}
   }
-
-  try {
-    // Clear analytics identities
-    await getPostHog()?.reset();
-  } catch { /* noop */ void 0; }
-  try {
-    Sentry.Native.setUser(null as any);
-  } catch { /* noop */ void 0; }
-
-  // Always redirect to landing page (root index)
-  router.replace(options?.redirectTo ?? '/');
+  
+  // Reset flag immediately
+  setTimeout(() => {
+    isSigningOut = false;
+  }, 100);
 }
 

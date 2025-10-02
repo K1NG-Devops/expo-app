@@ -16,6 +16,13 @@ type Step = 'type_selection' | 'details' | 'invites' | 'templates' | 'subscripti
 export default function PrincipalOnboardingScreen() {
   const { user, profile, refreshProfile } = useAuth();
 
+  // Guard: if user is not authenticated, never show onboarding
+  useEffect(() => {
+    if (!user) {
+      try { router.replace('/(auth)/sign-in'); } catch {}
+    }
+  }, [user]);
+
   // Wizard state
   const [step, setStep] = useState<Step>('type_selection');
   const [creating, setCreating] = useState(false);

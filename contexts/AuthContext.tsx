@@ -139,6 +139,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {
     try {
+      console.log('[AuthContext] Starting sign-out process...');
+      
       // Security audit for logout
       if (user?.id) {
         securityAuditor.auditAuthenticationEvent(user.id, 'logout', {
@@ -147,13 +149,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
       
-      await signOut();
+      // Clear all state immediately to prevent stale data
+      console.log('[AuthContext] Clearing auth state...');
       setUser(null);
       setSession(null);
       setProfile(null);
       setPermissions(createPermissionChecker(null));
+      setProfileLoading(false);
+      
+      // Call sessionManager sign out (this clears storage and Supabase session)
+      await signOut();
+      
+      // Clear PostHog and Sentry
+      try {
+        await getPostHog()?.reset();
+        console.log('[AuthContext] PostHog reset completed');
+      } catch (e) {
+        console.warn('[AuthContext] PostHog reset failed:', e);
+      }
+      
+      try {
+        Sentry.Native.setUser(null as any);
+        console.log('[AuthContext] Sentry user cleared');
+      } catch (e) {
+        console.warn('[AuthContext] Sentry clear user failed:', e);
+      }
+      
+      console.log('[AuthContext] Sign-out completed successfully');
+      
+      // Navigate to sign-in screen
+      try {
+        router.replace('/(auth)/sign-in');
+      } catch (navErr) {
+        console.error('[AuthContext] Navigation to sign-in failed:', navErr);
+        try { router.replace('/sign-in'); } catch {}
+      }
     } catch (error) {
-      console.error('Sign out failed:', error);
+      console.error('[AuthContext] Sign out failed:', error);
+      
+      // Even if sign-out fails, clear local state to prevent UI issues
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setPermissions(createPermissionChecker(null));
       
       // Security audit for failed logout
       if (user?.id) {
@@ -161,6 +199,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           action: 'logout',
           error: error instanceof Error ? error.message : 'Unknown error',
         });
+      }
+      
+      // Still try to navigate even if there was an error
+      try {
+        router.replace('/(auth)/sign-in');
+      } catch (navErr) {
+        console.error('[AuthContext] Navigation to sign-in failed:', navErr);
+        try { router.replace('/sign-in'); } catch {}
       }
     }
   }, [user?.id, profile?.role, session]);
@@ -224,6 +270,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         // Initialize session from storage first
         const { session: storedSession, profile: storedProfile } = await initializeSession();
+        
+        // Debug session restoration
+        console.log('=== SESSION RESTORATION DEBUG ===');
+        console.log('Stored session exists:', !!storedSession);
+        console.log('Stored profile exists:', !!storedProfile);
+        if (storedSession) {
+          console.log('Session user_id:', storedSession.user_id);
+          console.log('Session email:', storedSession.email);
+          console.log('Session expires_at:', new Date(storedSession.expires_at * 1000).toISOString());
+        }
+        if (storedProfile) {
+          console.log('Profile role:', storedProfile.role);
+          console.log('Profile org_id:', storedProfile.organization_id);
+          console.log('Profile email:', storedProfile.email);
+        }
+        console.log('================================');
         
         if (storedSession && storedProfile && mounted) {
           setSession({ 
@@ -414,8 +476,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (event === 'SIGNED_OUT' && mounted) {
+            console.log('[AuthContext] SIGNED_OUT event received, clearing all auth state');
             setProfile(null);
             setPermissions(createPermissionChecker(null));
+            setUser(null);
+            setSession(null);
+            setProfileLoading(false);
             
             // Deregister push device
             try {
@@ -429,9 +495,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try { Sentry.Native.setUser(null as any); } catch (e) { logger.debug('Sentry clear user failed', e); }
             
             track('edudash.auth.signed_out', {});
+
+            // Non-blocking toast to confirm sign-out
+            try {
+              const { toast } = await import('@/components/ui/ToastProvider');
+              toast.success('You have been signed out');
+            } catch (e) {
+              logger.debug('Toast on sign-out failed (non-blocking)', e);
+            }
             
-            // Ensure we fall back to the sign-in screen on sign out or session loss
-            try { router.replace('/sign-in'); } catch (navErr) { logger.debug('Navigation to sign-in failed', navErr); }
+            // Don't navigate here - let signOutAndRedirect handle navigation
+            // This prevents conflicting navigation calls
+            console.log('[AuthContext] Sign-out cleanup complete, navigation handled by signOutAndRedirect');
           }
         } catch (error) {
           console.error('Auth state change handler error:', error);

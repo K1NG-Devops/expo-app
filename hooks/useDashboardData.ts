@@ -818,8 +818,16 @@ export const usePrincipalDashboard = () => {
   }, [user]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Only fetch data if user exists
+    if (user?.id) {
+      fetchData();
+    } else {
+      // No user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
+    }
+  }, [fetchData, user]);
 
   const refresh = useCallback(() => {
     log('🔄 Refreshing Principal Dashboard data...');
@@ -1149,11 +1157,16 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
   }, [user, authLoading]);
 
   useEffect(() => {
-    // Only fetch data if auth is not loading
-    if (!authLoading) {
+    // Only fetch data if auth is not loading and user exists
+    if (!authLoading && user?.id) {
       fetchData();
+    } else if (!authLoading && !user) {
+      // Auth completed but no user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
     }
-  }, [fetchData, authLoading]);
+  }, [fetchData, authLoading, user]);
 
   const refresh = useCallback(() => {
     fetchData(true); // Force refresh from server
@@ -1409,11 +1422,16 @@ await offlineCacheService.cacheParentDashboard(
   }, [user, authLoading]);
 
   useEffect(() => {
-    // Only fetch data if auth is not loading
-    if (!authLoading) {
+    // Only fetch data if auth is not loading and user exists
+    if (!authLoading && user?.id) {
       fetchData();
+    } else if (!authLoading && !user) {
+      // Auth completed but no user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
     }
-  }, [fetchData, authLoading]);
+  }, [fetchData, authLoading, user]);
 
   const refresh = useCallback(() => {
     fetchData(true); // Force refresh from server

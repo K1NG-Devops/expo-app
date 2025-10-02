@@ -211,7 +211,8 @@ export default function ProfilesGateScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      router.replace('/landing');
+      // Ensure we land on the auth screen immediately after sign-out
+      router.replace('/(auth)/sign-in');
     } catch (error) {
       console.error('Sign out failed:', error);
     }

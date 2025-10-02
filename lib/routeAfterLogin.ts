@@ -93,15 +93,28 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
       return;
     }
 
-    // Fetch enhanced profile if not provided
-    let enhancedProfile = profile;
-    if (!enhancedProfile) {
+    // Fetch enhanced profile if not provided or if the provided profile is not enhanced
+    let enhancedProfile = profile as any;
+    const needsEnhanced = !enhancedProfile || typeof enhancedProfile.hasCapability !== 'function';
+    if (needsEnhanced) {
       console.log('[ROUTE DEBUG] Fetching enhanced profile for user:', userId);
-      enhancedProfile = await fetchEnhancedUserProfile(userId);
-      console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
-      if (enhancedProfile) {
-        console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
-        console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+      
+      // Add timeout protection to prevent infinite hanging
+      const fetchPromise = fetchEnhancedUserProfile(userId);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+      );
+      
+      try {
+        enhancedProfile = await Promise.race([fetchPromise, timeoutPromise]) as any;
+        console.log('[ROUTE DEBUG] fetchEnhancedUserProfile result:', enhancedProfile ? 'SUCCESS' : 'NULL');
+        if (enhancedProfile) {
+          console.log('[ROUTE DEBUG] Profile role:', enhancedProfile.role);
+          console.log('[ROUTE DEBUG] Profile org_id:', enhancedProfile.organization_id);
+        }
+      } catch (fetchError) {
+        console.error('[ROUTE DEBUG] Profile fetch failed:', fetchError);
+        enhancedProfile = null;
       }
     }
 

@@ -966,6 +966,18 @@ return (
     }
   }, [vc.state]);
 
+  // Notify on voice errors (e.g., permission denied)
+  useEffect(() => {
+    if (vc.state === 'error') {
+      try {
+        Alert.alert(
+          'Microphone Permission',
+          'Microphone access is required for voice messages. Please enable it in your device settings and try again.'
+        );
+      } catch {}
+    }
+  }, [vc.state]);
+
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
   React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);

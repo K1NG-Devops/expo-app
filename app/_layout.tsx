@@ -193,6 +193,7 @@ export default function RootLayout() {
               })()}
             </DashboardPreferencesProvider>
           </ThemeProvider>
+        </UpdatesProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>
