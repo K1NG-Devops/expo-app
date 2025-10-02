@@ -76,8 +76,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
   const schoolSettingsQuery = useSchoolSettings((profile as any)?.organization_id);
-  const isWAConfigured = !!schoolSettingsQuery.data?.whatsapp_number;
+  
+  // Real-time school settings from database
+  const schoolSettings = schoolSettingsQuery.data;
+  const isWAConfigured = !!schoolSettings?.whatsapp_number;
   const isWAEnabled = isWhatsAppEnabled() || isWAConfigured;
+  
+  // Derived state from centralized settings
+  const quickActionsEnabled = schoolSettings?.features?.activityFeed?.enabled ?? true;
+  const financialsEnabled = schoolSettings?.features?.financialReports?.enabled ?? true;
+  const pettyCashEnabled = schoolSettings?.features?.pettyCash?.enabled ?? true;
   const insets = useSafeAreaInsets();
   const {
     data,
@@ -105,12 +113,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       if (hasRefreshedOnFocus.current) {
-        console.log('🔄 Dashboard refocused - refreshing data');
         refresh();
+        // Also refresh school settings to ensure latest config
+        schoolSettingsQuery.refetch();
       } else {
         hasRefreshedOnFocus.current = true;
       }
-    }, [refresh])
+    }, [refresh, schoolSettingsQuery])
   );
   
   // Theme-aware styles
@@ -170,15 +179,38 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   
   // Open WhatsApp using school deep link if available; fallback to support line
   const openWhatsAppWithFallback = async () => {
-    // Prefer the school's configured WhatsApp number via deep link helper
-    const configuredLink = getWhatsAppDeepLink?.();
-    if (configuredLink) {
+    // Prefer the school's configured WhatsApp number from centralized settings
+    const configuredNumber = schoolSettings?.whatsapp_number;
+    if (configuredNumber) {
+      const message = encodeURIComponent(
+        `Hello! This is ${user?.user_metadata?.first_name || 'Principal'} from ${data.schoolName || 'school'}. Reaching out via EduDash Pro.`
+      );
+      const waLink = `https://wa.me/${configuredNumber.replace(/[^\d]/g, '')}?text=${message}`;
       try {
-        await Linking.openURL(configuredLink);
+        await Linking.openURL(waLink);
+        return;
+      } catch (err) {
+        console.error('Failed to open WhatsApp link:', err);
+      }
+    }
+    
+    // Fallback to deep link helper (legacy)
+    const fallbackLink = getWhatsAppDeepLink?.();
+    if (fallbackLink) {
+      try {
+        await Linking.openURL(fallbackLink);
         return;
       } catch {}
     }
-    Alert.alert(t('quick_actions.whatsapp_setup'), t('dashboard.whatsapp_not_configured'));
+    
+    Alert.alert(
+      t('quick_actions.whatsapp_setup'), 
+      t('dashboard.whatsapp_not_configured') + '\n\n' + t('quick_actions.configure_in_settings'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('quick_actions.go_to_settings'), onPress: () => router.push('/screens/admin/school-settings') }
+      ]
+    );
   };
 
   const getGreeting = (): string => {
@@ -215,7 +247,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     }
     
     try {
-      console.log('📢 Sending announcement via database:', announcement);
       
       const result = await AnnouncementService.createAnnouncement(
         preschoolId,
@@ -377,8 +408,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 size={36}
               />
             </TouchableOpacity>
-            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
-              {tenantSlug || data.schoolName ||
+              <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
+              {schoolSettings?.schoolName || tenantSlug || data.schoolName ||
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
@@ -428,7 +459,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
               </Text>
               <Text style={styles.welcomeSubtitle}>
-                {t('dashboard.managing_school', { schoolName: data.schoolName || t('dashboard.your_school') })} • {t('dashboard.school_overview')}
+                {t('dashboard.managing_school', { schoolName: schoolSettings?.schoolName || data.schoolName || t('dashboard.your_school') })} • {t('dashboard.school_overview')}
               </Text>
             </View>
             <View style={styles.headerActions}>
@@ -677,8 +708,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         )}
       </View>
 
-      {/* Financial Summary */}
-      {data.financialSummary && (
+      {/* Financial Summary - Respects backend settings */}
+      {financialsEnabled && data.financialSummary && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('dashboard.financial_overview')}</Text>
@@ -708,8 +739,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             </View>
           </View>
           
-          {/* Real Petty Cash Balance - Only show when meaningful */}
-          {data.financialSummary.pettyCashBalance > 50 && (
+          {/* Real Petty Cash Balance - Only show when enabled and meaningful */}
+          {pettyCashEnabled && data.financialSummary.pettyCashBalance > 50 && (
             <View style={styles.financialGrid}>
               <View style={[styles.financialCard, { borderLeftColor: '#F59E0B', shadowColor: '#F59E0B' }]}>
                 <Text style={styles.financialLabel}>{t('dashboard.petty_cash_balance')}</Text>
@@ -734,7 +765,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         <TouchableOpacity 
           style={[styles.aiInsightsBanner, (subscriptionReady && !hasPremiumOrHigher) ? styles.disabledCard : null]}
           onPress={gate(async () => {
-            console.log('🚀 AI Analytics button pressed!');
             try { await Feedback.vibrate(15); } catch {}
             router.push('/screens/principal-analytics');
           }, { needs: 'premium' })}
@@ -779,7 +809,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Financial Management Tools */}
+      {/* Financial Management Tools - Respects backend settings */}
+      {financialsEnabled && (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
         <View style={styles.toolsGrid}>
@@ -825,6 +856,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
+          {pettyCashEnabled && (
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/petty-cash') }}
@@ -838,6 +870,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
+          )}
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#10B981' + '10' }]}
@@ -854,6 +887,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           </TouchableOpacity>
         </View>
       </View>
+      )}
 
       {/* AI & Analytics Tools */}
       <View style={styles.section}>
