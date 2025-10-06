@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+// import { router } from 'expo-router';
 
 // Safe icon component that handles potential undefined icons
 const SafeIcon = ({ name, size, color, fallback = "●" }: { 

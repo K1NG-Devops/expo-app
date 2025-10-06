@@ -763,41 +763,48 @@ class PDFTemplateServiceImpl {
     let title: string;
 
     switch (template.documentType) {
-      case PDFDocumentType.STUDY_GUIDE:
+      case PDFDocumentType.STUDY_GUIDE: {
         const sgResult = await this.renderStudyGuide(data as StudyGuideData, renderOptions);
         html = sgResult.html;
         title = sgResult.title;
         break;
-      case PDFDocumentType.LESSON_PLAN:
+      }
+      case PDFDocumentType.LESSON_PLAN: {
         const lpResult = await this.renderLessonPlan(data as LessonPlanData, renderOptions);
         html = lpResult.html;
         title = lpResult.title;
         break;
-      case PDFDocumentType.PROGRESS_REPORT:
+      }
+      case PDFDocumentType.PROGRESS_REPORT: {
         const prResult = await this.renderProgressReport(data as ProgressReportData, renderOptions);
         html = prResult.html;
         title = prResult.title;
         break;
-      case PDFDocumentType.ASSESSMENT:
+      }
+      case PDFDocumentType.ASSESSMENT: {
         const asResult = await this.renderAssessment(data as AssessmentData, renderOptions);
         html = asResult.html;
         title = asResult.title;
         break;
-      case PDFDocumentType.CERTIFICATE:
+      }
+      case PDFDocumentType.CERTIFICATE: {
         const certResult = await this.renderCertificate(data as CertificateData, renderOptions);
         html = certResult.html;
         title = certResult.title;
         break;
-      case PDFDocumentType.NEWSLETTER:
+      }
+      case PDFDocumentType.NEWSLETTER: {
         const nlResult = await this.renderNewsletter(data as NewsletterData, renderOptions);
         html = nlResult.html;
         title = nlResult.title;
         break;
-      case PDFDocumentType.WORKSHEET:
+      }
+      case PDFDocumentType.WORKSHEET: {
         const wsResult = await this.renderEnhancedWorksheet(data as EnhancedWorksheetData, renderOptions);
         html = wsResult.html;
         title = wsResult.title;
         break;
+      }
       default:
         throw new Error(`Unsupported document type: ${template.documentType}`);
     }

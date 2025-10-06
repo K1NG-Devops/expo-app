@@ -203,7 +203,7 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
  * Determine the appropriate route for a user based on their enhanced profile
  */
 function determineUserRoute(profile: EnhancedUserProfile): { path: string; params?: Record<string, string> } {
-  let role = normalizeRole(profile.role) as Role | null;
+  let role = normalizeRole(profile.role);
   
   console.log('[ROUTE DEBUG] ==> Determining route for user');
   console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
@@ -305,7 +305,7 @@ export function validateUserAccess(profile: EnhancedUserProfile | null): {
  * Get the appropriate route path for a given role (without navigation)
  */
 export function getRouteForRole(role: Role | string | null): string {
-  const normalizedRole = normalizeRole(role as string) as Role;
+  const normalizedRole = normalizeRole(role as string);
   
   switch (normalizedRole) {
     case 'super_admin':

@@ -26,7 +26,7 @@ import {
   PasswordValidation
 } from '../../types/auth-enhanced';
 import { AuthValidation } from '../../lib/auth/AuthValidation';
-import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
+// import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
 import { AuthProgressIndicator, AuthProgressSummary } from './AuthProgressIndicator';
 import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 import { OrganizationSetup, OrganizationData } from './OrganizationSetup';
@@ -162,26 +162,29 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     const fieldErrors: string[] = [];
     
     switch (fieldName) {
-      case 'firstName':
+      case 'firstName': {
         const firstNameValidation = AuthValidation.validateName(value, 'First name');
         if (!firstNameValidation.isValid) {
           fieldErrors.push(...firstNameValidation.errors);
         }
         break;
+      }
         
-      case 'lastName':
+      case 'lastName': {
         const lastNameValidation = AuthValidation.validateName(value, 'Last name');
         if (!lastNameValidation.isValid) {
           fieldErrors.push(...lastNameValidation.errors);
         }
         break;
+      }
         
-      case 'email':
+      case 'email': {
         const emailValidation = AuthValidation.validateEmail(value);
         if (!emailValidation.isValid) {
           fieldErrors.push(...emailValidation.errors);
         }
         break;
+      }
         
       case 'phone':
         if (value) {
@@ -196,7 +199,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         // Password validation is handled by PasswordStrengthIndicator
         break;
         
-      case 'confirmPassword':
+      case 'confirmPassword': {
         const confirmValidation = AuthValidation.validateConfirmPassword(
           formState.password,
           value
@@ -205,6 +208,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           fieldErrors.push(...confirmValidation.errors);
         }
         break;
+      }
         
       case 'acceptTerms':
         if (!value) {
@@ -248,7 +252,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     let isValid = true;
     
     switch (currentStep) {
-      case 'personal_info':
+      case 'personal_info': {
         const personalFields = ['firstName', 'lastName', 'email', 'phone'];
         personalFields.forEach(field => {
           const fieldErrors = validateField(field, (formState as any)[field]);
@@ -264,6 +268,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
         
       case 'organization_setup':
         // Organization validation is handled by OrganizationSetup component
@@ -272,7 +277,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         }
         break;
         
-      case 'security_setup':
+      case 'security_setup': {
         // Password validation
         if (!passwordValidation?.isValid) {
           stepErrors.password = passwordValidation?.errors || ['Invalid password'];
@@ -292,6 +297,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
     }
     
     setErrors(stepErrors);

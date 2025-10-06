@@ -1,12 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
@@ -25,7 +22,7 @@ if (Platform.OS === 'web') {
     try {
       const EventEmitter = require('eventemitter3');
       (global as any).DeviceEventEmitter = new EventEmitter();
-    } catch (error) {
+    } catch {
       // Fallback if eventemitter3 is not available
       console.warn('EventEmitter3 not available, using basic polyfill');
       (global as any).DeviceEventEmitter = {
@@ -44,7 +41,9 @@ export default function RootLayout() {
     try {
       const { trackAppLaunch } = require('@/lib/otaObservability');
       trackAppLaunch();
-    } catch {}
+    } catch {
+      // Optional telemetry; ignore failures to avoid impacting UX
+    }
 
     if (Platform.OS === 'web') {
       const style = document.createElement('style');
@@ -184,13 +183,7 @@ export default function RootLayout() {
             <GlobalUpdateBanner />
             
             {/* Platform-specific components */}
-              {Platform.OS !== 'web' && (() => {
-                try {
-                  return <DashWakeWordListener />;
-                } catch {
-                  return null;
-                }
-              })()}
+              {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
             </DashboardPreferencesProvider>
           </ThemeProvider>
         </UpdatesProvider>
@@ -200,9 +193,3 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-});

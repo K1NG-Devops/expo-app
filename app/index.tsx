@@ -80,7 +80,7 @@ export default function Landing() {
         console.warn('[Landing] Failed to parse query for invite code:', e);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const onRefresh = React.useCallback(() => {

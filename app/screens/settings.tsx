@@ -599,7 +599,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* School Settings - Enhanced Overview */}
-        {(profile?.role === 'principal' || profile?.role === 'admin') && (
+        {(profile?.role === 'principal' || profile?.role === 'principal_admin' || profile?.role === 'super_admin') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.schoolOverview')}</Text>
           

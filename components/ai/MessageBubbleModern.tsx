@@ -135,7 +135,7 @@ export function MessageBubbleModern({
         )}
         
         {/* Message content */}
-        <View style={[styles.content, { color: isUser ? '#fff' : theme.text }]}>
+        <View style={styles.content}>
           <View style={{ opacity: 1 }}>
             {message.content.split('\n').map((line, index) => {
               // Simple rendering with proper color

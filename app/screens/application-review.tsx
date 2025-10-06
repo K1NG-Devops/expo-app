@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import HiringHubService from '@/lib/services/HiringHubService';
-import { JobApplication, ApplicationStatus } from '@/types/hiring';
+import { ApplicationWithDetails, ApplicationStatus } from '@/types/hiring';
 
 export default function ApplicationReviewScreen() {
   const { applicationId } = useLocalSearchParams<{ applicationId: string }>();
@@ -24,7 +24,7 @@ export default function ApplicationReviewScreen() {
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [loading, setLoading] = useState(true);
-  const [application, setApplication] = useState<JobApplication | null>(null);
+  const [application, setApplication] = useState<(ApplicationWithDetails & { resume_url?: string; created_at?: string }) | null>(null);
   const [updating, setUpdating] = useState(false);
 
   const loadApplication = async () => {

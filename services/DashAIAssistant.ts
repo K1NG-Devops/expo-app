@@ -782,7 +782,7 @@ export class DashAIAssistant {
    */
   public async transcribeOnly(audioUri: string): Promise<{
     transcript: string;
-    duration: number;
+    duration?: number;
     storagePath?: string;
     contentType?: string;
     language?: string;

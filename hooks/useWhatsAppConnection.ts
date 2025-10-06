@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger';
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { assertSupabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -310,7 +310,7 @@ export const useWhatsAppConnection = () => {
           })
           return tmpl.data
         }
-      } catch (e) {
+      } catch {
         // fall through to text fallback
       }
 
@@ -425,39 +425,41 @@ export const useWhatsAppConnection = () => {
     optOut: () => optOutMutation.mutateAsync(),
     hardDisconnect: () => {
       // Complete disconnect - deletes the record entirely
-      return new Promise(async (resolve, reject) => {
-        try {
-          if (!user?.id || !profile?.organization_id) {
-            throw new Error('User or preschool not found')
+      return new Promise((resolve, reject) => {
+        (async () => {
+          try {
+            if (!user?.id || !profile?.organization_id) {
+              throw new Error('User or preschool not found')
+            }
+
+            // Delete the WhatsApp contact record completely
+            const { error } = await assertSupabase()
+              .from('whatsapp_contacts')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('preschool_id', profile.organization_id)
+
+            if (error) {
+              console.error('Error deleting WhatsApp contact:', error)
+              throw error
+            }
+
+            // Force refresh
+            queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+            queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+
+            // Track complete disconnection
+            track('edudash.whatsapp.hard_disconnect', {
+              user_id: user.id,
+              preschool_id: profile.organization_id,
+              timestamp: new Date().toISOString()
+            })
+
+            resolve({ success: true })
+          } catch (error) {
+            reject(error)
           }
-
-          // Delete the WhatsApp contact record completely
-          const { error } = await assertSupabase()
-            .from('whatsapp_contacts')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('preschool_id', profile.organization_id)
-
-          if (error) {
-            console.error('Error deleting WhatsApp contact:', error)
-            throw error
-          }
-
-          // Force refresh
-          queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
-          queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
-
-          // Track complete disconnection
-          track('edudash.whatsapp.hard_disconnect', {
-            user_id: user.id,
-            preschool_id: profile.organization_id,
-            timestamp: new Date().toISOString()
-          })
-
-          resolve({ success: true })
-        } catch (error) {
-          reject(error)
-        }
+        })();
       })
     },
     sendTestMessage: sendTestMessageMutation.mutate,

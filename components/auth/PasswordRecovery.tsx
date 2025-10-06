@@ -254,7 +254,7 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
     
     try {
       switch (method) {
-        case 'email':
+        case 'email': {
           const codeSent = await sendVerificationCode(formData.email);
           if (codeSent) {
             setCurrentStep('email-verification');
@@ -262,13 +262,13 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
             throw new Error('Failed to send verification code');
           }
           break;
-          
-        case 'security-questions':
+        }
+        case 'security-questions': {
           const questions = await loadSecurityQuestions(formData.email);
           setUserSecurityQuestions(questions);
           setCurrentStep('security-questions');
           break;
-          
+        }
         case 'admin-reset':
           Alert.alert(
             'Admin Reset Requested',

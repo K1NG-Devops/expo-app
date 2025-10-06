@@ -306,7 +306,7 @@ for (const attachment of attachmentsToUpload) {
       setIsUploading(false);
 
       const userText = text || 'Attached files';
-      const response = await dashInstance.sendMessage(userText, undefined, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
+      const response = await dashInstance.sendMessage(userText);
       
       // Clear selected attachments after successful send
       setSelectedAttachments([]);
@@ -654,7 +654,7 @@ return (
         )}
 
         {/* Export PDF action when suggested by Dash */}
-        {message.metadata?.dashboard_action?.type === 'export_pdf' && (
+        {String(message.metadata?.dashboard_action?.type) === 'export_pdf' && (
           <View style={{ marginTop: 10 }}>
             <TouchableOpacity
               onPress={() => handleDownloadPdf(

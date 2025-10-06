@@ -32,7 +32,7 @@ export default function HiringHubScreen() {
   const preschoolId = profile?.organization_id || (profile as any)?.preschool_id;
   const [activeTab, setActiveTab] = useState<TabType>('new');
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ['hiring-hub-stats', preschoolId],
     queryFn: () => HiringHubService.getHiringHubStats(preschoolId!),
     enabled: !!preschoolId,
@@ -134,7 +134,7 @@ export default function HiringHubScreen() {
             data={(jobPostings || []).slice(0, 3)}
             keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
-            renderItem={({ item }) => <JobPostingCard job={item} theme={theme} />}
+            renderItem={({ item }) => <JobPostingCard job={item} theme={theme} styles={styles} />}
             ListEmptyComponent={
               <Text style={styles.emptyText}>No job postings yet</Text>
             }
@@ -180,7 +180,7 @@ export default function HiringHubScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
           renderItem={({ item }) => (
-            <ApplicationCard application={item} theme={theme} />
+            <ApplicationCard application={item} theme={theme} styles={styles} />
           )}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -202,7 +202,7 @@ export default function HiringHubScreen() {
   );
 }
 
-function JobPostingCard({ job, theme }: { job: JobPosting; theme: any }) {
+function JobPostingCard({ job, theme, styles }: { job: JobPosting; theme: any; styles: ReturnType<typeof createStyles> }) {
   return (
     <TouchableOpacity
       style={[styles.jobCard, { backgroundColor: theme.surface }]}
@@ -226,7 +226,7 @@ function JobPostingCard({ job, theme }: { job: JobPosting; theme: any }) {
   );
 }
 
-function ApplicationCard({ application, theme }: { application: ApplicationWithDetails; theme: any }) {
+function ApplicationCard({ application, theme, styles }: { application: ApplicationWithDetails; theme: any; styles: ReturnType<typeof createStyles> }) {
   const statusColor = getApplicationStatusColor(application.status);
   
   return (

@@ -51,6 +51,10 @@
         "EXPO_PUBLIC_ENABLE_MOCK_ADS": "false",
         "EXPO_PUBLIC_ENABLE_OTA_UPDATES": "true"
       }
+    },
+    "production-apk": {
+      "extends": "production",
+      "android": { "buildType": "apk" }
     }
   },
   "submit": {

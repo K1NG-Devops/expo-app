@@ -41,7 +41,7 @@ export default function NotFound() {
     };
     
     gatherDebugInfo();
-  }, [pathname, segments, user, profile]);
+  }, [pathname, segments, user, profile, router]);
   
   // Smart fallback navigation based on user state
   const getSmartFallback = () => {

@@ -421,25 +421,27 @@ class EducationalPDFServiceImpl {
           answer = num1 + num2;
           hint = data.showHints ? `Try counting up from ${num1}` : undefined;
           break;
-        case 'subtraction':
+        case 'subtraction': {
           const larger = Math.max(num1, num2);
           const smaller = Math.min(num1, num2);
           question = `${larger} - ${smaller}`;
           answer = larger - smaller;
           hint = data.showHints ? `Count backwards from ${larger}` : undefined;
           break;
+        }
         case 'multiplication':
           question = `${num1} × ${num2}`;
           answer = num1 * num2;
           hint = data.showHints ? `Think of ${num1} groups of ${num2}` : undefined;
           break;
-        case 'division':
+        case 'division': {
           const dividend = num1 * num2;
           question = `${dividend} ÷ ${num1}`;
           answer = num2;
           hint = data.showHints ? `How many ${num1}s make ${dividend}?` : undefined;
           break;
-        default: // mixed
+        }
+        default: { // mixed
           const operations = ['+', '-', '×'];
           const op = operations[Math.floor(Math.random() * operations.length)];
           if (op === '+') {
@@ -455,6 +457,7 @@ class EducationalPDFServiceImpl {
             answer = num1 * num2;
           }
           break;
+        }
       }
 
       problems.push({ question, answer, hint });
@@ -737,7 +740,7 @@ class EducationalPDFServiceImpl {
   public async generateHTMLPDFUri(title: string, htmlContent: string): Promise<{ uri: string; filename: string }> {
     let html = htmlContent;
     if (!htmlContent.includes('<!DOCTYPE html>') && !htmlContent.includes('<html')) {
-      html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title></head><body>${htmlContent}</body></html>`;
+      html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title></head><body>${htmlContent}</body></html>`;
     }
     const filename = (title || 'educational-guide').toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const fullFilename = `${filename}.pdf`;

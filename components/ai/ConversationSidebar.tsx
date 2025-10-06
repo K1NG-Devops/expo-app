@@ -6,8 +6,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList, type DimensionValue } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAIAssistant, type DashConversation } from '@/services/DashAIAssistant';
 import { useCapability } from '@/hooks/useCapability';
@@ -16,7 +15,7 @@ import { UpgradePromptModal } from './UpgradePromptModal';
 export interface ConversationSidebarProps {
   onSelectConversation: (conversationId: string) => void;
   onNewConversation?: () => void;
-  width?: number | string;
+  width?: DimensionValue;
 }
 
 export function ConversationSidebar({ onSelectConversation, onNewConversation, width = 320 }: ConversationSidebarProps) {
@@ -34,7 +33,9 @@ export function ConversationSidebar({ onSelectConversation, onNewConversation, w
       const dash = DashAIAssistant.getInstance();
       try {
         await dash.initialize();
-      } catch {}
+      } catch {
+        // Initialization is optional; ignore errors to keep sidebar usable
+      }
       const list = await dash.getAllConversations();
       setConversations(list);
       const current = dash.getCurrentConversationId();

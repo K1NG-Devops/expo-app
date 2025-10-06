@@ -14,12 +14,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Animated,
+  Animated as RNAnimated,
   Dimensions,
   Platform,
 } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, {
+import Reanimated, {
   useSharedValue,
   useAnimatedStyle,
   useAnimatedGestureHandler,
@@ -53,12 +53,12 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   // Reanimated shared values for better performance
   const translateY = useSharedValue(0);
   const lockIconOpacity = useSharedValue(0);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const chevronAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new RNAnimated.Value(1)).current;
+  const chevronAnim = useRef(new RNAnimated.Value(0)).current;
   
   // Waveform animation (keeping legacy Animated API for now)
   const waveformBars = useRef(
-    Array(40).fill(0).map(() => new Animated.Value(0.3))
+    Array(40).fill(0).map(() => new RNAnimated.Value(0.3))
   ).current;
 
   const isRecording = vc.state === 'listening';
@@ -79,14 +79,14 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
       // Show lock icon when recording starts
       lockIconOpacity.value = withSpring(1);
       
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
+      RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(pulseAnim, {
             toValue: 1.3,
             duration: 600,
             useNativeDriver: true,
           }),
-          Animated.timing(pulseAnim, {
+          RNAnimated.timing(pulseAnim, {
             toValue: 1,
             duration: 600,
             useNativeDriver: true,
@@ -103,14 +103,14 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   // Chevron animation for lock indicator
   useEffect(() => {
     if (isRecording && !isLocked) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(chevronAnim, {
+      RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(chevronAnim, {
             toValue: 1,
             duration: 800,
             useNativeDriver: true,
           }),
-          Animated.timing(chevronAnim, {
+          RNAnimated.timing(chevronAnim, {
             toValue: 0,
             duration: 800,
             useNativeDriver: true,
@@ -126,15 +126,15 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   useEffect(() => {
     if (isRecording && !isLocked) {
       const animations = waveformBars.map((bar, index) =>
-        Animated.loop(
-          Animated.sequence([
-            Animated.delay(index * 30),
-            Animated.timing(bar, {
+        RNAnimated.loop(
+          RNAnimated.sequence([
+            RNAnimated.delay(index * 30),
+            RNAnimated.timing(bar, {
               toValue: Math.random() * 0.7 + 0.3,
               duration: 300 + Math.random() * 200,
               useNativeDriver: false,
             }),
-            Animated.timing(bar, {
+            RNAnimated.timing(bar, {
               toValue: 0.2,
               duration: 300 + Math.random() * 200,
               useNativeDriver: false,
@@ -142,7 +142,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
           ])
         )
       );
-      Animated.parallel(animations).start();
+      RNAnimated.parallel(animations).start();
       
       return () => {
         waveformBars.forEach(bar => bar.stopAnimation());
@@ -235,9 +235,9 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)' }]}>
       <View style={[styles.container, { backgroundColor: theme.surface }]}>
         {/* Lock indicator at top */}
-        <Animated.View style={[styles.lockIndicator, animatedLockIconStyles]}>
+        <Reanimated.View style={[styles.lockIndicator, animatedLockIconStyles]}>
             <View style={styles.lockColumn}>
-              <Animated.View
+              <RNAnimated.View
                 style={{
                   opacity: chevronAnim.interpolate({
                     inputRange: [0, 1],
@@ -253,13 +253,13 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
                 }}
               >
                 <Ionicons name="chevron-up" size={24} color={theme.primary} />
-              </Animated.View>
+              </RNAnimated.View>
               
               <View style={[styles.lockIconContainer, { backgroundColor: theme.primary }]}>
-                <Ionicons name="lock" size={22} color="#fff" />
+                <Ionicons name="lock-closed" size={22} color="#fff" />
               </View>
               
-              <Animated.View
+              <RNAnimated.View
                 style={{
                   opacity: chevronAnim.interpolate({
                     inputRange: [0, 1],
@@ -276,17 +276,17 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
                 }}
               >
                 <Ionicons name="chevron-up" size={24} color={theme.primary} />
-              </Animated.View>
+              </RNAnimated.View>
               
               <Text style={[styles.lockText, { color: theme.textSecondary }]}>
                 Slide up to lock
               </Text>
             </View>
-          </Animated.View>
+          </Reanimated.View>
 
-        {/* Main recording area */
+        {/* Main recording area */}
         <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isLocked}>
-          <Animated.View style={[styles.recordingArea, animatedButtonStyles]}>
+          <Reanimated.View style={[styles.recordingArea, animatedButtonStyles]}>
           {/* Recording indicator and timer */}
           <View style={styles.header}>
             {isProcessing ? (
@@ -299,7 +299,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               </Text>
             ) : (
               <View style={styles.timerContainer}>
-                <Animated.View
+                <RNAnimated.View
                   style={[
                     styles.recordingDot,
                     {
@@ -324,7 +324,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
           {/* Waveform */}
           <View style={styles.waveformContainer}>
             {waveformBars.map((bar, index) => (
-              <Animated.View
+              <RNAnimated.View
                 key={index}
                 style={[
                   styles.waveformBar,
@@ -348,7 +348,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               </Text>
             </View>
           )}
-          </Animated.View>
+          </Reanimated.View>
         </PanGestureHandler>
 
         {/* Locked controls like WhatsApp */}

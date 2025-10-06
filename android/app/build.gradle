@@ -94,6 +94,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.2"
+        // Manifest placeholders for environment-driven values
+        manifestPlaceholders = [
+            ADMOB_APP_ID: (System.getenv('EXPO_PUBLIC_ADMOB_ANDROID_APP_ID') ?: (project.hasProperty('ADMOB_APP_ID') ? project.getProperty('ADMOB_APP_ID') : 'ca-app-pub-3940256099942544~3347511713'))
+        ]
     }
     signingConfigs {
         debug {

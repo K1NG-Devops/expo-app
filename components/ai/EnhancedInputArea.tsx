@@ -5,8 +5,8 @@
  * Tier-aware gating for attachments.
  */
 
-import React, { useMemo, useRef, useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, TextInput, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -24,8 +24,6 @@ import { UpgradePromptModal } from './UpgradePromptModal';
 import {
   pickDocuments,
   pickImages,
-  uploadAttachment,
-  formatFileSize,
 } from '@/services/AttachmentService';
 
 export interface EnhancedInputAreaProps {
@@ -68,20 +66,11 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
 
   // WhatsApp-style gesture state for mic interactions
   const [isGestureRecording, setIsGestureRecording] = useState(false);
-  const [hasTriggeredLock, setHasTriggeredLock] = useState(false);
   const translateY = useSharedValue(0);
 
   const LOCK_THRESHOLD = -100; // WhatsApp-style threshold (same as your example)
 
-  // Reset lock trigger when voice state changes
-  React.useEffect(() => {
-    if (voiceState === 'idle' || voiceState === 'error') {
-      setHasTriggeredLock(false);
-    }
-  }, [voiceState]);
-
   const onVoiceLockJSInternal = React.useCallback(() => {
-    setHasTriggeredLock(true);
     onVoiceLockJS();
   }, [onVoiceLockJS]);
 
@@ -167,7 +156,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         { translateY: Math.max(translateY.value, -120) },
         { scale },
       ],
-    };
+    } as any;
   });
 
   return (
