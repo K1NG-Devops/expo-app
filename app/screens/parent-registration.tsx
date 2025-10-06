@@ -73,6 +73,7 @@ export default function ParentRegistrationScreen() {
         email: registration.email,
         password: registration.password,
         options: {
+          emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
           data: {
             first_name: registration.firstName,
             last_name: registration.lastName,

@@ -36,6 +36,22 @@
         <data android:scheme="edudashpro"/>
         <data android:scheme="exp+dashpro"/>
       </intent-filter>
+      
+      <!-- Android App Links for website deep links -->
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="www.edudashpro.org.za" android:pathPrefix="/landing"/>
+        <data android:scheme="https" android:host="edudashpro.org.za" android:pathPrefix="/landing"/>
+      </intent-filter>
+      <intent-filter android:autoVerify="true">
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <category android:name="android.intent.category.BROWSABLE"/>
+        <data android:scheme="https" android:host="www.edudashpro.org.za" android:pathPrefix="/invite"/>
+        <data android:scheme="https" android:host="edudashpro.org.za" android:pathPrefix="/invite"/>
+      </intent-filter>
     </activity>
   </application>
 </manifest>

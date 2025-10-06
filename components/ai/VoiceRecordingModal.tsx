@@ -15,17 +15,23 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  PanResponder,
   Dimensions,
   Platform,
 } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedGestureHandler,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { VoiceController } from '@/hooks/useVoiceController';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CANCEL_THRESHOLD = -100; // Swipe left distance to cancel
-const LOCK_THRESHOLD = -80; // Swipe up distance to lock
+const LOCK_THRESHOLD = -100; // Swipe up distance to lock (same as WhatsApp example)
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -43,12 +49,14 @@ interface VoiceRecordingModalProps {
 export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModalProps) {
   const { theme, isDark } = useTheme();
   const [isLocked, setIsLocked] = useState(false);
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const lockAnim = useRef(new Animated.Value(0)).current;
+  
+  // Reanimated shared values for better performance
+  const translateY = useSharedValue(0);
+  const lockIconOpacity = useSharedValue(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const chevronAnim = useRef(new Animated.Value(0)).current;
   
-  // Waveform animation
+  // Waveform animation (keeping legacy Animated API for now)
   const waveformBars = useRef(
     Array(40).fill(0).map(() => new Animated.Value(0.3))
   ).current;
@@ -65,9 +73,12 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     }
   }, [vc.state, visible, isRecording, isProcessing, onClose]);
 
-  // Pulse animation for recording indicator
+  // Show/hide lock icon and pulse animation for recording indicator
   useEffect(() => {
     if (isRecording) {
+      // Show lock icon when recording starts
+      lockIconOpacity.value = withSpring(1);
+      
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -83,6 +94,8 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
         ])
       ).start();
     } else {
+      // Hide lock icon when not recording
+      lockIconOpacity.value = withSpring(0);
       pulseAnim.setValue(1);
     }
   }, [isRecording]);
@@ -137,44 +150,36 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     }
   }, [isRecording, isLocked]);
 
-  // Pan responder for slide to cancel / swipe up to lock
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => !isLocked,
-      onMoveShouldSetPanResponder: () => !isLocked,
-      onPanResponderMove: (_, gesture) => {
-        if (isLocked) return;
-        
-        // Slide left to cancel
-        if (gesture.dx < 0) {
-          slideAnim.setValue(gesture.dx);
-        }
-        
-        // Swipe up to lock
-        if (gesture.dy < 0) {
-          lockAnim.setValue(gesture.dy);
-        }
-      },
-      onPanResponderRelease: (_, gesture) => {
-        if (isLocked) return;
-        
-        // Cancel if slid far enough left
-        if (gesture.dx < CANCEL_THRESHOLD) {
-          handleCancel();
-          return;
-        }
-        
-        // Lock if swiped far enough up
-        if (gesture.dy < LOCK_THRESHOLD) {
-          handleLock();
-          return;
-        }
-        
-        // Otherwise send
-        handleSend();
-      },
-    })
-  ).current;
+  // Gesture handler for swipe-up lock and release to send
+  const gestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      // reset translation on start
+      translateY.value = 0;
+    },
+    onActive: (event) => {
+      if (isLocked) return;
+      // Only track vertical drag for lock gesture
+      if (event.translationY < 0) {
+        translateY.value = event.translationY;
+      }
+      // Lock when threshold crossed
+      if (event.translationY < LOCK_THRESHOLD && !isLocked) {
+        runOnJS(setIsLocked)(true);
+        translateY.value = withSpring(0);
+        // Lock the controller on UI thread
+        runOnJS(vc.lock)();
+      }
+    },
+    onEnd: () => {
+      if (isLocked) {
+        // Reset position but keep recording
+        translateY.value = withSpring(0);
+      } else {
+        // Not locked -> release to send
+        runOnJS(handleSend)();
+      }
+    },
+  });
 
   const handleCancel = async () => {
     try {
@@ -202,10 +207,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   const handleLock = () => {
     setIsLocked(true);
     vc.lock();
-    Animated.parallel([
-      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true }),
-      Animated.spring(lockAnim, { toValue: 0, useNativeDriver: true }),
-    ]).start();
+    translateY.value = withSpring(0);
   };
 
   const handleDelete = async () => {
@@ -214,10 +216,18 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   };
 
   const resetAnimations = () => {
-    slideAnim.setValue(0);
-    lockAnim.setValue(0);
+    translateY.value = 0;
     setIsLocked(false);
   };
+
+  // Animated styles
+  const animatedButtonStyles = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const animatedLockIconStyles = useAnimatedStyle(() => ({
+    opacity: lockIconOpacity.value,
+  }));
 
   if (!visible) return null;
 
@@ -225,24 +235,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)' }]}>
       <View style={[styles.container, { backgroundColor: theme.surface }]}>
         {/* Lock indicator at top */}
-        {!isLocked && (
-          <Animated.View
-            style={[
-              styles.lockIndicator,
-              {
-                opacity: lockAnim.interpolate({
-                  inputRange: [LOCK_THRESHOLD, 0],
-                  outputRange: [1, 0.3],
-                }),
-                transform: [{
-                  translateY: lockAnim.interpolate({
-                    inputRange: [LOCK_THRESHOLD, 0],
-                    outputRange: [0, 20],
-                  }),
-                }],
-              },
-            ]}
-          >
+        <Animated.View style={[styles.lockIndicator, animatedLockIconStyles]}>
             <View style={styles.lockColumn}>
               <Animated.View
                 style={{
@@ -263,7 +256,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               </Animated.View>
               
               <View style={[styles.lockIconContainer, { backgroundColor: theme.primary }]}>
-                <Ionicons name="lock-open" size={22} color="#fff" />
+                <Ionicons name="lock" size={22} color="#fff" />
               </View>
               
               <Animated.View
@@ -290,21 +283,10 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               </Text>
             </View>
           </Animated.View>
-        )}
 
-        {/* Main recording area */}
-        <Animated.View
-          {...(isLocked ? {} : panResponder.panHandlers)}
-          style={[
-            styles.recordingArea,
-            {
-              transform: [
-                { translateX: slideAnim },
-                { translateY: lockAnim },
-              ],
-            },
-          ]}
-        >
+        {/* Main recording area */
+        <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isLocked}>
+          <Animated.View style={[styles.recordingArea, animatedButtonStyles]}>
           {/* Recording indicator and timer */}
           <View style={styles.header}>
             {isProcessing ? (
@@ -358,52 +340,41 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
             ))}
           </View>
 
-          {/* Slide to cancel text (only when not locked) */}
+          {/* WhatsApp-style recording hint */}
           {!isLocked && (
-            <Animated.View
-              style={[
-                styles.slideHint,
-                {
-                  opacity: slideAnim.interpolate({
-                    inputRange: [CANCEL_THRESHOLD, 0],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ]}
-            >
-              <Ionicons name="chevron-back" size={22} color={theme.error} />
-              <Ionicons name="chevron-back" size={22} color={theme.error} style={{ marginLeft: -8, opacity: 0.6 }} />
-              <Ionicons name="chevron-back" size={22} color={theme.error} style={{ marginLeft: -8, opacity: 0.3 }} />
-              <Text style={[styles.slideText, { color: theme.error, marginLeft: 12 }]}>
-                Slide to cancel
+            <View style={styles.slideHint}>
+              <Text style={[styles.slideText, { color: theme.textSecondary }]}>
+                Hold to record • Slide up to lock
               </Text>
-            </Animated.View>
+            </View>
           )}
-        </Animated.View>
+          </Animated.View>
+        </PanGestureHandler>
 
-        {/* Bottom action buttons */}
-        <View style={styles.actions}>
-          {isLocked ? (
-            <>
-              {/* Delete button when locked */}
+        {/* Locked controls like WhatsApp */}
+        {isLocked && (
+          <View style={styles.lockedControls}>
+            <Text style={[styles.lockedText, { color: theme.textSecondary }]}>Recording Locked</Text>
+            <View style={styles.lockedButtons}>
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.error }]}
                 onPress={handleDelete}
               >
                 <Ionicons name="trash" size={24} color="#fff" />
               </TouchableOpacity>
-
-              <View style={{ flex: 1 }} />
-
-              {/* Send button when locked */}
               <TouchableOpacity
                 style={[styles.sendButton, { backgroundColor: theme.primary }]}
                 onPress={handleSend}
               >
                 <Ionicons name="send" size={28} color="#fff" />
               </TouchableOpacity>
-            </>
-          ) : (
+            </View>
+          </View>
+        )}
+        
+        {/* Bottom action buttons */}
+        <View style={styles.actions}>
+          {!isLocked && (
             <>
               {/* Mic icon (centered when not locked) */}
               <View style={styles.micContainer}>
@@ -552,5 +523,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 6,
+  },
+  lockedControls: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  lockedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  lockedButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
   },
 });

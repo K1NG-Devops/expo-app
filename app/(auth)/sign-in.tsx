@@ -632,6 +632,15 @@ export default function SignIn() {
                 {t('auth.school_register_q', { defaultValue: 'Looking to register a school?' })} <Text style={styles.schoolSignupLinkText}>{t('common.click_here', { defaultValue: 'Click here' })}</Text>
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.schoolSignupLink}
+              onPress={() => router.push('/screens/org-onboarding' as any)}
+            >
+              <Text style={styles.schoolSignupText}>
+                Looking to onboard an organization? <Text style={styles.schoolSignupLinkText}>Click here</Text>
+              </Text>
+            </TouchableOpacity>
           </View>
           </View>
           </View>

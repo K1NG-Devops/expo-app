@@ -67,6 +67,22 @@ export default function Landing() {
   const [isAppLoading, setIsAppLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
 
+  // Web-only: if a raw ?code=XYZ arrives at the root URL, redirect to the invite entry handler
+  useEffect(() => {
+    if (isWeb) {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const rawCode = sp.get('code') || sp.get('invitationCode');
+        if (rawCode) {
+          router.replace(`/invite?code=${encodeURIComponent(rawCode)}` as any);
+        }
+      } catch (e) {
+        console.warn('[Landing] Failed to parse query for invite code:', e);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
     // Simulate a lightweight refresh (e.g., refetch marketing content later)

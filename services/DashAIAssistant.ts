@@ -15,18 +15,8 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
-import { postAIRequest } from '@/lib/ai/api';
-import {
-  type Tier,
-  type DashCapability,
-  hasCapability,
-  getCapabilities,
-  assertCapability,
-  FeatureGatedError,
-} from '@/lib/ai/capabilities';
-// Note: DashTaskAutomation would be implemented in the future
-// import { DashTaskAutomation } from './DashTaskAutomation';
-import DashNavigationHandler from './DashNavigationHandler';
+import { WorksheetService } from './WorksheetService';
+import { DashTaskAutomation } from './DashTaskAutomation';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -36,6 +26,29 @@ try {
   }
 } catch (e) {
   console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
+
+export type DashAttachmentKind =
+  | 'image'
+  | 'pdf'
+  | 'document'
+  | 'spreadsheet'
+  | 'presentation'
+  | 'audio'
+  | 'other';
+
+export interface DashAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  bucket: string;
+  storagePath: string;
+  kind: DashAttachmentKind;
+  status: 'pending' | 'uploading' | 'uploaded' | 'failed';
+  previewUri?: string;
+  uploadProgress?: number;
+  meta?: Record<string, any>;
 }
 
 export interface DashMessage {
@@ -53,8 +66,6 @@ export interface DashMessage {
     language?: string;
     provider?: string;
   };
-  attachments?: DashAttachment[];
-  citations?: DashCitation[];
   metadata?: {
     context?: string;
     confidence?: number;
@@ -66,15 +77,13 @@ export interface DashMessage {
       url?: string;
     }>;
     dashboard_action?: {
-      type: 'switch_layout' | 'open_screen' | 'execute_task' | 'create_reminder' | 'send_notification' | 'export_pdf';
+      type: 'switch_layout' | 'open_screen' | 'execute_task' | 'create_reminder' | 'send_notification';
       layout?: 'classic' | 'enhanced';
       route?: string;
       params?: any;
       taskId?: string;
       task?: DashTask;
       reminder?: DashReminder;
-      title?: string;    // For PDF export
-      content?: string;  // For PDF export
     };
     emotions?: {
       sentiment: 'positive' | 'negative' | 'neutral';
@@ -292,70 +301,6 @@ export interface DashInsight {
   };
 }
 
-/**
- * File attachment types for document upload and analysis
- */
-export type DashAttachmentKind =
-  | 'document'
-  | 'image'
-  | 'pdf'
-  | 'spreadsheet'
-  | 'presentation'
-  | 'audio'
-  | 'other';
-
-export type DashAttachmentStatus =
-  | 'pending'
-  | 'uploading'
-  | 'uploaded'
-  | 'processing'
-  | 'ready'
-  | 'failed';
-
-/**
- * File attachment interface
- */
-export interface DashAttachment {
-  id: string;
-  name: string;
-  mimeType: string;
-  size: number;
-  bucket: string;
-  storagePath: string;
-  kind: DashAttachmentKind;
-  status: DashAttachmentStatus;
-  previewUri?: string;
-  pageCount?: number;
-  textBytes?: number;
-  sha256?: string;
-  meta?: Record<string, any>;
-  uploadProgress?: number; // 0-100
-}
-
-/**
- * Citation reference for RAG responses
- */
-export interface DashCitation {
-  attachmentId: string;
-  title?: string;
-  page?: number;
-  snippet?: string;
-  score?: number;
-}
-
-/**
- * Attachment analysis results
- */
-export interface DashAttachmentAnalysis {
-  attachmentId: string;
-  summary?: string;
-  keywords?: string[];
-  entities?: string[];
-  readingTimeMinutes?: number;
-  pageMap?: Array<{ page: number; tokens: number }>;
-  error?: string;
-}
-
 export interface DashPersonality {
   name: string;
   greeting: string;
@@ -527,12 +472,7 @@ export class DashAIAssistant {
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
   private recordingObject: Audio.Recording | null = null;
-  private prePreparedRecording: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
-  
-  // Tier-based capability gating
-  private userTier: Tier = 'free';
-  private availableCapabilities: readonly DashCapability[] = [];
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -579,65 +519,14 @@ export class DashAIAssistant {
       await this.loadMemory();
       await this.loadPersonality();
       
-      // Load user context and tier
+      // Load user context
       await this.loadUserContext();
-      await this.loadUserTier();
       
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
       console.error('[Dash] Failed to initialize AI Assistant:', error);
       throw error;
     }
-  }
-
-  /**
-   * Load user subscription tier from SubscriptionContext
-   */
-  private async loadUserTier(): Promise<void> {
-    try {
-      const profile = await getCurrentProfile();
-      if (profile?.user_metadata?.subscription_tier) {
-        this.userTier = profile.user_metadata.subscription_tier as Tier;
-      } else {
-        this.userTier = 'free';
-      }
-      this.availableCapabilities = getCapabilities(this.userTier);
-      console.log(`[Dash] User tier: ${this.userTier}, Capabilities: ${this.availableCapabilities.length}`);
-    } catch (error) {
-      console.warn('[Dash] Failed to load user tier, defaulting to free', error);
-      this.userTier = 'free';
-      this.availableCapabilities = getCapabilities('free');
-    }
-  }
-
-  /**
-   * Update user tier (call when subscription changes)
-   */
-  public updateTier(tier: Tier): void {
-    this.userTier = tier;
-    this.availableCapabilities = getCapabilities(tier);
-    console.log(`[Dash] Tier updated to: ${tier}`);
-  }
-
-  /**
-   * Check if a capability is available for current user
-   */
-  public hasCapability(capability: DashCapability): boolean {
-    return hasCapability(this.userTier, capability);
-  }
-
-  /**
-   * Get current user tier
-   */
-  public getUserTier(): Tier {
-    return this.userTier;
-  }
-
-  /**
-   * Get all available capabilities for current tier
-   */
-  public getAvailableCapabilities(): readonly DashCapability[] {
-    return this.availableCapabilities;
   }
 
   /**
@@ -651,14 +540,12 @@ export class DashAIAssistant {
         return;
       }
 
-      // Request permissions
-      console.log('[Dash] Requesting audio permissions during initialization...');
-      const { granted } = await Audio.requestPermissionsAsync();
-      console.log('[Dash] Audio permission result during initialization:', granted);
-      
-      if (!granted) {
-        console.warn('[Dash] Audio permission not granted during initialization');
-        // Don't throw - just log warning. Permission will be checked again when recording starts
+      // Request permissions with proper error handling
+      const permissionResult = await Audio.requestPermissionsAsync();
+      if (!permissionResult.granted) {
+        console.warn('[Dash] Audio recording permission denied');
+        // Don't throw here - let the recording attempt handle permission request
+        return;
       }
 
       if (Platform.OS === 'ios') {
@@ -672,9 +559,11 @@ export class DashAIAssistant {
           playThroughEarpieceAndroid: false,
         } as any);
       }
+      
+      console.log('[Dash] Audio initialized with permissions');
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
-      // Don't throw - allow app to continue, will fail when recording actually starts
+      // Don't throw here - allow the app to continue without audio
     }
   }
 
@@ -703,34 +592,10 @@ export class DashAIAssistant {
   /**
    * Send a text message to Dash
    */
-  public async sendMessage(content: string, conversationId?: string, attachments?: DashAttachment[]): Promise<DashMessage> {
+  public async sendMessage(content: string, conversationId?: string): Promise<DashMessage> {
     const convId = conversationId || this.currentConversationId;
     if (!convId) {
       throw new Error('No active conversation');
-    }
-
-    // Check capability for document/image attachments
-    if (attachments && attachments.length > 0) {
-      const hasDocuments = attachments.some(a => ['document', 'pdf', 'spreadsheet'].includes(a.kind));
-      const hasImages = attachments.some(a => a.kind === 'image');
-      
-      if (hasDocuments && !this.hasCapability('multimodal.documents')) {
-        throw new FeatureGatedError(
-          'Document processing requires Premium subscription',
-          'multimodal.documents',
-          'premium',
-          this.userTier
-        );
-      }
-      
-      if (hasImages && !this.hasCapability('multimodal.vision')) {
-        throw new FeatureGatedError(
-          'Image analysis requires Premium subscription',
-          'multimodal.vision',
-          'premium',
-          this.userTier
-        );
-      }
     }
 
     // Create user message
@@ -738,15 +603,14 @@ export class DashAIAssistant {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: 'user',
       content,
-      timestamp: Date.now(),
-      attachments
+      timestamp: Date.now()
     };
 
     // Add to conversation
     await this.addMessageToConversation(convId, userMessage);
 
-    // Generate AI response (pass attachments for context)
-    const assistantResponse = await this.generateResponse(content, convId, attachments);
+    // Generate AI response
+    const assistantResponse = await this.generateResponse(content, convId);
     await this.addMessageToConversation(convId, assistantResponse);
 
     return assistantResponse;
@@ -800,93 +664,22 @@ export class DashAIAssistant {
   }
 
   /**
-   * Pre-warm the recorder by preparing a recording instance ahead of time.
-   * This significantly reduces startRecording latency on mobile.
-   */
-  public async preWarmRecorder(): Promise<void> {
-    if (this.prePreparedRecording || this.isRecording) return;
-    try {
-      // Ensure audio is initialized
-      await this.initializeAudio();
-      
-      // Check permissions before preparing
-      if (Platform.OS !== 'web') {
-        const { granted } = await Audio.getPermissionsAsync();
-        if (!granted) {
-          console.log('[Dash] Skipping pre-warm: microphone permission not granted');
-          return;
-        }
-      }
-      
-      const rec = new Audio.Recording();
-      await rec.prepareToRecordAsync({
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.MAX,
-          sampleRate: 44100,
-          numberOfChannels: 2,
-          bitRate: 128000,
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-      } as Audio.RecordingOptions);
-      this.prePreparedRecording = rec;
-      console.log('[Dash] Recorder pre-warmed');
-    } catch (e) {
-      console.warn('[Dash] Failed to pre-warm recorder:', e);
-      this.prePreparedRecording = null;
-    }
-  }
-
-  /**
    * Start voice recording
    */
   public async startRecording(): Promise<void> {
     if (this.isRecording) {
-      console.warn('[Dash] Already recording, ignoring start request');
-      throw new Error('Recording already in progress');
-    }
-
-    // Clean up any existing recording object
-    if (this.recordingObject) {
-      console.log('[Dash] Cleaning up existing recording object');
-      try {
-        await this.recordingObject.stopAndUnloadAsync();
-      } catch {
-        // Ignore errors during cleanup
-      }
-      this.recordingObject = null;
+      throw new Error('Already recording');
     }
 
     try {
-      // Check and request microphone permissions on mobile
+      // Check and request permissions first
       if (Platform.OS !== 'web') {
-        console.log('[Dash] Checking microphone permissions...');
-        const { status, granted, canAskAgain } = await Audio.getPermissionsAsync();
-        console.log('[Dash] Current permission status:', { status, granted, canAskAgain });
-        
-        if (!granted) {
-          console.log('[Dash] Microphone permission not granted, requesting...');
-          const { status: newStatus, granted: newGranted } = await Audio.requestPermissionsAsync();
-          console.log('[Dash] Permission request result:', { status: newStatus, granted: newGranted });
-          
-          if (!newGranted) {
-            throw new Error('Microphone permission denied. Please grant microphone access in your device settings.');
-          }
+        const permissionResult = await Audio.requestPermissionsAsync();
+        if (!permissionResult.granted) {
+          throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
         }
-        console.log('[Dash] Microphone permissions confirmed');
       }
-      
+
       // Web compatibility checks for recording support and secure context
       if (Platform.OS === 'web') {
         try {
@@ -917,42 +710,35 @@ export class DashAIAssistant {
       }
 
       console.log('[Dash] Starting recording...');
-      if (this.prePreparedRecording) {
-        this.recordingObject = this.prePreparedRecording;
-        this.prePreparedRecording = null;
-      } else {
-        this.recordingObject = new Audio.Recording();
-        // Use the Expo AV recording API: prepareToRecordAsync + startAsync
-        await this.recordingObject.prepareToRecordAsync({
-          android: {
-            extension: '.m4a',
-            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-            audioEncoder: Audio.AndroidAudioEncoder.AAC,
-            sampleRate: 44100,
-            numberOfChannels: 2,
-            bitRate: 128000,
-          },
-          ios: {
-            extension: '.m4a',
-            outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-            audioQuality: Audio.IOSAudioQuality.MAX,
-            sampleRate: 44100,
-            numberOfChannels: 2,
-            bitRate: 128000,
-            linearPCMBitDepth: 16,
-            linearPCMIsBigEndian: false,
-            linearPCMIsFloat: false,
-          },
-        } as Audio.RecordingOptions);
-      }
+      this.recordingObject = new Audio.Recording();
+
+      // Use the Expo AV recording API: prepareToRecordAsync + startAsync
+      await this.recordingObject.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      } as Audio.RecordingOptions);
 
       await this.recordingObject.startAsync();
       this.isRecording = true;
       console.log('[Dash] Recording started');
     } catch (error) {
-      // Reset state on error
-      this.isRecording = false;
-      this.recordingObject = null;
       console.error('[Dash] Failed to start recording:', error);
       throw error;
     }
@@ -962,16 +748,8 @@ export class DashAIAssistant {
    * Stop voice recording and return audio URI
    */
   public async stopRecording(): Promise<string> {
-    if (!this.isRecording) {
-      console.warn('[Dash] Not recording, cannot stop');
-      throw new Error('No recording in progress');
-    }
-
-    if (!this.recordingObject) {
-      console.warn('[Dash] No recording object found');
-      // Reset state and throw error
-      this.isRecording = false;
-      throw new Error('Recording object not found');
+    if (!this.isRecording || !this.recordingObject) {
+      throw new Error('Not recording');
     }
 
     try {
@@ -979,44 +757,78 @@ export class DashAIAssistant {
       await this.recordingObject.stopAndUnloadAsync();
       const recordingUri = this.recordingObject.getURI();
       
-      // Clean up state
       this.recordingObject = null;
       this.isRecording = false;
-      // Prepare the next recording quickly
-      try { this.preWarmRecorder(); } catch {}
       
-      // Validate that we got a valid URI
-      if (!recordingUri) {
-        throw new Error('Recording URI is null or empty');
-      }
-      
-      console.log('[Dash] Recording stopped successfully:', recordingUri);
-      
-      // Additional validation: check if file exists on native platforms
-      if (Platform.OS !== 'web') {
-        try {
-          const fileInfo = await FileSystem.getInfoAsync(recordingUri);
-          if (!fileInfo.exists) {
-            throw new Error('Recorded audio file does not exist');
-          }
-          if (fileInfo.size && fileInfo.size < 1024) {
-            throw new Error(`Recorded audio file too small: ${fileInfo.size} bytes`);
-          }
-          console.log('[Dash] Audio file validated:', fileInfo.size, 'bytes');
-        } catch (fileError) {
-          console.error('[Dash] Audio file validation failed:', fileError);
-          throw new Error(`Audio file validation failed: ${fileError}`);
-        }
-      }
-      
-      return recordingUri;
+      console.log('[Dash] Recording stopped:', recordingUri);
+      return recordingUri || '';
     } catch (error) {
-      // Always clean up state on error
-      this.recordingObject = null;
-      this.isRecording = false;
       console.error('[Dash] Failed to stop recording:', error);
       throw error;
     }
+  }
+
+  /**
+   * Pre-warm the recorder for faster start times
+   */
+  public async preWarmRecorder(): Promise<void> {
+    // Pre-warming logic can go here if needed
+    // For now, this is a no-op as startRecording handles initialization
+    return Promise.resolve();
+  }
+
+  /**
+   * Transcribe audio only without sending to AI
+   */
+  public async transcribeOnly(audioUri: string): Promise<{
+    transcript: string;
+    duration: number;
+    storagePath?: string;
+    contentType?: string;
+    language?: string;
+    provider?: string;
+  }> {
+    return this.transcribeAudio(audioUri);
+  }
+
+  /**
+   * Send a pre-prepared voice message (already transcribed)
+   */
+  public async sendPreparedVoiceMessage(
+    audioUri: string,
+    transcript: string,
+    duration: number,
+    conversationId?: string
+  ): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId;
+    if (!convId) {
+      throw new Error('No active conversation');
+    }
+
+    // Create user message with voice note
+    const userMessage: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: transcript,
+      timestamp: Date.now(),
+      voiceNote: {
+        audioUri,
+        duration,
+        transcript,
+        contentType: 'audio/m4a',
+        language: 'en-US',
+        provider: 'local'
+      }
+    };
+
+    // Add to conversation
+    await this.addMessageToConversation(convId, userMessage);
+
+    // Generate AI response
+    const assistantResponse = await this.generateResponse(transcript, convId);
+    await this.addMessageToConversation(convId, assistantResponse);
+
+    return assistantResponse;
   }
 
   /**
@@ -1081,7 +893,7 @@ export class DashAIAssistant {
     }
 
     // Topic/theme: allow quoted phrases or after keywords
-    const topicQuoted = fullTextRaw.match(/topic\s*[:?-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
+    const topicQuoted = fullTextRaw.match(/topic\s*[:\-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
     if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
       const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
       if (t) params.topic = t;
@@ -1095,7 +907,7 @@ export class DashAIAssistant {
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-    const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
+    const numMatch = fullText.match(/(\d{1,3})\s*\-?\s*(?:minute|min)s?\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -1245,560 +1057,13 @@ export class DashAIAssistant {
   }
   
   /**
-   * Extract a suitable title for PDF export from user input and AI response
-   */
-  private extractContentTitle(userInput: string, responseContent: string): string {
-    const fullText = `${userInput} ${responseContent}`.toLowerCase();
-    
-    // Try to detect subject and type
-    let subject = '';
-    let type = '';
-    
-    // Extract subject
-    if (fullText.includes('math')) subject = 'Math';
-    else if (fullText.includes('science')) subject = 'Science';
-    else if (fullText.includes('english') || fullText.includes('literacy')) subject = 'Literacy';
-    else if (fullText.includes('reading')) subject = 'Reading';
-    else if (fullText.includes('writing')) subject = 'Writing';
-    
-    // Extract content type
-    if (fullText.includes('test')) type = 'Test';
-    else if (fullText.includes('quiz')) type = 'Quiz';
-    else if (fullText.includes('worksheet')) type = 'Worksheet';
-    else if (fullText.includes('practice')) type = 'Practice';
-    else if (fullText.includes('exercise')) type = 'Exercise';
-    else if (fullText.includes('assessment')) type = 'Assessment';
-    
-    // Build title
-    if (subject && type) {
-      return `${subject} ${type}`;
-    } else if (subject) {
-      return `${subject} Learning Material`;
-    } else if (type) {
-      return `Educational ${type}`;
-    }
-    
-    return 'Educational Content';
-  }
-  
-  /**
-   * Detect if user is requesting a PDF about an educational topic
-   */
-  private detectEducationalPDFRequest(input: string): {
-    topic: string;
-    audience: string;
-    type: string;
-    keywords: string[];
-  } | null {
-    const inputLower = input.toLowerCase();
-    
-    // Check for PDF/guide generation intent with educational topics
-    const pdfKeywords = ['generate', 'create', 'make', 'explain', 'pdf', 'document', 'guide', 'teach'];
-    const hasPDFIntent = pdfKeywords.some(keyword => inputLower.includes(keyword));
-    
-    // Check if it's about an educational topic (not just a worksheet/test)
-    const hasEducationalTopic = /\b(about|on|explaining|teach.+about|guide.+to)\s+\w+/i.test(input);
-    
-    if (!hasPDFIntent || !hasEducationalTopic) return null;
-    
-    // Extract the actual topic
-    const topic = this.extractTopic(input);
-    if (!topic || topic === 'General Education') return null;
-    
-    // Determine audience
-    let audience = 'students';
-    if (/preschool|kids|children|young learners|toddlers/i.test(input)) audience = 'preschool';
-    else if (/teacher|educator/i.test(input)) audience = 'teachers';
-    else if (/parent|family/i.test(input)) audience = 'parents';
-    
-    // Extract additional keywords for context
-    const keywords = this.extractKeywords(input);
-    
-    return {
-      topic,
-      audience,
-      type: 'educational_guide',
-      keywords
-    };
-  }
-  
-  /**
-   * Extract topic from user input using multiple patterns
-   */
-  private extractTopic(input: string): string {
-    const inputLower = input.toLowerCase();
-    
-    // Pattern 1: "PDF on [topic]" or "guide about [topic]"
-    const pattern1 = /(?:pdf|guide|document|explain|teach|tell|show)(?:\s+me)?(?:\s+on|\s+about|\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+with|\?|$)/i;
-    const match1 = input.match(pattern1);
-    if (match1 && match1[1]) {
-      const topic = match1[1].trim();
-      // Filter out common filler words
-      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
-      if (filtered.length > 2 && filtered.length < 50) {
-        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
-      }
-    }
-    
-    // Pattern 2: "explain [topic]" or "teach about [topic]"
-    const pattern2 = /(?:explain|teach|tell|show)(?:\s+me)?(?:\s+about)?(?:\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+\?|$)/i;
-    const match2 = input.match(pattern2);
-    if (match2 && match2[1]) {
-      const topic = match2[1].trim();
-      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
-      if (filtered.length > 2 && filtered.length < 50) {
-        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
-      }
-    }
-    
-    // Pattern 3: Look for quoted topics
-    const pattern3 = /["']([^"']{3,50})["']/;
-    const match3 = input.match(pattern3);
-    if (match3 && match3[1]) {
-      return match3[1].trim();
-    }
-    
-    // Pattern 4: Common educational subjects
-    const subjects = [
-      'robotics', 'mathematics', 'science', 'history', 'geography',
-      'biology', 'chemistry', 'physics', 'literature', 'art', 'music',
-      'photosynthesis', 'dinosaurs', 'planets', 'animals', 'plants',
-      'weather', 'insects', 'ocean', 'space', 'coding', 'programming',
-      'solar system', 'water cycle', 'food chain', 'human body',
-      'recycling', 'electricity', 'magnetism', 'sound', 'light',
-      'fractions', 'multiplication', 'division', 'shapes', 'colors'
-    ];
-    
-    for (const subject of subjects) {
-      if (inputLower.includes(subject)) {
-        return subject.charAt(0).toUpperCase() + subject.slice(1);
-      }
-    }
-    
-    return 'General Education';
-  }
-  
-  /**
-   * Extract contextual keywords to help AI generate better content
-   */
-  private extractKeywords(input: string): string[] {
-    const keywords: string[] = [];
-    const inputLower = input.toLowerCase();
-    
-    // Age-related keywords
-    if (/preschool|toddler|3-5/i.test(input)) keywords.push('preschool-level');
-    if (/elementary|primary|6-12/i.test(input)) keywords.push('elementary-level');
-    
-    // Content style keywords
-    if (/fun|entertaining|engaging/i.test(input)) keywords.push('fun', 'engaging');
-    if (/simple|easy|basic/i.test(input)) keywords.push('simplified', 'basic');
-    if (/detailed|comprehensive|thorough/i.test(input)) keywords.push('detailed', 'thorough');
-    if (/activity|activities|hands-on/i.test(input)) keywords.push('hands-on', 'activities');
-    if (/visual|pictures|illustrations/i.test(input)) keywords.push('visual', 'illustrated');
-    if (/interactive|practical/i.test(input)) keywords.push('interactive', 'practical');
-    
-    // Language/curriculum
-    if (/caps|south african/i.test(input)) keywords.push('CAPS-aligned', 'South African');
-    if (/afrikaans/i.test(input)) keywords.push('bilingual', 'Afrikaans');
-    if (/isiZulu|zulu/i.test(input)) keywords.push('isiZulu');
-    
-    return keywords;
-  }
-  
-  /**
-   * Generate educational content for any topic using AI
-   */
-  private async generateEducationalContent(request: {
-    topic: string;
-    audience: string;
-    type: string;
-    keywords: string[];
-  }): Promise<string> {
-    
-    // Build AI prompt for educational content
-    const aiPrompt = this.buildEducationalContentPrompt(request);
-    
-    try {
-      console.log('[Dash] Generating educational content for:', request.topic);
-      
-      // Determine scope based on role; default to 'teacher'
-      const role = (this.userProfile?.role || 'teacher') as any;
-      const scope: 'teacher' | 'principal' | 'parent' =
-        role === 'principal' || role === 'principal_admin' ? 'principal' :
-        role === 'parent' ? 'parent' : 'teacher';
-
-      // Call AI service via secure proxy with expected schema
-      const result = await postAIRequest({
-        scope,
-        service_type: 'homework_help',
-        payload: { prompt: aiPrompt, context: 'educational_guide' },
-        metadata: { topic: request.topic, audience: request.audience }
-      } as any);
-      
-      if ((result as any)?.success && (result as any)?.content) {
-        console.log('[Dash] AI content generated successfully');
-        return (result as any).content as string;
-      }
-      
-      if ((result as any)?.error) {
-        console.warn('[Dash] AI proxy returned error (using fallback):', (result as any).error);
-      }
-    } catch (error) {
-      console.warn('[Dash] Failed to generate educational content (using fallback):', error);
-    }
-    
-    // Fallback to template-based content
-    console.log('[Dash] Using fallback content template');
-    return this.generateFallbackContent(request.topic, request.audience);
-  }
-  
-  /**
-   * Build AI prompt for educational content generation
-   */
-  private buildEducationalContentPrompt(request: {
-    topic: string;
-    audience: string;
-    keywords: string[];
-  }): string {
-    const { topic, audience, keywords } = request;
-    
-    // Adjust complexity based on audience
-    let complexity = '';
-    let ageGroup = '';
-    
-    switch (audience) {
-      case 'preschool':
-        complexity = 'very simple, child-friendly language with lots of examples and analogies';
-        ageGroup = '3-6 year olds';
-        break;
-      case 'students':
-        complexity = 'clear and engaging language appropriate for elementary students';
-        ageGroup = '7-12 year olds';
-        break;
-      case 'teachers':
-        complexity = 'professional and comprehensive with teaching strategies';
-        ageGroup = 'educators';
-        break;
-      case 'parents':
-        complexity = 'accessible and practical with tips for home learning';
-        ageGroup = 'parents and caregivers';
-        break;
-      default:
-        complexity = 'clear and informative';
-        ageGroup = 'general learners';
-    }
-    
-    // Additional context from keywords
-    const contextualHints = keywords.length > 0 
-      ? `\n\nAdditional requirements: ${keywords.join(', ')}`
-      : '';
-    
-    return `Create a comprehensive educational guide about "${topic}" for ${ageGroup}.
-
-**Target Audience:** ${audience} (${ageGroup})
-**Language Complexity:** ${complexity}${contextualHints}
-
-**Required Sections:**
-
-## Introduction
-Provide 2-3 paragraphs explaining:
-- What is ${topic}?
-- Why is it important?
-- Real-world relevance and applications
-
-## Main Concepts
-Break down 3-5 key concepts or ideas:
-- Use clear headings for each concept
-- Include age-appropriate explanations
-- Use analogies and everyday examples
-- Make connections to things learners already know
-
-## Fun Facts
-Include 3-5 interesting and memorable facts about ${topic} that will engage learners.
-
-## Hands-On Activities
-Provide 2-3 age-appropriate activities:
-- Clear step-by-step instructions
-- List of materials needed
-- Learning objectives for each activity
-- Safety notes if applicable
-
-## Key Vocabulary
-Define 5-10 important terms related to ${topic}:
-- Use simple definitions
-- Provide usage examples
-- Connect to concepts explained earlier
-
-## Discussion Questions
-Include 3-5 thought-provoking questions to:
-- Encourage critical thinking
-- Promote further exploration
-- Connect to learners' experiences
-
-${audience === 'teachers' ? `## Teaching Tips
-Provide practical strategies for teaching ${topic} effectively in the classroom.` : ''}
-
-${audience === 'parents' ? `## Learning at Home
-Suggest ways parents can reinforce ${topic} learning at home with everyday activities.` : ''}
-
-**Format Guidelines:**
-- Use markdown formatting (## for headers, ** for bold, - for lists)
-- Keep paragraphs short and focused
-- Use emojis sparingly for visual appeal
-- Make content engaging and educational
-- Ensure age-appropriate language throughout
-
-**Tone:** ${audience === 'preschool' ? 'Fun, encouraging, and very simple' : audience === 'teachers' ? 'Professional and instructional' : 'Friendly and informative'}`;
-  }
-  
-  /**
-   * Generate fallback content when AI is unavailable
-   */
-  private generateFallbackContent(topic: string, audience: string): string {
-    return `## Understanding ${topic}
-
-### Introduction
-${topic} is an important subject that helps us understand the world around us. This guide will introduce you to the key concepts and provide practical activities to deepen your learning.
-
-### What You'll Learn
-- The fundamentals of ${topic}
-- Real-world applications and examples
-- Hands-on activities to practice what you've learned
-- Key vocabulary and concepts
-
-### Getting Started
-${audience === 'preschool' ? 
-  `This guide is designed for young learners. Parents and teachers can use these simple activities to introduce ${topic} in a fun and engaging way.` :
-  audience === 'teachers' ?
-  `This resource provides teaching strategies and classroom activities for introducing ${topic} to your students.` :
-  `Explore ${topic} through clear explanations, examples, and activities suitable for all ages.`
-}
-
-### Key Concepts
-1. **Foundation** - Understanding the basic principles
-2. **Application** - How ${topic} relates to everyday life
-3. **Exploration** - Activities to deepen understanding
-
-### Activities
-**Activity 1: Observation**
-Observe examples of ${topic} in your environment. Take notes or draw pictures of what you find.
-
-**Activity 2: Discussion**
-Talk about ${topic} with friends or family. Share what you've learned and ask questions.
-
-**Activity 3: Practice**
-Create something related to ${topic}. This could be a drawing, model, or experiment.
-
-### Further Learning
-Continue exploring ${topic} through books, videos, and hands-on experiences. The more you engage with the subject, the better you'll understand it!
-
----
-*This guide was created to support learning about ${topic}. For more detailed information, consult educational resources or speak with a teacher.*`;
-  }
-  
-  /**
-   * Format educational content as beautiful HTML for PDF export
-   */
-  private formatEducationalHTML(content: string, topic: string): string {
-    // Convert markdown to HTML
-    const htmlContent = this.convertMarkdownToHTML(content);
-    
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Understanding ${topic}</title>
-    <style>
-        @page {
-            margin: 2cm;
-            size: A4;
-        }
-        body {
-            font-family: 'Comic Sans MS', 'Arial', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 100%);
-        }
-        h1 {
-            color: #1565c0;
-            text-align: center;
-            font-size: 36px;
-            margin-bottom: 10px;
-            border-bottom: 4px solid #42a5f5;
-            padding-bottom: 10px;
-        }
-        h2 {
-            color: #0277bd;
-            font-size: 28px;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            border-left: 6px solid #4fc3f7;
-            padding-left: 15px;
-        }
-        h3 {
-            color: #01579b;
-            font-size: 22px;
-            margin-top: 20px;
-            margin-bottom: 10px;
-        }
-        p {
-            font-size: 16px;
-            margin-bottom: 15px;
-        }
-        .intro-box {
-            background-color: #fff3e0;
-            border: 3px solid #ff9800;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 25px 0;
-        }
-        .fun-fact {
-            background-color: #e8f5e9;
-            border-left: 5px solid #4caf50;
-            padding: 15px;
-            margin: 20px 0;
-            border-radius: 5px;
-        }
-        .fun-fact strong {
-            color: #2e7d32;
-            font-size: 18px;
-        }
-        .activity-box {
-            background-color: #f3e5f5;
-            border: 2px dashed #9c27b0;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .activity-box h3 {
-            color: #7b1fa2;
-            margin-top: 0;
-        }
-        .vocab-box {
-            background-color: #e1f5fe;
-            border-radius: 10px;
-            padding: 15px;
-            margin: 15px 0;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
-        }
-        .vocab-box h4 {
-            color: #0277bd;
-            margin-top: 0;
-            font-size: 18px;
-        }
-        ul {
-            font-size: 16px;
-            line-height: 1.8;
-        }
-        li {
-            margin-bottom: 8px;
-        }
-        .page-break {
-            page-break-after: always;
-        }
-        .footer {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 2px solid #ccc;
-            color: #666;
-            font-size: 14px;
-        }
-        strong {
-            color: #0277bd;
-        }
-    </style>
-</head>
-<body>
-    <h1>📚 Understanding ${topic}</h1>
-    <div style="text-align: center; color: #666; font-size: 18px; margin-bottom: 30px; font-style: italic;">
-        A Comprehensive Educational Guide
-    </div>
-    
-    ${htmlContent}
-    
-    <div class="footer">
-        <p>Created by Dash AI • EduDash Pro</p>
-        <p>© ${new Date().getFullYear()} | For Educational Use</p>
-    </div>
-</body>
-</html>`;
-  }
-  
-  /**
-   * Convert markdown-style text to HTML with proper styling
-   */
-  private convertMarkdownToHTML(markdown: string): string {
-    let html = markdown;
-    
-    // Convert ## headers to h2
-    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-    
-    // Convert ### headers to h3
-    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-    
-    // Convert #### headers to h4
-    html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
-    
-    // Convert **bold** to <strong>
-    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-    
-    // Convert *italic* to <em>
-    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    
-    // Wrap fun facts in styled boxes
-    html = html.replace(/🎉 Fun Fact:([^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="fun-fact"><strong>🎉 Fun Fact:</strong>$1</div>');
-    
-    // Wrap activities in styled boxes
-    html = html.replace(/(#+\s*Activity \d+:[^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="activity-box">$1</div>');
-    
-    // Wrap vocabulary items
-    html = html.replace(/\*\*([^*:]+):\*\* ([^\n]+)/g, '<div class="vocab-box"><h4>$1</h4><p>$2</p></div>');
-    
-    // Convert bullet lists
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>${match}</ul>`);
-    
-    // Convert numbered lists
-    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => {
-      if (!match.includes('<ul>')) {
-        return `<ol>${match}</ol>`;
-      }
-      return match;
-    });
-    
-    // Convert paragraphs (text not already in tags)
-    html = html.replace(/^(?!<[hduol]|<div|<li)(.+)$/gm, '<p>$1</p>');
-    
-    // Clean up extra paragraph tags
-    html = html.replace(/<p><\/p>/g, '');
-    html = html.replace(/<p>(<[hduol])/g, '$1');
-    html = html.replace(/(<\/[hduol]l?>)<\/p>/g, '$1');
-    html = html.replace(/<p>(<div)/g, '$1');
-    html = html.replace(/(<\/div>)<\/p>/g, '$1');
-    
-    // Wrap introduction sections in intro-box
-    html = html.replace(/(<h2>Introduction<\/h2>\s*(?:<p>.*?<\/p>\s*)+)/i, '<div class="intro-box">$1</div>');
-    
-    return html;
-  }
-  
-  /**
    * Intelligent text normalization for smart reading
    * Handles numbers, dates, special characters, and formatting
    */
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
-    // Remove markdown formatting FIRST (before other transformations)
-    normalized = this.removeMarkdownFormatting(normalized);
-    
-    // Handle bullet points and list formatting
+    // Handle bullet points and list formatting FIRST (before other transformations)
     normalized = this.normalizeBulletPoints(normalized);
     
     // Handle numbers intelligently
@@ -1826,34 +1091,6 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       .trim();
     
     return normalized;
-  }
-  
-  /**
-   * Remove markdown formatting for speech
-   */
-  private removeMarkdownFormatting(text: string): string {
-    return text
-      // Remove bold/italic markers (**, *, __, _)
-      .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** -> bold
-      .replace(/\*([^*]+)\*/g, '$1')      // *italic* -> italic
-      .replace(/__([^_]+)__/g, '$1')      // __bold__ -> bold
-      .replace(/_([^_]+)_/g, '$1')        // _italic_ -> italic
-      // Remove answer blanks (_____ or ____)
-      .replace(/_{3,}/g, 'blank')         // _____ -> blank
-      // Remove code blocks
-      .replace(/```[\s\S]*?```/g, '')     // Remove code blocks
-      .replace(/`([^`]+)`/g, '$1')        // `code` -> code
-      // Remove strikethrough
-      .replace(/~~([^~]+)~~/g, '$1')      // ~~strike~~ -> strike
-      // Remove headers (# ## ###)
-      .replace(/^#{1,6}\s+/gm, '')        // # Header -> Header
-      // Remove horizontal rules
-      .replace(/^[-*_]{3,}$/gm, '')       // --- -> (removed)
-      // Remove blockquotes
-      .replace(/^>\s+/gm, '')             // > quote -> quote
-      // Remove link formatting but keep text
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [text](url) -> text
-      .trim();
   }
   
   /**
@@ -2160,15 +1397,10 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
    */
   public async generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }> {
     try {
-      console.log('[Dash] Generating worksheet automatically:', params);
+      console.log('[Dash] Auto-generating worksheet with params:', params);
       
-      // Note: WorksheetService would be implemented in the future
-      // For now, return a mock implementation
-      const worksheetService = {
-        generateMathWorksheet: async (params: any) => ({ title: 'Math Worksheet', content: 'Generated math worksheet' }),
-        generateReadingWorksheet: async (params: any) => ({ title: 'Reading Worksheet', content: 'Generated reading worksheet' }),
-        generateActivityWorksheet: async (params: any) => ({ title: 'Activity Worksheet', content: 'Generated activity worksheet' })
-      };
+      // Create worksheet generation service instance
+      const worksheetService = new WorksheetService();
       
       // Generate worksheet based on type
       let worksheetData;
@@ -2209,36 +1441,59 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       };
       
     } catch (error) {
-      console.error('[Dash] Worksheet generation failed:', error);
+      console.error('[Dash] Failed to auto-generate worksheet:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Worksheet generation failed'
+        error: error instanceof Error ? error.message : 'Failed to generate worksheet'
       };
     }
   }
   
   /**
-   * Navigate to a specific screen using DashNavigationHandler
+   * Navigate to a specific screen programmatically with intelligent route mapping
    */
   public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
     try {
-      const navHandler = DashNavigationHandler.getInstance();
+      console.log('[Dash] Navigating to screen:', route, params);
       
-      // Try navigation via voice command first (supports natural language)
-      const result = await navHandler.navigateByVoice(route);
+      // Map common screen names to actual routes
+      const routeMap: Record<string, string> = {
+        'dashboard': '/',
+        'home': '/',
+        'students': '/screens/student-management',
+        // Map generic "lessons" to hub; AI generator is a separate intent
+        'lessons': '/screens/lessons-hub',
+        'ai-lesson': '/screens/ai-lesson-generator',
+        'worksheets': '/screens/worksheet-demo',
+        'assignments': '/screens/assign-homework',
+        // Map reports to teacher-reports screen
+        'reports': '/screens/teacher-reports',
+        'settings': '/screens/dash-ai-settings',
+        // Chat -> Dash Assistant
+        'chat': '/screens/dash-assistant',
+        // Fallbacks for common nouns to existing screens
+        'profile': '/screens/account',
+        // Not implemented screens are mapped to closest existing destinations
+        'calendar': '/screens/teacher-reports',
+        'gradebook': '/screens/teacher-reports',
+        // Parent messaging
+        'parents': '/screens/parent-messages',
+        'curriculum': '/screens/lessons-categories'
+      };
       
-      if (result.success) {
-        console.log(`[Dash] Successfully navigated to: ${result.screen}`);
-        return { success: true };
+      // Resolve the actual route
+      const actualRoute = routeMap[route.toLowerCase().replace(/^\//, '')] || route;
+      
+      // Navigate to the specified route
+      if (params && Object.keys(params).length > 0) {
+        router.push({ pathname: actualRoute, params } as any);
+      } else {
+        router.push(actualRoute);
       }
       
-      // If voice command fails, try direct screen key
-      const directResult = await navHandler.navigateToScreen(route, params);
-      
-      return {
-        success: directResult.success,
-        error: directResult.error
-      };
+      // Log successful navigation
+      console.log(`[Dash] Successfully navigated to: ${actualRoute}`);
+      return { success: true };
       
     } catch (error) {
       console.error('[Dash] Navigation failed:', error);
@@ -2266,33 +1521,9 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   /**
    * Export provided text as a PDF via EducationalPDFService
    */
-  public async exportTextAsPDF(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; error?: string }> {
+  public async exportTextAsPDF(title: string, content: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
-
-      // Detect simple markdown (headers, lists, bold) and convert to HTML for better formatting
-      const looksLikeMarkdown = /(^##\s|^###\s|\n-\s|\n\d+\.\s|\*\*[^*]+\*\*)/m.test(content);
-
-      if (isHTML) {
-        await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', content || '', opts);
-      } else if (looksLikeMarkdown) {
-        const htmlBody = this.convertMarkdownToHTML(content || '');
-        const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title>
-          <style>
-            @page { size: ${(opts?.paperSize || 'A4')} ${(opts?.orientation || 'portrait')}; margin: 20mm; }
-            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-            h1,h2,h3{ color:#1565c0; }
-            ul,ol{ margin-left:16px; }
-            .footer{ margin-top:24px; font-size:12px; color:#999; text-align:center; }
-          </style></head><body>
-          <h1 style=\"text-align:center;\">${title || 'Dash Export'}</h1>
-          ${htmlBody}
-          <div class=\"footer\">Exported by Dash • EduDash Pro</div>
-        </body></html>`;
-        await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', html, opts);
-      } else {
-        await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '', opts);
-      }
+      await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
@@ -2300,38 +1531,11 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   }
 
   /**
-   * Export text as PDF and return a downloadable URI (web: data URI; native: file URI)
-   * Useful for showing a "Download PDF" action in the chat UI.
+   * Export text as a PDF and return a downloadable URI and filename
    */
-  public async exportTextAsPDFForDownload(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
+  public async exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
     try {
-      const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
-      const looksLikeMarkdown = /(^##\s|^###\s|\n-\s|\n\d+\.\s|\*\*[^*]+\*\*)/m.test(content);
-
-      if (isHTML) {
-        const { uri, filename } = await EducationalPDFService.generateHTMLPDFUri(title || 'Dash Export', content || '');
-        return { success: true, uri, filename };
-      }
-
-      if (looksLikeMarkdown) {
-        const htmlBody = this.convertMarkdownToHTML(content || '');
-        const html = `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title>
-          <style>
-            @page { size: ${(opts?.paperSize || 'A4')} ${(opts?.orientation || 'portrait')}; margin: 20mm; }
-            body { font-family: Arial, sans-serif; color: #333; line-height: 1.6; }
-            h1,h2,h3{ color:#1565c0; }
-            ul,ol{ margin-left:16px; }
-            .footer{ margin-top:24px; font-size:12px; color:#999; text-align:center; }
-          </style></head><body>
-          <h1 style=\"text-align:center;\">${title || 'Dash Export'}</h1>
-          ${htmlBody}
-          <div class=\"footer\">Exported by Dash • EduDash Pro</div>
-        </body></html>`;
-        const { uri, filename } = await EducationalPDFService.generateHTMLPDFUri(title || 'Dash Export', html);
-        return { success: true, uri, filename };
-      }
-
-      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '', opts);
+      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '');
       return { success: true, uri, filename };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
@@ -2645,34 +1849,28 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     customParams?: any
   ): Promise<{ success: boolean; task?: DashTask; error?: string }> {
     try {
-      // const taskAutomation = DashTaskAutomation.getInstance();
+      const taskAutomation = DashTaskAutomation.getInstance();
       const userRole = this.userProfile?.role || 'teacher';
       
-      // TODO: Implement task automation system
-      const result = { success: false, task: undefined, error: 'Task automation not implemented yet' };
+      const result = await taskAutomation.createTask(templateId, customParams, userRole);
       
-      // TODO: Implement task automation system
-      console.log('[Dash] Task automation not yet implemented - requested template:', templateId);
-      
-      // if (result.success && result.task) {
-      //   // Add task progress to memory for future reference
-      //   await this.addMemoryItem({
-      //     type: 'context',
-      //     key: `active_task_${result.task.id}`,
-      //     value: {
-      //       taskId: result.task.id,
-      //       title: result.task.title,
-      //       status: result.task.status,
-      //       createdAt: result.task.createdAt
-      //     },
-      //     confidence: 1.0,
-      //     expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
-      //   });
-      //   
-      //   console.log('[Dash] Created automated task:', result.task.title);
-      // } else {
-      //   console.log('[Dash] Task creation failed:', result.error);
-      // }
+      if (result.success && result.task) {
+        // Add task progress to memory for future reference
+        await this.addMemoryItem({
+          type: 'context',
+          key: `active_task_${result.task.id}`,
+          value: {
+            taskId: result.task.id,
+            title: result.task.title,
+            status: result.task.status,
+            createdAt: result.task.createdAt
+          },
+          confidence: 1.0,
+          expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+        });
+        
+        console.log('[Dash] Created automated task:', result.task.title);
+      }
       
       return result;
     } catch (error) {
@@ -2693,8 +1891,8 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     userInput?: any
   ): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }> {
     try {
-      // TODO: Implement task automation system
-      const result = { success: false, error: 'Task automation not implemented yet' };
+      const taskAutomation = DashTaskAutomation.getInstance();
+      const result = await taskAutomation.executeTaskStep(taskId, stepId, userInput);
       
       // Update memory with task progress
       if (result.success) {
@@ -2704,7 +1902,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
           value: {
             stepId,
             completedAt: Date.now(),
-            result: 'Task completed'
+            result: result.result
           },
           confidence: 1.0
         });
@@ -2724,17 +1922,17 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
    * Get user's active tasks for context
    */
   public getActiveTasks(): DashTask[] {
-    // TODO: Implement task automation system
-    return [];
+    const taskAutomation = DashTaskAutomation.getInstance();
+    return taskAutomation.getActiveTasks();
   }
   
   /**
    * Get available task templates for user's role
    */
   public getAvailableTaskTemplates() {
-    // TODO: Implement task automation system
+    const taskAutomation = DashTaskAutomation.getInstance();
     const userRole = this.userProfile?.role || 'teacher';
-    return [];
+    return taskAutomation.getTaskTemplates(userRole);
   }
   
   /**
@@ -2854,7 +2052,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     // User interaction patterns
     const interactionHistory = recentMemory.filter(item => item.type === 'interaction');
     if (interactionHistory.length > 10) {
-      insights.push(`You've been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
+      insights.push(`You\'ve been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
       
       // Suggest efficiency improvements
       const commonTasks = this.identifyCommonTaskPatterns(interactionHistory);
@@ -2936,7 +2134,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     );
     
     if (completedTasks.length > 0) {
-      insights.push(`You've completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
+      insights.push(`You\'ve completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
     }
     
     return {
@@ -3161,44 +2359,6 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   }
 
   /**
-   * Public: transcribe only (no conversation updates)
-   */
-  public async transcribeOnly(audioUri: string): Promise<{ transcript: string; duration: number; contentType?: string }> {
-    const tr = await this.transcribeAudio(audioUri);
-    // Get duration
-    const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
-    const status = await sound.getStatusAsync();
-    const duration = status.isLoaded ? status.durationMillis || 0 : 0;
-    await sound.unloadAsync();
-    return { transcript: tr.transcript, duration, contentType: tr.contentType };
-  }
-
-  /**
-   * Send pre-transcribed voice message without re-transcribing
-   */
-  public async sendPreparedVoiceMessage(audioUri: string, transcript: string, duration: number, conversationId?: string): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId;
-    if (!convId) throw new Error('No active conversation');
-
-    const userMessage: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'user',
-      content: transcript,
-      timestamp: Date.now(),
-      voiceNote: {
-        audioUri,
-        duration,
-        transcript,
-      }
-    };
-
-    await this.addMessageToConversation(convId, userMessage);
-    const assistantResponse = await this.generateResponse(transcript, convId);
-    await this.addMessageToConversation(convId, assistantResponse);
-    return assistantResponse;
-  }
-
-  /**
    * Stop current speech
    */
   public async stopSpeaking(): Promise<void> {
@@ -3210,40 +2370,10 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   }
 
   /**
-   * Generate AI response based on user input
+   * Generate AI response based on user input and context
    */
-  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[]): Promise<DashMessage> {
+  private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
-      // FIRST: Check if this is a request for educational PDF generation
-      const educationalPDFRequest = this.detectEducationalPDFRequest(userInput);
-      
-      if (educationalPDFRequest) {
-        console.log('[Dash] Educational PDF request detected:', educationalPDFRequest);
-        
-        // Generate educational content using AI
-        const educationalContent = await this.generateEducationalContent(educationalPDFRequest);
-        
-        // Format content as HTML for PDF
-        const htmlContent = this.formatEducationalHTML(educationalContent, educationalPDFRequest.topic);
-        
-        // Return response with PDF export action
-        return {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'assistant',
-          content: `I've created a comprehensive guide about ${educationalPDFRequest.topic} for ${educationalPDFRequest.audience}! 📚\n\nThis guide includes:\n- Clear introduction and explanations\n- Key concepts and main ideas\n- Fun facts to engage learners\n- Hands-on activities\n- Important vocabulary\n- Discussion questions\n\nClick the button below to download your PDF guide!`,
-          timestamp: Date.now(),
-          metadata: {
-            confidence: 0.95,
-            suggested_actions: ['download_pdf', 'create_another'],
-            dashboard_action: {
-              type: 'export_pdf',
-              title: `Understanding ${educationalPDFRequest.topic}`,
-              content: htmlContent
-            }
-          }
-        };
-      }
-      
       // Get conversation history for context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
@@ -3260,7 +2390,6 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
         memory: Array.from(this.memory.values()),
         personality: this.personality,
         timestamp: new Date().toISOString(),
-        attachments  // Add attachments to context
       };
 
       // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
@@ -3336,10 +2465,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     dashboard_action?:
       | { type: 'switch_layout'; layout: 'classic' | 'enhanced' }
       | { type: 'open_screen'; route: string; params?: Record<string, string> }
-      | { type: 'execute_task'; task: DashTask }
-      | { type: 'create_reminder'; reminder: DashReminder }
-      | { type: 'send_notification'; title: string; message: string }
-      | { type: 'export_pdf'; title: string; content: string };
+      | { type: 'execute_task'; task: DashTask };
   }> {
     try {
       // Use the enhanced AI service instead of hardcoded responses
@@ -3358,21 +2484,10 @@ RESPONSE GUIDELINES:
 - Keep responses focused and avoid unnecessary elaboration
 - When suggesting actions, be specific about next steps
 
-EDUCATIONAL CONTENT GENERATION:
-- When users request tests, worksheets, practice materials, or exercises, GENERATE the actual content directly
-- Include clear questions, answer options, instructions, and structure appropriate for preschool/early childhood education
-- For math: use age-appropriate counting, shapes, basic addition/subtraction problems
-- For science: use simple observation questions, categorization, nature/weather/animal topics
-- For literacy: use letter recognition, phonics, simple words, story comprehension
-- IMPORTANT: Format content with numbered questions (1., 2., 3., etc.) so it can be easily exported
-- After generating content, ALWAYS end with: "I've prepared this content for you. You'll see a prompt to download it as a PDF."
-- Use markdown formatting for structure (**, ##) but keep content clear and printable
-
 SPECIAL DASHBOARD ACTIONS:
 - If user asks about dashboard layouts, include dashboard_action in response
 - For lesson planning requests, suggest opening the lesson generator
-- For assessment tasks, recommend relevant tools
-- When generating educational content (tests, worksheets, exercises), mention PDF export availability`;
+- For assessment tasks, recommend relevant tools`;
 
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
@@ -3402,23 +2517,14 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         }
       }
       
-      // Add current user input with attachments if present
-      const contextAttachments = context.attachments;
-      if (contextAttachments && contextAttachments.length > 0) {
-        // Process attachments for AI
-        const attachmentContext = await this.processAttachmentsForAI(contextAttachments);
-        const userMessageWithAttachments = `${context.userInput}\n\n${attachmentContext}`;
-        messages.push({ role: 'user', content: userMessageWithAttachments });
-      } else {
-        messages.push({ role: 'user', content: context.userInput });
-      }
+      // Add current user input
+      messages.push({ role: 'user', content: context.userInput });
       
       const aiResponse = await this.callAIService({
         action: 'general_assistance',
         messages: messages,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
-        gradeLevel: 'General',
-        attachments: contextAttachments  // Pass attachments to AI service
+        gradeLevel: 'General'
       });
 
       // Parse AI response and add contextual actions and dashboard behaviors
@@ -3509,28 +2615,10 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         suggested_actions.push('view_financial_dashboard');
       }
       
-      // PDF export intent - trigger on explicit request OR when educational content is generated
-      const responseContent = aiResponse?.content || '';
-      const hasEducationalKeywords = /\b(test|worksheet|practice|exercise|quiz|assessment|activity)\b/i.test(userInput);
-      const hasNumberedItems = /\d+\.|question\s*\d+|problem\s*\d+/i.test(responseContent);
-      const hasMinimalContent = responseContent.length > 100; // Lowered threshold
-      const hasGeneratedContent = hasEducationalKeywords && hasNumberedItems && hasMinimalContent;
-      
-      // Debug logging
-      console.log('[Dash] PDF Export Check:', {
-        userInput: userInput.substring(0, 50),
-        responseLength: responseContent.length,
-        hasEducationalKeywords,
-        hasNumberedItems,
-        hasMinimalContent,
-        hasGeneratedContent
-      });
-      
-      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput) || hasGeneratedContent) {
-        const title = this.extractContentTitle(userInput, responseContent) || 'Dash Export';
-        dashboard_action = { type: 'export_pdf' as const, title, content: responseContent || context.userInput };
+      // PDF export intent
+      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput)) {
+        dashboard_action = { type: 'export_pdf' as any, title: 'Dash Export', content: aiResponse?.content || context.userInput } as any;
         suggested_actions.push('export_pdf');
-        console.log('[Dash] PDF Export action set:', { title, contentLength: responseContent.length });
       }
       
       // Add worksheet generation actions with voice command handling
@@ -3638,75 +2726,60 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
 
       // Determine user ID if available
       let userId = 'anonymous';
-      let userEmail = 'unknown';
       try {
         const { data: auth } = await assertSupabase().auth.getUser();
         userId = auth?.user?.id || 'anonymous';
-        userEmail = auth?.user?.email || 'unknown';
-        console.log('[Dash] Uploading as user:', userId, userEmail);
-      } catch (authError) {
-        console.error('[Dash] Auth error for upload:', authError);
-      }
+      } catch {}
 
-      // Load audio file content using FileSystem for React Native or fetch for web
-      let blob: Blob;
-      
+      // Prepare upload body for web vs native
+      let uploadBody: any;
+      let ext: string;
+      let uriLower = (audioUri || '').toLowerCase();
+
       if (Platform.OS === 'web') {
-        // Web: use fetch for blob: URLs
+        // Web: fetch blob from blob:/http(s): URI
         const res = await fetch(audioUri);
         if (!res.ok) {
           throw new Error(`Failed to load recorded audio: ${res.status}`);
         }
-        blob = await res.blob();
-      } else {
-        // React Native: validate file exists and get size info
+        const blob = await res.blob();
+        contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
+          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+          : uriLower.endsWith('.wav') ? 'audio/wav'
+          : uriLower.endsWith('.ogg') ? 'audio/ogg'
+          : uriLower.endsWith('.webm') ? 'audio/webm'
+          : 'application/octet-stream');
         try {
-          const fileInfo = await FileSystem.getInfoAsync(audioUri);
-          if (!fileInfo.exists) {
-            throw new Error('Audio file does not exist');
-          }
-          
-          console.log('[Dash] Audio file info:', fileInfo.size, 'bytes');
-          
-          // For React Native, we'll use the file URI directly with Supabase upload
-          // Create a fake blob object for the upload logic
-          blob = {
-            size: fileInfo.size || 0,
-            type: contentType || 'audio/mp4'
-          } as any;
-          
-        } catch (fsError) {
-          console.error('[Dash] FileSystem validation failed:', fsError);
-          throw new Error(`Failed to validate audio file: ${fsError}`);
+          // Prefer File when available for better filename propagation
+          // @ts-ignore
+          uploadBody = typeof File !== 'undefined' ? new File([blob], 'recording', { type: contentType }) : blob;
+        } catch {
+          uploadBody = blob;
         }
+      } else {
+        // Native (Android/iOS): read file as base64 and convert to Uint8Array (fetch(file://) is unreliable)
+        // Use the same technique as AttachmentService
+        const base64Data = await FileSystem.readAsStringAsync(audioUri, { encoding: FileSystem.EncodingType.Base64 });
+        // atob polyfill should be available in Expo; if not, consider adding one
+        const binaryString = atob(base64Data);
+        const uint8Array = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          uint8Array[i] = binaryString.charCodeAt(i);
+        }
+        uploadBody = uint8Array;
+        contentType = uriLower.endsWith('.m4a') ? 'audio/mp4'
+          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+          : uriLower.endsWith('.wav') ? 'audio/wav'
+          : uriLower.endsWith('.ogg') ? 'audio/ogg'
+          : 'application/octet-stream';
       }
-      
-      // Validate blob content
-      if (!blob || blob.size === 0) {
-        throw new Error('Audio file is empty or invalid');
-      }
-      
-      // Check minimum file size (should be at least a few KB for valid audio)
-      if (blob.size < 1024) {
-        console.warn('[Dash] Audio file very small:', blob.size, 'bytes');
-        throw new Error(`Audio file too small: ${blob.size} bytes`);
-      }
-      
-      console.log('[Dash] Audio file loaded successfully:', blob.size, 'bytes');
 
-      // Infer content type and extension
-      const uriLower = (audioUri || '').toLowerCase();
-      contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
-        : uriLower.endsWith('.mp3') ? 'audio/mpeg'
-        : uriLower.endsWith('.wav') ? 'audio/wav'
-        : uriLower.endsWith('.ogg') ? 'audio/ogg'
-        : uriLower.endsWith('.webm') ? 'audio/webm'
-        : 'application/octet-stream');
-      const ext = contentType.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
-        : contentType.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
-        : contentType.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
-        : contentType.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
-        : contentType.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
+      // Infer extension and filename
+      ext = contentType?.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
+        : contentType?.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
+        : contentType?.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
+        : contentType?.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
+        : contentType?.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
         : 'bin';
       const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
@@ -3715,88 +2788,11 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       storagePath = `${prefix}/${userId}/${fileName}`;
 
       // Upload to Supabase Storage (voice-notes bucket)
-      let uploadResult;
-      
-      if (Platform.OS === 'web') {
-        // Web: use blob/file approach
-        let body: any;
-        try {
-          // @ts-ignore: File may not exist in some environments
-          const maybeFile = typeof File !== 'undefined' ? new File([blob], fileName, { type: contentType }) : null;
-          body = maybeFile || blob;
-        } catch {
-          body = blob;
-        }
-        
-        uploadResult = await assertSupabase()
-          .storage
-          .from('voice-notes')
-          .upload(storagePath, body, { contentType, upsert: true });
-      } else {
-        // React Native: read file as base64 and upload as Uint8Array
-        try {
-          const base64Data = await FileSystem.readAsStringAsync(audioUri, {
-            encoding: FileSystem.EncodingType.Base64
-          });
-          
-          // Convert base64 to Uint8Array for upload
-          const binaryString = atob(base64Data);
-          const uint8Array = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            uint8Array[i] = binaryString.charCodeAt(i);
-          }
-          
-          console.log('[Dash] Uploading audio as Uint8Array:', uint8Array.length, 'bytes');
-          console.log('[Dash] Upload path:', storagePath);
-          
-          // Use the authenticated Supabase client
-          const supabase = assertSupabase();
-          uploadResult = await supabase
-            .storage
-            .from('voice-notes')
-            .upload(storagePath, uint8Array, { 
-              contentType: contentType || 'audio/mp4', 
-              upsert: true 
-            });
-            
-          console.log('[Dash] Upload result:', uploadResult);
-            
-        } catch (uploadError) {
-          console.error('[Dash] Uint8Array upload failed, trying FormData approach:', uploadError);
-          
-          // Fallback: try with FormData approach (React Native compatible)
-          const formData = new FormData();
-          formData.append('file', {
-            uri: audioUri,
-            type: contentType || 'audio/mp4',
-            name: fileName
-          } as any);
-          
-          uploadResult = await assertSupabase()
-            .storage
-            .from('voice-notes')
-            .upload(storagePath, formData, { 
-              contentType: contentType || 'audio/mp4', 
-              upsert: true 
-            });
-        }
-      }
-      
-      const { error: uploadError } = uploadResult;
+      const { error: uploadError } = await assertSupabase()
+        .storage
+        .from('voice-notes')
+        .upload(storagePath, uploadBody, { contentType, upsert: true });
       if (uploadError) {
-        console.error('[Dash] Upload failed:', uploadError.message);
-        
-        // If it's an RLS policy error, try to continue without upload
-        if (uploadError.message.includes('row-level security policy')) {
-          console.warn('[Dash] RLS policy prevents upload, attempting transcription without storage');
-          
-          // Return mock transcription for now - in production you'd need to set up proper RLS policies
-          return {
-            transcript: 'Voice message received successfully. (Upload blocked by database policy - please contact admin to configure voice-notes bucket permissions)',
-            language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en'
-          };
-        }
-        
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
@@ -4028,16 +3024,6 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    * Get all conversations
    */
   public async getAllConversations(): Promise<DashConversation[]> {
-    // Check if user has access to conversation history
-    if (!this.hasCapability('memory.lite') && !this.hasCapability('memory.standard')) {
-      throw new FeatureGatedError(
-        'Conversation history requires Starter subscription or higher',
-        'memory.standard',
-        'starter',
-        this.userTier
-      );
-    }
-
     try {
       const conversationKeys = await this.getConversationKeys();
       const conversations: DashConversation[] = [];
@@ -4094,22 +3080,6 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
     } catch (error) {
       console.error('[Dash] Failed to add message to conversation:', error);
     }
-  }
-
-  /**
-   * Public helper: add an attachment message to the current conversation
-   */
-  public async addAttachmentMessage(content: string, attachments: DashAttachment[], conversationId?: string): Promise<void> {
-    const convId = conversationId || this.currentConversationId;
-    if (!convId) throw new Error('No active conversation');
-    const message: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'assistant',
-      content,
-      timestamp: Date.now(),
-      attachments
-    };
-    await this.addMessageToConversation(convId, message);
   }
 
   /**
@@ -4194,7 +3164,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   /**
    * Add memory item
    */
-  public async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
+  private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
     try {
       const memoryItem: DashMemoryItem = {
         ...item,
@@ -4821,39 +3791,6 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
   }
 
   /**
-   * Process attachments for AI context
-   */
-  private async processAttachmentsForAI(attachments: DashAttachment[]): Promise<string> {
-    const parts: string[] = [];
-    
-    for (const attachment of attachments) {
-      if (attachment.kind === 'image') {
-        // Images can be shown to Claude with vision
-        parts.push(`[Image attached: ${attachment.name} (${this.formatFileSize(attachment.size)})]`);
-      } else if (attachment.kind === 'pdf') {
-        parts.push(`[PDF document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
-      } else if (attachment.kind === 'document') {
-        parts.push(`[Document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
-      } else {
-        parts.push(`[File attached: ${attachment.name}, Type: ${attachment.mimeType}, Size: ${this.formatFileSize(attachment.size)}]`);
-      }
-    }
-    
-    return `\n\n📎 Attachments (${attachments.length}):\n${parts.join('\n')}`;
-  }
-  
-  /**
-   * Format file size for display
-   */
-  private formatFileSize(bytes: number): string {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
-
-  /**
    * Call AI service with enhanced context
    */
   private async callAIService(params: any): Promise<any> {
@@ -4865,18 +3802,6 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         ...params,
         model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
       };
-      
-      // If attachments with images are present, add them for vision analysis
-      if (params.attachments && Array.isArray(params.attachments)) {
-        const imageAttachments = params.attachments.filter((a: DashAttachment) => a.kind === 'image');
-        if (imageAttachments.length > 0) {
-          requestBody.images = imageAttachments.map((img: DashAttachment) => ({
-            name: img.name,
-            url: img.previewUri,
-            mimeType: img.mimeType
-          }));
-        }
-      }
       
       const { data, error } = await supabase.functions.invoke('ai-gateway', {
         body: requestBody

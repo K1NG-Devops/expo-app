@@ -6,7 +6,15 @@
  */
 
 import React, { useMemo, useRef, useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Text, Platform, Animated, PanResponder } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  useAnimatedGestureHandler,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCapability } from '@/hooks/useCapability';
@@ -35,6 +43,18 @@ export interface EnhancedInputAreaProps {
 }
 
 export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = false, onSend, onAttachmentsChange, onVoiceStart, onVoiceEnd, onVoiceLock, onVoiceCancel, voiceState, isVoiceLocked, voiceTimerMs }: EnhancedInputAreaProps) {
+  // Stable JS callbacks for use with runOnJS to avoid inline closures
+  const onVoiceStartJS = React.useCallback(() => {
+    try { onVoiceStart?.(); } catch (e) { console.error('Voice start error:', e); }
+  }, [onVoiceStart]);
+
+  const onVoiceEndJS = React.useCallback(() => {
+    try { onVoiceEnd?.(); } catch (e) { console.error('Voice end error:', e); }
+  }, [onVoiceEnd]);
+
+  const onVoiceLockJS = React.useCallback(() => {
+    try { onVoiceLock?.(); } catch (e) { console.error('Voice lock error:', e); }
+  }, [onVoiceLock]);
   const { theme, isDark } = useTheme();
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<DashAttachment[]>([]);
@@ -46,55 +66,58 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
   
   const hasContent = text.trim().length > 0;
 
-  // Gesture state for mic interactions with slide-up-to-lock
-  const [isRecording, setIsRecording] = useState(false);
-  const [dy, setDy] = useState(0);
-  const [dx, setDx] = useState(0);
-  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  // WhatsApp-style gesture state for mic interactions
+  const [isGestureRecording, setIsGestureRecording] = useState(false);
+  const [hasTriggeredLock, setHasTriggeredLock] = useState(false);
+  const translateY = useSharedValue(0);
 
-  const LOCK_THRESHOLD = -80; // slide up threshold in pixels
-  const CANCEL_THRESHOLD = -80; // slide left threshold in pixels
+  const LOCK_THRESHOLD = -100; // WhatsApp-style threshold (same as your example)
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: () => {
-        setIsRecording(true);
-        setDy(0);
-        setDx(0);
-        try { onVoiceStart?.(); } catch (e) { console.error('Voice start error:', e); }
-      },
-      onPanResponderMove: (_, gesture) => {
-        setDy(gesture.dy);
-        setDx(gesture.dx);
-        pan.setValue({ x: gesture.dx, y: gesture.dy });
-      },
-      onPanResponderRelease: () => {
-        // Priority: cancel (left) > lock (up) > send
-        if (dx < CANCEL_THRESHOLD) {
-          try { onVoiceCancel?.(); } catch (e) { console.error('Voice cancel error:', e); }
-        } else if (dy < LOCK_THRESHOLD) {
-          try { onVoiceLock?.(); } catch (e) { console.error('Voice lock error:', e); }
-        } else {
-          // Normal release - send
-          try { onVoiceEnd?.(); } catch (e) { console.error('Voice end error:', e); }
-        }
-        setIsRecording(false);
-        setDy(0);
-        setDx(0);
-        pan.setValue({ x: 0, y: 0 });
-      },
-      onPanResponderTerminate: () => {
-        // Treat as cancel on interruption
-        try { onVoiceCancel?.(); } catch (e) { console.error('Voice cancel error:', e); }
-        setIsRecording(false);
-        setDy(0);
-        setDx(0);
-        pan.setValue({ x: 0, y: 0 });
-      },
-    })
-  ).current;
+  // Reset lock trigger when voice state changes
+  React.useEffect(() => {
+    if (voiceState === 'idle' || voiceState === 'error') {
+      setHasTriggeredLock(false);
+    }
+  }, [voiceState]);
+
+  const onVoiceLockJSInternal = React.useCallback(() => {
+    setHasTriggeredLock(true);
+    onVoiceLockJS();
+  }, [onVoiceLockJS]);
+
+  // Gesture handler for WhatsApp-style swipe-up-lock
+  const gestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      translateY.value = 0;
+      runOnJS(setIsGestureRecording)(true);
+      runOnJS(onVoiceStartJS)();
+    },
+    onActive: (event) => {
+      // Don't process further gestures if already locked
+      if (isVoiceLocked) return;
+      
+      // Track upward swipe
+      if (event.translationY < 0) {
+        translateY.value = event.translationY;
+      }
+      
+      // Trigger lock when threshold crossed
+      if (event.translationY < LOCK_THRESHOLD) {
+        translateY.value = withSpring(0);
+        runOnJS(onVoiceLockJSInternal)();
+      }
+    },
+    onEnd: () => {
+      if (isVoiceLocked) {
+        // Keep recording, don't release
+        translateY.value = withSpring(0);
+      } else {
+        // Release and send
+        runOnJS(onVoiceEndJS)();
+      }
+      runOnJS(setIsGestureRecording)(false);
+    },
+  });
 
   const addAttachments = (items: DashAttachment[]) => {
     const next = [...attachments, ...items];
@@ -129,8 +152,26 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
     onAttachmentsChange?.([]);
   };
 
+  // Animated styles for WhatsApp-style feedback
+  const animatedButtonStyles = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  // Animated lock icon that follows finger
+  const animatedLockStyles = useAnimatedStyle(() => {
+    const opacity = translateY.value < 0 ? Math.min(1, Math.abs(translateY.value) / 50) : 0;
+    const scale = translateY.value < LOCK_THRESHOLD ? 1.2 : 1;
+    return {
+      opacity,
+      transform: [
+        { translateY: Math.max(translateY.value, -120) },
+        { scale },
+      ],
+    };
+  });
+
   return (
-    <View style={[styles.container, { borderColor: theme.border, backgroundColor: isDark ? '#0b0f14' : '#fff' }]}> 
+    <View style={[styles.container, { borderColor: theme.border, backgroundColor: isDark ? '#0b0f14' : '#fff' }]}>
       <View style={styles.toolbar}>
         <TouchableOpacity onPress={handlePickImages} style={[styles.iconButton]}> 
           <Ionicons name="image-outline" size={20} color={theme.text} />
@@ -160,33 +201,55 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
         ) : (
-          <Animated.View {...panResponder.panHandlers}>
-            <View 
-              style={[styles.actionButton, { backgroundColor: isRecording ? theme.error : theme.accent }]}
-            > 
-              <Ionicons name="mic" size={20} color="#fff" />
-            </View>
-          </Animated.View>
+          <View style={{ position: 'relative' }}>
+            {/* Floating lock icon that appears on swipe up */}
+            {(isGestureRecording || voiceState === 'listening') && !isVoiceLocked && (
+              <Animated.View 
+                style={[
+                  styles.floatingLock,
+                  { backgroundColor: theme.surface },
+                  animatedLockStyles
+                ]}
+                pointerEvents="none"
+              >
+                <Ionicons 
+                  name="lock-closed" 
+                  size={24} 
+                  color={theme.textSecondary} 
+                />
+                <View style={[styles.lockArrow, { borderTopColor: theme.textSecondary }]} />
+              </Animated.View>
+            )}
+            
+            <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isVoiceLocked}>
+              <Animated.View style={[styles.actionButton, { backgroundColor: isGestureRecording || voiceState === 'listening' ? theme.error : theme.accent }, animatedButtonStyles]}>
+                <Ionicons name="mic" size={20} color="#fff" />
+              </Animated.View>
+            </PanGestureHandler>
+          </View>
         )}
       </View>
 
-      {/* Recording indicator - show when recording but not locked */}
-      {isRecording && !isVoiceLocked && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
+      {/* Recording indicator - WhatsApp style */}
+      {(isGestureRecording || voiceState === 'listening') && !isVoiceLocked && (
         <View style={styles.recordingIndicator}>
           <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
           <Text style={[styles.recordingText, { color: theme.text }]}>
             Recording... {Math.floor((voiceTimerMs || 0) / 1000)}s
           </Text>
-          {/* Slide up to lock hint */}
+          {/* WhatsApp-style swipe up to lock hint */}
           <View style={styles.gestureHintRow}>
             <Ionicons name="chevron-up" size={14} color={theme.textSecondary} />
             <Text style={[styles.recordingHint, { color: theme.textSecondary }]}>Slide up to lock</Text>
           </View>
-          {/* Slide left to cancel hint */}
-          <View style={styles.gestureHintRow}>
-            <Ionicons name="chevron-back" size={14} color={theme.textSecondary} />
-            <Text style={[styles.recordingHint, { color: theme.textSecondary }]}>Slide left to cancel</Text>
-          </View>
+        </View>
+      )}
+
+      {/* Locked indicator pill */}
+      {isVoiceLocked && (
+        <View style={styles.lockedPill}>
+          <Ionicons name="lock-closed" size={14} color={theme.textSecondary} />
+          <Text style={[styles.lockedPillText, { color: theme.textSecondary }]}>Recording Locked</Text>
         </View>
       )}
 
@@ -200,6 +263,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             </Text>
           </View>
           <View style={{ flex: 1 }} />
+          {/* Delete/Cancel */}
           <TouchableOpacity 
             style={[styles.lockedAction, { backgroundColor: theme.error }]}
             onPress={onVoiceCancel}
@@ -208,6 +272,16 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             <Text style={[styles.lockedActionText, { color: '#fff' }]}>Cancel</Text>
           </TouchableOpacity>
           <View style={{ width: 8 }} />
+          {/* Stop button (ends recording without needing to release gesture) */}
+          <TouchableOpacity 
+            style={[styles.lockedAction, { backgroundColor: theme.accent }]}
+            onPress={onVoiceEnd}
+          >
+            <Ionicons name="stop" size={16} color="#fff" />
+            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Stop</Text>
+          </TouchableOpacity>
+          <View style={{ width: 8 }} />
+          {/* Send */}
           <TouchableOpacity 
             style={[styles.lockedAction, { backgroundColor: theme.primary }]}
             onPress={onVoiceEnd}
@@ -300,6 +374,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     gap: 8,
   },
+  lockedPill: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: 'rgba(127,127,127,0.12)'
+  },
+  lockedPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   timerPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -320,5 +409,32 @@ const styles = StyleSheet.create({
   lockedActionText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  floatingLock: {
+    position: 'absolute',
+    bottom: 50,
+    left: '50%',
+    marginLeft: -25,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  lockArrow: {
+    position: 'absolute',
+    bottom: -6,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 8,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
   },
 });

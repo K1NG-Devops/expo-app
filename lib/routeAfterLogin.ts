@@ -18,9 +18,10 @@ function normalizeRole(r?: string | null): string | null {
   if (s === 'principal' || s.includes('principal') || s === 'admin' || s.includes('school admin')) return 'principal_admin';
   if (s.includes('teacher')) return 'teacher';
   if (s.includes('parent')) return 'parent';
+  if (s.includes('student') || s.includes('learner')) return 'student';
   
   // Handle exact matches for the canonical types
-  if (['super_admin', 'principal_admin', 'teacher', 'parent'].includes(s)) {
+  if (['super_admin', 'principal_admin', 'teacher', 'parent', 'student'].includes(s)) {
     return s;
   }
   
@@ -211,6 +212,13 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
   console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
   console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
   
+  // Tenant kind detection (best-effort)
+  const orgKind = (profile as any)?.organization_membership?.organization_kind
+    || (profile as any)?.organization_kind
+    || (profile as any)?.tenant_kind
+    || 'school'; // default
+  const isSkillsLike = ['skills', 'tertiary', 'org'].includes(String(orgKind).toLowerCase());
+  
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {
     console.warn('User role is null, routing to sign-in');
@@ -230,7 +238,7 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
     }
   }
 
-  // Route based on role and capabilities
+  // Route based on role and tenant kind
   switch (role) {
     case 'super_admin':
       return { path: '/screens/super-admin-dashboard' };
@@ -238,41 +246,26 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
     case 'principal_admin':
       console.log('[ROUTE DEBUG] Principal admin routing - organization_id:', profile.organization_id);
       console.log('[ROUTE DEBUG] Principal seat_status:', profile.seat_status);
-      
-      // Principals with inactive seats can still access their dashboard (unlike teachers)
-      // They may need to manage billing or school setup
-      if (profile.organization_id) {
-        console.log('[ROUTE DEBUG] Routing principal to dashboard with school:', profile.organization_id);
-        return { 
-          path: '/screens/principal-dashboard',
-          params: { school: profile.organization_id }
-        };
-      } else {
-        console.log('[ROUTE DEBUG] No organization_id, routing to principal onboarding');
-        // No school associated, route to principal onboarding
-        return { path: '/screens/principal-onboarding' };
+      if (isSkillsLike) {
+        return { path: '/screens/org-admin-dashboard' };
       }
-    
+      return { path: '/screens/principal-dashboard' };
+
     case 'teacher':
-      console.log('[ROUTE DEBUG] Teacher seat_status:', profile.seat_status);
-      
-      // Teachers should generally have access to their dashboard
-      // Allow teacher dashboard access for all known statuses per current type definition
-      // Previously blocked revoked/suspended statuses are not part of current union type
-      
-      // Allow all other cases (active, pending, inactive, null, etc.) to access dashboard
-      // This is more permissive and ensures teachers can access their dashboard
-      console.log('[ROUTE DEBUG] Teacher allowed dashboard access with seat_status:', profile.seat_status);
       return { path: '/screens/teacher-dashboard' };
-    
+
     case 'parent':
       return { path: '/screens/parent-dashboard' };
-    
-    default:
-      // Unknown role, route to profile setup
-      console.warn('Unknown user role:', profile.role);
-      return { path: '/profiles-gate' };
+
+    case 'student':
+      if (isSkillsLike) {
+        return { path: '/screens/learner-dashboard' };
+      }
+      return { path: '/screens/student-dashboard' };
   }
+
+  // Default fallback
+  return { path: '/' };
 }
 
 /**
