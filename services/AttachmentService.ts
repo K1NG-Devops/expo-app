@@ -11,6 +11,7 @@ import * as Crypto from 'expo-crypto';
 import { Platform, Alert } from 'react-native';
 import { assertSupabase } from '@/lib/supabase';
 import { DashAttachment, DashAttachmentKind } from '@/services/DashAIAssistant';
+import { base64ToUint8Array } from '@/lib/utils/base64';
 
 // File size limits (in bytes)
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -239,11 +240,7 @@ export async function uploadAttachment(
         { encoding: FileSystem.EncodingType.Base64 }
       );
       
-      const binaryString = atob(base64Data);
-      const uint8Array = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        uint8Array[i] = binaryString.charCodeAt(i);
-      }
+      const uint8Array = base64ToUint8Array(base64Data);
       fileData = uint8Array;
     }
 

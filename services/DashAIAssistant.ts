@@ -17,6 +17,7 @@ import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
+import { base64ToUint8Array } from '@/lib/utils/base64';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -473,6 +474,9 @@ export class DashAIAssistant {
   private isRecording = false;
   private recordingObject: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
+  private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'unknown';
+  private audioPermissionLastChecked: number = 0;
+  private readonly PERMISSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -530,6 +534,65 @@ export class DashAIAssistant {
   }
 
   /**
+   * Check if audio permission is granted (with caching)
+   */
+  private async checkAudioPermission(): Promise<boolean> {
+    try {
+      // Use cached status if recent (within 5 minutes)
+      const now = Date.now();
+      if (this.audioPermissionStatus !== 'unknown' && 
+          (now - this.audioPermissionLastChecked) < this.PERMISSION_CACHE_DURATION) {
+        return this.audioPermissionStatus === 'granted';
+      }
+
+      // Check current permission status without prompting
+      const { granted } = await Audio.getPermissionsAsync();
+      this.audioPermissionStatus = granted ? 'granted' : 'denied';
+      this.audioPermissionLastChecked = now;
+      
+      console.log(`[Dash] Audio permission status: ${this.audioPermissionStatus}`);
+      return granted;
+    } catch (error) {
+      console.error('[Dash] Failed to check audio permissions:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Request audio permission (only if not already granted)
+   */
+  private async requestAudioPermission(): Promise<boolean> {
+    try {
+      // First check if already granted (using cache)
+      const alreadyGranted = await this.checkAudioPermission();
+      if (alreadyGranted) {
+        console.log('[Dash] Audio permission already granted (cached)');
+        return true;
+      }
+
+      // Permission not granted - request it
+      console.log('[Dash] Requesting audio permission from user...');
+      const permissionResult = await Audio.requestPermissionsAsync();
+      
+      // Update cache with result
+      this.audioPermissionStatus = permissionResult.granted ? 'granted' : 'denied';
+      this.audioPermissionLastChecked = Date.now();
+      
+      if (permissionResult.granted) {
+        console.log('[Dash] Audio permission granted by user');
+      } else {
+        console.warn('[Dash] Audio permission denied by user');
+      }
+      
+      return permissionResult.granted;
+    } catch (error) {
+      console.error('[Dash] Failed to request audio permissions:', error);
+      this.audioPermissionStatus = 'denied';
+      return false;
+    }
+  }
+
+  /**
    * Initialize audio system
    */
   private async initializeAudio(): Promise<void> {
@@ -537,17 +600,19 @@ export class DashAIAssistant {
       // On web, expo-av audio mode options are not applicable; skip configuration
       if (Platform.OS === 'web') {
         console.debug('[Dash] Skipping audio mode configuration on web');
+        this.audioPermissionStatus = 'granted'; // Web doesn't need explicit permission
         return;
       }
 
-      // Request permissions with proper error handling
-      const permissionResult = await Audio.requestPermissionsAsync();
-      if (!permissionResult.granted) {
-        console.warn('[Dash] Audio recording permission denied');
-        // Don't throw here - let the recording attempt handle permission request
+      // Check current permission status (don't request during initialization)
+      const hasPermission = await this.checkAudioPermission();
+      if (!hasPermission) {
+        console.log('[Dash] Audio permission not granted yet - will request on first recording attempt');
+        // Don't throw - allow app to continue, will request permission when needed
         return;
       }
 
+      // Configure audio mode if permission is granted
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
@@ -560,7 +625,7 @@ export class DashAIAssistant {
         } as any);
       }
       
-      console.log('[Dash] Audio initialized with permissions');
+      console.log('[Dash] Audio initialized successfully with permissions');
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
       // Don't throw here - allow the app to continue without audio
@@ -672,10 +737,10 @@ export class DashAIAssistant {
     }
 
     try {
-      // Check and request permissions first
+      // Check and request permissions first (native platforms only)
       if (Platform.OS !== 'web') {
-        const permissionResult = await Audio.requestPermissionsAsync();
-        if (!permissionResult.granted) {
+        const hasPermission = await this.requestAudioPermission();
+        if (!hasPermission) {
           throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
         }
       }
@@ -2758,14 +2823,9 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         }
       } else {
         // Native (Android/iOS): read file as base64 and convert to Uint8Array (fetch(file://) is unreliable)
-        // Use the same technique as AttachmentService
+        // Use robust conversion that doesn't rely on atob/Buffer
         const base64Data = await FileSystem.readAsStringAsync(audioUri, { encoding: FileSystem.EncodingType.Base64 });
-        // atob polyfill should be available in Expo; if not, consider adding one
-        const binaryString = atob(base64Data);
-        const uint8Array = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          uint8Array[i] = binaryString.charCodeAt(i);
-        }
+        const uint8Array = base64ToUint8Array(base64Data);
         uploadBody = uint8Array;
         contentType = uriLower.endsWith('.m4a') ? 'audio/mp4'
           : uriLower.endsWith('.mp3') ? 'audio/mpeg'
