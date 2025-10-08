@@ -10,6 +10,7 @@ import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
+import ToastProvider from '@/components/ui/ToastProvider';
 
 // Initialize i18n BEFORE any components render
 import '@/lib/i18n';
@@ -176,11 +177,12 @@ export default function RootLayout() {
         <AuthProvider>
           <UpdatesProvider>
             <ThemeProvider>
-              <DashboardPreferencesProvider>
-                {/* Global themed status bar for consistent visibility across screens */}
-                <ThemedStatusBar />
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <Stack
+              <ToastProvider>
+                <DashboardPreferencesProvider>
+                  {/* Global themed status bar for consistent visibility across screens */}
+                  <ThemedStatusBar />
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <Stack
                     screenOptions={{
                       headerShown: false,
                       presentation: 'card',
@@ -197,6 +199,7 @@ export default function RootLayout() {
             {/* Platform-specific components */}
               {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
             </DashboardPreferencesProvider>
+              </ToastProvider>
           </ThemeProvider>
         </UpdatesProvider>
         </AuthProvider>

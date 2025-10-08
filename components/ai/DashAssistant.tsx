@@ -37,6 +37,7 @@ import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import { toast } from '@/components/ui/ToastProvider';
 // VoiceRecordingModal removed - using inline mic button only
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
@@ -1131,10 +1132,7 @@ return (
             <TouchableOpacity
               onPress={() => {
                 try {
-                  Alert.alert('Realtime Streaming', isStreaming ? 'Connected' : 'Idle', [
-                    { text: 'OK' },
-                    { text: 'Open Settings', onPress: () => router.push('/screens/dash-ai-settings') }
-                  ]);
+                  toast.info(`Realtime: ${isStreaming ? 'Connected' : 'Idle'}`);
                 } catch {}
               }}
               style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}
