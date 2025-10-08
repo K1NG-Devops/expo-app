@@ -14,12 +14,15 @@ interface VoiceRecorderSheetProps {
 
 export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible, onClose, dash, onSend }) => {
   const { theme } = useTheme();
-  const [phase, setPhase] = useState<'recording' | 'processing' | 'preview'>('recording');
+  const [phase, setPhase] = useState<'recording' | 'processing' | 'preview' | 'error'>('recording');
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
   const [transcript, setTranscript] = useState<string>('');
   const [timer, setTimer] = useState<number>(0);
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [progressPhase, setProgressPhase] = useState<string>('Preparing...');
+  const [progressPercent, setProgressPercent] = useState<number>(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
 
@@ -57,15 +60,47 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
     try {
       if (timerRef.current) { clearInterval(timerRef.current as unknown as number); timerRef.current = null; }
       setPhase('processing');
+      setError(null);
+      setProgressPhase('Stopping recording...');
+      setProgressPercent(10);
+      
       const uri = await dash.stopRecording();
       setAudioUri(uri);
-      const tr = await dash.transcribeOnly(uri);
+      
+      // Transcribe with progress updates
+      const tr = await dash.transcribeOnly(uri, (stage, percent) => {
+        setProgressPercent(percent);
+        switch (stage) {
+          case 'validating':
+            setProgressPhase('Validating audio...');
+            break;
+          case 'uploading':
+            setProgressPhase('Uploading to cloud...');
+            break;
+          case 'transcribing':
+            setProgressPhase('Transcribing speech...');
+            break;
+          case 'complete':
+            setProgressPhase('Done!');
+            break;
+        }
+      });
+      
       setTranscript(tr.transcript || '');
       setDuration(tr.duration || 0);
-      setPhase('preview');
+      
+      // Check if transcription failed
+      if (tr.error) {
+        setError(tr.transcript); // User-friendly error message is in transcript
+        setPhase('error');
+      } else {
+        setPhase('preview');
+      }
     } catch (e) {
-      console.error('[VoiceRecorderSheet] Failed to stop/ transcribe', e);
-      onClose();
+      console.error('[VoiceRecorderSheet] Failed to stop/transcribe', e);
+      const errorMsg = e instanceof Error ? e.message : 'Failed to process voice recording';
+      setError(errorMsg);
+      setPhase('error');
     }
   };
 
@@ -78,7 +113,39 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       onClose();
     } catch (e) {
       console.error('[VoiceRecorderSheet] Send failed', e);
+      const errorMsg = e instanceof Error ? e.message : 'Failed to send message';
+      setError(errorMsg);
+      setPhase('error');
       setSending(false);
+    }
+  };
+  
+  const retry = async () => {
+    setError(null);
+    setPhase('recording');
+    setAudioUri(null);
+    setTranscript('');
+    setTimer(0);
+    // Restart recording
+    try {
+      await dash.preWarmRecorder();
+      await dash.startRecording();
+      // Start timer
+      timerRef.current = (setInterval(() => {
+        setTimer((t) => t + 1);
+      }, 1000) as unknown) as number;
+      // Haptic feedback
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      // Pulse anim
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1.2, duration: 800, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1.0, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    } catch (e) {
+      console.error('[VoiceRecorderSheet] Failed to retry recording', e);
+      setError(e instanceof Error ? e.message : 'Failed to start recording');
     }
   };
 
@@ -116,7 +183,13 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
           {phase === 'processing' && (
             <View style={styles.center}>
               <Text style={[styles.processingText, { color: theme.text }]}>
-                Transcribing your voice note…
+                {progressPhase}
+              </Text>
+              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
+                <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: theme.primary }]} />
+              </View>
+              <Text style={[styles.progressPercent, { color: theme.textSecondary }]}>
+                {progressPercent}%
               </Text>
             </View>
           )}
@@ -136,6 +209,25 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
               </View>
             </View>
           )}
+          
+          {phase === 'error' && (
+            <View style={styles.preview}>
+              <View style={[styles.errorBox, { backgroundColor: theme.errorLight || '#fee' }]}>
+                <Ionicons name="alert-circle" size={32} color={theme.error} />
+                <Text style={[styles.errorText, { color: theme.error }]}>{error || 'Something went wrong'}</Text>
+              </View>
+              <View style={styles.actionsRow}>
+                <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
+                  <Ionicons name="close" size={18} color={theme.onPrimary || '#fff'} />
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, styles.retryBtn]} onPress={retry}>
+                  <Ionicons name="refresh" size={18} color={theme.onPrimary || '#fff'} />
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -151,13 +243,19 @@ const styles = StyleSheet.create({
   micCircle: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
   timer: { marginTop: 12, fontSize: 16 },
   bigStop: { width: 64, height: 64, borderRadius: 32, marginTop: 18, alignItems: 'center', justifyContent: 'center' },
-  processingText: { fontSize: 15 },
+  processingText: { fontSize: 15, marginBottom: 16 },
+  progressBar: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
+  progressFill: { height: '100%', borderRadius: 3 },
+  progressPercent: { marginTop: 8, fontSize: 13 },
   preview: { paddingVertical: 12 },
-  previewText: { fontSize: 16 },
+  previewText: { fontSize: 16, lineHeight: 24 },
+  errorBox: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
+  errorText: { fontSize: 15, marginTop: 12, textAlign: 'center', lineHeight: 22 },
   actionsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 16 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
   cancelBtn: { backgroundColor: '#6b7280' },
   sendBtn: { backgroundColor: '#2563eb' },
+  retryBtn: { backgroundColor: '#ea580c' },
   actionText: { fontWeight: '600' },
 });
 

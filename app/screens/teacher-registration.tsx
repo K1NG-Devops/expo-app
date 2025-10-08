@@ -17,6 +17,7 @@ export default function TeacherRegistrationScreen() {
         email: registration.email,
         password: registration.password,
         options: {
+          emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
           data: {
             first_name: registration.firstName,
             last_name: registration.lastName,
@@ -28,7 +29,16 @@ export default function TeacherRegistrationScreen() {
 
       if (authError) throw authError;
 
-      // Navigate to email verification or teacher dashboard
+      // If confirmations are enabled, no session is returned until the email is verified
+      if (!authData.session) {
+        router.replace({
+          pathname: '/screens/verify-your-email',
+          params: { email: registration.email }
+        } as any);
+        return;
+      }
+
+      // Navigate to teacher dashboard when already verified/logged in
       router.replace('/screens/teacher-dashboard');
     } catch (error: any) {
       console.error('Registration error:', error);

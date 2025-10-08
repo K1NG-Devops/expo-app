@@ -64,10 +64,12 @@ export function VoiceDock({ vc }: { vc: VoiceController }) {
               <Ionicons name="stop" size={18} color={theme.onError || '#fff'} />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[styles.round, { backgroundColor: theme.accent }]} 
-              onPress={vc.startPress}
-              onLongPress={async () => { await vc.startPress(); vc.lock(); }}
-              accessibilityLabel="Start listening">
+            <TouchableOpacity
+              style={[styles.round, { backgroundColor: theme.accent }]}
+              onPressIn={vc.startPress}
+              onLongPress={vc.lock}
+              onPressOut={async () => { if (vc.state === 'listening' && !vc.isLocked) { await vc.release(); } }}
+              accessibilityLabel="Hold to talk. Release to send. Long‑press to lock.">
               <Ionicons name="mic" size={18} color={theme.onAccent} />
             </TouchableOpacity>
           )}

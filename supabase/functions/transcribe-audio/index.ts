@@ -6,8 +6,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY')
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'deepgram' // 'deepgram' or 'openai'
-const OPENAI_TRANSCRIPTION_MODEL = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe'
+const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'openai' // 'deepgram' or 'openai'
+const OPENAI_TRANSCRIPTION_MODEL = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'whisper-1'
 
 // Create Supabase client with service role for bypassing RLS
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -294,37 +294,53 @@ async function transcribeAudio(request: Request): Promise<Response> {
 
     // Perform transcription based on configured provider
     let transcription: TranscriptionResponse
+    let providerUsed = TRANSCRIPTION_PROVIDER
+    let usedFallback = false
 
-    if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
-      transcription = await transcribeWithOpenAI(audioUrl, language)
-    } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && DEEPGRAM_API_KEY) {
-      transcription = await transcribeWithDeepgram(audioUrl, language)
-    } else {
-      // Fallback: try OpenAI first, then Deepgram
-      try {
+    try {
+      if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
+        console.log('Using OpenAI Whisper for transcription')
+        transcription = await transcribeWithOpenAI(audioUrl, language)
+        providerUsed = 'openai'
+      } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && DEEPGRAM_API_KEY) {
+        console.log('Using Deepgram for transcription')
+        transcription = await transcribeWithDeepgram(audioUrl, language)
+        providerUsed = 'deepgram'
+      } else {
+        // Fallback: try OpenAI first, then Deepgram
         if (OPENAI_API_KEY) {
+          console.log('No provider configured, trying OpenAI Whisper first')
           transcription = await transcribeWithOpenAI(audioUrl, language)
+          providerUsed = 'openai'
         } else if (DEEPGRAM_API_KEY) {
+          console.log('No provider configured, trying Deepgram')
           transcription = await transcribeWithDeepgram(audioUrl, language)
+          providerUsed = 'deepgram'
         } else {
-          throw new Error('No transcription provider configured')
+          throw new Error('No transcription provider configured. Please set OPENAI_API_KEY or DEEPGRAM_API_KEY.')
         }
-      } catch (primaryError) {
-        console.error('Primary transcription provider failed:', primaryError)
-        
-        // Try fallback provider
-        try {
-          if (TRANSCRIPTION_PROVIDER === 'openai' && DEEPGRAM_API_KEY) {
-            transcription = await transcribeWithDeepgram(audioUrl, language)
-          } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && OPENAI_API_KEY) {
-            transcription = await transcribeWithOpenAI(audioUrl, language)
-          } else {
-            throw primaryError
-          }
-        } catch (fallbackError) {
-          console.error('Fallback transcription provider also failed:', fallbackError)
+      }
+    } catch (primaryError) {
+      console.error(`Primary transcription provider (${providerUsed}) failed:`, primaryError)
+      
+      // Try fallback provider
+      try {
+        if (providerUsed === 'openai' && DEEPGRAM_API_KEY) {
+          console.log('Falling back to Deepgram')
+          transcription = await transcribeWithDeepgram(audioUrl, language)
+          providerUsed = 'deepgram'
+          usedFallback = true
+        } else if (providerUsed === 'deepgram' && OPENAI_API_KEY) {
+          console.log('Falling back to OpenAI Whisper')
+          transcription = await transcribeWithOpenAI(audioUrl, language)
+          providerUsed = 'openai'
+          usedFallback = true
+        } else {
           throw primaryError
         }
+      } catch (fallbackError) {
+        console.error('Fallback transcription provider also failed:', fallbackError)
+        throw primaryError
       }
     }
 
@@ -343,7 +359,8 @@ async function transcribeAudio(request: Request): Promise<Response> {
       language: transcription.language,
       word_count: transcription.word_count,
       confidence: transcription.confidence,
-      provider: TRANSCRIPTION_PROVIDER
+      provider: providerUsed,
+      used_fallback: usedFallback
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

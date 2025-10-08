@@ -1,11 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -43,13 +43,13 @@ const formatMessageTime = (timestamp: string): string => {
   }
 };
 
-// Message bubble component
+// Message bubble component - Memoized for better performance
 interface MessageBubbleProps {
   message: Message;
   isOwnMessage: boolean;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ message, isOwnMessage }) => {
   const { theme } = useTheme();
   
   const styles = StyleSheet.create({
@@ -111,7 +111,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isOwnMessage }) 
       </View>
     </View>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if message content or isOwnMessage changes
+  return prevProps.message.id === nextProps.message.id &&
+         prevProps.message.content === nextProps.message.content &&
+         prevProps.isOwnMessage === nextProps.isOwnMessage;
+});
 
 export default function ParentMessageThreadScreen() {
   const { threadId, title } = useLocalSearchParams<{ threadId: string; title: string }>();
@@ -336,21 +341,33 @@ export default function ParentMessageThreadScreen() {
             </Text>
           </View>
         ) : (
-          // Messages list
-          <ScrollView 
+          // Messages list - Using FlatList for better performance with large message lists
+          <FlatList
             ref={scrollViewRef}
-            style={styles.messagesContainer}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          >
-            {messages.map((message) => (
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item: message }) => (
               <MessageBubble
-                key={message.id}
                 message={message}
                 isOwnMessage={message.sender_id === user?.id}
               />
-            ))}
-          </ScrollView>
+            )}
+            style={styles.messagesContainer}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+            removeClippedSubviews={true}
+            onContentSizeChange={() => {
+              // Auto-scroll to bottom on new messages
+              (scrollViewRef.current as any)?.scrollToEnd?.({ animated: true });
+            }}
+            onLayout={() => {
+              // Scroll to bottom on initial load
+              (scrollViewRef.current as any)?.scrollToEnd?.({ animated: false });
+            }}
+          />
         )}
       </View>
       

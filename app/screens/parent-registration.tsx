@@ -85,6 +85,15 @@ export default function ParentRegistrationScreen() {
 
       if (authError) throw authError;
 
+      // If confirmations are enabled, Supabase returns no session until the email is verified
+      if (!authData.session) {
+        router.replace({
+          pathname: '/screens/verify-your-email',
+          params: { email: registration.email }
+        } as any);
+        return;
+      }
+
       // Get invitation code from URL params or from the form
       const parentReg = registration as any;
       const codeToUse = invitationCode || parentReg.invitationToken;

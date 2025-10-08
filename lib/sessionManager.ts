@@ -381,6 +381,47 @@ function needsRefresh(session: UserSession): boolean {
   return timeUntilExpiry < REFRESH_THRESHOLD;
 }
 
+// Track pending refresh to prevent concurrent calls
+let pendingRefresh: Promise<UserSession | null> | null = null;
+
+/**
+ * Process refresh session result
+ */
+async function processRefreshResult(
+  result: { data: any; error: any },
+  attempt: number
+): Promise<UserSession | null> {
+  const { data, error } = result;
+  
+  if (error) {
+    console.error('[SessionManager] Supabase refresh error:', error.message);
+    throw error;
+  }
+
+  if (!data.session) {
+    throw new Error('No session returned from refresh');
+  }
+
+  console.log('[INFO] Token refreshed successfully');
+
+  const newSession: UserSession = {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    expires_at: data.session.expires_at || Date.now() / 1000 + 3600,
+    user_id: data.session.user.id,
+    email: data.session.user.email,
+  };
+
+  await storeSession(newSession);
+
+  track('edudash.auth.session_refreshed', {
+    attempt,
+    success: true,
+  });
+
+  return newSession;
+}
+
 /**
  * Refresh session using refresh token
  */
@@ -389,6 +430,12 @@ async function refreshSession(
   attempt: number = 1,
   maxAttempts: number = 3
 ): Promise<UserSession | null> {
+  // If refresh is already in progress, return the pending promise
+  if (pendingRefresh && attempt === 1) {
+    console.log('[SessionManager] Refresh already in progress, waiting...');
+    return pendingRefresh;
+  }
+
   try {
     // Validate refresh token before attempting refresh
     if (!refreshToken || refreshToken.trim() === '') {
@@ -397,42 +444,41 @@ async function refreshSession(
 
     console.log(`[SessionManager] Attempting refresh (attempt ${attempt}/${maxAttempts})`);
     
-    const { data, error } = await assertSupabase().auth.refreshSession({
+    // Start refresh and track it
+    const refreshPromise = assertSupabase().auth.refreshSession({
       refresh_token: refreshToken,
     });
-
-    if (error) {
-      console.error('[SessionManager] Supabase refresh error:', error.message);
-      throw error;
+    
+    if (attempt === 1) {
+      pendingRefresh = (async () => {
+        try {
+          const result = await refreshPromise;
+          return await processRefreshResult(result, attempt);
+        } finally {
+          pendingRefresh = null;
+        }
+      })();
+      return pendingRefresh;
     }
+    
+    const { data, error } = await refreshPromise;
 
-    if (!data.session) {
-      throw new Error('No session returned from refresh');
-    }
-
-    console.log('[SessionManager] Session refreshed successfully');
-
-    const newSession: UserSession = {
-      access_token: data.session.access_token,
-      refresh_token: data.session.refresh_token,
-      expires_at: data.session.expires_at || Date.now() / 1000 + 3600,
-      user_id: data.session.user.id,
-      email: data.session.user.email,
-    };
-
-    await storeSession(newSession);
-
-    track('edudash.auth.session_refreshed', {
-      attempt,
-      success: true,
-    });
-
-    return newSession;
+    return await processRefreshResult({ data, error }, attempt);
   } catch (error) {
     console.error(`Session refresh attempt ${attempt} failed:`, error);
 
     // Special handling for specific refresh token errors
     if (error instanceof Error) {
+      // Don't retry for "Already Used" errors - this means a concurrent refresh succeeded
+      if (error.message.includes('Already Used')) {
+        console.log('[SessionManager] Refresh token already used (concurrent refresh), fetching current session');
+        // Try to get the session that was just refreshed
+        const currentSession = await getStoredSession();
+        if (currentSession) {
+          return currentSession;
+        }
+      }
+      
       if (error.message.includes('Invalid Refresh Token') || 
           error.message.includes('Refresh Token Not Found') ||
           error.message.includes('refresh_token_not_found')) {

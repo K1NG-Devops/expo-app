@@ -113,13 +113,43 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
   const release = useCallback(async () => {
     try {
       if (!dash) return;
-      if (state !== 'listening') return;
+      if (state !== 'listening' && state !== 'prewarm') return;
       clearTimers();
+
+      // If user releases very quickly during prewarm, wait briefly for recorder to start
+      if (state === 'prewarm' && !dash.isCurrentlyRecording()) {
+        let waited = 0;
+        const step = 100; // ms
+        const max = 800;  // ms
+        while (!dash.isCurrentlyRecording() && waited < max) {
+          await new Promise(res => setTimeout(res, step));
+          waited += step;
+        }
+      }
+
       setState('transcribing');
       let uri: string | null = null;
       try { uri = await dash.stopRecording(); } catch {}
-      if (!uri) { setState('idle'); return; }
-      const tr = await dash.transcribeOnly(uri);
+
+      // If recording never actually started, treat as cancel
+      if (!uri) {
+        setState('idle');
+        return;
+      }
+
+      const tr = await dash.transcribeOnly(uri, (phase, percent) => {
+        // Progress updates during transcription
+        console.log(`[VoiceController] Transcription ${phase}: ${percent}%`);
+        // Stay in 'transcribing' state during validation, uploading, and transcribing phases
+      });
+      
+      // Check for transcription errors
+      if (tr.error) {
+        console.error('[VoiceController] Transcription failed:', tr.error);
+        setState('error');
+        return;
+      }
+      
       setState('thinking');
       const response = await dash.sendPreparedVoiceMessage(uri, tr.transcript || '', tr.duration || 0);
       onResponse?.(response);
