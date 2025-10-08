@@ -85,7 +85,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
       // Don't process further gestures if already locked
       if (isVoiceLocked) return;
       
-      // Track upward swipe
+      // Track upward swipe (do not move the mic button itself)
       if (event.translationY < 0) {
         translateY.value = event.translationY;
       }
@@ -105,6 +105,22 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         runOnJS(onVoiceEndJS)();
       }
       runOnJS(setIsGestureRecording)(false);
+    },
+    onCancel: () => {
+      // If gesture is cancelled (component rerender or pointer leaves), behave like release if not locked
+      if (!isVoiceLocked) {
+        runOnJS(onVoiceEndJS)();
+      }
+      runOnJS(setIsGestureRecording)(false);
+      translateY.value = withSpring(0);
+    },
+    onFail: () => {
+      // Treat failure similar to cancel
+      if (!isVoiceLocked) {
+        runOnJS(onVoiceEndJS)();
+      }
+      runOnJS(setIsGestureRecording)(false);
+      translateY.value = withSpring(0);
     },
   });
 
@@ -211,9 +227,28 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             )}
             
             <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isVoiceLocked}>
-              <Animated.View style={[styles.actionButton, { backgroundColor: isGestureRecording || voiceState === 'listening' ? theme.error : theme.accent }, animatedButtonStyles]}>
-                <Ionicons name="mic" size={20} color="#fff" />
-              </Animated.View>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  try {
+                    // Tap-to-record: start + lock immediately for one-tap workflow
+                    if (!isVoiceLocked && (voiceState === 'idle' || !voiceState)) {
+                      runOnJS(onVoiceStartJS)();
+                      // Lock a moment later to ensure recorder starts
+                      setTimeout(() => { try { runOnJS(onVoiceLockJS)(); } catch {} }, 80);
+                    } else if (isVoiceLocked || voiceState === 'listening') {
+                      // Tap again to stop (send)
+                      runOnJS(onVoiceEndJS)();
+                    }
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+              >
+                <Animated.View style={[styles.actionButton, { backgroundColor: isGestureRecording || voiceState === 'listening' ? theme.error : theme.accent }]}>
+                  <Ionicons name="mic" size={20} color="#fff" />
+                </Animated.View>
+              </TouchableOpacity>
             </PanGestureHandler>
           </View>
         )}

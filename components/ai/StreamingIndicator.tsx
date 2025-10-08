@@ -132,7 +132,7 @@ export function StreamingIndicator({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     alignItems: 'flex-start',
   },

@@ -115,12 +115,24 @@ export default function RootLayout() {
           height: 0 !important;
         }
         
-        /* Force full height for main content */
+        /* Force full height and width for main content */
+        html, body {
+          width: 100vw !important;
+          max-width: 100vw !important;
+          height: 100vh !important;
+          min-height: 100vh !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow-x: hidden !important;
+        }
         #root,
         .expo-root,
         .expo-app-container {
+          width: 100vw !important;
+          max-width: 100vw !important;
           height: 100vh !important;
           min-height: 100vh !important;
+          overflow-x: hidden !important;
         }
       `;
       document.head.appendChild(style);

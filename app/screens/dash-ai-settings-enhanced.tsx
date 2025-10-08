@@ -18,6 +18,7 @@ import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
 import * as Speech from 'expo-speech';
 import Slider from '@react-native-community/slider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function DashAISettingsEnhancedScreen() {
   const { theme } = useTheme();
@@ -88,6 +89,9 @@ export default function DashAISettingsEnhancedScreen() {
   });
   
   const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  const [streamingPref, setStreamingPref] = useState<boolean>(false);
+  useEffect(() => { (async () => { try { const v = await AsyncStorage.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPref(v === 'true'); } catch {} })(); }, []);
+  const toggleStreamingPref = async (v: boolean) => { setStreamingPref(v); try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch {} };
   const [expandedSections, setExpandedSections] = useState({
     personality: false,
     voice: false,
@@ -578,6 +582,21 @@ export default function DashAISettingsEnhancedScreen() {
         {renderSectionHeader('Voice & Speech', 'voice', '🗣️')}
         {expandedSections.voice && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {/* Realtime Streaming (Beta) toggle */}
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>Realtime Streaming (Beta)</Text>
+                <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Stream voice input and receive live assistant tokens</Text>
+                <Text style={[styles.settingSubtitle, { color: theme.textSecondary, marginTop: 4 }]}>Requires EXPO_PUBLIC_DASH_STREAM_URL</Text>
+              </View>
+              <Switch
+                value={streamingPref}
+                onValueChange={toggleStreamingPref}
+                trackColor={{ false: theme.border, true: `${theme.primary}40` }}
+                thumbColor={streamingPref ? theme.primary : '#f4f3f4'}
+              />
+            </View>
+
             {renderToggleSetting(
               'voiceEnabled',
               'Voice Responses',

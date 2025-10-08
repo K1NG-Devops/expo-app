@@ -50,6 +50,12 @@ export default function DashAISettingsScreen() {
     inAppWakeWord: false,
   });
   const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  // Streaming preference toggle
+  const [streamingPref, setStreamingPref] = useState<boolean>(false);
+  const toggleStreamingPref = async (v: boolean) => {
+    setStreamingPref(v);
+    try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch {}
+  };
 
   useEffect(() => {
     initializeDashAI();
@@ -542,6 +548,21 @@ export default function DashAISettingsScreen() {
         {/* Main Settings */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>AI Settings</Text>
+
+          {/* Realtime Streaming (Beta) */}
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: theme.text }]}>Realtime Streaming (Beta)</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Stream voice input and get live assistant tokens</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary, marginTop: 4 }]}>Requires backend WebSocket at EXPO_PUBLIC_DASH_STREAM_URL</Text>
+            </View>
+            <Switch
+              value={streamingPref}
+              onValueChange={toggleStreamingPref}
+              trackColor={{ false: theme.border, true: `${theme.primary}40` }}
+              thumbColor={streamingPref ? theme.primary : '#f4f3f4'}
+            />
+          </View>
           
           {/* Personality Setting */}
           <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>

@@ -260,7 +260,7 @@ export function MessageBubbleModern({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
     paddingVertical: 8,
     alignItems: 'flex-start',
   },
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bubble: {
-    maxWidth: '90%',
+    maxWidth: '96%',
     minWidth: 140,
     borderRadius: 18,
     paddingHorizontal: 16,

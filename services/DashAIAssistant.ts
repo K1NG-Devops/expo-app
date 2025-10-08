@@ -563,6 +563,8 @@ export class DashAIAssistant {
    */
   private async requestAudioPermission(): Promise<boolean> {
     try {
+      console.log('[Dash] Checking audio permission status...');
+      
       // First check if already granted (using cache)
       const alreadyGranted = await this.checkAudioPermission();
       if (alreadyGranted) {
@@ -571,22 +573,27 @@ export class DashAIAssistant {
       }
 
       // Permission not granted - request it
-      console.log('[Dash] Requesting audio permission from user...');
+      console.log('[Dash] Permission not granted, requesting from user...');
+      console.log('[Dash] Platform:', Platform.OS);
+      
       const permissionResult = await Audio.requestPermissionsAsync();
+      console.log('[Dash] Permission result:', permissionResult);
       
       // Update cache with result
       this.audioPermissionStatus = permissionResult.granted ? 'granted' : 'denied';
       this.audioPermissionLastChecked = Date.now();
       
       if (permissionResult.granted) {
-        console.log('[Dash] Audio permission granted by user');
+        console.log('[Dash] ✅ Audio permission GRANTED by user');
       } else {
-        console.warn('[Dash] Audio permission denied by user');
+        console.warn('[Dash] ❌ Audio permission DENIED by user');
+        console.warn('[Dash] Full permission result:', JSON.stringify(permissionResult, null, 2));
       }
       
       return permissionResult.granted;
     } catch (error) {
-      console.error('[Dash] Failed to request audio permissions:', error);
+      console.error('[Dash] ❌ FAILED to request audio permissions:', error);
+      console.error('[Dash] Error details:', JSON.stringify(error, null, 2));
       this.audioPermissionStatus = 'denied';
       return false;
     }
@@ -743,6 +750,28 @@ export class DashAIAssistant {
         if (!hasPermission) {
           throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
         }
+        
+        // Configure audio mode now that we have permission
+        console.log('[Dash] Configuring audio mode for recording...');
+        try {
+          if (Platform.OS === 'ios') {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: true,
+              playsInSilentModeIOS: true,
+            });
+          } else if (Platform.OS === 'android') {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: false,
+              shouldDuckAndroid: true,
+              playThroughEarpieceAndroid: false,
+            });
+          }
+          console.log('[Dash] Audio mode configured for recording');
+        } catch (audioModeError) {
+          console.warn('[Dash] Failed to set audio mode, will try recording anyway:', audioModeError);
+        }
       }
 
       // Web compatibility checks for recording support and secure context
@@ -841,19 +870,40 @@ export class DashAIAssistant {
     // For now, this is a no-op as startRecording handles initialization
     return Promise.resolve();
   }
+  
+  /**
+   * Check if recording is currently possible (has permissions)
+   */
+  public async canRecord(): Promise<boolean> {
+    if (Platform.OS === 'web') {
+      return true; // Web permissions are checked at recording time
+    }
+    return await this.checkAudioPermission();
+  }
+  
+  /**
+   * Get current permission status
+   */
+  public getPermissionStatus(): 'granted' | 'denied' | 'unknown' {
+    return this.audioPermissionStatus;
+  }
 
   /**
    * Transcribe audio only without sending to AI
    */
-  public async transcribeOnly(audioUri: string): Promise<{
+  public async transcribeOnly(
+    audioUri: string,
+    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void
+  ): Promise<{
     transcript: string;
     duration?: number;
     storagePath?: string;
     contentType?: string;
     language?: string;
     provider?: string;
+    error?: string;
   }> {
-    return this.transcribeAudio(audioUri);
+    return this.transcribeAudio(audioUri, onProgress);
   }
 
   /**
@@ -2389,6 +2439,21 @@ export class DashAIAssistant {
       
       console.log('[Dash] About to start speaking:', normalizedText.substring(0, 100) + '...');
       
+      // Ensure audio mode allows TTS playback (iOS silent switch, Android ducking)
+      try {
+        if (Platform.OS !== 'web') {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          } as any);
+        }
+      } catch (e) {
+        console.warn('[Dash] Failed to set audio mode for TTS:', e);
+      }
+
       return new Promise<void>((resolve, reject) => {
         Speech.speak(normalizedText, {
           language: voiceSettings.language,
@@ -2776,11 +2841,17 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    * - Web: uses blob: URI fetch
    * - Native: uses file:// fetch
    */
-  private async transcribeAudio(audioUri: string): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string }> {
+  private async transcribeAudio(
+    audioUri: string,
+    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void
+  ): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string; error?: string }> {
     let storagePath: string | undefined;
     let contentType: string | undefined;
+    let errorDetails: string | undefined;
+    
     try {
       console.log('[Dash] Transcribing audio:', audioUri);
+      onProgress?.('validating', 0);
 
       // Language hint derived from personality voice settings
       const voiceLang = this.personality?.voice_settings?.language || 'en-ZA';
@@ -2789,25 +2860,62 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         return map[voiceLang] || voiceLang.slice(0, 2).toLowerCase();
       })();
 
-      // Determine user ID if available
-      let userId = 'anonymous';
+      // Validate audio file exists and has content
+      onProgress?.('validating', 10);
+      if (!audioUri || audioUri.trim().length === 0) {
+        errorDetails = 'No audio file provided';
+        throw new Error('No audio file provided');
+      }
+
+      // Determine user ID if available (never use anonymous, it breaks RLS)
+      let userId: string | null = null;
       try {
-        const { data: auth } = await assertSupabase().auth.getUser();
-        userId = auth?.user?.id || 'anonymous';
+        const supa = assertSupabase();
+        const [{ data: userData }, sessionRes] = await Promise.all([
+          supa.auth.getUser(),
+          supa.auth.getSession(),
+        ]);
+        userId = userData?.user?.id || sessionRes?.data?.session?.user?.id || null;
       } catch {}
+      if (!userId) {
+        try {
+          const sess = await getCurrentSession();
+          userId = (sess as any)?.user?.id || null;
+        } catch {}
+      }
+      if (!userId) {
+        errorDetails = 'Authentication required';
+        throw new Error('You must be signed in to send voice messages.');
+      }
+      
+      onProgress?.('validating', 20);
 
       // Prepare upload body for web vs native
       let uploadBody: any;
       let ext: string;
       let uriLower = (audioUri || '').toLowerCase();
 
+      onProgress?.('uploading', 30);
+      
       if (Platform.OS === 'web') {
         // Web: fetch blob from blob:/http(s): URI
         const res = await fetch(audioUri);
         if (!res.ok) {
+          errorDetails = `Failed to load audio file: HTTP ${res.status}`;
           throw new Error(`Failed to load recorded audio: ${res.status}`);
         }
         const blob = await res.blob();
+        
+        // Validate file size (max 25MB)
+        if (blob.size > 25 * 1024 * 1024) {
+          errorDetails = 'Audio file too large (max 25MB)';
+          throw new Error('Audio file is too large. Maximum size is 25MB.');
+        }
+        if (blob.size < 100) {
+          errorDetails = 'Audio file too small or empty';
+          throw new Error('Audio file appears to be empty.');
+        }
+        
         contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
           : uriLower.endsWith('.mp3') ? 'audio/mpeg'
           : uriLower.endsWith('.wav') ? 'audio/wav'
@@ -2825,6 +2933,18 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         // Native (Android/iOS): read file as base64 and convert to Uint8Array (fetch(file://) is unreliable)
         // Use robust conversion that doesn't rely on atob/Buffer
         const base64Data = await FileSystem.readAsStringAsync(audioUri, { encoding: FileSystem.EncodingType.Base64 });
+        
+        // Validate file size
+        const estimatedSize = (base64Data.length * 3) / 4; // Rough byte size from base64
+        if (estimatedSize > 25 * 1024 * 1024) {
+          errorDetails = 'Audio file too large (max 25MB)';
+          throw new Error('Audio file is too large. Maximum size is 25MB.');
+        }
+        if (estimatedSize < 100) {
+          errorDetails = 'Audio file too small or empty';
+          throw new Error('Audio file appears to be empty.');
+        }
+        
         const uint8Array = base64ToUint8Array(base64Data);
         uploadBody = uint8Array;
         contentType = uriLower.endsWith('.m4a') ? 'audio/mp4'
@@ -2833,6 +2953,8 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           : uriLower.endsWith('.ogg') ? 'audio/ogg'
           : 'application/octet-stream';
       }
+      
+      onProgress?.('uploading', 40);
 
       // Infer extension and filename
       ext = contentType?.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
@@ -2843,34 +2965,48 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         : 'bin';
       const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-      // Choose a platform-specific prefix for easier tracing
-      const prefix = Platform.OS === 'web' ? 'web' : Platform.OS;
-      storagePath = `${prefix}/${userId}/${fileName}`;
+      // Use a simple flat path structure (Supabase Storage may have nesting limits)
+      storagePath = `${userId}/${fileName}`;
 
       // Upload to Supabase Storage (voice-notes bucket)
+      onProgress?.('uploading', 50);
       const { error: uploadError } = await assertSupabase()
         .storage
         .from('voice-notes')
-        .upload(storagePath, uploadBody, { contentType, upsert: true });
+        .upload(storagePath, uploadBody, { contentType, upsert: false });
       if (uploadError) {
+        errorDetails = `Storage upload failed: ${uploadError.message}`;
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
+      
+      onProgress?.('uploading', 70);
 
       // Invoke the transcription function
+      onProgress?.('transcribing', 75);
       const { data, error: fnError } = await assertSupabase()
         .functions
         .invoke('transcribe-audio', {
           body: { storage_path: storagePath, language }
         });
+      
+      onProgress?.('transcribing', 95);
+      
       if (fnError) {
+        errorDetails = `Transcription service error: ${fnError.message || String(fnError)}`;
         throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
       }
 
       const transcript = (data as any)?.transcript || '';
       const provider = (data as any)?.provider;
+      
+      if (!transcript || transcript.trim().length === 0) {
+        console.warn('[Dash] Transcription returned empty result');
+      }
+      
+      onProgress?.('complete', 100);
 
       return {
-        transcript: transcript || 'Transcription returned empty result.',
+        transcript: transcript || 'No speech detected in audio.',
         storagePath,
         language,
         provider,
@@ -2878,11 +3014,32 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       };
     } catch (error) {
       console.error('[Dash] Transcription failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // More specific error messages based on error type
+      let userFriendlyError = "Voice message received - couldn't transcribe audio.";
+      if (errorDetails) {
+        if (errorDetails.includes('Authentication')) {
+          userFriendlyError = 'Please sign in to send voice messages.';
+        } else if (errorDetails.includes('too large')) {
+          userFriendlyError = 'Audio file is too large. Please record a shorter message.';
+        } else if (errorDetails.includes('too small') || errorDetails.includes('empty')) {
+          userFriendlyError = 'No audio detected. Please try recording again.';
+        } else if (errorDetails.includes('Storage upload')) {
+          userFriendlyError = 'Failed to upload audio. Please check your connection and try again.';
+        } else if (errorDetails.includes('Transcription service')) {
+          userFriendlyError = 'Transcription service is temporarily unavailable. Please try again later.';
+        } else {
+          userFriendlyError = `Transcription failed: ${errorDetails}`;
+        }
+      }
+      
       return {
-        transcript: "Voice message received - couldn't transcribe audio.",
+        transcript: userFriendlyError,
         storagePath,
         language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en',
         contentType,
+        error: errorDetails || errorMessage,
       };
     }
   }

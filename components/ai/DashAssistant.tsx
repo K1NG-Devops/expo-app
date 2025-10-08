@@ -36,6 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 // VoiceRecordingModal removed - using inline mic button only
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
@@ -82,6 +83,9 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
+  // Voice send UX placeholder
+  const [showVoiceSending, setShowVoiceSending] = useState(false);
+  const [pendingVoiceMs, setPendingVoiceMs] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const flatListRef = useRef<FlatList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
@@ -373,7 +377,9 @@ for (const attachment of attachmentsToUpload) {
 
       // Auto-speak response if enabled
       setTimeout(() => {
-        speakResponse(response);
+        try {
+          if (autoSpeak) speakResponse(response);
+        } catch {}
       }, 500);
 
     } catch (error) {
@@ -932,7 +938,8 @@ return (
           setConversation(updatedConv);
         }
       } catch {}
-      setTimeout(() => { try { speakResponse(response); } catch {} }, 400);
+      try { setShowVoiceSending(false); } catch {}
+      setTimeout(() => { try { if (autoSpeak) speakResponse(response); } catch {} }, 400);
     }
   });
 
@@ -946,6 +953,9 @@ return (
       return () => clearInterval(interval);
     } else {
       setVoiceTimerMs(0);
+    }
+    if (vc.state === 'idle' || vc.state === 'error') {
+      try { setShowVoiceSending(false); } catch {}
     }
   }, [vc.state]);
 
@@ -964,6 +974,72 @@ return (
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
   React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
+
+  // Waveform animation for non-streaming sending placeholder
+  const [waveVals] = useState([
+    useRef(new Animated.Value(0.4)).current,
+    useRef(new Animated.Value(0.6)).current,
+    useRef(new Animated.Value(0.5)).current,
+  ]);
+  useEffect(() => {
+    if (!streamingEnabled && showVoiceSending) {
+      const loops = waveVals.map((v, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(v, { toValue: 1.0, duration: 250 + i * 60, useNativeDriver: true }),
+            Animated.timing(v, { toValue: 0.4, duration: 250 + i * 60, useNativeDriver: true }),
+          ])
+        )
+      );
+      loops.forEach(l => l.start());
+      return () => loops.forEach(l => l.stop());
+    } else {
+      // reset
+      waveVals.forEach(v => v.setValue(0.5));
+    }
+  }, [streamingEnabled, showVoiceSending]);
+
+  // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
+  const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch {} })(); }, []);
+  const streamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
+  const [streamUserPartial, setStreamUserPartial] = React.useState('');
+  const [streamAssistant, setStreamAssistant] = React.useState('');
+  const [isStreaming, setIsStreaming] = React.useState(false);
+  const streamSpokenRef = React.useRef(false);
+  const realtime = useRealtimeVoice({
+    enabled: streamingEnabled,
+    // Provide token from Supabase session for authenticated WSS
+    tokenProvider: async () => {
+      try {
+        const supa = assertSupabase();
+        const { data: { session } } = await supa.auth.getSession();
+        return session?.access_token || null;
+      } catch {
+        return null;
+      }
+    },
+    onPartialTranscript: (t) => setStreamUserPartial(t || ''),
+    onFinalTranscript: (t) => setStreamUserPartial(t || ''),
+    onAssistantToken: (tok) => setStreamAssistant((p) => (p + String(tok || ''))),
+    onStatusChange: (s) => setIsStreaming(s === 'streaming'),
+  });
+
+  // Speak streamed assistant buffer when streaming finishes (scaffolding)
+  React.useEffect(() => {
+    try {
+      if (!streamingEnabled) return;
+      if (isStreaming) {
+        streamSpokenRef.current = false;
+        return;
+      }
+      // Not streaming; if buffer exists and not spoken yet, speak once
+      if (!isStreaming && streamAssistant && streamAssistant.length > 0 && autoSpeak && !streamSpokenRef.current) {
+        streamSpokenRef.current = true;
+        speakResponse({ id: `streamed_${Date.now()}`, type: 'assistant', content: streamAssistant, timestamp: Date.now() } as any);
+      }
+    } catch {}
+  }, [isStreaming, streamingEnabled, streamAssistant, autoSpeak]);
 
 
   if (!isInitialized) {
@@ -1013,6 +1089,22 @@ return (
         </View>
 
         <View style={styles.headerRight}>
+          {/* Streaming status indicator */}
+          {streamingEnabled && (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  Alert.alert('Realtime Streaming', isStreaming ? 'Connected' : 'Idle', [
+                    { text: 'OK' },
+                    { text: 'Open Settings', onPress: () => router.push('/screens/dash-ai-settings') }
+                  ]);
+                } catch {}
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}
+            >
+              <View style={[styles.streamStatusDot, { backgroundColor: isStreaming ? theme.success : theme.border }]} />
+            </TouchableOpacity>
+          )}
           {/* Verify tier button */}
           <TouchableOpacity
             style={styles.iconButton}
@@ -1113,25 +1205,56 @@ return (
       </View>
 
       {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item: any) => item.id}
-        renderItem={({ item, index }: any) => renderMessage(item, index)}
-        contentContainerStyle={styles.messagesContent}
-        style={styles.messagesContainer}
-        showsVerticalScrollIndicator={false}
-ListFooterComponent={(
-          <>
-            {isLoading && (
-              <StreamingIndicator showThinking thinkingText="Thinking..." />
+      {(() => {
+        const ephemeral: DashMessage[] = [] as any;
+        if (streamingEnabled && isStreaming && streamUserPartial.length > 0) {
+          ephemeral.push({ id: 'ephemeral_user', type: 'user', content: streamUserPartial, timestamp: Date.now() } as any);
+        }
+        if (streamingEnabled && isStreaming && streamAssistant.length > 0) {
+          ephemeral.push({ id: 'ephemeral_assistant', type: 'assistant', content: streamAssistant, timestamp: Date.now(), metadata: { live: true } } as any);
+        }
+        const data = [...messages, ...ephemeral];
+        return (
+          <FlatList
+            ref={flatListRef}
+            data={data}
+            keyExtractor={(item: any, idx) => `${item.id}_${idx}`}
+            renderItem={({ item, index }: any) => renderMessage(item, index)}
+            contentContainerStyle={styles.messagesContent}
+            style={styles.messagesContainer}
+            showsVerticalScrollIndicator={false}
+            ListFooterComponent={(
+              <>
+                {/* Non-streaming voice send placeholder */}
+                {!streamingEnabled && showVoiceSending && (
+                  <View style={[styles.messageContainer, styles.userMessage]}>
+                    <View style={[styles.messageBubble, { backgroundColor: theme.primary }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* Waveform animation */}
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2 }}>
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[0] }] }]} />
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[1] }] }]} />
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[2] }] }]} />
+                        </View>
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>
+                          Sending voice... {Math.max(1, Math.floor((pendingVoiceMs || 0) / 1000))}s
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+                {/* Thinking indicator only when not streaming */}
+                {!isStreaming && (isLoading || vc.state === 'transcribing' || vc.state === 'thinking') && (
+                  <StreamingIndicator showThinking thinkingText={vc.state === 'transcribing' ? 'Transcribing...' : 'Thinking...'} />
+                )}
+                {renderSuggestedActions()}
+              </>
             )}
-            {renderSuggestedActions()}
-          </>
-        )}
-        onContentSizeChange={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: true }); } catch {} }}
-        onLayout={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: false }); } catch {} }}
-      />
+            onContentSizeChange={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: true }); } catch {} }}
+            onLayout={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: false }); } catch {} }}
+          />
+        );
+      })()}
 
       {/* Input Area */}
       <EnhancedInputArea
@@ -1148,15 +1271,31 @@ ListFooterComponent={(
         voiceTimerMs={voiceTimerMs}
         onVoiceStart={() => {
           try {
-            vc.startPress().catch((e) => console.error('Voice start error:', e));
+            if (streamingEnabled) {
+              // Clear any previous streamed buffers and start realtime stream
+              setStreamUserPartial('');
+              setStreamAssistant('');
+              streamSpokenRef.current = false;
+              realtime.startStream().catch((e: any) => console.error('Realtime start error:', e));
+            } else {
+              vc.startPress().catch((e) => console.error('Voice start error:', e));
+            }
           } catch (e) {
             console.error('Voice start error:', e);
           }
         }}
         onVoiceEnd={() => {
           try {
-            // Release voice recording (send)
-            vc.release().catch((e) => console.error('Voice end error:', e));
+            if (streamingEnabled) {
+              // Stop realtime stream; footer will show streaming assistant content if any
+              realtime.stopStream().catch((e: any) => console.error('Realtime stop error:', e));
+            } else {
+              // Immediate UX: show sending placeholder using local timer estimate
+              setShowVoiceSending(true);
+              setPendingVoiceMs(voiceTimerMs);
+              // Release voice recording (send)
+              vc.release().catch((e) => console.error('Voice end error:', e));
+            }
           } catch (e) {
             console.error('Voice end error:', e);
           }
@@ -1170,7 +1309,14 @@ ListFooterComponent={(
         }}
         onVoiceCancel={() => {
           try {
-            vc.cancel().catch((e) => console.error('Voice cancel error:', e));
+            if (streamingEnabled) {
+              realtime.cancel().catch((e: any) => console.error('Realtime cancel error:', e));
+              setStreamUserPartial('');
+              setStreamAssistant('');
+              streamSpokenRef.current = false;
+            } else {
+              vc.cancel().catch((e) => console.error('Voice cancel error:', e));
+            }
           } catch (e) {
             console.error('Voice cancel error:', e);
           }
@@ -1212,6 +1358,8 @@ function getTierColor(tier?: string) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   loadingContainer: {
     flex: 1,
@@ -1292,7 +1440,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    padding: 16,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 64,
   },
   hintOverlay: {
     position: 'absolute',
@@ -1312,7 +1462,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 16,
     alignItems: 'flex-start',
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   userMessage: {
     justifyContent: 'flex-end',
@@ -1421,7 +1571,9 @@ const styles = StyleSheet.create({
   },
   suggestedActionsContainer: {
     marginTop: 8,
-    paddingLeft: 28,
+    paddingHorizontal: 8,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   suggestedActionsTitle: {
     fontSize: 12,
@@ -1482,6 +1634,11 @@ const styles = StyleSheet.create({
   },
   recordingText: {
     fontSize: 12,
+  },
+  waveBar: {
+    width: 3,
+    height: 12,
+    borderRadius: 2,
   },
   messageBubbleFooter: {
     flexDirection: 'row',
@@ -1553,6 +1710,11 @@ const styles = StyleSheet.create({
   attachmentProgressFill: {
     height: '100%',
     borderRadius: 1,
+  },
+  streamStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   attachButton: {
     width: 40,
