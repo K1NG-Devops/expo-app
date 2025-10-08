@@ -62,22 +62,12 @@ export async function detectRoleAndSchool(user?: User | null): Promise<{ role: s
     }
   }
   
-  // Second fallback: legacy profiles table by id/user_id
-  if (id && (!role || school === null)) {
-    try {
-      let data: any = null; let error: any = null;
-      ({ data, error } = await assertSupabase().from('profiles').select('role,preschool_id').eq('id', id).maybeSingle());
-      if ((!data || error) && id) {
-        ({ data, error } = await assertSupabase().from('profiles').select('role,preschool_id').eq('user_id', id).maybeSingle());
-      }
-      if (!error && data) {
-        role = normalizeRole((data as any).role ?? role);
-        school = (data as any).preschool_id ?? school;
-      }
-    } catch (e) {
-      console.debug('Fallback #2 (profiles table) lookup failed', e);
-    }
-  }
+  // Second fallback removed:
+  // Some deployments used a legacy 'user_id' column in profiles. Referencing it causes 400 errors
+  // on databases that never had that column. To avoid noisy logs and failed requests, we rely solely
+  // on the primary key lookup above (id = auth.users.id). If you need legacy support, consider a
+  // dedicated RPC that handles both shapes server-side.
+  // if (id && (!role || school === null)) { ... }
   return { role, school };
 }
 
