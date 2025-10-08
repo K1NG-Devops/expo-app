@@ -4153,6 +4153,37 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       this.proactiveTimer = null;
     }
   }
+
+  /**
+   * Append a user message to the current conversation (or specified conversation)
+   */
+  public async appendUserMessage(content: string, conversationId?: string): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
+    const msg: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: content,
+      timestamp: Date.now(),
+    };
+    await this.addMessageToConversation(convId, msg);
+    return msg;
+  }
+
+  /**
+   * Append an assistant message to the current conversation (or specified conversation)
+   */
+  public async appendAssistantMessage(content: string, conversationId?: string, metadata?: DashMessage['metadata']): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
+    const msg: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'assistant',
+      content: content,
+      timestamp: Date.now(),
+      ...(metadata ? { metadata } : {}),
+    } as DashMessage;
+    await this.addMessageToConversation(convId, msg);
+    return msg;
+  }
 }
 
 export default DashAIAssistant;

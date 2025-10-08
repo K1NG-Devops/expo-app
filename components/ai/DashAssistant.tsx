@@ -1007,6 +1007,7 @@ return (
   const [streamAssistant, setStreamAssistant] = React.useState('');
   const [isStreaming, setIsStreaming] = React.useState(false);
   const streamSpokenRef = React.useRef(false);
+  const streamFinalizedRef = React.useRef(false);
   const realtime = useRealtimeVoice({
     enabled: streamingEnabled,
     // Provide token from Supabase session for authenticated WSS
@@ -1031,6 +1032,7 @@ return (
       if (!streamingEnabled) return;
       if (isStreaming) {
         streamSpokenRef.current = false;
+        streamFinalizedRef.current = false;
         return;
       }
       // Not streaming; if buffer exists and not spoken yet, speak once
@@ -1040,6 +1042,41 @@ return (
       }
     } catch {}
   }, [isStreaming, streamingEnabled, streamAssistant, autoSpeak]);
+
+  // Finalize streamed user/assistant content into conversation when streaming ends
+  React.useEffect(() => {
+    (async () => {
+      try {
+        if (!streamingEnabled) return;
+        if (isStreaming) return; // still streaming
+        if (!dashInstance) return;
+        const hasUser = (streamUserPartial || '').trim().length > 0;
+        const hasAssistant = (streamAssistant || '').trim().length > 0;
+        if (!hasUser && !hasAssistant) return;
+        if (streamFinalizedRef.current) return;
+        streamFinalizedRef.current = true;
+
+        if (hasUser) {
+          await dashInstance.appendUserMessage((streamUserPartial || '').trim());
+        }
+        if (hasAssistant) {
+          await dashInstance.appendAssistantMessage((streamAssistant || '').trim());
+        }
+        setStreamUserPartial('');
+        setStreamAssistant('');
+        const convId = dashInstance.getCurrentConversationId();
+        if (convId) {
+          const updatedConv = await dashInstance.getConversation(convId);
+          if (updatedConv) {
+            setConversation(updatedConv);
+            setMessages(updatedConv.messages || []);
+          }
+        }
+      } catch (e) {
+        console.warn('Finalize streaming messages failed:', e);
+      }
+    })();
+  }, [isStreaming, streamingEnabled, dashInstance]);
 
 
   if (!isInitialized) {
@@ -1276,6 +1313,7 @@ return (
               setStreamUserPartial('');
               setStreamAssistant('');
               streamSpokenRef.current = false;
+              streamFinalizedRef.current = false;
               realtime.startStream().catch((e: any) => console.error('Realtime start error:', e));
             } else {
               vc.startPress().catch((e) => console.error('Voice start error:', e));
@@ -1314,6 +1352,7 @@ return (
               setStreamUserPartial('');
               setStreamAssistant('');
               streamSpokenRef.current = false;
+              streamFinalizedRef.current = false;
             } else {
               vc.cancel().catch((e) => console.error('Voice cancel error:', e));
             }
