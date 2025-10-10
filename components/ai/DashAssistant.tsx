@@ -700,6 +700,16 @@ return (
       'view_classic_features': 'what are classic dashboard features',
       'switch_dashboard_layout': 'help me switch dashboard layout',
       'view_options': 'show me dashboard options',
+      // PDF actions
+      'download_pdf': 'download the generated PDF',
+      'view_document': 'show me the PDF document', 
+      'create_another': 'create another PDF document',
+      'customize_template': 'customize the PDF template',
+      'try_again': 'try generating the PDF again',
+      'simplify_request': 'simplify my PDF request',
+      'contact_support': 'help with PDF generation issues',
+      'alternative_method': 'show alternative PDF creation methods',
+      'check_system': 'check PDF system status',
       // Additional
       'export_pdf': 'export pdf',
       'send_message': 'message parents',
@@ -724,6 +734,16 @@ return (
       'explore_features': '🔍 Explore Features',
       'lesson_planning': '📚 Lesson Planning',
       'student_management': '👥 Student Management',
+      // PDF-specific actions - short text for mobile
+      'download_pdf': '⬇️ Download',
+      'view_document': '👁️ View',
+      'create_another': '➕ Create More',
+      'customize_template': '🎨 Customize',
+      'try_again': '🔄 Try Again',
+      'simplify_request': '📝 Simplify',
+      'contact_support': '🆘 Support',
+      'alternative_method': '🔀 Alternative',
+      'check_system': '⚙️ Check System',
     };
     
     return displayMap[action] || action.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -740,7 +760,7 @@ return (
         <Text style={[styles.suggestedActionsTitle, { color: theme.textSecondary }]}>
           Quick actions:
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.suggestedActionsRow}>
           {lastMessage.metadata.suggested_actions.map((action: string, index: number) => (
             <TouchableOpacity
               key={index}
@@ -762,7 +782,7 @@ return (
               </Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       </View>
     );
   };
@@ -1608,23 +1628,37 @@ const styles = StyleSheet.create({
   },
   suggestedActionsContainer: {
     marginTop: 8,
-    paddingHorizontal: 8,
+    paddingHorizontal: screenWidth < 400 ? 4 : 8,
     width: '100%',
     alignSelf: 'stretch',
   },
   suggestedActionsTitle: {
-    fontSize: 12,
-    marginBottom: 8,
+    fontSize: screenWidth < 400 ? 11 : 12,
+    marginBottom: 6,
+    paddingHorizontal: 4,
+  },
+  suggestedActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    width: '100%',
   },
   suggestedAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: screenWidth < 400 ? 8 : 12,
+    paddingVertical: screenWidth < 400 ? 5 : 6,
+    borderRadius: screenWidth < 400 ? 12 : 16,
+    marginRight: screenWidth < 400 ? 6 : 8,
+    marginBottom: screenWidth < 400 ? 6 : 8,
+    minHeight: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 1,
   },
   suggestedActionText: {
-    fontSize: 12,
+    fontSize: screenWidth < 400 ? 11 : 12,
     textTransform: 'capitalize',
+    textAlign: 'center',
   },
   inputContainer: {
     padding: 16,

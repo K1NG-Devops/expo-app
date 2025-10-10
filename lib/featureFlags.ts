@@ -1,4 +1,4 @@
-import { getPostHog } from '@/lib/posthogClient';
+import { getPostHog } from './posthogClient';
 
 export interface FeatureFlags {
   // Core features
@@ -70,6 +70,12 @@ export interface FeatureFlags {
   sa_languages_support: boolean; // English, Afrikaans, isiZulu, Sesotho
   caps_curriculum_alignment: boolean;
   sa_payment_methods: boolean;
+  
+  // Assistant Enhancement Flags (v2)
+  assistant_v2: boolean;
+  assistant_voice_overlay: boolean;
+  assistant_quota_prefetch: boolean;
+  assistant_semantic_memory: boolean;
 }
 
 // Default feature flags - primarily controlled via PostHog but with env fallbacks
@@ -146,6 +152,12 @@ const DEFAULT_FLAGS: FeatureFlags = {
   sa_languages_support: SA_TENANT_DEFAULT, // English, Afrikaans, isiZulu, Sesotho
   caps_curriculum_alignment: SA_TENANT_DEFAULT, // CAPS = Curriculum and Assessment Policy Statement
   sa_payment_methods: SA_TENANT_DEFAULT, // EFT, Ozow, SnapScan
+  
+  // Assistant Enhancement Flags (v2) - Gradual rollout
+  assistant_v2: process.env.EXPO_PUBLIC_ASSISTANT_V2_ENABLED === 'true',
+  assistant_voice_overlay: process.env.EXPO_PUBLIC_ASSISTANT_VOICE_OVERLAY === 'true',
+  assistant_quota_prefetch: process.env.EXPO_PUBLIC_ASSISTANT_QUOTA_PREFETCH === 'true',
+  assistant_semantic_memory: process.env.EXPO_PUBLIC_ASSISTANT_SEMANTIC_MEMORY === 'true',
 };
 
 let cachedFlags: FeatureFlags | null = null;

@@ -1,7 +1,7 @@
 import * as Sentry from 'sentry-expo';
 import { Platform } from 'react-native';
-import { getPostHog } from '@/lib/posthogClient';
-import { getFeatureFlagsSync } from '@/lib/featureFlags';
+import { getPostHog } from './posthogClient';
+import { getFeatureFlagsSync } from './featureFlags';
 
 /**
  * Standardized event naming convention: edudash.module.action

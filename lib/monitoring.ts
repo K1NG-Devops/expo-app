@@ -1,7 +1,7 @@
 import * as Sentry from 'sentry-expo';
 import { Platform } from 'react-native';
-import { initPostHog } from '@/lib/posthogClient';
-import { getFeatureFlagsSync } from '@/lib/featureFlags';
+import { initPostHog } from './posthogClient';
+import { getFeatureFlagsSync } from './featureFlags';
 
 let started = false;
 
@@ -276,6 +276,92 @@ export function reportError(error: Error, context?: Record<string, any>) {
   } catch (reportingError) {
     if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
       console.error('Failed to report error:', reportingError);
+    }
+  }
+}
+
+/**
+ * Generate correlation ID for assistant interactions
+ */
+export function generateCorrelationId(): string {
+  return `dash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Track assistant-specific events with consistent naming
+ */
+export function trackAssistantEvent(name: string, props: Record<string, any> & {
+  correlation_id?: string;
+  conversation_id?: string;
+  message_id?: string;
+}) {
+  try {
+    const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true' || process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false';
+    if (telemetryDisabled) return;
+
+    const eventName = name.startsWith('edudash.assistant.') ? name : `edudash.assistant.${name}`;
+    const scrubbedProps = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true'
+      ? scrubPII({ ...props, assistant: true })
+      : { ...props, assistant: true };
+
+    // Use PostHog if available, otherwise Sentry breadcrumb
+    const posthog = require('@/lib/posthogClient').getPostHog();
+    if (posthog) {
+      posthog.capture(eventName, scrubbedProps);
+    } else {
+      trackAssistantBreadcrumb(eventName, scrubbedProps);
+    }
+  } catch (error) {
+    if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.error('Failed to track assistant event:', error);
+    }
+  }
+}
+
+/**
+ * Track assistant performance with consistent naming
+ */
+export function trackAssistantPerformance(name: string, duration: number, props: Record<string, any> = {}) {
+  trackAssistantEvent(name, { ...props, duration_ms: duration });
+}
+
+/**
+ * Add assistant breadcrumb with PII scrubbing
+ */
+export function trackAssistantBreadcrumb(message: string, data?: Record<string, any>) {
+  try {
+    const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true' || process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false';
+    if (telemetryDisabled) return;
+
+    const scrubbed = process.env.EXPO_PUBLIC_PII_SCRUBBING_ENABLED === 'true'
+      ? scrubPII(data)
+      : data;
+
+    const Native = (Sentry as any).Native;
+    if (Native && typeof Native.addBreadcrumb === 'function') {
+      Native.addBreadcrumb({
+        category: 'assistant',
+        message,
+        level: 'info',
+        data: {
+          platform: Platform.OS,
+          ...scrubbed,
+        },
+      });
+    } else if (typeof (Sentry as any).addBreadcrumb === 'function') {
+      (Sentry as any).addBreadcrumb({
+        category: 'assistant',
+        message,
+        level: 'info',
+        data: {
+          platform: Platform.OS,
+          ...scrubbed,
+        },
+      });
+    }
+  } catch (error) {
+    if (process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.error('Failed to add assistant breadcrumb:', error);
     }
   }
 }

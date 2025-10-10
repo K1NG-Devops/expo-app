@@ -13,11 +13,15 @@ import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
 import { Platform } from 'react-native';
 import { router } from 'expo-router';
-import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
+import { simplePDFGenerator } from '@/services/SimplePDFGenerator';
+import type { SimplePDFOptions } from '@/services/SimplePDFGenerator';
+import type { DocumentType, DashPDFOptions } from '@/services/DashPDFGenerator';
 import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
 import { base64ToUint8Array } from '@/lib/utils/base64';
+import { assistantContextBridge, type ContextSnapshot } from '@/lib/AssistantContextBridge';
+import { generateCorrelationId, trackAssistantEvent, trackAssistantPerformance, trackAssistantBreadcrumb } from '@/lib/monitoring';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -361,9 +365,17 @@ const DEFAULT_PERSONALITY: DashPersonality = {
     'workflow optimization'
   ],
   voice_settings: {
-    rate: 0.8,
-    pitch: 1.0,
-    language: 'en-US'
+    rate: 0.9,        // Slightly faster for better engagement
+    pitch: 1.0,       // Natural pitch
+    language: 'en-US',
+    voice: undefined, // Let system choose best voice
+    // Enhanced speech quality settings
+    quality: 'enhanced',
+    volume: 1.0,
+    // Natural speech patterns
+    pauseAfterSentences: true,
+    pauseAfterCommas: true,
+    emphasizeImportantWords: true
   },
   role_specializations: {
     teacher: {
@@ -1178,34 +1190,187 @@ export class DashAIAssistant {
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
-    // Handle bullet points and list formatting FIRST (before other transformations)
+    // Step 1: Handle markdown and formatting FIRST
+    normalized = this.normalizeMarkdownForSpeech(normalized);
+    
+    // Step 2: Handle URLs, emails, and technical content
+    normalized = this.normalizeTechnicalContent(normalized);
+    
+    // Step 3: Handle bullet points and list formatting
     normalized = this.normalizeBulletPoints(normalized);
     
-    // Handle numbers intelligently
+    // Step 4: Handle numbers intelligently
     normalized = this.normalizeNumbers(normalized);
     
-    // Handle dates and time formats
+    // Step 5: Handle dates and time formats
     normalized = this.normalizeDatesAndTime(normalized);
     
-    // Handle underscores and special formatting
+    // Step 6: Handle underscores and special formatting
     normalized = this.normalizeSpecialFormatting(normalized);
     
-    // Handle abbreviations and acronyms
+    // Step 7: Handle abbreviations and acronyms
     normalized = this.normalizeAbbreviations(normalized);
     
-    // Handle mathematical expressions (only in math contexts)
+    // Step 8: Handle mathematical expressions (only in math contexts)
     normalized = this.normalizeMathExpressions(normalized);
     
-    // Remove emojis and special characters (simplified for ES5 compatibility)
-    normalized = normalized
-      .replace(/[\u2600-\u26FF]/g, '')  // Misc symbols
-      .replace(/[\u2700-\u27BF]/g, '')  // Dingbats
-      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // Surrogate pairs (emojis)
-      // Remove extra whitespace
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Step 9: Add natural speech pauses and emphasis
+    normalized = this.addNaturalSpeechPatterns(normalized);
+    
+    // Step 10: Final cleanup - Remove emojis and special characters
+    normalized = this.finalTextCleanup(normalized);
     
     return normalized;
+  }
+  
+  /**
+   * Normalize markdown and formatting elements for speech
+   */
+  private normalizeMarkdownForSpeech(text: string): string {
+    return text
+      // Remove code blocks entirely - they're not meant for speech
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1') // Inline code - keep content but remove backticks
+      
+      // Handle headers by adding natural pauses
+      .replace(/^#{1,6}\s+(.+)$/gm, '$1.') // Convert headers to sentences
+      
+      // Handle bold and italic - keep text, add slight emphasis indicators
+      .replace(/\*\*([^*]+)\*\*/g, '$1') // Bold
+      .replace(/\*([^*]+)\*/g, '$1') // Italic
+      .replace(/__([^_]+)__/g, '$1') // Bold underscore
+      .replace(/_([^_]+)_/g, '$1') // Italic underscore
+      
+      // Handle links - speak the link text, ignore URL
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [text](url) -> text
+      .replace(/<([^>]+)>/g, '') // Remove HTML-style links entirely
+      
+      // Handle blockquotes
+      .replace(/^>\s+(.+)$/gm, 'Quote: $1')
+      
+      // Handle horizontal rules
+      .replace(/^[-*_]{3,}$/gm, '')
+      
+      // Handle tables - convert to readable format
+      .replace(/\|([^\n]+)\|/g, (match) => {
+        return match.replace(/\|/g, ', ').replace(/^,\s*/, '').replace(/,\s*$/, '') + '.';
+      })
+      
+      // Remove table separators
+      .replace(/^\|?[-:]+\|?[-:\|]*$/gm, '');;
+  }
+  
+  /**
+   * Normalize technical content like URLs, emails, file paths
+   */
+  private normalizeTechnicalContent(text: string): string {
+    return text
+      // Handle URLs - replace with "link" or extract domain for important ones
+      .replace(/https?:\/\/([^\s]+)/g, (match, url) => {
+        // Extract domain for common educational sites
+        if (url.includes('wikipedia.org')) return 'Wikipedia link';
+        if (url.includes('youtube.com')) return 'YouTube video';
+        if (url.includes('khan')) return 'Khan Academy link';
+        if (url.includes('edu')) return 'educational link';
+        return 'link';
+      })
+      
+      // Handle email addresses
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, 'email address')
+      
+      // Handle file paths - simplify to just filename
+      .replace(/[C-Z]:\\[^\s]+\\([^\s\\]+)/g, 'file $1')
+      .replace(/\/[^\s]+\/([^\s\/]+)/g, 'file $1')
+      
+      // Handle version numbers (v1.2.3 -> version one point two point three)
+      .replace(/v(\d+(?:\.\d+)*)/gi, (match, version) => {
+        const versionWords = version.split('.').map((n: string) => this.numberToWords(parseInt(n))).join(' point ');
+        return `version ${versionWords}`;
+      })
+      
+      // Handle hex colors (#FF0000 -> color code)
+      .replace(/#[0-9A-Fa-f]{3,8}\b/g, 'color code')
+      
+      // Handle common programming terms
+      .replace(/\b(null|undefined|NaN|true|false)\b/gi, (match) => match.toLowerCase())
+      
+      // Handle JSON-like structures - remove or simplify
+      .replace(/\{[^{}]*\}/g, 'data object')
+      .replace(/\[[^\[\]]*\]/g, 'list');
+  }
+  
+  /**
+   * Add natural speech patterns, pauses, and emphasis
+   */
+  private addNaturalSpeechPatterns(text: string): string {
+    return text
+      // Add pauses after sentences
+      .replace(/([.!?])\s+/g, '$1 ') // Normalize sentence endings
+      
+      // Add slight pauses after commas for better flow
+      .replace(/,\s*/g, ', ')
+      
+      // Handle parenthetical statements with pauses
+      .replace(/\s*\(([^)]+)\)\s*/g, ', $1, ')
+      
+      // Add emphasis indicators for important terms
+      .replace(/\b(important|note|warning|caution|remember)\b/gi, (match) => match.toLowerCase())
+      
+      // Handle exclamations more naturally
+      .replace(/!{2,}/g, '!')
+      
+      // Handle question sequences
+      .replace(/\?{2,}/g, '?')
+      
+      // Add natural breaks for long sentences (over 150 characters)
+      .replace(/([^.!?]{150,}?)\s+(and|or|but|however|therefore|meanwhile|furthermore)\s+/g, '$1. $2 ')
+      
+      // Handle lists more naturally
+      .replace(/:\s*\n/g, ': ')
+      
+      // Normalize multiple periods
+      .replace(/\.{2,}/g, '.');
+  }
+  
+  /**
+   * Final text cleanup - remove emojis, special characters, normalize whitespace
+   */
+  private finalTextCleanup(text: string): string {
+    return text
+      // Remove emojis and special Unicode characters (comprehensive)
+      .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Emoticons
+      .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Misc symbols
+      .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Transport symbols
+      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '') // Flags
+      .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Misc symbols
+      .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Dingbats
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '')   // Variation selectors
+      .replace(/[\u{1F900}-\u{1F9FF}]/gu, '') // Supplemental symbols
+      
+      // Remove other problematic characters
+      .replace(/[\u2018\u2019]/g, "'") // Smart quotes to regular quotes
+      .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
+      .replace(/[\u2013\u2014]/g, '-') // Em/en dashes to hyphens
+      .replace(/[\u2026]/g, '...') // Ellipsis
+      
+      // Remove excessive punctuation
+      .replace(/[.]{4,}/g, '...')
+      .replace(/[,]{2,}/g, ',')
+      .replace(/[;]{2,}/g, ';')
+      
+      // Normalize whitespace
+      .replace(/\s+/g, ' ') // Multiple spaces to single
+      .replace(/\n\s*\n/g, '. ') // Multiple newlines to sentence break
+      .replace(/\n/g, ' ') // Single newlines to space
+      
+      // Clean up sentence structure
+      .replace(/\s*\.\s*\.\s*/g, '. ') // Fix scattered periods
+      .replace(/\s+([.!?])/g, '$1') // Remove spaces before punctuation
+      .replace(/([.!?])\s*([.!?])/g, '$1 ') // Remove duplicate punctuation
+      
+      // Final trim and ensure proper ending
+      .trim()
+      .replace(/([^.!?])$/, '$1.'); // Add period if text doesn't end with punctuation
   }
   
   /**
@@ -1568,53 +1733,145 @@ export class DashAIAssistant {
    * Navigate to a specific screen programmatically with intelligent route mapping
    */
   public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
+    const startTime = Date.now();
+    const correlationId = generateCorrelationId();
+    
     try {
-      console.log('[Dash] Navigating to screen:', route, params);
+      trackAssistantEvent('navigate.started', {
+        correlation_id: correlationId,
+        route: route,
+        has_params: !!params && Object.keys(params).length > 0,
+        conversation_id: this.currentConversationId,
+      });
       
-      // Map common screen names to actual routes
+      // Enhanced route map with conversation context preservation
       const routeMap: Record<string, string> = {
+        // Core navigation
         'dashboard': '/',
         'home': '/',
+        'main': '/',
+        
+        // Student management
         'students': '/screens/student-management',
-        // Map generic "lessons" to hub; AI generator is a separate intent
+        'student-management': '/screens/student-management',
+        'learners': '/screens/student-management',
+        
+        // Lessons and curriculum
         'lessons': '/screens/lessons-hub',
+        'lessons-hub': '/screens/lessons-hub',
+        'curriculum': '/screens/lessons-categories',
+        'lesson-categories': '/screens/lessons-categories',
         'ai-lesson': '/screens/ai-lesson-generator',
+        'lesson-generator': '/screens/ai-lesson-generator',
+        'create-lesson': '/screens/create-lesson',
+        
+        // Worksheets and assignments
         'worksheets': '/screens/worksheet-demo',
+        'worksheet': '/screens/worksheet-demo',
         'assignments': '/screens/assign-homework',
-        // Map reports to teacher-reports screen
+        'assign-homework': '/screens/assign-homework',
+        'homework': '/screens/assign-homework',
+        
+        // Communication
+        'messages': '/screens/parent-messages',
+        'parent-messages': '/screens/parent-messages',
+        'parents': '/screens/parent-messages',
+        'communication': '/screens/parent-messages',
+        'teacher-messages': '/screens/teacher-messages',
+        
+        // Reports and analytics
         'reports': '/screens/teacher-reports',
-        'settings': '/screens/dash-ai-settings',
-        // Chat -> Dash Assistant
+        'teacher-reports': '/screens/teacher-reports',
+        'analytics': '/screens/teacher-reports',
+        'progress': '/screens/ai-progress-analysis',
+        'progress-analysis': '/screens/ai-progress-analysis',
+        'financial': '/screens/financial-dashboard',
+        'financial-dashboard': '/screens/financial-dashboard',
+        
+        // Assistant and AI
         'chat': '/screens/dash-assistant',
-        // Fallbacks for common nouns to existing screens
+        'assistant': '/screens/dash-assistant',
+        'dash-assistant': '/screens/dash-assistant',
+        'ai-settings': '/screens/dash-ai-settings',
+        'settings': '/screens/dash-ai-settings',
+        
+        // Account and profile
         'profile': '/screens/account',
-        // Not implemented screens are mapped to closest existing destinations
+        'account': '/screens/account',
+        
+        // Admin functions
+        'admin': '/screens/org-admin-dashboard',
+        'organization': '/screens/org-admin-dashboard',
+        'hiring': '/screens/hiring-hub',
+        'hiring-hub': '/screens/hiring-hub',
+        
+        // Parent features
+        'parent-dashboard': '/screens/parent-dashboard',
+        'children': '/screens/parent-children',
+        'parent-children': '/screens/parent-children',
+        
+        // Fallback mappings
         'calendar': '/screens/teacher-reports',
         'gradebook': '/screens/teacher-reports',
-        // Parent messaging
-        'parents': '/screens/parent-messages',
-        'curriculum': '/screens/lessons-categories'
+        'attendance': '/screens/attendance',
       };
       
-      // Resolve the actual route
-      const actualRoute = routeMap[route.toLowerCase().replace(/^\//, '')] || route;
+      // Sanitize and resolve route
+      const cleanRoute = route.toLowerCase().trim().replace(/^\//, '');
+      const actualRoute = routeMap[cleanRoute] || route;
       
-      // Navigate to the specified route
-      if (params && Object.keys(params).length > 0) {
-        router.push({ pathname: actualRoute, params } as any);
+      // Prepare navigation params with conversation context
+      const navigationParams = {
+        ...params,
+        // Add conversation context for return-to-chat functionality
+        ...(this.currentConversationId && {
+          returnToConversation: this.currentConversationId,
+          assistantCorrelationId: correlationId,
+        }),
+      };
+      
+      // Update context bridge with navigation intent
+      assistantContextBridge.updateCurrentRoute(actualRoute, navigationParams);
+      
+      // Perform navigation
+      if (Object.keys(navigationParams).length > 0) {
+        router.push({ pathname: actualRoute, params: navigationParams } as any);
       } else {
         router.push(actualRoute);
       }
       
-      // Log successful navigation
+      const duration = Date.now() - startTime;
+      
+      // Track successful navigation
+      trackAssistantEvent('navigate.succeeded', {
+        correlation_id: correlationId,
+        route: cleanRoute,
+        actual_route: actualRoute,
+        duration_ms: duration,
+        params_count: Object.keys(navigationParams).length,
+        conversation_id: this.currentConversationId,
+      });
+      
       console.log(`[Dash] Successfully navigated to: ${actualRoute}`);
       return { success: true };
       
     } catch (error) {
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : 'Navigation failed';
+      
+      // Track failed navigation
+      trackAssistantEvent('navigate.failed', {
+        correlation_id: correlationId,
+        route: route,
+        error: errorMessage,
+        duration_ms: duration,
+        conversation_id: this.currentConversationId,
+      });
+      
       console.error('[Dash] Navigation failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Navigation failed'
+        error: errorMessage
       };
     }
   }
@@ -1634,14 +1891,255 @@ export class DashAIAssistant {
   }
 
   /**
-   * Export provided text as a PDF via EducationalPDFService
+   * Export provided text as a PDF via DashPDFGenerator
    */
   public async exportTextAsPDF(title: string, content: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
-      return { success: true };
+      const result = await simplePDFGenerator.generateFromPrompt(
+        `Create a document titled "${title}" with the following content:\n\n${content}`,
+        {
+          docType: 'general',
+          title: title,
+          theme: 'professional'
+        }
+      );
+      
+      if (result.success) {
+        console.log('[Dash] PDF exported successfully:', result.filename);
+        return { success: true };
+      } else {
+        return { success: false, error: result.error || 'PDF export failed' };
+      }
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
+    }
+  }
+
+  /**
+   * Generate a PDF document from a prompt using AI
+   */
+  public async generatePDF(
+    prompt: string, 
+    options: {
+      docType?: DocumentType;
+      title?: string;
+      theme?: 'professional' | 'colorful' | 'minimalist';
+    } = {}
+  ): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
+    try {
+      console.log('[Dash] Generating PDF from prompt:', prompt);
+      
+      const result = await simplePDFGenerator.generateFromPrompt(prompt, {
+        docType: (options.docType || 'general') as any,
+        title: options.title,
+        theme: (options.theme || 'professional') as any
+      });
+      
+      if (result.success) {
+        console.log('[Dash] PDF generated successfully:', result.filename);
+        return { 
+          success: true, 
+          uri: result.uri, 
+          filename: result.filename 
+        };
+      } else {
+        console.error('[Dash] PDF generation failed:', result.error);
+        return { 
+          success: false, 
+          error: result.error || 'PDF generation failed' 
+        };
+      }
+    } catch (error: any) {
+      console.error('[Dash] PDF generation error:', error);
+      return { 
+        success: false, 
+        error: error?.message || 'PDF generation failed' 
+      };
+    }
+  }
+
+  /**
+   * Detect if user input is requesting PDF generation
+   */
+  private detectPDFRequest(userInput: string): {
+    isPDFRequest: boolean;
+    prompt: string;
+    docType: DocumentType;
+    title?: string;
+  } | null {
+    const input = userInput.toLowerCase().trim();
+    
+    // PDF generation keywords
+    const pdfKeywords = [
+      'generate pdf', 'create pdf', 'make pdf', 'pdf document',
+      'generate a pdf', 'create a pdf', 'make a pdf',
+      'export pdf', 'download pdf', 'pdf file',
+      'can you generate', 'generate me a pdf'
+    ];
+    
+    // Educational document keywords
+    const docTypeKeywords = {
+      'worksheet': ['worksheet', 'practice', 'exercise', 'activity sheet'],
+      'lesson_plan': ['lesson plan', 'lesson', 'curriculum', 'teaching plan'],
+      'assessment': ['assessment', 'test', 'quiz', 'evaluation', 'exam'],
+      'study_guide': ['study guide', 'review', 'summary', 'notes'],
+      'progress_report': ['progress report', 'report card', 'student report'],
+      'certificate': ['certificate', 'award', 'achievement'],
+      'newsletter': ['newsletter', 'announcement', 'bulletin'],
+      'general': ['document', 'paper', 'file']
+    };
+    
+    // Check for PDF request
+    const isPDFRequest = pdfKeywords.some(keyword => input.includes(keyword));
+    
+    if (!isPDFRequest) {
+      return null;
+    }
+    
+    // Determine document type
+    let docType: DocumentType = 'general';
+    for (const [type, keywords] of Object.entries(docTypeKeywords)) {
+      if (keywords.some(keyword => input.includes(keyword))) {
+        docType = type as DocumentType;
+        break;
+      }
+    }
+    
+    // Extract title from common patterns
+    let title: string | undefined;
+    const titlePatterns = [
+      /(?:pdf|document|worksheet|lesson)\s+(?:on|about|for)\s+([^.?!]+)/i,
+      /create\s+(?:a\s+)?(?:pdf\s+)?(?:on|about|for)\s+([^.?!]+)/i,
+      /generate\s+(?:a\s+)?(?:pdf\s+)?(?:on|about|for)\s+([^.?!]+)/i,
+    ];
+    
+    for (const pattern of titlePatterns) {
+      const match = userInput.match(pattern);
+      if (match && match[1]) {
+        title = match[1].trim();
+        break;
+      }
+    }
+    
+    return {
+      isPDFRequest: true,
+      prompt: userInput,
+      docType,
+      title
+    };
+  }
+  
+  /**
+   * Handle PDF generation request locally
+   */
+  private async handlePDFRequest(
+    request: { isPDFRequest: boolean; prompt: string; docType: DocumentType; title?: string },
+    conversationId: string
+  ): Promise<DashMessage> {
+    try {
+      console.log('[Dash] Handling PDF request locally:', request);
+      
+      // Generate PDF using simplified approach (like I would do it)
+      const result = await simplePDFGenerator.generateFromPrompt(request.prompt, {
+        docType: request.docType as any,
+        title: request.title,
+        theme: 'educational'
+      });
+      
+      let content: string;
+      let suggested_actions: string[] = [];
+      
+      if (result.success) {
+        content = `✅ I've successfully generated your PDF document!
+
+📄 **${request.title || 'Document'}**
+📁 Filename: ${result.filename}
+🔗 The PDF has been created and is ready for download.
+
+The document includes educational content tailored for ${request.docType === 'worksheet' ? 'practice activities' : request.docType === 'lesson_plan' ? 'lesson planning' : 'your educational needs'}.`;
+        
+        suggested_actions = [
+          'download_pdf',
+          'view_document', 
+          'create_another',
+          'customize_template'
+        ];
+      } else {
+        content = `❌ I encountered an issue while generating your PDF document.
+
+🔧 **Error Details:**
+${result.error || 'Unknown error occurred'}
+
+💡 **What you can try:**
+• Ensure you're connected to the internet
+• Try a simpler document request
+• Check that the database is properly set up
+• Contact support if the issue persists
+
+I'm still learning and improving my PDF generation capabilities!`;
+        
+        suggested_actions = [
+          'try_again',
+          'simplify_request',
+          'contact_support',
+          'alternative_method'
+        ];
+      }
+      
+      const assistantMessage: DashMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content,
+        timestamp: Date.now(),
+        metadata: {
+          confidence: result.success ? 0.95 : 0.3,
+          suggested_actions,
+          references: [],
+          dashboard_action: result.success ? {
+            type: 'export_pdf' as any,
+            title: request.title || 'Generated Document',
+            filename: result.filename,
+            uri: result.uri
+          } : undefined
+        }
+      };
+      
+      // Update memory with PDF generation attempt
+      await this.updateMemory(
+        request.prompt,
+        {
+          content: assistantMessage.content,
+          confidence: assistantMessage.metadata?.confidence || 0.5,
+          suggested_actions: assistantMessage.metadata?.suggested_actions || []
+        }
+      );
+      
+      return assistantMessage;
+      
+    } catch (error) {
+      console.error('[Dash] PDF request handling failed:', error);
+      
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: `❌ I'm sorry, but I encountered a technical issue while trying to generate your PDF.
+
+🔧 **Technical Error:**
+${error instanceof Error ? error.message : 'Unknown system error'}
+
+💡 **Next Steps:**
+• Please try your request again in a moment
+• Make sure the PDF system is properly configured
+• Contact technical support if this continues
+
+I'm actively working to improve my PDF generation capabilities!`,
+        timestamp: Date.now(),
+        metadata: {
+          confidence: 0.1,
+          suggested_actions: ['try_again', 'contact_support', 'check_system'],
+          references: []
+        }
+      };
     }
   }
 
@@ -1650,8 +2148,20 @@ export class DashAIAssistant {
    */
   public async exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
     try {
-      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '');
-      return { success: true, uri, filename };
+      const result = await simplePDFGenerator.generateFromPrompt(
+        `Create a document titled "${title}" with the following content:\n\n${content}`,
+        {
+          docType: 'general',
+          title: title,
+          theme: 'professional'
+        }
+      );
+      
+      if (result.success && result.uri) {
+        return { success: true, uri: result.uri, filename: result.filename };
+      } else {
+        return { success: false, error: result.error || 'PDF export failed' };
+      }
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
     }
@@ -1660,30 +2170,106 @@ export class DashAIAssistant {
   /**
    * Get current screen context for better assistance
    */
-  public getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] } {
-    // This would ideally get the current route from the navigation system
-    // For now, we'll return a default context
-    const defaultContext = {
-      screen: 'dashboard',
-      capabilities: [
-        'navigate to different screens',
-        'generate worksheets and lessons', 
-        'manage students and assignments',
-        'communicate with parents',
-        'create reports and analytics'
-      ],
-      suggestions: [
-        'Create a new lesson plan',
-        'Generate a math worksheet',
-        'Check student progress',
-        'Send a message to parents',
-        'View recent assignments'
-      ]
-    };
-    
-    return defaultContext;
+  public getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[]; contextData?: any } {
+    try {
+      const contextSnapshot = assistantContextBridge.getContextSnapshot();
+      const routeContext = assistantContextBridge.getRouteSpecificContext();
+      
+      const screen = routeContext.current_screen || 'dashboard';
+      const screenType = routeContext.screen_type || 'general';
+      
+      // Generate screen-specific capabilities and suggestions
+      const capabilities = this.getScreenCapabilities(screenType, screen);
+      const suggestions = this.getContextualSuggestions(screen, this.userProfile?.role || 'teacher');
+      
+      trackAssistantBreadcrumb('Screen context retrieved', {
+        screen,
+        screen_type: screenType,
+        has_params: routeContext.has_params,
+        navigation_pattern: routeContext.navigation_pattern,
+      });
+      
+      return {
+        screen,
+        capabilities,
+        suggestions,
+        contextData: {
+          routeContext,
+          sessionInfo: contextSnapshot.user_context,
+          appState: contextSnapshot.app_state,
+        },
+      };
+    } catch (error) {
+      console.warn('[Dash] Failed to get screen context from bridge:', error);
+      
+      // Fallback to default context
+      return {
+        screen: 'dashboard',
+        capabilities: [
+          'navigate to different screens',
+          'generate worksheets and lessons', 
+          'create PDF documents and reports',
+          'manage students and assignments',
+          'communicate with parents',
+          'export educational content as PDFs'
+        ],
+        suggestions: [
+          'Create a new lesson plan',
+          'Generate a math worksheet',
+          'Check student progress',
+          'Send a message to parents',
+          'View recent assignments'
+        ]
+      };
+    }
   }
   
+  /**
+   * Get screen-specific capabilities
+   */
+  private getScreenCapabilities(screenType: string, screen: string): string[] {
+    const baseCapabilities = [
+      'navigate to different screens',
+      'voice commands and transcription',
+      'contextual help and guidance',
+      'generate PDF documents from text',
+      'create educational worksheets and lesson plans',
+      'export content as downloadable PDFs'
+    ];
+
+    const screenSpecificCapabilities: Record<string, string[]> = {
+      lesson: [
+        'generate lesson plans',
+        'create learning objectives',
+        'suggest activities and assessments',
+        'align with curriculum standards'
+      ],
+      worksheet: [
+        'generate practice worksheets',
+        'customize difficulty levels',
+        'create answer keys',
+        'export as PDF'
+      ],
+      student_management: [
+        'track student progress',
+        'manage behavioral notes',
+        'generate progress reports',
+        'communicate with parents'
+      ],
+      dashboard: [
+        'view analytics and insights',
+        'quick access to recent activities',
+        'proactive suggestions',
+        'task management'
+      ]
+    };
+
+    return [
+      ...baseCapabilities,
+      ...(screenSpecificCapabilities[screenType] || [])
+    ];
+  }
+
   /**
    * Suggest contextual actions based on current screen
    */
@@ -2412,7 +2998,7 @@ export class DashAIAssistant {
   }
 
   /**
-   * Play Dash's response with voice synthesis
+   * Play Dash's response with enhanced voice synthesis
    */
   public async speakResponse(message: DashMessage, callbacks?: {
     onStart?: () => void;
@@ -2421,6 +3007,7 @@ export class DashAIAssistant {
     onError?: (error: any) => void;
   }): Promise<void> {
     if (message.type !== 'assistant') {
+      console.log('[Dash] Skipping speech - not assistant message');
       return;
     }
 
@@ -2430,72 +3017,149 @@ export class DashAIAssistant {
       // Intelligently normalize the text before speaking
       const normalizedText = this.normalizeTextForSpeech(message.content);
       
-      // Only speak if there's actual text content after normalization
-      if (normalizedText.length === 0) {
+      // Validate normalized text
+      if (!normalizedText || normalizedText.trim().length === 0) {
         console.log('[Dash] No speakable content after normalization');
         callbacks?.onError?.('No speakable content after normalization');
         return;
       }
       
-      console.log('[Dash] About to start speaking:', normalizedText.substring(0, 100) + '...');
+      // Check text length - very long texts should be truncated or chunked
+      const maxLength = 2000; // Characters
+      let finalText = normalizedText;
+      if (finalText.length > maxLength) {
+        // Find a good break point near the limit
+        const breakPoint = finalText.lastIndexOf('.', maxLength);
+        if (breakPoint > maxLength - 200) {
+          finalText = finalText.substring(0, breakPoint + 1);
+          console.log('[Dash] Truncated long text at natural break point');
+        } else {
+          finalText = finalText.substring(0, maxLength) + '...';
+          console.log('[Dash] Truncated long text at character limit');
+        }
+      }
       
-      // Ensure audio mode allows TTS playback (iOS silent switch, Android ducking)
+      console.log('[Dash] About to start speaking (', finalText.length, 'chars):', finalText.substring(0, 100) + '...');
+      
+      // Enhanced audio mode setup for better TTS playback
       try {
         if (Platform.OS !== 'web') {
           await Audio.setAudioModeAsync({
             allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
+            playsInSilentModeIOS: true,         // Play even when phone is on silent
             staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
+            shouldDuckAndroid: true,            // Lower other audio
+            playThroughEarpieceAndroid: false,  // Use speakers, not earpiece
+            interruptionModeIOS: 1,            // Duck others on iOS
+            interruptionModeAndroid: 1         // Duck others on Android
           } as any);
         }
-      } catch (e) {
-        console.warn('[Dash] Failed to set audio mode for TTS:', e);
+      } catch (audioError) {
+        console.warn('[Dash] Failed to set audio mode for TTS:', audioError);
+        // Continue anyway - this isn't critical
       }
 
+      // Enhanced speech options
+      const speechOptions = {
+        language: voiceSettings.language || 'en-US',
+        pitch: Math.max(0.5, Math.min(2.0, voiceSettings.pitch || 1.0)), // Clamp pitch
+        rate: Math.max(0.1, Math.min(3.0, voiceSettings.rate || 0.9)),   // Clamp rate
+        voice: voiceSettings.voice,
+        // Enhanced quality settings (if supported by platform)
+        quality: 'enhanced',
+        volume: voiceSettings.volume || 1.0,
+        onStart: () => {
+          console.log('[Dash] 🔊 Started speaking:', finalText.substring(0, 50) + '...');
+          callbacks?.onStart?.();
+        },
+        onDone: () => {
+          console.log('[Dash] ✅ Finished speaking successfully');
+          callbacks?.onDone?.();
+          resolve();
+        },
+        onStopped: () => {
+          console.log('[Dash] ⏹️ Speech stopped by user');
+          callbacks?.onStopped?.();
+          resolve();
+        },
+        onError: (speechError: any) => {
+          console.error('[Dash] ❌ Speech synthesis error:', speechError);
+          
+          // Provide more specific error handling
+          let errorMessage = 'Speech synthesis failed';
+          if (speechError?.message) {
+            if (speechError.message.includes('not supported')) {
+              errorMessage = 'Text-to-speech not supported on this device';
+            } else if (speechError.message.includes('network')) {
+              errorMessage = 'Network error during speech synthesis';
+            } else if (speechError.message.includes('interrupted')) {
+              errorMessage = 'Speech was interrupted';
+            }
+          }
+          
+          callbacks?.onError?.(errorMessage);
+          reject(new Error(errorMessage));
+        }
+      };
+
+      // Start speech synthesis with enhanced error handling
       return new Promise<void>((resolve, reject) => {
-        Speech.speak(normalizedText, {
-          language: voiceSettings.language,
-          pitch: voiceSettings.pitch,
-          rate: voiceSettings.rate,
-          voice: voiceSettings.voice,
-          onStart: () => {
-            console.log('[Dash] Started speaking');
-            callbacks?.onStart?.();
-          },
-          onDone: () => {
-            console.log('[Dash] Finished speaking');
-            callbacks?.onDone?.();
+        try {
+          // Add timeout to prevent hanging
+          const timeoutId = setTimeout(() => {
+            console.warn('[Dash] Speech timeout - resolving anyway');
             resolve();
-          },
-          onStopped: () => {
-            console.log('[Dash] Speech stopped');
-            callbacks?.onStopped?.();
-            resolve();
-          },
-          onError: (error: any) => {
-            console.error('[Dash] Speech error:', error);
-            callbacks?.onError?.(error);
-            reject(error);
-          },
-        });
+          }, Math.max(5000, finalText.length * 50)); // Dynamic timeout based on text length
+          
+          const originalOnDone = speechOptions.onDone;
+          const originalOnError = speechOptions.onError;
+          
+          speechOptions.onDone = () => {
+            clearTimeout(timeoutId);
+            originalOnDone();
+          };
+          
+          speechOptions.onError = (error: any) => {
+            clearTimeout(timeoutId);
+            originalOnError(error);
+          };
+          
+          Speech.speak(finalText, speechOptions);
+          
+        } catch (immediateError) {
+          console.error('[Dash] Immediate speech error:', immediateError);
+          callbacks?.onError?.(immediateError);
+          reject(immediateError);
+        }
       });
+      
     } catch (error) {
-      console.error('[Dash] Failed to speak response:', error);
+      console.error('[Dash] Failed to initiate speech:', error);
       callbacks?.onError?.(error);
       throw error;
     }
   }
 
   /**
-   * Stop current speech
+   * Stop current speech with enhanced error handling
    */
   public async stopSpeaking(): Promise<void> {
     try {
+      console.log('[Dash] 🛑 Stopping speech...');
+      
+      // Check if speech is actually happening before stopping
+      const isSpeaking = await Speech.isSpeakingAsync();
+      if (!isSpeaking) {
+        console.log('[Dash] No speech to stop');
+        return;
+      }
+      
       await Speech.stop();
+      console.log('[Dash] ✅ Speech stopped successfully');
+      
     } catch (error) {
-      console.error('[Dash] Failed to stop speaking:', error);
+      console.error('[Dash] ❌ Failed to stop speaking:', error);
+      // Don't throw - stopping speech failure shouldn't break the app
     }
   }
 
@@ -2504,6 +3168,12 @@ export class DashAIAssistant {
    */
   private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
+      // Check if this is a PDF generation request - handle locally
+      const pdfRequest = this.detectPDFRequest(userInput);
+      if (pdfRequest) {
+        return await this.handlePDFRequest(pdfRequest, conversationId);
+      }
+      
       // Get conversation history for context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
@@ -2542,8 +3212,7 @@ export class DashAIAssistant {
         }
       };
 
-      // Post-process assistant message to avoid implying non-existent attachments (e.g., PDFs)
-      assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
+      // Note: PDF generation is now available, so no need to filter attachment claims
       return assistantMessage;
     } catch (error) {
       console.error('[Dash] Failed to generate response:', error);
@@ -2606,6 +3275,13 @@ export class DashAIAssistant {
 
 CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
 
+KEY CAPABILITIES:
+- Generate professional PDF documents from any text or educational content
+- Create worksheets, lesson plans, reports, and assessments as PDFs
+- Export conversations, notes, and educational materials as downloadable PDFs
+- Provide educational content optimized for different grade levels
+- Navigate users to appropriate screens and tools
+
 RESPONSE GUIDELINES:
 - Be concise, practical, and directly helpful
 - Provide specific, actionable advice
@@ -2613,11 +3289,18 @@ RESPONSE GUIDELINES:
 - Use a warm but professional tone
 - Keep responses focused and avoid unnecessary elaboration
 - When suggesting actions, be specific about next steps
+- IMPORTANT: You CAN generate PDF documents - mention this capability when relevant
+
+PDF GENERATION:
+- When users ask for PDFs, worksheets, reports, or documents, you CAN create them
+- Offer to generate PDFs for educational content, lesson plans, student reports, etc.
+- You have full PDF generation capabilities through the DashPDFGenerator service
 
 SPECIAL DASHBOARD ACTIONS:
 - If user asks about dashboard layouts, include dashboard_action in response
 - For lesson planning requests, suggest opening the lesson generator
-- For assessment tasks, recommend relevant tools`;
+- For assessment tasks, recommend relevant tools
+- For PDF requests, offer to generate the document directly`;
 
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `

@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
-import { assertSupabase } from '@/lib/supabase';
-import { track, identifyUser } from '@/lib/analytics';
-import { identifyUserForFlags } from '@/lib/featureFlags';
-import { reportError } from '@/lib/monitoring';
+import { assertSupabase } from './supabase';
+import { track, identifyUser } from './analytics';
+import { identifyUserForFlags } from './featureFlags';
+import { reportError } from './monitoring';
 
 // Dynamically import SecureStore to avoid web issues
 let SecureStore: any = null;

@@ -13,11 +13,17 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, Alert } from 'react-native';
-import { assertSupabase } from '@/lib/supabase';
-import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
-import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
-import { PDFTemplateService } from '@/lib/services/PDFTemplateService';
-import { getPDFConfig, DEFAULT_BRANDING, type PDFBranding } from '@/lib/config/pdfConfig';
+import { assertSupabase } from '../lib/supabase';
+import { getCurrentSession, getCurrentProfile } from '../lib/sessionManager';
+import { EducationalPDFService } from '../lib/services/EducationalPDFService';
+import { PDFTemplateService } from '../lib/services/PDFTemplateService';
+import { getPDFConfig, DEFAULT_BRANDING, type PDFBranding } from '../lib/config/pdfConfig';
+
+// Import enhanced PDF capabilities
+import { EnhancedPDFEngine } from '../lib/services/EnhancedPDFEngine';
+import { PDFCollaborationManager } from '../lib/services/PDFCollaborationManager';
+import { PDFSecurityAccessibilityManager } from '../lib/services/PDFSecurityAccessibilityManager';
+import { PDFPerformanceManager } from '../lib/services/PDFPerformanceManager';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -238,6 +244,26 @@ export type ProgressCallback = (phase: ProgressPhase, progress: number, message?
 class DashPDFGeneratorImpl {
   private userPreferences: UserPDFPreferences | null = null;
   private preferencesLoaded = false;
+  
+  // Enhanced PDF System Integration
+  private enhancedEngine: EnhancedPDFEngine;
+  private collaborationManager: PDFCollaborationManager;
+  private securityManager: PDFSecurityAccessibilityManager;
+  private performanceManager: PDFPerformanceManager;
+  
+  constructor() {
+    // Initialize enhanced PDF components
+    try {
+      this.enhancedEngine = new EnhancedPDFEngine();
+      this.collaborationManager = new PDFCollaborationManager();
+      this.securityManager = new PDFSecurityAccessibilityManager();
+      this.performanceManager = new PDFPerformanceManager();
+      console.log('✅ Enhanced PDF capabilities initialized');
+    } catch (error) {
+      console.warn('⚠️ Enhanced PDF capabilities not available:', error);
+      // Fallback to basic functionality
+    }
+  }
 
   /**
    * Generate PDF from a natural language prompt
@@ -257,6 +283,11 @@ class DashPDFGeneratorImpl {
 
       // Parse prompt to structured specification
       const spec = await this.parsePromptToSpec(prompt, onProgress);
+      
+      // Check if this is educational content and we have enhanced capabilities
+      if (this.isEducationalType(spec.docType) && this.enhancedEngine) {
+        return await this.generateEducationalPDF(spec, prompt, options, onProgress);
+      }
       
       onProgress?.('retrieve', 25, 'Gathering relevant information...');
 
@@ -381,6 +412,47 @@ class DashPDFGeneratorImpl {
   }
 
   /**
+   * Main PDF generation method for Dash AI
+   * This is the primary method Dash AI will call
+   * 
+   * @param request - PDF generation request
+   * @param onProgress - Optional progress callback
+   * @returns Promise with generation result
+   */
+  async generatePDF(
+    request: PDFGenerationRequest,
+    onProgress?: ProgressCallback
+  ): Promise<PDFGenerationResult> {
+    try {
+      console.log('\u{1F4C4} DashPDFGenerator.generatePDF called with:', {
+        type: request.type,
+        title: request.title,
+        hasPrompt: !!request.prompt,
+        hasSections: !!request.sections?.length,
+        hasTemplate: !!request.templateId
+      });
+
+      // Determine generation method based on request
+      if (request.prompt) {
+        // Generate from natural language prompt
+        return await this.generateFromPrompt(request.prompt, request.preferencesOverride, onProgress);
+      } else if (request.templateId) {
+        // Generate from template
+        return await this.generateFromTemplate(request.templateId, request.data || {}, request.preferencesOverride, onProgress);
+      } else {
+        // Generate from structured data
+        return await this.generateFromStructuredData(request, onProgress);
+      }
+    } catch (error) {
+      console.error('\u274C DashPDFGenerator.generatePDF failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'PDF generation failed'
+      };
+    }
+  }
+
+  /**
    * Preview HTML without generating PDF
    * 
    * @param request - Generation request
@@ -457,7 +529,7 @@ class DashPDFGeneratorImpl {
       }
 
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         return null;
       }
 
@@ -465,7 +537,7 @@ class DashPDFGeneratorImpl {
       const { data, error } = await supabase
         .from('pdf_user_preferences')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', session.user_id)
         .single();
 
       if (error && error.code !== 'PGRST116') { // Not found is ok
@@ -489,7 +561,7 @@ class DashPDFGeneratorImpl {
   async saveUserPreferences(preferences: Partial<UserPDFPreferences>): Promise<boolean> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 
@@ -499,7 +571,7 @@ class DashPDFGeneratorImpl {
       const supabase = assertSupabase();
       
       const prefsData = {
-        user_id: session.user.id,
+        user_id: session.user_id,
         organization_id: organizationId,
         default_theme: preferences.defaultTheme,
         default_font: preferences.defaultFont,
@@ -543,7 +615,7 @@ class DashPDFGeneratorImpl {
   }): Promise<CustomTemplate[]> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         return [];
       }
 
@@ -564,7 +636,7 @@ class DashPDFGeneratorImpl {
         query = query.eq('organization_id', organizationId).eq('is_org_shared', true);
       } else {
         // Show user's own templates + shared templates
-        query = query.or(`owner_user_id.eq.${session.user.id},and(organization_id.eq.${organizationId},is_org_shared.eq.true)`);
+        query = query.or(`owner_user_id.eq.${session.user_id},and(organization_id.eq.${organizationId},is_org_shared.eq.true)`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -611,7 +683,7 @@ class DashPDFGeneratorImpl {
   async createTemplate(template: Omit<CustomTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<CustomTemplate | null> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 
@@ -622,7 +694,7 @@ class DashPDFGeneratorImpl {
       const { data, error } = await supabase
         .from('pdf_custom_templates')
         .insert({
-          owner_user_id: session.user.id,
+          owner_user_id: session.user_id,
           organization_id: organizationId,
           name: template.name,
           description: template.description,
@@ -874,6 +946,235 @@ class DashPDFGeneratorImpl {
       'certificate',
       'worksheet'
     ].includes(docType);
+  }
+
+  /**
+   * Generate educational PDF using enhanced engine
+   */
+  private async generateEducationalPDF(
+    spec: DocumentSpec,
+    prompt: string,
+    options?: Partial<DashPDFOptions>,
+    onProgress?: ProgressCallback
+  ): Promise<PDFGenerationResult> {
+    try {
+      onProgress?.('compose', 30, 'Creating educational content...');
+      
+      // Map document types to enhanced engine types
+      const typeMapping = {
+        'worksheet': 'worksheet' as const,
+        'lesson_plan': 'lesson-plan' as const,
+        'assessment': 'assessment' as const,
+        'study_guide': 'worksheet' as const,
+        'progress_report': 'general' as const,
+        'certificate': 'general' as const
+      };
+      
+      const enhancedType = typeMapping[spec.docType as keyof typeof typeMapping] || 'general' as const;
+      
+      // Create document with enhanced engine
+      const document = await this.enhancedEngine.createDocument({
+        title: spec.title,
+        type: enhancedType,
+        template: this.selectEducationalTemplate(prompt, options),
+        metadata: {
+          generatedBy: 'dash-ai',
+          originalPrompt: prompt,
+          subject: this.extractSubject(prompt),
+          gradeLevel: this.extractGradeLevel(prompt)
+        }
+      });
+      
+      onProgress?.('compose', 50, 'Adding content blocks...');
+      
+      // Add content blocks based on document type
+      await this.addEducationalContent(document.id, spec, prompt);
+      
+      onProgress?.('render', 75, 'Generating enhanced PDF...');
+      
+      // Generate PDF with enhanced engine
+      const result = await this.enhancedEngine.generatePDF(document.id, {
+        format: 'pdf',
+        includeMetadata: true
+      });
+      
+      onProgress?.('upload', 100, 'Complete!');
+      
+      return {
+        success: result.success,
+        uri: result.uri,
+        filename: result.filename,
+        pageCount: result.pageCount,
+        warnings: result.warnings,
+        error: result.error
+      };
+      
+    } catch (error) {
+      console.error('[DashPDFGenerator] generateEducationalPDF failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Educational PDF generation failed'
+      };
+    }
+  }
+
+  /**
+   * Select educational template based on content
+   */
+  private selectEducationalTemplate(prompt: string, options?: Partial<DashPDFOptions>): string {
+    const lower = prompt.toLowerCase();
+    
+    // Check for grade level indicators
+    if (/kindergarten|preschool|pre-k/i.test(lower) || /grade\s*[k1-3]/i.test(lower)) {
+      return 'playful-kids';
+    }
+    
+    if (/grade\s*[4-8]|elementary|middle/i.test(lower)) {
+      return 'educational-standard';
+    }
+    
+    if (/high\s*school|grade\s*(9|10|11|12)|college|university/i.test(lower)) {
+      return 'assessment-focused';
+    }
+    
+    // Default based on document type and theme preference
+    if (options?.theme === 'colorful') return 'playful-kids';
+    if (options?.theme === 'minimalist') return 'assessment-focused';
+    
+    return 'educational-standard';
+  }
+  
+  /**
+   * Extract subject from prompt
+   */
+  private extractSubject(prompt: string): string {
+    const lower = prompt.toLowerCase();
+    
+    if (/math|arithmetic|algebra|geometry|calculus/i.test(lower)) return 'Mathematics';
+    if (/english|language\s*arts|reading|writing|literature/i.test(lower)) return 'English Language Arts';
+    if (/science|biology|chemistry|physics|earth/i.test(lower)) return 'Science';
+    if (/history|social\s*studies|geography|civics/i.test(lower)) return 'Social Studies';
+    if (/art|music|drama|creative/i.test(lower)) return 'Arts';
+    if (/pe|physical\s*education|health/i.test(lower)) return 'Physical Education';
+    
+    return 'General';
+  }
+  
+  /**
+   * Extract grade level from prompt
+   */
+  private extractGradeLevel(prompt: string): string {
+    const gradeMatches = prompt.match(/grade\s*(\d+|k)/i);
+    if (gradeMatches) {
+      return `Grade ${gradeMatches[1].toUpperCase()}`;
+    }
+    
+    const lower = prompt.toLowerCase();
+    if (/kindergarten|pre-k|preschool/i.test(lower)) return 'Kindergarten';
+    if (/elementary/i.test(lower)) return 'Elementary';
+    if (/middle/i.test(lower)) return 'Middle School';
+    if (/high\s*school/i.test(lower)) return 'High School';
+    if (/college|university/i.test(lower)) return 'College';
+    
+    return 'General';
+  }
+  
+  /**
+   * Add educational content blocks
+   */
+  private async addEducationalContent(documentId: string, spec: DocumentSpec, prompt: string): Promise<void> {
+    try {
+      // Add header block
+      await this.enhancedEngine.addContentBlock(documentId, {
+        type: 'header',
+        content: spec.title,
+        metadata: { level: 1 }
+      });
+      
+      // Process sections into content blocks
+      for (const section of spec.sections) {
+        if (section.markdown) {
+          // Add instruction block
+          await this.enhancedEngine.addContentBlock(documentId, {
+            type: 'instruction',
+            content: section.markdown,
+            metadata: { sectionTitle: section.title }
+          });
+        }
+        
+        // For worksheets and assessments, add practice problems
+        if (['worksheet', 'assessment'].includes(spec.docType)) {
+          await this.addPracticeProblems(documentId, prompt, spec.docType);
+        }
+        
+        // For lesson plans, add structured content
+        if (spec.docType === 'lesson_plan') {
+          await this.addLessonPlanContent(documentId, prompt);
+        }
+      }
+      
+    } catch (error) {
+      console.error('[DashPDFGenerator] addEducationalContent failed:', error);
+    }
+  }
+  
+  /**
+   * Add practice problems for worksheets and assessments
+   */
+  private async addPracticeProblems(documentId: string, prompt: string, docType: string): Promise<void> {
+    const subject = this.extractSubject(prompt).toLowerCase();
+    
+    // Generate sample problems based on subject
+    if (subject.includes('math')) {
+      // Add math problems
+      for (let i = 1; i <= 5; i++) {
+        await this.enhancedEngine.addContentBlock(documentId, {
+          type: 'problem',
+          content: `Problem ${i}: [Math problem will be generated based on grade level]`,
+          metadata: { problemNumber: i, subject: 'mathematics' }
+        });
+        
+        await this.enhancedEngine.addContentBlock(documentId, {
+          type: 'answer-space',
+          content: '',
+          metadata: { problemNumber: i, lines: 3 }
+        });
+      }
+    } else {
+      // Add general practice questions
+      await this.enhancedEngine.addContentBlock(documentId, {
+        type: 'problem',
+        content: '[Practice questions will be generated based on the content]',
+        metadata: { subject }
+      });
+      
+      await this.enhancedEngine.addContentBlock(documentId, {
+        type: 'answer-space',
+        content: '',
+        metadata: { lines: 5 }
+      });
+    }
+  }
+  
+  /**
+   * Add lesson plan content
+   */
+  private async addLessonPlanContent(documentId: string, prompt: string): Promise<void> {
+    const commonSections = [
+      { title: 'Learning Objectives', type: 'instruction' },
+      { title: 'Materials Needed', type: 'instruction' },
+      { title: 'Lesson Activities', type: 'instruction' },
+      { title: 'Assessment', type: 'instruction' },
+      { title: 'Homework/Extension', type: 'instruction' }
+    ];
+    
+    for (const section of commonSections) {
+      await this.enhancedEngine.addContentBlock(documentId, {
+        type: section.type as any,
+        content: `${section.title}: [Content will be generated based on your prompt]`,
+        metadata: { sectionType: section.title.toLowerCase().replace(' ', '_') }
+      });
+    }
   }
 
   /**
@@ -1195,7 +1496,7 @@ class DashPDFGeneratorImpl {
   private async uploadToStorage(localUri: string, filename: string): Promise<string> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 
@@ -1217,8 +1518,8 @@ class DashPDFGeneratorImpl {
       // Upload to Supabase Storage
       const supabase = assertSupabase();
       const storagePath = organizationId 
-        ? `${organizationId}/${session.user.id}/${filename}`
-        : `${session.user.id}/${filename}`;
+        ? `${organizationId}/${session.user_id}/${filename}`
+        : `${session.user_id}/${filename}`;
 
       const { error } = await supabase.storage
         .from('generated-pdfs')
