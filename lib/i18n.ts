@@ -33,6 +33,9 @@ const enWhatsApp = (() => {
   try { return require('../locales/en/whatsapp.json'); } catch { return {}; }
 })();
 
+// Mark when i18n has been optimized
+const OPTIMIZED_I18N = true;
+
 // Supported languages for educational content
 export const SUPPORTED_LANGUAGES = {
   en: { name: 'English', nativeName: 'English', rtl: false },

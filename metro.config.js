@@ -57,4 +57,23 @@ config.transformer = {
   }),
 };
 
+// Enable optimizations for production builds
+if (process.env.NODE_ENV === 'production') {
+  // Strip out development-only code
+  config.transformer.minifierConfig = {
+    ...config.transformer.minifierConfig,
+    drop_console: ['log', 'info', 'warn', 'debug'], // Keep 'error'
+    drop_debugger: true,
+  };
+}
+
+// Enable symlinks for monorepos or linked modules
+config.resolver.unstable_enableSymlinks = true;
+
+// Enable faster rebuilds with persistent cache
+config.resetCache = false;
+
+// Better handling of additional asset types
+config.resolver.assetExts.push('db', 'zip');
+
 module.exports = config;

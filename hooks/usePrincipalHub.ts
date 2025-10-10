@@ -736,7 +736,7 @@ export const usePrincipalHub = () => {
   useEffect(() => {
     if (!userId || !preschoolId) return;
     fetchData();
-  }, [userId, preschoolId]);
+  }, [userId, preschoolId, fetchData]);
 
   const refresh = useCallback(() => {
     fetchData(true);

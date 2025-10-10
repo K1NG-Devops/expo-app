@@ -76,6 +76,20 @@ export const logger = {
    */
   forceError: (message: string, ...args: any[]) => {
     console.error(`[CRITICAL] ${message}`, ...args);
+    
+    // Also report to Sentry if available
+    try {
+      // Lazy import to avoid circular dependencies
+      import('./monitoring').then(({ reportError }) => {
+        const error = args[0] instanceof Error ? args[0] : new Error(message);
+        const context = args.length > 1 ? { additionalData: args.slice(1) } : undefined;
+        reportError(error, context);
+      }).catch(() => {
+        // Monitoring not available, ignore
+      });
+    } catch {
+      // Silently fail if monitoring is not available
+    }
   },
 };
 

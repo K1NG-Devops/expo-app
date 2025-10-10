@@ -74,6 +74,21 @@ export const navigateTo = {
   
   // Admin screens
   schoolSettings: () => router.push('/screens/admin/school-settings' as any),
+  
+  // PDF Generator
+  pdfGenerator: (params?: { tab?: 'prompt' | 'template' | 'structured'; templateId?: string; documentType?: string }) => {
+    let url = '/screens/pdf-generator';
+    if (params) {
+      const searchParams = new URLSearchParams();
+      if (params.tab) searchParams.set('initialTab', params.tab);
+      if (params.templateId) searchParams.set('templateId', params.templateId);
+      if (params.documentType) searchParams.set('documentType', params.documentType);
+      if (searchParams.toString()) {
+        url += `?${searchParams.toString()}`;
+      }
+    }
+    router.push(url as any);
+  },
 };
 
 /**

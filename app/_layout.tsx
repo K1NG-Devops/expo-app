@@ -12,6 +12,20 @@ import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import ToastProvider from '@/components/ui/ToastProvider';
 
+// Initialize performance monitoring and global error handling first
+import { initPerformanceMonitoring } from '@/lib/perf';
+import { installGlobalErrorHandler } from '@/lib/global-errors';
+import { initMonitoring } from '@/lib/monitoring';
+
+// Initialize critical systems
+initPerformanceMonitoring();
+installGlobalErrorHandler();
+initMonitoring();
+
+// Initialize lazy loading for ultra-fast navigation
+import { ChunkPreloader } from '@/lib/lazy-loading';
+ChunkPreloader.preloadCriticalChunks();
+
 // Initialize i18n BEFORE any components render
 import '@/lib/i18n';
 import ErrorBoundary from '@/components/ErrorBoundary';
