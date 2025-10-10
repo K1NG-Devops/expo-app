@@ -15,8 +15,18 @@ module.exports = function (api) {
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },
       ],
-      // EAS Updates handles EXPO_PUBLIC_ environment variables natively
-      // No need for transform-inline-environment-variables plugin
+      [
+        'transform-inline-environment-variables',
+        {
+          include: [
+            'EXPO_PUBLIC_SUPABASE_URL',
+            'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+            'EXPO_PUBLIC_TENANT_SLUG',
+            'EXPO_PUBLIC_ENVIRONMENT',
+            'EXPO_PUBLIC_APP_SCHEME',
+          ],
+        },
+      ],
       // Remove console statements in production builds (except errors)
       isProd ? [
         'transform-remove-console',
