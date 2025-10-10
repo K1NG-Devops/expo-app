@@ -5,8 +5,7 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // Expo Router must come before other plugins
-      'expo-router/babel',
+      // expo-router/babel is deprecated in SDK 50+ - included in babel-preset-expo
       [
         'module-resolver',
         {
