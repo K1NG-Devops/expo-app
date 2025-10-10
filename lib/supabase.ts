@@ -50,6 +50,18 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
+// Debug environment variables in preview builds
+if (process.env.EXPO_PUBLIC_TENANT_SLUG === 'preview') {
+  console.log('[Supabase Debug] Environment check:', {
+    hasUrl: !!url,
+    hasAnon: !!anon,
+    tenant: process.env.EXPO_PUBLIC_TENANT_SLUG,
+    urlLength: url ? url.length : 0,
+    anonLength: anon ? anon.length : 0,
+    allEnvKeys: Object.keys(process.env).filter(k => k.startsWith('EXPO_PUBLIC'))
+  });
+}
+
 // Enhanced debugging for environment variable loading
 const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
 const envName = process.env.EXPO_PUBLIC_ENVIRONMENT || process.env.NODE_ENV || 'unknown';
