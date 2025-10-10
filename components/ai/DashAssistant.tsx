@@ -638,6 +638,7 @@ return (
         <MessageBubbleModern
           message={message}
           showIcon={!isUser}
+          onDownloadPdf={!isUser ? handleDownloadPdf : undefined}
           onRegenerate={!isUser ? () => {
             const prev = messages[index - 1];
             const retryText = prev && prev.type === 'user' ? prev.content : message.content;
@@ -660,31 +661,7 @@ return (
           </View>
         )}
 
-        {/* Export PDF action when suggested by Dash */}
-        {String(message.metadata?.dashboard_action?.type) === 'export_pdf' && (
-          <View style={{ marginTop: 10 }}>
-            <TouchableOpacity
-              onPress={() => handleDownloadPdf(
-                (message.metadata?.dashboard_action as any)?.title || 'Dash Export',
-                (message.metadata?.dashboard_action as any)?.content || message.content
-              )}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 10,
-                paddingHorizontal: 12,
-                borderRadius: 10,
-                backgroundColor: theme.surface,
-                borderWidth: 1,
-                borderColor: theme.border,
-                gap: 8,
-              }}
-            >
-              <Ionicons name="download-outline" size={18} color={theme.primary} />
-              <Text style={{ color: theme.primary, fontWeight: '600' }}>Download PDF</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* PDF button is now inside the message bubble */}
       </View>
     );
   };

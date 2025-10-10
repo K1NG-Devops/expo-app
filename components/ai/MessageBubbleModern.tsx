@@ -16,6 +16,7 @@ export interface MessageBubbleModernProps {
   message: DashMessage;
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onDownloadPdf?: (title: string, content: string) => void;
   showActions?: boolean;
   showIcon?: boolean;
 }
@@ -24,6 +25,7 @@ export function MessageBubbleModern({
   message,
   onCopy,
   onRegenerate,
+  onDownloadPdf,
   showActions = true,
   showIcon = false,
 }: MessageBubbleModernProps) {
@@ -31,6 +33,15 @@ export function MessageBubbleModern({
   const [copied, setCopied] = useState(false);
   const isUser = message.type === 'user';
   const isSystem = message.type === 'system';
+  
+  // Check if this message contains PDF-related content or metadata
+  const hasPdfAction = message.metadata?.dashboard_action?.type === 'export_pdf';
+  const isPdfContent = message.content.toLowerCase().includes('pdf') && 
+    (message.content.toLowerCase().includes('generated') || 
+     message.content.toLowerCase().includes('created') ||
+     message.content.toLowerCase().includes('lesson') ||
+     message.content.toLowerCase().includes('worksheet'));
+  const shouldShowPdfButton = !isUser && (hasPdfAction || isPdfContent) && onDownloadPdf;
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(message.content);
@@ -240,6 +251,26 @@ export function MessageBubbleModern({
               </Text>
             </TouchableOpacity>
 
+            {/* PDF Download Button - now inside the bubble */}
+            {shouldShowPdfButton && (
+              <TouchableOpacity
+                style={[styles.actionButton, styles.pdfButton, { 
+                  backgroundColor: theme.primary,
+                  borderColor: theme.primary 
+                }]}
+                onPress={() => {
+                  const title = (message.metadata?.dashboard_action as any)?.title || 'Dash Export';
+                  const content = (message.metadata?.dashboard_action as any)?.content || message.content;
+                  onDownloadPdf?.(title, content);
+                }}
+              >
+                <Ionicons name="download" size={14} color={theme.onPrimary || '#fff'} />
+                <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>
+                  PDF
+                </Text>
+              </TouchableOpacity>
+            )}
+
             {onRegenerate && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.surface }]}
@@ -357,5 +388,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  pdfButton: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
 });
