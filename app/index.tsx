@@ -60,6 +60,7 @@ interface FeatureModalProps {
 }
 
 export default function Landing() {
+  console.log('[App] Landing page rendering...');
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);

@@ -5,6 +5,8 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
+      // Expo Router must come before other plugins
+      'expo-router/babel',
       [
         'module-resolver',
         {
@@ -31,6 +33,7 @@ module.exports = function (api) {
         'transform-remove-console',
         { exclude: ['error'] }
       ] : null,
+      // React Native Reanimated plugin must be last!
       'react-native-reanimated/plugin',
     ].filter(Boolean),
   };

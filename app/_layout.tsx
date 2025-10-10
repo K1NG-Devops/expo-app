@@ -13,18 +13,30 @@ import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import ToastProvider from '@/components/ui/ToastProvider';
 
 // Initialize performance monitoring and global error handling first
-import { initPerformanceMonitoring } from '@/lib/perf';
-import { installGlobalErrorHandler } from '@/lib/global-errors';
-import { initMonitoring } from '@/lib/monitoring';
+try {
+  require('@/lib/perf').initPerformanceMonitoring?.();
+} catch (e) {
+  console.log('[App] Perf monitoring failed to load:', e);
+}
 
-// Initialize critical systems
-initPerformanceMonitoring();
-installGlobalErrorHandler();
-initMonitoring();
+try {
+  require('@/lib/global-errors').installGlobalErrorHandler?.();
+} catch (e) {
+  console.log('[App] Global error handler failed to load:', e);
+}
+
+try {
+  require('@/lib/monitoring').initMonitoring?.();
+} catch (e) {
+  console.log('[App] Monitoring failed to load:', e);
+}
 
 // Initialize lazy loading for ultra-fast navigation
-import { ChunkPreloader } from '@/lib/lazy-loading';
-ChunkPreloader.preloadCriticalChunks();
+try {
+  require('@/lib/lazy-loading').ChunkPreloader?.preloadCriticalChunks?.();
+} catch (e) {
+  console.log('[App] Lazy loading failed to load:', e);
+}
 
 // Initialize i18n BEFORE any components render
 import '@/lib/i18n';
@@ -50,6 +62,8 @@ if (Platform.OS === 'web') {
 }
 
 export default function RootLayout() {
+  console.log('[App] RootLayout rendering...');
+  
   // Hide development navigation header on web
   useEffect(() => {
     // Track OTA/app launch (non-blocking)
