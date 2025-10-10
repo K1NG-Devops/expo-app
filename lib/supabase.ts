@@ -47,8 +47,31 @@ try {
   }
 }
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// Get environment variables with fallback for preview builds
+let url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
+let anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+
+// Temporary fallback for preview builds if babel plugin isn't working
+if (!url && !anon) {
+  // Use values from eas.json preview config as fallback
+  url = 'https://lvvvjywrmpcqrpvuptdi.supabase.co';
+  anon = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx2dnZqeXdybXBjcXJwdnVwdGRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMwMzc4MzgsImV4cCI6MjA2ODYxMzgzOH0.mjXejyRHPzEJfMlhW46TlYI0qw9mtoSRJZhGsCkuvd8';
+  console.log('[SUPABASE] Using hardcoded fallback values for preview');
+}
+
+// ALWAYS show environment debug info to diagnose the issue
+console.log('[SUPABASE ENV DEBUG - ALWAYS SHOWN]', {
+  hasUrl: !!url,
+  hasAnon: !!anon,
+  tenant: process.env.EXPO_PUBLIC_TENANT_SLUG || 'UNDEFINED',
+  urlLength: url ? url.length : 0,
+  anonLength: anon ? anon.length : 0,
+  urlPreview: url ? url.substring(0, 30) + '...' : 'MISSING',
+  anonPreview: anon ? anon.substring(0, 10) + '...' : 'MISSING',
+  nodeEnv: process.env.NODE_ENV || 'UNDEFINED',
+  expoPubEnvVars: Object.keys(process.env).filter(k => k.startsWith('EXPO_PUBLIC')),
+  totalEnvKeys: Object.keys(process.env).length
+});
 
 // Debug environment variables in preview builds
 if (process.env.EXPO_PUBLIC_TENANT_SLUG === 'preview') {
