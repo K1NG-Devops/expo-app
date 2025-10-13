@@ -180,14 +180,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   }, [dashInstance, isInitialized]);
 
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    setTimeout(() => {
-      try {
-        (flatListRef.current as any)?.scrollToEnd?.({ animated: true });
-      } catch {}
-    }, 100);
-  }, [messages]);
+  // Auto-scroll removed - inverted list handles this automatically
 
 
   // Focus effect to refresh when screen comes into focus
@@ -638,6 +631,8 @@ return (
         <MessageBubbleModern
           message={message}
           showIcon={!isUser}
+          onSpeak={!isUser ? speakResponse : undefined}
+          isSpeaking={speakingMessageId === message.id}
           onRegenerate={!isUser ? () => {
             const prev = messages[index - 1];
             const retryText = prev && prev.type === 'user' ? prev.content : message.content;
@@ -1257,7 +1252,12 @@ return (
             renderItem={({ item, index }: any) => renderMessage(item, index)}
             contentContainerStyle={styles.messagesContent}
             style={styles.messagesContainer}
+            inverted={true}
             showsVerticalScrollIndicator={false}
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={21}
+            removeClippedSubviews={Platform.OS === 'android'}
             ListFooterComponent={(
               <>
                 {/* Non-streaming voice send placeholder */}
@@ -1285,8 +1285,6 @@ return (
                 {renderSuggestedActions()}
               </>
             )}
-            onContentSizeChange={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: true }); } catch {} }}
-            onLayout={() => { try { (flatListRef.current as any)?.scrollToEnd?.({ animated: false }); } catch {} }}
           />
         );
       })()}

@@ -35,7 +35,41 @@
     "signingUp": "Yakha i-akhawunti...",
     "invalidCredentials": "I-imeyili noma iphasiwedi ayilungile",
     "accountCreated": "I-akhawunti yenziwe ngempumelelo",
-    "passwordResetSent": "Isixhumanisi sokubuyisela iphasiwedi sithunyelwe ku-imeyili yakho"
+    "passwordResetSent": "Isixhumanisi sokubuyisela iphasiwedi sithunyelwe ku-imeyili yakho",
+    "remember_me": "Ngikhumbule",
+    "dont_have_account": "Awunayo i-akhawunti?",
+    "sign_in": {
+      "enter_email_password": "Sicela ufake i-imeyili nephasi wedi",
+      "failed": "Ukungena Kuhlulekile",
+      "signing_in": "Iyangena...",
+      "cta": "Ngena",
+      "no_saved_credentials": "Azikho iziqinisekiso ezilondoloziwe. Sicela ungene ngephasiwedi yakho."
+    },
+    "biometric": {
+      "prompt": "Ngena ku-EduDash Pro",
+      "use_face_id": "Sebenzisa Ubuso ID",
+      "use_fingerprint": "Sebenzisa Izigxivizo Zeminwe",
+      "use_biometric": "Sebenzisa i-Biometric",
+      "enabled_for": "Ukungena nge-biometric kunikwe amandla"
+    },
+    "biometric_not_available": {
+      "title": "I-Biometric Ayitholakali",
+      "desc": "Sicela usebenzise iphasiwedi yakho ukungena."
+    },
+    "biometric_failed": {
+      "title": "Ukuqinisekisa Kuhlulekile",
+      "desc": "Ukuqinisekisa nge-biometric kuhlulekile",
+      "unexpected": "Kuthe qatha iphutha ngesikhathi sokuqinisekisa nge-biometric"
+    },
+    "oauth": {
+      "failed_start": "Kwehluleka ukuqala ukungena kwezinhlelo zokuxhumana",
+      "config_error": "Iphutha lokucubungula i-OAuth. Sicela uthinte usizo.",
+      "unavailable": "Ukungena Akutholakali",
+      "error": "Iphutha Lokungena"
+    },
+    "sign_up_parent": "Bhalisa njengomzali",
+    "sign_up_teacher": "Bhalisa njengothisha",
+    "school_register_q": "Ufuna ukubhalisa isikole?"
   },
   "roles": {
     "parent": "Umzali",

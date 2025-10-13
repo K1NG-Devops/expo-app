@@ -37,7 +37,41 @@
     "signingUp": "Creando cuenta...",
     "invalidCredentials": "Correo o contraseña inválidos",
     "accountCreated": "Cuenta creada exitosamente",
-    "passwordResetSent": "Enlace de restablecimiento enviado a su correo"
+    "passwordResetSent": "Enlace de restablecimiento enviado a su correo",
+    "remember_me": "Recordarme",
+    "dont_have_account": "¿No tienes una cuenta?",
+    "sign_in": {
+      "enter_email_password": "Por favor ingresa correo y contraseña",
+      "failed": "Inicio de Sesión Fallido",
+      "signing_in": "Iniciando sesión...",
+      "cta": "Iniciar Sesión",
+      "no_saved_credentials": "No se encontraron credenciales guardadas. Por favor inicia sesión con tu contraseña."
+    },
+    "biometric": {
+      "prompt": "Iniciar sesión en EduDash Pro",
+      "use_face_id": "Usar Face ID",
+      "use_fingerprint": "Usar Huella Digital",
+      "use_biometric": "Usar Biometría",
+      "enabled_for": "Inicio de sesión biométrico activado"
+    },
+    "biometric_not_available": {
+      "title": "Biometría No Disponible",
+      "desc": "Por favor usa tu contraseña para iniciar sesión."
+    },
+    "biometric_failed": {
+      "title": "Autenticación Fallida",
+      "desc": "La autenticación biométrica falló",
+      "unexpected": "Ocurrió un error durante la autenticación biométrica"
+    },
+    "oauth": {
+      "failed_start": "No se pudo iniciar el inicio de sesión social",
+      "config_error": "Error de configuración OAuth. Por favor contacta soporte.",
+      "unavailable": "Inicio de Sesión No Disponible",
+      "error": "Error de Inicio de Sesión"
+    },
+    "sign_up_parent": "Registrarse como Padre/Madre",
+    "sign_up_teacher": "Registrarse como Profesor/a",
+    "school_register_q": "¿Buscas registrar una escuela?"
   },
   "roles": {
     "parent": "Padre/Madre",

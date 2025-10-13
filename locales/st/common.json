@@ -35,7 +35,41 @@
     "signingUp": "Go na go hlangwa akhaonte...",
     "invalidCredentials": "Imeile goba lentšu la sephiri ga se la kgonthe",
     "accountCreated": "Akhaonte e hlanggilwe ka katlego",
-    "passwordResetSent": "Lomaganyo la go beakanya lentšu la sephiri lo romelilwe go imeile ya gago"
+    "passwordResetSent": "Lomaganyo la go beakanya lentšu la sephiri lo romelilwe go imeile ya gago",
+    "remember_me": "Ngopola",
+    "dont_have_account": "Ga o na akhaonte?",
+    "sign_in": {
+      "enter_email_password": "Ka kgopelo tsenya imeile le lentšu la sephiri",
+      "failed": "Go Tsena Go Paletšwe",
+      "signing_in": "Go na go tsenwa...",
+      "cta": "Tsena",
+      "no_saved_credentials": "Ga go ditshwayotshwayo tšeo di bolokilwego. Ka kgopelo tsena ka lentšu la gago la sephiri."
+    },
+    "biometric": {
+      "prompt": "Tsena go EduDash Pro",
+      "use_face_id": "Šomiša Sefahleho ID",
+      "use_fingerprint": "Šomiša Seswao sa Monwana",
+      "use_biometric": "Šomiša Biometric",
+      "enabled_for": "Go tsena ka biometric go kgontšhitšwe"
+    },
+    "biometric_not_available": {
+      "title": "Biometric Ga e Gona",
+      "desc": "Ka kgopelo šomiša lentšu la gago la sephiri go tsena."
+    },
+    "biometric_failed": {
+      "title": "Tiišetšo e Paletšwe",
+      "desc": "Tiišetšo ya biometric e paletšwe",
+      "unexpected": "Phošo e diregile nakong ya tiišetšo ya biometric"
+    },
+    "oauth": {
+      "failed_start": "Go paletšwe go thoma go tsena ka setšhaba",
+      "config_error": "Phošo ya peakanyo ya OAuth. Ka kgopelo ikgokaganye le thekgo.",
+      "unavailable": "Go Tsena Ga go Gona",
+      "error": "Phošo ya go Tsena"
+    },
+    "sign_up_parent": "Ngwadiša bjalo ka Motswadi",
+    "sign_up_teacher": "Ngwadiša bjalo ka Morutiši",
+    "school_register_q": "O nyaka go ngwadiša sekolo?"
   },
   "roles": {
     "parent": "Motswadi",

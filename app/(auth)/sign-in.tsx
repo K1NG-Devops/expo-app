@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, ScrollView, KeyboardAvoidingView } from "react-native";
 import { Stack, router } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -24,6 +24,9 @@ export default function SignIn() {
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<string | null>(null);
   const [storedUserEmail, setStoredUserEmail] = useState<string | null>(null);
+  const [showBiometricLoading, setShowBiometricLoading] = useState(false);
+  const shouldAutoTriggerBiometric = useRef(false);
+  const hasTriggeredBiometric = useRef(false);
 
   // Load saved credentials and check biometric availability
   useEffect(() => {
@@ -32,7 +35,8 @@ export default function SignIn() {
         // Check biometric availability
         const securityInfo = await BiometricAuthService.getSecurityInfo();
         const isAvailable = securityInfo.capabilities.isAvailable && securityInfo.capabilities.isEnrolled;
-        setBiometricAvailable(isAvailable && securityInfo.isEnabled);
+        const biometricEnabled = isAvailable && securityInfo.isEnabled;
+        setBiometricAvailable(biometricEnabled);
         
         // Determine biometric type
         const availableTypes = securityInfo.availableTypes;
@@ -57,6 +61,12 @@ export default function SignIn() {
           const savedPassword = await SecureStore.getItemAsync(sanitizedKey);
           if (savedPassword) {
             setPassword(savedPassword);
+          }
+          
+          // Set flag to auto-trigger biometric authentication if available and credentials are saved
+          if (biometricEnabled && savedPassword) {
+            console.log('[Sign-In] Biometric credentials available, will auto-trigger');
+            shouldAutoTriggerBiometric.current = true;
           }
         }
       } catch (error) {
@@ -140,13 +150,17 @@ export default function SignIn() {
     }
   };
 
-  const handleBiometricLogin = async () => {
+  const handleBiometricLogin = async (isAutoTrigger = false) => {
     if (!biometricAvailable) {
       Alert.alert(t('auth.biometric_not_available.title', { defaultValue: 'Biometric Not Available' }), t('auth.biometric_not_available.desc', { defaultValue: 'Please use your password to sign in.' }));
       return;
     }
 
+    if (isAutoTrigger) {
+      setShowBiometricLoading(true);
+    }
     setLoading(true);
+    
     try {
       // Authenticate with biometrics
       const authResult = await BiometricAuthService.authenticate(t('auth.biometric.prompt', { defaultValue: 'Sign in to EduDash Pro' }));
@@ -156,18 +170,38 @@ export default function SignIn() {
         if (email && password) {
           await handleSignIn();
         } else {
+          setShowBiometricLoading(false);
           Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.sign_in.no_saved_credentials', { defaultValue: 'No saved credentials found. Please sign in with your password.' }));
         }
       } else {
-        Alert.alert(t('auth.biometric_failed.title', { defaultValue: 'Authentication Failed' }), authResult.error || t('auth.biometric_failed.desc', { defaultValue: 'Biometric authentication failed' }));
+        setShowBiometricLoading(false);
+        // Only show alert if user didn't just cancel
+        if (authResult.error && !authResult.error.includes('cancel')) {
+          Alert.alert(t('auth.biometric_failed.title', { defaultValue: 'Authentication Failed' }), authResult.error || t('auth.biometric_failed.desc', { defaultValue: 'Biometric authentication failed' }));
+        }
       }
     } catch (error) {
       console.error('Biometric login error:', error);
+      setShowBiometricLoading(false);
       Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.biometric_failed.unexpected', { defaultValue: 'An error occurred during biometric authentication' }));
     } finally {
-      setLoading(false);
+      if (!isAutoTrigger) {
+        setLoading(false);
+      }
     }
   };
+
+  // Auto-trigger biometric authentication when ready
+  useEffect(() => {
+    if (shouldAutoTriggerBiometric.current && !hasTriggeredBiometric.current && biometricAvailable && email && password) {
+      hasTriggeredBiometric.current = true;
+      console.log('[Sign-In] Auto-triggering biometric authentication');
+      // Small delay to ensure UI is ready
+      setTimeout(() => {
+        handleBiometricLogin(true);
+      }, 500);
+    }
+  }, [biometricAvailable, email, password]);
 
   const handleSocialLogin = async (provider: string) => {
     try {
@@ -332,11 +366,11 @@ export default function SignIn() {
       backgroundColor: theme.inputBackground,
     },
     button: {
+      flex: 1,
       backgroundColor: theme.primary,
       paddingVertical: 14,
       borderRadius: 10,
       alignItems: 'center',
-      marginTop: 4,
     },
     buttonText: {
       color: theme.onPrimary,
@@ -383,41 +417,38 @@ export default function SignIn() {
       fontSize: 14,
       color: theme.text,
     },
-    biometricSection: {
-      marginTop: 16,
-      marginBottom: 16,
+    biometricInlineHint: {
+      flexDirection: 'row',
       alignItems: 'center',
-      padding: 16,
+      gap: 6,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
       backgroundColor: theme.surfaceVariant,
-      borderRadius: 12,
+      borderRadius: 8,
+      marginBottom: 12,
       borderWidth: 1,
       borderColor: theme.border,
     },
-    biometricWelcome: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 4,
-    },
-    biometricEmail: {
-      fontSize: 14,
+    biometricHintText: {
+      fontSize: 13,
       color: theme.textSecondary,
-      marginBottom: 12,
+      fontWeight: '500',
     },
-    biometricButton: {
+    signInButtonContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      backgroundColor: theme.primary,
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      borderRadius: 10,
-      marginBottom: 12,
+      gap: 8,
+      marginTop: 4,
     },
-    biometricButtonText: {
-      color: theme.onPrimary,
-      fontSize: 16,
-      fontWeight: '600',
+    biometricQuickButton: {
+      width: 50,
+      height: 50,
+      borderRadius: 10,
+      backgroundColor: theme.surfaceVariant,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     dividerContainer: {
       flexDirection: 'row',
@@ -482,6 +513,43 @@ export default function SignIn() {
       fontWeight: '600',
       textDecorationLine: 'underline',
     },
+    biometricLoadingOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: theme.background,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000,
+    },
+    biometricLoadingContent: {
+      alignItems: 'center',
+      padding: 32,
+    },
+    biometricLoadingIcon: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.surfaceVariant,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    biometricLoadingText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    biometricLoadingSubtext: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
   });
 
   return (
@@ -492,7 +560,35 @@ export default function SignIn() {
         }}
       />
 
-      <KeyboardAvoidingView 
+      {/* Biometric Loading Overlay */}
+      {showBiometricLoading && (
+        <View style={styles.biometricLoadingOverlay}>
+          <View style={styles.biometricLoadingContent}>
+            <View style={styles.biometricLoadingIcon}>
+              <Ionicons
+                name={
+                  biometricType === 'face' ? 'scan' :
+                  biometricType === 'fingerprint' ? 'finger-print' :
+                  'shield-checkmark'
+                }
+                size={40}
+                color={theme.primary}
+              />
+            </View>
+            <Text style={styles.biometricLoadingText}>
+              {biometricType === 'face' ? t('auth.biometric.authenticating_face', { defaultValue: 'Authenticating with Face ID' }) :
+               biometricType === 'fingerprint' ? t('auth.biometric.authenticating_fingerprint', { defaultValue: 'Authenticating with Fingerprint' }) :
+               t('auth.biometric.authenticating', { defaultValue: 'Authenticating' })}
+            </Text>
+            <Text style={styles.biometricLoadingSubtext}>
+              {t('auth.biometric.please_verify', { defaultValue: 'Please verify your identity' })}
+            </Text>
+            <ActivityIndicator size="large" color={theme.primary} />
+          </View>
+        </View>
+      )}
+
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
@@ -518,45 +614,21 @@ export default function SignIn() {
                 <Text style={styles.subtitle}>Sign in to your account</Text>
               </View>
 
-          {/* Biometric Login Section */}
+          {/* Biometric quick access - shown inline if available */}
           {biometricAvailable && storedUserEmail && (
-            <View style={styles.biometricSection}>
-              <Text style={styles.biometricWelcome}>Welcome back!</Text>
-              <Text style={styles.biometricEmail}>{storedUserEmail}</Text>
-              <TouchableOpacity
-                style={styles.biometricButton}
-                onPress={handleBiometricLogin}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <ActivityIndicator color={theme.onPrimary} />
-                ) : (
-                  <>
-                    <Ionicons
-                      name={
-                        biometricType === 'face' ? 'scan' :
-                        biometricType === 'fingerprint' ? 'finger-print' :
-                        'lock-closed'
-                      }
-                      size={22}
-                      color={theme.onPrimary}
-                    />
-                    <Text style={styles.biometricButtonText}>
-                      {biometricType === 'face' ? t('auth.biometric.use_face_id', { defaultValue: 'Use Face ID' }) :
-                       biometricType === 'fingerprint' ? t('auth.biometric.use_fingerprint', { defaultValue: 'Use Fingerprint' }) :
-                       t('auth.biometric.use_biometric', { defaultValue: 'Use Biometric' })}
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              
-              {/* Divider */}
-              <View style={styles.dividerContainer}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>{t('common.or', { defaultValue: 'or' })}</Text>
-                <View style={styles.dividerLine} />
-              </View>
+            <View style={styles.biometricInlineHint}>
+              <Ionicons
+                name={
+                  biometricType === 'face' ? 'scan' :
+                  biometricType === 'fingerprint' ? 'finger-print' :
+                  'shield-checkmark'
+                }
+                size={16}
+                color={theme.primary}
+              />
+              <Text style={styles.biometricHintText}>
+                {t('auth.biometric.enabled_for', { defaultValue: 'Biometric login enabled' })}
+              </Text>
             </View>
           )}
 
@@ -609,15 +681,37 @@ export default function SignIn() {
               <Text style={styles.rememberMeText}>{t('auth.remember_me', { defaultValue: 'Remember me' })}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.signInButtonContainer}>
+              <TouchableOpacity
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleSignIn}
+                disabled={loading}
+              >
+                <Text style={styles.buttonText}>
+                  {loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Biometric quick retry button */}
+              {biometricAvailable && storedUserEmail && (
+                <TouchableOpacity
+                  style={styles.biometricQuickButton}
+                  onPress={handleBiometricLogin}
+                  disabled={loading}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={
+                      biometricType === 'face' ? 'scan' :
+                      biometricType === 'fingerprint' ? 'finger-print' :
+                      'shield-checkmark'
+                    }
+                    size={24}
+                    color={loading ? theme.textDisabled : theme.primary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
 
             <TouchableOpacity
               style={{ alignItems: 'center', marginTop: 10 }}

@@ -18,6 +18,7 @@ import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
 import { base64ToUint8Array } from '@/lib/utils/base64';
+import DashRealTimeAwareness from './DashRealTimeAwareness';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -582,6 +583,7 @@ export class DashAIAssistant {
     type: string;
     data: any;
   }> = [];
+  private messageCountByConversation: Map<string, number> = new Map();
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
@@ -3926,20 +3928,20 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           role: profile?.role || 'unknown',
           organization_id: profile?.organization_id
         },
-        app_context: {
-          app_name: 'EduDash Pro',
-          platform: 'mobile',
-          navigation_type: 'tab_based', // NO menu button!
-          available_screens: this.getAvailableScreensForRole(profile?.role),
-          current_features: [
-            'voice_interaction',
-            'ai_assistance',
-            'student_management',
-            'class_analytics',
-            'attendance_tracking',
-            'parent_communication'
-          ]
-        }
+      app_context: {
+        app_name: 'EduDash Pro',
+        platform: 'mobile',
+        navigation_type: 'stack', // STACK navigation, not tabs!
+        available_screens: this.getAvailableScreensForRole(profile?.role),
+        current_features: [
+          'voice_interaction',
+          'ai_assistance',
+          'student_management',
+          'class_analytics',
+          'attendance_tracking',
+          'parent_communication'
+        ]
+      }
       };
     } catch (error) {
       console.error('[Dash] Failed to get current context:', error);
@@ -3948,11 +3950,31 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
   
   /**
+   * Get confirmation message for screen opening
+   */
+  private getScreenOpeningConfirmation(route: string): string {
+    const screenNames: Record<string, string> = {
+      '/screens/ai-lesson-generator': 'Opening the AI Lesson Generator...',
+      '/screens/financial-dashboard': 'Taking you to the Financial Dashboard...',
+      '/screens/teacher-messages': 'Opening Messages...',
+      '/screens/worksheet-demo': 'Opening the Worksheet Generator...',
+      '/screens/student-management': 'Taking you to Student Management...',
+      '/screens/lessons-hub': 'Opening the Lessons Hub...',
+      '/screens/dash-assistant': 'Opening Dash Assistant...',
+      '/screens/teacher-reports': 'Opening Reports...',
+      '/screens/principal-announcement': 'Opening Announcements...',
+      '/screens/super-admin-announcements': 'Opening Platform Announcements...'
+    };
+    
+    return screenNames[route] || 'Opening the requested screen...';
+  }
+  
+  /**
    * Get available screens based on user role
    */
   private getAvailableScreensForRole(role?: string): any {
     const commonScreens = {
-      navigation: 'Bottom tab navigation (Home, Messages, Settings, Profile)',
+      navigation: 'Stack navigation - use back button or swipe to go back',
       home: 'Dashboard with quick stats and actions',
       messages: 'Communication center',
       settings: 'App settings and preferences',
@@ -3968,7 +3990,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           students: 'Student roster',
           classes: 'Class management',
           reports: 'School reports and analytics',
-          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
         };
       
       case 'teacher':
@@ -3980,7 +4002,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           assignments: 'Assignment management',
           attendance: 'Attendance tracking',
           gradebook: 'Grading and assessment',
-          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
         };
       
       case 'parent':
@@ -3991,13 +4013,13 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           calendar: 'School calendar and events',
           homework: 'Homework tracking',
           progress: 'Child progress reports',
-          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
         };
       
       default:
         return {
           ...commonScreens,
-          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
         };
     }
   }
@@ -4007,76 +4029,34 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    */
   private async generateEnhancedResponse(content: string, conversationId: string, analysis: any): Promise<DashMessage> {
     try {
-      // Get role-specific greeting and capabilities
-      const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
-      const capabilities = roleSpec?.capabilities || [];
+      // Get REAL awareness context
+      const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
       
-      // Get current app context
-      const appContext = await this.getCurrentContext();
+      // Track message count for this conversation
+      const currentCount = this.messageCountByConversation.get(conversationId) || 0;
+      this.messageCountByConversation.set(conversationId, currentCount + 1);
+      awareness.conversation.messageCount = currentCount + 1;
       
-      // Enhance the prompt with role context and capabilities
-      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
-
-CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
-
-APP STRUCTURE & NAVIGATION:
-- Platform: Mobile app (React Native/Expo)
-- Navigation: Bottom tab navigation with 4 tabs (Home/Dashboard, Messages, Settings, Profile)
-- CRITICAL: There is NO menu button, NO hamburger menu, NO side drawer. Only bottom tabs.
-- Available screens: ${JSON.stringify(appContext.app_context?.available_screens || {})}
-- Current features: ${appContext.app_context?.current_features?.join(', ') || 'voice interaction, student management'}
-
-YOUR NAVIGATION CAPABILITIES:
-- You CAN open screens directly (e.g., "I'll open the lesson generator for you")
-- You CAN navigate users to specific features (e.g., "Let me take you to the financial dashboard")
-- For manual navigation, tell users: "Tap the [Tab Name] tab at the bottom"
-- Screens you can open: lesson generator, financial dashboard, messaging, announcements, and role-specific screens
-- When opening screens, be confident and say "I'll open X for you" or "Let me take you to X"
-
-RESPONSE GUIDELINES:
-- Be concise, practical, and directly helpful
-- Provide specific, actionable advice using ACTUAL app navigation (bottom tabs only)
-- Reference educational best practices when relevant
-- Use a warm but professional tone
-- Keep responses focused and avoid unnecessary elaboration
-- When suggesting navigation, ONLY reference bottom tabs or screens that actually exist
-- NEVER mention menu buttons, hamburger menus, or navigation drawers
-- DO NOT greet the user in every response - you are having a conversation
-- Only greet at the start of a NEW conversation, not for every message`;
+      // Build awareness-driven system prompt
+      const systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
       
-      if (roleSpec && this.userProfile?.role) {
-        systemPrompt += `
-
-ROLE-SPECIFIC CONTEXT:
-- You are helping a ${this.userProfile.role}
-- Communication tone: ${roleSpec.tone}
-- Your specialized capabilities: ${capabilities.join(', ')}`;
-      }
-
-      // Add context awareness
-      if (analysis.context) {
-        systemPrompt += `
-
-CURRENT CONTEXT: ${JSON.stringify(analysis.context, null, 2)}`;
-      }
-
-      // Add intent understanding
+      // Generate contextual greeting if needed (only for new conversations)
+      const greeting = DashRealTimeAwareness.generateContextualGreeting(awareness);
+      
+      // Add intent understanding to context
+      let enhancedPrompt = systemPrompt;
       if (analysis.intent) {
-        systemPrompt += `
+        enhancedPrompt += `
 
 USER INTENT: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})
 ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.intent.secondary_intents.join(', ')}` : ''}`;
       }
 
-      systemPrompt += `
-
-IMPORTANT: Always provide specific, contextual responses that directly address the user's needs. Avoid generic educational advice unless specifically requested.`;
-
       // Call AI service with enhanced context using homework_help action
       const aiResponse = await this.callAIService({
         action: 'homework_help',
         question: content,
-        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        context: enhancedPrompt,
         gradeLevel: 'General',
         conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
       });
@@ -4084,6 +4064,9 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
       let dashboardAction = this.generateDashboardAction(analysis.intent);
       const contentLower = content.toLowerCase();
+      
+      // Check if we should auto-execute based on intent
+      const shouldAutoOpen = DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness);
       
       // Financial dashboard keywords
       if (!dashboardAction && (contentLower.includes('financial') || contentLower.includes('finance') || 
@@ -4111,14 +4094,27 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         dashboardAction = { type: 'open_screen', route: '/screens/worksheet-demo', params: worksheetParams };
       }
       
+      // If screen action is detected and should auto-execute, open it immediately
+      if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen) {
+        // Actually open the screen right now!
+        await DashRealTimeAwareness.openScreen(dashboardAction.route, dashboardAction.params);
+        
+        // Prepend action confirmation to response
+        const actionConfirmation = this.getScreenOpeningConfirmation(dashboardAction.route);
+        aiResponse.content = `${actionConfirmation}\n\n${aiResponse.content || ''}`;
+      }
+      
+      // Prepend greeting if new conversation
+      const finalContent = greeting ? `${greeting}${aiResponse.content}` : (aiResponse.content || 'I apologize, but I encountered an issue processing your request.');
+      
       const assistantMessage: DashMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
-        content: aiResponse.content || 'I apologize, but I encountered an issue processing your request.',
+        content: finalContent,
         timestamp: Date.now(),
         metadata: {
           confidence: analysis.intent?.confidence || 0.5,
-          suggested_actions: this.generateSuggestedActions(analysis.intent, capabilities),
+          suggested_actions: this.generateSuggestedActions(analysis.intent, awareness.user.role),
           user_intent: analysis.intent,
           dashboard_action: dashboardAction
         }
@@ -4288,10 +4284,31 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
     }
   }
 
+  // Track last API call time for rate limit prevention
+  private lastAPICallTime: number = 0;
+  private readonly MIN_API_CALL_INTERVAL = 2000; // 2 seconds between calls
+
   /**
-   * Call AI service with enhanced context
+   * Call AI service with enhanced context and retry logic
+   * Now uses request queue to prevent rate limiting
    */
-  private async callAIService(params: any): Promise<any> {
+  private async callAIService(params: any, retryCount = 0): Promise<any> {
+    const MAX_RETRIES = 3;
+    const BASE_DELAY = 1000; // 1 second
+    
+    // Import AI request queue
+    const { aiRequestQueue } = await import('@/lib/ai-gateway/request-queue');
+    
+    // Debounce: Prevent rapid-fire API calls
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastAPICallTime;
+    if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
+      const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
+      console.log(`[Dash] Debouncing API call. Waiting ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    this.lastAPICallTime = Date.now();
+    
     try {
       const supabase = assertSupabase();
       
@@ -4301,30 +4318,117 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
       };
       
-      const { data, error } = await supabase.functions.invoke('ai-gateway', {
-        body: requestBody
+      // Queue the AI request to prevent rate limiting
+      const { data, error } = await aiRequestQueue.enqueue(() => 
+        supabase.functions.invoke('ai-gateway', {
+          body: requestBody
+        })
+      );
+      
+      if (error) {
+        const status = (error as any).context?.status || (error as any).status;
+        
+        // Log detailed error information
+        console.error('[Dash] AI Gateway Error:', {
+          message: error.message,
+          status,
+          statusText: (error as any).statusText,
+          retryCount,
+          context: (error as any).context,
+          details: error
+        });
+        
+        // Handle rate limiting (429) with exponential backoff
+        if (status === 429 && retryCount < MAX_RETRIES) {
+          const delay = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
+          console.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.callAIService(params, retryCount + 1);
+        }
+        
+        // Handle server errors (500, 502, 503, 504) with retry
+        if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
+          const delay = BASE_DELAY * (retryCount + 1); // 1s, 2s, 3s
+          console.warn(`[Dash] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.callAIService(params, retryCount + 1);
+        }
+        
+        throw error;
+      }
+      
+      return data;
+    } catch (error: any) {
+      const status = error?.context?.status || error?.status;
+      
+      // Enhanced error logging
+      console.error('[Dash] AI service call failed:', {
+        name: error?.name,
+        message: error?.message,
+        status,
+        statusCode: error?.statusCode,
+        retryCount,
+        context: error?.context,
+        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
+        requestParams: {
+          messages: params.messages?.length || 0,
+          hasSystemPrompt: !!params.system,
+          model: params.model
+        }
       });
       
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('[Dash] AI service call failed:', error);
-      return { content: 'I apologize, but I encountered an issue. Please try again.' };
+      // User-friendly error messages based on status
+      let userMessage = 'I apologize, but I encountered an issue. Please try again.';
+      
+      if (status === 429) {
+        userMessage = "I'm currently experiencing high demand. Please wait a moment and try again.";
+      } else if ([500, 502, 503, 504].includes(status)) {
+        userMessage = 'The AI service is temporarily unavailable. Please try again in a moment.';
+      } else if (status === 401 || status === 403) {
+        userMessage = 'Authentication issue detected. Please try signing out and back in.';
+      }
+      
+      return { 
+        content: userMessage,
+        error: true,
+        errorDetails: error?.message || 'Unknown error',
+        errorStatus: status
+      };
     }
   }
 
   /**
-   * Generate suggested actions based on intent and capabilities
+   * Generate suggested actions based on intent and user role
    */
-  private generateSuggestedActions(intent: any, capabilities: string[]): string[] {
+  private generateSuggestedActions(intent: any, userRole: string): string[] {
     const actions: string[] = [];
+    
+    // Role-based action suggestions
+    const roleCapabilities: Record<string, string[]> = {
+      'principal': ['lesson_planning', 'teacher_management', 'financial_oversight', 'communication'],
+      'teacher': ['lesson_planning', 'grading_assistance', 'student_management', 'parent_communication'],
+      'parent': ['homework_help', 'progress_tracking', 'communication']
+    };
+    
+    const capabilities = roleCapabilities[userRole] || [];
     
     if (intent?.primary_intent === 'create_lesson' && capabilities.includes('lesson_planning')) {
       actions.push('Create detailed lesson plan', 'Align with curriculum', 'Generate assessment rubric');
     } else if (intent?.primary_intent === 'grade_assignment' && capabilities.includes('grading_assistance')) {
       actions.push('Auto-grade assignments', 'Generate feedback', 'Track student progress');
-    } else if (intent?.primary_intent === 'parent_communication') {
+    } else if (intent?.primary_intent === 'parent_communication' && capabilities.includes('parent_communication')) {
       actions.push('Draft parent email', 'Schedule meeting', 'Share progress report');
+    } else {
+      // Default actions based on role
+      if (userRole === 'teacher') {
+        actions.push('Create lesson', 'View students', 'Check assignments');
+      } else if (userRole === 'principal') {
+        actions.push('View analytics', 'Manage teachers', 'Financial overview');
+      } else if (userRole === 'parent') {
+        actions.push('View children', 'Check homework', 'Message teacher');
+      }
     }
     
     return actions;

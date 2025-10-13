@@ -222,10 +222,14 @@ export class DashProactiveEngine {
       const occurrences = this.dailyOccurrences.get(rule.id) ?? 0;
       if (occurrences >= rule.maxDailyOccurrences) continue;
 
-      // Check time pattern
+      // Check time pattern with ±1 hour flexibility
       if (rule.triggers.timePattern) {
         const { hour, dayOfWeek } = rule.triggers.timePattern;
-        if (hour !== undefined && currentHour !== hour) continue;
+        // Allow ±1 hour window for more flexible matching
+        if (hour !== undefined) {
+          const hourDiff = Math.abs(currentHour - hour);
+          if (hourDiff > 1) continue; // Skip if more than 1 hour away
+        }
         if (dayOfWeek !== undefined && currentDay !== dayOfWeek) continue;
       }
 
@@ -444,8 +448,83 @@ export class DashProactiveEngine {
         expiresAt: Date.now() + (5 * 60 * 1000) // 5 minutes
       });
     }
+    
+    // ALWAYS provide at least one general helpful suggestion based on role
+    // Only add if no other suggestions were generated
+    if (suggestions.length === 0) {
+      const generalSuggestions = this.getGeneralSuggestionsByRole(userRole);
+      if (generalSuggestions) {
+        suggestions.push(generalSuggestions);
+      }
+    }
 
     return suggestions;
+  }
+  
+  /**
+   * Get general helpful suggestions based on user role
+   */
+  private getGeneralSuggestionsByRole(userRole: string): ProactiveSuggestion | null {
+    const suggestionId = `general_${userRole}_${Date.now()}`;
+    
+    // Avoid repeating the same general suggestion too frequently
+    const lastGeneral = Array.from(this.lastTriggerTimes.keys())
+      .find(k => k.startsWith(`general_${userRole}`));
+    if (lastGeneral) {
+      const lastTime = this.lastTriggerTimes.get(lastGeneral) || 0;
+      // Only show general suggestions once per hour
+      if (Date.now() - lastTime < 60 * 60 * 1000) return null;
+    }
+    
+    this.lastTriggerTimes.set(suggestionId, Date.now());
+    
+    const suggestions: Record<string, Partial<ProactiveSuggestion>> = {
+      teacher: {
+        type: 'suggestion',
+        priority: 'low',
+        title: 'Lesson Planning Help',
+        message: "Need help planning lessons or creating assessments? I'm here to assist with curriculum alignment and engaging activities.",
+        actions: [
+          { id: 'plan_lesson', label: 'Plan Lesson', type: 'primary' },
+          { id: 'create_assessment', label: 'Create Assessment', type: 'secondary' },
+          { id: 'dismiss', label: 'Not Now', type: 'dismiss' }
+        ]
+      },
+      principal: {
+        type: 'insight',
+        priority: 'low',
+        title: 'School Insights',
+        message: 'I can provide insights on school performance, attendance trends, or help with administrative tasks.',
+        actions: [
+          { id: 'view_metrics', label: 'View Metrics', type: 'primary' },
+          { id: 'generate_report', label: 'Generate Report', type: 'secondary' },
+          { id: 'dismiss', label: 'Later', type: 'dismiss' }
+        ]
+      },
+      parent: {
+        type: 'suggestion',
+        priority: 'low',
+        title: 'Child Progress',
+        message: "Want to check your child's progress or upcoming assignments? I can help you stay connected with their learning.",
+        actions: [
+          { id: 'view_progress', label: 'View Progress', type: 'primary' },
+          { id: 'check_homework', label: 'Check Homework', type: 'secondary' },
+          { id: 'dismiss', label: 'Not Now', type: 'dismiss' }
+        ]
+      }
+    };
+    
+    const template = suggestions[userRole];
+    if (!template) return null;
+    
+    return {
+      id: suggestionId,
+      triggeredBy: 'context',
+      reasoning: 'General helpful suggestion for current role',
+      dismissible: true,
+      expiresAt: Date.now() + (30 * 60 * 1000), // 30 minutes
+      ...template
+    } as ProactiveSuggestion;
   }
 
   /**

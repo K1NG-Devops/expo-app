@@ -16,6 +16,8 @@ export interface MessageBubbleModernProps {
   message: DashMessage;
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onSpeak?: (message: DashMessage) => void;
+  isSpeaking?: boolean;
   showActions?: boolean;
   showIcon?: boolean;
 }
@@ -24,6 +26,8 @@ export function MessageBubbleModern({
   message,
   onCopy,
   onRegenerate,
+  onSpeak,
+  isSpeaking = false,
   showActions = true,
   showIcon = false,
 }: MessageBubbleModernProps) {
@@ -141,21 +145,21 @@ export function MessageBubbleModern({
               // Simple rendering with proper color
               if (line.startsWith('### ')) {
                 return (
-                  <Text key={index} style={[styles.text, styles.h3, { color: isUser ? '#fff' : theme.text }]}>
+                  <Text selectable={true} key={index} style={[styles.text, styles.h3, { color: isUser ? '#fff' : theme.text }]}>
                     {line.replace('### ', '')}
                   </Text>
                 );
               }
               if (line.startsWith('## ')) {
                 return (
-                  <Text key={index} style={[styles.text, styles.h2, { color: isUser ? '#fff' : theme.text }]}>
+                  <Text selectable={true} key={index} style={[styles.text, styles.h2, { color: isUser ? '#fff' : theme.text }]}>
                     {line.replace('## ', '')}
                   </Text>
                 );
               }
               if (line.startsWith('# ')) {
                 return (
-                  <Text key={index} style={[styles.text, styles.h1, { color: isUser ? '#fff' : theme.text }]}>
+                  <Text selectable={true} key={index} style={[styles.text, styles.h1, { color: isUser ? '#fff' : theme.text }]}>
                     {line.replace('# ', '')}
                   </Text>
                 );
@@ -166,7 +170,7 @@ export function MessageBubbleModern({
               if (boldRegex.test(line)) {
                 const parts = line.split(boldRegex);
                 return (
-                  <Text key={index} style={[styles.text, { color: isUser ? '#fff' : theme.text }]}>
+                  <Text selectable={true} key={index} style={[styles.text, { color: isUser ? '#fff' : theme.text }]}>
                     {parts.map((part, i) =>
                       i % 2 === 1 ? (
                         <Text key={i} style={styles.bold}>{part}</Text>
@@ -181,7 +185,7 @@ export function MessageBubbleModern({
               // List items
               if (line.startsWith('- ') || line.startsWith('• ')) {
                 return (
-                  <Text key={index} style={[styles.text, styles.listItem, { color: isUser ? '#fff' : theme.text }]}>
+                  <Text selectable={true} key={index} style={[styles.text, styles.listItem, { color: isUser ? '#fff' : theme.text }]}>
                     • {line.replace(/^[-•]\s*/, '')}
                   </Text>
                 );
@@ -194,7 +198,11 @@ export function MessageBubbleModern({
               
               // Regular text
               return line ? (
-                <Text key={index} style={[styles.text, { color: isUser ? '#fff' : theme.text }]}>
+                <Text 
+                  selectable={true}
+                  key={index} 
+                  style={[styles.text, { color: isUser ? '#fff' : theme.text }]}
+                >
                   {line}
                 </Text>
               ) : (
@@ -226,6 +234,40 @@ export function MessageBubbleModern({
         {/* Action buttons (only for assistant messages) */}
         {showActions && !isUser && !isSystem && (
           <View style={styles.actions}>
+            {/* Speak button */}
+            {onSpeak && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  {
+                    backgroundColor: isSpeaking
+                      ? theme.primary
+                      : theme.surface,
+                  },
+                ]}
+                onPress={() => onSpeak(message)}
+              >
+                <Ionicons
+                  name={isSpeaking ? 'stop' : 'volume-high-outline'}
+                  size={14}
+                  color={isSpeaking ? (theme.onPrimary || '#fff') : theme.text}
+                />
+                <Text
+                  style={[
+                    styles.actionText,
+                    {
+                      color: isSpeaking
+                        ? (theme.onPrimary || '#fff')
+                        : theme.text,
+                    },
+                  ]}
+                >
+                  {isSpeaking ? 'Stop' : 'Speak'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {/* Copy button */}
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.surface }]}
               onPress={handleCopy}
@@ -240,6 +282,7 @@ export function MessageBubbleModern({
               </Text>
             </TouchableOpacity>
 
+            {/* Regenerate button */}
             {onRegenerate && (
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.surface }]}

@@ -62,7 +62,12 @@
       "prompt": "Sign in to EduDash Pro",
       "use_face_id": "Use Face ID",
       "use_fingerprint": "Use Fingerprint",
-      "use_biometric": "Use Biometric"
+      "use_biometric": "Use Biometric",
+      "enabled_for": "Biometric login enabled",
+      "authenticating": "Authenticating",
+      "authenticating_face": "Authenticating with Face ID",
+      "authenticating_fingerprint": "Authenticating with Fingerprint",
+      "please_verify": "Please verify your identity"
     },
     "biometric_not_available": {
       "title": "Biometric Not Available",

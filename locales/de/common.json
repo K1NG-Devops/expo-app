@@ -37,7 +37,41 @@
     "signingUp": "Konto wird erstellt...",
     "invalidCredentials": "Ungültige E-Mail oder Passwort",
     "accountCreated": "Konto erfolgreich erstellt",
-    "passwordResetSent": "Passwort-Reset-Link an Ihre E-Mail gesendet"
+    "passwordResetSent": "Passwort-Reset-Link an Ihre E-Mail gesendet",
+    "remember_me": "Angemeldet bleiben",
+    "dont_have_account": "Haben Sie kein Konto?",
+    "sign_in": {
+      "enter_email_password": "Bitte E-Mail und Passwort eingeben",
+      "failed": "Anmeldung fehlgeschlagen",
+      "signing_in": "Anmelden...",
+      "cta": "Anmelden",
+      "no_saved_credentials": "Keine gespeicherten Anmeldedaten gefunden. Bitte melden Sie sich mit Ihrem Passwort an."
+    },
+    "biometric": {
+      "prompt": "Bei EduDash Pro anmelden",
+      "use_face_id": "Face ID verwenden",
+      "use_fingerprint": "Fingerabdruck verwenden",
+      "use_biometric": "Biometrie verwenden",
+      "enabled_for": "Biometrische Anmeldung aktiviert"
+    },
+    "biometric_not_available": {
+      "title": "Biometrie nicht verfügbar",
+      "desc": "Bitte verwenden Sie Ihr Passwort zur Anmeldung."
+    },
+    "biometric_failed": {
+      "title": "Authentifizierung fehlgeschlagen",
+      "desc": "Biometrische Authentifizierung fehlgeschlagen",
+      "unexpected": "Bei der biometrischen Authentifizierung ist ein Fehler aufgetreten"
+    },
+    "oauth": {
+      "failed_start": "Social-Login konnte nicht gestartet werden",
+      "config_error": "OAuth-Konfigurationsfehler. Bitte kontaktieren Sie den Support.",
+      "unavailable": "Anmeldung nicht verfügbar",
+      "error": "Anmeldefehler"
+    },
+    "sign_up_parent": "Als Elternteil registrieren",
+    "sign_up_teacher": "Als Lehrer registrieren",
+    "school_register_q": "Möchten Sie eine Schule registrieren?"
   },
   "ai": {
     "homework": {

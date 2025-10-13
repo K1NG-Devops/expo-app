@@ -35,7 +35,41 @@
     "signingUp": "Skep rekening...",
     "invalidCredentials": "Ongeldige e-pos of wagwoord",
     "accountCreated": "Rekening suksesvol geskep",
-    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos"
+    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos",
+    "remember_me": "Onthou my",
+    "dont_have_account": "Het jy nie 'n rekening nie?",
+    "sign_in": {
+      "enter_email_password": "Voer asseblief e-pos en wagwoord in",
+      "failed": "Aanmelding Misluk",
+      "signing_in": "Teken In...",
+      "cta": "Teken In",
+      "no_saved_credentials": "Geen gestoorde geloofsbriewe gevind nie. Teken asseblief in met jou wagwoord."
+    },
+    "biometric": {
+      "prompt": "Teken in na EduDash Pro",
+      "use_face_id": "Gebruik Gesig ID",
+      "use_fingerprint": "Gebruik Vingerafdruk",
+      "use_biometric": "Gebruik Biometrie",
+      "enabled_for": "Biometriese aanmelding geaktiveer"
+    },
+    "biometric_not_available": {
+      "title": "Biometrie Nie Beskikbaar Nie",
+      "desc": "Gebruik asseblief jou wagwoord om in te teken."
+    },
+    "biometric_failed": {
+      "title": "Verifikasie Misluk",
+      "desc": "Biometriese verifikasie het misluk",
+      "unexpected": "'n Fout het tydens biometriese verifikasie plaasgevind"
+    },
+    "oauth": {
+      "failed_start": "Kon nie sosiale aanmelding begin nie",
+      "config_error": "OAuth-konfigurasie fout. Kontak asseblief ondersteuning.",
+      "unavailable": "Aanmelding Nie Beskikbaar Nie",
+      "error": "Aanmelding Fout"
+    },
+    "sign_up_parent": "Registreer as Ouer",
+    "sign_up_teacher": "Registreer as Onderwyser",
+    "school_register_q": "Wil jy 'n skool registreer?"
   },
   "roles": {
     "parent": "Ouer",
