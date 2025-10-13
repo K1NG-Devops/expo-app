@@ -1367,8 +1367,8 @@ export class DashAIAssistant {
       .replace(/\n[\s]*(\d+)[.)\s]+/g, '\n') // Remove numbered bullets after newlines
       // Handle dashes in educational content (not math contexts)
       .replace(/([a-zA-Z])\s*-\s*([A-Z][a-z])/g, '$1, $2') // "Students - They will" -> "Students, They will"
-      // Handle dash separators in descriptions
-      .replace(/([a-z])\s*-\s*([a-z])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
+      // Handle dash separators in numeric ranges (preserve)
+      .replace(/([0-9])\s*-\s*([0-9])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
       // Clean up extra spaces and newlines
       .replace(/\n\s*\n/g, '. ') // Double newlines become sentence breaks
       .replace(/\n/g, '. ') // Single newlines become sentence breaks
@@ -1377,7 +1377,8 @@ export class DashAIAssistant {
   }
   
   /**
-   * Normalize special formatting like underscores and camelCase
+   * Normalize special formatting like underscores, hyphens, and camelCase
+   * IMPROVED: Better handling of compound words with hyphens
    */
   private normalizeSpecialFormatting(text: string): string {
     return text
@@ -1385,8 +1386,23 @@ export class DashAIAssistant {
       .replace(/([a-zA-Z]+)_([a-zA-Z]+)/g, '$1 $2')
       // Handle camelCase (firstName -> first name)
       .replace(/([a-z])([A-Z])/g, '$1 $2')
-      // Handle kebab-case (first-name -> first name)
-      .replace(/([a-zA-Z]+)-([a-zA-Z]+)/g, '$1 $2')
+      // IMPROVED: Handle kebab-case/hyphenated words PROPERLY
+      // This catches "step-by-step", "user-friendly", etc.
+      .replace(/\b([a-zA-Z]+)-([a-zA-Z]+)\b/g, (match, word1, word2) => {
+        // Special cases: keep common compound words natural
+        const compoundWords = [
+          'well-known', 'up-to-date', 'state-of-the-art', 'real-time',
+          'high-quality', 'low-cost', 'long-term', 'short-term',
+          'user-friendly', 'self-service', 'full-time', 'part-time'
+        ];
+        const lowercase = match.toLowerCase();
+        if (compoundWords.includes(lowercase)) {
+          // For TTS, just remove the hyphen to make it flow naturally
+          return `${word1} ${word2}`;
+        }
+        // For patterns like "step-by-step", we'll handle them recursively
+        return `${word1} ${word2}`;
+      })
       // Handle file extensions (.pdf -> dot P D F)
       .replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|png|gif)\b/gi, (match, ext) => {
         return ` dot ${ext.toUpperCase().split('').join(' ')}`;
@@ -3893,7 +3909,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
 
   /**
-   * Get current context
+   * Get current context with REAL app structure
    */
   private async getCurrentContext(): Promise<any> {
     try {
@@ -3907,15 +3923,82 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           is_work_hours: now.getHours() >= 8 && now.getHours() <= 17
         },
         user_state: {
-          role: profile?.role || 'unknown'
+          role: profile?.role || 'unknown',
+          organization_id: profile?.organization_id
         },
         app_context: {
-          active_features: []
+          app_name: 'EduDash Pro',
+          platform: 'mobile',
+          navigation_type: 'tab_based', // NO menu button!
+          available_screens: this.getAvailableScreensForRole(profile?.role),
+          current_features: [
+            'voice_interaction',
+            'ai_assistance',
+            'student_management',
+            'class_analytics',
+            'attendance_tracking',
+            'parent_communication'
+          ]
         }
       };
     } catch (error) {
       console.error('[Dash] Failed to get current context:', error);
       return {};
+    }
+  }
+  
+  /**
+   * Get available screens based on user role
+   */
+  private getAvailableScreensForRole(role?: string): any {
+    const commonScreens = {
+      navigation: 'Bottom tab navigation (Home, Messages, Settings, Profile)',
+      home: 'Dashboard with quick stats and actions',
+      messages: 'Communication center',
+      settings: 'App settings and preferences',
+      profile: 'User profile management'
+    };
+    
+    switch (role) {
+      case 'principal':
+        return {
+          ...commonScreens,
+          dashboard: 'Principal Hub - school overview, metrics, applications',
+          teachers: 'Teacher management',
+          students: 'Student roster',
+          classes: 'Class management',
+          reports: 'School reports and analytics',
+          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+        };
+      
+      case 'teacher':
+        return {
+          ...commonScreens,
+          dashboard: 'Teacher dashboard with class overview',
+          classes: 'My classes',
+          students: 'My students',
+          assignments: 'Assignment management',
+          attendance: 'Attendance tracking',
+          gradebook: 'Grading and assessment',
+          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+        };
+      
+      case 'parent':
+        return {
+          ...commonScreens,
+          dashboard: 'Parent dashboard with child overview',
+          children: 'My children',
+          calendar: 'School calendar and events',
+          homework: 'Homework tracking',
+          progress: 'Child progress reports',
+          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+        };
+      
+      default:
+        return {
+          ...commonScreens,
+          note: 'Navigation: Use bottom tabs. No menu button or hamburger menu exists.'
+        };
     }
   }
 
@@ -3928,18 +4011,30 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
       const capabilities = roleSpec?.capabilities || [];
       
+      // Get current app context
+      const appContext = await this.getCurrentContext();
+      
       // Enhance the prompt with role context and capabilities
       let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
 
 CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
 
+APP STRUCTURE & NAVIGATION:
+- Platform: Mobile app (React Native/Expo)
+- Navigation: Bottom tab navigation with 4 tabs (Home/Dashboard, Messages, Settings, Profile)
+- CRITICAL: There is NO menu button, NO hamburger menu, NO side drawer. Only bottom tabs.
+- To navigate: Tell users to "tap the [Tab Name] tab at the bottom" or "look at your dashboard"
+- Available screens: ${JSON.stringify(appContext.app_context?.available_screens || {})}
+- Current features: ${appContext.app_context?.current_features?.join(', ') || 'voice interaction, student management'}
+
 RESPONSE GUIDELINES:
 - Be concise, practical, and directly helpful
-- Provide specific, actionable advice
+- Provide specific, actionable advice using ACTUAL app navigation (bottom tabs only)
 - Reference educational best practices when relevant
 - Use a warm but professional tone
 - Keep responses focused and avoid unnecessary elaboration
-- When suggesting actions, be specific about next steps`;
+- When suggesting navigation, ONLY reference bottom tabs or screens that actually exist
+- NEVER mention menu buttons, hamburger menus, or navigation drawers`;
       
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `

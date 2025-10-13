@@ -32,8 +32,8 @@ export function installGlobalErrorHandler() {
     });
   }
 
-  // Web/universal error handling
-  if (typeof window !== 'undefined') {
+  // Web-only error handling (skip in React Native)
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('error', (event) => {
       logger.forceError('Unhandled window error', {
         message: event.error?.message || event.message,
