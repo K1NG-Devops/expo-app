@@ -304,7 +304,7 @@ const Header = () => (
   <View style={styles.header}>
     <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
       <IconSymbol name="arrow.left" size={24} color="#00f5ff" />
-      <Text style={styles.backText}>Back to Home</Text>
+      <Text style={styles.backText}>{t('marketing.pricing.back_to_home', { defaultValue: 'Back to Home' })}</Text>
     </TouchableOpacity>
     
     <View style={styles.logo}>
@@ -318,14 +318,14 @@ const Header = () => (
       style={styles.signInButton} 
       onPress={() => router.push('/(auth)/sign-in')}
     >
-      <Text style={styles.signInText}>Sign In</Text>
+      <Text style={styles.signInText}>{t('auth.signIn', { defaultValue: 'Sign In' })}</Text>
     </TouchableOpacity>
   </View>
 );
 
 const PricingHeader = () => (
   <View style={styles.pricingHeader}>
-    <Text style={styles.pricingTitle}>Choose Your Plan</Text>
+    <Text style={styles.pricingTitle}>{t('pricing.choose_your_plan', { defaultValue: 'Choose Your Plan' })}</Text>
     <Text style={styles.pricingSubtitle}>
       Flexible pricing for schools of all sizes. Start free and scale as you grow.
     </Text>
@@ -338,14 +338,14 @@ const BillingToggle = ({ isAnnual, onToggle }: { isAnnual: boolean; onToggle: (v
       style={[styles.toggleOption, !isAnnual && styles.toggleOptionActive]}
       onPress={() => onToggle(false)}
     >
-      <Text style={[styles.toggleOptionText, !isAnnual && styles.toggleOptionTextActive]}>Monthly</Text>
+      <Text style={[styles.toggleOptionText, !isAnnual && styles.toggleOptionTextActive]}>{t('pricing.monthly', { defaultValue: 'Monthly' })}</Text>
     </TouchableOpacity>
     <TouchableOpacity 
       style={[styles.toggleOption, isAnnual && styles.toggleOptionActive]}
       onPress={() => onToggle(true)}
     >
-      <Text style={[styles.toggleOptionText, isAnnual && styles.toggleOptionTextActive]}>Annual</Text>
-      <Text style={[styles.toggleOptionSavings, isAnnual && styles.toggleOptionSavingsActive]}>Save 10%</Text>
+      <Text style={[styles.toggleOptionText, isAnnual && styles.toggleOptionTextActive]}>{t('pricing.annual', { defaultValue: 'Annual' })}</Text>
+      <Text style={[styles.toggleOptionSavings, isAnnual && styles.toggleOptionSavingsActive]}>{t('pricing.save_percent', { defaultValue: 'Save 10%' })}</Text>
     </TouchableOpacity>
   </View>
 );
@@ -368,7 +368,7 @@ const PricingCard = ({ tier, index, onPlanCTA }: { tier: PricingTier; index?: nu
     {tier.recommended && (
       <View style={styles.recommendedBadge}>
         <LinearGradient colors={tier.color as [string, string]} style={styles.badgeGradient}>
-          <Text style={styles.badgeText}>Most Popular</Text>
+          <Text style={styles.badgeText}>{t('pricing.most_popular', { defaultValue: 'Most Popular' })}</Text>
         </LinearGradient>
       </View>
     )}
@@ -427,7 +427,7 @@ const PricingCard = ({ tier, index, onPlanCTA }: { tier: PricingTier; index?: nu
 const EnterpriseSection = () => (
   <View style={styles.enterpriseSection}>
     <LinearGradient colors={['#0f3460', '#533a71']} style={styles.enterpriseGradient}>
-      <Text style={styles.enterpriseTitle}>Need Something Custom?</Text>
+      <Text style={styles.enterpriseTitle}>{t('pricing.need_custom', { defaultValue: 'Need Something Custom?' })}</Text>
       <Text style={styles.enterpriseText}>
         Our enterprise solutions are designed for large school districts, 
         government education departments, and multi-national education providers.
@@ -443,7 +443,7 @@ const EnterpriseSection = () => (
         onPress={() => navigateTo.contact()}
       >
         <LinearGradient colors={['#ff8000', '#ff0080']} style={styles.enterpriseButtonGradient}>
-          <Text style={styles.enterpriseButtonText}>Schedule Enterprise Demo</Text>
+          <Text style={styles.enterpriseButtonText}>{t('pricing.schedule_enterprise_demo', { defaultValue: 'Schedule Enterprise Demo' })}</Text>
         </LinearGradient>
       </TouchableOpacity>
     </LinearGradient>
@@ -452,7 +452,7 @@ const EnterpriseSection = () => (
 
 const FAQSection = () => (
   <View style={styles.faqSection}>
-    <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
+    <Text style={styles.faqTitle}>{t('pricing.faq_title', { defaultValue: 'Frequently Asked Questions' })}</Text>
     <View style={styles.faqList}>
       <FAQItem 
         question="Can I upgrade or downgrade my plan anytime?"

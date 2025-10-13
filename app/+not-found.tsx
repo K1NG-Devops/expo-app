@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { Stack, useRouter, useSegments, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 export default function NotFound() {
+  const { t } = useTranslation();
   const router = useRouter();
   const segments = useSegments();
   const pathname = usePathname();
@@ -83,13 +85,13 @@ export default function NotFound() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Route Not Found', headerShown: false }} />
+      <Stack.Screen options={{ title: t('not_found.title', { defaultValue: 'Route Not Found' }), headerShown: false }} />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {/* Header */}
         <View style={styles.header}>
           <Ionicons name="warning" size={64} color="#ff6b6b" />
-          <Text style={styles.title}>Route Not Found</Text>
-          <Text style={styles.subtitle}>The requested page doesn't exist in the app.</Text>
+          <Text style={styles.title}>{t('not_found.title', { defaultValue: 'Route Not Found' })}</Text>
+          <Text style={styles.subtitle}>{t('not_found.subtitle', { defaultValue: "The requested page doesn't exist in the app." })}</Text>
         </View>
 
         {/* Navigation Options */}
@@ -97,18 +99,18 @@ export default function NotFound() {
           {canGoBack ? (
             <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={handleSmartBack}>
               <Ionicons name="arrow-back" size={20} color="#000" style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Go Back</Text>
+              <Text style={styles.buttonText}>{t('navigation.back', { defaultValue: 'Back' })}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={handleGoToDashboard}>
               <Ionicons name="home" size={20} color="#000" style={styles.buttonIcon} />
-              <Text style={styles.buttonText}>Go to Dashboard</Text>
+              <Text style={styles.buttonText}>{t('not_found.go_to_dashboard', { defaultValue: 'Go to Dashboard' })}</Text>
             </TouchableOpacity>
           )}
           
           <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => router.replace('/')}>
             <Ionicons name="planet" size={20} color="#00f5ff" style={styles.buttonIcon} />
-            <Text style={[styles.buttonText, styles.secondaryButtonText]}>Go to Home</Text>
+            <Text style={[styles.buttonText, styles.secondaryButtonText]}>{t('not_found.go_to_home', { defaultValue: 'Go to Home' })}</Text>
           </TouchableOpacity>
         </View>
 

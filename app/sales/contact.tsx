@@ -7,8 +7,10 @@ import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
+import { useTranslation } from 'react-i18next';
 
 export default function SalesContactScreen() {
+  const { t } = useTranslation();
   const params = useLocalSearchParams<{ plan?: string }>();
   const initialPlan = useMemo(() => (params?.plan ? String(params.plan) : 'enterprise'), [params]);
 
@@ -41,12 +43,12 @@ export default function SalesContactScreen() {
 
   async function onSubmit() {
     if (!form.contact_email) {
-      Alert.alert('Email required', 'Please provide a contact email.');
+      Alert.alert(t('sales.email_required', { defaultValue: 'Email required' }), t('sales.provide_email', { defaultValue: 'Please provide a contact email.' }));
       return;
     }
     try {
       if (!canSubmit) {
-        Alert.alert('Not allowed', 'Only principals or school admins can submit enterprise requests.');
+        Alert.alert(t('sales.not_allowed_title', { defaultValue: 'Not allowed' }), t('sales.not_allowed_desc', { defaultValue: 'Only principals or school admins can submit enterprise requests.' }));
         return;
       }
       setSubmitting(true);
@@ -62,10 +64,10 @@ export default function SalesContactScreen() {
           },
         } as any);
       } catch { /* noop */ }
-      Alert.alert('Thank you', 'Our team will contact you shortly.');
+      Alert.alert(t('sales.thank_you', { defaultValue: 'Thank you' }), t('sales.we_will_contact', { defaultValue: 'Our team will contact you shortly.' }));
       setForm({ ...form, contact_name: '', contact_email: '', phone: '', organization_name: '', country: '', role: '', school_size: '', notes: '' });
     } catch (e: any) {
-      Alert.alert('Submission failed', e?.message || 'Please try again later.');
+      Alert.alert(t('sales.submission_failed', { defaultValue: 'Submission failed' }), e?.message || t('common.try_again', { defaultValue: 'Try Again' }));
     } finally {
       setSubmitting(false);
     }
@@ -74,14 +76,14 @@ export default function SalesContactScreen() {
   return (
 <View style={{ flex: 1 }}>
       <Stack.Screen options={{
-        title: 'Contact Sales',
+        title: t('sales.contact_sales', { defaultValue: 'Contact Sales' }),
         headerShown: true,
         headerStyle: { backgroundColor: '#0b1220' },
         headerTitleStyle: { color: '#fff' },
         headerTintColor: '#00f5ff',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={{ paddingHorizontal: 12 }}>
-            <Text style={{ color: '#00f5ff', fontWeight: '700' }}>Back</Text>
+            <Text style={{ color: '#00f5ff', fontWeight: '700' }}>{t('navigation.back', { defaultValue: 'Back' })}</Text>
           </TouchableOpacity>
         ),
       }} />
@@ -89,31 +91,31 @@ export default function SalesContactScreen() {
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
       <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', android: undefined })} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Text style={styles.title}>Talk to Sales</Text>
-          <Text style={styles.subtitle}>Tell us about your school and needs. We’ll follow up shortly.</Text>
+          <Text style={styles.title}>{t('sales.talk_to_sales', { defaultValue: 'Talk to Sales' })}</Text>
+          <Text style={styles.subtitle}>{t('sales.subtitle', { defaultValue: 'Tell us about your school and needs. We’ll follow up shortly.' })}</Text>
 
           {!canSubmit ? (
             <View style={{ width: '100%', backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', padding: 12, borderRadius: 10 }}>
-              <Text style={{ color: '#ffb703', fontWeight: '700', marginBottom: 6 }}>Restricted</Text>
-              <Text style={{ color: '#9CA3AF' }}>Only principals or school admins can submit enterprise contact requests.</Text>
+              <Text style={{ color: '#ffb703', fontWeight: '700', marginBottom: 6 }}>{t('common.restricted', { defaultValue: 'Restricted' })}</Text>
+              <Text style={{ color: '#9CA3AF' }}>{t('sales.restricted_desc', { defaultValue: 'Only principals or school admins can submit enterprise contact requests.' })}</Text>
               <TouchableOpacity onPress={() => router.push('/pricing')} style={[styles.button, { marginTop: 10 }]}>
-                <Text style={styles.buttonText}>Back to Pricing</Text>
+                <Text style={styles.buttonText}>{t('pricing.back_to_pricing', { defaultValue: 'Back to Pricing' })}</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <>
-              <FormInput label="Name" value={form.contact_name} onChangeText={(v: string) => onChange('contact_name', v)} autoCapitalize="words" />
-              <FormInput label="Email" value={form.contact_email} onChangeText={(v: string) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
-              <FormInput label="Phone" value={form.phone} onChangeText={(v: string) => onChange('phone', v)} keyboardType="phone-pad" />
-              <FormInput label="Organization" value={form.organization_name} onChangeText={(v: string) => onChange('organization_name', v)} />
-              <FormInput label="Country" value={form.country} onChangeText={(v: string) => onChange('country', v)} />
-              <FormInput label="Your role" value={form.role} onChangeText={(v: string) => onChange('role', v)} placeholder="Principal / Admin / Teacher / Parent" />
-              <FormInput label="School size" value={form.school_size} onChangeText={(v: string) => onChange('school_size', v)} placeholder="e.g., 200 students" />
-              <FormInput label="Plan interest" value={form.plan_interest} onChangeText={(v: string) => onChange('plan_interest', v)} />
-              <FormInput label="Notes" value={form.notes} onChangeText={(v: string) => onChange('notes', v)} multiline />
+              <FormInput label={t('sales.label.name', { defaultValue: 'Name' })} value={form.contact_name} onChangeText={(v: string) => onChange('contact_name', v)} autoCapitalize="words" />
+              <FormInput label={t('auth.email', { defaultValue: 'Email' })} value={form.contact_email} onChangeText={(v: string) => onChange('contact_email', v)} keyboardType="email-address" autoCapitalize="none" />
+              <FormInput label={t('sales.label.phone', { defaultValue: 'Phone' })} value={form.phone} onChangeText={(v: string) => onChange('phone', v)} keyboardType="phone-pad" />
+              <FormInput label={t('sales.label.organization', { defaultValue: 'Organization' })} value={form.organization_name} onChangeText={(v: string) => onChange('organization_name', v)} />
+              <FormInput label={t('sales.label.country', { defaultValue: 'Country' })} value={form.country} onChangeText={(v: string) => onChange('country', v)} />
+              <FormInput label={t('sales.label.your_role', { defaultValue: 'Your role' })} value={form.role} onChangeText={(v: string) => onChange('role', v)} placeholder={t('sales.placeholder.role', { defaultValue: 'Principal / Admin / Teacher / Parent' })} />
+              <FormInput label={t('sales.label.school_size', { defaultValue: 'School size' })} value={form.school_size} onChangeText={(v: string) => onChange('school_size', v)} placeholder={t('sales.placeholder.school_size', { defaultValue: 'e.g., 200 students' })} />
+              <FormInput label={t('sales.label.plan_interest', { defaultValue: 'Plan interest' })} value={form.plan_interest} onChangeText={(v: string) => onChange('plan_interest', v)} />
+              <FormInput label={t('sales.label.notes', { defaultValue: 'Notes' })} value={form.notes} onChangeText={(v: string) => onChange('notes', v)} multiline />
 
               <TouchableOpacity style={[styles.button, submitting && { opacity: 0.5 }]} disabled={submitting} onPress={onSubmit}>
-                <Text style={styles.buttonText}>{submitting ? 'Submitting…' : 'Submit'}</Text>
+                <Text style={styles.buttonText}>{submitting ? t('common.submitting', { defaultValue: 'Submitting…' }) : t('common.submit', { defaultValue: 'Submit' })}</Text>
               </TouchableOpacity>
             </>
           )}

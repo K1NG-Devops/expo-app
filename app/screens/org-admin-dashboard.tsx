@@ -1,32 +1,34 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Stack } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 export default function OrgAdminDashboard() {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Organization Admin' }} />
+      <Stack.Screen options={{ title: t('org_admin.title', { defaultValue: 'Organization Admin' }) }} />
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.heading}>Organization Overview</Text>
+        <Text style={styles.heading}>{t('org_admin.overview', { defaultValue: 'Organization Overview' })}</Text>
         <View style={styles.kpiRow}>
-          <KPI title="Active Learners" value="--" />
-          <KPI title="Completion Rate" value="--%" />
-          <KPI title="Cert Pipeline" value="--" />
-          <KPI title="MRR" value="$--" />
+          <KPI title={t('org_admin.kpi.active_learners', { defaultValue: 'Active Learners' })} value="--" />
+          <KPI title={t('org_admin.kpi.completion_rate', { defaultValue: 'Completion Rate' })} value="--%" />
+          <KPI title={t('org_admin.kpi.cert_pipeline', { defaultValue: 'Cert Pipeline' })} value="--" />
+          <KPI title={t('org_admin.kpi.mrr', { defaultValue: 'MRR' })} value="$--" />
         </View>
 
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        <Text style={styles.sectionTitle}>{t('org_admin.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
         <View style={styles.row}>
-          <ActionBtn label="Programs" />
-          <ActionBtn label="Cohorts" />
-          <ActionBtn label="Instructors" />
-          <ActionBtn label="Enrollments" />
+          <ActionBtn label={t('org_admin.actions.programs', { defaultValue: 'Programs' })} />
+          <ActionBtn label={t('org_admin.actions.cohorts', { defaultValue: 'Cohorts' })} />
+          <ActionBtn label={t('org_admin.actions.instructors', { defaultValue: 'Instructors' })} />
+          <ActionBtn label={t('org_admin.actions.enrollments', { defaultValue: 'Enrollments' })} />
         </View>
         <View style={styles.row}>
-          <ActionBtn label="Certifications" />
-          <ActionBtn label="Placements" />
-          <ActionBtn label="Invoices" />
-          <ActionBtn label="Settings" />
+          <ActionBtn label={t('org_admin.actions.certifications', { defaultValue: 'Certifications' })} />
+          <ActionBtn label={t('org_admin.actions.placements', { defaultValue: 'Placements' })} />
+          <ActionBtn label={t('org_admin.actions.invoices', { defaultValue: 'Invoices' })} />
+          <ActionBtn label={t('org_admin.actions.settings', { defaultValue: 'Settings' })} />
         </View>
       </ScrollView>
     </View>
