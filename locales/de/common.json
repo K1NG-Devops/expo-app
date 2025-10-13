@@ -19,7 +19,8 @@
     "add": "Hinzufügen",
     "search": "Suchen",
     "retry": "Wiederholen",
-    "close": "Schließen"
+    "close": "Schließen",
+    "switch_account": "Konto wechseln"
   },
   "auth": {
     "signIn": "Anmelden",
@@ -101,6 +102,16 @@
     "profile": "Profileinstellungen",
     "notifications": "Benachrichtigungen",
     "privacy": "Datenschutz",
+    "biometric": {
+      "title": "Biometrische Authentifizierung",
+      "not_available_desc": "Biometrische Authentifizierung ist auf diesem Gerät nicht verfügbar. Es ist ein Fingerabdruck- oder Gesichtserkennungssensor erforderlich."
+    },
+    "privacy_security": {
+      "title": "Datenschutz & Sicherheit",
+      "info": "Informationen zum Datenschutz"
+    },
+    "manage_alerts": "Benachrichtigungen verwalten",
+    "notifications_coming_soon_desc": "Benachrichtigungseinstellungen sind im nächsten Update verfügbar.",
     "language": {
       "title": "Sprache",
       "comingSoon": "Bald Verfügbar",
@@ -145,10 +156,31 @@
     "info": "Information",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Nicht festgelegt",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "not_available": "Nicht verfügbar",
+    "coming_soon": "Demnächst verfügbar"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Kontoinformationen",
+      "full_name": "Vollständiger Name",
+      "role": "Rolle",
+      "school_id": "Schul-ID"
+    },
+    "edit": {
+      "title": "Profil bearbeiten",
+      "personal_information": "Persönliche Informationen"
+    },
+    "placeholders": {
+      "first_name": "Geben Sie Ihren Vornamen ein",
+      "last_name": "Geben Sie Ihren Nachnamen ein"
+    }
   },
   "subscription": {
     "choose_your_plan": "Choose Your Plan"

@@ -19,7 +19,8 @@
     "add": "Agregar",
     "search": "Buscar",
     "retry": "Reintentar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "switch_account": "Cambiar de cuenta"
   },
   "auth": {
     "signIn": "Iniciar Sesión",
@@ -204,10 +205,20 @@
   },
   "settings": {
     "title": "Configuración",
-    "profile": "Configuración del Perfil",
+    "profile": "Configuraciones del Perfil",
     "notifications": "Notificaciones",
     "privacy": "Privacidad",
-    "theme": {
+    "biometric": {
+      "title": "Autenticación biométrica",
+      "not_available_desc": "La autenticación biométrica no está disponible en este dispositivo. Requiere lector de huellas o reconocimiento facial."
+    },
+    "privacy_security": {
+      "title": "Privacidad y Seguridad",
+      "info": "Información sobre protección de datos"
+    },
+    "manage_alerts": "Gestiona tus alertas",
+    "notifications_coming_soon_desc": "La configuración de notificaciones estará disponible en la próxima actualización.",
+    "language": {
       "title": "Tema",
       "light": "Claro",
       "dark": "Oscuro",
@@ -280,7 +291,12 @@
     "refresh": "Actualizar",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "No establecido",
+    "enabled": "Habilitado",
+    "disabled": "Deshabilitado",
+    "not_available": "No disponible",
+    "coming_soon": "Próximamente"
   },
   "curriculum": {
     "standards": {
@@ -289,6 +305,22 @@
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Información de la cuenta",
+      "full_name": "Nombre completo",
+      "role": "Rol",
+      "school_id": "ID de la escuela"
+    },
+    "edit": {
+      "title": "Editar perfil",
+      "personal_information": "Información personal"
+    },
+    "placeholders": {
+      "first_name": "Ingresa tu nombre",
+      "last_name": "Ingresa tu apellido"
+    }
   },
   "subscription": {
     "free": "Gratis",

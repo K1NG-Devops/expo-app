@@ -17,7 +17,8 @@
     "edit": "Hlela",
     "delete": "Susa",
     "add": "Engeza",
-    "search": "Sesha"
+    "search": "Sesha",
+    "switch_account": "Shintsha i-akhawunti"
   },
   "auth": {
     "signIn": "Ngena",
@@ -256,6 +257,16 @@
     "profile": "Izilungiselelo Zephrofayela",
     "notifications": "Izaziso",
     "privacy": "Ubumfihlo",
+    "biometric": {
+      "title": "Ukuqinisekisa nge-biometric",
+      "not_available_desc": "Ukuqinisekisa nge-biometric akutholakali kulo mudivayisi. Kudinga i-fingerprint noma i-face recognition."
+    },
+    "privacy_security": {
+      "title": "Ubumfihlo & Ezokuphepha",
+      "info": "Ulwazi lokuvikelwa kwedatha"
+    },
+    "manage_alerts": "Phatha izaziso zakho",
+    "notifications_coming_soon_desc": "Izilungiselelo zezaziso zizotholakala esibuyekezweni esilandelayo.",
     "language": {
       "title": "Ulimi",
       "comingSoon": "Kuyeza Masinyane",
@@ -337,10 +348,31 @@
     "viewLess": "Buka okuncane",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Akumisiwe",
+    "enabled": "Kuvuliwe",
+    "disabled": "Kukhubazekile",
+    "not_available": "Akutholakali",
+    "coming_soon": "Kuyeza masinyane"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Imininingwane ye-akhawunti",
+      "full_name": "Igama eliphelele",
+      "role": "Indima",
+      "school_id": "i-School ID"
+    },
+    "edit": {
+      "title": "Hlela Iphrofayela",
+      "personal_information": "Ulwazi Lomuntu Siqu"
+    },
+    "placeholders": {
+      "first_name": "Faka igama lakho",
+      "last_name": "Faka isibongo sakho"
+    }
   },
   "subscription": {
     "choose_your_plan": "Khetha uhlelo",

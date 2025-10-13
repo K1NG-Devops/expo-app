@@ -16,7 +16,12 @@
     "unexpected_error": "An unexpected error occurred",
     "or": "or",
     "click_here": "Click here",
-    "try_again": "Try Again"
+    "try_again": "Try Again",
+    "not_set": "Not set",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "not_available": "Not available",
+    "coming_soon": "Coming Soon"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -33,7 +38,8 @@
     "add": "Add",
     "search": "Search",
     "retry": "Retry",
-    "close": "Close"
+    "close": "Close",
+    "switch_account": "Switch account"
   },
   "auth": {
     "signIn": "Sign In",
@@ -1351,6 +1357,47 @@
     "logout_success": "Logged out successfully",
     "logout_failed": "Failed to logout",
     "no_profile": "No user profile found"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile Settings",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "language": {
+      "title": "Language"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "biometric": {
+      "title": "Biometric Authentication",
+      "not_available_desc": "Biometric authentication is not available on this device. This feature requires fingerprint or face recognition hardware."
+    },
+    "manage_alerts": "Manage your alerts",
+    "notifications_coming_soon_desc": "Notification settings will be available in the next update.",
+    "privacy_security": {
+      "title": "Privacy & Security",
+      "info": "Data protection info"
+    }
+  },
+  "account": {
+    "info": {
+      "title": "Account Information",
+      "full_name": "Full Name",
+      "role": "Role",
+      "school_id": "School ID"
+    },
+    "edit": {
+      "title": "Edit Profile",
+      "personal_information": "Personal Information"
+    },
+    "placeholders": {
+      "first_name": "Enter your first name",
+      "last_name": "Enter your last name"
+    }
   },
   "trends": {
     "up": "up",

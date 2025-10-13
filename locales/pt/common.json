@@ -19,7 +19,8 @@
     "add": "Adicionar",
     "search": "Pesquisar",
     "retry": "Tentar Novamente",
-    "close": "Fechar"
+    "close": "Fechar",
+    "switch_account": "Trocar de conta"
   },
   "auth": {
     "signIn": "Entrar",
@@ -101,6 +102,16 @@
     "profile": "Configurações do Perfil",
     "notifications": "Notificações",
     "privacy": "Privacidade",
+    "biometric": {
+      "title": "Autenticação biométrica",
+      "not_available_desc": "A autenticação biométrica não está disponível neste dispositivo. Requer hardware de impressão digital ou reconhecimento facial."
+    },
+    "privacy_security": {
+      "title": "Privacidade e Segurança",
+      "info": "Informações de proteção de dados"
+    },
+    "manage_alerts": "Gerencie seus alertas",
+    "notifications_coming_soon_desc": "As configurações de notificação estarão disponíveis na próxima atualização.",
     "language": {
       "title": "Idioma",
       "comingSoon": "Em Breve",
@@ -145,10 +156,31 @@
     "info": "Informação",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Não definido",
+    "enabled": "Ativado",
+    "disabled": "Desativado",
+    "not_available": "Indisponível",
+    "coming_soon": "Em breve"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Informações da Conta",
+      "full_name": "Nome completo",
+      "role": "Função",
+      "school_id": "ID da Escola"
+    },
+    "edit": {
+      "title": "Editar Perfil",
+      "personal_information": "Informações Pessoais"
+    },
+    "placeholders": {
+      "first_name": "Digite seu nome",
+      "last_name": "Digite seu sobrenome"
+    }
   },
   "subscription": {
     "choose_your_plan": "Choose Your Plan"

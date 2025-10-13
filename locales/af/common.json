@@ -17,7 +17,8 @@
     "edit": "Wysig",
     "delete": "Verwyder",
     "add": "Voeg by",
-    "search": "Soek"
+    "search": "Soek",
+    "switch_account": "Wissel rekening"
   },
   "auth": {
     "signIn": "Teken In",
@@ -306,6 +307,7 @@
       "enabled": "Ingeskakel",
       "disabled": "Afgeskakel",
       "notAvailable": "Nie beskikbaar op hierdie toestel nie",
+      "not_available_desc": "Biometriese verifikasie is nie op hierdie toestel beskikbaar nie. Hierdie funksie vereis vingerafdruk of gesigsherkenning-hardeware.",
       "setupRequired": "Opstelling vereis in toestel instellings",
       "authRequired": "Gebruik jou vingerafdruk of toestel wagkode om voort te gaan",
       "authenticate": "Verifieer",
@@ -365,7 +367,13 @@
     "about": "Oor",
     "support": "Ondersteuning",
     "termsOfService": "Diensbepalings",
-    "privacyPolicy": "Privaatheidsbeleid"
+    "privacyPolicy": "Privaatheidsbeleid",
+    "privacy_security": {
+      "title": "Privaatheid & Sekuriteit",
+      "info": "Databeskerming inligting"
+    },
+    "manage_alerts": "Bestuur jou kennisgewings",
+    "notifications_coming_soon_desc": "Kennisgewing-instellings sal in die volgende opdatering beskikbaar wees."
   },
   "notifications": {
     "title": "Kennisgewings",
@@ -382,6 +390,22 @@
     "notFound": "Die aangevraagde hulpbron is nie gevind nie.",
     "validation": "Gaan asseblief jou invoer na en probeer weer.",
     "serverError": "Bedienerfout. Probeer asseblief later weer."
+  },
+  "account": {
+    "info": {
+      "title": "Rekeninginligting",
+      "full_name": "Volle Naam",
+      "role": "Rol",
+      "school_id": "Skool-ID"
+    },
+    "edit": {
+      "title": "Wysig Profiel",
+      "personal_information": "Persoonlike Inligting"
+    },
+    "placeholders": {
+      "first_name": "Voer jou naam in",
+      "last_name": "Voer jou van in"
+    }
   },
   "success": {
     "saved": "Veranderinge suksesvol gestoor",
@@ -411,6 +435,11 @@
     "confirm": "Bevestig",
     "continue": "Gaan voort",
     "skip": "Slaan oor",
+    "not_set": "Nie gestel nie",
+    "enabled": "Geaktiveer",
+    "disabled": "Uitgeskakel",
+    "not_available": "Nie beskikbaar nie",
+    "coming_soon": "Binnekort beskikbaar",
     "done": "Klaar",
     "retry": "Probeer weer",
     "refresh": "Verfris",

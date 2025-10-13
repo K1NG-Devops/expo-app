@@ -17,7 +17,8 @@
     "edit": "Fetola",
     "delete": "Tlošwa",
     "add": "Oketša",
-    "search": "Nyaka"
+    "search": "Nyaka",
+    "switch_account": "Fetola ak'haonte"
   },
   "auth": {
     "signIn": "Tsena",
@@ -213,6 +214,16 @@
     "profile": "Dipeakanyo tša kemedi",
     "notifications": "Dikitsišo",
     "privacy": "Sephiri",
+    "biometric": {
+      "title": "Netefatso ka biometric",
+      "not_available_desc": "Netefatso ka biometric ha e fumanehe sesebelisoa sena. E hloka menoana kapa ho tseba sefahleho."
+    },
+    "privacy_security": {
+      "title": "Bophelo ba lekunutu & Tšireletso",
+      "info": "Tlhahisoleseling ea tšireletso ea data"
+    },
+    "manage_alerts": "Laola litsebiso tsa hao",
+    "notifications_coming_soon_desc": "Lisetoa tsa litsebiso li tla fumaneha ntlafatsong e latelang.",
     "language": {
       "title": "Polelo",
       "comingSoon": "E tla fihla",
@@ -294,10 +305,31 @@
     "viewLess": "Lebelela go nyane",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Ha e so beoe",
+    "enabled": "E buletsoe",
+    "disabled": "E koetsoe",
+    "not_available": "Ha e fumanehe",
+    "coming_soon": "E tla tla haufinyane"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Tlhahisoleseling ea Ak'haonte",
+      "full_name": "Lebitso le felletseng",
+      "role": "Karolo",
+      "school_id": "ID ea Sekolo"
+    },
+    "edit": {
+      "title": "Fetola Profaele",
+      "personal_information": "Tlhahisoleseling ea Botho"
+    },
+    "placeholders": {
+      "first_name": "Kenya lebitso la hao",
+      "last_name": "Kenya fane ea hao"
+    }
   },
   "subscription": {
     "choose_your_plan": "Kgetha lenaneo",
