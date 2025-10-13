@@ -9,10 +9,10 @@
  * @since Phase 1.6
  */
 
-import { assertSupabase, getCurrentProfile } from '@/lib/supabase';
-import type { UserProfile } from '@/lib/sessionManager';
+import { assertSupabase } from '@/lib/supabase';
+import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
 import DashDecisionEngine, { type ActionCandidate, type Decision } from './DashDecisionEngine';
-import DashContextAnalyzer from './DashContextAnalyzer';
+import { DashContextAnalyzer } from './DashContextAnalyzer';
 import type { AutonomyLevel } from './DashAIAssistant';
 
 // ===== PROACTIVE TYPES =====
@@ -170,7 +170,7 @@ export class DashProactiveEngine {
     const suggestions: ProactiveSuggestion[] = [];
 
     // Only suggest if autonomy allows
-    if (context.autonomyLevel === 'none') return [];
+    if (context.autonomyLevel === 'observer') return [];
 
     const profile = await getCurrentProfile();
     if (!profile) return [];
@@ -511,8 +511,7 @@ export class DashProactiveEngine {
     };
 
     // Use decision engine to evaluate and execute
-    const decisionEngine = DashDecisionEngine.getInstance();
-    const decision = await decisionEngine.decide(candidate, context);
+    const decision = await DashDecisionEngine.decide(candidate, context);
 
     return decision;
   }

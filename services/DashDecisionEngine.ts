@@ -9,7 +9,8 @@
  * @since Phase 1.5
  */
 
-import { assertSupabase, getCurrentProfile } from '@/lib/supabase';
+import { assertSupabase } from '@/lib/supabase';
+import { getCurrentProfile } from '@/lib/sessionManager';
 import type {
   AutonomyLevel,
   RiskLevel,
@@ -56,12 +57,19 @@ export interface ExecutionPlan {
   monitoringRequired: boolean;
 }
 
-export interface Decision extends DecisionRecord {
+export interface Decision {
+  id: string;
   candidate: ActionCandidate;
   score: DecisionScore;
   rationale: DecisionRationale;
   plan: ExecutionPlan;
   timestamp: number;
+  action: any; // DashAction from DecisionRecord
+  risk: RiskLevel;
+  confidence: number;
+  requiresApproval: boolean;
+  createdAt: number;
+  context: Record<string, any>;
 }
 
 // ===== DECISION ENGINE =====
@@ -76,9 +84,9 @@ export class DashDecisionEngine {
     AutonomyLevel,
     { maxAutoRisk: RiskLevel; requiresApprovalAbove: RiskLevel }
   > = {
-    none: { maxAutoRisk: 'low', requiresApprovalAbove: 'low' },
-    suggest: { maxAutoRisk: 'low', requiresApprovalAbove: 'low' },
-    confirm: { maxAutoRisk: 'medium', requiresApprovalAbove: 'medium' },
+    observer: { maxAutoRisk: 'low', requiresApprovalAbove: 'low' },
+    assistant: { maxAutoRisk: 'low', requiresApprovalAbove: 'low' },
+    partner: { maxAutoRisk: 'medium', requiresApprovalAbove: 'medium' },
     autonomous: { maxAutoRisk: 'high', requiresApprovalAbove: 'high' }
   };
 
@@ -123,11 +131,18 @@ export class DashDecisionEngine {
       rationale,
       plan,
       timestamp: Date.now(),
-      action_taken: candidate.action,
+      action: {
+        id: candidate.id,
+        type: candidate.type,
+        description: candidate.description,
+        parameters: candidate.parameters || {},
+        estimated_duration: candidate.estimatedDuration
+      },
+      risk: score.risk,
       confidence: score.confidence,
-      risk_level: score.risk,
-      user_id: '', // Will be set during logging
-      preschool_id: '' // Will be set during logging
+      requiresApproval: plan.requiresApproval,
+      createdAt: Date.now(),
+      context: {}
     };
 
     // Add to history
@@ -446,7 +461,7 @@ export class DashDecisionEngine {
    * Determine if action should execute at all
    */
   private shouldExecute(score: DecisionScore, autonomyLevel: AutonomyLevel): boolean {
-    if (autonomyLevel === 'none') return false;
+    if (autonomyLevel === 'observer') return false;
     if (score.feasibility < 0.5) return false;
     if (score.confidence < 0.4) return false;
     return true;

@@ -23,7 +23,7 @@ import type {
 } from './DashAIAssistant';
 import DashDecisionEngine from './DashDecisionEngine';
 import DashProactiveEngine from './DashProactiveEngine';
-import DashContextAnalyzer from './DashContextAnalyzer';
+import { DashContextAnalyzer } from './DashContextAnalyzer';
 
 export class DashAgenticEngine {
   private static instance: DashAgenticEngine;
@@ -468,8 +468,8 @@ export class DashAgenticEngine {
       const profile = await getCurrentProfile();
       if (!profile) return;
 
-      // Get autonomy level from user preferences (default to 'suggest')
-      const autonomyLevel: AutonomyLevel = 'suggest'; // TODO: Load from user preferences
+      // Get autonomy level from user preferences (default to 'assistant')
+      const autonomyLevel: AutonomyLevel = 'assistant'; // TODO: Load from user preferences
 
       // Check for proactive suggestions using ProactiveEngine
       const proactiveSuggestions = await DashProactiveEngine.checkForSuggestions(
@@ -639,12 +639,12 @@ export class DashAgenticEngine {
     // Return last 10 completed tasks as activity log
     return Array.from(this.activeTasks.values())
       .filter(t => t.status === 'completed')
-      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
       .slice(0, 10)
       .map(t => ({
         type: t.type,
         action: t.title,
-        timestamp: t.completedAt
+        timestamp: t.createdAt
       }));
   }
 
@@ -656,7 +656,7 @@ export class DashAgenticEngine {
       const profile = await getCurrentProfile();
       if (!profile) return [];
 
-      const autonomyLevel: AutonomyLevel = 'suggest';
+      const autonomyLevel: AutonomyLevel = 'assistant';
       
       const suggestions = await DashProactiveEngine.checkForSuggestions(
         profile.role as any,
