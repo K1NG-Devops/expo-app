@@ -4023,9 +4023,15 @@ APP STRUCTURE & NAVIGATION:
 - Platform: Mobile app (React Native/Expo)
 - Navigation: Bottom tab navigation with 4 tabs (Home/Dashboard, Messages, Settings, Profile)
 - CRITICAL: There is NO menu button, NO hamburger menu, NO side drawer. Only bottom tabs.
-- To navigate: Tell users to "tap the [Tab Name] tab at the bottom" or "look at your dashboard"
 - Available screens: ${JSON.stringify(appContext.app_context?.available_screens || {})}
 - Current features: ${appContext.app_context?.current_features?.join(', ') || 'voice interaction, student management'}
+
+YOUR NAVIGATION CAPABILITIES:
+- You CAN open screens directly (e.g., "I'll open the lesson generator for you")
+- You CAN navigate users to specific features (e.g., "Let me take you to the financial dashboard")
+- For manual navigation, tell users: "Tap the [Tab Name] tab at the bottom"
+- Screens you can open: lesson generator, financial dashboard, messaging, announcements, and role-specific screens
+- When opening screens, be confident and say "I'll open X for you" or "Let me take you to X"
 
 RESPONSE GUIDELINES:
 - Be concise, practical, and directly helpful
