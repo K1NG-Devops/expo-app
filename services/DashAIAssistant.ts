@@ -4040,7 +4040,9 @@ RESPONSE GUIDELINES:
 - Use a warm but professional tone
 - Keep responses focused and avoid unnecessary elaboration
 - When suggesting navigation, ONLY reference bottom tabs or screens that actually exist
-- NEVER mention menu buttons, hamburger menus, or navigation drawers`;
+- NEVER mention menu buttons, hamburger menus, or navigation drawers
+- DO NOT greet the user in every response - you are having a conversation
+- Only greet at the start of a NEW conversation, not for every message`;
       
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
@@ -4048,8 +4050,7 @@ RESPONSE GUIDELINES:
 ROLE-SPECIFIC CONTEXT:
 - You are helping a ${this.userProfile.role}
 - Communication tone: ${roleSpec.tone}
-- Your specialized capabilities: ${capabilities.join(', ')}
-- Role-specific greeting: ${roleSpec.greeting}`;
+- Your specialized capabilities: ${capabilities.join(', ')}`;
       }
 
       // Add context awareness
@@ -4080,6 +4081,36 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
       });
 
+      // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
+      let dashboardAction = this.generateDashboardAction(analysis.intent);
+      const contentLower = content.toLowerCase();
+      
+      // Financial dashboard keywords
+      if (!dashboardAction && (contentLower.includes('financial') || contentLower.includes('finance') || 
+          contentLower.includes('fees') || contentLower.includes('payments') || contentLower.includes('revenue'))) {
+        dashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+      }
+      
+      // Lesson generator keywords
+      if (!dashboardAction && (contentLower.includes('lesson') || contentLower.includes('plan') || 
+          contentLower.includes('curriculum'))) {
+        const params: Record<string, string> = this.extractLessonParameters(content, aiResponse.content || '');
+        dashboardAction = { type: 'open_screen', route: '/screens/ai-lesson-generator', params };
+      }
+      
+      // Messaging keywords
+      if (!dashboardAction && (contentLower.includes('message') || contentLower.includes('notify') || 
+          contentLower.includes('contact')) && (contentLower.includes('parent') || contentLower.includes('teacher'))) {
+        dashboardAction = { type: 'open_screen', route: '/screens/teacher-messages' };
+      }
+      
+      // Worksheet keywords
+      if (!dashboardAction && (contentLower.includes('worksheet') || contentLower.includes('activity') || 
+          contentLower.includes('practice') || contentLower.includes('exercise'))) {
+        const worksheetParams = this.extractWorksheetParameters(content, aiResponse.content || '');
+        dashboardAction = { type: 'open_screen', route: '/screens/worksheet-demo', params: worksheetParams };
+      }
+      
       const assistantMessage: DashMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
@@ -4089,7 +4120,7 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
           confidence: analysis.intent?.confidence || 0.5,
           suggested_actions: this.generateSuggestedActions(analysis.intent, capabilities),
           user_intent: analysis.intent,
-          dashboard_action: this.generateDashboardAction(analysis.intent)
+          dashboard_action: dashboardAction
         }
       };
 
