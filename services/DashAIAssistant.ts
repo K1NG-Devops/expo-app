@@ -2592,65 +2592,114 @@ export class DashAIAssistant {
   }
 
   /**
-   * Generate AI response based on user input and context
+   * Generate AI response based on user input and context (AGENTIC VERSION)
+   * This method activates all agentic engines for intelligent, proactive responses
    */
   private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
-      // Get conversation history for context
+      console.log('[Dash Agent] Processing message with agentic engines...');
+      
+      // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      
-      // Get user context
-      const session = await getCurrentSession();
       const profile = await getCurrentProfile();
       
-      // Build context for AI
-      const context = {
+      // Build full context for agentic analysis
+      const fullContext = {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
         memory: Array.from(this.memory.values()),
         personality: this.personality,
         timestamp: new Date().toISOString(),
+        currentContext: await this.getCurrentContext(),
       };
 
-      // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
-      const response = await this.callAIServiceLegacy(context);
+      // PHASE 1: CONTEXT ANALYSIS - Understand user intent and context
+      console.log('[Dash Agent] Phase 1: Analyzing context...');
+      const { DashContextAnalyzer } = await import('./DashContextAnalyzer');
+      const analyzer = new DashContextAnalyzer();
+      const analysis = await analyzer.analyzeMessage(userInput, fullContext);
+      console.log('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
       
-      // Update memory based on interaction
-      await this.updateMemory(userInput, response);
+      // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
+      console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
+      const { DashProactiveEngine } = await import('./DashProactiveEngine');
+      const proactiveEngine = DashProactiveEngine.getInstance();
+      const opportunities = await proactiveEngine.identifyOpportunities(analysis, this.userProfile);
+      console.log('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
       
-      // Create assistant message
-      const assistantMessage: DashMessage = {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: response.content,
-        timestamp: Date.now(),
-        metadata: {
-          confidence: response.confidence || 0.9,
-          suggested_actions: response.suggested_actions || [],
-          references: response.references || [],
-          dashboard_action: response.dashboard_action
-        }
-      };
-
-      // Post-process assistant message to avoid implying non-existent attachments (e.g., PDFs)
+      // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
+      console.log('[Dash Agent] Phase 3: Generating enhanced response...');
+      const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis);
+      
+      // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
+      if (opportunities.length > 0) {
+        console.log('[Dash Agent] Phase 4: Handling proactive opportunities...');
+        await this.handleProactiveOpportunities(opportunities, assistantMessage);
+      }
+      
+      // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
+      if (analysis.intent && analysis.intent.primary_intent) {
+        console.log('[Dash Agent] Phase 5: Handling action intent...');
+        await this.handleActionIntent(analysis.intent, assistantMessage);
+      }
+      
+      // Update enhanced memory with analysis context
+      await this.updateEnhancedMemory(userInput, assistantMessage, analysis);
+      
+      // Post-process to avoid file attachment claims
       assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
-      return assistantMessage;
-    } catch (error) {
-      console.error('[Dash] Failed to generate response:', error);
       
-      // Fallback response
-      return {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
-        timestamp: Date.now(),
-        metadata: {
-          confidence: 0.1,
-          suggested_actions: ['try_again', 'contact_support']
-        }
-      };
+      console.log('[Dash Agent] Response generation complete!');
+      return assistantMessage;
+      
+    } catch (error) {
+      console.error('[Dash Agent] Agentic processing failed, falling back to legacy:', error);
+      
+      // Fallback to legacy implementation if agentic fails
+      try {
+        const conversation = await this.getConversation(conversationId);
+        const recentMessages = conversation?.messages.slice(-5) || [];
+        const profile = await getCurrentProfile();
+        
+        const context = {
+          userInput,
+          conversationHistory: recentMessages,
+          userProfile: profile,
+          memory: Array.from(this.memory.values()),
+          personality: this.personality,
+          timestamp: new Date().toISOString(),
+        };
+
+        const response = await this.callAIServiceLegacy(context);
+        await this.updateMemory(userInput, response);
+        
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: this.ensureNoAttachmentClaims(response.content),
+          timestamp: Date.now(),
+          metadata: {
+            confidence: response.confidence || 0.7,
+            suggested_actions: response.suggested_actions || [],
+            references: response.references || [],
+            dashboard_action: response.dashboard_action
+          }
+        };
+      } catch (fallbackError) {
+        console.error('[Dash Agent] Fallback also failed:', fallbackError);
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
+          timestamp: Date.now(),
+          metadata: {
+            confidence: 0.1,
+            suggested_actions: ['try_again', 'contact_support']
+          }
+        };
+      }
     }
   }
   
