@@ -2618,15 +2618,23 @@ export class DashAIAssistant {
       // PHASE 1: CONTEXT ANALYSIS - Understand user intent and context
       console.log('[Dash Agent] Phase 1: Analyzing context...');
       const { DashContextAnalyzer } = await import('./DashContextAnalyzer');
-      const analyzer = new DashContextAnalyzer();
-      const analysis = await analyzer.analyzeMessage(userInput, fullContext);
+      const analyzer = DashContextAnalyzer.getInstance();
+      const analysis = await analyzer.analyzeUserInput(userInput, recentMessages, fullContext.currentContext);
       console.log('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
       
       // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
       console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
-      const { DashProactiveEngine } = await import('./DashProactiveEngine');
-      const proactiveEngine = DashProactiveEngine.getInstance();
-      const opportunities = await proactiveEngine.identifyOpportunities(analysis, this.userProfile);
+      const proactiveEngine = (await import('./DashProactiveEngine')).default;
+      const userRole = profile?.role || 'parent';
+      const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
+        autonomyLevel: this.autonomyLevel,
+        currentScreen: fullContext.currentContext?.screen_name,
+        recentActivity: fullContext.currentContext?.recent_actions,
+        timeContext: {
+          hour: new Date().getHours(),
+          dayOfWeek: new Date().getDay()
+        }
+      });
       console.log('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
       
       // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
