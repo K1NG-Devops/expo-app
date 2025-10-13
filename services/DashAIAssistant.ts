@@ -29,6 +29,74 @@ try {
   console.debug('SecureStore import failed (web or unsupported platform)', e);
 }
 
+// ============================================
+// AGENTIC PRIMITIVES (Phase 1.3)
+// ============================================
+
+/** Autonomy level for AI agent behavior */
+export type AutonomyLevel = 'observer' | 'assistant' | 'partner' | 'autonomous';
+
+/** Risk level for action execution */
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+/** Retry strategy for failed actions */
+export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'linear_backoff' | 'scheduled';
+
+/** Decision record for traceability */
+export interface DecisionRecord {
+  id: string;
+  action: DashAction;
+  risk: RiskLevel;
+  confidence: number; // 0-1
+  rationale: string;
+  requiresApproval: boolean;
+  createdAt: number;
+  context: Record<string, any>;
+  memoryReferences?: string[]; // IDs of memories that influenced this decision
+}
+
+/** Execution history entry */
+export interface ExecutionHistoryEntry {
+  id: string;
+  taskId: string;
+  stepId: string;
+  action: DashAction;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'retrying';
+  startedAt: number;
+  finishedAt?: number;
+  result?: any;
+  error?: string;
+  retryCount: number;
+  decision?: DecisionRecord;
+  metrics: {
+    duration?: number;
+    resourcesUsed?: Record<string, any>;
+    confidence?: number;
+  };
+}
+
+/** Priority queue item for task scheduling */
+export interface QueueItem {
+  id: string;
+  taskId: string;
+  stepId?: string;
+  action: DashAction;
+  priority: number; // Higher number = higher priority
+  deadline?: number;
+  createdAt: number;
+  attemptCount: number;
+  dependencies?: string[]; // IDs of tasks that must complete first
+}
+
+/** Retry configuration for task steps */
+export interface RetryConfig {
+  max: number;
+  strategy: RetryStrategy;
+  delayMs: number;
+  backoffMultiplier?: number; // For exponential backoff
+  maxDelayMs?: number; // Cap for exponential backoff
+}
+
 export type DashAttachmentKind =
   | 'image'
   | 'pdf'
@@ -154,6 +222,20 @@ export interface DashTaskStep {
     criteria: string[];
   };
   actions?: DashAction[];
+  
+  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
+  /** Conditional expression for step execution (safe evaluation) */
+  condition?: string;
+  /** Step ID to execute on success */
+  onSuccessNext?: string;
+  /** Step ID to execute on failure */
+  onFailureNext?: string;
+  /** Retry configuration for this step */
+  retry?: RetryConfig;
+  /** Parallel execution group ID - steps with same ID run concurrently */
+  parallelGroupId?: string;
+  /** Maximum concurrent execution within parallel group */
+  maxConcurrency?: number;
 }
 
 export interface DashAction {
@@ -195,7 +277,7 @@ export interface DashConversation {
 
 export interface DashMemoryItem {
   id: string;
-  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight';
+  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight' | 'episodic' | 'working' | 'semantic';
   key: string;
   value: any;
   confidence: number;
@@ -212,6 +294,16 @@ export interface DashMemoryItem {
   emotional_weight?: number; // How emotionally significant this memory is
   retrieval_frequency?: number; // How often this memory is accessed
   tags?: string[];
+  
+  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
+  /** Importance score 1-10 for memory consolidation and pruning */
+  importance?: number;
+  /** Computed recency score for retrieval ranking */
+  recency_score?: number;
+  /** Access count for frequency tracking */
+  accessed_count?: number;
+  /** Vector embedding for semantic similarity (matches DB schema) */
+  text_embedding?: number[];
 }
 
 export interface DashUserProfile {

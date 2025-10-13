@@ -68,6 +68,21 @@ export interface ProactiveOpportunity {
 export class DashContextAnalyzer {
   private static instance: DashContextAnalyzer;
   
+  // ===== PHASE 1.4: AGENTIC ENHANCEMENTS =====
+  private lastSnapshotTime: number = 0;
+  private snapshotIntervalMs: number = 5 * 60 * 1000; // 5 minutes
+  private emotionalHistory: Array<{ mood: string; timestamp: number }> = [];
+  private errorHistory: Array<{ error: string; timestamp: number }> = [];
+  private readonly MAX_HISTORY_SIZE = 20;
+  
+  // Sentiment lexicon for emotional state estimation
+  private readonly sentimentLexicon = {
+    positive: ['great', 'awesome', 'excellent', 'perfect', 'love', 'amazing', 'wonderful', 'fantastic', 'happy'],
+    negative: ['frustrated', 'annoying', 'difficult', 'stuck', 'confused', 'hard', 'problem', 'issue', 'error'],
+    urgent: ['urgent', 'asap', 'immediately', 'now', 'quickly', 'hurry', 'emergency', 'critical'],
+    calm: ['thanks', 'ok', 'fine', 'understood', 'got it', 'clear']
+  };
+  
   // Intent recognition patterns
   private intentPatterns: Map<string, RegExp[]> = new Map([
     ['create_lesson', [
@@ -220,7 +235,7 @@ export class DashContextAnalyzer {
     const scores: Array<{ intent: string; confidence: number; matches: string[] }> = [];
 
     // Pattern matching
-    for (const [intent, patterns] of this.intentPatterns.entries()) {
+    for (const [intent, patterns] of Array.from(this.intentPatterns.entries())) {
       const matches: string[] = [];
       let confidence = 0;
 
@@ -241,7 +256,7 @@ export class DashContextAnalyzer {
     const recentMessages = conversationHistory.slice(-3);
     for (const message of recentMessages) {
       if (message.role === 'user') {
-        for (const [intent, patterns] of this.intentPatterns.entries()) {
+        for (const [intent, patterns] of Array.from(this.intentPatterns.entries())) {
           const isRelated = patterns.some(pattern => pattern.test(message.content.toLowerCase()));
           if (isRelated) {
             const existingScore = scores.find(s => s.intent === intent);
@@ -616,7 +631,7 @@ export class DashContextAnalyzer {
     }
     
     // Suggest automation for repeated tasks
-    for (const [task, count] of taskCounts.entries()) {
+    for (const [task, count] of Array.from(taskCounts.entries())) {
       if (count >= 3) {
         opportunities.push({
           id: `automate_${task}`,
@@ -690,5 +705,318 @@ export class DashContextAnalyzer {
     }
     
     return insights;
+  }
+
+  // ===== PHASE 1.4: NEW AGENTIC METHODS =====
+
+  /**
+   * Persist context snapshot to database for cross-session continuity
+   */
+  public async persistContextSnapshot(context: ContextData): Promise<void> {
+    try {
+      // Check if enough time has passed since last snapshot
+      const now = Date.now();
+      if (now - this.lastSnapshotTime < this.snapshotIntervalMs) {
+        return; // Too soon, skip
+      }
+
+      const supabase = assertSupabase();
+      const profile = await getCurrentProfile();
+      if (!profile) return;
+
+      // Feature flag check
+      const agenticEnabled = process.env.EXPO_PUBLIC_AGENTIC_ENABLED === 'true';
+      if (!agenticEnabled) return;
+
+      await supabase.from('ai_context_snapshots').insert({
+        preschool_id: profile.organization_id,
+        user_id: profile.id,
+        snapshot: context as any
+      });
+
+      this.lastSnapshotTime = now;
+      console.log('[DashContext] Context snapshot persisted');
+    } catch (error) {
+      console.error('[DashContext] Failed to persist snapshot:', error);
+    }
+  }
+
+  /**
+   * Load last context snapshot and blend with current context
+   */
+  public async loadLastContextSnapshot(): Promise<ContextData | null> {
+    try {
+      const supabase = assertSupabase();
+      const profile = await getCurrentProfile();
+      if (!profile) return null;
+
+      const { data, error } = await supabase
+        .from('ai_context_snapshots')
+        .select('snapshot, created_at')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      console.log('[DashContext] Loaded context snapshot from', new Date(data.created_at));
+      return data.snapshot as ContextData;
+    } catch (error) {
+      console.error('[DashContext] Failed to load snapshot:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Enhanced emotional state estimation with trend analysis
+   */
+  public estimateEmotionalState(
+    input: string,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): { mood: string; confidence: number; trend: 'improving' | 'stable' | 'declining' } {
+    const text = input.toLowerCase();
+    let positiveScore = 0;
+    let negativeScore = 0;
+    let urgentScore = 0;
+
+    // Analyze current input
+    for (const word of this.sentimentLexicon.positive) {
+      if (text.includes(word)) positiveScore++;
+    }
+    for (const word of this.sentimentLexicon.negative) {
+      if (text.includes(word)) negativeScore++;
+    }
+    for (const word of this.sentimentLexicon.urgent) {
+      if (text.includes(word)) urgentScore++;
+    }
+
+    // Determine mood
+    let mood: string;
+    let confidence: number;
+
+    if (urgentScore > 0 && negativeScore > positiveScore) {
+      mood = 'frustrated';
+      confidence = Math.min(0.9, (urgentScore + negativeScore) / 5);
+    } else if (positiveScore > negativeScore) {
+      mood = positiveScore > 2 ? 'excited' : 'positive';
+      confidence = Math.min(0.9, positiveScore / 4);
+    } else if (negativeScore > positiveScore) {
+      mood = 'frustrated';
+      confidence = Math.min(0.9, negativeScore / 4);
+    } else {
+      mood = 'neutral';
+      confidence = 0.6;
+    }
+
+    // Add to history
+    this.emotionalHistory.push({ mood, timestamp: Date.now() });
+    if (this.emotionalHistory.length > this.MAX_HISTORY_SIZE) {
+      this.emotionalHistory.shift();
+    }
+
+    // Calculate trend
+    const trend = this.calculateEmotionalTrend();
+
+    return { mood, confidence, trend };
+  }
+
+  /**
+   * Calculate emotional trend from history
+   */
+  private calculateEmotionalTrend(): 'improving' | 'stable' | 'declining' {
+    if (this.emotionalHistory.length < 3) return 'stable';
+
+    const moodScores: Record<string, number> = {
+      excited: 2,
+      positive: 1,
+      neutral: 0,
+      frustrated: -1
+    };
+
+    const recent = this.emotionalHistory.slice(-3);
+    const scores = recent.map(h => moodScores[h.mood] || 0);
+    const avgRecent = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    const older = this.emotionalHistory.slice(-6, -3);
+    if (older.length < 2) return 'stable';
+    
+    const olderScores = older.map(h => moodScores[h.mood] || 0);
+    const avgOlder = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+
+    if (avgRecent > avgOlder + 0.3) return 'improving';
+    if (avgRecent < avgOlder - 0.3) return 'declining';
+    return 'stable';
+  }
+
+  /**
+   * Compute stress level from urgency patterns and error frequency
+   */
+  public computeStressLevel(
+    input: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    recentErrors: string[] = []
+  ): 'low' | 'medium' | 'high' {
+    let stressScore = 0;
+
+    // Check urgency keywords in recent messages
+    const recentMessages = conversationHistory.slice(-5);
+    for (const msg of recentMessages) {
+      const text = msg.content.toLowerCase();
+      for (const word of this.sentimentLexicon.urgent) {
+        if (text.includes(word)) stressScore += 2;
+      }
+    }
+
+    // Factor in error frequency
+    stressScore += recentErrors.length * 3;
+
+    // Add to error history
+    for (const error of recentErrors) {
+      this.errorHistory.push({ error, timestamp: Date.now() });
+    }
+    if (this.errorHistory.length > this.MAX_HISTORY_SIZE) {
+      this.errorHistory = this.errorHistory.slice(-this.MAX_HISTORY_SIZE);
+    }
+
+    // Calculate level
+    if (stressScore >= 10) return 'high';
+    if (stressScore >= 5) return 'medium';
+    return 'low';
+  }
+
+  /**
+   * Blend historical context with current context for continuity
+   */
+  public blendContexts(current: ContextData, historical: ContextData | null): ContextData {
+    if (!historical) return current;
+
+    // Blend contexts, preferring current but filling gaps with historical
+    return {
+      ...current,
+      user_state: {
+        ...historical.user_state,
+        ...current.user_state,
+      },
+      educational_context: {
+        ...historical.educational_context,
+        ...current.educational_context,
+      },
+      app_context: {
+        ...historical.app_context,
+        ...current.app_context,
+        // Merge recent errors
+        recent_errors: [
+          ...(historical.app_context.recent_errors || []),
+          ...(current.app_context.recent_errors || [])
+        ].slice(-5) // Keep last 5
+      },
+      time_context: current.time_context, // Always use current time
+      recent_actions: [
+        ...(historical.recent_actions || []),
+        ...(current.recent_actions || [])
+      ].slice(-10) // Keep last 10
+    };
+  }
+
+  /**
+   * Predict next user needs based on context and patterns
+   */
+  public getPredictedNextNeeds(
+    context: ContextData,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): Array<{ need: string; confidence: number; reasoning: string }> {
+    const predictions: Array<{ need: string; confidence: number; reasoning: string }> = [];
+
+    // Feature flag check
+    const predictiveEnabled = process.env.EXPO_PUBLIC_AGENTIC_PREDICTIVE === 'true';
+    if (!predictiveEnabled) return predictions;
+
+    const { time_context, user_state, educational_context, recent_actions } = context;
+    const role = user_state.role;
+
+    // Time-based predictions for teachers
+    if (role === 'teacher' && time_context.day_of_week === 'Monday' && time_context.hour < 10) {
+      predictions.push({
+        need: 'weekly_lesson_planning',
+        confidence: 0.75,
+        reasoning: 'Monday morning is typically when teachers plan the week ahead'
+      });
+    }
+
+    if (role === 'teacher' && time_context.day_of_week === 'Friday' && time_context.hour > 14) {
+      predictions.push({
+        need: 'grade_pending_assignments',
+        confidence: 0.7,
+        reasoning: 'Friday afternoon is common time for wrapping up grading before the weekend'
+      });
+    }
+
+    // Pattern-based predictions
+    const recentTopics = recent_actions.filter(a => a.includes('lesson') || a.includes('plan'));
+    if (recentTopics.length > 2 && educational_context?.lesson_phase === 'planning') {
+      predictions.push({
+        need: 'create_similar_lesson',
+        confidence: 0.65,
+        reasoning: 'Recent activity shows focus on lesson planning, likely to continue'
+      });
+    }
+
+    // Stress-based predictions
+    if (user_state.stress_level === 'high') {
+      predictions.push({
+        need: 'quick_automation_suggestions',
+        confidence: 0.6,
+        reasoning: 'High stress detected, user may benefit from task automation'
+      });
+    }
+
+    // Conversation pattern predictions
+    const userMessages = conversationHistory.filter(m => m.role === 'user').slice(-5);
+    const hasGradingQueries = userMessages.some(m => 
+      m.content.toLowerCase().includes('grade') || m.content.toLowerCase().includes('mark')
+    );
+    
+    if (hasGradingQueries && role === 'teacher') {
+      predictions.push({
+        need: 'grading_assistance',
+        confidence: 0.8,
+        reasoning: 'Recent conversation indicates grading workflow in progress'
+      });
+    }
+
+    // Log predictions in development
+    if (predictions.length > 0 && process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.log('[DashContext] Predicted needs:', predictions);
+    }
+
+    return predictions.slice(0, 3); // Return top 3 predictions
+  }
+
+  /**
+   * Get engagement score based on interaction patterns
+   */
+  public calculateEngagementScore(
+    conversationHistory: Array<{ role: string; content: string }>,
+    timeWindowMs: number = 30 * 60 * 1000 // 30 minutes
+  ): { level: 'low' | 'medium' | 'high'; score: number } {
+    const now = Date.now();
+    const recentMessages = conversationHistory.filter(m => {
+      // Assuming messages have timestamps; fallback if not
+      return m.role === 'user';
+    }).slice(-10);
+
+    const messageCount = recentMessages.length;
+    const avgLength = recentMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(messageCount, 1);
+
+    // Calculate engagement score (0-1)
+    let score = 0;
+    score += Math.min(messageCount / 10, 0.5); // Up to 0.5 for message frequency
+    score += Math.min(avgLength / 200, 0.3); // Up to 0.3 for message depth
+    score += recentMessages.some(m => m.content.includes('?')) ? 0.2 : 0; // +0.2 for asking questions
+
+    const level = score > 0.7 ? 'high' : score > 0.4 ? 'medium' : 'low';
+
+    return { level, score };
   }
 }
