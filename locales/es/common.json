@@ -317,5 +317,17 @@
       "user": "Configuración del usuario",
       "unknown": "Desconocido"
     }
+  },
+  "trends": {
+    "up": "al alza",
+    "down": "a la baja",
+    "stable": "estable",
+    "good": "bueno",
+    "excellent": "excelente",
+    "warning": "advertencia",
+    "attention": "atención",
+    "needs_attention": "necesita atención",
+    "low": "bajo",
+    "high": "alto"
   }
 }

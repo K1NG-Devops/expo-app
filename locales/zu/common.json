@@ -361,5 +361,17 @@
       "user": "Uhlelo lomsebenzisi",
       "unknown": "Akwaziwa"
     }
+  },
+  "trends": {
+    "up": "enyukayo",
+    "down": "ehla",
+    "stable": "izinzile",
+    "good": "kuhle",
+    "excellent": "okuhle kakhulu",
+    "warning": "isexwayiso",
+    "attention": "ukunaka",
+    "needs_attention": "kudinga ukunakwa",
+    "low": "phansi",
+    "high": "phezulu"
   }
 }

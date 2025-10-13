@@ -757,5 +757,17 @@
     "tab_categories": "Kategorieë",
     "tab_comparison": "Vergelyk",
     "no_financial_data_export": "Geen finansiële data beskikbaar om uit te voer nie"
+  },
+  "trends": {
+    "up": "op",
+    "down": "af",
+    "stable": "stabiel",
+    "good": "goed",
+    "excellent": "uitstekend",
+    "warning": "waarskuwing",
+    "attention": "aandag",
+    "needs_attention": "benodig aandag",
+    "low": "laag",
+    "high": "hoog"
   }
 }

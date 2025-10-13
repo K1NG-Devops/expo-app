@@ -571,27 +571,27 @@ export const usePrincipalHub = () => {
       const stats = {
         students: { 
           total: studentsCount, 
-          trend: studentsCount > 20 ? 'up' : studentsCount > 10 ? 'stable' : 'low' 
+          trend: studentsCount > 20 ? t('trends.up') : studentsCount > 10 ? t('trends.stable') : t('trends.low') 
         },
         staff: { 
           total: teachersData.length, 
-          trend: teachersData.length >= 5 ? 'stable' : 'needs_attention' 
+          trend: teachersData.length >= 5 ? t('trends.stable') : t('trends.needs_attention') 
         },
         classes: { 
           total: classesCount, 
-          trend: classesCount >= studentsCount / 8 ? 'stable' : 'up' 
+          trend: classesCount >= studentsCount / 8 ? t('trends.stable') : t('trends.up') 
         },
         pendingApplications: { 
           total: applicationsCount, 
-          trend: applicationsCount > 5 ? 'high' : applicationsCount > 2 ? 'up' : 'stable' 
+          trend: applicationsCount > 5 ? t('trends.high') : applicationsCount > 2 ? t('trends.up') : t('trends.stable') 
         },
         monthlyRevenue: { 
           total: monthlyRevenueTotal, 
-          trend: monthlyRevenueTotal > finalPreviousRevenue ? 'up' : monthlyRevenueTotal < finalPreviousRevenue ? 'down' : 'stable' 
+          trend: monthlyRevenueTotal > finalPreviousRevenue ? t('trends.up') : monthlyRevenueTotal < finalPreviousRevenue ? t('trends.down') : t('trends.stable') 
         },
         attendanceRate: { 
           percentage: attendanceRate || 0, 
-          trend: attendanceRate >= 90 ? 'excellent' : attendanceRate >= 80 ? 'good' : 'needs_attention' 
+          trend: attendanceRate >= 90 ? t('trends.excellent') : attendanceRate >= 80 ? t('trends.good') : t('trends.needs_attention') 
         },
         timestamp: new Date().toISOString()
       };

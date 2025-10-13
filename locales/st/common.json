@@ -318,5 +318,17 @@
       "user": "Peakanyo ya modiriši",
       "unknown": "Ga e tsebjwe"
     }
+  },
+  "trends": {
+    "up": "holimo",
+    "down": "tlase",
+    "stable": "tsitsitse",
+    "good": "hantle",
+    "excellent": "hantle haholo",
+    "warning": "temošo",
+    "attention": "tlhokomelo",
+    "needs_attention": "e hloka tlhokomelo",
+    "low": "tlase",
+    "high": "holimo"
   }
 }

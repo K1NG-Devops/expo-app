@@ -200,5 +200,17 @@
       "user": "Paramètre utilisateur",
       "unknown": "Inconnu"
     }
+  },
+  "trends": {
+    "up": "en hausse",
+    "down": "en baisse",
+    "stable": "stable",
+    "good": "bon",
+    "excellent": "excellent",
+    "warning": "avertissement",
+    "attention": "attention",
+    "needs_attention": "nécessite une attention",
+    "low": "faible",
+    "high": "élevé"
   }
 }
