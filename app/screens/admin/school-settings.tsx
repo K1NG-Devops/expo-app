@@ -289,10 +289,10 @@ export default function SchoolSettingsScreen() {
         <Ionicons name="lock-closed" size={64} color={theme.textSecondary} />
         <Text style={[styles.accessDeniedTitle, { color: theme.text }]}>Access Denied</Text>
         <Text style={[styles.accessDeniedText, { color: theme.textSecondary }]}>
-          Only school principals can access these settings.
+          {t('school_settings.access_denied_text', { defaultValue: 'Only school principals can access these settings.' })}
         </Text>
         <TouchableOpacity style={[styles.backButton, { backgroundColor: theme.primary }]} onPress={() => router.back()}>
-          <Text style={[styles.backButtonText, { color: theme.onPrimary }]}>Go Back</Text>
+          <Text style={[styles.backButtonText, { color: theme.onPrimary }]}>{t('navigation.back', { defaultValue: 'Back' })}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -308,155 +308,155 @@ export default function SchoolSettingsScreen() {
             <Ionicons name="arrow-back" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={[styles.heroTitle, { color: theme.text }]}>{t('School Settings')}</Text>
-            <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>Manage features, permissions and policies</Text>
+            <Text style={[styles.heroTitle, { color: theme.text }]}>{t('school_settings.title', { defaultValue: 'School Settings' })}</Text>
+            <Text style={[styles.heroSubtitle, { color: theme.textSecondary }]}>{t('school_settings.hero_subtitle', { defaultValue: 'Manage features, permissions and policies' })}</Text>
           </View>
         </View>
 
         {/* Basic Settings */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>School Information</Text>
-          {renderSettingRow('School Name', settings.schoolName, () => {
-            Alert.prompt('School Name', 'Enter school name', (text) => {
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.school_information', { defaultValue: 'School Information' })}</Text>
+          {renderSettingRow(t('school_settings.label.school_name', { defaultValue: 'School Name' }), settings.schoolName, () => {
+            Alert.prompt(t('school_settings.prompt.school_name_title', { defaultValue: 'School Name' }), t('school_settings.prompt.school_name_desc', { defaultValue: 'Enter school name' }), (text) => {
               if (text) updateSetting('schoolName', text);
             });
           })}
-          {renderSettingRow('Currency', settings.currency, () => {
-            Alert.alert('Currency', 'Change currency?');
+          {renderSettingRow(t('school_settings.label.currency', { defaultValue: 'Currency' }), settings.currency, () => {
+            Alert.alert(t('school_settings.alert.currency_title', { defaultValue: 'Currency' }), t('school_settings.alert.currency_change', { defaultValue: 'Change currency?' }));
           })}
-          {renderSettingRow('Timezone', settings.timezone, () => {
-            Alert.alert('Timezone', 'Change timezone?');
+          {renderSettingRow(t('school_settings.label.timezone', { defaultValue: 'Timezone' }), settings.timezone, () => {
+            Alert.alert(t('school_settings.alert.timezone_title', { defaultValue: 'Timezone' }), t('school_settings.alert.timezone_change', { defaultValue: 'Change timezone?' }));
           })}
         </View>
 
         {/* Display Settings */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Display & Language</Text>
-          {renderSettingRow('Language', settings.display.defaultLanguage.toUpperCase(), () => {
-            Alert.alert('Language', 'Change language?');
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.display_language', { defaultValue: 'Display & Language' })}</Text>
+          {renderSettingRow(t('school_settings.label.language', { defaultValue: 'Language' }), settings.display.defaultLanguage.toUpperCase(), () => {
+            Alert.alert(t('school_settings.alert.language_title', { defaultValue: 'Language' }), t('school_settings.alert.language_change', { defaultValue: 'Change language?' }));
           })}
-          {renderSettingRow('Date Format', settings.display.dateFormat, () => {
-            Alert.alert('Date Format', 'Change date format?');
+          {renderSettingRow(t('school_settings.label.date_format', { defaultValue: 'Date Format' }), settings.display.dateFormat, () => {
+            Alert.alert(t('school_settings.alert.date_format_title', { defaultValue: 'Date Format' }), t('school_settings.alert.date_format_change', { defaultValue: 'Change date format?' }));
           })}
-          {renderSettingRow('Time Format', settings.display.timeFormat, () => {
-            Alert.alert('Time Format', 'Change time format?');
+          {renderSettingRow(t('school_settings.label.time_format', { defaultValue: 'Time Format' }), settings.display.timeFormat, () => {
+            Alert.alert(t('school_settings.alert.time_format_title', { defaultValue: 'Time Format' }), t('school_settings.alert.time_format_change', { defaultValue: 'Change time format?' }));
           })}
         </View>
 
         {/* Features */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Features</Text>
-          {renderSettingRow('Activity Feed', settings.features.activityFeed.enabled, () => {
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.features', { defaultValue: 'Features' })}</Text>
+          {renderSettingRow(t('school_settings.label.activity_feed', { defaultValue: 'Activity Feed' }), settings.features.activityFeed.enabled, () => {
             updateNestedSetting(['features', 'activityFeed', 'enabled'], !settings.features.activityFeed.enabled);
           })}
-          {renderSettingRow('Students Directory', settings.features.studentsDirectory.enabled, () => {
+          {renderSettingRow(t('school_settings.label.students_directory', { defaultValue: 'Students Directory' }), settings.features.studentsDirectory.enabled, () => {
             updateNestedSetting(['features', 'studentsDirectory', 'enabled'], !settings.features.studentsDirectory.enabled);
           })}
-          {renderSettingRow('Financial Reports', settings.features.financialReports.enabled, () => {
+          {renderSettingRow(t('school_settings.label.financial_reports', { defaultValue: 'Financial Reports' }), settings.features.financialReports.enabled, () => {
             updateNestedSetting(['features', 'financialReports', 'enabled'], !settings.features.financialReports.enabled);
           })}
-          {renderSettingRow('Petty Cash System', settings.features.pettyCash.enabled, () => {
+          {renderSettingRow(t('school_settings.label.petty_cash_system', { defaultValue: 'Petty Cash System' }), settings.features.pettyCash.enabled, () => {
             updateNestedSetting(['features', 'pettyCash', 'enabled'], !settings.features.pettyCash.enabled);
           })}
         </View>
 
         {/* Permissions */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Permissions</Text>
-          {renderSettingRow('Allow Teacher Reports', settings.permissions.allowTeacherReports, () => {
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.permissions', { defaultValue: 'Permissions' })}</Text>
+          {renderSettingRow(t('school_settings.label.allow_teacher_reports', { defaultValue: 'Allow Teacher Reports' }), settings.permissions.allowTeacherReports, () => {
             updateNestedSetting(['permissions', 'allowTeacherReports'], !settings.permissions.allowTeacherReports);
           })}
-          {renderSettingRow('Allow Parent Messaging', settings.permissions.allowParentMessaging, () => {
+          {renderSettingRow(t('school_settings.label.allow_parent_messaging', { defaultValue: 'Allow Parent Messaging' }), settings.permissions.allowParentMessaging, () => {
             updateNestedSetting(['permissions', 'allowParentMessaging'], !settings.permissions.allowParentMessaging);
           })}
-          {renderSettingRow('Session Timeout', `${settings.permissions.sessionTimeout} min`, () => {
-            Alert.alert('Session Timeout', 'Choose timeout duration:', [
-              { text: '15 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 15) },
-              { text: '30 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 30) },
-              { text: '60 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 60) },
-              { text: '120 min', onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 120) },
-              { text: 'Cancel', style: 'cancel' }
+          {renderSettingRow(t('school_settings.label.session_timeout', { defaultValue: 'Session Timeout' }), `${settings.permissions.sessionTimeout} min`, () => {
+            Alert.alert(t('school_settings.alert.session_timeout_title', { defaultValue: 'Session Timeout' }), t('school_settings.alert.session_timeout_choose', { defaultValue: 'Choose timeout duration:' }), [
+              { text: t('school_settings.option.minutes_15', { defaultValue: '15 min' }), onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 15) },
+              { text: t('school_settings.option.minutes_30', { defaultValue: '30 min' }), onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 30) },
+              { text: t('school_settings.option.minutes_60', { defaultValue: '60 min' }), onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 60) },
+              { text: t('school_settings.option.minutes_120', { defaultValue: '120 min' }), onPress: () => updateNestedSetting(['permissions', 'sessionTimeout'], 120) },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
         </View>
 
         {/* Notifications */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Notifications</Text>
-          {renderSettingRow('Email Notifications', settings.notifications.emailEnabled, () => {
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.notifications', { defaultValue: 'Notifications' })}</Text>
+          {renderSettingRow(t('school_settings.label.email_notifications', { defaultValue: 'Email Notifications' }), settings.notifications.emailEnabled, () => {
             updateNestedSetting(['notifications', 'emailEnabled'], !settings.notifications.emailEnabled);
           })}
-          {renderSettingRow('SMS Notifications', settings.notifications.smsEnabled, () => {
+          {renderSettingRow(t('school_settings.label.sms_notifications', { defaultValue: 'SMS Notifications' }), settings.notifications.smsEnabled, () => {
             updateNestedSetting(['notifications', 'smsEnabled'], !settings.notifications.smsEnabled);
           })}
-          {renderSettingRow('Push Notifications', settings.notifications.pushEnabled, () => {
+          {renderSettingRow(t('school_settings.label.push_notifications', { defaultValue: 'Push Notifications' }), settings.notifications.pushEnabled, () => {
             updateNestedSetting(['notifications', 'pushEnabled'], !settings.notifications.pushEnabled);
           })}
-          {renderSettingRow('Daily Reports', settings.notifications.dailyReports, () => {
+          {renderSettingRow(t('school_settings.label.daily_reports', { defaultValue: 'Daily Reports' }), settings.notifications.dailyReports, () => {
             updateNestedSetting(['notifications', 'dailyReports'], !settings.notifications.dailyReports);
           })}
         </View>
 
         {/* Security & Backup */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Security & Backup</Text>
-          {renderSettingRow('Two-Factor Authentication', settings.permissions.requireTwoFactorAuth, () => {
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.security_backup', { defaultValue: 'Security & Backup' })}</Text>
+          {renderSettingRow(t('school_settings.label.two_factor_auth', { defaultValue: 'Two-Factor Authentication' }), settings.permissions.requireTwoFactorAuth, () => {
             updateNestedSetting(['permissions', 'requireTwoFactorAuth'], !settings.permissions.requireTwoFactorAuth);
           })}
-          {renderSettingRow('Auto Backup', settings.backup.autoBackupEnabled, () => {
+          {renderSettingRow(t('school_settings.label.auto_backup', { defaultValue: 'Auto Backup' }), settings.backup.autoBackupEnabled, () => {
             updateNestedSetting(['backup', 'autoBackupEnabled'], !settings.backup.autoBackupEnabled);
           })}
-          {renderSettingRow('Backup Frequency', settings.backup.backupFrequency, () => {
-            Alert.alert('Backup Frequency', 'Choose frequency', [
-              { text: 'Daily', onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'daily') },
-              { text: 'Weekly', onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'weekly') },
-              { text: 'Monthly', onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'monthly') },
-              { text: 'Cancel', style: 'cancel' }
+          {renderSettingRow(t('school_settings.label.backup_frequency', { defaultValue: 'Backup Frequency' }), settings.backup.backupFrequency, () => {
+            Alert.alert(t('school_settings.alert.backup_frequency_title', { defaultValue: 'Backup Frequency' }), t('school_settings.alert.choose_frequency', { defaultValue: 'Choose frequency' }), [
+              { text: t('school_settings.option.daily', { defaultValue: 'Daily' }), onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'daily') },
+              { text: t('school_settings.option.weekly', { defaultValue: 'Weekly' }), onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'weekly') },
+              { text: t('school_settings.option.monthly', { defaultValue: 'Monthly' }), onPress: () => updateNestedSetting(['backup', 'backupFrequency'], 'monthly') },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
-          {renderSettingRow('Data Retention', `${settings.backup.dataRetentionMonths} months`, () => {
-            Alert.alert('Data Retention', 'Choose retention period:', [
-              { text: '6 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 6) },
-              { text: '12 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 12) },
-              { text: '24 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 24) },
-              { text: '36 months', onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 36) },
-              { text: 'Cancel', style: 'cancel' }
+          {renderSettingRow(t('school_settings.label.data_retention', { defaultValue: 'Data Retention' }), `${settings.backup.dataRetentionMonths} months`, () => {
+            Alert.alert(t('school_settings.alert.data_retention_title', { defaultValue: 'Data Retention' }), t('school_settings.alert.data_retention_choose', { defaultValue: 'Choose retention period:' }), [
+              { text: t('school_settings.option.months_6', { defaultValue: '6 months' }), onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 6) },
+              { text: t('school_settings.option.months_12', { defaultValue: '12 months' }), onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 12) },
+              { text: t('school_settings.option.months_24', { defaultValue: '24 months' }), onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 24) },
+              { text: t('school_settings.option.months_36', { defaultValue: '36 months' }), onPress: () => updateNestedSetting(['backup', 'dataRetentionMonths'], 36) },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
         </View>
 
         {/* Advanced Settings */}
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Advanced Settings</Text>
-          {renderSettingRow('Dashboard Layout', settings.display.dashboardLayout, () => {
-            Alert.alert('Dashboard Layout', 'Choose layout', [
-              { text: 'Grid', onPress: () => updateNestedSetting(['display', 'dashboardLayout'], 'grid') },
-              { text: 'List', onPress: () => updateNestedSetting(['display', 'dashboardLayout'], 'list') },
-              { text: 'Cancel', style: 'cancel' }
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('school_settings.section.advanced_settings', { defaultValue: 'Advanced Settings' })}</Text>
+          {renderSettingRow(t('school_settings.label.dashboard_layout', { defaultValue: 'Dashboard Layout' }), settings.display.dashboardLayout, () => {
+            Alert.alert(t('school_settings.alert.dashboard_layout_title', { defaultValue: 'Dashboard Layout' }), t('school_settings.alert.choose_layout', { defaultValue: 'Choose layout' }), [
+              { text: t('school_settings.option.grid', { defaultValue: 'Grid' }), onPress: () => updateNestedSetting(['display', 'dashboardLayout'], 'grid') },
+              { text: t('school_settings.option.list', { defaultValue: 'List' }), onPress: () => updateNestedSetting(['display', 'dashboardLayout'], 'list') },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
-          {renderSettingRow('Weather Widget', settings.display.showWeatherWidget, () => {
+          {renderSettingRow(t('school_settings.label.weather_widget', { defaultValue: 'Weather Widget' }), settings.display.showWeatherWidget, () => {
             updateNestedSetting(['display', 'showWeatherWidget'], !settings.display.showWeatherWidget);
           })}
-          {renderSettingRow('Calendar Widget', settings.display.showCalendarWidget, () => {
+          {renderSettingRow(t('school_settings.label.calendar_widget', { defaultValue: 'Calendar Widget' }), settings.display.showCalendarWidget, () => {
             updateNestedSetting(['display', 'showCalendarWidget'], !settings.display.showCalendarWidget);
           })}
-          {renderSettingRow('Financial Reports Limit', `${settings.features.financialReports.requireApprovalLimit}`, () => {
-            Alert.alert('Approval Limit', 'Choose amount requiring approval:', [
-              { text: 'R500', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 500) },
-              { text: 'R1000', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 1000) },
-              { text: 'R2500', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 2500) },
-              { text: 'R5000', onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 5000) },
-              { text: 'Cancel', style: 'cancel' }
+          {renderSettingRow(t('school_settings.label.financial_reports_limit', { defaultValue: 'Financial Reports Limit' }), `${settings.features.financialReports.requireApprovalLimit}`, () => {
+            Alert.alert(t('school_settings.alert.approval_limit_title', { defaultValue: 'Approval Limit' }), t('school_settings.alert.approval_limit_choose', { defaultValue: 'Choose amount requiring approval:' }), [
+              { text: t('school_settings.option.r500', { defaultValue: 'R500' }), onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 500) },
+              { text: t('school_settings.option.r1000', { defaultValue: 'R1000' }), onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 1000) },
+              { text: t('school_settings.option.r2500', { defaultValue: 'R2500' }), onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 2500) },
+              { text: t('school_settings.option.r5000', { defaultValue: 'R5000' }), onPress: () => updateNestedSetting(['features', 'financialReports', 'requireApprovalLimit'], 5000) },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
-          {renderSettingRow('Petty Cash Daily Limit', `${settings.features.pettyCash.dailyLimit}`, () => {
-            Alert.alert('Daily Limit', 'Choose daily petty cash limit:', [
-              { text: 'R200', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 200) },
-              { text: 'R500', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 500) },
-              { text: 'R1000', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 1000) },
-              { text: 'R2000', onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 2000) },
-              { text: 'Cancel', style: 'cancel' }
+          {renderSettingRow(t('school_settings.label.petty_cash_daily_limit', { defaultValue: 'Petty Cash Daily Limit' }), `${settings.features.pettyCash.dailyLimit}`, () => {
+            Alert.alert(t('school_settings.alert.daily_limit_title', { defaultValue: 'Daily Limit' }), t('school_settings.alert.daily_limit_choose', { defaultValue: 'Choose daily petty cash limit:' }), [
+              { text: t('school_settings.option.r200', { defaultValue: 'R200' }), onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 200) },
+              { text: t('school_settings.option.r500', { defaultValue: 'R500' }), onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 500) },
+              { text: t('school_settings.option.r1000', { defaultValue: 'R1000' }), onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 1000) },
+              { text: t('school_settings.option.r2000', { defaultValue: 'R2000' }), onPress: () => updateNestedSetting(['features', 'pettyCash', 'dailyLimit'], 2000) },
+              { text: t('navigation.cancel', { defaultValue: 'Cancel' }), style: 'cancel' }
             ]);
           })}
         </View>
@@ -465,11 +465,11 @@ export default function SchoolSettingsScreen() {
       <View style={[styles.bottomBar, { paddingBottom: 12 + insets.bottom, backgroundColor: theme.background, borderTopColor: theme.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={[styles.bottomBtn, { backgroundColor: theme.surfaceVariant, borderColor: theme.border }]}>
           <Ionicons name="close" size={18} color={theme.text} />
-          <Text style={[styles.bottomBtnText, { color: theme.text }]}>Close</Text>
+          <Text style={[styles.bottomBtnText, { color: theme.text }]}>{t('navigation.close', { defaultValue: 'Close' })}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={saveSettings} disabled={saving} style={[styles.bottomBtn, { backgroundColor: theme.primary, borderColor: theme.primary }]}>
           {saving ? <ActivityIndicator size="small" color={theme.onPrimary} /> : <Ionicons name="checkmark" size={18} color={theme.onPrimary} />}
-          <Text style={[styles.bottomBtnText, { color: theme.onPrimary }]}>Save changes</Text>
+          <Text style={[styles.bottomBtnText, { color: theme.onPrimary }]}>{t('school_settings.save_changes', { defaultValue: 'Save changes' })}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
