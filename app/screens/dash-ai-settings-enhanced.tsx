@@ -124,7 +124,7 @@ export default function DashAISettingsEnhancedScreen() {
                       personality.response_style === 'casual' ? 'casual' : 
                       personality.response_style === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
         voiceLanguage: personality.voice_settings?.language || 'en-ZA',
-        voiceType: 'female_warm',
+        voiceType: personality.voice_settings?.voice || 'male', // Read from saved voice
         voiceRate: personality.voice_settings?.rate || 1.0,
         voicePitch: personality.voice_settings?.pitch || 1.0,
         memoryEnabled: memory && memory.length > 0,
@@ -172,6 +172,7 @@ export default function DashAISettingsEnhancedScreen() {
         response_style: settings.personality,
         voice_settings: {
           language: settings.voiceLanguage,
+          voice: settings.voiceType, // Save voice gender
           rate: settings.voiceRate,
           pitch: settings.voicePitch,
           volume: settings.voiceVolume
@@ -201,25 +202,58 @@ export default function DashAISettingsEnhancedScreen() {
 
   const testVoiceAdvanced = async () => {
     try {
-      // Sync with basic settings voice test logic
-      console.log('[Enhanced Voice Test] Testing advanced TTS voice settings');
+      console.log('[Enhanced Voice Test] Testing advanced TTS voice settings', {
+        platform: Platform.OS,
+        voiceType: settings.voiceType
+      });
       
-      // Find the best matching voice for the current language
+      // Determine target voice gender from settings
+      const targetGender = settings.voiceType || 'male';
+      console.log('[Enhanced Voice Test] Target gender:', targetGender);
+      
+      // Platform-specific voice handling
       let selectedVoice = undefined;
-      if (availableVoices.length > 0) {
-        const languageCode = settings.voiceLanguage.substring(0, 2);
-        const matchingVoices = availableVoices.filter(voice => 
-          voice.language?.startsWith(languageCode)
-        );
-        
-        if (matchingVoices.length > 0) {
-          // Prefer female voices if available
-          const femaleVoice = matchingVoices.find(voice => 
-            voice.name?.toLowerCase().includes('female') || 
-            voice.name?.toLowerCase().includes('woman') ||
-            voice.gender === 'female'
+      let adjustedPitch = settings.voicePitch;
+      let adjustedRate = settings.voiceRate;
+      
+      if (Platform.OS === 'android') {
+        // Android: Use pitch modulation instead of voice identifier
+        if (targetGender === 'male') {
+          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85); // Lower pitch for male
+          console.log('[Enhanced Voice Test] Android: Using MALE voice simulation with pitch:', adjustedPitch);
+        } else {
+          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15); // Higher pitch for female
+          console.log('[Enhanced Voice Test] Android: Using FEMALE voice simulation with pitch:', adjustedPitch);
+        }
+      } else {
+        // iOS: Try to find specific voice identifier
+        if (availableVoices.length > 0) {
+          const languageCode = settings.voiceLanguage.substring(0, 2);
+          const matchingVoices = availableVoices.filter(voice => 
+            voice.language?.startsWith(languageCode)
           );
-          selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+          
+          console.log('[Enhanced Voice Test] iOS: Found', matchingVoices.length, 'voices for', languageCode);
+          
+          if (matchingVoices.length > 0) {
+            if (targetGender === 'male') {
+              const maleVoice = matchingVoices.find(voice => 
+                voice.name?.toLowerCase().includes('male') || 
+                voice.name?.toLowerCase().includes('man') ||
+                voice.gender === 'male'
+              );
+              selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
+              console.log('[Enhanced Voice Test] iOS: Selected MALE voice:', maleVoice?.name || selectedVoice);
+            } else {
+              const femaleVoice = matchingVoices.find(voice => 
+                voice.name?.toLowerCase().includes('female') || 
+                voice.name?.toLowerCase().includes('woman') ||
+                voice.gender === 'female'
+              );
+              selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+              console.log('[Enhanced Voice Test] iOS: Selected FEMALE voice:', femaleVoice?.name || selectedVoice);
+            }
+          }
         }
       }
       
@@ -232,14 +266,13 @@ export default function DashAISettingsEnhancedScreen() {
       
       const testMessage = personalityMessages[settings.personality] || personalityMessages['encouraging'];
       
-      await Speech.speak(testMessage, {
+      const speechOptions: any = {
         language: settings.voiceLanguage,
-        pitch: settings.voicePitch,
-        rate: settings.voiceRate,
+        pitch: adjustedPitch,
+        rate: adjustedRate,
         volume: settings.voiceVolume,
-        voice: selectedVoice,
         onStart: () => {
-          console.log('[Enhanced Voice Test] Started speaking with voice:', selectedVoice);
+          console.log('[Enhanced Voice Test] Started speaking', { voice: selectedVoice || 'default', pitch: adjustedPitch });
         },
         onDone: () => {
           console.log('[Enhanced Voice Test] Finished speaking');
@@ -249,7 +282,14 @@ export default function DashAISettingsEnhancedScreen() {
           console.error('[Enhanced Voice Test] Speech error:', error);
           Alert.alert('Voice Test Error', 'Could not test voice settings. Please check device audio.');
         }
-      });
+      };
+      
+      // Only add voice parameter on iOS
+      if (Platform.OS === 'ios' && selectedVoice) {
+        speechOptions.voice = selectedVoice;
+      }
+      
+      await Speech.speak(testMessage, speechOptions);
     } catch (error) {
       console.error('[Enhanced Voice Test] Failed:', error);
       Alert.alert('Voice Test Failed', 'Could not test advanced voice settings');
@@ -277,7 +317,7 @@ export default function DashAISettingsEnhancedScreen() {
               adaptiveTone: true,
               emotionalIntelligence: true,
               voiceLanguage: 'en-ZA',
-              voiceType: 'female_warm',
+              voiceType: 'male', // Default to male voice
               voiceRate: 1.0,
               voicePitch: 1.0,
               voiceVolume: 0.8,
@@ -616,6 +656,53 @@ export default function DashAISettingsEnhancedScreen() {
                 { label: 'Zulu', value: 'zu' }
               ]
             )}
+
+            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+              <View style={styles.settingInfo}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
+                <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+                  {Platform.OS === 'android' 
+                    ? 'Android: Voice distinction simulated using pitch modulation'
+                    : 'iOS: Uses device-specific voice packs'}
+                </Text>
+              </View>
+              <View style={styles.pickerContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerOption,
+                    { 
+                      backgroundColor: settings.voiceType === 'male' ? theme.primary : 'transparent',
+                      borderColor: theme.border
+                    }
+                  ]}
+                  onPress={() => handleSettingsChange('voiceType', 'male')}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    { color: settings.voiceType === 'male' ? 'white' : theme.text }
+                  ]}>
+                    👨 Male
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.pickerOption,
+                    { 
+                      backgroundColor: settings.voiceType === 'female' ? theme.primary : 'transparent',
+                      borderColor: theme.border
+                    }
+                  ]}
+                  onPress={() => handleSettingsChange('voiceType', 'female')}
+                >
+                  <Text style={[
+                    styles.pickerOptionText,
+                    { color: settings.voiceType === 'female' ? 'white' : theme.text }
+                  ]}>
+                    👩 Female
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {renderSliderSetting(
               'voiceRate',

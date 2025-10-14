@@ -2775,39 +2775,68 @@ export class DashAIAssistant {
         console.warn('[Dash] Failed to set audio mode for TTS:', e);
       }
 
-      // Select best male voice if available
+      // Platform-specific voice handling
       let selectedVoice: string | undefined = undefined;
-      try {
-        const availableVoices = await Speech.getAvailableVoicesAsync();
-        if (availableVoices && availableVoices.length > 0) {
-          const languageCode = voiceSettings.language?.substring(0, 2) || 'en';
-          const matchingVoices = availableVoices.filter(v => 
-            v.language?.startsWith(languageCode)
-          );
-          
-          if (matchingVoices.length > 0) {
-            // Prefer male voices
-            const maleVoice = matchingVoices.find(v => 
-              v.name?.toLowerCase().includes('male') || 
-              v.name?.toLowerCase().includes('man') ||
-              (v as any).gender === 'male'
-            );
-            selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
-            console.log('[Dash] Selected voice:', selectedVoice, 'from', matchingVoices.length, 'options');
-          }
+      let adjustedPitch = voiceSettings.pitch || 1.0;
+      let adjustedRate = voiceSettings.rate || 1.0;
+      const targetGender = voiceSettings.voice || 'male'; // Get saved voice preference
+      
+      console.log('[Dash] Target voice gender:', targetGender, 'Platform:', Platform.OS);
+      
+      if (Platform.OS === 'android') {
+        // Android: Use pitch modulation to simulate voice gender
+        // Android TTS often ignores voice parameter, so we use pitch adjustment
+        if (targetGender === 'male') {
+          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85); // Lower pitch for male voice
+          console.log('[Dash] Android: Using MALE voice simulation with pitch:', adjustedPitch);
+        } else {
+          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15); // Higher pitch for female voice
+          console.log('[Dash] Android: Using FEMALE voice simulation with pitch:', adjustedPitch);
         }
-      } catch (e) {
-        console.warn('[Dash] Could not get available voices, using default:', e);
+        // Don't specify voice parameter on Android to avoid compatibility issues
+      } else {
+        // iOS: Try to find specific voice identifier
+        try {
+          const availableVoices = await Speech.getAvailableVoicesAsync();
+          if (availableVoices && availableVoices.length > 0) {
+            const languageCode = voiceSettings.language?.substring(0, 2) || 'en';
+            const matchingVoices = availableVoices.filter(v => 
+              v.language?.startsWith(languageCode)
+            );
+            
+            if (matchingVoices.length > 0) {
+              if (targetGender === 'male') {
+                const maleVoice = matchingVoices.find(v => 
+                  v.name?.toLowerCase().includes('male') || 
+                  v.name?.toLowerCase().includes('man') ||
+                  (v as any).gender === 'male'
+                );
+                selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
+                console.log('[Dash] iOS: Selected MALE voice:', maleVoice?.name || selectedVoice);
+              } else {
+                const femaleVoice = matchingVoices.find(v => 
+                  v.name?.toLowerCase().includes('female') || 
+                  v.name?.toLowerCase().includes('woman') ||
+                  (v as any).gender === 'female'
+                );
+                selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+                console.log('[Dash] iOS: Selected FEMALE voice:', femaleVoice?.name || selectedVoice);
+              }
+            }
+            console.log('[Dash] iOS: Voice selected from', matchingVoices.length, 'options');
+          }
+        } catch (e) {
+          console.warn('[Dash] Could not get available voices, using default:', e);
+        }
       }
 
       return new Promise<void>((resolve, reject) => {
-        Speech.speak(normalizedText, {
+        const speechOptions: any = {
           language: voiceSettings.language,
-          pitch: voiceSettings.pitch,
-          rate: voiceSettings.rate,
-          voice: selectedVoice, // Use the selected male voice identifier
+          pitch: adjustedPitch,
+          rate: adjustedRate,
           onStart: () => {
-            console.log('[Dash] Started speaking with voice:', selectedVoice || 'default');
+            console.log('[Dash] Started speaking', { voice: selectedVoice || 'default', pitch: adjustedPitch, gender: targetGender });
             callbacks?.onStart?.();
           },
           onDone: () => {
@@ -2825,7 +2854,14 @@ export class DashAIAssistant {
             callbacks?.onError?.(error);
             reject(error);
           },
-        });
+        };
+        
+        // Only add voice parameter on iOS
+        if (Platform.OS === 'ios' && selectedVoice) {
+          speechOptions.voice = selectedVoice;
+        }
+        
+        Speech.speak(normalizedText, speechOptions);
       });
     } catch (error) {
       console.error('[Dash] Failed to speak response:', error);
@@ -2975,22 +3011,28 @@ export class DashAIAssistant {
       const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
       const capabilities = roleSpec?.capabilities || [];
       
-      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
+      let systemPrompt = `You are Dash, an AI assistant for EduDash Pro.
 
-CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
+PERSONALITY: ${this.personality.personality_traits.join(', ')}
 
-RESPONSE GUIDELINES:
-- Be concise, practical, and directly helpful
-- Provide specific, actionable advice
-- Reference educational best practices when relevant  
-- Use a warm but professional tone
-- Keep responses focused and avoid unnecessary elaboration
-- When suggesting actions, be specific about next steps
+RESPONSE RULES:
+- Be direct and concise - NO greetings, NO redundant phrases
+- NEVER add narration like "clears throat", "speaks in a tone", "opens screen", etc.
+- NEVER claim to do actions you cannot perform (opening screens, downloading files, etc.)
+- Provide only factual, accurate information about the app's actual features
+- If you don't know something, say so - NEVER invent features
+- Skip pleasantries - get straight to the answer
+- Maximum 3-4 sentences unless detailed explanation is needed
+- NEVER repeat the user's name multiple times
 
-SPECIAL DASHBOARD ACTIONS:
-- If user asks about dashboard layouts, include dashboard_action in response
-- For lesson planning requests, suggest opening the lesson generator
-- For assessment tasks, recommend relevant tools`;
+VOICE LANGUAGE PACKS (IMPORTANT):
+- Voice packs are managed by the device OS, NOT by this app
+- Android: Update "Google Text-to-Speech Engine" from Play Store - languages download automatically
+- Android TTS settings do NOT have a separate download option - updating the app gets all voices
+- iOS: Settings > Accessibility > Spoken Content > Voices has manual downloads
+- South African languages (Zulu, Xhosa, Afrikaans) have limited TTS support
+- English (South Africa) may not exist as separate voice - uses English (US/UK) as fallback
+- NEVER claim the app can download or install voice packs - this is impossible`;
 
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
@@ -3393,13 +3435,51 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       // Track start time for performance metrics
       const transcribeStart = Date.now();
       
-      // Invoke the transcription function
+      // Invoke the transcription function with simulated progress
       onProgress?.('transcribing', 75);
-      const { data, error: fnError } = await assertSupabase()
+      
+      // Create a promise for the Edge Function call
+      const transcriptionPromise = assertSupabase()
         .functions
         .invoke('transcribe-audio', {
           body: { storage_path: storagePath, language }
         });
+      
+      // Simulate progress while waiting (75% -> 90% over max 30 seconds)
+      let progressInterval: NodeJS.Timeout | null = null;
+      let currentProgress = 75;
+      const startSimulation = Date.now();
+      const maxWaitMs = 30000; // 30 seconds timeout
+      
+      progressInterval = setInterval(() => {
+        const elapsed = Date.now() - startSimulation;
+        if (currentProgress < 90) {
+          // Increment progress slowly (75% -> 90% over 30 seconds)
+          currentProgress = Math.min(90, 75 + Math.floor((elapsed / maxWaitMs) * 15));
+          onProgress?.('transcribing', currentProgress);
+        }
+      }, 500); // Update every 500ms
+      
+      // Wait for transcription with timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Transcription timeout after 30 seconds')), maxWaitMs);
+      });
+      
+      let data: any;
+      let fnError: any;
+      
+      try {
+        const result = await Promise.race([transcriptionPromise, timeoutPromise]);
+        data = (result as any).data;
+        fnError = (result as any).error;
+      } catch (error: any) {
+        fnError = error;
+      } finally {
+        // Clear progress simulation
+        if (progressInterval) {
+          clearInterval(progressInterval);
+        }
+      }
       
       const transcribeTime = Date.now() - transcribeStart;
       

@@ -8,7 +8,8 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
-  TextInput 
+  TextInput,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -133,7 +134,7 @@ export default function DashAISettingsScreen() {
       await saveSettingsToPersistentStorage(newSettings);
       
       // Auto-save to DashAI service for personality and voice settings
-      if (newSettings.voiceLanguage || newSettings.voiceRate || newSettings.voicePitch || newSettings.personality || newSettings.voiceEnabled) {
+      if (newSettings.voiceLanguage || newSettings.voiceRate || newSettings.voicePitch || newSettings.personality || newSettings.voiceEnabled || newSettings.voiceType || newSettings.voiceSettings) {
         const updatedSettings = { ...settings, ...newSettings };
         const dashPersonality = {
           personality_traits: [
@@ -146,7 +147,7 @@ export default function DashAISettingsScreen() {
                            updatedSettings.personality === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
           voice_settings: {
             language: updatedSettings.voiceLanguage || updatedSettings.voiceSettings?.language || 'en-ZA',
-            voice: 'male',
+            voice: updatedSettings.voiceType || updatedSettings.voiceSettings?.voice || 'male',
             rate: updatedSettings.voiceRate || updatedSettings.voiceSettings?.rate || 1.0,
             pitch: updatedSettings.voicePitch || updatedSettings.voiceSettings?.pitch || 1.0,
             enabled: updatedSettings.voiceEnabled !== undefined ? updatedSettings.voiceEnabled : true
@@ -281,7 +282,7 @@ export default function DashAISettingsScreen() {
         response_style: settings.personality || 'encouraging',
         voice_settings: {
           language: settings.voiceSettings?.language || 'en-ZA',
-          voice: 'male',
+          voice: settings.voiceType || settings.voiceSettings?.voice || 'male',
           rate: settings.voiceSettings?.rate || 1.0,
           pitch: settings.voiceSettings?.pitch || 1.0,
           enabled: settings.voiceEnabled
@@ -300,25 +301,62 @@ export default function DashAISettingsScreen() {
 
   const testVoice = async () => {
     try {
-      // Voice test only uses TTS, no microphone permissions needed
-      console.log('[Voice Test] Testing TTS voice settings');
+      // Voice test uses actual saved voice preference
+      console.log('[Voice Test] Testing TTS voice settings', {
+        platform: Platform.OS,
+        voiceType: settings.voiceType,
+        voiceSettingsVoice: settings.voiceSettings?.voice
+      });
       
-      // Find the best matching voice for the current language
+      // Determine target voice gender from settings
+      const targetGender = settings.voiceSettings?.voice || settings.voiceType || 'male';
+      console.log('[Voice Test] Target gender:', targetGender);
+      
+      // Platform-specific voice handling
       let selectedVoice = undefined;
-      if (availableVoices.length > 0) {
-        const languageCode = (settings.voiceSettings?.language || 'en-ZA').substring(0, 2);
-        const matchingVoices = availableVoices.filter(voice => 
-          voice.language?.startsWith(languageCode)
-        );
-        
-        if (matchingVoices.length > 0) {
-          // Prefer male voices if available
-          const maleVoice = matchingVoices.find(voice => 
-            voice.name?.toLowerCase().includes('male') || 
-            voice.name?.toLowerCase().includes('man') ||
-            voice.gender === 'male'
+      let adjustedPitch = settings.voiceSettings?.pitch || 1.0;
+      let adjustedRate = settings.voiceSettings?.rate || 1.0;
+      
+      if (Platform.OS === 'android') {
+        // Android: Use pitch modulation instead of voice identifier
+        // Android TTS often ignores voice parameter, so we adjust pitch
+        if (targetGender === 'male') {
+          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85); // Lower pitch for male
+          console.log('[Voice Test] Android: Using MALE voice simulation with pitch:', adjustedPitch);
+        } else {
+          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15); // Higher pitch for female
+          console.log('[Voice Test] Android: Using FEMALE voice simulation with pitch:', adjustedPitch);
+        }
+        // Don't specify voice parameter on Android to avoid issues
+      } else {
+        // iOS: Try to find specific voice identifier
+        if (availableVoices.length > 0) {
+          const languageCode = (settings.voiceSettings?.language || 'en-ZA').substring(0, 2);
+          const matchingVoices = availableVoices.filter(voice => 
+            voice.language?.startsWith(languageCode)
           );
-          selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
+          
+          console.log('[Voice Test] iOS: Found', matchingVoices.length, 'voices for', languageCode);
+          
+          if (matchingVoices.length > 0) {
+            if (targetGender === 'male') {
+              const maleVoice = matchingVoices.find(voice => 
+                voice.name?.toLowerCase().includes('male') || 
+                voice.name?.toLowerCase().includes('man') ||
+                voice.gender === 'male'
+              );
+              selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
+              console.log('[Voice Test] iOS: Selected MALE voice:', maleVoice?.name || selectedVoice);
+            } else {
+              const femaleVoice = matchingVoices.find(voice => 
+                voice.name?.toLowerCase().includes('female') || 
+                voice.name?.toLowerCase().includes('woman') ||
+                voice.gender === 'female'
+              );
+              selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+              console.log('[Voice Test] iOS: Selected FEMALE voice:', femaleVoice?.name || selectedVoice);
+            }
+          }
         }
       }
       
@@ -331,24 +369,30 @@ export default function DashAISettingsScreen() {
       
       const testMessage = personalityGreeting[settings.personality] || personalityGreeting['encouraging'] + ' This is how I sound with your current voice settings.';
       
-      await Speech.speak(testMessage, {
+      const speechOptions: any = {
         language: settings.voiceSettings?.language || 'en-ZA',
-        pitch: settings.voiceSettings?.pitch || 1.0,
-        rate: settings.voiceSettings?.rate || 1.0,
-        voice: selectedVoice,
+        pitch: adjustedPitch,
+        rate: adjustedRate,
         onStart: () => {
-          console.log('[Quick Action Voice Test] Started speaking with voice:', selectedVoice);
+          console.log('[Voice Test] Started speaking', { voice: selectedVoice || 'default', pitch: adjustedPitch });
         },
         onDone: () => {
-          console.log('[Quick Action Voice Test] Finished speaking');
+          console.log('[Voice Test] Finished speaking');
         },
         onError: (error: any) => {
-          console.error('[Quick Action Voice Test] Speech error:', error);
+          console.error('[Voice Test] Speech error:', error);
           Alert.alert('Voice Test Error', 'Could not test voice settings. Please check device audio.');
         }
-      });
+      };
+      
+      // Only add voice parameter on iOS
+      if (Platform.OS === 'ios' && selectedVoice) {
+        speechOptions.voice = selectedVoice;
+      }
+      
+      await Speech.speak(testMessage, speechOptions);
     } catch (error) {
-      console.error('[Quick Action Voice Test] Failed:', error);
+      console.error('[Voice Test] Failed:', error);
       Alert.alert('Voice Test Failed', 'Could not test voice settings');
     }
   };
@@ -384,7 +428,7 @@ export default function DashAISettingsScreen() {
     );
   };
   
-  const suggestVoiceDownload = (languageCode: string) => {
+  const suggestVoiceDownload = async (languageCode: string) => {
     const languageName = {
       'en-ZA': 'English (South Africa)',
       'en-US': 'English (US)', 
@@ -394,23 +438,85 @@ export default function DashAISettingsScreen() {
       'xh': 'Xhosa'
     }[languageCode] || languageCode;
     
-    Alert.alert(
-      `${languageName} Voice Not Available`,
-      `The ${languageName} voice pack is not installed on this device. You can:\n\n• Install it from device settings\n• Use the default voice instead\n• Try a different language`,
-      [
-        { text: 'Install Voice Pack', onPress: () => {
-          Alert.alert(
-            'Install Voice Pack', 
-            `To install ${languageName}:\n\n📱 iOS: Settings > Accessibility > Spoken Content > Voices\n\n🤖 Android: Settings > Language & Input > Text-to-Speech > Settings\n\nDownload the ${languageName} voice pack and try again.`,
-            [{ text: 'Got it' }]
-          );
-        }},
-        { text: 'Use Default Voice', style: 'cancel' },
-        { text: 'Change Language', onPress: () => {
-          Alert.alert('Language Options', 'Go to Advanced Settings to change the voice language to one that\'s installed on your device.');
-        }}
-      ]
-    );
+    if (Platform.OS === 'android') {
+      Alert.alert(
+        `${languageName} Voice Pack`,
+        `Voice languages on Android are managed by Google Text-to-Speech app.\n\n` +
+        `To get ${languageName} voice:\n\n` +
+        `1. Update "Google Text-to-Speech Engine" from Play Store\n` +
+        `2. The app will automatically download available languages\n` +
+        `3. Some languages may require your device's system language to be set to that language\n\n` +
+        `Would you like to open Play Store to update?`,
+        [
+          {
+            text: 'Open Play Store',
+            onPress: async () => {
+              try {
+                const { Linking } = await import('react-native');
+                await Linking.openURL('market://details?id=com.google.android.tts');
+              } catch (e) {
+                Alert.alert('Error', 'Could not open Play Store. Search for "Google Text-to-speech Engine" manually.');
+              }
+            }
+          },
+          {
+            text: 'More Info',
+            onPress: () => {
+              Alert.alert(
+                'About Android TTS Voices',
+                `🎤 How Android Text-to-Speech Works:\n\n` +
+                `Google TTS automatically includes voices for many languages once updated.\n\n` +
+                `Available Languages Include:\n` +
+                `  • English (US, UK, India, Australia)\n` +
+                `  • Afrikaans\n` +
+                `  • Zulu (limited support)\n` +
+                `  • Xhosa (limited support)\n` +
+                `  • And 100+ other languages\n\n` +
+                `⚠️ Note about South African Languages:\n` +
+                `English (South Africa) may not be available as a separate voice pack. The app will use English (US/UK) as fallback.\n\n` +
+                `Native languages like Zulu and Xhosa have limited TTS support on Android. Consider using English for best quality.\n\n` +
+                `💡 To check available voices:\n` +
+                `Settings > System > Languages & input > Text-to-speech output > Google TTS Settings`,
+                [{ text: 'Got it!' }],
+                { cancelable: true }
+              );
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } else {
+      // iOS
+      Alert.alert(
+        `Install ${languageName} Voice`,
+        `To use ${languageName} voice on iOS:\n\n` +
+        `1. Open Settings app\n` +
+        `2. Go to Accessibility\n` +
+        `3. Tap "Spoken Content"\n` +
+        `4. Tap "Voices"\n` +
+        `5. Find "${languageName}" and download\n\n` +
+        `Would you like to open iOS Settings?`,
+        [
+          {
+            text: 'Open Settings',
+            onPress: async () => {
+              try {
+                const { Linking } = await import('react-native');
+                await Linking.openURL('App-prefs:root=ACCESSIBILITY');
+              } catch (e) {
+                // Fallback
+                try {
+                  await Linking.openSettings();
+                } catch (fallbackError) {
+                  Alert.alert('Error', 'Please open Settings manually.');
+                }
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    }
   };
 
   const viewMemory = async () => {
@@ -617,6 +723,86 @@ export default function DashAISettingsScreen() {
             </TouchableOpacity>
           </View>
           
+          {/* Voice Gender Toggle */}
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
+                <TouchableOpacity
+                  style={[styles.inlineTestButton, { backgroundColor: theme.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }]}
+                  onPress={testVoice}
+                >
+                  <Text style={[styles.inlineTestButtonText, { color: theme.onPrimary, fontSize: 12 }]}>
+                    🔊 Test Voice
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+                {Platform.OS === 'android' 
+                  ? 'Android: Voice distinction simulated using pitch modulation'
+                  : 'iOS: Uses device-specific voice packs'}
+              </Text>
+              <View style={styles.voiceGenderContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.voiceGenderButton,
+                    {
+                      backgroundColor: (settings.voiceSettings?.voice === 'male' || settings.voiceType === 'male') ? theme.primary : 'transparent',
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      flex: 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    handleSettingsChange({ 
+                      voiceType: 'male',
+                      voiceSettings: { ...settings.voiceSettings, voice: 'male' }
+                    });
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.voiceGenderText,
+                      {
+                        color: (settings.voiceSettings?.voice === 'male' || settings.voiceType === 'male') ? theme.onPrimary : theme.text,
+                      },
+                    ]}
+                  >
+                    👨 Male Voice
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.voiceGenderButton,
+                    {
+                      backgroundColor: (settings.voiceSettings?.voice === 'female' || settings.voiceType === 'female') ? theme.primary : 'transparent',
+                      borderColor: theme.border,
+                      borderWidth: 1,
+                      flex: 1,
+                    },
+                  ]}
+                  onPress={() => {
+                    handleSettingsChange({ 
+                      voiceType: 'female',
+                      voiceSettings: { ...settings.voiceSettings, voice: 'female' }
+                    });
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.voiceGenderText,
+                      {
+                        color: (settings.voiceSettings?.voice === 'female' || settings.voiceType === 'female') ? theme.onPrimary : theme.text,
+                      },
+                    ]}
+                  >
+                    👩 Female Voice
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+          
           <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
             <View style={styles.settingInfo}>
               <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Enabled</Text>
@@ -707,7 +893,7 @@ export default function DashAISettingsScreen() {
           <View style={styles.settingRow}>
             <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Voice Type</Text>
             <Text style={[styles.settingValue, { color: theme.text }]}>
-              {settings.voiceSettings?.voice === 'female' ? 'Female, Warm' : 'Female, Warm'}
+              {settings.voiceSettings?.voice === 'male' || settings.voiceType === 'male' ? 'Male' : 'Female, Warm'}
             </Text>
           </View>
 
@@ -740,13 +926,19 @@ export default function DashAISettingsScreen() {
             </Text>
           </View>
           
-          <View style={styles.settingRow}>
-            <Text style={[styles.settingLabel, { color: theme.textSecondary }]}>Memory & Features</Text>
-            <Text style={[styles.settingValue, { color: theme.text }]}>
-              Memory: {settings.memoryEnabled ? 'Yes' : 'No'}\n
-              Voice: {settings.voiceEnabled ? 'Yes' : 'No'}\n
-              Proactive Help: {settings.proactiveHelp ? 'Yes' : 'No'}
-            </Text>
+          <View style={[styles.settingRow, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+            <Text style={[styles.settingLabel, { color: theme.textSecondary, marginBottom: 8 }]}>Memory & Features</Text>
+            <View style={{ width: '100%' }}>
+              <Text style={[styles.settingValue, { color: theme.text, marginBottom: 4 }]}>
+                Memory: {settings.memoryEnabled ? 'Yes' : 'No'}
+              </Text>
+              <Text style={[styles.settingValue, { color: theme.text, marginBottom: 4 }]}>
+                Voice: {settings.voiceEnabled ? 'Yes' : 'No'}
+              </Text>
+              <Text style={[styles.settingValue, { color: theme.text }]}>
+                Proactive Help: {settings.proactiveHelp ? 'Yes' : 'No'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -984,6 +1176,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   testVoiceButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  voiceGenderButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voiceGenderText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  voiceGenderContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  inlineTestButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineTestButtonText: {
     fontSize: 12,
     fontWeight: '600',
   },
