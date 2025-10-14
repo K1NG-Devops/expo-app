@@ -455,7 +455,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
     'workflow optimization'
   ],
   voice_settings: {
-    rate: 0.8,
+    rate: 1.0,
     pitch: 1.0,
     language: 'en-US',
     voice: 'male'
