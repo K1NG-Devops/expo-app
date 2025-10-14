@@ -178,11 +178,16 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
 
       onRecordingStop?.();
 
-      // Process transcription if not already done via streaming
-      if (!state.liveTranscription) {
-        processTranscription(result.uri);
+      // STREAMING-FIRST: With WebRTC streaming, liveTranscription is populated in real-time
+      // No batch fallback - if no transcription chunks received, it's an error
+      if (state.liveTranscription && state.liveTranscription.trim()) {
+        // Success: We have streaming transcription
+        onTranscriptionComplete?.(state.liveTranscription, result.uri || undefined);
       } else {
-        onTranscriptionComplete?.(state.liveTranscription, result.uri);
+        // No transcription received - this shouldn't happen with WebRTC streaming
+        logger.warn('No transcription chunks received during recording');
+        // Still call callback with empty transcription for error handling
+        onTranscriptionComplete?.('', result.uri || undefined);
       }
     } else {
       setState(prev => ({ ...prev, isProcessing: false }));
@@ -190,28 +195,9 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
     }
   }, [state.isRecording, state.liveTranscription, onRecordingStop, onError, onTranscriptionComplete], 'stop_recording');
 
-  // Process transcription with AI assistance
-  const processTranscription = useSmartCallback(async (audioUri: string) => {
-    try {
-      setState(prev => ({ ...prev, isProcessing: true }));
-
-      // Simulate transcription processing (replace with actual transcription service)
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const mockTranscription = "This is a sample transcription from Dash AI";
-      
-      setState(prev => ({
-        ...prev,
-        liveTranscription: mockTranscription,
-        isProcessing: false,
-      }));
-
-      onTranscriptionComplete?.(mockTranscription, audioUri);
-    } catch (error) {
-      logger.error('Transcription failed', error);
-      setState(prev => ({ ...prev, isProcessing: false }));
-    }
-  }, [onTranscriptionComplete], 'process_transcription');
+  // REMOVED: processTranscription batch fallback
+  // With WebRTC streaming, transcription chunks arrive in real-time via handleTranscription callback
+  // No need for post-recording batch processing
 
   // Waveform animations
   const startWaveformAnimation = useCallback(() => {

@@ -26,6 +26,8 @@ import * as FileSystem from 'expo-file-system';
 import { logger } from './logger';
 import { mark, measure, timeAsync } from './perf';
 import { track } from './analytics';
+import { createWebRTCSession, type WebRTCSession } from './voice/webrtcProvider';
+import { getRealtimeToken } from './voice/realtimeToken';
 
 // ============================================================================
 // Types & Interfaces
@@ -45,6 +47,8 @@ export interface VoiceRecordingConfig {
   enableAutoGainControl: boolean;
   chunkSizeMs: number; // for streaming
   compressionBitrate: number; // bits per second
+  transport?: 'webrtc' | 'websocket' | 'auto'; // Transport selection for streaming
+  enableLiveTranscription?: boolean; // Enable/disable live transcription
 }
 
 export interface AudioMetrics {
@@ -88,6 +92,8 @@ const DEFAULT_CONFIG: VoiceRecordingConfig = {
   enableAutoGainControl: true,
   chunkSizeMs: 250,
   compressionBitrate: 64000, // 64kbps for voice
+  transport: 'webrtc', // Use WebRTC by default for best performance
+  enableLiveTranscription: true, // Enable live transcription by default
 };
 
 /**
@@ -195,6 +201,7 @@ export function getAudioConfig(quality: AudioQuality): Audio.RecordingOptions {
 
 export class VoicePipeline {
   private recording: Audio.Recording | null = null;
+  private webrtcSession: WebRTCSession | null = null;
   private config: VoiceRecordingConfig;
   private state: RecordingState = 'idle';
   private startTime: number = 0;
@@ -203,6 +210,8 @@ export class VoicePipeline {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private transcriptionCallback?: (chunk: TranscriptionChunk) => void;
   private stateCallback?: (state: RecordingState) => void;
+  private useStreaming: boolean = true; // Track if we're using streaming mode
+  private accumulatedTranscription: string = ''; // Accumulate transcription chunks
   
   constructor(config: Partial<VoiceRecordingConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -241,6 +250,7 @@ export class VoicePipeline {
   
   /**
    * Start recording with ultra-fast initialization
+   * Uses WebRTC streaming for real-time transcription
    */
   public async startRecording(
     onTranscription?: (chunk: TranscriptionChunk) => void,
@@ -253,18 +263,82 @@ export class VoicePipeline {
     
     this.transcriptionCallback = onTranscription;
     this.stateCallback = onStateChange;
+    this.accumulatedTranscription = '';
     
     const { result: success, duration } = await timeAsync('voice_recording_start', async () => {
       try {
         mark('recording_init');
-        
         this.setState('initializing');
         
-        // Create recording instance
+        // Determine if we should use streaming (WebRTC)
+        const shouldUseStreaming = this.config.enableLiveTranscription !== false && 
+                                  (this.config.transport === 'webrtc' || this.config.transport === 'auto');
+        
+        this.useStreaming = shouldUseStreaming;
+        
+        if (shouldUseStreaming) {
+          logger.info('🎤 Starting WebRTC streaming session...');
+          
+          // Fetch realtime token from Edge Function
+          const tokenData = await getRealtimeToken();
+          if (!tokenData) {
+            logger.error('Failed to get realtime token, falling back to non-streaming');
+            this.useStreaming = false;
+            // Fall through to traditional recording
+          } else {
+            // Create and start WebRTC session
+            this.webrtcSession = createWebRTCSession();
+            
+            const started = await this.webrtcSession.start({
+              token: tokenData.token,
+              url: tokenData.url,
+              onPartialTranscript: (text) => {
+                if (onTranscription) {
+                  onTranscription({
+                    text,
+                    timestamp: Date.now(),
+                    confidence: 0.8,
+                    isFinal: false,
+                  });
+                }
+                // Accumulate for final result
+                this.accumulatedTranscription += text;
+              },
+              onFinalTranscript: (text) => {
+                if (onTranscription) {
+                  onTranscription({
+                    text,
+                    timestamp: Date.now(),
+                    confidence: 0.95,
+                    isFinal: true,
+                  });
+                }
+                // Add final chunk with space
+                this.accumulatedTranscription += text + ' ';
+              },
+            });
+            
+            if (started) {
+              this.startTime = Date.now();
+              this.audioLevelSamples = [];
+              this.silenceStartTime = 0;
+              this.setState('recording');
+              measure('recording_init');
+              logger.info('🎤 WebRTC streaming recording started');
+              return true;
+            } else {
+              logger.warn('WebRTC session failed to start, falling back');
+              this.useStreaming = false;
+              this.webrtcSession = null;
+            }
+          }
+        }
+        
+        // Fallback: Traditional expo-av recording (non-streaming)
+        logger.info('🎤 Starting traditional audio recording (no streaming)...');
         this.recording = new Audio.Recording();
         const audioConfig = getAudioConfig(this.config.quality);
         
-        // Prepare and start recording
         await this.recording.prepareToRecordAsync(audioConfig);
         await this.recording.startAsync();
         
@@ -273,17 +347,17 @@ export class VoicePipeline {
         this.startTime = Date.now();
         this.audioLevelSamples = [];
         this.silenceStartTime = 0;
-        
         this.setState('recording');
         
-        // Start audio level monitoring
+        // Start audio level monitoring for traditional recording
         this.startMonitoring();
         
-        logger.info('🎤 Recording started');
+        logger.info('🎤 Traditional recording started');
         return true;
       } catch (error) {
         logger.error('Failed to start recording', error);
         this.setState('error');
+        this.useStreaming = false;
         return false;
       }
     });
@@ -309,9 +383,10 @@ export class VoicePipeline {
   
   /**
    * Stop recording and get result
+   * Handles both WebRTC streaming and traditional recording
    */
   public async stopRecording(): Promise<VoiceRecordingResult | null> {
-    if (!this.recording || this.state !== 'recording') {
+    if (this.state !== 'recording') {
       logger.warn('No active recording to stop');
       return null;
     }
@@ -320,7 +395,52 @@ export class VoicePipeline {
     this.stopMonitoring();
     
     try {
-      // Stop recording
+      const duration = this.getDuration();
+      
+      // Handle WebRTC streaming session
+      if (this.useStreaming && this.webrtcSession) {
+        logger.info('🎤 Stopping WebRTC streaming session...');
+        await this.webrtcSession.stop();
+        this.webrtcSession = null;
+        this.setState('idle');
+        
+        // Track streaming metrics
+        track('edudash.voice.streaming_complete', {
+          duration_ms: duration,
+          quality: this.config.quality,
+          transport: 'webrtc',
+          transcription_length: this.accumulatedTranscription.length,
+        });
+        
+        logger.info('🎤 WebRTC streaming stopped', { 
+          duration, 
+          transcription_length: this.accumulatedTranscription.length 
+        });
+        
+        // Return result with transcription (no file URI for streaming)
+        return {
+          uri: '', // No file for streaming
+          duration,
+          metrics: {
+            duration,
+            fileSize: 0, // No file
+            sampleRate: 16000, // OpenAI Realtime API uses 16kHz
+            bitrate: 64000,
+            channels: 1,
+            format: 'webrtc-stream',
+            peakAmplitude: 0,
+            averageAmplitude: 0,
+          },
+          transcription: this.accumulatedTranscription.trim(),
+        };
+      }
+      
+      // Handle traditional expo-av recording
+      if (!this.recording) {
+        throw new Error('No active recording session');
+      }
+      
+      logger.info('🎤 Stopping traditional recording...');
       await this.recording.stopAndUnloadAsync();
       const uri = this.recording.getURI();
       const status = await this.recording.getStatusAsync();
@@ -336,7 +456,7 @@ export class VoicePipeline {
       this.recording = null;
       this.setState('idle');
       
-      logger.info('🎤 Recording stopped', { duration: metrics.duration, size: metrics.fileSize });
+      logger.info('🎤 Traditional recording stopped', { duration: metrics.duration, size: metrics.fileSize });
       
       // Track recording metrics
       track('edudash.voice.recording_complete', {
@@ -354,6 +474,13 @@ export class VoicePipeline {
     } catch (error) {
       logger.error('Failed to stop recording', error);
       this.setState('error');
+      // Clean up on error
+      if (this.webrtcSession) {
+        try {
+          await this.webrtcSession.stop();
+        } catch {}
+        this.webrtcSession = null;
+      }
       return null;
     }
   }
@@ -400,10 +527,24 @@ export class VoicePipeline {
   
   /**
    * Cancel recording and cleanup
+   * Handles both WebRTC streaming and traditional recording
    */
   public async cancelRecording(): Promise<void> {
     this.stopMonitoring();
     
+    // Clean up WebRTC session if active
+    if (this.webrtcSession) {
+      try {
+        logger.debug('🎤 Cancelling WebRTC streaming session...');
+        await this.webrtcSession.stop();
+      } catch (error) {
+        logger.error('Failed to stop WebRTC session during cancel', error);
+      } finally {
+        this.webrtcSession = null;
+      }
+    }
+    
+    // Clean up traditional recording if active
     if (this.recording) {
       try {
         await this.recording.stopAndUnloadAsync();
@@ -420,6 +561,9 @@ export class VoicePipeline {
       }
     }
     
+    // Reset state
+    this.accumulatedTranscription = '';
+    this.useStreaming = false;
     this.setState('idle');
     logger.debug('🎤 Recording cancelled');
   }
@@ -443,8 +587,16 @@ export class VoicePipeline {
   
   /**
    * Get current audio level (0-1)
+   * For WebRTC streaming, returns simulated level since WebRTC handles audio internally
    */
   public async getAudioLevel(): Promise<number> {
+    // For WebRTC streaming, return simulated audio level
+    if (this.useStreaming) {
+      // Simulate natural audio level variation for waveform animation
+      return 0.3 + Math.random() * 0.4; // Random between 0.3-0.7
+    }
+    
+    // For traditional recording, get actual audio metering
     if (!this.recording) return 0;
     
     try {
@@ -465,6 +617,7 @@ export class VoicePipeline {
   
   // ============================================================================
   // Private Methods
+  // ============================================================================
   // ============================================================================
   
   private setState(state: RecordingState): void {
