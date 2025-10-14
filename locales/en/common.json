@@ -1405,13 +1405,27 @@
       "thinking": "Thinking...",
       "starting": "Starting...",
       "hold_to_record": "Hold to record • Slide up to lock",
-      "recording_locked": "Recording Locked"
+      "recording_locked": "Recording Locked",
+      "processing": "Processing...",
+      "transcription_label": "Transcription:",
+      "analyzing": "🤖 Dash AI is analyzing...",
+      "clear": "Clear",
+      "no_transcription_warning": "No transcription received"
+    },
+    "status": {
+      "connecting": "Connecting...",
+      "connected": "Connected",
+      "streaming": "Streaming...",
+      "reconnecting": "Reconnecting...",
+      "offline": "Offline",
+      "error": "Error"
     },
     "errors": {
       "failed_start": "Failed to start recording",
       "failed_stop": "Failed to stop/transcribe",
       "cancel_error": "Cancel error",
-      "send_error": "Send error"
+      "send_error": "Send error",
+      "no_transcription": "No speech detected or transcription failed"
     }
   },
   "cache": {

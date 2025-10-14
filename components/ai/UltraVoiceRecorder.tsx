@@ -22,6 +22,7 @@ import { ultraMemo, useSmartCallback, useStableStyles } from '@/lib/smart-memo';
 import { logger } from '@/lib/logger';
 import { safeAsync } from '@/lib/global-errors';
 import { VoicePipeline, type TranscriptionChunk, type RecordingState } from '@/lib/voice-pipeline';
+import { useTranslation } from 'react-i18next';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -58,6 +59,7 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
   style,
   testID,
 }) => {
+  const { t } = useTranslation();
   const [state, setState] = useState<VoiceRecordingState>({
     isRecording: false,
     isPaused: false,
@@ -65,6 +67,15 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
     liveTranscription: '',
     isProcessing: false,
   });
+
+  // Memoize translated labels to avoid excessive t() calls on every render
+  const labels = useMemo(() => ({
+    processing: t('voice.recording.processing'),
+    transcriptionLabel: t('voice.recording.transcription_label'),
+    analyzing: t('voice.recording.analyzing'),
+    clear: t('voice.recording.clear'),
+    send: t('voice.recording.send'),
+  }), [t]);
 
   const pipelineRef = useRef<VoicePipeline>(new VoicePipeline({
     maxDuration,
@@ -304,10 +315,10 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
       {(state.liveTranscription || state.isProcessing) && (
         <View style={styles.transcriptionContainer}>
           <Text style={styles.transcriptionLabel}>
-            {state.isProcessing ? 'Processing...' : 'Transcription:'}
+            {state.isProcessing ? labels.processing : labels.transcriptionLabel}
           </Text>
           <Text style={styles.transcriptionText}>
-            {state.isProcessing ? '🤖 Dash AI is analyzing...' : state.liveTranscription}
+            {state.isProcessing ? labels.analyzing : state.liveTranscription}
           </Text>
         </View>
       )}
@@ -371,7 +382,7 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
             style={styles.actionButton}
             onPress={() => setState(prev => ({ ...prev, liveTranscription: '', recordingUri: undefined }))}
           >
-            <Text style={styles.actionButtonText}>Clear</Text>
+            <Text style={styles.actionButtonText}>{labels.clear}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -386,7 +397,7 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
               colors={['#00f5ff', '#0080ff']}
               style={styles.sendButtonGradient}
             >
-              <Text style={styles.sendButtonText}>Send</Text>
+              <Text style={styles.sendButtonText}>{labels.send}</Text>
               <IconSymbol name="arrow.up" size={16} color="#000000" />
             </LinearGradient>
           </TouchableOpacity>
