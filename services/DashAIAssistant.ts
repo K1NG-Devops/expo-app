@@ -457,7 +457,8 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   voice_settings: {
     rate: 0.8,
     pitch: 1.0,
-    language: 'en-US'
+    language: 'en-US',
+    voice: 'male'
   },
   role_specializations: {
     teacher: {

@@ -146,6 +146,7 @@ export default function DashAISettingsScreen() {
                            updatedSettings.personality === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
           voice_settings: {
             language: updatedSettings.voiceLanguage || updatedSettings.voiceSettings?.language || 'en-ZA',
+            voice: 'male',
             rate: updatedSettings.voiceRate || updatedSettings.voiceSettings?.rate || 1.0,
             pitch: updatedSettings.voicePitch || updatedSettings.voiceSettings?.pitch || 1.0,
             enabled: updatedSettings.voiceEnabled !== undefined ? updatedSettings.voiceEnabled : true
@@ -280,6 +281,7 @@ export default function DashAISettingsScreen() {
         response_style: settings.personality || 'encouraging',
         voice_settings: {
           language: settings.voiceSettings?.language || 'en-ZA',
+          voice: 'male',
           rate: settings.voiceSettings?.rate || 1.0,
           pitch: settings.voiceSettings?.pitch || 1.0,
           enabled: settings.voiceEnabled
