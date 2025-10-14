@@ -23,10 +23,11 @@ const corsHeaders = {
 
 interface AIProxyRequest {
   scope: 'teacher' | 'principal' | 'parent'
-  service_type: 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'progress_analysis' | 'insights'
+  service_type: 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'progress_analysis' | 'insights' | 'transcription'
   payload: {
-    prompt: string
+    prompt?: string
     context?: string
+    audio_url?: string  // For transcription requests
     metadata?: Record<string, any>
   }
   metadata?: {

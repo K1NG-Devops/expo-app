@@ -457,7 +457,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   voice_settings: {
     rate: 1.0,
     pitch: 1.0,
-    language: 'en-US',
+    language: 'en-ZA',
     voice: 'male'
   },
   role_specializations: {
@@ -776,12 +776,37 @@ export class DashAIAssistant {
   }
 
   /**
+   * Ensure there's an active conversation (restore from storage or create)
+   */
+  public async ensureActiveConversation(defaultTitle?: string): Promise<string> {
+    try {
+      if (this.currentConversationId) {
+        return this.currentConversationId;
+      }
+      // Try to restore from persisted pointer
+      const savedId = await AsyncStorage.getItem(DashAIAssistant.CURRENT_CONVERSATION_KEY);
+      if (savedId) {
+        const existing = await this.getConversation(savedId);
+        if (existing) {
+          this.currentConversationId = savedId;
+          return savedId;
+        }
+      }
+    } catch (e) {
+      console.warn('[Dash] Failed to restore conversation pointer, creating new one:', e);
+    }
+    // Create a new conversation as a fallback
+    const newId = await this.startNewConversation(defaultTitle || 'Quick Voice');
+    return newId;
+  }
+
+  /**
    * Send a text message to Dash
    */
   public async sendMessage(content: string, conversationId?: string): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId;
+    let convId = conversationId || this.currentConversationId;
     if (!convId) {
-      throw new Error('No active conversation');
+      convId = await this.ensureActiveConversation('General');
     }
 
     // Create user message
@@ -806,9 +831,9 @@ export class DashAIAssistant {
    * Send a voice message to Dash
    */
   public async sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId;
+    let convId = conversationId || this.currentConversationId;
     if (!convId) {
-      throw new Error('No active conversation');
+      convId = await this.ensureActiveConversation('Quick Voice');
     }
 
     // Transcribe audio
@@ -1029,9 +1054,9 @@ export class DashAIAssistant {
     duration: number,
     conversationId?: string
   ): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId;
+    let convId = conversationId || this.currentConversationId;
     if (!convId) {
-      throw new Error('No active conversation');
+      convId = await this.ensureActiveConversation('Quick Voice');
     }
 
     // Create user message with voice note
@@ -1045,7 +1070,7 @@ export class DashAIAssistant {
         duration,
         transcript,
         contentType: 'audio/m4a',
-        language: 'en-US',
+        language: 'en-ZA',
         provider: 'local'
       }
     };
@@ -2925,6 +2950,21 @@ export class DashAIAssistant {
   private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
       console.log('[Dash Agent] Processing message with agentic engines...');
+      
+      // Lightweight intent guard for common conversational openers
+      const inputLC = String(userInput || '').trim().toLowerCase();
+      if (inputLC.includes('can you hear me')) {
+        const profile = await getCurrentProfile();
+        const displayName = (profile as any)?.full_name || (profile as any)?.first_name || 'there';
+        const content = `Yes, I can hear you clearly, ${displayName}. How can I help you today?`;
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content,
+          timestamp: Date.now(),
+          metadata: { confidence: 0.99 }
+        };
+      }
       
       // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);

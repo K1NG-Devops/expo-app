@@ -40,7 +40,6 @@ import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
 import Feedback from '@/lib/feedback';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -1217,11 +1216,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
         }}
       />
 
-      {/* Dash AI Floating Button for legacy dashboard */}
-      <DashFloatingButton
-        position="bottom-right"
-        onPress={() => router.push('/screens/dash-assistant')}
-      />
+      {/* Dash AI Floating Button removed - using global voice FAB */}
     </View>
   );
 };

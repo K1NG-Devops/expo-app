@@ -114,23 +114,10 @@ export default function SignIn() {
         console.warn('Remember me save failed:', credErr);
       }
 
-      // Set a fallback timeout to route if AuthContext doesn't handle it
-      // This handles edge cases where auth state change event might not fire immediately after sign-out
-      setTimeout(async () => {
-        // Check if we're still on sign-in screen
-        console.log('[Sign-In] Fallback routing check after 2s...');
-        try {
-          const { data: { user } } = await assertSupabase().auth.getUser();
-          if (user) {
-            console.log('[Sign-In] User still authenticated, triggering fallback routing');
-            const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-            await routeAfterLogin(user);
-          }
-        } catch (fallbackErr) {
-          console.error('[Sign-In] Fallback routing failed:', fallbackErr);
-        }
-      }, 2000);
-
+      // AuthContext will handle routing via auth state change listener
+      // No fallback timeout needed - this was causing double navigation
+      console.log('[Sign-In] Sign-in complete, AuthContext will handle routing');
+      
       // Keep loading true - AuthContext will handle routing and the screen will unmount
       // Don't set loading false when sign-in succeeds
     } catch (_error: any) {

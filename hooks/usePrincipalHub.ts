@@ -212,30 +212,44 @@ export const usePrincipalHub = () => {
   }, []);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
-    logger.info('📊 Principal Hub Debug:', {
+    const fetchId = `${preschoolId}-${Date.now()}`;
+    logger.info('📊 [PrincipalHub] Fetch initiated:', {
+      fetchId,
       preschoolId,
       userId,
+      forceRefresh,
+      inFlight: inFlightRef.current,
+      initialFetchComplete: initialFetchComplete.current,
       profileOrgId: profile?.organization_id,
       userMetadata: user?.user_metadata
     });
     
     if (!preschoolId) {
-      logger.warn('No preschool ID available for Principal Hub');
+      logger.warn('[PrincipalHub] No preschool ID available');
       setError('School not assigned');
       if (isMountedRef.current) setLoading(false);
       return;
     }
 
     if (!userId) {
+      logger.warn('[PrincipalHub] User not authenticated');
       setError('User not authenticated');
       if (isMountedRef.current) setLoading(false);
       return;
     }
 
+    // Prevent duplicate fetches unless forced or initial fetch incomplete
     if (inFlightRef.current && !forceRefresh) {
-      logger.info('Fetch already in flight, skipping');
+      logger.info('[PrincipalHub] Fetch already in flight, skipping', fetchId);
       return;
     }
+    
+    // Prevent multiple initial fetches (React StrictMode guard)
+    if (initialFetchComplete.current && !forceRefresh) {
+      logger.info('[PrincipalHub] Initial fetch already completed, skipping', fetchId);
+      return;
+    }
+    
     inFlightRef.current = true;
 
     try {
@@ -720,8 +734,9 @@ export const usePrincipalHub = () => {
         });
       }
 
-      logger.info('✅ REAL Principal Hub data loaded successfully from database');
-      logger.info('🎯 Final dashboard summary:', {
+      logger.info('✅ [PrincipalHub] REAL data loaded successfully from database');
+      logger.info('🎯 [PrincipalHub] Final dashboard summary:', {
+        fetchId,
         school: schoolName,
         students: stats.students.total,
         teachers: stats.staff.total,
@@ -729,21 +744,38 @@ export const usePrincipalHub = () => {
         revenue: formatCurrency(stats.monthlyRevenue.total),
         attendance: stats.attendanceRate.percentage + '%'
       });
+      
+      // Mark initial fetch as complete
+      if (!initialFetchComplete.current) {
+        initialFetchComplete.current = true;
+        logger.info('[PrincipalHub] Initial fetch completed successfully');
+      }
     } catch (err) {
-      console.error('Failed to fetch Principal Hub data:', err);
+      logger.error('[PrincipalHub] Failed to fetch data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
       if (isMountedRef.current) setLoading(false);
       inFlightRef.current = false;
+      logger.info('[PrincipalHub] Fetch complete', { fetchId, success: !error });
     }
   }, [userId, preschoolId, t]);
 
 useEffect(() => {
-    if (!userId || !preschoolId) return;
+    logger.info('[PrincipalHub] useEffect triggered:', {
+      userId,
+      preschoolId,
+      initialFetchComplete: initialFetchComplete.current,
+      timestamp: Date.now()
+    });
+    
+    if (!userId || !preschoolId) {
+      logger.warn('[PrincipalHub] Missing userId or preschoolId, skipping fetch');
+      return;
+    }
     
     // Guard 1: Skip if initial fetch already completed (React StrictMode protection)
     if (initialFetchComplete.current) {
-      logger.debug('Initial fetch already complete, skipping duplicate mount');
+      logger.info('[PrincipalHub] Initial fetch already complete, skipping duplicate mount');
       return;
     }
     
@@ -752,14 +784,17 @@ useEffect(() => {
     const now = Date.now();
     const last = __FETCH_GUARD[key] || 0;
     if (now - last < 2000) {
-      logger.debug('Fetch guard: Too soon since last fetch, skipping');
+      logger.info('[PrincipalHub] Fetch guard: Too soon since last fetch (${now - last}ms), skipping');
       return;
     }
     __FETCH_GUARD[key] = now;
     
+    logger.info('[PrincipalHub] Starting initial fetch...');
     // Mark as complete after successful fetch
     fetchData().then(() => {
-      initialFetchComplete.current = true;
+      logger.info('[PrincipalHub] Initial fetch promise resolved');
+    }).catch((err) => {
+      logger.error('[PrincipalHub] Initial fetch promise rejected:', err);
     });
   }, [userId, preschoolId, fetchData]);
 

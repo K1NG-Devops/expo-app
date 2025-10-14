@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import ToastProvider from '@/components/ui/ToastProvider';
+import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
 
 // Initialize performance monitoring and global error handling first
 import { initPerformanceMonitoring } from '@/lib/perf';
@@ -58,6 +59,13 @@ if (Platform.OS === 'web') {
 }
 
 export default function RootLayout() {
+  const pathname = usePathname();
+  const isAuthRoute = typeof pathname === 'string' && (
+    pathname.startsWith('/(auth)') ||
+    pathname === '/sign-in' ||
+    pathname === '/(auth)/sign-in' ||
+    pathname.includes('auth-callback')
+  );
   // Hide development navigation header on web
   useEffect(() => {
     // Track OTA/app launch (non-blocking)
@@ -217,6 +225,9 @@ export default function RootLayout() {
             
             {/* OTA Update Banner */}
             <GlobalUpdateBanner />
+            
+            {/* Voice-Enabled Dash Floating Button (Global Access) */}
+            {!isAuthRoute && <DashVoiceFloatingButton showWelcomeMessage={true} />}
             
             {/* Platform-specific components */}
               {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}

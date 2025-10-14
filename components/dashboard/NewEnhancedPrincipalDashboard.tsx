@@ -32,7 +32,6 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
@@ -522,12 +521,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       )}
       </ScrollView>
 
-      {/* Dash AI Floating Button */}
-      <DashFloatingButton
-        position="bottom-right"
-        showWelcomeMessage={true}
-        onPress={() => router.push('/screens/dash-assistant')}
-      />
+      {/* Dash AI Floating Button removed - global FAB is used from _layout.tsx */}
     </View>
   );
 };
