@@ -202,6 +202,8 @@ export const usePrincipalHub = () => {
 
   const isMountedRef = useRef(true);
   const inFlightRef = useRef(false);
+  // Additional guard: track if initial fetch completed
+  const initialFetchComplete = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -738,15 +740,27 @@ export const usePrincipalHub = () => {
 
 useEffect(() => {
     if (!userId || !preschoolId) return;
-    // Skip duplicate fetches triggered by dev StrictMode remounts within a short window
+    
+    // Guard 1: Skip if initial fetch already completed (React StrictMode protection)
+    if (initialFetchComplete.current) {
+      logger.debug('Initial fetch already complete, skipping duplicate mount');
+      return;
+    }
+    
+    // Guard 2: Global fetch guard with time-based deduplication
     const key = `${userId}:${preschoolId}`;
     const now = Date.now();
     const last = __FETCH_GUARD[key] || 0;
     if (now - last < 2000) {
+      logger.debug('Fetch guard: Too soon since last fetch, skipping');
       return;
     }
     __FETCH_GUARD[key] = now;
-    fetchData();
+    
+    // Mark as complete after successful fetch
+    fetchData().then(() => {
+      initialFetchComplete.current = true;
+    });
   }, [userId, preschoolId, fetchData]);
 
   const refresh = useCallback(() => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -10,7 +10,7 @@ interface PrincipalDashboardWrapperProps {
   refreshTrigger?: number;
 }
 
-export const PrincipalDashboardWrapper: React.FC<PrincipalDashboardWrapperProps> = ({
+const PrincipalDashboardWrapperComponent: React.FC<PrincipalDashboardWrapperProps> = ({
   refreshTrigger
 }) => {
   const { preferences, isLoading } = useDashboardPreferences();
@@ -50,3 +50,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
+
+// Memoize wrapper to prevent unnecessary re-renders
+// Only re-render if preferences layout changes
+export const PrincipalDashboardWrapper = memo(
+  PrincipalDashboardWrapperComponent,
+  (prevProps, nextProps) => {
+    // Custom comparator: only re-render if refreshTrigger changes
+    return prevProps.refreshTrigger === nextProps.refreshTrigger;
+  }
+);

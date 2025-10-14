@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { PrincipalDashboardWrapper } from '@/components/dashboard/PrincipalDashboardWrapper';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,6 +11,9 @@ export default function PrincipalDashboardScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  
+  // Guard against React StrictMode double-invoke in development
+  const navigationAttempted = useRef(false);
 
   // Handle both organization_id (new RBAC) and preschool_id (legacy) fields
   const orgId = profile?.organization_id || (profile as any)?.preschool_id;
@@ -18,33 +21,43 @@ export default function PrincipalDashboardScreen() {
   // Wait for auth and profile to finish loading before making routing decisions
   const isStillLoading = loading || profileLoading;
 
-  // Guard: if not authenticated, always route to sign-in
+  // CONSOLIDATED NAVIGATION EFFECT: Single source of truth for all routing decisions
   useEffect(() => {
-    if (!isStillLoading && !user) {
-      try { router.replace('/(auth)/sign-in'); } catch (e) {
+    // Skip if still loading data
+    if (isStillLoading) return;
+    
+    // Guard against double navigation (React StrictMode in dev)
+    if (navigationAttempted.current) return;
+    
+    // Decision 1: No user -> sign in
+    if (!user) {
+      navigationAttempted.current = true;
+      try { 
+        router.replace('/(auth)/sign-in'); 
+      } catch (e) {
         try { router.replace('/sign-in'); } catch {}
       }
+      return;
     }
-  }, [isStillLoading, user]);
-
-  useEffect(() => {
-    // Only make routing decisions after profile has loaded
-    if (!isStillLoading && !orgId) {
-      // If user is not authenticated, the guard above will handle navigation
-      if (!user) return;
+    
+    // Decision 2: User exists but no organization -> onboarding
+    if (!orgId) {
+      navigationAttempted.current = true;
       console.log('Principal dashboard: No school found, redirecting to onboarding', {
         profile,
         organization_id: profile?.organization_id,
         preschool_id: (profile as any)?.preschool_id,
-        profileLoading,
-        loading
       });
-      // No school linked — send to onboarding
-      try { router.replace('/screens/principal-onboarding'); } catch (e) {
+      try { 
+        router.replace('/screens/principal-onboarding'); 
+      } catch (e) {
         console.debug('Redirect to onboarding failed', e);
       }
+      return;
     }
-  }, [user, orgId, isStillLoading, profile, profileLoading, loading]);
+    
+    // Decision 3: All good, stay on dashboard (no navigation needed)
+  }, [isStillLoading, user, orgId, profile]);
 
   // Show loading state while auth/profile is loading
   if (isStillLoading) {
