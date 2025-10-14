@@ -16,10 +16,12 @@ import type { PreviewState } from '@/types/pdf';
 interface PDFPreviewPanelProps {
   preview: PreviewState;
   onSettingsChange?: (settings: Partial<PreviewState['settings']>) => void;
+  onContentChange?: (newHtml: string) => void;
 }
 
-export function PDFPreviewPanel({ preview, onSettingsChange }: PDFPreviewPanelProps) {
+export function PDFPreviewPanel({ preview, onSettingsChange, onContentChange }: PDFPreviewPanelProps) {
   const { theme, isDark } = useTheme();
+  const [isEditMode, setIsEditMode] = React.useState(false);
 
   const styles = useThemedStyles((theme) => ({
     container: {
@@ -172,6 +174,7 @@ export function PDFPreviewPanel({ preview, onSettingsChange }: PDFPreviewPanelPr
           box-shadow: 0 4px 20px rgba(0,0,0,0.1);
           transform: scale(${preview.settings.zoom});
           transform-origin: center top;
+          ${isEditMode ? 'outline: 2px dashed #4CAF50; cursor: text;' : ''}
         }
         
         ${preview.settings.showMargins ? `
@@ -228,13 +231,28 @@ export function PDFPreviewPanel({ preview, onSettingsChange }: PDFPreviewPanelPr
           ${css}
         </head>
         <body>
-          <div class="pdf-container">
+          <div class="pdf-container" ${isEditMode ? 'contenteditable="true"' : ''}>
             ${preview.html}
           </div>
+          ${isEditMode ? `
+          <script>
+            const container = document.querySelector('.pdf-container');
+            let timeout = null;
+            container.addEventListener('input', function() {
+              clearTimeout(timeout);
+              timeout = setTimeout(() => {
+                window.ReactNativeWebView?.postMessage(JSON.stringify({
+                  type: 'contentChange',
+                  html: container.innerHTML
+                }));
+              }, 500);
+            });
+          </script>
+          ` : ''}
         </body>
       </html>
     `;
-  }, [preview.html, preview.settings]);
+  }, [preview.html, preview.settings, isEditMode]);
 
   const handleZoom = useCallback((delta: number) => {
     const newZoom = Math.max(0.5, Math.min(2, preview.settings.zoom + delta));
@@ -306,9 +324,21 @@ export function PDFPreviewPanel({ preview, onSettingsChange }: PDFPreviewPanelPr
           showsVerticalScrollIndicator={true}
           showsHorizontalScrollIndicator={false}
           originWhitelist={['*']}
-          javaScriptEnabled={false}
-          domStorageEnabled={false}
+          javaScriptEnabled={isEditMode}
+          domStorageEnabled={isEditMode}
           startInLoadingState={true}
+          onMessage={(event) => {
+            if (isEditMode && onContentChange) {
+              try {
+                const data = JSON.parse(event.nativeEvent.data);
+                if (data.type === 'contentChange') {
+                  onContentChange(data.html);
+                }
+              } catch (e) {
+                console.warn('Failed to parse WebView message:', e);
+              }
+            }
+          }}
         />
       </View>
     );
@@ -348,6 +378,21 @@ export function PDFPreviewPanel({ preview, onSettingsChange }: PDFPreviewPanelPr
               name="square-outline" 
               size={16} 
               color={preview.settings.showMargins ? theme.onPrimary : theme.text} 
+            />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[
+              styles.headerButton,
+              isEditMode && { backgroundColor: theme.primary }
+            ]}
+            onPress={() => setIsEditMode(!isEditMode)}
+            accessibilityLabel="Toggle edit mode"
+          >
+            <Ionicons 
+              name={isEditMode ? "create" : "create-outline"} 
+              size={16} 
+              color={isEditMode ? theme.onPrimary : theme.text} 
             />
           </TouchableOpacity>
         </View>

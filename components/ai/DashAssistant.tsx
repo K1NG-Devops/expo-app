@@ -203,6 +203,26 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
   // Auto-scroll to last message on messages change (initial load and updates)
   useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      // Delay slightly to ensure layout is complete
+      setTimeout(() => {
+        try {
+          const lastIndex = messages.length - 1;
+          flatListRef.current?.scrollToIndex({ 
+            index: lastIndex, 
+            animated: true,
+            viewPosition: 1 // 1 = bottom of viewport
+          });
+        } catch (e) {
+          // Fallback: scroll to end if scrollToIndex fails
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }
+      }, 100);
+    }
+  }, [messages]);
+
+  // Additional scroll to bottom when modal first appears
+  useEffect(() => {
     try {
       if (messages && messages.length > 0) {
         const idx = messages.length - 1;

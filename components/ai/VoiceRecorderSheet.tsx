@@ -29,10 +29,18 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
   const timerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      // Reset state when modal closes
+      resetState();
+      return;
+    }
+    
     let mounted = true;
     const start = async () => {
       try {
+        // Reset state before starting new recording
+        resetState();
+        
         await dash.preWarmRecorder();
         await dash.startRecording();
         setPhase('recording');
@@ -55,7 +63,19 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       }
     };
     start();
-    return () => { mounted = false; if (timerRef.current) clearInterval(timerRef.current as unknown as number); };
+    return () => { 
+      mounted = false;
+      if (timerRef.current) {
+        clearInterval(timerRef.current as unknown as number);
+        timerRef.current = null;
+      }
+      // Stop any ongoing recording when unmounting
+      if (phase === 'recording') {
+        try {
+          dash.stopRecording().catch(() => {});
+        } catch {}
+      }
+    };
   }, [visible]);
 
   const stop = async () => {
@@ -107,11 +127,13 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
   };
 
   const send = async () => {
-    if (!audioUri) return;
+    if (!audioUri || sending) return; // Prevent double-send
     setSending(true);
     try {
       await onSend(audioUri, transcript, duration);
       try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      // Reset state before closing to ensure clean next open
+      resetState();
       onClose();
     } catch (e) {
       console.error('[VoiceRecorderSheet] Send failed', e);
@@ -122,12 +144,24 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
     }
   };
   
-  const retry = async () => {
-    setError(null);
+  // Helper to reset all state
+  const resetState = () => {
     setPhase('recording');
     setAudioUri(null);
     setTranscript('');
     setTimer(0);
+    setSending(false);
+    setError(null);
+    setProgressPhase(t('voice.recording.starting', { defaultValue: 'Preparing...' }));
+    setProgressPercent(0);
+    if (timerRef.current) {
+      clearInterval(timerRef.current as unknown as number);
+      timerRef.current = null;
+    }
+  };
+
+  const retry = async () => {
+    resetState();
     // Restart recording
     try {
       await dash.preWarmRecorder();

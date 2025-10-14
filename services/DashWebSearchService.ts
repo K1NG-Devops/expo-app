@@ -9,8 +9,14 @@
  * 5. Research educational content and resources
  */
 
-import { logger } from '@/lib/utils/logger';
 import { assertSupabase } from '@/lib/supabase';
+
+// Simple logger replacement since @/lib/utils/logger doesn't exist
+const logger = {
+  info: (...args: any[]) => console.log('[WebSearch]', ...args),
+  warn: (...args: any[]) => console.warn('[WebSearch]', ...args),
+  error: (...args: any[]) => console.error('[WebSearch]', ...args),
+};
 
 export interface SearchResult {
   title: string;

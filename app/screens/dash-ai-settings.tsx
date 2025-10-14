@@ -31,7 +31,7 @@ export default function DashAISettingsScreen() {
     multilingualSupport: true,
     personality: 'encouraging' as 'professional' | 'casual' | 'encouraging' | 'formal',
     voiceLanguage: 'en-ZA',
-    voiceType: 'female_warm',
+    voiceType: 'male',
     voiceRate: 1.0,
     voicePitch: 1.0,
     // Chat Behavior Settings
@@ -73,7 +73,7 @@ export default function DashAISettingsScreen() {
                       personality.response_style === 'casual' ? 'casual' : 
                       personality.response_style === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
         voiceLanguage: personality.voice_settings?.language || 'en-ZA',
-        voiceType: 'female_warm',
+        voiceType: 'male',
         voiceRate: personality.voice_settings?.rate || 1.0,
         voicePitch: personality.voice_settings?.pitch || 1.0,
         voiceEnabled: true,

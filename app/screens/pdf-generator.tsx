@@ -590,6 +590,10 @@ export default function PDFGeneratorScreen() {
               onSettingsChange={(settings) => 
                 setPreview(prev => ({ ...prev, settings: { ...prev.settings, ...settings } }))
               }
+              onContentChange={(newHtml) => {
+                setPreview(prev => ({ ...prev, html: newHtml, lastUpdated: Date.now() }));
+                console.log('[PDF Preview] Content edited by user');
+              }}
             />
           </View>
         )}
