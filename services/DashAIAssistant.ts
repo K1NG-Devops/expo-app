@@ -1290,6 +1290,19 @@ export class DashAIAssistant {
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
+    // CRITICAL: Remove action text in asterisks like "*opens browser*" or "*typing*"
+    normalized = normalized.replace(/\*[^*]+\*/g, '');
+    
+    // CRITICAL: Remove standalone timestamps at the beginning of messages
+    // Patterns like "2:30 PM" or "14:30" or "2:30" at start of text
+    normalized = normalized.replace(/^\s*\d{1,2}:\d{2}\s*(?:AM|PM)?\s*[-–—]?\s*/i, '');
+    
+    // Remove markdown formatting that shouldn't be spoken
+    normalized = normalized.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // Links [text](url) -> text
+    normalized = normalized.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold **text** -> text
+    normalized = normalized.replace(/\*([^*]+)\*/g, '$1'); // Italic *text* -> text (after actions removed)
+    normalized = normalized.replace(/`([^`]+)`/g, '$1'); // Code `text` -> text
+    
     // Handle bullet points and list formatting FIRST (before other transformations)
     normalized = this.normalizeBulletPoints(normalized);
     
