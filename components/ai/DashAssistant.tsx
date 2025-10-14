@@ -1461,7 +1461,6 @@ return (
           visible={showVoiceRecorderModal}
           onClose={() => setShowVoiceRecorderModal(false)}
           dash={dashInstance}
-          streaming={streamingEnabled}
           onSend={async (audioUri, transcript, duration) => {
             try {
               // Send the transcribed message (text)
