@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * React Query hooks for POP (Proof of Payment & Picture of Progress) uploads
  * Handles file uploads, fetching history, status updates, and real-time sync
@@ -236,7 +237,7 @@ export const useCreatePOPUpload = () => {
         throw new Error('User profile not found');
       }
       
-      console.log('Starting POP upload process...');
+      logger.info('Starting POP upload process...');
       
       // Upload file to storage
       const uploadResult: UploadResult = await uploadPOPFile(
@@ -251,7 +252,7 @@ export const useCreatePOPUpload = () => {
         throw new Error(uploadResult.error || 'File upload failed');
       }
       
-      console.log('File uploaded successfully, creating database record...');
+      logger.info('File uploaded successfully, creating database record...');
       
       // Create database record
       const dbData = {
@@ -299,7 +300,7 @@ export const useCreatePOPUpload = () => {
         throw new Error(`Failed to save upload: ${dbError.message}`);
       }
       
-      console.log('POP upload completed successfully');
+      logger.info('POP upload completed successfully');
       return newUpload;
     },
     onSuccess: (newUpload) => {
@@ -307,7 +308,7 @@ export const useCreatePOPUpload = () => {
       queryClient.invalidateQueries({ queryKey: POP_QUERY_KEYS.all });
       queryClient.invalidateQueries({ queryKey: ['parent_dashboard_data'] });
       
-      console.log('POP upload successful, queries invalidated');
+      logger.info('POP upload successful, queries invalidated');
     },
     onError: (error) => {
       console.error('POP upload failed:', error);

@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_contacts (
   phone_number text NOT NULL,
   whatsapp_id text,
   contact_type text DEFAULT 'parent' CHECK (contact_type IN ('parent', 'teacher', 'admin', 'other')),
-  is_active boolean DEFAULT true,
+  is_active boolean DEFAULT TRUE,
   notes text,
   tags text [],
   last_message_at timestamptz,
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS public.students (
   medical_info jsonb DEFAULT '{}',
   enrollment_date date DEFAULT current_date,
   status text DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'graduated', 'withdrawn')),
-  is_active boolean DEFAULT true,
+  is_active boolean DEFAULT TRUE,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS public.teachers (
   qualifications jsonb DEFAULT '{}',
   hire_date date DEFAULT current_date,
   status text DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'on_leave')),
-  is_active boolean DEFAULT true,
+  is_active boolean DEFAULT TRUE,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
 
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS public.applications (
   notes text,
   reviewed_by uuid REFERENCES users (id),
   reviewed_at timestamptz,
-  is_active boolean DEFAULT true,
+  is_active boolean DEFAULT TRUE,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now()
 );
@@ -182,7 +182,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_students_class_id
 ON public.students (class_id);
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_students_active
-ON public.students (preschool_id, is_active) WHERE is_active = true;
+ON public.students (preschool_id, is_active) WHERE is_active = TRUE;
 
 -- Teachers indexes
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_teachers_preschool_id
@@ -465,7 +465,7 @@ VALUES (
     ]
   ),
   'Dashboard tables and schema fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();

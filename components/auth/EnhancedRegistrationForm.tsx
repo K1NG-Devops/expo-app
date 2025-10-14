@@ -26,7 +26,7 @@ import {
   PasswordValidation
 } from '../../types/auth-enhanced';
 import { AuthValidation } from '../../lib/auth/AuthValidation';
-import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
+// import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
 import { AuthProgressIndicator, AuthProgressSummary } from './AuthProgressIndicator';
 import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 import { OrganizationSetup, OrganizationData } from './OrganizationSetup';
@@ -66,6 +66,7 @@ interface FormState {
   bio?: string;
   
   // Parent
+  invitationCode?: string;
   children?: Array<{
     firstName: string;
     lastName: string;
@@ -161,26 +162,29 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     const fieldErrors: string[] = [];
     
     switch (fieldName) {
-      case 'firstName':
+      case 'firstName': {
         const firstNameValidation = AuthValidation.validateName(value, 'First name');
         if (!firstNameValidation.isValid) {
           fieldErrors.push(...firstNameValidation.errors);
         }
         break;
+      }
         
-      case 'lastName':
+      case 'lastName': {
         const lastNameValidation = AuthValidation.validateName(value, 'Last name');
         if (!lastNameValidation.isValid) {
           fieldErrors.push(...lastNameValidation.errors);
         }
         break;
+      }
         
-      case 'email':
+      case 'email': {
         const emailValidation = AuthValidation.validateEmail(value);
         if (!emailValidation.isValid) {
           fieldErrors.push(...emailValidation.errors);
         }
         break;
+      }
         
       case 'phone':
         if (value) {
@@ -195,7 +199,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         // Password validation is handled by PasswordStrengthIndicator
         break;
         
-      case 'confirmPassword':
+      case 'confirmPassword': {
         const confirmValidation = AuthValidation.validateConfirmPassword(
           formState.password,
           value
@@ -204,6 +208,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           fieldErrors.push(...confirmValidation.errors);
         }
         break;
+      }
         
       case 'acceptTerms':
         if (!value) {
@@ -247,7 +252,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     let isValid = true;
     
     switch (currentStep) {
-      case 'personal_info':
+      case 'personal_info': {
         const personalFields = ['firstName', 'lastName', 'email', 'phone'];
         personalFields.forEach(field => {
           const fieldErrors = validateField(field, (formState as any)[field]);
@@ -263,6 +268,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
         
       case 'organization_setup':
         // Organization validation is handled by OrganizationSetup component
@@ -271,7 +277,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         }
         break;
         
-      case 'security_setup':
+      case 'security_setup': {
         // Password validation
         if (!passwordValidation?.isValid) {
           stepErrors.password = passwordValidation?.errors || ['Invalid password'];
@@ -291,6 +297,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           isValid = false;
         }
         break;
+      }
     }
     
     setErrors(stepErrors);
@@ -395,7 +402,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           registration = {
             ...baseRegistration,
             role: 'parent',
-            invitationToken,
+            invitationToken: invitationToken || formState.invitationCode,
             children: formState.children || [],
             emergencyContact: formState.emergencyContact
           } as ParentRegistration;
@@ -475,6 +482,32 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         
         {renderTextField('email', 'Email Address', 'john.doe@example.com', true, 'email-address')}
         {renderTextField('phone', 'Phone Number', '(555) 123-4567', false, 'phone-pad')}
+        
+        {role === 'parent' && !invitationToken && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={[
+              styles.label,
+              { 
+                color: theme.colors.onBackground,
+                fontSize: theme.typography.body2.fontSize,
+                marginBottom: 4
+              }
+            ]}>
+              School Invitation Code (Optional)
+            </Text>
+            <Text style={[
+              styles.helperText,
+              { 
+                color: theme.colors.onSurfaceVariant,
+                fontSize: theme.typography.caption.fontSize,
+                marginBottom: 8
+              }
+            ]}>
+              If your school provided an invitation code, enter it here to link your account
+            </Text>
+            {renderTextField('invitationCode', 'Invitation Code', 'ABC12345', false, 'default')}
+          </View>
+        )}
         
         {role === 'principal' && (
           <>
@@ -1040,6 +1073,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontWeight: '600',
+  },
+  label: {
+    fontWeight: '600',
+  },
+  helperText: {
+    lineHeight: 18,
   },
   textInput: {
     borderWidth: 1,

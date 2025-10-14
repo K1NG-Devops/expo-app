@@ -18,8 +18,12 @@ import type {
   DashReminder, 
   DashInsight, 
   DashUserProfile,
-  DashGoal 
+  DashGoal,
+  AutonomyLevel 
 } from './DashAIAssistant';
+import DashDecisionEngine from './DashDecisionEngine';
+import DashProactiveEngine from './DashProactiveEngine';
+import { DashContextAnalyzer } from './DashContextAnalyzer';
 
 export class DashAgenticEngine {
   private static instance: DashAgenticEngine;
@@ -457,17 +461,42 @@ export class DashAgenticEngine {
   }
 
   /**
-   * Execute proactive behaviors
+   * Execute proactive behaviors with elite engine integration
    */
   private async executeProactiveBehaviors(): Promise<void> {
     try {
+      const profile = await getCurrentProfile();
+      if (!profile) return;
+
+      // Get autonomy level from user preferences (default to 'assistant')
+      const autonomyLevel: AutonomyLevel = 'assistant'; // TODO: Load from user preferences
+
+      // Check for proactive suggestions using ProactiveEngine
+      const proactiveSuggestions = await DashProactiveEngine.checkForSuggestions(
+        profile.role as any,
+        {
+          autonomyLevel,
+          currentScreen: undefined, // Could be passed from navigation state
+          recentActivity: this.getRecentActivity(),
+          timeContext: {
+            hour: new Date().getHours(),
+            dayOfWeek: new Date().getDay()
+          }
+        }
+      );
+
+      // Log suggestions for monitoring
+      if (proactiveSuggestions.length > 0) {
+        console.log(`[DashAgent] ${proactiveSuggestions.length} proactive suggestions available`);
+      }
+
       // Check for pending tasks
       await this.checkPendingTasks();
       
       // Process reminder triggers
       await this.processActiveReminders();
       
-      // Generate insights
+      // Generate insights with context awareness
       await this.generateInsights();
       
       // Execute queued actions
@@ -601,6 +630,91 @@ export class DashAgenticEngine {
     } catch (error) {
       console.error('[DashAgent] Failed to save reminders:', error);
     }
+  }
+
+  /**
+   * Get recent activity for pattern detection
+   */
+  private getRecentActivity(): any[] {
+    // Return last 10 completed tasks as activity log
+    return Array.from(this.activeTasks.values())
+      .filter(t => t.status === 'completed')
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 10)
+      .map(t => ({
+        type: t.type,
+        action: t.title,
+        timestamp: t.createdAt
+      }));
+  }
+
+  /**
+   * Get proactive suggestions using ProactiveEngine
+   */
+  public async getProactiveSuggestions(): Promise<any[]> {
+    try {
+      const profile = await getCurrentProfile();
+      if (!profile) return [];
+
+      const autonomyLevel: AutonomyLevel = 'assistant';
+      
+      const suggestions = await DashProactiveEngine.checkForSuggestions(
+        profile.role as any,
+        {
+          autonomyLevel,
+          recentActivity: this.getRecentActivity(),
+          timeContext: {
+            hour: new Date().getHours(),
+            dayOfWeek: new Date().getDay()
+          }
+        }
+      );
+
+      return suggestions;
+    } catch (error) {
+      console.error('[DashAgent] Failed to get proactive suggestions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Execute decision using DecisionEngine
+   */
+  public async makeDecision(
+    actionCandidate: any,
+    context: { autonomyLevel: AutonomyLevel; userRole: string }
+  ): Promise<any> {
+    try {
+      const decision = await DashDecisionEngine.decide(actionCandidate, context);
+      
+      // If decision approved and doesn't require approval, execute it
+      if (decision.plan.shouldExecute && !decision.plan.requiresApproval) {
+        // Auto-execute based on decision
+        console.log('[DashAgent] Auto-executing approved decision:', decision.id);
+      }
+
+      return decision;
+    } catch (error) {
+      console.error('[DashAgent] Decision failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get engine statistics for monitoring
+   */
+  public getEngineStats(): {
+    activeTasks: number;
+    activeReminders: number;
+    decisionStats: any;
+    proactiveStats: any;
+  } {
+    return {
+      activeTasks: this.activeTasks.size,
+      activeReminders: this.activeReminders.size,
+      decisionStats: DashDecisionEngine.getDecisionStats(),
+      proactiveStats: DashProactiveEngine.getStats()
+    };
   }
 
   /**

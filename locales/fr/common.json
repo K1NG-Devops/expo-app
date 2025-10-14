@@ -19,7 +19,8 @@
     "add": "Ajouter",
     "search": "Rechercher",
     "retry": "Réessayer",
-    "close": "Fermer"
+    "close": "Fermer",
+    "switch_account": "Changer de compte"
   },
   "auth": {
     "signIn": "Se connecter",
@@ -37,7 +38,41 @@
     "signingUp": "Création du compte...",
     "invalidCredentials": "E-mail ou mot de passe invalide",
     "accountCreated": "Compte créé avec succès",
-    "passwordResetSent": "Lien de réinitialisation envoyé à votre e-mail"
+    "passwordResetSent": "Lien de réinitialisation envoyé à votre e-mail",
+    "remember_me": "Se souvenir de moi",
+    "dont_have_account": "Vous n'avez pas de compte?",
+    "sign_in": {
+      "enter_email_password": "Veuillez entrer l'e-mail et le mot de passe",
+      "failed": "Échec de Connexion",
+      "signing_in": "Connexion en cours...",
+      "cta": "Se connecter",
+      "no_saved_credentials": "Aucune information d'identification enregistrée. Veuillez vous connecter avec votre mot de passe."
+    },
+    "biometric": {
+      "prompt": "Se connecter à EduDash Pro",
+      "use_face_id": "Utiliser Face ID",
+      "use_fingerprint": "Utiliser l'Empreinte Digitale",
+      "use_biometric": "Utiliser la Biométrie",
+      "enabled_for": "Connexion biométrique activée"
+    },
+    "biometric_not_available": {
+      "title": "Biométrie Non Disponible",
+      "desc": "Veuillez utiliser votre mot de passe pour vous connecter."
+    },
+    "biometric_failed": {
+      "title": "Échec de l'Authentification",
+      "desc": "L'authentification biométrique a échoué",
+      "unexpected": "Une erreur s'est produite lors de l'authentification biométrique"
+    },
+    "oauth": {
+      "failed_start": "Impossible de démarrer la connexion sociale",
+      "config_error": "Erreur de configuration OAuth. Veuillez contacter le support.",
+      "unavailable": "Connexion Non Disponible",
+      "error": "Erreur de Connexion"
+    },
+    "sign_up_parent": "S'inscrire en tant que Parent",
+    "sign_up_teacher": "S'inscrire en tant qu'Enseignant",
+    "school_register_q": "Vous cherchez à enregistrer une école?"
   },
   "roles": {
     "parent": "Parent",
@@ -89,6 +124,16 @@
     "profile": "Paramètres du Profil",
     "notifications": "Notifications",
     "privacy": "Confidentialité",
+    "biometric": {
+      "title": "Authentification biométrique",
+      "not_available_desc": "L'authentification biométrique n'est pas disponible sur cet appareil. Elle nécessite un lecteur d'empreintes ou la reconnaissance faciale."
+    },
+    "privacy_security": {
+      "title": "Confidentialité et Sécurité",
+      "info": "Informations sur la protection des données"
+    },
+    "manage_alerts": "Gérer vos notifications",
+    "notifications_coming_soon_desc": "Les paramètres de notification seront disponibles dans la prochaine mise à jour.",
     "language": {
       "title": "Langue",
       "comingSoon": "Bientôt Disponible",
@@ -133,10 +178,31 @@
     "info": "Information",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Non défini",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "not_available": "Indisponible",
+    "coming_soon": "Bientôt disponible"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Informations du compte",
+      "full_name": "Nom complet",
+      "role": "Rôle",
+      "school_id": "ID de l'école"
+    },
+    "edit": {
+      "title": "Modifier le profil",
+      "personal_information": "Informations personnelles"
+    },
+    "placeholders": {
+      "first_name": "Entrez votre prénom",
+      "last_name": "Entrez votre nom"
+    }
   },
   "subscription": {
     "choose_your_plan": "Choose Your Plan"
@@ -166,5 +232,17 @@
       "user": "Paramètre utilisateur",
       "unknown": "Inconnu"
     }
+  },
+  "trends": {
+    "up": "en hausse",
+    "down": "en baisse",
+    "stable": "stable",
+    "good": "bon",
+    "excellent": "excellent",
+    "warning": "avertissement",
+    "attention": "attention",
+    "needs_attention": "nécessite une attention",
+    "low": "faible",
+    "high": "élevé"
   }
 }

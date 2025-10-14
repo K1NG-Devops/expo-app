@@ -17,7 +17,8 @@
     "edit": "Fetola",
     "delete": "Tlošwa",
     "add": "Oketša",
-    "search": "Nyaka"
+    "search": "Nyaka",
+    "switch_account": "Fetola ak'haonte"
   },
   "auth": {
     "signIn": "Tsena",
@@ -35,7 +36,41 @@
     "signingUp": "Go na go hlangwa akhaonte...",
     "invalidCredentials": "Imeile goba lentšu la sephiri ga se la kgonthe",
     "accountCreated": "Akhaonte e hlanggilwe ka katlego",
-    "passwordResetSent": "Lomaganyo la go beakanya lentšu la sephiri lo romelilwe go imeile ya gago"
+    "passwordResetSent": "Lomaganyo la go beakanya lentšu la sephiri lo romelilwe go imeile ya gago",
+    "remember_me": "Ngopola",
+    "dont_have_account": "Ga o na akhaonte?",
+    "sign_in": {
+      "enter_email_password": "Ka kgopelo tsenya imeile le lentšu la sephiri",
+      "failed": "Go Tsena Go Paletšwe",
+      "signing_in": "Go na go tsenwa...",
+      "cta": "Tsena",
+      "no_saved_credentials": "Ga go ditshwayotshwayo tšeo di bolokilwego. Ka kgopelo tsena ka lentšu la gago la sephiri."
+    },
+    "biometric": {
+      "prompt": "Tsena go EduDash Pro",
+      "use_face_id": "Šomiša Sefahleho ID",
+      "use_fingerprint": "Šomiša Seswao sa Monwana",
+      "use_biometric": "Šomiša Biometric",
+      "enabled_for": "Go tsena ka biometric go kgontšhitšwe"
+    },
+    "biometric_not_available": {
+      "title": "Biometric Ga e Gona",
+      "desc": "Ka kgopelo šomiša lentšu la gago la sephiri go tsena."
+    },
+    "biometric_failed": {
+      "title": "Tiišetšo e Paletšwe",
+      "desc": "Tiišetšo ya biometric e paletšwe",
+      "unexpected": "Phošo e diregile nakong ya tiišetšo ya biometric"
+    },
+    "oauth": {
+      "failed_start": "Go paletšwe go thoma go tsena ka setšhaba",
+      "config_error": "Phošo ya peakanyo ya OAuth. Ka kgopelo ikgokaganye le thekgo.",
+      "unavailable": "Go Tsena Ga go Gona",
+      "error": "Phošo ya go Tsena"
+    },
+    "sign_up_parent": "Ngwadiša bjalo ka Motswadi",
+    "sign_up_teacher": "Ngwadiša bjalo ka Morutiši",
+    "school_register_q": "O nyaka go ngwadiša sekolo?"
   },
   "roles": {
     "parent": "Motswadi",
@@ -179,6 +214,16 @@
     "profile": "Dipeakanyo tša kemedi",
     "notifications": "Dikitsišo",
     "privacy": "Sephiri",
+    "biometric": {
+      "title": "Netefatso ka biometric",
+      "not_available_desc": "Netefatso ka biometric ha e fumanehe sesebelisoa sena. E hloka menoana kapa ho tseba sefahleho."
+    },
+    "privacy_security": {
+      "title": "Bophelo ba lekunutu & Tšireletso",
+      "info": "Tlhahisoleseling ea tšireletso ea data"
+    },
+    "manage_alerts": "Laola litsebiso tsa hao",
+    "notifications_coming_soon_desc": "Lisetoa tsa litsebiso li tla fumaneha ntlafatsong e latelang.",
     "language": {
       "title": "Polelo",
       "comingSoon": "E tla fihla",
@@ -260,10 +305,31 @@
     "viewLess": "Lebelela go nyane",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Ha e so beoe",
+    "enabled": "E buletsoe",
+    "disabled": "E koetsoe",
+    "not_available": "Ha e fumanehe",
+    "coming_soon": "E tla tla haufinyane"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Tlhahisoleseling ea Ak'haonte",
+      "full_name": "Lebitso le felletseng",
+      "role": "Karolo",
+      "school_id": "ID ea Sekolo"
+    },
+    "edit": {
+      "title": "Fetola Profaele",
+      "personal_information": "Tlhahisoleseling ea Botho"
+    },
+    "placeholders": {
+      "first_name": "Kenya lebitso la hao",
+      "last_name": "Kenya fane ea hao"
+    }
   },
   "subscription": {
     "choose_your_plan": "Kgetha lenaneo",
@@ -284,5 +350,17 @@
       "user": "Peakanyo ya modiriši",
       "unknown": "Ga e tsebjwe"
     }
+  },
+  "trends": {
+    "up": "holimo",
+    "down": "tlase",
+    "stable": "tsitsitse",
+    "good": "hantle",
+    "excellent": "hantle haholo",
+    "warning": "temošo",
+    "attention": "tlhokomelo",
+    "needs_attention": "e hloka tlhokomelo",
+    "low": "tlase",
+    "high": "holimo"
   }
 }

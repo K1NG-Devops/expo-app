@@ -233,7 +233,7 @@ END $$;
 
 -- Function to convert numeric risk score to risk level enum
 CREATE OR REPLACE FUNCTION validate_risk_score(score INTEGER)
-RETURNS risk_level_enum
+RETURNS RISK_LEVEL_ENUM
 LANGUAGE plpgsql
 IMMUTABLE
 AS $$
@@ -255,7 +255,7 @@ END;
 $$;
 
 -- Function to get UI color for risk levels
-CREATE OR REPLACE FUNCTION get_risk_color(risk_level risk_level_enum)
+CREATE OR REPLACE FUNCTION get_risk_color(risk_level RISK_LEVEL_ENUM)
 RETURNS TEXT
 LANGUAGE plpgsql
 IMMUTABLE
@@ -286,15 +286,15 @@ VALUES (
   'superadmin_enums_migration_20250919190000',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'enums_created', 15,
     'functions_created', 2,
     'migration_file', '20250919190000_superadmin_user_management_enums.sql'
   ),
   'Superadmin user management enums migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'SUPERADMIN ENUMS MIGRATION COMPLETED' AS status;

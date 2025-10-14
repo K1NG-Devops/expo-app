@@ -11,10 +11,11 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { track } from '@/lib/analytics';
+import { useTheme } from '@/contexts/ThemeContext';
 
 // Type definitions
 interface SchoolTypeOption {
@@ -78,6 +79,7 @@ const SCHOOL_TYPES: SchoolTypeOption[] = [
 
 export default function SchoolTypeSelectionScreen() {
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
   const params = useLocalSearchParams<{ from?: string }>();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [continuing, setContinuing] = useState(false);
@@ -158,11 +160,11 @@ export default function SchoolTypeSelectionScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ 
           title: `${typeDetails.name} Details`,
-          headerStyle: { backgroundColor: '#0b1220' },
-          headerTitleStyle: { color: '#fff' },
-          headerTintColor: typeDetails.primaryColor
+          headerStyle: { backgroundColor: theme.headerBackground },
+          headerTitleStyle: { color: theme.headerText },
+          headerTintColor: theme.headerTint
         }} />
-        <StatusBar style="light" backgroundColor="#0b1220" />
+        <ThemedStatusBar />
         
         <SafeAreaView edges={['top']} style={styles.safeArea}>
           <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -235,7 +237,7 @@ export default function SchoolTypeSelectionScreen() {
         headerTitleStyle: { color: '#fff' },
         headerTintColor: '#00f5ff'
       }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
+      <ThemedStatusBar />
       
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>

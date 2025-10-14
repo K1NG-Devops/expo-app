@@ -8,106 +8,112 @@
 -- =============================================================================
 
 -- Mark all current plans as inactive first
-UPDATE public.subscription_plans SET is_active = false;
+UPDATE public.subscription_plans SET is_active = FALSE;
 
 -- =============================================================================
 -- 2. UPDATE THE 6 ACTIVE PLANS WITH CORRECT DATA
 -- =============================================================================
 
 -- Update Free Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Free',
-    price_monthly = 0.00,
-    price_annual = 0.00,
-    features = '["Basic lessons", "Up to 50 students", "Parent-teacher messaging", "Mobile app access", "Ads on non-learning pages"]'::jsonb,
-    ai_quota_monthly = 10,
-    max_students = 50,
-    max_teachers = 1,
-    is_active = true,
-    tier = 'free',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Free',
+  price_monthly = 0.00,
+  price_annual = 0.00,
+  features
+  = '["Basic lessons", "Up to 50 students", "Parent-teacher messaging", "Mobile app access", "Ads on non-learning pages"]'::jsonb,
+  ai_quota_monthly = 10,
+  max_students = 50,
+  max_teachers = 1,
+  is_active = TRUE,
+  tier = 'free',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = '7045bf4d-12fa-443b-89f8-5d7d835eebdb';
 
 -- Update Starter Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Starter',
-    price_monthly = 49.00,
-    price_annual = 490.00,
-    features = '["5 AI lessons per day", "Up to 100 students", "Advanced progress tracking", "Parent-teacher messaging", "No ads"]'::jsonb,
-    ai_quota_monthly = 50,
-    max_students = 100,
-    max_teachers = 2,
-    is_active = true,
-    tier = 'starter',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Starter',
+  price_monthly = 49.00,
+  price_annual = 490.00,
+  features
+  = '["5 AI lessons per day", "Up to 100 students", "Advanced progress tracking", "Parent-teacher messaging", "No ads"]'::jsonb,
+  ai_quota_monthly = 50,
+  max_students = 100,
+  max_teachers = 2,
+  is_active = TRUE,
+  tier = 'starter',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = '611b4a1a-0a32-4961-b31a-72759d193843';
 
 -- Update Basic Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Basic',
-    price_monthly = 299.00,
-    price_annual = 2990.00,
-    features = '["Advanced AI lesson generation", "Up to 200 students", "Advanced analytics & insights", "AI homework grading", "Priority support"]'::jsonb,
-    ai_quota_monthly = 150,
-    max_students = 200,
-    max_teachers = 4,
-    is_active = true,
-    tier = 'basic',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Basic',
+  price_monthly = 299.00,
+  price_annual = 2990.00,
+  features
+  = '["Advanced AI lesson generation", "Up to 200 students", "Advanced analytics & insights", "AI homework grading", "Priority support"]'::jsonb,
+  ai_quota_monthly = 150,
+  max_students = 200,
+  max_teachers = 4,
+  is_active = TRUE,
+  tier = 'basic',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = '54cf2955-c4bb-4bf7-8d8d-18d097f3e2f8';
 
 -- Update Premium Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Premium',
-    price_monthly = 499.00,
-    price_annual = 4990.00,
-    features = '["Unlimited AI lesson generation", "Up to 400 students", "Advanced analytics & insights", "AI homework grading", "Custom school branding", "Priority support"]'::jsonb,
-    ai_quota_monthly = 300,
-    max_students = 400,
-    max_teachers = 8,
-    is_active = true,
-    tier = 'premium',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Premium',
+  price_monthly = 499.00,
+  price_annual = 4990.00,
+  features
+  = '["Unlimited AI lesson generation", "Up to 400 students", "Advanced analytics & insights", "AI homework grading", "Custom school branding", "Priority support"]'::jsonb,
+  ai_quota_monthly = 300,
+  max_students = 400,
+  max_teachers = 8,
+  is_active = TRUE,
+  tier = 'premium',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = 'ec24e5d4-6445-4be1-a789-0cdf9f1aa910';
 
 -- Update Pro Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Pro',
-    price_monthly = 899.00,
-    price_annual = 8990.00,
-    features = '["Unlimited AI lesson generation", "Up to 800 students", "Advanced analytics & insights", "AI homework grading", "Custom school branding", "Advanced teacher management", "AI-powered insights", "Priority support"]'::jsonb,
-    ai_quota_monthly = 500,
-    max_students = 800,
-    max_teachers = 12,
-    is_active = true,
-    tier = 'pro',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Pro',
+  price_monthly = 899.00,
+  price_annual = 8990.00,
+  features
+  = '["Unlimited AI lesson generation", "Up to 800 students", "Advanced analytics & insights", "AI homework grading", "Custom school branding", "Advanced teacher management", "AI-powered insights", "Priority support"]'::jsonb,
+  ai_quota_monthly = 500,
+  max_students = 800,
+  max_teachers = 12,
+  is_active = TRUE,
+  tier = 'pro',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = '6a68726d-d0dc-4423-9ea3-665ce75d4136';
 
 -- Update Enterprise Plan
-UPDATE public.subscription_plans 
-SET 
-    name = 'Enterprise',
-    price_monthly = 1999.00,
-    price_annual = 19990.00,
-    features = '["Unlimited everything", "Up to 2000 students", "Multi-school management", "Advanced AI tutoring", "Predictive analytics", "Enterprise security", "Dedicated support", "Custom integrations"]'::jsonb,
-    ai_quota_monthly = 1000,
-    max_students = 2000,
-    max_teachers = 50,
-    is_active = true,
-    tier = 'enterprise',
-    currency = 'ZAR',
-    updated_at = now()
+UPDATE public.subscription_plans
+SET
+  name = 'Enterprise',
+  price_monthly = 1999.00,
+  price_annual = 19990.00,
+  features
+  = '["Unlimited everything", "Up to 2000 students", "Multi-school management", "Advanced AI tutoring", "Predictive analytics", "Enterprise security", "Dedicated support", "Custom integrations"]'::jsonb,
+  ai_quota_monthly = 1000,
+  max_students = 2000,
+  max_teachers = 50,
+  is_active = TRUE,
+  tier = 'enterprise',
+  currency = 'ZAR',
+  updated_at = now()
 WHERE id = 'd3398e33-9c8b-4573-b2d1-735eda6391da';
 
 -- =============================================================================
@@ -122,40 +128,41 @@ DROP TABLE IF EXISTS public.billing_plans CASCADE;
 
 -- Create a table to track subscription usage and quotas
 CREATE TABLE IF NOT EXISTS public.subscription_usage (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    subscription_id uuid NOT NULL REFERENCES public.subscriptions(id) ON DELETE CASCADE,
-    usage_type text NOT NULL CHECK (usage_type IN ('ai_generations', 'students', 'teachers', 'storage')),
-    current_usage integer NOT NULL DEFAULT 0,
-    quota_limit integer, -- NULL means unlimited
-    period_start timestamptz NOT NULL DEFAULT date_trunc('month', now()),
-    period_end timestamptz NOT NULL DEFAULT (date_trunc('month', now()) + interval '1 month'),
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now(),
-    
-    -- Ensure one record per subscription per usage type per period
-    UNIQUE(subscription_id, usage_type, period_start)
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id uuid NOT NULL REFERENCES public.subscriptions (id) ON DELETE CASCADE,
+  usage_type text NOT NULL CHECK (usage_type IN ('ai_generations', 'students', 'teachers', 'storage')),
+  current_usage integer NOT NULL DEFAULT 0,
+  quota_limit integer, -- NULL means unlimited
+  period_start timestamptz NOT NULL DEFAULT date_trunc('month', now()),
+  period_end timestamptz NOT NULL DEFAULT (date_trunc('month', now()) + interval '1 month'),
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+
+  -- Ensure one record per subscription per usage type per period
+  UNIQUE (subscription_id, usage_type, period_start)
 );
 
 -- Create indexes for performance
-CREATE INDEX IF NOT EXISTS idx_subscription_usage_subscription_type 
-ON public.subscription_usage(subscription_id, usage_type);
+CREATE INDEX IF NOT EXISTS idx_subscription_usage_subscription_type
+ON public.subscription_usage (subscription_id, usage_type);
 
-CREATE INDEX IF NOT EXISTS idx_subscription_usage_period 
-ON public.subscription_usage(period_start, period_end);
+CREATE INDEX IF NOT EXISTS idx_subscription_usage_period
+ON public.subscription_usage (period_start, period_end);
 
 -- Enable RLS
 ALTER TABLE public.subscription_usage ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policy for subscription usage
-CREATE POLICY "Users can view their subscription usage" 
-ON public.subscription_usage FOR SELECT 
+CREATE POLICY "Users can view their subscription usage"
+ON public.subscription_usage FOR SELECT
 USING (
-    EXISTS (
-        SELECT 1 FROM public.subscriptions s
-        JOIN public.profiles p ON p.auth_user_id = auth.uid()
-        WHERE s.id = subscription_id
-        AND (p.role = 'superadmin' OR s.school_id = p.preschool_id)
-    )
+  EXISTS (
+    SELECT 1 FROM public.subscriptions AS s
+    INNER JOIN public.profiles AS p ON p.auth_user_id = auth.uid()
+    WHERE
+      s.id = subscription_id
+      AND (p.role = 'superadmin' OR s.school_id = p.preschool_id)
+  )
 );
 
 -- =============================================================================
@@ -164,9 +171,9 @@ USING (
 
 -- Function to check if a subscription has quota available
 CREATE OR REPLACE FUNCTION public.check_subscription_quota(
-    p_subscription_id uuid,
-    p_usage_type text,
-    p_requested_amount integer DEFAULT 1
+  p_subscription_id uuid,
+  p_usage_type text,
+  p_requested_amount integer DEFAULT 1
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -222,9 +229,9 @@ $$;
 
 -- Function to increment subscription usage
 CREATE OR REPLACE FUNCTION public.increment_subscription_usage(
-    p_subscription_id uuid,
-    p_usage_type text,
-    p_amount integer DEFAULT 1
+  p_subscription_id uuid,
+  p_usage_type text,
+  p_amount integer DEFAULT 1
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -277,8 +284,8 @@ $$;
 -- =============================================================================
 
 -- Add updated_at trigger to subscription_usage
-CREATE TRIGGER handle_updated_at 
-BEFORE UPDATE ON public.subscription_usage 
+CREATE TRIGGER handle_updated_at
+BEFORE UPDATE ON public.subscription_usage
 FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
 
 -- =============================================================================

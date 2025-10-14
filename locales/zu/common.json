@@ -17,7 +17,8 @@
     "edit": "Hlela",
     "delete": "Susa",
     "add": "Engeza",
-    "search": "Sesha"
+    "search": "Sesha",
+    "switch_account": "Shintsha i-akhawunti"
   },
   "auth": {
     "signIn": "Ngena",
@@ -35,7 +36,41 @@
     "signingUp": "Yakha i-akhawunti...",
     "invalidCredentials": "I-imeyili noma iphasiwedi ayilungile",
     "accountCreated": "I-akhawunti yenziwe ngempumelelo",
-    "passwordResetSent": "Isixhumanisi sokubuyisela iphasiwedi sithunyelwe ku-imeyili yakho"
+    "passwordResetSent": "Isixhumanisi sokubuyisela iphasiwedi sithunyelwe ku-imeyili yakho",
+    "remember_me": "Ngikhumbule",
+    "dont_have_account": "Awunayo i-akhawunti?",
+    "sign_in": {
+      "enter_email_password": "Sicela ufake i-imeyili nephasi wedi",
+      "failed": "Ukungena Kuhlulekile",
+      "signing_in": "Iyangena...",
+      "cta": "Ngena",
+      "no_saved_credentials": "Azikho iziqinisekiso ezilondoloziwe. Sicela ungene ngephasiwedi yakho."
+    },
+    "biometric": {
+      "prompt": "Ngena ku-EduDash Pro",
+      "use_face_id": "Sebenzisa Ubuso ID",
+      "use_fingerprint": "Sebenzisa Izigxivizo Zeminwe",
+      "use_biometric": "Sebenzisa i-Biometric",
+      "enabled_for": "Ukungena nge-biometric kunikwe amandla"
+    },
+    "biometric_not_available": {
+      "title": "I-Biometric Ayitholakali",
+      "desc": "Sicela usebenzise iphasiwedi yakho ukungena."
+    },
+    "biometric_failed": {
+      "title": "Ukuqinisekisa Kuhlulekile",
+      "desc": "Ukuqinisekisa nge-biometric kuhlulekile",
+      "unexpected": "Kuthe qatha iphutha ngesikhathi sokuqinisekisa nge-biometric"
+    },
+    "oauth": {
+      "failed_start": "Kwehluleka ukuqala ukungena kwezinhlelo zokuxhumana",
+      "config_error": "Iphutha lokucubungula i-OAuth. Sicela uthinte usizo.",
+      "unavailable": "Ukungena Akutholakali",
+      "error": "Iphutha Lokungena"
+    },
+    "sign_up_parent": "Bhalisa njengomzali",
+    "sign_up_teacher": "Bhalisa njengothisha",
+    "school_register_q": "Ufuna ukubhalisa isikole?"
   },
   "roles": {
     "parent": "Umzali",
@@ -222,6 +257,16 @@
     "profile": "Izilungiselelo Zephrofayela",
     "notifications": "Izaziso",
     "privacy": "Ubumfihlo",
+    "biometric": {
+      "title": "Ukuqinisekisa nge-biometric",
+      "not_available_desc": "Ukuqinisekisa nge-biometric akutholakali kulo mudivayisi. Kudinga i-fingerprint noma i-face recognition."
+    },
+    "privacy_security": {
+      "title": "Ubumfihlo & Ezokuphepha",
+      "info": "Ulwazi lokuvikelwa kwedatha"
+    },
+    "manage_alerts": "Phatha izaziso zakho",
+    "notifications_coming_soon_desc": "Izilungiselelo zezaziso zizotholakala esibuyekezweni esilandelayo.",
     "language": {
       "title": "Ulimi",
       "comingSoon": "Kuyeza Masinyane",
@@ -303,10 +348,31 @@
     "viewLess": "Buka okuncane",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Akumisiwe",
+    "enabled": "Kuvuliwe",
+    "disabled": "Kukhubazekile",
+    "not_available": "Akutholakali",
+    "coming_soon": "Kuyeza masinyane"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Imininingwane ye-akhawunti",
+      "full_name": "Igama eliphelele",
+      "role": "Indima",
+      "school_id": "i-School ID"
+    },
+    "edit": {
+      "title": "Hlela Iphrofayela",
+      "personal_information": "Ulwazi Lomuntu Siqu"
+    },
+    "placeholders": {
+      "first_name": "Faka igama lakho",
+      "last_name": "Faka isibongo sakho"
+    }
   },
   "subscription": {
     "choose_your_plan": "Khetha uhlelo",
@@ -327,5 +393,17 @@
       "user": "Uhlelo lomsebenzisi",
       "unknown": "Akwaziwa"
     }
+  },
+  "trends": {
+    "up": "enyukayo",
+    "down": "ehla",
+    "stable": "izinzile",
+    "good": "kuhle",
+    "excellent": "okuhle kakhulu",
+    "warning": "isexwayiso",
+    "attention": "ukunaka",
+    "needs_attention": "kudinga ukunakwa",
+    "low": "phansi",
+    "high": "phezulu"
   }
 }

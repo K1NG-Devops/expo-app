@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,6 +53,7 @@ interface PricingTier {
 }
 
 export default function PricingPage() {
+  const { t } = useTranslation();
   const { profile } = useAuth();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ export default function PricingPage() {
       
     } catch (err: any) {
       console.error('Failed to load pricing plans:', err);
-      setError('Unable to load pricing information. Please try again later.');
+      setError(t('pricing.load_error', { defaultValue: 'Unable to load pricing information. Please try again later.' }));
     } finally {
       setLoading(false);
     }
@@ -130,10 +132,10 @@ export default function PricingPage() {
       tier: plan.tier,
       price: price === 0 ? 'Free' : (isEnterprise ? 'Custom' : `R${price}`),
       period: price === 0 || isEnterprise ? '' : `/${isAnnual ? 'year' : 'month'}`,
-      description: tierConfig.description,
+      description: t(tierConfig.descriptionKey, { defaultValue: tierConfig.description }),
       features: planFeatures.length > 0 ? planFeatures : tierConfig.defaultFeatures,
       recommended: tierConfig.recommended,
-      cta: isEnterprise ? 'Contact Sales' : (price === 0 ? 'Start Free' : `Choose ${plan.name}`),
+      cta: isEnterprise ? t('pricing.cta.contact_sales', { defaultValue: 'Contact Sales' }) : (price === 0 ? t('pricing.cta.start_free', { defaultValue: 'Start Free' }) : t('pricing.cta.choose_named', { defaultValue: `Choose ${plan.name}`, name: plan.name })),
       color: tierConfig.color,
       isEnterprise,
     };
@@ -144,43 +146,50 @@ export default function PricingPage() {
     const configs: Record<string, any> = {
       free: {
         description: 'Perfect for small preschools getting started',
+        descriptionKey: 'pricing.tier.free.desc',
         defaultFeatures: ['Basic dashboard', 'Student management', 'Parent communication'],
         recommended: false,
         color: ['#00f5ff', '#0080ff'],
       },
       starter: {
         description: 'Essential features for growing schools',
+        descriptionKey: 'pricing.tier.starter.desc',
         defaultFeatures: ['Advanced dashboard', 'AI-powered insights', 'Priority support'],
         recommended: true,
         color: ['#8000ff', '#ff0080'],
       },
       basic: {
         description: 'Comprehensive tools for active schools',
+        descriptionKey: 'pricing.tier.basic.desc',
         defaultFeatures: ['Full feature set', 'Advanced analytics', 'Multi-teacher support'],
         recommended: false,
         color: ['#00f5ff', '#8000ff'],
       },
       premium: {
         description: 'Professional features for established schools',
+        descriptionKey: 'pricing.tier.premium.desc',
         defaultFeatures: ['Premium features', 'Advanced reporting', 'Priority support'],
         recommended: false,
         color: ['#ff0080', '#8000ff'],
       },
       pro: {
         description: 'Advanced solution for large schools',
+        descriptionKey: 'pricing.tier.pro.desc',
         defaultFeatures: ['All features', 'Custom integrations', 'Dedicated support'],
         recommended: false,
         color: ['#ff8000', '#ff0080'],
       },
       enterprise: {
         description: 'Complete solution for large organizations',
+        descriptionKey: 'pricing.tier.enterprise.desc',
         defaultFeatures: ['Unlimited features', 'Custom integrations', 'Dedicated success manager'],
         recommended: false,
         color: ['#ff8000', '#ff0080'],
       },
     };
     
-    return configs[tierLower] || configs.basic;
+    const cfg = configs[tierLower] || configs.basic;
+    return cfg;
   };
   
   const pricingTiers = plans.map(convertToDisplayTier);
@@ -192,7 +201,7 @@ export default function PricingPage() {
         <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#00f5ff" />
-            <Text style={styles.loadingText}>Loading pricing plans...</Text>
+            <Text style={styles.loadingText}>{t('pricing.loading', { defaultValue: 'Loading pricing plans...' })}</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -206,10 +215,10 @@ export default function PricingPage() {
         <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
           <View style={styles.errorContainer}>
             <IconSymbol name="exclamationmark.triangle" size={48} color="#ef4444" />
-            <Text style={styles.errorTitle}>Unable to Load Pricing</Text>
+            <Text style={styles.errorTitle}>{t('pricing.unable_title', { defaultValue: 'Unable to Load Pricing' })}</Text>
             <Text style={styles.errorMessage}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
-              <Text style={styles.retryButtonText}>Try Again</Text>
+              <Text style={styles.retryButtonText}>{t('common.try_again', { defaultValue: 'Try Again' })}</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -291,55 +300,64 @@ export default function PricingPage() {
   );
 }
 
-const Header = () => (
-  <View style={styles.header}>
-    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-      <IconSymbol name="arrow.left" size={24} color="#00f5ff" />
-      <Text style={styles.backText}>Back to Home</Text>
-    </TouchableOpacity>
-    
-    <View style={styles.logo}>
-      <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.logoGradient}>
-        <IconSymbol name="help-circle" size={28} color="#000000" />
-      </LinearGradient>
-      <Text style={styles.logoText}>EduDash Pro</Text>
+const Header = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.header}>
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <IconSymbol name="arrow.left" size={24} color="#00f5ff" />
+        <Text style={styles.backText}>{t('marketing.pricing.back_to_home', { defaultValue: 'Back to Home' })}</Text>
+      </TouchableOpacity>
+      
+      <View style={styles.logo}>
+        <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.logoGradient}>
+          <IconSymbol name="help-circle" size={28} color="#000000" />
+        </LinearGradient>
+        <Text style={styles.logoText}>EduDash Pro</Text>
+      </View>
+      
+      <TouchableOpacity 
+        style={styles.signInButton} 
+        onPress={() => router.push('/(auth)/sign-in')}
+      >
+        <Text style={styles.signInText}>{t('auth.signIn', { defaultValue: 'Sign In' })}</Text>
+      </TouchableOpacity>
     </View>
-    
-    <TouchableOpacity 
-      style={styles.signInButton} 
-      onPress={() => router.push('/(auth)/sign-in')}
-    >
-      <Text style={styles.signInText}>Sign In</Text>
-    </TouchableOpacity>
-  </View>
-);
+  );
+};
 
-const PricingHeader = () => (
-  <View style={styles.pricingHeader}>
-    <Text style={styles.pricingTitle}>Choose Your Plan</Text>
-    <Text style={styles.pricingSubtitle}>
-      Flexible pricing for schools of all sizes. Start free and scale as you grow.
-    </Text>
-  </View>
-);
+const PricingHeader = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.pricingHeader}>
+      <Text style={styles.pricingTitle}>{t('pricing.choose_your_plan', { defaultValue: 'Choose Your Plan' })}</Text>
+      <Text style={styles.pricingSubtitle}>
+        {t('pricing.subtitle_marketing', { defaultValue: 'Flexible pricing for schools of all sizes. Start free and scale as you grow.' })}
+      </Text>
+    </View>
+  );
+};
 
-const BillingToggle = ({ isAnnual, onToggle }: { isAnnual: boolean; onToggle: (value: boolean) => void }) => (
-  <View style={styles.billingToggle}>
-    <TouchableOpacity 
-      style={[styles.toggleOption, !isAnnual && styles.toggleOptionActive]}
-      onPress={() => onToggle(false)}
-    >
-      <Text style={[styles.toggleOptionText, !isAnnual && styles.toggleOptionTextActive]}>Monthly</Text>
-    </TouchableOpacity>
-    <TouchableOpacity 
-      style={[styles.toggleOption, isAnnual && styles.toggleOptionActive]}
-      onPress={() => onToggle(true)}
-    >
-      <Text style={[styles.toggleOptionText, isAnnual && styles.toggleOptionTextActive]}>Annual</Text>
-      <Text style={[styles.toggleOptionSavings, isAnnual && styles.toggleOptionSavingsActive]}>Save 10%</Text>
-    </TouchableOpacity>
-  </View>
-);
+const BillingToggle = ({ isAnnual, onToggle }: { isAnnual: boolean; onToggle: (value: boolean) => void }) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.billingToggle}>
+      <TouchableOpacity 
+        style={[styles.toggleOption, !isAnnual && styles.toggleOptionActive]}
+        onPress={() => onToggle(false)}
+      >
+        <Text style={[styles.toggleOptionText, !isAnnual && styles.toggleOptionTextActive]}>{t('pricing.monthly', { defaultValue: 'Monthly' })}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.toggleOption, isAnnual && styles.toggleOptionActive]}
+        onPress={() => onToggle(true)}
+      >
+        <Text style={[styles.toggleOptionText, isAnnual && styles.toggleOptionTextActive]}>{t('pricing.annual', { defaultValue: 'Annual' })}</Text>
+        <Text style={[styles.toggleOptionSavings, isAnnual && styles.toggleOptionSavingsActive]}>{t('pricing.save_percent', { defaultValue: 'Save 10%' })}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 const PricingGrid = ({ tiers, onPlanCTA }: { tiers: PricingTier[]; onPlanCTA: (tier: PricingTier) => void }) => (
   <View style={styles.pricingGrid}>
@@ -350,116 +368,124 @@ const PricingGrid = ({ tiers, onPlanCTA }: { tiers: PricingTier[]; onPlanCTA: (t
 );
 
 
-const PricingCard = ({ tier, index, onPlanCTA }: { tier: PricingTier; index?: number; onPlanCTA: (tier: PricingTier) => void }) => (
-  <View style={[
-    styles.pricingCard,
-    tier.recommended && styles.recommendedCard,
-    isDesktop && styles.pricingCardDesktop
-  ]}>
-    {tier.recommended && (
-      <View style={styles.recommendedBadge}>
-        <LinearGradient colors={tier.color as [string, string]} style={styles.badgeGradient}>
-          <Text style={styles.badgeText}>Most Popular</Text>
-        </LinearGradient>
-      </View>
-    )}
-    
-    <LinearGradient
-      colors={tier.recommended 
-        ? ['rgba(128,0,255,0.1)', 'rgba(255,0,128,0.1)'] 
-        : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
-      }
-      style={styles.cardGradient}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.tierName}>{tier.name}</Text>
-        <View style={styles.priceContainer}>
-          <Text style={styles.price}>{tier.price}</Text>
-          {tier.period && <Text style={styles.period}>{tier.period}</Text>}
+const PricingCard = ({ tier, index, onPlanCTA }: { tier: PricingTier; index?: number; onPlanCTA: (tier: PricingTier) => void }) => {
+  const { t } = useTranslation();
+  return (
+    <View style={[
+      styles.pricingCard,
+      tier.recommended && styles.recommendedCard,
+      isDesktop && styles.pricingCardDesktop
+    ]}>
+      {tier.recommended && (
+        <View style={styles.recommendedBadge}>
+          <LinearGradient colors={tier.color as [string, string]} style={styles.badgeGradient}>
+            <Text style={styles.badgeText}>{t('pricing.most_popular', { defaultValue: 'Most Popular' })}</Text>
+          </LinearGradient>
         </View>
-        <Text style={styles.description}>{tier.description}</Text>
-      </View>
+      )}
       
-      <View style={styles.featuresList}>
-        {tier.features.map((feature, idx) => (
-          <View key={idx} style={styles.featureItem}>
-            <IconSymbol name="checkmark.circle" size={16} color="#00f5ff" />
-            <Text style={styles.featureText}>{feature}</Text>
+      <LinearGradient
+        colors={tier.recommended 
+          ? ['rgba(128,0,255,0.1)', 'rgba(255,0,128,0.1)'] 
+          : ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)']
+        }
+        style={styles.cardGradient}
+      >
+        <View style={styles.cardHeader}>
+          <Text style={styles.tierName}>{tier.name}</Text>
+          <View style={styles.priceContainer}>
+            <Text style={styles.price}>{tier.price}</Text>
+            {tier.period && <Text style={styles.period}>{tier.period}</Text>}
           </View>
-        ))}
-      </View>
-      
-      <TouchableOpacity 
-        style={[
-          styles.ctaButton,
-          tier.recommended && styles.recommendedButton
-        ]}
-        onPress={() => onPlanCTA(tier)}
-      >
-        <LinearGradient
-          colors={tier.recommended 
-            ? tier.color as [string, string] 
-            : ['rgba(0,245,255,0.2)', 'rgba(0,128,255,0.2)']
-          }
-          style={styles.ctaGradient}
+          <Text style={styles.description}>{tier.description}</Text>
+        </View>
+        
+        <View style={styles.featuresList}>
+          {tier.features.map((feature, idx) => (
+            <View key={idx} style={styles.featureItem}>
+              <IconSymbol name="checkmark.circle" size={16} color="#00f5ff" />
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+        
+        <TouchableOpacity 
+          style={[
+            styles.ctaButton,
+            tier.recommended && styles.recommendedButton
+          ]}
+          onPress={() => onPlanCTA(tier)}
         >
-          <Text style={[
-            styles.ctaText,
-            tier.recommended && styles.recommendedCtaText
-          ]}>
-            {tier.cta}
-          </Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </LinearGradient>
-  </View>
-);
-
-const EnterpriseSection = () => (
-  <View style={styles.enterpriseSection}>
-    <LinearGradient colors={['#0f3460', '#533a71']} style={styles.enterpriseGradient}>
-      <Text style={styles.enterpriseTitle}>Need Something Custom?</Text>
-      <Text style={styles.enterpriseText}>
-        Our enterprise solutions are designed for large school districts, 
-        government education departments, and multi-national education providers.
-      </Text>
-      <View style={styles.enterpriseFeatures}>
-        <Text style={styles.enterpriseFeature}>🏢 Multi-tenant architecture</Text>
-        <Text style={styles.enterpriseFeature}>🔒 Advanced security & compliance</Text>
-        <Text style={styles.enterpriseFeature}>🔧 Custom integrations & APIs</Text>
-        <Text style={styles.enterpriseFeature}>📞 Dedicated support team</Text>
-      </View>
-      <TouchableOpacity 
-        style={styles.enterpriseButton}
-        onPress={() => navigateTo.contact()}
-      >
-        <LinearGradient colors={['#ff8000', '#ff0080']} style={styles.enterpriseButtonGradient}>
-          <Text style={styles.enterpriseButtonText}>Schedule Enterprise Demo</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </LinearGradient>
-  </View>
-);
-
-const FAQSection = () => (
-  <View style={styles.faqSection}>
-    <Text style={styles.faqTitle}>Frequently Asked Questions</Text>
-    <View style={styles.faqList}>
-      <FAQItem 
-        question="Can I upgrade or downgrade my plan anytime?"
-        answer="Yes! You can change your plan at any time. Upgrades take effect immediately, and downgrades take effect at the start of your next billing cycle."
-      />
-      <FAQItem 
-        question="Is there a setup fee?"
-        answer="No setup fees for Starter and Professional plans. Enterprise plans may include implementation services."
-      />
-      <FAQItem 
-        question="What payment methods do you accept?"
-        answer="We accept all major credit cards, PayFast, and bank transfers for South African customers."
-      />
+          <LinearGradient
+            colors={tier.recommended 
+              ? tier.color as [string, string] 
+              : ['rgba(0,245,255,0.2)', 'rgba(0,128,255,0.2)']
+            }
+            style={styles.ctaGradient}
+          >
+            <Text style={[
+              styles.ctaText,
+              tier.recommended && styles.recommendedCtaText
+            ]}>
+              {tier.cta}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </LinearGradient>
     </View>
-  </View>
-);
+  );
+};
+
+const EnterpriseSection = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.enterpriseSection}>
+      <LinearGradient colors={['#0f3460', '#533a71']} style={styles.enterpriseGradient}>
+        <Text style={styles.enterpriseTitle}>{t('pricing.need_custom', { defaultValue: 'Need Something Custom?' })}</Text>
+        <Text style={styles.enterpriseText}>
+          {t('pricing.enterprise_subtitle', { defaultValue: 'Our enterprise solutions are designed for large school districts, government education departments, and multi-national education providers.' })}
+        </Text>
+        <View style={styles.enterpriseFeatures}>
+          <Text style={styles.enterpriseFeature}>🏢 {t('pricing.enterprise.features.multi_tenant', { defaultValue: 'Multi-tenant architecture' })}</Text>
+          <Text style={styles.enterpriseFeature}>🔒 {t('pricing.enterprise.features.advanced_security', { defaultValue: 'Advanced security & compliance' })}</Text>
+          <Text style={styles.enterpriseFeature}>🔧 {t('pricing.enterprise.features.custom_integrations', { defaultValue: 'Custom integrations & APIs' })}</Text>
+          <Text style={styles.enterpriseFeature}>📞 {t('pricing.enterprise.features.dedicated_support', { defaultValue: 'Dedicated support team' })}</Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.enterpriseButton}
+          onPress={() => navigateTo.contact()}
+        >
+          <LinearGradient colors={['#ff8000', '#ff0080']} style={styles.enterpriseButtonGradient}>
+            <Text style={styles.enterpriseButtonText}>{t('pricing.schedule_enterprise_demo', { defaultValue: 'Schedule Enterprise Demo' })}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </LinearGradient>
+    </View>
+  );
+};
+
+const FAQSection = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.faqSection}>
+      <Text style={styles.faqTitle}>{t('pricing.faq_title', { defaultValue: 'Frequently Asked Questions' })}</Text>
+      <View style={styles.faqList}>
+        <FAQItem 
+          question={t('pricing.faq.q1', { defaultValue: 'Can I upgrade or downgrade my plan anytime?' })}
+          answer={t('pricing.faq.a1', { defaultValue: 'Yes! You can change your plan at any time. Upgrades take effect immediately, and downgrades take effect at the start of your next billing cycle.' })}
+        />
+        <FAQItem 
+          question={t('pricing.faq.q2', { defaultValue: 'Is there a setup fee?' })}
+          answer={t('pricing.faq.a2', { defaultValue: 'No setup fees for Starter and Professional plans. Enterprise plans may include implementation services.' })}
+        />
+        <FAQItem 
+          question={t('pricing.faq.q3', { defaultValue: 'What payment methods do you accept?' })}
+          answer={t('pricing.faq.a3', { defaultValue: 'We accept all major credit cards, PayFast, and bank transfers for South African customers.' })}
+        />
+      </View>
+    </View>
+  );
+};
 
 const FAQItem = ({ question, answer }: { question: string; answer: string }) => {
   const [isOpen, setIsOpen] = React.useState(false);

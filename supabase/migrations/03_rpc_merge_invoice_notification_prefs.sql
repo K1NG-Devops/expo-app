@@ -4,7 +4,7 @@
 -- ================================================
 
 CREATE OR REPLACE FUNCTION merge_invoice_notification_prefs(
-  p_user_id UUID, 
+  p_user_id UUID,
   p_updates JSONB
 )
 RETURNS JSONB

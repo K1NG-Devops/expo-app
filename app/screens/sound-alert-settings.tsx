@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -644,7 +644,7 @@ export default function SoundAlertSettingsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ title: 'Sound Alerts', headerShown: false }} />
-        <StatusBar style={isDark ? "light" : "dark"} />
+        <ThemedStatusBar />
         <SafeAreaView style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
@@ -658,7 +658,7 @@ export default function SoundAlertSettingsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ title: 'Sound Alerts', headerShown: false }} />
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <ThemedStatusBar />
       
       {/* Header */}
       <SafeAreaView style={[styles.header, { backgroundColor: theme.background }]}>

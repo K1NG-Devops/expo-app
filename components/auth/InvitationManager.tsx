@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Modal
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../contexts/ThemeContext';
 import { 
   TeacherInvitation, 
@@ -77,6 +78,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
   onInvitationSent,
   onError
 }) => {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   
   // State management
@@ -106,22 +108,22 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
   
   const validateInvitation = (invitation: Invitation): string | null => {
     if (!invitation.email || !validateEmail(invitation.email)) {
-      return 'Please enter a valid email address';
+      return t('invitation.error_valid_email');
     }
     if (!invitation.name || invitation.name.trim().length < 2) {
-      return 'Please enter a valid name';
+      return t('invitation.error_valid_name');
     }
     if (invitation.role === 'teacher' && userRole === 'principal') {
       if (!invitation.subjects || invitation.subjects.length === 0) {
-        return 'Please select at least one subject';
+        return t('invitation.error_select_subject');
       }
       if (!invitation.gradeLevel || invitation.gradeLevel.length === 0) {
-        return 'Please select at least one grade level';
+        return t('invitation.error_select_grade');
       }
     }
     if (invitation.role === 'parent' && userRole === 'teacher') {
       if (!invitation.studentConnections || invitation.studentConnections.length === 0) {
-        return 'Please select at least one student';
+        return t('invitation.error_select_student');
       }
     }
     return null;
@@ -131,7 +133,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
   const addInvitation = () => {
     const error = validateInvitation(currentInvitation);
     if (error) {
-      Alert.alert('Validation Error', error);
+      Alert.alert(t('invitation.validation_error'), error);
       return;
     }
     
@@ -140,7 +142,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
       inv.email.toLowerCase() === currentInvitation.email.toLowerCase()
     );
     if (duplicate) {
-      Alert.alert('Duplicate Email', 'This email has already been added to the invitation list.');
+      Alert.alert(t('invitation.duplicate_email'), t('invitation.duplicate_email_message'));
       return;
     }
     
@@ -167,7 +169,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
     try {
       const lines = bulkData.trim().split('\n');
       if (lines.length < 2) {
-        throw new Error('CSV must have headers and at least one data row');
+        throw new Error(t('invitation.csv_headers_required'));
       }
       
       const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
@@ -176,7 +178,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
       if (invitationType === 'teacher') {
         // Expected headers: email, name, subjects, grades
         if (!headers.includes('email') || !headers.includes('name')) {
-          throw new Error('CSV must have "email" and "name" columns');
+          throw new Error(t('invitation.csv_email_name_required'));
         }
         
         const teachers = data.map(line => {
@@ -198,7 +200,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
       } else {
         // Expected headers: email, name, student_name, student_id
         if (!headers.includes('email') || !headers.includes('name') || !headers.includes('student_name')) {
-          throw new Error('CSV must have "email", "name", and "student_name" columns');
+          throw new Error(t('invitation.csv_parent_columns_required'));
         }
         
         const parents = data.map(line => {
@@ -220,8 +222,8 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
       }
     } catch (error) {
       Alert.alert(
-        'Parse Error',
-        error instanceof Error ? error.message : 'Failed to parse CSV data'
+        t('invitation.parse_error'),
+        error instanceof Error ? error.message : t('invitation.parse_failed')
       );
       return null;
     }
@@ -265,20 +267,20 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
     }
     
     if (newInvitations.length === 0) {
-      Alert.alert('No Valid Data', 'No valid invitations found in the CSV data.');
+      Alert.alert(t('invitation.no_valid_data'), t('invitation.no_valid_data_message'));
       return;
     }
     
     setInvitations([...invitations, ...newInvitations]);
     setBulkData('');
     setActiveTab('individual');
-    Alert.alert('Success', `${newInvitations.length} invitations added to the list.`);
+    Alert.alert(t('common.success'), t('invitation.invitations_added', { count: newInvitations.length }));
   };
   
   // Send all invitations
   const sendInvitations = async () => {
     if (invitations.length === 0) {
-      Alert.alert('No Invitations', 'Please add at least one invitation.');
+      Alert.alert(t('invitation.no_invitations'), t('invitation.add_one_invitation'));
       return;
     }
     
@@ -310,7 +312,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
             return updated;
           });
         } else {
-          throw new Error('Failed to send invitation');
+          throw new Error(t('invitation.send_failed'));
         }
       } catch (error) {
         results.push({ 
@@ -342,11 +344,11 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
     }
     
     Alert.alert(
-      'Invitations Sent',
-      `Successfully sent: ${successCount}\nFailed: ${failedCount}`,
+      t('invitation.invitations_sent'),
+      t('invitation.send_results', { success: successCount, failed: failedCount }),
       [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {
             // Clear successful invitations
             setInvitations(prev => prev.filter(inv => inv.status === 'failed'));
@@ -361,7 +363,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
     <View style={styles.formContainer}>
       <View style={styles.fieldContainer}>
         <Text style={[styles.label, { color: theme.text }]}>
-          Email Address *
+          {t('invitation.email_address')}
         </Text>
         <TextInput
           style={[
@@ -374,7 +376,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
           ]}
           value={currentInvitation.email}
           onChangeText={email => setCurrentInvitation({ ...currentInvitation, email })}
-          placeholder="john.doe@example.com"
+          placeholder={t('invitation.email_placeholder')}
           placeholderTextColor={theme.textSecondary}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -383,7 +385,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
       
       <View style={styles.fieldContainer}>
         <Text style={[styles.label, { color: theme.text }]}>
-          Full Name *
+          {t('invitation.full_name')}
         </Text>
         <TextInput
           style={[
@@ -396,7 +398,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
           ]}
           value={currentInvitation.name}
           onChangeText={name => setCurrentInvitation({ ...currentInvitation, name })}
-          placeholder="John Doe"
+          placeholder={t('invitation.name_placeholder')}
           placeholderTextColor={theme.textSecondary}
         />
       </View>
@@ -405,7 +407,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
         <>
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.text }]}>
-              Subjects *
+              {t('invitation.subjects')}
             </Text>
             <ScrollView 
               style={styles.chipContainer}
@@ -461,7 +463,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
           
           <View style={styles.fieldContainer}>
             <Text style={[styles.label, { color: theme.text }]}>
-              Grade Levels *
+              {t('invitation.grade_levels')}
             </Text>
             <ScrollView 
               style={styles.chipContainer}
@@ -525,7 +527,7 @@ export const InvitationManager: React.FC<InvitationManagerProps> = ({
         onPress={addInvitation}
       >
         <Text style={[styles.addButtonText, { color: theme.onPrimary }]}>
-          Add to Invitation List
+          {t('invitation.add_to_list')}
         </Text>
       </TouchableOpacity>
     </View>

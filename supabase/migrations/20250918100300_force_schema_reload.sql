@@ -10,7 +10,7 @@ NOTIFY pgrst, 'reload schema';
 -- Ensure the function exists and is properly configured
 CREATE OR REPLACE FUNCTION public.ensure_petty_cash_account(preschool_uuid UUID)
 RETURNS UUID
-LANGUAGE PLPGSQL
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -79,12 +79,14 @@ GRANT EXECUTE ON FUNCTION public.ensure_petty_cash_account(UUID) TO authenticate
 GRANT EXECUTE ON FUNCTION public.ensure_petty_cash_account(UUID) TO anon;
 
 -- Add comment
-COMMENT ON FUNCTION public.ensure_petty_cash_account(UUID) IS 'Create petty cash account if it does not exist for preschool - handles table structure variations gracefully';
+COMMENT ON FUNCTION public.ensure_petty_cash_account(
+  UUID
+) IS 'Create petty cash account if it does not exist for preschool - handles table structure variations gracefully';
 
 -- Also create a simple test function to verify RPC is working
 CREATE OR REPLACE FUNCTION public.test_rpc()
 RETURNS TEXT
-LANGUAGE SQL
+LANGUAGE sql
 SECURITY DEFINER
 AS $$
   SELECT 'RPC functions are working correctly'::TEXT;

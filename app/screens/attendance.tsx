@@ -3,16 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { assertSupabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
-import { StatusBar } from 'expo-status-bar'
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar'
 import { Stack, router } from 'expo-router'
 import { track } from '@/lib/analytics'
 import { useSimplePullToRefresh } from '@/hooks/usePullToRefresh'
+import { useTheme } from '@/contexts/ThemeContext'
 
 export default function AttendanceScreen() {
   const { profile } = require('@/contexts/AuthContext') as any
   const hasActiveSeat = profile?.hasActiveSeat?.() || profile?.seat_status === 'active'
   const canManageClasses = hasActiveSeat || (!!profile?.hasCapability && profile.hasCapability('manage_classes' as any))
-  const palette = { background: '#0b1220', text: '#FFFFFF', textSecondary: '#9CA3AF', outline: '#1f2937', surface: '#111827', primary: '#00f5ff' }
+  const { theme } = useTheme()
+  const palette = { background: theme.background, text: theme.text, textSecondary: theme.textSecondary, outline: theme.border, surface: theme.surface, primary: theme.primary }
 
   const [classId, setClassId] = useState<string | null>(null)
   const [today, setToday] = useState<string>('')
@@ -124,7 +126,7 @@ export default function AttendanceScreen() {
         headerTintColor: palette.primary,
         headerBackVisible: true
       }} />
-      <StatusBar style="light" backgroundColor={palette.background} />
+      <ThemedStatusBar />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: palette.background }}>
         <ScrollView 
           contentContainerStyle={styles.container}

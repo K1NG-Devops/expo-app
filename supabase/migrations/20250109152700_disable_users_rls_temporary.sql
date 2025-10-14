@@ -8,10 +8,10 @@
 ALTER TABLE IF EXISTS public.users DISABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to clean slate
-DROP POLICY IF EXISTS "users_service_role_full_access" ON public.users;
-DROP POLICY IF EXISTS "users_superadmin_emergency_access" ON public.users;
-DROP POLICY IF EXISTS "users_self_record_access" ON public.users;
-DROP POLICY IF EXISTS "users_preschool_read_only" ON public.users;
+DROP POLICY IF EXISTS users_service_role_full_access ON public.users;
+DROP POLICY IF EXISTS users_superadmin_emergency_access ON public.users;
+DROP POLICY IF EXISTS users_self_record_access ON public.users;
+DROP POLICY IF EXISTS users_preschool_read_only ON public.users;
 
 -- Add a temporary marker
 COMMENT ON TABLE public.users IS 'TEMPORARY: RLS DISABLED for diagnostics - MUST RE-ENABLE';
@@ -26,22 +26,22 @@ BEGIN
 END $$;
 
 -- Add tracking record
-INSERT INTO public.config_kv (key, value, description, is_public) 
+INSERT INTO public.config_kv (key, value, description, is_public)
 VALUES (
-    'users_rls_temporary_disabled',
-    jsonb_build_object(
-        'disabled_at', now(),
-        'reason', 'diagnostic_500_error',
-        'superadmin_uuid', 'd2df36d4-74bc-4ffb-883b-036754764265',
-        'status', 'TEMPORARY_INSECURE'
-    ),
-    'TEMPORARY: Users table RLS disabled for diagnostics - SECURITY RISK',
-    false
-) ON CONFLICT (key) DO UPDATE SET 
-    value = jsonb_build_object(
-        'disabled_at', now(),
-        'reason', 'diagnostic_500_error',
-        'superadmin_uuid', 'd2df36d4-74bc-4ffb-883b-036754764265',
-        'status', 'TEMPORARY_INSECURE'
-    ),
-    updated_at = now();
+  'users_rls_temporary_disabled',
+  jsonb_build_object(
+    'disabled_at', now(),
+    'reason', 'diagnostic_500_error',
+    'superadmin_uuid', 'd2df36d4-74bc-4ffb-883b-036754764265',
+    'status', 'TEMPORARY_INSECURE'
+  ),
+  'TEMPORARY: Users table RLS disabled for diagnostics - SECURITY RISK',
+  FALSE
+) ON CONFLICT (key) DO UPDATE SET
+  value = jsonb_build_object(
+    'disabled_at', now(),
+    'reason', 'diagnostic_500_error',
+    'superadmin_uuid', 'd2df36d4-74bc-4ffb-883b-036754764265',
+    'status', 'TEMPORARY_INSECURE'
+  ),
+  updated_at = now();

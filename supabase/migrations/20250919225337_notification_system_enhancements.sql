@@ -506,7 +506,7 @@ VALUES (
   'notification_system_enhancements_20250919225337',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', NOW()::TEXT,
+    'completed_at', now()::TEXT,
     'functions_created', json_build_array(
       'create_system_notification',
       'notify_superadmins',
@@ -518,8 +518,8 @@ VALUES (
   'Notification system enhancements completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'NOTIFICATION SYSTEM ENHANCEMENTS COMPLETED' AS status;
 

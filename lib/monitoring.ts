@@ -126,6 +126,42 @@ function configurePostHogForAndroid() {
   };
 }
 
+/**
+ * Simple monitoring initialization for production use
+ */
+export function initMonitoring(config?: { enableInDevelopment?: boolean; environment?: string }) {
+  if (started) return;
+  started = true;
+
+  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+  if (!dsn) {
+    if (__DEV__) {
+      console.log('Monitoring: No Sentry DSN provided, skipping initialization');
+    }
+    return;
+  }
+
+  try {
+    Sentry.init({
+      dsn,
+      enableInExpoDevelopment: config?.enableInDevelopment ?? __DEV__,
+      debug: __DEV__,
+      environment: config?.environment || process.env.EXPO_PUBLIC_ENVIRONMENT || 'production',
+      tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+      beforeSend: (event) => {
+        // Enhanced PII scrubbing
+        return scrubPII(event);
+      },
+    });
+
+    if (__DEV__) {
+      console.log('Monitoring: Sentry initialized successfully');
+    }
+  } catch (error) {
+    console.warn('Monitoring: Failed to initialize Sentry', error);
+  }
+}
+
 export function startMonitoring() {
   if (started) return;
   started = true;

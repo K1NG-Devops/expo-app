@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Switch,
   Alert,
-  ActivityIndicator 
+  ActivityIndicator,
+  TextInput 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -30,7 +31,7 @@ export default function DashAISettingsScreen() {
     multilingualSupport: true,
     personality: 'encouraging' as 'professional' | 'casual' | 'encouraging' | 'formal',
     voiceLanguage: 'en-ZA',
-    voiceType: 'female_warm',
+    voiceType: 'male',
     voiceRate: 1.0,
     voicePitch: 1.0,
     // Chat Behavior Settings
@@ -41,7 +42,7 @@ export default function DashAISettingsScreen() {
     soundEnabled: true,
     voiceSettings: {
       language: 'en-ZA',
-      voice: 'female',
+      voice: 'male',
       rate: 1.0,
       pitch: 1.0,
       volume: 0.8
@@ -49,6 +50,12 @@ export default function DashAISettingsScreen() {
     inAppWakeWord: false,
   });
   const [availableVoices, setAvailableVoices] = useState<any[]>([]);
+  // Streaming preference toggle
+  const [streamingPref, setStreamingPref] = useState<boolean>(false);
+  const toggleStreamingPref = async (v: boolean) => {
+    setStreamingPref(v);
+    try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch {}
+  };
 
   useEffect(() => {
     initializeDashAI();
@@ -66,7 +73,7 @@ export default function DashAISettingsScreen() {
                       personality.response_style === 'casual' ? 'casual' : 
                       personality.response_style === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
         voiceLanguage: personality.voice_settings?.language || 'en-ZA',
-        voiceType: 'female_warm',
+        voiceType: 'male',
         voiceRate: personality.voice_settings?.rate || 1.0,
         voicePitch: personality.voice_settings?.pitch || 1.0,
         voiceEnabled: true,
@@ -81,7 +88,7 @@ export default function DashAISettingsScreen() {
         soundEnabled: true,
         voiceSettings: {
           language: personality.voice_settings?.language || 'en-ZA',
-          voice: 'female',
+          voice: 'male',
           rate: personality.voice_settings?.rate || 1.0,
           pitch: personality.voice_settings?.pitch || 1.0,
           volume: 0.8
@@ -212,6 +219,31 @@ export default function DashAISettingsScreen() {
     }
   };
 
+  // Voice chat preferences (dock)
+  const [voiceDefaultLock, setVoiceDefaultLock] = useState(false);
+  const [voiceAutoSpeak, setVoiceAutoSpeak] = useState(true);
+  const [voiceAutoSilenceMs, setVoiceAutoSilenceMs] = useState('7000');
+  const [voiceListenCapMs, setVoiceListenCapMs] = useState('15000');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const vdl = await AsyncStorage.getItem('@voice_default_lock');
+        const vas = await AsyncStorage.getItem('@voice_auto_speak');
+        const asMs = await AsyncStorage.getItem('@voice_auto_silence_ms');
+        const capMs = await AsyncStorage.getItem('@voice_listen_cap_ms');
+        if (vdl !== null) setVoiceDefaultLock(vdl === 'true');
+        if (vas !== null) setVoiceAutoSpeak(vas === 'true');
+        if (asMs) setVoiceAutoSilenceMs(asMs);
+        if (capMs) setVoiceListenCapMs(capMs);
+      } catch {}
+    })();
+  }, []);
+
+  const persistVoicePref = async (key: string, value: string) => {
+    try { await AsyncStorage.setItem(key, value); } catch {}
+  };
+
   const showSettingsToast = (message: string) => {
     // Simple alert for now - could be replaced with toast library
     console.log('🔊 Settings feedback:', message);
@@ -278,13 +310,13 @@ export default function DashAISettingsScreen() {
         );
         
         if (matchingVoices.length > 0) {
-          // Prefer female voices if available
-          const femaleVoice = matchingVoices.find(voice => 
-            voice.name?.toLowerCase().includes('female') || 
-            voice.name?.toLowerCase().includes('woman') ||
-            voice.gender === 'female'
+          // Prefer male voices if available
+          const maleVoice = matchingVoices.find(voice => 
+            voice.name?.toLowerCase().includes('male') || 
+            voice.name?.toLowerCase().includes('man') ||
+            voice.gender === 'male'
           );
-          selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+          selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
         }
       }
       
@@ -516,6 +548,21 @@ export default function DashAISettingsScreen() {
         {/* Main Settings */}
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>AI Settings</Text>
+
+          {/* Realtime Streaming (Beta) */}
+          <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+            <View style={styles.settingInfo}>
+              <Text style={[styles.settingTitle, { color: theme.text }]}>Realtime Streaming (Beta)</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>Stream voice input and get live assistant tokens</Text>
+              <Text style={[styles.settingSubtitle, { color: theme.textSecondary, marginTop: 4 }]}>Requires backend WebSocket at EXPO_PUBLIC_DASH_STREAM_URL</Text>
+            </View>
+            <Switch
+              value={streamingPref}
+              onValueChange={toggleStreamingPref}
+              trackColor={{ false: theme.border, true: `${theme.primary}40` }}
+              thumbColor={streamingPref ? theme.primary : '#f4f3f4'}
+            />
+          </View>
           
           {/* Personality Setting */}
           <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
@@ -988,4 +1035,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
+  inputCompact: { minWidth: 110, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, textAlign: 'right' }
 });

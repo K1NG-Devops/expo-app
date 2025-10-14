@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Theme Context for EduDash Pro
  * 
@@ -138,7 +139,7 @@ export interface ThemeColors {
   };
 }
 
-// Light theme colors
+// Light theme colors - Soft, eye-friendly palette with proper depth
 const lightTheme: ThemeColors = {
   // Primary colors
   primary: '#4F46E5',
@@ -152,11 +153,11 @@ const lightTheme: ThemeColors = {
   secondaryDark: '#0891B2',
   onSecondary: '#FFFFFF',
   
-  // Background colors
-  background: '#FFFFFF',
-  surface: '#F9FAFB',
-  surfaceVariant: '#F3F4F6',
-  elevated: '#FFFFFF',
+  // Background colors - softer, less harsh
+  background: '#F5F6F7',  // Soft light gray instead of pure white
+  surface: '#FFFFFF',      // Cards/elevated surfaces are white for contrast
+  surfaceVariant: '#ECEFF1', // Slightly darker for depth
+  elevated: '#FFFFFF',     // Elevated elements stay white
   
   // Text colors
   text: '#111827',
@@ -164,10 +165,10 @@ const lightTheme: ThemeColors = {
   textTertiary: '#9CA3AF',
   textDisabled: '#D1D5DB',
   
-  // UI element colors
-  border: '#E5E7EB',
-  borderLight: '#F3F4F6',
-  divider: '#E5E7EB',
+  // UI element colors - stronger borders for better definition
+  border: '#D1D5DB',      // More visible borders
+  borderLight: '#E5E7EB', // Subtle borders
+  divider: '#E0E3E7',     // Clear dividers
   
   // Status colors
   success: '#10B981',
@@ -200,9 +201,9 @@ const lightTheme: ThemeColors = {
   tint: '#4F46E5',
   tabIconDefault: '#9CA3AF',
   tabIconSelected: '#4F46E5',
-  cardBackground: '#FFFFFF',
+  cardBackground: '#FFFFFF',      // Cards are white on gray background
   modalBackground: '#FFFFFF',
-  modalOverlay: 'rgba(0, 0, 0, 0.5)',
+  modalOverlay: 'rgba(0, 0, 0, 0.6)', // Darker overlay for better focus
   
   // Input colors
   inputBackground: '#F9FAFB',
@@ -212,13 +213,13 @@ const lightTheme: ThemeColors = {
   inputPlaceholder: '#9CA3AF',
   
   // Navigation colors
-  headerBackground: '#FFFFFF',
+  headerBackground: '#FFFFFF',     // Header stays white for elevation
   headerText: '#111827',
   headerTint: '#4F46E5',
   
-  // Shadow and overlay
-  shadow: 'rgba(0, 0, 0, 0.1)',
-  overlay: 'rgba(0, 0, 0, 0.3)',
+  // Shadow and overlay - more pronounced for depth
+  shadow: 'rgba(0, 0, 0, 0.12)',   // Stronger shadows
+  overlay: 'rgba(0, 0, 0, 0.4)',
   
   // Chart colors
   chartPrimary: '#4F46E5',
@@ -228,22 +229,22 @@ const lightTheme: ThemeColors = {
   chartQuinary: '#8B5CF6',
   
   // Notification colors
-  notificationBackground: '#F3F4F6',
+  notificationBackground: '#ECEFF1',
   notificationText: '#111827',
-  notificationBorder: '#E5E7EB',
+  notificationBorder: '#D1D5DB',
 
   // Alias map for components expecting Material-like theme.colors
   colors: {
     primary: '#4F46E5',
     onPrimary: '#FFFFFF',
-    primaryContainer: '#F3F4F6',
+    primaryContainer: '#ECEFF1',
     onPrimaryContainer: '#111827',
-    surface: '#F9FAFB',
-    surfaceVariant: '#F3F4F6',
+    surface: '#FFFFFF',
+    surfaceVariant: '#ECEFF1',
     onSurface: '#111827',
     onSurfaceVariant: '#6B7280',
-    outline: '#E5E7EB',
-    background: '#FFFFFF',
+    outline: '#D1D5DB',
+    background: '#F5F6F7',
     error: '#EF4444',
     errorContainer: '#F87171',
     onErrorContainer: '#FFFFFF',
@@ -431,9 +432,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       const savedMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       if (savedMode && ['light', 'dark', 'system'].includes(savedMode)) {
         setModeState(savedMode as ThemeMode);
-        if (__DEV__) console.log('[Theme] Loaded persisted mode:', savedMode);
+        if (__DEV__) logger.info('[Theme] Loaded persisted mode:', savedMode);
       } else if (__DEV__) {
-        console.log('[Theme] No persisted mode found, defaulting to system');
+        logger.info('[Theme] No persisted mode found, defaulting to system');
       }
     } catch (error) {
       console.error('Failed to load theme mode:', error);

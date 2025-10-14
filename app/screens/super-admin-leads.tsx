@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import SalesLeads from '@/components/superadmin/SalesLeads';
@@ -12,7 +12,7 @@ export default function SuperAdminLeadsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <ThemedStatusBar />
       <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.background }]}>
         <RoleBasedHeader 
           title="Sales/Leads" 

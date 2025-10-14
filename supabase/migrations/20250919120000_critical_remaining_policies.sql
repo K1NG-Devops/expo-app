@@ -7,9 +7,9 @@
 -- ============================================
 
 -- Ensure app_auth schema exists (dependency check)
-SELECT 1 FROM pg_proc p
+SELECT 1 FROM pg_proc AS p
 WHERE p.proname = 'is_super_admin' AND p.pronamespace = (
-  SELECT n.oid FROM pg_namespace n
+  SELECT n.oid FROM pg_namespace AS n
   WHERE n.nspname = 'app_auth'
 );
 
@@ -182,7 +182,7 @@ ON billing_plans
 FOR SELECT
 TO public
 USING (
-  active = true
+  active = TRUE
 );
 
 -- Write Policy - Only superadmins can modify
@@ -210,7 +210,7 @@ ON push_notifications (preschool_id);
 CREATE INDEX IF NOT EXISTS idx_homework_assignments_preschool_id
 ON homework_assignments (preschool_id);
 
-CREATE INDEX IF NOT EXISTS idx_lessons_preschool_id  
+CREATE INDEX IF NOT EXISTS idx_lessons_preschool_id
 ON lessons (preschool_id);
 
 CREATE INDEX IF NOT EXISTS idx_ai_generations_preschool_id

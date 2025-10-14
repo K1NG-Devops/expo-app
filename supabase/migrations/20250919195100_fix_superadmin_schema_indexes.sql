@@ -300,9 +300,9 @@ VALUES (
     'purpose', 'Fix schema mismatches and index creation errors'
   ),
   'Superadmin schema fix migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'SUPERADMIN SCHEMA FIX COMPLETED' AS status;

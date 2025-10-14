@@ -113,30 +113,35 @@ export const OrganizationSetup: React.FC<OrganizationSetupProps> = ({
         return value ? { isValid: true, errors: [] } : { isValid: false, errors: ['City is required'] };
       case 'address.state':
         return value ? { isValid: true, errors: [] } : { isValid: false, errors: ['State is required'] };
-      case 'address.zipCode':
+      case 'address.zipCode': {
         const zipRegex = /^\d{5}(-\d{4})?$/;
         return zipRegex.test(value) 
           ? { isValid: true, errors: [] } 
           : { isValid: false, errors: ['Please enter a valid ZIP code'] };
-      case 'website':
+      }
+      case 'website': {
         if (!value) return { isValid: true, errors: [] };
+        // eslint-disable-next-line no-useless-escape
         const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
         return urlRegex.test(value)
           ? { isValid: true, errors: [] }
           : { isValid: false, errors: ['Please enter a valid website URL'] };
-      case 'studentCapacity':
+      }
+      case 'studentCapacity': {
         if (!value) return { isValid: true, errors: [] };
         const capacity = parseInt(value);
         return capacity > 0 && capacity < 100000
           ? { isValid: true, errors: [] }
           : { isValid: false, errors: ['Please enter a valid student capacity'] };
-      case 'establishedYear':
+      }
+      case 'establishedYear': {
         if (!value) return { isValid: true, errors: [] };
         const year = parseInt(value);
         const currentYear = new Date().getFullYear();
         return year > 1800 && year <= currentYear
           ? { isValid: true, errors: [] }
           : { isValid: false, errors: ['Please enter a valid established year'] };
+      }
       default:
         return { isValid: true, errors: [] };
     }

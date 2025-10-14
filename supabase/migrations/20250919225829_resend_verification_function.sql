@@ -167,7 +167,7 @@ VALUES (
   'resend_verification_function_20250919225829',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', NOW()::TEXT,
+    'completed_at', now()::TEXT,
     'functions_created', json_build_array(
       'resend_school_verification'
     ),
@@ -176,8 +176,8 @@ VALUES (
   'Resend verification function completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'RESEND VERIFICATION FUNCTION COMPLETED' AS status;
 

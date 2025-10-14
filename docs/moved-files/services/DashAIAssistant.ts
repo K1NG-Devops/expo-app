@@ -517,7 +517,13 @@ export class DashAIAssistant {
         return;
       }
 
-      await Audio.requestPermissionsAsync();
+      // Request permissions with proper error handling
+      const permissionResult = await Audio.requestPermissionsAsync();
+      if (!permissionResult.granted) {
+        console.warn('[Dash] Audio recording permission denied');
+        // Don't throw here - let the recording attempt handle permission request
+        return;
+      }
 
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({
@@ -530,8 +536,11 @@ export class DashAIAssistant {
           playThroughEarpieceAndroid: false,
         } as any);
       }
+      
+      console.log('[Dash] Audio initialized with permissions');
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
+      // Don't throw here - allow the app to continue without audio
     }
   }
 
@@ -640,6 +649,14 @@ export class DashAIAssistant {
     }
 
     try {
+      // Check and request permissions first
+      if (Platform.OS !== 'web') {
+        const permissionResult = await Audio.requestPermissionsAsync();
+        if (!permissionResult.granted) {
+          throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
+        }
+      }
+
       // Web compatibility checks for recording support and secure context
       if (Platform.OS === 'web') {
         try {
@@ -726,6 +743,69 @@ export class DashAIAssistant {
       console.error('[Dash] Failed to stop recording:', error);
       throw error;
     }
+  }
+
+  /**
+   * Pre-warm the recorder for faster start times
+   */
+  public async preWarmRecorder(): Promise<void> {
+    // Pre-warming logic can go here if needed
+    // For now, this is a no-op as startRecording handles initialization
+    return Promise.resolve();
+  }
+
+  /**
+   * Transcribe audio only without sending to AI
+   */
+  public async transcribeOnly(audioUri: string): Promise<{
+    transcript: string;
+    duration: number;
+    storagePath?: string;
+    contentType?: string;
+    language?: string;
+    provider?: string;
+  }> {
+    return this.transcribeAudio(audioUri);
+  }
+
+  /**
+   * Send a pre-prepared voice message (already transcribed)
+   */
+  public async sendPreparedVoiceMessage(
+    audioUri: string,
+    transcript: string,
+    duration: number,
+    conversationId?: string
+  ): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId;
+    if (!convId) {
+      throw new Error('No active conversation');
+    }
+
+    // Create user message with voice note
+    const userMessage: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: transcript,
+      timestamp: Date.now(),
+      voiceNote: {
+        audioUri,
+        duration,
+        transcript,
+        contentType: 'audio/m4a',
+        language: 'en-US',
+        provider: 'local'
+      }
+    };
+
+    // Add to conversation
+    await this.addMessageToConversation(convId, userMessage);
+
+    // Generate AI response
+    const assistantResponse = await this.generateResponse(transcript, convId);
+    await this.addMessageToConversation(convId, assistantResponse);
+
+    return assistantResponse;
   }
 
   /**

@@ -1,21 +1,19 @@
 /*
- * Lightweight logging helpers to gate console noise in production builds.
- *
- * Usage:
- * - import { log, warn, debug, error } from '@/lib/debug'
- * - log/warn/debug are no-ops in production by default; error always logs
- * - To enable logs in production builds, set EXPO_PUBLIC_ENABLE_CONSOLE=true at build time
+ * DEPRECATED: Use @/lib/logger instead
+ * 
+ * This module now re-exports logger methods to maintain compatibility
+ * while ensuring all logging goes through a single, consistent system.
  */
+
+import { logger } from './logger';
 
 export type LogFn = (...args: any[]) => void;
 
-// Allow enabling logs in production via env flag
-const ENABLE_CONSOLE = (__DEV__ as boolean) || process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true';
-
-export const log: LogFn = ENABLE_CONSOLE ? console.log.bind(console) : () => {};
-export const warn: LogFn = ENABLE_CONSOLE ? console.warn.bind(console) : () => {};
-export const debug: LogFn = ENABLE_CONSOLE ? console.debug.bind(console) : () => {};
-export const error: LogFn = console.error.bind(console);
+// Re-export logger methods for backward compatibility
+export const log: LogFn = (message: string, ...args: any[]) => logger.info(message, ...args);
+export const warn: LogFn = (message: string, ...args: any[]) => logger.warn(message, ...args);
+export const debug: LogFn = (message: string, ...args: any[]) => logger.debug(message, ...args);
+export const error: LogFn = (message: string, ...args: any[]) => logger.error(message, ...args);
 
 // Optional: helper to safely stringify objects without throwing
 export function safeJson(value: any, space: number = 2): string {
@@ -25,3 +23,6 @@ export function safeJson(value: any, space: number = 2): string {
     return String(value);
   }
 }
+
+// Re-export the main logger as default
+export { logger as default } from './logger';

@@ -38,62 +38,62 @@ CREATE POLICY teachers_read_access
 ON public.teachers
 FOR SELECT
 USING (
-    -- Tenant-scoped access for principal-level and above (role level >= 3)
+  -- Tenant-scoped access for principal-level and above (role level >= 3)
+  (
     (
+      app_auth.has_role_level(3)
+      OR lower(app_auth.role()) IN ('admin', 'superadmin')
+    )
+    AND preschool_id = coalesce(
+      nullif(
         (
-            app_auth.has_role_level(3)
-            OR lower(app_auth.role()) IN ('admin', 'superadmin')
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (
-                        current_setting('request.jwt.claims', true)::jsonb
-                    ) ->> 'preschool_id'
-                ),
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (
-                        current_setting('request.jwt.claims', true)::jsonb
-                    ) ->> 'organization_id'
-                ),
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+          (
+            current_setting('request.jwt.claims', TRUE)::jsonb
+          ) ->> 'preschool_id'
+        ),
+        ''
+      )::uuid,
+      nullif(
+        (
+          (
+            current_setting('request.jwt.claims', TRUE)::jsonb
+          ) ->> 'organization_id'
+        ),
+        ''
+      )::uuid,
+      app_auth.org_id()
     )
-    OR
-    -- Teachers can see each other within the same preschool
-    (
-        app_auth.is_teacher()
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (
-                        current_setting('request.jwt.claims', true)::jsonb
-                    ) ->> 'preschool_id'
-                ),
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (
-                        current_setting('request.jwt.claims', true)::jsonb
-                    ) ->> 'organization_id'
-                ),
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+  )
+  OR
+  -- Teachers can see each other within the same preschool
+  (
+    app_auth.is_teacher()
+    AND preschool_id = coalesce(
+      nullif(
+        (
+          (
+            current_setting('request.jwt.claims', TRUE)::jsonb
+          ) ->> 'preschool_id'
+        ),
+        ''
+      )::uuid,
+      nullif(
+        (
+          (
+            current_setting('request.jwt.claims', TRUE)::jsonb
+          ) ->> 'organization_id'
+        ),
+        ''
+      )::uuid,
+      app_auth.org_id()
     )
-    OR
-    -- Teacher self-access, regardless of FK target table
-    (
-        user_id = app_auth.user_id()
-        OR user_id = app_auth.public_user_id()
-    )
+  )
+  OR
+  -- Teacher self-access, regardless of FK target table
+  (
+    user_id = app_auth.user_id()
+    OR user_id = app_auth.public_user_id()
+  )
 );
 
 COMMIT;

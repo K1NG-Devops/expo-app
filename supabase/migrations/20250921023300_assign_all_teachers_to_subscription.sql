@@ -10,7 +10,7 @@ CREATE OR REPLACE FUNCTION public.assign_all_teachers_to_subscription(
   p_subscription_id uuid,
   p_school_id uuid
 )
-RETURNS TABLE(
+RETURNS TABLE (
   user_id uuid,
   assigned boolean,
   reason text

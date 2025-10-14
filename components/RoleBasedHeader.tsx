@@ -69,7 +69,7 @@ export function RoleBasedHeader({
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
 
-  // Load avatar URL from user metadata or profiles table
+  // Load avatar URL from user metadata, profiles, or users table
   useEffect(() => {
     const loadAvatarUrl = async () => {
       if (!user?.id) {
@@ -96,6 +96,24 @@ export function RoleBasedHeader({
           console.debug('Failed to load avatar from profiles:', error);
         }
       }
+
+      // If still not found, try users table (fallback)
+      if (!url) {
+        try {
+          const { data: userData } = await assertSupabase()
+            .from('users')
+            .select('avatar_url')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+          
+          if (userData?.avatar_url) {
+            url = userData.avatar_url;
+            console.log('✓ Avatar loaded from users table:', url);
+          }
+        } catch (error) {
+          console.debug('Failed to load avatar from users:', error);
+        }
+      }
       
       // Check if URL is a local file:// URI on web platform - don't use these
       if (Platform.OS === 'web' && url && url.startsWith('file://')) {
@@ -103,6 +121,7 @@ export function RoleBasedHeader({
         url = null;
       }
       
+      console.log('Avatar URL loaded:', url ? 'Found' : 'Not found');
       setAvatarUrl(url || null);
     };
 
@@ -409,12 +428,28 @@ export function RoleBasedHeader({
 
               <View style={[styles.menuDivider, { backgroundColor: theme.divider }]} />
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/(auth)/sign-in?switch=1'); }}>
+              <TouchableOpacity 
+                style={styles.menuItem} 
+                onPress={() => {
+                  // Close menu immediately
+                  setMenuVisible(false);
+                  // Perform sign-out without delay
+                  signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in?switch=1' });
+                }}
+              >
                 <Ionicons name="swap-horizontal" size={18} color={theme.textSecondary} />
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Switch account</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}>
+              <TouchableOpacity 
+                style={styles.menuItem} 
+                onPress={() => {
+                  // Close menu immediately
+                  setMenuVisible(false);
+                  // Perform sign-out without delay
+                  signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' });
+                }}
+              >
                 <Ionicons name="log-out-outline" size={18} color={theme.error} />
                 <Text style={[styles.menuItemText, { color: theme.error }]}>Sign out</Text>
               </TouchableOpacity>
@@ -449,7 +484,7 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 56,
+    height: 64,
     paddingHorizontal: 16,
   },
   leftSection: {
@@ -492,10 +527,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   rightSection: {
-    width: 88, // Increased width to fit both buttons
-    alignItems: 'flex-end',
+    minWidth: 120,
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
   },
   themeButton: {
     width: 32,

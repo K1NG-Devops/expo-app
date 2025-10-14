@@ -20,19 +20,38 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Vibration,
+  ActionSheetIOS,
 } from 'react-native';
+import { FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashMessage, DashConversation } from '@/services/DashAIAssistant';
+import { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useVoiceController } from '@/hooks/useVoiceController';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import { toast } from '@/components/ui/ToastProvider';
+import { VoiceRecorderSheet } from '@/components/ai/VoiceRecorderSheet';
+import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
+import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
+import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
 import { assertSupabase } from '@/lib/supabase';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import { 
+  pickDocuments, 
+  pickImages, 
+  uploadAttachment,
+  getFileIconName,
+  formatFileSize 
+} from '@/services/AttachmentService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -48,24 +67,34 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   initialMessage
 }: DashAssistantProps) => {
   const { theme, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { setLayout } = useDashboardPreferences();
   const [messages, setMessages] = useState<DashMessage[]>([]);
+  const [conversation, setConversation] = useState<DashConversation | null>(null);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  const [conversation, setConversation] = useState<DashConversation | null>(null);
+  const [showVoiceRecorderModal, setShowVoiceRecorderModal] = useState(false);
+  const [pendingVoiceModal, setPendingVoiceModal] = useState(false);
+  const [voiceTimerMs, setVoiceTimerMs] = useState(0);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
-
+  // Voice send UX placeholder
+  const [showVoiceSending, setShowVoiceSending] = useState(false);
+  const [pendingVoiceMs, setPendingVoiceMs] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+  // Track the last synced conversation state to avoid redundant updates that can cause loops
+  const lastSyncRef = useRef<{ convId?: string; lastId?: string; length: number } | null>(null);
 
   // Initialize Dash AI Assistant
   useEffect(() => {
@@ -145,50 +174,102 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
-  // Auto-scroll to bottom when messages change
+  // Pre-warm recorder after initialization for faster start
   useEffect(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    if (dashInstance && isInitialized) {
+      try { dashInstance.preWarmRecorder(); } catch {}
+    }
+  }, [dashInstance, isInitialized]);
+
+  // If user tapped mic before Dash was ready, open the modal once ready
+  useEffect(() => {
+    console.log('[DashAssistant] Pending voice modal check:', {
+      pendingVoiceModal,
+      dashInstance: !!dashInstance,
+      isInitialized,
+      showVoiceRecorderModal
+    });
+    if (pendingVoiceModal && dashInstance && isInitialized) {
+      console.log('[DashAssistant] Opening deferred voice modal');
+      setShowVoiceRecorderModal(true);
+      setPendingVoiceModal(false);
+    }
+  }, [pendingVoiceModal, dashInstance, isInitialized]);
+
+  // Log modal state changes
+  useEffect(() => {
+    console.log('[DashAssistant] Voice recorder modal state changed:', showVoiceRecorderModal);
+  }, [showVoiceRecorderModal]);
+
+  // Auto-scroll to last message on messages change (initial load and updates)
+  useEffect(() => {
+    if (messages.length > 0 && flatListRef.current) {
+      // Delay slightly to ensure layout is complete
+      setTimeout(() => {
+        try {
+          const lastIndex = messages.length - 1;
+          flatListRef.current?.scrollToIndex({ 
+            index: lastIndex, 
+            animated: true,
+            viewPosition: 1 // 1 = bottom of viewport
+          });
+        } catch (e) {
+          // Fallback: scroll to end if scrollToIndex fails
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }
+      }, 100);
+    }
   }, [messages]);
 
-  // Pulse animation for recording
+  // Additional scroll to bottom when modal first appears
   useEffect(() => {
-    if (isRecording) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnimation, {
-            toValue: 1.2,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    }
-  }, [isRecording, pulseAnimation]);
+    try {
+      if (messages && messages.length > 0) {
+        const idx = messages.length - 1;
+        setTimeout(() => {
+          try { flatListRef.current?.scrollToIndex({ index: idx, animated: false }); } catch {}
+        }, 0);
+      }
+    } catch {}
+  }, [messages.length]);
+
 
   // Focus effect to refresh when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // Refresh conversation when screen focuses
-      if (dashInstance && conversation) {
-        dashInstance.getConversation(conversation.id).then((updatedConv: any) => {
-          if (updatedConv && updatedConv.messages.length !== messages.length) {
-            setMessages(updatedConv.messages);
+      let cancelled = false;
+
+      const refreshConversation = async () => {
+        try {
+          if (!dashInstance || !conversation?.id) return;
+          const updatedConv = await dashInstance.getConversation(conversation.id);
+          if (!updatedConv || cancelled) return;
+
+          const msgs: DashMessage[] = updatedConv.messages || [];
+          const lastId = msgs.length > 0 ? msgs[msgs.length - 1].id : 'none';
+          const prev = lastSyncRef.current;
+
+          const changed =
+            !prev ||
+            prev.convId !== updatedConv.id ||
+            prev.length !== msgs.length ||
+            prev.lastId !== lastId;
+
+          if (changed) {
             setConversation(updatedConv);
+            setMessages(msgs);
+            lastSyncRef.current = { convId: updatedConv.id, lastId, length: msgs.length };
           }
-        });
-      }
+        } catch {
+          // ignore
+        }
+      };
+
+      refreshConversation();
 
       // Return cleanup function that runs when screen loses focus
       return () => {
+        cancelled = true;
         if (dashInstance && isSpeaking) {
           setIsSpeaking(false);
           dashInstance.stopSpeaking().catch(() => {
@@ -196,7 +277,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           });
         }
       };
-    }, [dashInstance, conversation, messages.length, isSpeaking])
+    }, [dashInstance, conversation?.id])
   );
 
   // Cleanup effect to stop speech when component unmounts
@@ -222,8 +303,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       }
     };
 
-    // Only add event listener if we're in a web environment
-    if (typeof window !== 'undefined') {
+    // Only add event listener if we're in a web environment with proper DOM API
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
@@ -238,15 +319,46 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     return false
   }
 
-  const sendMessage = async (text: string = inputText.trim()) => {
-    if (!text || !dashInstance || isLoading) return;
+const sendMessage = async (text: string = inputText.trim(), attachmentsOverride?: DashAttachment[]) => {
+const attachmentsToUpload = attachmentsOverride ?? selectedAttachments;
+if ((!text && attachmentsToUpload.length === 0) || !dashInstance || isLoading) return;
 
     try {
       setIsLoading(true);
+      setIsUploading(true);
       setInputText('');
 
-      const userText = text
+      // Upload attachments first if any
+      const uploadedAttachments: DashAttachment[] = [];
+if (attachmentsToUpload.length > 0 && conversation?.id) {
+for (const attachment of attachmentsToUpload) {
+          try {
+            updateAttachmentProgress(attachment.id, 0, 'uploading');
+            const uploaded = await uploadAttachment(
+              attachment, 
+              conversation.id,
+              (progress) => updateAttachmentProgress(attachment.id, progress)
+            );
+            updateAttachmentProgress(attachment.id, 100, 'uploaded');
+            uploadedAttachments.push(uploaded);
+          } catch (error) {
+            console.error(`Failed to upload ${attachment.name}:`, error);
+            updateAttachmentProgress(attachment.id, 0, 'failed');
+            Alert.alert(
+              'Upload Failed', 
+              `Failed to upload ${attachment.name}. Please try again.`
+            );
+          }
+        }
+      }
+
+      setIsUploading(false);
+
+      const userText = text || 'Attached files';
       const response = await dashInstance.sendMessage(userText);
+      
+      // Clear selected attachments after successful send
+      setSelectedAttachments([]);
       
       // Handle dashboard actions if present
       if (response.metadata?.dashboard_action?.type === 'switch_layout') {
@@ -310,7 +422,9 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
       // Auto-speak response if enabled
       setTimeout(() => {
-        speakResponse(response);
+        try {
+          if (autoSpeak) speakResponse(response);
+        } catch {}
       }, 500);
 
     } catch (error) {
@@ -318,116 +432,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       Alert.alert('Error', 'Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
+      setIsUploading(false);
     }
   };
 
-  const startRecording = async () => {
-    if (!dashInstance || isRecording) return;
-
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setIsRecording(true);
-      await dashInstance.startRecording();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!dashInstance || !isRecording) return;
-
-    try {
-      setIsRecording(false);
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      const audioUri = await dashInstance.stopRecording();
-      if (audioUri) {
-        setIsLoading(true);
-        const response = await dashInstance.sendVoiceMessage(audioUri);
-        
-        // Handle dashboard actions if present
-        if (response.metadata?.dashboard_action?.type === 'switch_layout') {
-          const newLayout = response.metadata.dashboard_action.layout;
-          if (newLayout && (newLayout === 'classic' || newLayout === 'enhanced')) {
-            console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
-            setLayout(newLayout);
-
-            // Provide haptic feedback
-            try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            } catch { /* Haptics not available */ }
-          }
-        }
-
-        if (response.metadata?.dashboard_action?.type === 'open_screen') {
-          const { route, params } = response.metadata.dashboard_action as any;
-          console.log(`[Dash] Proposed open_screen: ${route}`, params || {});
-          if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
-            Alert.alert(
-              'Open Lesson Generator?',
-              'Dash suggests opening the AI Lesson Generator with prefilled details. Please confirm the fields in the next screen, then press Generate to start.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
-              ]
-            );
-          } else {
-            try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
-          }
-        } else if ((response.metadata?.dashboard_action?.type as string) === 'export_pdf') {
-          const { title, content } = response.metadata.dashboard_action as any;
-          Alert.alert(
-            'Generate PDF?',
-            'Create a PDF from the latest Dash response?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Generate', onPress: async () => {
-                try { await dashInstance.exportTextAsPDF(title || 'Dash Export', content || response.content || ''); }
-                catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
-              } }
-            ]
-          );
-        }
-        
-        // Update messages from conversation
-        const updatedConv = await dashInstance.getConversation(dashInstance.getCurrentConversationId()!);
-        if (updatedConv) {
-          setMessages(updatedConv.messages);
-          setConversation(updatedConv);
-        }
-
-        // Offer to open Lesson Generator when intent detected
-        try {
-          const intentType = response?.metadata?.user_intent?.primary_intent || ''
-          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator('voice input', response?.content)
-          if (shouldOpen) {
-            setTimeout(() => {
-              Alert.alert(
-                'Open Lesson Generator?',
-                'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
-                [
-                  { text: 'Not now', style: 'cancel' },
-                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext('voice input', response?.content || '') }
-                ]
-              )
-            }, 200)
-          }
-        } catch {}
-
-        // Auto-speak response
-        setTimeout(() => {
-          speakResponse(response);
-        }, 500);
-      }
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to process voice message. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const speakResponse = async (message: DashMessage) => {
     console.log(`[DashAssistant] speakResponse called for message: ${message.id}`);
@@ -509,6 +517,146 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   };
 
+  const handleAttachFile = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const options = [
+        'Documents',
+        'Photos',
+        'Cancel'
+      ];
+      
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options,
+            cancelButtonIndex: 2,
+            title: 'Select files to attach'
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) {
+              handlePickDocuments();
+            } else if (buttonIndex === 1) {
+              handlePickImages();
+            }
+          }
+        );
+      } else {
+        // For Android, show a simple alert
+        Alert.alert(
+          'Attach Files',
+          'Choose the type of files to attach',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Documents', onPress: handlePickDocuments },
+            { text: 'Photos', onPress: handlePickImages }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Failed to show file picker:', error);
+    }
+  };
+
+  const handlePickDocuments = async () => {
+    try {
+      const documents = await pickDocuments();
+      if (documents.length > 0) {
+        setSelectedAttachments(prev => [...prev, ...documents]);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to pick documents:', error);
+      Alert.alert('Error', 'Failed to select documents. Please try again.');
+    }
+  };
+
+  const handlePickImages = async () => {
+    try {
+      const images = await pickImages();
+      if (images.length > 0) {
+        setSelectedAttachments(prev => [...prev, ...images]);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to pick images:', error);
+      Alert.alert('Error', 'Failed to select images. Please try again.');
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedAttachments(prev => prev.filter(att => att.id !== attachmentId));
+    } catch (error) {
+      console.error('Failed to remove attachment:', error);
+    }
+  };
+
+  const updateAttachmentProgress = (attachmentId: string, progress: number, status?: DashAttachment['status']) => {
+    setSelectedAttachments(prev => prev.map(att => 
+      att.id === attachmentId 
+        ? { ...att, uploadProgress: progress, ...(status && { status }) }
+        : att
+    ));
+  };
+
+  // Download a PDF proposed by Dash (web: browser download; native: share sheet)
+  const handleDownloadPdf = async (title: string, content: string) => {
+    try {
+      if (!dashInstance) return;
+      const res = await dashInstance.exportTextAsPDFForDownload(title || 'Dash Export', content || '');
+      if (!res.success || !res.uri) {
+        Alert.alert('PDF Export', 'Failed to generate PDF');
+        return;
+      }
+      if (Platform.OS === 'web') {
+        try {
+          const a = document.createElement('a');
+          a.href = res.uri;
+          a.download = res.filename || 'dash-export.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch {
+          Alert.alert('PDF Ready', 'Your PDF is ready. If download did not start, long-press the link to save.');
+        }
+      } else {
+        try {
+          await Sharing.shareAsync(res.uri, { mimeType: 'application/pdf' });
+        } catch {
+          Alert.alert('PDF Ready', `Saved as ${res.filename || 'export.pdf'}`);
+        }
+      }
+    } catch (e) {
+      console.error('handleDownloadPdf error', e);
+      Alert.alert('PDF Export', 'Failed to generate PDF');
+    }
+  };
+
+  // Open or share an attachment chip inside a message
+  const handleOpenAttachment = async (att: DashAttachment) => {
+    try {
+      if (att.previewUri) {
+        if (Platform.OS === 'web') {
+          const a = document.createElement('a');
+          a.href = att.previewUri;
+          a.download = att.name || 'attachment';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          await Sharing.shareAsync(att.previewUri, { mimeType: att.mimeType || 'application/octet-stream' });
+        }
+        return;
+      }
+      Alert.alert('Attachment', 'This attachment is not immediately downloadable in this build.');
+    } catch (e) {
+      Alert.alert('Error', 'Unable to open attachment');
+    }
+  };
+
   const renderMessage = (message: DashMessage, index: number) => {
     const isUser = message.type === 'user';
     const isLastMessage = index === messages.length - 1;
@@ -523,7 +671,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       return false;
     })();
     
-    return (
+return (
       <View
         key={message.id}
         style={[
@@ -531,108 +679,58 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           isUser ? styles.userMessage : styles.assistantMessage,
         ]}
       >
-        
-        <View
-          style={[
-            styles.messageBubble,
-            isUser
-              ? { backgroundColor: theme.primary, marginLeft: screenWidth * 0.15 }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1, marginRight: screenWidth * 0.25 },
-          ]}
-        >
-          {!isUser && (
-            <View style={styles.bubbleHeaderRow}>
-              <View style={[styles.inlineAvatar, { backgroundColor: theme.primary }]}>
-                <Ionicons name="sparkles" size={14} color={theme.onPrimary} />
-              </View>
-            </View>
-          )}
-          <View style={styles.messageContentRow}>
-            <Text
-              style={[
-                styles.messageText,
-                { color: isUser ? theme.onPrimary : theme.text, flex: 1 },
-              ]}
-            >
-              {message.content}
-            </Text>
-            
-            {isUser && isLastUserMessage && !isLoading && (
-              <TouchableOpacity
-                style={styles.inlineBubbleRetryButton}
-                onPress={() => sendMessage(message.content)}
-                accessibilityLabel="Try again"
-                activeOpacity={0.7}
-              >
-                <Ionicons 
-                  name="refresh" 
-                  size={14} 
-                  color={theme.onPrimary} 
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          {message.voiceNote && (
-            <View style={styles.voiceNoteIndicator}>
-              <Ionicons 
-                name="mic" 
-                size={12} 
-                color={isUser ? theme.onPrimary : theme.textSecondary} 
-              />
-              <Text
-                style={[
-                  styles.voiceNoteDuration,
-                  { color: isUser ? theme.onPrimary : theme.textSecondary },
-                ]}
-              >
-                {Math.round((message.voiceNote.duration || 0) / 1000)}s
-              </Text>
-            </View>
-          )}
-          
-          {/* Bottom row with speak button (left) and timestamp (right) */}
-          <View style={styles.messageBubbleFooter}>
-            {!isUser && (
-              <TouchableOpacity
-                style={[
-                  styles.inlineSpeakButton, 
-                  { 
-                    backgroundColor: speakingMessageId === message.id ? theme.error : theme.accent,
-                  }
-                ]}
-                onPress={() => {
-                  console.log(`[DashAssistant] Speak button pressed for message ${message.id}`);
-                  console.log(`[DashAssistant] Currently speaking: ${speakingMessageId}`);
-                  console.log(`[DashAssistant] Is same message: ${speakingMessageId === message.id}`);
-                  speakResponse(message);
-                }}
-                activeOpacity={0.7}
-                accessibilityLabel={speakingMessageId === message.id ? "Stop speaking" : "Speak message"}
-              >
-                <Ionicons 
-                  name={speakingMessageId === message.id ? "stop" : "volume-high"} 
-                  size={12} 
-                  color={speakingMessageId === message.id ? theme.onError || theme.background : theme.onAccent} 
-                />
-              </TouchableOpacity>
-            )}
-            <View style={{ flex: 1 }} />
-            <Text
-              style={[
-                styles.messageTime,
-                { color: isUser ? theme.onPrimary : theme.textTertiary },
-              ]}
-            >
-              {new Date(message.timestamp).toLocaleTimeString([], { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
-            </Text>
-          </View>
-        </View>
-        
+        <MessageBubbleModern
+          message={message}
+          showIcon={!isUser}
+          onSpeak={!isUser ? speakResponse : undefined}
+          isSpeaking={speakingMessageId === message.id}
+          onRegenerate={!isUser ? () => {
+            const prev = messages[index - 1];
+            const retryText = prev && prev.type === 'user' ? prev.content : message.content;
+            sendMessage(retryText);
+          } : undefined}
+        />
 
+        {Array.isArray((message as any).attachments) && (message as any).attachments.length > 0 && (
+          <View style={{ marginTop: 8, gap: 6 }}>
+            {(message as any).attachments.map((att: DashAttachment) => (
+              <TouchableOpacity key={att.id}
+                onPress={() => handleOpenAttachment(att)}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10,
+                         backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
+                <Ionicons name="document" size={16} color={theme.text} />
+                <Text numberOfLines={1} style={{ marginLeft: 8, color: theme.text, flex: 1 }}>{att.name}</Text>
+                <Ionicons name="download" size={16} color={theme.primary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Export PDF action when suggested by Dash */}
+        {String(message.metadata?.dashboard_action?.type) === 'export_pdf' && (
+          <View style={{ marginTop: 10 }}>
+            <TouchableOpacity
+              onPress={() => handleDownloadPdf(
+                (message.metadata?.dashboard_action as any)?.title || 'Dash Export',
+                (message.metadata?.dashboard_action as any)?.content || message.content
+              )}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 10,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.border,
+                gap: 8,
+              }}
+            >
+              <Ionicons name="download-outline" size={18} color={theme.primary} />
+              <Text style={{ color: theme.primary, fontWeight: '600' }}>Download PDF</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -715,6 +813,95 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     );
   };
 
+  const renderAttachmentChips = () => {
+    if (selectedAttachments.length === 0) {
+      return null;
+    }
+
+    return (
+      <View style={styles.attachmentChipsContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {selectedAttachments.map((attachment) => (
+            <View 
+              key={attachment.id} 
+              style={[
+                styles.attachmentChip,
+                { 
+                  backgroundColor: theme.surface,
+                  borderColor: attachment.status === 'failed' ? theme.error : theme.border
+                }
+              ]}
+            >
+              <View style={styles.attachmentChipContent}>
+                <Ionicons 
+                  name={getFileIconName(attachment.kind)}
+                  size={16} 
+                  color={attachment.status === 'failed' ? theme.error : theme.text} 
+                />
+                <View style={styles.attachmentChipText}>
+                  <Text 
+                    style={[
+                      styles.attachmentChipName, 
+                      { color: attachment.status === 'failed' ? theme.error : theme.text }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {attachment.name}
+                  </Text>
+                  <Text style={[styles.attachmentChipSize, { color: theme.textSecondary }]}>
+                    {formatFileSize(attachment.size)}
+                  </Text>
+                </View>
+                
+                {/* Progress indicator */}
+                {attachment.status === 'uploading' && (
+                  <View style={styles.attachmentProgressContainer}>
+                    <ActivityIndicator size="small" color={theme.primary} />
+                  </View>
+                )}
+                
+                {/* Status indicator */}
+                {attachment.status === 'uploaded' && (
+                  <Ionicons name="checkmark-circle" size={16} color={theme.success} />
+                )}
+                
+                {attachment.status === 'failed' && (
+                  <Ionicons name="alert-circle" size={16} color={theme.error} />
+                )}
+                
+                {/* Remove button */}
+                {attachment.status !== 'uploading' && (
+                  <TouchableOpacity
+                    style={styles.attachmentChipRemove}
+                    onPress={() => handleRemoveAttachment(attachment.id)}
+                    accessibilityLabel={`Remove ${attachment.name}`}
+                  >
+                    <Ionicons name="close" size={14} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              {/* Progress bar */}
+              {attachment.status === 'uploading' && attachment.uploadProgress !== undefined && (
+                <View style={[styles.attachmentProgressBar, { backgroundColor: theme.surfaceVariant }]}>
+                  <View 
+                    style={[
+                      styles.attachmentProgressFill,
+                      { 
+                        backgroundColor: theme.primary,
+                        width: `${attachment.uploadProgress}%`
+                      }
+                    ]} 
+                  />
+                </View>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   // Animated typing indicator
   const [dotAnimations] = useState([
     useRef(new Animated.Value(0.3)).current,
@@ -788,6 +975,164 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     );
   };
 
+  // Voice Dock controller (initialized even if dashInstance is null; it will no-op)
+  const vc = useVoiceController(dashInstance, {
+    onResponse: async (response) => {
+      try {
+        const updatedConv = await dashInstance?.getConversation(dashInstance?.getCurrentConversationId()!);
+        if (updatedConv) {
+          setMessages(updatedConv.messages);
+          setConversation(updatedConv);
+        }
+      } catch {}
+      try { setShowVoiceSending(false); } catch {}
+      setTimeout(() => { try { if (autoSpeak) speakResponse(response); } catch {} }, 400);
+    }
+  });
+  
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log(`[DashAssistant] Voice state changed: ${vc.state}`);
+  }, [vc.state]);
+
+  // Voice timer effect (tracks duration during prewarm/listening)
+  useEffect(() => {
+    if (vc.state === 'prewarm' || vc.state === 'listening') {
+      const start = Date.now();
+      const interval = setInterval(() => {
+        setVoiceTimerMs(Date.now() - start);
+      }, 100);
+      return () => clearInterval(interval);
+    } else {
+      setVoiceTimerMs(0);
+    }
+    if (vc.state === 'idle' || vc.state === 'error') {
+      try { setShowVoiceSending(false); } catch {}
+    }
+  }, [vc.state]);
+
+  // Notify on voice errors (e.g., permission denied)
+  useEffect(() => {
+    if (vc.state === 'error') {
+      try {
+        Alert.alert(
+          'Microphone Permission',
+          'Microphone access is required for voice messages. Please enable it in your device settings and try again.'
+        );
+      } catch {}
+    }
+  }, [vc.state]);
+
+  // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
+  const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch {} })(); }, []);
+  const streamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
+  
+  // Voice Dock controller + auto speak preference
+  const [autoSpeak, setAutoSpeak] = React.useState(true);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
+
+  // Waveform animation for non-streaming sending placeholder
+  const [waveVals] = useState([
+    useRef(new Animated.Value(0.4)).current,
+    useRef(new Animated.Value(0.6)).current,
+    useRef(new Animated.Value(0.5)).current,
+  ]);
+  useEffect(() => {
+    if (!streamingEnabled && showVoiceSending) {
+      const loops = waveVals.map((v, i) =>
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(v, { toValue: 1.0, duration: 250 + i * 60, useNativeDriver: true }),
+            Animated.timing(v, { toValue: 0.4, duration: 250 + i * 60, useNativeDriver: true }),
+          ])
+        )
+      );
+      loops.forEach(l => l.start());
+      return () => loops.forEach(l => l.stop());
+    } else {
+      // reset
+      waveVals.forEach(v => v.setValue(0.5));
+    }
+  }, [streamingEnabled, showVoiceSending]);
+
+  // Streaming state
+  const [streamUserPartial, setStreamUserPartial] = React.useState('');
+  const [streamAssistant, setStreamAssistant] = React.useState('');
+  const [isStreaming, setIsStreaming] = React.useState(false);
+  const streamSpokenRef = React.useRef(false);
+  const streamFinalizedRef = React.useRef(false);
+  const realtime = useRealtimeVoice({
+    enabled: streamingEnabled,
+    // Provide token from Supabase session for authenticated WSS
+    tokenProvider: async () => {
+      try {
+        const supa = assertSupabase();
+        const { data: { session } } = await supa.auth.getSession();
+        return session?.access_token || null;
+      } catch {
+        return null;
+      }
+    },
+    onPartialTranscript: (t) => setStreamUserPartial(t || ''),
+    onFinalTranscript: (t) => setStreamUserPartial(t || ''),
+    onAssistantToken: (tok) => setStreamAssistant((p) => (p + String(tok || ''))),
+    onStatusChange: (s) => setIsStreaming(s === 'streaming'),
+  });
+
+  // Speak streamed assistant buffer when streaming finishes (scaffolding)
+  React.useEffect(() => {
+    try {
+      if (!streamingEnabled) return;
+      if (isStreaming) {
+        streamSpokenRef.current = false;
+        streamFinalizedRef.current = false;
+        return;
+      }
+      // Not streaming; if buffer exists and not spoken yet, speak once
+      if (!isStreaming && streamAssistant && streamAssistant.length > 0 && autoSpeak && !streamSpokenRef.current) {
+        streamSpokenRef.current = true;
+        speakResponse({ id: `streamed_${Date.now()}`, type: 'assistant', content: streamAssistant, timestamp: Date.now() } as any);
+      }
+    } catch {}
+  }, [isStreaming, streamingEnabled, streamAssistant, autoSpeak]);
+
+  // Finalize streamed user/assistant content into conversation when streaming ends
+  React.useEffect(() => {
+    (async () => {
+      try {
+        if (!streamingEnabled) return;
+        if (isStreaming) return; // still streaming
+        if (!dashInstance) return;
+        const hasUser = (streamUserPartial || '').trim().length > 0;
+        const hasAssistant = (streamAssistant || '').trim().length > 0;
+        if (!hasUser && !hasAssistant) return;
+        if (streamFinalizedRef.current) return;
+        streamFinalizedRef.current = true;
+
+        if (hasUser) {
+          await dashInstance.appendUserMessage((streamUserPartial || '').trim());
+        }
+        if (hasAssistant) {
+          await dashInstance.appendAssistantMessage((streamAssistant || '').trim());
+        }
+        setStreamUserPartial('');
+        setStreamAssistant('');
+        const convId = dashInstance.getCurrentConversationId();
+        if (convId) {
+          const updatedConv = await dashInstance.getConversation(convId);
+          if (updatedConv) {
+            setConversation(updatedConv);
+            setMessages(updatedConv.messages || []);
+          }
+        }
+      } catch (e) {
+        console.warn('Finalize streaming messages failed:', e);
+      }
+    })();
+  }, [isStreaming, streamingEnabled, dashInstance]);
+
+
   if (!isInitialized) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
@@ -808,7 +1153,15 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+      <View style={[
+        styles.header, 
+        { 
+          backgroundColor: theme.surface, 
+          borderBottomColor: theme.border,
+          // Ensure the header sits below the status bar / camera notch on all devices
+          paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 16 : 8) + 8,
+        }
+      ]}>
         <View style={styles.headerLeft}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -827,6 +1180,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
 
         <View style={styles.headerRight}>
+          {/* Streaming status indicator */}
+          {streamingEnabled && (
+            <TouchableOpacity
+              onPress={() => {
+                try {
+                  toast.info(`Realtime: ${isStreaming ? 'Connected' : 'Idle'}`);
+                } catch {}
+              }}
+              style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}
+            >
+              <View style={[styles.streamStatusDot, { backgroundColor: isStreaming ? theme.success : theme.border }]} />
+            </TouchableOpacity>
+          )}
           {/* Verify tier button */}
           <TouchableOpacity
             style={styles.iconButton}
@@ -927,90 +1293,206 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       </View>
 
       {/* Messages */}
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {messages.map((message: any, index: number) => renderMessage(message, index))}
-        
-        {renderTypingIndicator()}
-
-        {renderSuggestedActions()}
-      </ScrollView>
+      {(() => {
+        const ephemeral: DashMessage[] = [] as any;
+        if (streamingEnabled && isStreaming && streamUserPartial.length > 0) {
+          ephemeral.push({ id: 'ephemeral_user', type: 'user', content: streamUserPartial, timestamp: Date.now() } as any);
+        }
+        if (streamingEnabled && isStreaming && streamAssistant.length > 0) {
+          ephemeral.push({ id: 'ephemeral_assistant', type: 'assistant', content: streamAssistant, timestamp: Date.now(), metadata: { live: true } } as any);
+        }
+        const data = [...messages, ...ephemeral];
+        return (
+          <FlatList
+            ref={flatListRef}
+            data={data}
+            keyExtractor={(item: any, idx) => `${item.id}_${idx}`}
+            renderItem={({ item, index }: any) => renderMessage(item, index)}
+            contentContainerStyle={styles.messagesContent}
+            style={styles.messagesContainer}
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={21}
+            removeClippedSubviews={Platform.OS === 'android'}
+            onContentSizeChange={() => {
+              // Auto-scroll to last item when content changes
+              try {
+                const lastIndex = Math.max(0, data.length - 1);
+                flatListRef.current?.scrollToIndex({ index: lastIndex, animated: false });
+              } catch (e) {
+                // ignore index errors during initial layout
+              }
+            }}
+            ListFooterComponent={(
+              <>
+                {/* Thinking indicator - show for loading, transcribing, or thinking states */}
+                {!isStreaming && !showVoiceRecorderModal && (
+                  isLoading || 
+                  vc.state === 'transcribing' || 
+                  vc.state === 'thinking'
+                ) && (
+                  <StreamingIndicator 
+                    showThinking 
+                    thinkingText={
+                      vc.state === 'transcribing' ? 'Transcribing your voice...' : 
+                      vc.state === 'thinking' ? 'Thinking...' :
+                      isLoading ? 'Processing...' :
+                      'Working...'
+                    } 
+                  />
+                )}
+                {/* Non-streaming voice send placeholder */}
+                {!streamingEnabled && !showVoiceRecorderModal && showVoiceSending && (
+                  <View style={[styles.messageContainer, styles.userMessage]}>
+                    <View style={[styles.messageBubble, { backgroundColor: theme.primary }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* Waveform animation */}
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2 }}>
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[0] }] }]} />
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[1] }] }]} />
+                          <Animated.View style={[styles.waveBar, { backgroundColor: '#fff', transform: [{ scaleY: waveVals[2] }] }]} />
+                        </View>
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>
+                          Sending voice... {Math.max(1, Math.floor((pendingVoiceMs || 0) / 1000))}s
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+                {renderSuggestedActions()}
+              </>
+            )}
+          />
+        );
+      })()}
 
       {/* Input Area */}
-      <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
-        <View style={styles.inputRow}>
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.textInput,
-              { 
-                backgroundColor: theme.inputBackground, 
-                borderColor: theme.inputBorder,
-                color: theme.inputText 
+      <EnhancedInputArea
+        sending={isLoading || isUploading}
+        onSend={async (text, atts) => {
+          try {
+            setSelectedAttachments(atts || []);
+            await sendMessage(text, atts || []);
+          } catch {}
+        }}
+        onAttachmentsChange={(atts) => setSelectedAttachments(atts)}
+        voiceState={vc.state}
+        isVoiceLocked={vc.isLocked}
+        voiceTimerMs={voiceTimerMs}
+        onVoiceStart={async () => {
+          try {
+            console.log('[DashAssistant] Voice start (mobile-first) triggered', {
+              streamingEnabled,
+              dashInstance: !!dashInstance,
+              isInitialized,
+              pendingVoiceModal
+            });
+
+            // Mobile-first: always use modal flow for now (ignore streaming)
+            // Basic Android microphone permission check
+            let hasMic = true;
+            try {
+              if (Platform.OS === 'android') {
+                const { PermissionsAndroid } = await import('react-native');
+                const granted = await PermissionsAndroid.request(
+                  PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+                );
+                hasMic = granted === PermissionsAndroid.RESULTS.GRANTED;
               }
-            ]}
-            placeholder="Ask Dash anything..."
-            placeholderTextColor={theme.inputPlaceholder}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline={!enterToSend}
-            maxLength={500}
-            editable={!isLoading && !isRecording}
-            onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
-            returnKeyType={enterToSend ? "send" : "default"}
-            blurOnSubmit={enterToSend}
-          />
-          
-          {inputText.trim() ? (
-            <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: theme.primary }]}
-              onPress={() => sendMessage()}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator size="small" color={theme.onPrimary} />
-              ) : (
-                <Ionicons name="send" size={20} color={theme.onPrimary} />
-              )}
-            </TouchableOpacity>
-          ) : (
-            <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnimation : 1 }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.recordButton,
-                  { 
-                    backgroundColor: isRecording ? theme.error : theme.accent 
-                  }
-                ]}
-                onLongPress={startRecording}
-                onPressOut={stopRecording}
-                disabled={isLoading}
-              >
-                <Ionicons 
-                  name={isRecording ? "stop" : "mic"} 
-                  size={20} 
-                  color={theme.onAccent} 
-                />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-        </View>
-        
-        {isRecording && (
-          <View style={styles.recordingIndicator}>
-            <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-            <Text style={[styles.recordingText, { color: theme.error }]}>
-              Recording... Release to send
-            </Text>
-          </View>
-        )}
-      </View>
+            } catch {}
+            if (!hasMic) {
+              Alert.alert('Microphone Permission', 'Please enable microphone access to record audio.');
+              return;
+            }
+
+            console.log('[DashAssistant] Opening voice recorder modal');
+            if (dashInstance && isInitialized) {
+              console.log('[DashAssistant] Dash ready - showing modal immediately');
+              setShowVoiceRecorderModal(true);
+            } else {
+              console.log('[DashAssistant] Dash not ready - deferring modal');
+              setPendingVoiceModal(true);
+              try { toast.show?.('Preparing voice recorder…'); } catch {}
+            }
+          } catch (e) {
+            console.error('[DashAssistant] Voice start error:', e);
+          }
+        }}
+        onVoiceEnd={() => {
+          try {
+            // If the recording modal is active, let the modal own the stop/transcribe UX
+            if (showVoiceRecorderModal) {
+              return;
+            }
+            if (streamingEnabled) {
+              // Stop realtime stream; footer will show streaming assistant content if any
+              realtime.stopStream().catch((e: any) => console.error('Realtime stop error:', e));
+            } else {
+              // Immediate UX: show sending placeholder using local timer estimate
+              setShowVoiceSending(true);
+              setPendingVoiceMs(voiceTimerMs);
+              // Release voice recording (send)
+              vc.release().catch((e) => console.error('Voice end error:', e));
+            }
+          } catch (e) {
+            console.error('Voice end error:', e);
+          }
+        }}
+        onVoiceLock={() => {
+          try {
+            // Only allow lock when an active listen is in progress
+            if (vc.state === 'listening' || vc.state === 'prewarm') {
+              vc.lock();
+            }
+          } catch (e) {
+            console.error('Voice lock error:', e);
+          }
+        }}
+        onVoiceCancel={() => {
+          try {
+            if (showVoiceRecorderModal) {
+              // Close modal and ensure any active recording is stopped
+              try { dashInstance?.stopRecording?.(); } catch {}
+              setShowVoiceRecorderModal(false);
+              return;
+            }
+            if (streamingEnabled) {
+              realtime.cancel().catch((e: any) => console.error('Realtime cancel error:', e));
+              setStreamUserPartial('');
+              setStreamAssistant('');
+              streamSpokenRef.current = false;
+              streamFinalizedRef.current = false;
+            } else {
+              vc.cancel().catch((e) => console.error('Voice cancel error:', e));
+            }
+          } catch (e) {
+            console.error('Voice cancel error:', e);
+          }
+        }}
+      />
+
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
+      
+      {/* Voice Recorder Modal with Progress Indicators */}
+      {dashInstance && isInitialized && (
+        <VoiceRecorderSheet
+          visible={showVoiceRecorderModal}
+          onClose={() => setShowVoiceRecorderModal(false)}
+          dash={dashInstance}
+          onSend={async (audioUri, transcript, duration) => {
+            try {
+              // Send the transcribed message (text)
+              await sendMessage(transcript);
+              setShowVoiceRecorderModal(false);
+            } catch (e) {
+              console.error('[DashAssistant] Voice send error:', e);
+              Alert.alert('Error', 'Failed to send voice message. Please try again.');
+            }
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };
@@ -1044,6 +1526,8 @@ function getTierColor(tier?: string) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   loadingContainer: {
     flex: 1,
@@ -1124,19 +1608,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    padding: 16,
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    paddingBottom: 64,
+  },
+  hintOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 88,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
     paddingBottom: 8,
   },
   messageContainer: {
     flexDirection: 'row',
     marginBottom: 16,
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
+    paddingHorizontal: 2,
   },
   userMessage: {
     justifyContent: 'flex-end',
+    alignSelf: 'flex-end',
   },
   assistantMessage: {
     justifyContent: 'flex-start',
+    alignSelf: 'flex-start',
   },
   avatarContainer: {
     width: 32,
@@ -1144,17 +1646,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: 12,
+    marginTop: 4,
+    flexShrink: 0,
   },
   messageBubble: {
-    maxWidth: screenWidth < 400 ? screenWidth * 0.8 : screenWidth * 0.75,
-    padding: screenWidth < 400 ? 10 : 12,
-    borderRadius: 18,
-    minHeight: 44,
+    maxWidth: screenWidth < 400 ? screenWidth * 0.85 : screenWidth * 0.82,
+    padding: screenWidth < 400 ? 12 : 16,
+    borderRadius: 20,
+    minHeight: 48,
+    flex: 1,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 15,
+    lineHeight: 21,
+    flexWrap: 'wrap',
   },
   messageContentRow: {
     flexDirection: 'row',
@@ -1233,7 +1739,9 @@ const styles = StyleSheet.create({
   },
   suggestedActionsContainer: {
     marginTop: 8,
-    paddingLeft: 28,
+    paddingHorizontal: 8,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   suggestedActionsTitle: {
     fontSize: 12,
@@ -1295,6 +1803,11 @@ const styles = StyleSheet.create({
   recordingText: {
     fontSize: 12,
   },
+  waveBar: {
+    width: 3,
+    height: 12,
+    borderRadius: 2,
+  },
   messageBubbleFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1307,6 +1820,93 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
+  },
+  inlineActionButton: {
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachmentChipsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    maxHeight: 120,
+  },
+  attachmentChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    marginRight: 8,
+    minWidth: 200,
+    maxWidth: 250,
+    overflow: 'hidden',
+  },
+  attachmentChipContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+  },
+  attachmentChipText: {
+    flex: 1,
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  attachmentChipName: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  attachmentChipSize: {
+    fontSize: 11,
+  },
+  attachmentChipRemove: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentProgressContainer: {
+    marginRight: 8,
+  },
+  attachmentProgressBar: {
+    height: 2,
+    marginHorizontal: 8,
+    marginBottom: 4,
+    borderRadius: 1,
+  },
+  attachmentProgressFill: {
+    height: '100%',
+    borderRadius: 1,
+  },
+  streamStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  attachButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+    borderWidth: 1,
+    position: 'relative',
+  },
+  attachBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 

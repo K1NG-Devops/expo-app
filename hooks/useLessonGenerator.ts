@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { toast } from '@/components/ui/ToastProvider';
@@ -91,10 +92,10 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
             objectives: opts.learningObjectives,
           });
           if (saveResult.success) {
-            console.log('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
+            logger.info('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
             track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
           } else {
-            console.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+            logger.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
           }
         } catch (saveError) {
           console.error('[useLessonGenerator] Error saving fallback lesson:', saveError);

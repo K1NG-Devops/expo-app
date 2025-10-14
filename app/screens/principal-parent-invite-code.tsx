@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Switch } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ScrollView, Switch, Share, Linking } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { InviteCodeService, SchoolInvitationCode } from '@/lib/services/inviteCodeService';
+import { Picker } from '@react-native-picker/picker';
 
 let Clipboard: any = null;
 try { Clipboard = require('expo-clipboard'); } catch (e) { /* optional */ }
@@ -13,10 +14,14 @@ export default function PrincipalParentInviteCodeScreen() {
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const schoolId = (profile?.organization_id as string) || (profile as any)?.preschool_id || null;
+  const organizationId = (profile?.organization_id as string) || null;
+  const preschoolId = ((profile as any)?.preschool_id as string) || null;
+  // Prefer a valid preschoolId for school_invitation_codes linkage, but capture org context too
+  const schoolId = preschoolId || organizationId || null;
 
   const [codes, setCodes] = useState<SchoolInvitationCode[]>([]);
   const [loading, setLoading] = useState(false);
+  const [inviteType, setInviteType] = useState<'parent' | 'student' | 'member'>('parent');
 
   // New code form
   const [unlimited, setUnlimited] = useState(true);
@@ -27,14 +32,14 @@ export default function PrincipalParentInviteCodeScreen() {
     if (!schoolId) return;
     setLoading(true);
     try {
-      const list = await InviteCodeService.listParentCodes(schoolId);
+      const list = await InviteCodeService.listCodes(schoolId, inviteType);
       setCodes(list);
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to load invite codes');
     } finally {
       setLoading(false);
     }
-  }, [schoolId]);
+  }, [schoolId, inviteType]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -51,13 +56,18 @@ export default function PrincipalParentInviteCodeScreen() {
         ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const created = await InviteCodeService.createParentCode({
-        preschoolId: schoolId,
+      const created = await InviteCodeService.createInviteCode({
+        invitationType: inviteType,
+        preschoolId: schoolId!,
+        organizationId: organizationId,
+        organizationKind: preschoolId ? 'preschool' : 'org',
         invitedBy: user.id,
         maxUses: uses,
         expiresAt,
-        description: 'Parent school-wide invite',
+        description: inviteType === 'parent' ? 'Parent invite' : inviteType === 'student' ? 'Learner invite' : 'Member invite',
       });
+      // Optimistically show the new/active code at the top while we refresh from server
+      setCodes(prev => [created, ...prev.filter(c => c.id !== created.id)]);
       await load();
       Alert.alert('Invite created', `Code: ${created.code}`);
     } catch (e: any) {
@@ -80,6 +90,37 @@ export default function PrincipalParentInviteCodeScreen() {
     }
   };
 
+  const buildShareMessage = (code: string) => {
+    const path = inviteType === 'parent' ? 'parent' : 'student';
+    const shareUrl = `https://www.edudashpro.org.za/invite/${path}?code=${encodeURIComponent(code)}`;
+    const who = inviteType === 'parent' ? 'our school' : 'our organization';
+    return `Join ${who} on EduDash Pro\n\nUse this code: ${code}\n\nTap the link to open the app: ${shareUrl}`;
+  };
+
+  const shareInvite = async (item: SchoolInvitationCode) => {
+    try {
+      const message = buildShareMessage(item.code);
+      await Share.share({ message });
+    } catch (e: any) {
+      Alert.alert('Share failed', e?.message || 'Unable to open share dialog');
+    }
+  };
+
+  const shareWhatsApp = async (item: SchoolInvitationCode) => {
+    try {
+      const message = encodeURIComponent(buildShareMessage(item.code));
+      const url = `whatsapp://send?text=${message}`;
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('WhatsApp not available', 'Please install WhatsApp or use Share/Copy instead.');
+      }
+    } catch (e: any) {
+      Alert.alert('Share failed', e?.message || 'Unable to share via WhatsApp');
+    }
+  };
+
   const toggleActive = async (item: SchoolInvitationCode) => {
     try {
       setLoading(true);
@@ -97,8 +138,8 @@ export default function PrincipalParentInviteCodeScreen() {
       <Stack.Screen 
         options={{ 
           title: 'Create School-wide Invite',
-          headerShown: true,
-          headerBackVisible: true,
+          headerShown: false,
+          headerBackVisible: false,
         }} 
       />
       <ScrollView contentContainerStyle={styles.content}>
@@ -106,8 +147,87 @@ export default function PrincipalParentInviteCodeScreen() {
           <Text style={styles.text}>No school found on your profile. Create a school first.</Text>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>Create a School-wide Invite</Text>
+            <Text style={styles.sectionTitle}>Create an Organization Invite</Text>
             <View style={styles.card}>
+              <Text style={styles.inputLabel}>Invitation Type</Text>
+              {/* Segmented toggle for invite type */}
+              <View style={styles.segmentRow}>
+                {(['parent','student','member'] as const).map((type) => {
+                  const selected = inviteType === type;
+                  const label = type === 'parent' ? 'Parent' : type === 'student' ? 'Student' : 'Member';
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.segmentBtn, selected ? styles.segmentBtnActive : undefined]}
+                      onPress={() => setInviteType(type)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.segmentText, selected ? styles.segmentTextActive : undefined]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Quick share row for the latest code of selected type */}
+              <View style={[styles.row, { marginTop: 8 }]}> 
+                {(() => {
+                  const latest = codes[0];
+                  const path = inviteType === 'parent' ? 'parent' : 'student';
+                  const link = latest ? `https://www.edudashpro.org.za/invite/${path}?code=${encodeURIComponent(latest.code)}` : '';
+
+                  const copyLink = async () => {
+                    if (!latest) return Alert.alert('No code', 'Generate an invite first.');
+                    try {
+                      if (Clipboard?.setStringAsync) {
+                        await Clipboard.setStringAsync(link);
+                        Alert.alert('Copied', 'Share link copied to clipboard');
+                      } else {
+                        throw new Error('Clipboard not available');
+                      }
+                    } catch {
+                      Alert.alert('Copy failed', 'Clipboard not available on this platform');
+                    }
+                  };
+
+                  const shareQuick = async () => {
+                    if (!latest) return Alert.alert('No code', 'Generate an invite first.');
+                    try {
+                      const message = buildShareMessage(latest.code);
+                      await Share.share({ message });
+                    } catch (e: any) {
+                      Alert.alert('Share failed', e?.message || 'Unable to open share dialog');
+                    }
+                  };
+
+                  const waQuick = async () => {
+                    if (!latest) return Alert.alert('No code', 'Generate an invite first.');
+                    try {
+                      const message = encodeURIComponent(buildShareMessage(latest.code));
+                      const url = `whatsapp://send?text=${message}`;
+                      const supported = await Linking.canOpenURL(url);
+                      if (supported) await Linking.openURL(url);
+                      else Alert.alert('WhatsApp not available', 'Please install WhatsApp or use Share/Copy instead.');
+                    } catch (e: any) {
+                      Alert.alert('Share failed', e?.message || 'Unable to share via WhatsApp');
+                    }
+                  };
+
+                  return (
+                    <>
+                      <TouchableOpacity style={[styles.smallButton, { flex: 1 }]} onPress={copyLink}>
+                        <Text style={styles.smallButtonText}>Copy Link</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallButton, { flex: 1 }]} onPress={shareQuick}>
+                        <Text style={styles.smallButtonText}>Share</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallButton, styles.whatsapp, { flex: 1 }]} onPress={waQuick}>
+                        <Text style={[styles.smallButtonText, styles.smallButtonTextDark]}>WhatsApp</Text>
+                      </TouchableOpacity>
+                    </>
+                  );
+                })()}
+              </View>
+
               <View style={styles.rowBetween}>
                 <Text style={styles.label}>Unlimited uses</Text>
                 <Switch value={unlimited} onValueChange={setUnlimited} />
@@ -139,7 +259,11 @@ export default function PrincipalParentInviteCodeScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Existing Codes</Text>
+            <TouchableOpacity style={styles.button} onPress={() => router.push('/screens/principal-parents')}>
+              <Text style={styles.buttonText}>View Parents</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.sectionTitle}>Existing Codes ({inviteType})</Text>
             {codes.length === 0 ? (
               <Text style={styles.muted}>No invite codes yet.</Text>
             ) : (
@@ -159,6 +283,12 @@ export default function PrincipalParentInviteCodeScreen() {
                     <View style={styles.row}>
                       <TouchableOpacity style={styles.smallButton} onPress={() => copyToClipboard(item.code)}>
                         <Text style={styles.smallButtonText}>Copy</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.smallButton} onPress={() => shareInvite(item)}>
+                        <Text style={styles.smallButtonText}>Share</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={[styles.smallButton, styles.whatsapp]} onPress={() => shareWhatsApp(item)}>
+                        <Text style={[styles.smallButtonText, styles.smallButtonTextDark]}>WhatsApp</Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={[styles.smallButton, active ? styles.deactivate : styles.activate]} onPress={() => toggleActive(item)}>
                         <Text style={[styles.smallButtonText, styles.smallButtonTextDark]}>{active ? 'Deactivate' : 'Activate'}</Text>
@@ -201,4 +331,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   smallButtonTextDark: { color: '#000' },
   deactivate: { backgroundColor: '#F59E0B' },
   activate: { backgroundColor: '#22C55E' },
+  whatsapp: { backgroundColor: '#25D366' },
+  segmentRow: { flexDirection: 'row', gap: 8, marginTop: 8, marginBottom: 8 },
+  segmentBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: theme?.surface || '#0b1220', borderWidth: 1, borderColor: theme?.border || '#1f2937', alignItems: 'center' },
+  segmentBtnActive: { backgroundColor: theme?.primary || '#00f5ff', borderColor: theme?.primary || '#00f5ff' },
+  segmentText: { color: theme?.text || '#fff', fontWeight: '700' },
+  segmentTextActive: { color: theme?.onPrimary || '#000' },
 });

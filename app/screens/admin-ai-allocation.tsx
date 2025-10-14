@@ -1,6 +1,6 @@
 import React from 'react'
 import { Stack } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar'
 import { View, StyleSheet } from 'react-native'
 
 import AllocationManagementScreen from '@/components/ai/AllocationManagementScreen'
@@ -21,7 +21,7 @@ export default function AdminAIAllocationScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <ThemedStatusBar />
       
       <RoleBasedHeader
         title="AI Quota Management"

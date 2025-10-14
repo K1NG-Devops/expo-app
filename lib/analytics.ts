@@ -170,23 +170,29 @@ export function track<T extends keyof AnalyticsEvent>(
       ph.capture(String(event), scrubbedProperties);
     }
     
-    // Add to Sentry breadcrumbs for error context (with fallback)
+    // Add to Sentry breadcrumbs for error context (with platform check)
     try {
-      Sentry.Native.addBreadcrumb({
-        category: 'analytics',
-        message: String(event),
-        data: scrubbedProperties,
-        level: 'info',
-      });
-    } catch {
-      // Fallback to browser breadcrumb if native is not available
-      if (Sentry.Browser) {
+      // Only use Sentry.Native on native platforms
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        Sentry.Native?.addBreadcrumb({
+          category: 'analytics',
+          message: String(event),
+          data: scrubbedProperties,
+          level: 'info',
+        });
+      } else if (Sentry.Browser) {
+        // Use Browser SDK on web
         Sentry.Browser.addBreadcrumb({
           category: 'analytics',
           message: String(event),
           data: scrubbedProperties,
           level: 'info',
         });
+      }
+    } catch (sentryError) {
+      // Silently ignore Sentry errors - analytics/monitoring failures shouldn't break app
+      if (__DEV__) {
+        console.debug('[Analytics] Sentry breadcrumb failed:', sentryError);
       }
     }
     
@@ -218,6 +224,20 @@ export function identifyUser(userId: string, properties: Record<string, any> = {
       testing_mode: flags.android_only_mode,
       production_db_dev: flags.production_db_dev_mode,
     });
+    
+    // Guard Sentry.Native calls with platform check
+    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+      try {
+        Sentry.Native?.setUser({
+          id: userId,
+          ...scrubbedProperties,
+        });
+      } catch (sentryError) {
+        if (__DEV__) {
+          console.debug('[Analytics] Sentry setUser failed:', sentryError);
+        }
+      }
+    }
     
     const ph = getPostHog();
     if (ph) {

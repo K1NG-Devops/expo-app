@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { assertSupabase } from '@/lib/supabase';
+import { SchoolSettingsService } from '@/lib/services/SchoolSettingsService';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SchoolSettingsScreen() {
@@ -43,17 +44,7 @@ export default function SchoolSettingsScreen() {
         return;
       }
       setSaving(true);
-      const { data: current } = await assertSupabase()
-        .from('preschools')
-        .select('settings')
-        .eq('id', profile.organization_id)
-        .single();
-      const settings = { ...(current?.settings || {}), whatsapp_number: cleaned };
-      const { error } = await assertSupabase()
-        .from('preschools')
-        .update({ settings })
-        .eq('id', profile.organization_id);
-      if (error) throw error;
+      await SchoolSettingsService.updateWhatsAppNumber(profile.organization_id, cleaned);
       Alert.alert('Saved', 'WhatsApp number updated');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to save number');

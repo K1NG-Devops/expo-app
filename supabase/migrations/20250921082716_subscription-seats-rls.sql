@@ -26,10 +26,11 @@ FOR SELECT
 USING (
   -- Allow principals to see seats for their school's subscriptions
   EXISTS (
-    SELECT 1 
-    FROM public.profiles p
-    INNER JOIN public.subscriptions s ON s.school_id = p.preschool_id
-    WHERE p.id = auth.uid()
+    SELECT 1
+    FROM public.profiles AS p
+    INNER JOIN public.subscriptions AS s ON p.preschool_id = s.school_id
+    WHERE
+      p.id = auth.uid()
       AND p.role = 'principal'
       AND s.id = subscription_seats.subscription_id
   )
@@ -41,9 +42,10 @@ USING (
   OR
   -- Allow superadmin to see all seats
   EXISTS (
-    SELECT 1 
-    FROM public.profiles p
-    WHERE p.id = auth.uid()
+    SELECT 1
+    FROM public.profiles AS p
+    WHERE
+      p.id = auth.uid()
       AND p.role = 'superadmin'
   )
 );
@@ -77,7 +79,7 @@ ALTER TABLE public.subscription_seats ENABLE ROW LEVEL SECURITY;
 -- locked down for direct client access
 
 -- The following comment documents the access model:
-COMMENT ON TABLE public.subscription_seats IS 
+COMMENT ON TABLE public.subscription_seats IS
 'Teacher seat assignments with strict RLS. Direct access: Principals read own school seats, teachers read own seats only. All writes via SECURITY DEFINER RPCs only. RLS bypassed for postgres role (used by RPCs).';
 
 -- ====================================================================
@@ -97,20 +99,21 @@ VALUES (
   'Subscription seats RLS policies completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SUBSCRIPTION SEATS RLS POLICIES CREATED' AS status;
 
 -- Show final RLS status for verification
-SELECT 
+SELECT
   schemaname,
   tablename,
   policyname,
   permissive,
   cmd,
   roles
-FROM pg_policies 
-WHERE schemaname = 'public' 
+FROM pg_policies
+WHERE
+  schemaname = 'public'
   AND tablename = 'subscription_seats'
 ORDER BY policyname;

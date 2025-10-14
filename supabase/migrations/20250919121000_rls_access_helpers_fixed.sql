@@ -18,9 +18,9 @@ CREATE SCHEMA IF NOT EXISTS app_auth;
 -- Check if teacher can access specific student/child
 -- NOTE: Simplified access - teachers in same org can access students
 -- In production, this should be refined with proper enrollment tables
-CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_student(p_student_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_student(p_student_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     -- For now: teachers can access students in same organization
@@ -33,9 +33,9 @@ AS $$
 $$;
 
 -- Check if teacher can access specific class
-CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_class(p_class_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_class(p_class_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     -- Direct teacher assignment in classes table
@@ -51,9 +51,9 @@ $$;
 -- Get all student IDs accessible to current teacher
 -- NOTE: Simplified - returns all students in same organization
 -- In production, refine with proper class/enrollment associations
-CREATE OR REPLACE FUNCTION app_auth.teacher_accessible_students() 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.teacher_accessible_students()
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT COALESCE(
     ARRAY(
@@ -71,9 +71,9 @@ $$;
 -- ============================================
 
 -- Check if parent can access specific student (their child)
-CREATE OR REPLACE FUNCTION app_auth.parent_can_access_student(p_student_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.parent_can_access_student(p_student_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     -- Via parent_child_links table
@@ -85,9 +85,9 @@ AS $$
 $$;
 
 -- Get all student IDs accessible to current parent
-CREATE OR REPLACE FUNCTION app_auth.parent_accessible_students() 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.parent_accessible_students()
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT COALESCE(
     ARRAY(
@@ -105,9 +105,9 @@ $$;
 -- ============================================
 
 -- Check if user can access specific assignment
-CREATE OR REPLACE FUNCTION app_auth.can_access_assignment(p_assignment_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_access_assignment(p_assignment_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     -- Superadmins can access everything
@@ -148,9 +148,9 @@ $$;
 
 -- Check if user can access specific conversation/message thread
 -- NOTE: Simplified for now - conversation tables may not exist yet
-CREATE OR REPLACE FUNCTION app_auth.can_access_conversation(p_conversation_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_access_conversation(p_conversation_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     -- Superadmins can access everything
@@ -165,9 +165,9 @@ $$;
 -- ============================================
 
 -- Filter assignments accessible to current user
-CREATE OR REPLACE FUNCTION app_auth.filter_accessible_assignments(p_assignment_ids UUID[]) 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.filter_accessible_assignments(p_assignment_ids UUID [])
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT ARRAY(
     SELECT a
@@ -177,9 +177,9 @@ AS $$
 $$;
 
 -- Filter students accessible to current teacher
-CREATE OR REPLACE FUNCTION app_auth.filter_accessible_students(p_student_ids UUID[]) 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.filter_accessible_students(p_student_ids UUID [])
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT ARRAY(
     SELECT s

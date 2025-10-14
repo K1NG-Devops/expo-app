@@ -17,52 +17,52 @@ CREATE POLICY teachers_insert_access
 ON public.teachers
 FOR INSERT
 WITH CHECK (
-    -- Admin/principal level can create teachers in their tenant
+  -- Admin/principal level can create teachers in their tenant
+  (
     (
+      app_auth.has_role_level(3)
+      OR lower(app_auth.role()) IN ('admin', 'superadmin')
+    )
+    AND preschool_id = coalesce(
+      nullif(
         (
-            app_auth.has_role_level(3)
-            OR lower(app_auth.role()) IN ('admin', 'superadmin')
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
     )
-    OR
-    -- Teachers may create their own teacher row (self) in their tenant
-    (
-        app_auth.is_teacher()
-        AND (
-            user_id = app_auth.user_id()
-            OR user_id = app_auth.public_user_id()
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+  )
+  OR
+  -- Teachers may create their own teacher row (self) in their tenant
+  (
+    app_auth.is_teacher()
+    AND (
+      user_id = app_auth.user_id()
+      OR user_id = app_auth.public_user_id()
     )
+    AND preschool_id = coalesce(
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
+    )
+  )
 );
 
 -- UPDATE policy
@@ -70,99 +70,99 @@ CREATE POLICY teachers_update_access
 ON public.teachers
 FOR UPDATE
 USING (
-    -- Admin/principal level can edit teachers in their tenant
+  -- Admin/principal level can edit teachers in their tenant
+  (
     (
+      app_auth.has_role_level(3)
+      OR lower(app_auth.role()) IN ('admin', 'superadmin')
+    )
+    AND preschool_id = coalesce(
+      nullif(
         (
-            app_auth.has_role_level(3)
-            OR lower(app_auth.role()) IN ('admin', 'superadmin')
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
     )
-    OR
-    -- Teachers may edit their own teacher row in their tenant
-    (
-        app_auth.is_teacher()
-        AND (
-            user_id = app_auth.user_id()
-            OR user_id = app_auth.public_user_id()
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+  )
+  OR
+  -- Teachers may edit their own teacher row in their tenant
+  (
+    app_auth.is_teacher()
+    AND (
+      user_id = app_auth.user_id()
+      OR user_id = app_auth.public_user_id()
     )
+    AND preschool_id = coalesce(
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
+    )
+  )
 )
 WITH CHECK (
-    -- Ensure updated rows remain within proper tenant and role constraints
+  -- Ensure updated rows remain within proper tenant and role constraints
+  (
     (
+      app_auth.has_role_level(3)
+      OR lower(app_auth.role()) IN ('admin', 'superadmin')
+    )
+    AND preschool_id = coalesce(
+      nullif(
         (
-            app_auth.has_role_level(3)
-            OR lower(app_auth.role()) IN ('admin', 'superadmin')
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
     )
-    OR
-    (
-        app_auth.is_teacher()
-        AND (
-            user_id = app_auth.user_id()
-            OR user_id = app_auth.public_user_id()
-        )
-        AND preschool_id = coalesce(
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'preschool_id',
-                ''
-            )::uuid,
-            nullif(
-                (
-                    (current_setting('request.jwt.claims', true)::jsonb)
-                ) ->> 'organization_id',
-                ''
-            )::uuid,
-            app_auth.org_id()
-        )
+  )
+  OR
+  (
+    app_auth.is_teacher()
+    AND (
+      user_id = app_auth.user_id()
+      OR user_id = app_auth.public_user_id()
     )
+    AND preschool_id = coalesce(
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'preschool_id',
+        ''
+      )::uuid,
+      nullif(
+        (
+          (current_setting('request.jwt.claims', TRUE)::jsonb)
+        ) ->> 'organization_id',
+        ''
+      )::uuid,
+      app_auth.org_id()
+    )
+  )
 );
 
 COMMIT;

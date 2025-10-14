@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { useTranslation } from 'react-i18next';
 import { useAuth, usePermissions } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -129,7 +129,7 @@ export default function ParentDashboardScreen() {
     return (
       <View style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <StatusBar style={isDark ? "light" : "dark"} />
+        <ThemedStatusBar />
         <SafeAreaView edges={['top']} style={deniedStyles.deniedContainer}>
           <LinearGradient
             colors={isDark 
@@ -156,7 +156,7 @@ export default function ParentDashboardScreen() {
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <StatusBar style={isDark ? "light" : "dark"} />
+      <ThemedStatusBar />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
         <RoleBasedHeader showBackButton={false} />
         <ParentDashboardWrapper />

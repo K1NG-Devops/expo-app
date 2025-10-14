@@ -143,6 +143,7 @@ export class AuthValidation {
       feedback.push('Add numbers');
     }
 
+    // eslint-disable-next-line no-useless-escape
     const specialChars = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/;
     if (specialChars.test(password)) {
       requirements.hasSpecialChars = true;
@@ -297,6 +298,7 @@ export class AuthValidation {
     }
 
     // Check for valid phone number patterns
+    // eslint-disable-next-line no-useless-escape
     const phoneRegex = /^[\+]?[1-9][\d]{0,14}$|^[\d\s\-\(\)\+\.]{10,}$/;
     if (!phoneRegex.test(trimmedPhone)) {
       errors.push('Please enter a valid phone number');

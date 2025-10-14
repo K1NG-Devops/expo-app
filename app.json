@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "EduDashPro",
-    "slug": "dashpro",
-    "owner": "edudashprotest",
+    "slug": "edudashpro",
+    "owner": "edudashpro",
     "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
@@ -12,6 +12,10 @@
     "userInterfaceStyle": "light",
     "scheme": "edudashpro",
     "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*",
+      "locales/**/*.json"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -28,17 +32,17 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.edudashpro",
-      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
         "android.permission.WAKE_LOCK",
         "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "blockedPermissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
@@ -50,6 +54,7 @@
     "plugins": [
       "expo-router",
       "expo-dev-client",
+      "expo-updates",
       "sentry-expo",
       [
         "react-native-google-mobile-ads",
@@ -111,11 +116,11 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
+        "projectId": "253b1057-8489-44cf-b0e3-c3c10319a298"
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8"
+      "url": "https://u.expo.dev/253b1057-8489-44cf-b0e3-c3c10319a298"
     }
   }
 }

@@ -56,15 +56,75 @@ interface PettyCashSummary {
 }
 
 const EXPENSE_CATEGORIES = [
+  // Office & Educational
   'Stationery & Supplies',
+  'Teaching Materials',
+  'Art & Craft Supplies',
+  'Books & Educational Resources',
+  'Printing & Photocopying',
+
+  // Food & Refreshments
+  'Groceries',
   'Refreshments',
+  'Staff Tea & Coffee',
+  'Student Snacks',
+  'Kitchen Supplies',
+
+  // Maintenance & Facilities
   'Maintenance & Repairs',
-  'Travel & Transport',
-  'Communication',
-  'Medical & First Aid',
   'Cleaning Supplies',
+  'Cleaning Services',
+  'Pest Control',
+  'Waste Removal',
+  'Minor Repairs',
+
+  // Utilities & Services
   'Utilities (small amounts)',
+  'Electricity (top-ups)',
+  'Water (top-ups)',
+  'Internet & Wi-Fi',
+  'Telephone & Mobile',
+  'Airtime (Mobile)',
+  'Data Bundles',
+
+  // Medical & Safety
+  'Medical & First Aid',
+  'First Aid Supplies',
+  'Sanitizers & Disinfectants',
+  'Safety Equipment',
+
+  // Transport & Logistics
+  'Transport',
+  'Travel & Transport',
+  'Fuel (petty amounts)',
+  'Parking Fees',
+  'Taxi/Uber Fares',
+  'Vehicle Maintenance',
+
+  // Communication & Marketing
+  'Communication',
+  'Postage & Courier',
+  'Advertising Materials',
+  'Signage & Banners',
+
+  // Staff & Administration
+  'Staff Welfare',
+  'Staff Uniforms',
+  'Staff Training Materials',
+  'Office Furniture (small items)',
+
+  // Events & Activities
+  'Events & Celebrations',
+  'Birthday Parties',
+  'Sports Day Supplies',
+  'Field Trip Expenses',
+  'Parent Meeting Refreshments',
+
+  // Emergency & Miscellaneous
   'Emergency Expenses',
+  'Bank Charges',
+  'Petty Licensing Fees',
+  'Subscriptions (small)',
   'Other',
 ];
 
@@ -92,6 +152,9 @@ export default function PettyCashScreen() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReplenishment, setShowReplenishment] = useState(false);
   const [showWithdrawal, setShowWithdrawal] = useState(false);
+  // Category picker modal state
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
   
   // Form states
   const [expenseForm, setExpenseForm] = useState({
@@ -450,6 +513,10 @@ const { error } = await assertSupabase()
       case 'Medical & First Aid': return 'medical';
       case 'Cleaning Supplies': return 'sparkles';
       case 'Utilities (small amounts)': return 'flash';
+      case 'Airtime (Mobile)': return 'phone-portrait';
+      case 'Data Bundles': return 'wifi';
+      case 'Groceries': return 'cart';
+      case 'Transport': return 'car';
       case 'Emergency Expenses': return 'alert-circle';
       case 'Replenishment': return 'add-circle';
       case 'Withdrawal/Adjustment': return 'arrow-down-circle';
@@ -754,32 +821,42 @@ const { error } = await assertSupabase()
 
   const handleReverseTransaction = async (transaction: PettyCashTransaction) => {
     try {
-const { data: userProfile } = await assertSupabase()
+      const { data: userProfile } = await assertSupabase()
         .from('users')
         .select('preschool_id')
         .eq('auth_user_id', user?.id)
         .single();
 
       const oppositeType = transaction.type === 'expense' ? 'replenishment' : 'expense';
-const { error } = await assertSupabase()
+      const { error } = await assertSupabase()
         .from('petty_cash_transactions')
         .insert({
           school_id: userProfile?.preschool_id,
           account_id: accountId,
           amount: transaction.amount,
-          description: `Reversal of ${transaction.type} (${transaction.id}) - ${transaction.description}`,
+          description: `Reversal of ${transaction.type} (${transaction.id.substring(0, 8)}) - ${transaction.description}`,
           category: 'Other',
           type: oppositeType as any,
           created_by: user?.id,
           status: 'approved',
-          metadata: { reversed_of: transaction.id },
         });
-      if (error) throw error;
+      if (error) {
+        console.error('Error reversing transaction:', error);
+        throw error;
+      }
+      Alert.alert(t('common.success'), t('transaction.reversal_success', 'Transaction reversed successfully'));
       loadPettyCashData();
-    } catch {
-      Alert.alert(t('common.error'), t('transaction.failed_reverse', 'Failed to create reversal'));
+    } catch (error: any) {
+      console.error('Reversal error:', error);
+      Alert.alert(t('common.error'), error?.message || t('transaction.failed_reverse', 'Failed to create reversal'));
     }
   };
+
+  const filteredCategoriesList = React.useMemo(() => {
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return EXPENSE_CATEGORIES;
+    return EXPENSE_CATEGORIES.filter(c => c.toLowerCase().includes(q));
+  }, [categorySearch]);
 
   const filteredTransactions = React.useMemo(() => {
     let list = transactions;
@@ -937,17 +1014,18 @@ const { error } = await assertSupabase()
           </ScrollView>
 
           {/* Date Range Filters */}
-          <View style={{ flexDirection: 'row', marginBottom: 12 }}>
-            {[
-              { key: '7d', label: t('common.last_7_days', { defaultValue: 'Last 7 days' }) },
-              { key: '30d', label: t('common.last_30_days', { defaultValue: 'Last 30 days' }) },
-              { key: 'all', label: t('common.all_time', { defaultValue: 'All time' }) },
-              { key: 'custom', label: t('common.custom_range', { defaultValue: 'Custom range' }) },
-            ].map(({ key, label }) => (
-              <TouchableOpacity
-                key={key}
-                onPress={() => {
-                  if (key === 'custom') { setShowCustomRange(true); } else { setSelectedRange(key as any); }
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row' }}>
+              {[
+                { key: '7d', label: t('common.last_7_days', { defaultValue: 'Last 7 days' }) },
+                { key: '30d', label: t('common.last_30_days', { defaultValue: 'Last 30 days' }) },
+                { key: 'all', label: t('common.all_time', { defaultValue: 'All time' }) },
+                { key: 'custom', label: t('common.custom_range', { defaultValue: 'Custom range' }) },
+              ].map(({ key, label }) => (
+                <TouchableOpacity
+                  key={key}
+                  onPress={() => {
+                    if (key === 'custom') { setShowCustomRange(true); } else { setSelectedRange(key as any); }
                 }}
                 style={[styles.filterChip, selectedRange === key && styles.filterChipActive]}
               >
@@ -956,7 +1034,8 @@ const { error } = await assertSupabase()
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+            </View>
+          </ScrollView>
 
           {filteredTransactions.length === 0 ? (
             <View style={styles.emptyState}>
@@ -987,7 +1066,11 @@ const { error } = await assertSupabase()
                       {transaction.category}
                     </Text>
                     <Text style={styles.transactionDate}>
-                      {new Date(transaction.created_at).toLocaleDateString()}
+                      {new Date(transaction.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                      })}
                     </Text>
                   </View>
                 </View>
@@ -1089,18 +1172,8 @@ const { error } = await assertSupabase()
               <TouchableOpacity 
                 style={styles.categorySelector}
                 onPress={() => {
-                  Alert.alert(
-                    t('petty_cash.select_category'),
-                    t('category.choose_expense_category', 'Choose an expense category:'),
-                    [
-                      ...EXPENSE_CATEGORIES.map(category => ({
-                        text: category,
-                        onPress: () => setExpenseForm(prev => ({ ...prev, category }))
-                      })),
-                      { text: t('common.cancel'), style: 'cancel' }
-                    ],
-                    { cancelable: true }
-                  );
+                  setCategorySearch('');
+                  setShowCategoryPicker(true);
                 }}
               >
                 <Text style={[styles.categoryText, !expenseForm.category && styles.placeholder]}>
@@ -1233,6 +1306,53 @@ const { error } = await assertSupabase()
               ))
             )}
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Category Picker Modal */}
+      <Modal
+        visible={showCategoryPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCategoryPicker(false)}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowCategoryPicker(false)}>
+              <Text style={styles.modalCancel}>{t('common.cancel')}</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{t('petty_cash.select_category')}</Text>
+            <View style={{ width: 48 }} />
+          </View>
+
+          <View style={styles.modalContent}>
+            <View style={styles.formGroup}>
+              <TextInput
+                style={styles.formInput}
+                value={categorySearch}
+                onChangeText={setCategorySearch}
+                placeholder={t('category.search_categories', { defaultValue: 'Search categories' })}
+              />
+            </View>
+
+            <ScrollView style={styles.categoryList} keyboardShouldPersistTaps="handled">
+              {filteredCategoriesList.map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  style={styles.categoryItem}
+                  onPress={() => {
+                    setExpenseForm(prev => ({ ...prev, category }));
+                    setShowCategoryPicker(false);
+                  }}
+                >
+                  <Text style={styles.categoryItemText}>{category}</Text>
+                  {expenseForm.category === category && (
+                    <Ionicons name="checkmark-circle" size={20} color={theme?.primary || '#007AFF'} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
         </SafeAreaView>
       </Modal>
 
@@ -1612,6 +1732,25 @@ const createStyles = (theme: any) => StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 16,
+  },
+  categoryList: {
+    flex: 1,
+  },
+  categoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: theme?.surface || '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme?.border || '#e1e5e9',
+    marginBottom: 8,
+  },
+  categoryItemText: {
+    fontSize: 16,
+    color: theme?.text || '#333',
   },
   formGroup: {
     marginBottom: 20,

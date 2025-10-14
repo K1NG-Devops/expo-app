@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS public.onboarding_progress (
   school_id UUID NOT NULL REFERENCES public.preschools (id) ON DELETE CASCADE,
   flow_type VARCHAR(50) NOT NULL CHECK (flow_type IN ('self_service', 'superadmin_invite', 'migration')),
   current_step VARCHAR(50) NOT NULL,
-  completed_steps TEXT [] DEFAULT ARRAY[]::TEXT[],
+  completed_steps TEXT [] DEFAULT ARRAY[]::TEXT [],
   step_data JSONB DEFAULT '{}',
   started_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   completed_at TIMESTAMP WITH TIME ZONE,

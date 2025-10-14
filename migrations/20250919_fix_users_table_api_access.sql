@@ -96,7 +96,7 @@ ON public.users (email);
 
 -- Composite index for active users in a preschool
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_preschool_active
-ON public.users (preschool_id, is_active) WHERE is_active = true;
+ON public.users (preschool_id, is_active) WHERE is_active = TRUE;
 
 -- ============================================================================
 -- PART 3: ENABLE RLS AND CREATE POLICIES
@@ -333,7 +333,7 @@ VALUES (
     'functions_created', 4
   ),
   'Users table schema and RLS fixes completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();

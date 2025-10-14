@@ -17,7 +17,8 @@
     "edit": "Wysig",
     "delete": "Verwyder",
     "add": "Voeg by",
-    "search": "Soek"
+    "search": "Soek",
+    "switch_account": "Wissel rekening"
   },
   "auth": {
     "signIn": "Teken In",
@@ -35,7 +36,41 @@
     "signingUp": "Skep rekening...",
     "invalidCredentials": "Ongeldige e-pos of wagwoord",
     "accountCreated": "Rekening suksesvol geskep",
-    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos"
+    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos",
+    "remember_me": "Onthou my",
+    "dont_have_account": "Het jy nie 'n rekening nie?",
+    "sign_in": {
+      "enter_email_password": "Voer asseblief e-pos en wagwoord in",
+      "failed": "Aanmelding Misluk",
+      "signing_in": "Teken In...",
+      "cta": "Teken In",
+      "no_saved_credentials": "Geen gestoorde geloofsbriewe gevind nie. Teken asseblief in met jou wagwoord."
+    },
+    "biometric": {
+      "prompt": "Teken in na EduDash Pro",
+      "use_face_id": "Gebruik Gesig ID",
+      "use_fingerprint": "Gebruik Vingerafdruk",
+      "use_biometric": "Gebruik Biometrie",
+      "enabled_for": "Biometriese aanmelding geaktiveer"
+    },
+    "biometric_not_available": {
+      "title": "Biometrie Nie Beskikbaar Nie",
+      "desc": "Gebruik asseblief jou wagwoord om in te teken."
+    },
+    "biometric_failed": {
+      "title": "Verifikasie Misluk",
+      "desc": "Biometriese verifikasie het misluk",
+      "unexpected": "'n Fout het tydens biometriese verifikasie plaasgevind"
+    },
+    "oauth": {
+      "failed_start": "Kon nie sosiale aanmelding begin nie",
+      "config_error": "OAuth-konfigurasie fout. Kontak asseblief ondersteuning.",
+      "unavailable": "Aanmelding Nie Beskikbaar Nie",
+      "error": "Aanmelding Fout"
+    },
+    "sign_up_parent": "Registreer as Ouer",
+    "sign_up_teacher": "Registreer as Onderwyser",
+    "school_register_q": "Wil jy 'n skool registreer?"
   },
   "roles": {
     "parent": "Ouer",
@@ -272,6 +307,7 @@
       "enabled": "Ingeskakel",
       "disabled": "Afgeskakel",
       "notAvailable": "Nie beskikbaar op hierdie toestel nie",
+      "not_available_desc": "Biometriese verifikasie is nie op hierdie toestel beskikbaar nie. Hierdie funksie vereis vingerafdruk of gesigsherkenning-hardeware.",
       "setupRequired": "Opstelling vereis in toestel instellings",
       "authRequired": "Gebruik jou vingerafdruk of toestel wagkode om voort te gaan",
       "authenticate": "Verifieer",
@@ -331,7 +367,13 @@
     "about": "Oor",
     "support": "Ondersteuning",
     "termsOfService": "Diensbepalings",
-    "privacyPolicy": "Privaatheidsbeleid"
+    "privacyPolicy": "Privaatheidsbeleid",
+    "privacy_security": {
+      "title": "Privaatheid & Sekuriteit",
+      "info": "Databeskerming inligting"
+    },
+    "manage_alerts": "Bestuur jou kennisgewings",
+    "notifications_coming_soon_desc": "Kennisgewing-instellings sal in die volgende opdatering beskikbaar wees."
   },
   "notifications": {
     "title": "Kennisgewings",
@@ -348,6 +390,22 @@
     "notFound": "Die aangevraagde hulpbron is nie gevind nie.",
     "validation": "Gaan asseblief jou invoer na en probeer weer.",
     "serverError": "Bedienerfout. Probeer asseblief later weer."
+  },
+  "account": {
+    "info": {
+      "title": "Rekeninginligting",
+      "full_name": "Volle Naam",
+      "role": "Rol",
+      "school_id": "Skool-ID"
+    },
+    "edit": {
+      "title": "Wysig Profiel",
+      "personal_information": "Persoonlike Inligting"
+    },
+    "placeholders": {
+      "first_name": "Voer jou naam in",
+      "last_name": "Voer jou van in"
+    }
   },
   "success": {
     "saved": "Veranderinge suksesvol gestoor",
@@ -377,6 +435,11 @@
     "confirm": "Bevestig",
     "continue": "Gaan voort",
     "skip": "Slaan oor",
+    "not_set": "Nie gestel nie",
+    "enabled": "Geaktiveer",
+    "disabled": "Uitgeskakel",
+    "not_available": "Nie beskikbaar nie",
+    "coming_soon": "Binnekort beskikbaar",
     "done": "Klaar",
     "retry": "Probeer weer",
     "refresh": "Verfris",
@@ -723,5 +786,17 @@
     "tab_categories": "Kategorieë",
     "tab_comparison": "Vergelyk",
     "no_financial_data_export": "Geen finansiële data beskikbaar om uit te voer nie"
+  },
+  "trends": {
+    "up": "op",
+    "down": "af",
+    "stable": "stabiel",
+    "good": "goed",
+    "excellent": "uitstekend",
+    "warning": "waarskuwing",
+    "attention": "aandag",
+    "needs_attention": "benodig aandag",
+    "low": "laag",
+    "high": "hoog"
   }
 }

@@ -59,7 +59,9 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION public.ensure_petty_cash_account(UUID) IS 'Create petty cash account if it does not exist for preschool (handles both preschool_id and school_id column names)';
+COMMENT ON FUNCTION public.ensure_petty_cash_account(
+  UUID
+) IS 'Create petty cash account if it does not exist for preschool (handles both preschool_id and school_id column names)';
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.ensure_petty_cash_account(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ensure_petty_cash_account(UUID) TO AUTHENTICATED;

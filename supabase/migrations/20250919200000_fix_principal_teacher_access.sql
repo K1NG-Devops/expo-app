@@ -44,109 +44,129 @@ END $$;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies that might be too restrictive
-DROP POLICY IF EXISTS "users_select_own_data" ON public.users;
-DROP POLICY IF EXISTS "users_select_same_preschool" ON public.users;
-DROP POLICY IF EXISTS "users_select_same_organization" ON public.users;
-DROP POLICY IF EXISTS "users_insert_own_profile" ON public.users;
-DROP POLICY IF EXISTS "users_update_own_profile" ON public.users;
-DROP POLICY IF EXISTS "users_principal_update" ON public.users;
-DROP POLICY IF EXISTS "principal_users_access" ON public.users;
-DROP POLICY IF EXISTS "superadmin_users_access" ON public.users;
-DROP POLICY IF EXISTS "superadmin_full_access" ON public.users;
-DROP POLICY IF EXISTS "users_own_data" ON public.users;
-DROP POLICY IF EXISTS "principal_school_access" ON public.users;
-DROP POLICY IF EXISTS "teacher_school_view" ON public.users;
+DROP POLICY IF EXISTS users_select_own_data ON public.users;
+DROP POLICY IF EXISTS users_select_same_preschool ON public.users;
+DROP POLICY IF EXISTS users_select_same_organization ON public.users;
+DROP POLICY IF EXISTS users_insert_own_profile ON public.users;
+DROP POLICY IF EXISTS users_update_own_profile ON public.users;
+DROP POLICY IF EXISTS users_principal_update ON public.users;
+DROP POLICY IF EXISTS principal_users_access ON public.users;
+DROP POLICY IF EXISTS superadmin_users_access ON public.users;
+DROP POLICY IF EXISTS superadmin_full_access ON public.users;
+DROP POLICY IF EXISTS users_own_data ON public.users;
+DROP POLICY IF EXISTS principal_school_access ON public.users;
+DROP POLICY IF EXISTS teacher_school_view ON public.users;
 
 -- ============================================================================
 -- PART 3: CREATE COMPREHENSIVE RLS POLICIES FOR USERS TABLE
 -- ============================================================================
 
 -- Policy 1: Super admin can do everything
-CREATE POLICY "superadmin_full_access"
+CREATE POLICY superadmin_full_access
 ON public.users FOR ALL
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users su
-    WHERE su.auth_user_id = auth.uid()
-    AND su.role IN ('super_admin', 'superadmin')
-    AND COALESCE(su.is_active, true) = true
+    SELECT 1 FROM public.users AS su
+    WHERE
+      su.auth_user_id = auth.uid()
+      AND su.role IN ('super_admin', 'superadmin')
+      AND COALESCE(su.is_active, TRUE) = TRUE
   )
 )
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM public.users su
-    WHERE su.auth_user_id = auth.uid()
-    AND su.role IN ('super_admin', 'superadmin')
-    AND COALESCE(su.is_active, true) = true
+    SELECT 1 FROM public.users AS su
+    WHERE
+      su.auth_user_id = auth.uid()
+      AND su.role IN ('super_admin', 'superadmin')
+      AND COALESCE(su.is_active, TRUE) = TRUE
   )
 );
 
 -- Policy 2: Users can view and update their own data
-CREATE POLICY "users_own_data"
+CREATE POLICY users_own_data
 ON public.users FOR ALL
 TO authenticated
 USING (auth_user_id = auth.uid())
 WITH CHECK (auth_user_id = auth.uid());
 
 -- Policy 3: Principals can view and update users in their organization
-CREATE POLICY "principal_school_access"
+CREATE POLICY principal_school_access
 ON public.users FOR ALL
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users principal
-    WHERE principal.auth_user_id = auth.uid()
-    AND principal.role IN ('principal', 'principal_admin')
-    AND COALESCE(principal.is_active, true) = true
-    AND (
+    SELECT 1 FROM public.users AS principal
+    WHERE
+      principal.auth_user_id = auth.uid()
+      AND principal.role IN ('principal', 'principal_admin')
+      AND COALESCE(principal.is_active, TRUE) = TRUE
+      AND (
       -- Match by organization_id
-      (principal.organization_id IS NOT NULL 
-       AND users.organization_id = principal.organization_id)
-      OR
-      -- Match by preschool_id (if using preschool schema)
-      (COALESCE(principal.preschool_id, principal.organization_id) IS NOT NULL 
-       AND COALESCE(users.preschool_id, users.organization_id) = COALESCE(principal.preschool_id, principal.organization_id))
-    )
+        (
+          principal.organization_id IS NOT NULL
+          AND users.organization_id = principal.organization_id
+        )
+        OR
+        -- Match by preschool_id (if using preschool schema)
+        (
+          COALESCE(principal.preschool_id, principal.organization_id) IS NOT NULL
+          AND COALESCE(users.preschool_id, users.organization_id)
+          = COALESCE(principal.preschool_id, principal.organization_id)
+        )
+      )
   )
 )
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM public.users principal
-    WHERE principal.auth_user_id = auth.uid()
-    AND principal.role IN ('principal', 'principal_admin')
-    AND COALESCE(principal.is_active, true) = true
-    AND (
+    SELECT 1 FROM public.users AS principal
+    WHERE
+      principal.auth_user_id = auth.uid()
+      AND principal.role IN ('principal', 'principal_admin')
+      AND COALESCE(principal.is_active, TRUE) = TRUE
+      AND (
       -- Match by organization_id
-      (principal.organization_id IS NOT NULL 
-       AND users.organization_id = principal.organization_id)
-      OR
-      -- Match by preschool_id
-      (COALESCE(principal.preschool_id, principal.organization_id) IS NOT NULL 
-       AND COALESCE(users.preschool_id, users.organization_id) = COALESCE(principal.preschool_id, principal.organization_id))
-    )
+        (
+          principal.organization_id IS NOT NULL
+          AND users.organization_id = principal.organization_id
+        )
+        OR
+        -- Match by preschool_id
+        (
+          COALESCE(principal.preschool_id, principal.organization_id) IS NOT NULL
+          AND COALESCE(users.preschool_id, users.organization_id)
+          = COALESCE(principal.preschool_id, principal.organization_id)
+        )
+      )
   )
 );
 
 -- Policy 4: Teachers can view users in their organization (read-only for colleagues)
-CREATE POLICY "teacher_school_view"
+CREATE POLICY teacher_school_view
 ON public.users FOR SELECT
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM public.users teacher
-    WHERE teacher.auth_user_id = auth.uid()
-    AND teacher.role = 'teacher'
-    AND COALESCE(teacher.is_active, true) = true
-    AND (
+    SELECT 1 FROM public.users AS teacher
+    WHERE
+      teacher.auth_user_id = auth.uid()
+      AND teacher.role = 'teacher'
+      AND COALESCE(teacher.is_active, TRUE) = TRUE
+      AND (
       -- Match by organization_id
-      (teacher.organization_id IS NOT NULL 
-       AND users.organization_id = teacher.organization_id)
-      OR
-      -- Match by preschool_id
-      (COALESCE(teacher.preschool_id, teacher.organization_id) IS NOT NULL 
-       AND COALESCE(users.preschool_id, users.organization_id) = COALESCE(teacher.preschool_id, teacher.organization_id))
-    )
+        (
+          teacher.organization_id IS NOT NULL
+          AND users.organization_id = teacher.organization_id
+        )
+        OR
+        -- Match by preschool_id
+        (
+          COALESCE(teacher.preschool_id, teacher.organization_id) IS NOT NULL
+          AND COALESCE(users.preschool_id, users.organization_id)
+          = COALESCE(teacher.preschool_id, teacher.organization_id)
+        )
+      )
   )
 );
 
@@ -240,7 +260,7 @@ ON public.users (preschool_id) WHERE preschool_id IS NOT NULL;
 
 -- Index on role for role-based queries
 CREATE INDEX IF NOT EXISTS idx_users_role_active_v2
-ON public.users (role, is_active) WHERE COALESCE(is_active, true) = true;
+ON public.users (role, is_active) WHERE COALESCE(is_active, TRUE) = TRUE;
 
 -- ============================================================================
 -- PART 7: LOG COMPLETION
@@ -250,19 +270,19 @@ ON public.users (role, is_active) WHERE COALESCE(is_active, true) = true;
 INSERT INTO public.config_kv (key, value, description, is_public)
 VALUES (
   'principal_teacher_access_fix_20250919200000',
-  json_build_object(
+  JSON_BUILD_OBJECT(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', NOW()::text,
     'policies_created', 4,
     'functions_created', 2,
     'indexes_created', 4,
     'issue_fixed', 'Principal 400 error accessing teachers'
   ),
   'Principal teacher access RLS policy fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = now();
+  value = excluded.value,
+  updated_at = NOW();
 
 SELECT 'PRINCIPAL TEACHER ACCESS FIXED' AS status;
 

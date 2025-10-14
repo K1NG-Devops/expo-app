@@ -73,10 +73,10 @@ END;
 $$;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO supabase_auth_admin;
-GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO postgres;
-GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO authenticated;
-GRANT EXECUTE ON FUNCTION public.custom_access_token_hook TO service_role;
+GRANT EXECUTE ON FUNCTION PUBLIC.CUSTOM_ACCESS_TOKEN_HOOK TO SUPABASE_AUTH_ADMIN;
+GRANT EXECUTE ON FUNCTION PUBLIC.CUSTOM_ACCESS_TOKEN_HOOK TO POSTGRES;
+GRANT EXECUTE ON FUNCTION PUBLIC.CUSTOM_ACCESS_TOKEN_HOOK TO AUTHENTICATED;
+GRANT EXECUTE ON FUNCTION PUBLIC.CUSTOM_ACCESS_TOKEN_HOOK TO SERVICE_ROLE;
 
 -- ============================================================================
 -- PART 2: UPDATE CURRENT_PRESCHOOL_ID FUNCTION
@@ -131,7 +131,7 @@ BEGIN
   RAISE LOG 'No preschool_id found for user %', auth.uid();
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE PLPGSQL SECURITY DEFINER;
 
 -- ============================================================================
 -- PART 3: HELPER FUNCTION FOR CURRENT USER ROLE
@@ -147,7 +147,7 @@ BEGIN
     'parent'  -- Default fallback
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE PLPGSQL SECURITY DEFINER;
 
 -- ============================================================================
 -- PART 4: ENABLE THE HOOK
@@ -174,12 +174,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- Function to test JWT claims (for debugging)
 CREATE OR REPLACE FUNCTION test_jwt_claims()
 RETURNS TABLE (
-  user_id UUID,
-  preschool_id_claim TEXT,
-  organization_id_claim TEXT,
-  role_claim TEXT,
-  computed_preschool_id UUID,
-  computed_role TEXT
+  USER_ID UUID,
+  PRESCHOOL_ID_CLAIM TEXT,
+  ORGANIZATION_ID_CLAIM TEXT,
+  ROLE_CLAIM TEXT,
+  COMPUTED_PRESCHOOL_ID UUID,
+  COMPUTED_ROLE TEXT
 ) AS $$
 BEGIN
   RETURN QUERY SELECT
@@ -190,11 +190,11 @@ BEGIN
     current_preschool_id() as computed_preschool_id,
     current_user_role() as computed_role;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE PLPGSQL SECURITY DEFINER;
 
 -- Grant execute permissions for testing
-GRANT EXECUTE ON FUNCTION test_jwt_claims TO authenticated;
-GRANT EXECUTE ON FUNCTION test_jwt_claims TO service_role;
+GRANT EXECUTE ON FUNCTION TEST_JWT_CLAIMS TO AUTHENTICATED;
+GRANT EXECUTE ON FUNCTION TEST_JWT_CLAIMS TO SERVICE_ROLE;
 
 -- ============================================================================
 -- PART 6: COMMENTS AND DOCUMENTATION

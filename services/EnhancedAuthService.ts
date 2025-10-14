@@ -144,6 +144,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,
@@ -229,6 +230,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,
@@ -303,6 +305,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,

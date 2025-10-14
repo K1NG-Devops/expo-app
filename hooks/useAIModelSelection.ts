@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useEffect, useMemo } from 'react'
 import { useSubscription } from '@/contexts/SubscriptionContext'
 import { 
@@ -95,7 +96,7 @@ export function useAIModelSelection(
     if (canSelectModel(modelId)) {
       setSelectedModelState(modelId)
     } else {
-      console.warn(`Model ${modelId} not available for tier ${tier}, using default`)
+      logger.warn(`Model ${modelId} not available for tier ${tier}, using default`)
       setSelectedModelState(getDefaultModelForTier(tier))
     }
   }

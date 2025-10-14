@@ -11,12 +11,12 @@
 SELECT 1
 FROM pg_proc AS p
 WHERE
-    p.proname = 'is_super_admin'
-    AND p.pronamespace = (
-        SELECT n.oid
-        FROM pg_namespace AS n
-        WHERE n.nspname = 'app_auth'
-    );
+  p.proname = 'is_super_admin'
+  AND p.pronamespace = (
+    SELECT n.oid
+    FROM pg_namespace AS n
+    WHERE n.nspname = 'app_auth'
+  );
 
 
 -- ============================================
@@ -39,44 +39,44 @@ ON users
 FOR SELECT
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
+  (
+    (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        COALESCE(preschool_id, organization_id)
-        = COALESCE(
-            app_auth.current_user_org_id(),
-            app_auth.org_id()
-        )
-        AND (
-            -- Users can see their own record
-            id = app_auth.current_user_id()
-            OR
-            -- Principals can see all users in their organization
-            app_auth.is_principal()
-            OR
-            -- Teachers can see students and parents in their organization
-            (
-                app_auth.is_teacher()
-                AND (role = 'student' OR role = 'parent')
-            )
-            OR
-            -- Parents can see teachers in their organization
-            (
-                app_auth.is_parent()
-                AND role = 'teacher'
-                AND COALESCE(preschool_id, organization_id)
-                = COALESCE(
-                    app_auth.current_user_org_id(),
-                    app_auth.org_id()
-                )
-            )
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR (
+    COALESCE(preschool_id, organization_id)
+    = COALESCE(
+      app_auth.current_user_org_id(),
+      app_auth.org_id()
+    )
+    AND (
+      -- Users can see their own record
+      id = app_auth.current_user_id()
+      OR
+      -- Principals can see all users in their organization
+      app_auth.is_principal()
+      OR
+      -- Teachers can see students and parents in their organization
+      (
+        app_auth.is_teacher()
+        AND (role = 'student' OR role = 'parent')
+      )
+      OR
+      -- Parents can see teachers in their organization
+      (
+        app_auth.is_parent()
+        AND role = 'teacher'
+        AND COALESCE(preschool_id, organization_id)
+        = COALESCE(
+          app_auth.current_user_org_id(),
+          app_auth.org_id()
+        )
+      )
+    )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -85,58 +85,58 @@ ON users
 FOR ALL
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
-    OR (
-        COALESCE(preschool_id, organization_id)
-        = COALESCE(
-            app_auth.current_user_org_id(),
-            app_auth.org_id()
-        )
-        AND (
-            -- Users can see their own record
-            id = app_auth.current_user_id()
-            OR
-            -- Principals can see all users in their organization
-            app_auth.is_principal()
-            OR
-            -- Teachers can see students and parents in their organization
-            (
-                app_auth.is_teacher()
-                AND (role = 'student' OR role = 'parent')
-            )
-            OR
-            -- Parents can see teachers in their organization
-            (
-                app_auth.is_parent()
-                AND role = 'teacher'
-                AND COALESCE(preschool_id, organization_id)
-                = COALESCE(
-                    app_auth.current_user_org_id(),
-                    app_auth.org_id()
-                )
-            )
-        )
-    )
-)
-WITH CHECK (
+  (
     (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        COALESCE(preschool_id, organization_id)
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND (
-            -- Users can update their own profile
-            id = app_auth.current_user_id()
-            OR
-            -- Principals can manage all users in their organization
-            app_auth.is_principal()
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR (
+    COALESCE(preschool_id, organization_id)
+    = COALESCE(
+      app_auth.current_user_org_id(),
+      app_auth.org_id()
+    )
+    AND (
+      -- Users can see their own record
+      id = app_auth.current_user_id()
+      OR
+      -- Principals can see all users in their organization
+      app_auth.is_principal()
+      OR
+      -- Teachers can see students and parents in their organization
+      (
+        app_auth.is_teacher()
+        AND (role = 'student' OR role = 'parent')
+      )
+      OR
+      -- Parents can see teachers in their organization
+      (
+        app_auth.is_parent()
+        AND role = 'teacher'
+        AND COALESCE(preschool_id, organization_id)
+        = COALESCE(
+          app_auth.current_user_org_id(),
+          app_auth.org_id()
+        )
+      )
+    )
+  )
+)
+WITH CHECK (
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND (
+      -- Users can update their own profile
+      id = app_auth.current_user_id()
+      OR
+      -- Principals can manage all users in their organization
+      app_auth.is_principal()
+    )
+  )
 );
 
 
@@ -160,57 +160,57 @@ ON students
 FOR SELECT
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
+  (
+    (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        preschool_id
-        = COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            COALESCE(
-                COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                app_auth.org_id()
-            )
-        )
-        AND (
-            -- Principals can see all students in their organization
-            app_auth.is_principal()
-            OR
-            -- Teachers can see students in their organization
-            (
-                app_auth.is_teacher()
-                AND preschool_id
-                = COALESCE(
-                    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                    COALESCE(
-                        COALESCE(
-                            app_auth.current_user_org_id(), app_auth.org_id()
-                        ),
-                        app_auth.org_id()
-                    )
-                )
-            )
-            OR
-            -- Parents can see students in their organization (simplified)
-            (
-                app_auth.is_parent()
-                AND preschool_id
-                = COALESCE(
-                    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                    COALESCE(
-                        COALESCE(
-                            app_auth.current_user_org_id(), app_auth.org_id()
-                        ),
-                        app_auth.org_id()
-                    )
-                )
-            )
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR (
+    preschool_id
+    = COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      COALESCE(
+        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+        app_auth.org_id()
+      )
+    )
+    AND (
+      -- Principals can see all students in their organization
+      app_auth.is_principal()
+      OR
+      -- Teachers can see students in their organization
+      (
+        app_auth.is_teacher()
+        AND preschool_id
+        = COALESCE(
+          COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+          COALESCE(
+            COALESCE(
+              app_auth.current_user_org_id(), app_auth.org_id()
+            ),
+            app_auth.org_id()
+          )
+        )
+      )
+      OR
+      -- Parents can see students in their organization (simplified)
+      (
+        app_auth.is_parent()
+        AND preschool_id
+        = COALESCE(
+          COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+          COALESCE(
+            COALESCE(
+              app_auth.current_user_org_id(), app_auth.org_id()
+            ),
+            app_auth.org_id()
+          )
+        )
+      )
+    )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -219,75 +219,75 @@ ON students
 FOR ALL
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
-    OR (
-        preschool_id
-        = COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            COALESCE(
-                COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                app_auth.org_id()
-            )
-        )
-        AND (
-            -- Principals can see all students in their organization
-            app_auth.is_principal()
-            OR
-            -- Teachers can see students in their organization
-            (
-                app_auth.is_teacher()
-                AND preschool_id
-                = COALESCE(
-                    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                    COALESCE(
-                        COALESCE(
-                            app_auth.current_user_org_id(), app_auth.org_id()
-                        ),
-                        app_auth.org_id()
-                    )
-                )
-            )
-            OR
-            -- Parents can see students in their organization (simplified)
-            (
-                app_auth.is_parent()
-                AND preschool_id
-                = COALESCE(
-                    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-                    COALESCE(
-                        COALESCE(
-                            app_auth.current_user_org_id(), app_auth.org_id()
-                        ),
-                        app_auth.org_id()
-                    )
-                )
-            )
-        )
-    )
-)
-WITH CHECK (
+  (
     (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND (
-            -- Principals can manage all students
-            app_auth.is_principal()
-            OR
-            -- Teachers can update students in their organization
-            (
-                app_auth.is_teacher()
-                AND preschool_id
-                = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-            )
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR (
+    preschool_id
+    = COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      COALESCE(
+        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+        app_auth.org_id()
+      )
+    )
+    AND (
+      -- Principals can see all students in their organization
+      app_auth.is_principal()
+      OR
+      -- Teachers can see students in their organization
+      (
+        app_auth.is_teacher()
+        AND preschool_id
+        = COALESCE(
+          COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+          COALESCE(
+            COALESCE(
+              app_auth.current_user_org_id(), app_auth.org_id()
+            ),
+            app_auth.org_id()
+          )
+        )
+      )
+      OR
+      -- Parents can see students in their organization (simplified)
+      (
+        app_auth.is_parent()
+        AND preschool_id
+        = COALESCE(
+          COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+          COALESCE(
+            COALESCE(
+              app_auth.current_user_org_id(), app_auth.org_id()
+            ),
+            app_auth.org_id()
+          )
+        )
+      )
+    )
+  )
+)
+WITH CHECK (
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND (
+      -- Principals can manage all students
+      app_auth.is_principal()
+      OR
+      -- Teachers can update students in their organization
+      (
+        app_auth.is_teacher()
+        AND preschool_id
+        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+      )
+    )
+  )
 );
 
 
@@ -311,21 +311,21 @@ ON organizations
 FOR SELECT
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
+  (
+    (app_auth.is_superadmin() OR app_auth.is_super_admin())
+    OR (
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
-    OR id
-    = COALESCE(
-        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-        COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            app_auth.org_id()
-        )
+  )
+  OR id
+  = COALESCE(
+    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+    COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      app_auth.org_id()
     )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -334,31 +334,31 @@ ON organizations
 FOR ALL
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
-    OR id
-    = COALESCE(
-        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-        COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            app_auth.org_id()
-        )
-    )
-)
-WITH CHECK (
+  (
     (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        id = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND (
-            app_auth.is_principal()
-            OR app_auth.is_teacher()
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR id
+  = COALESCE(
+    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+    COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      app_auth.org_id()
+    )
+  )
+)
+WITH CHECK (
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    id = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND (
+      app_auth.is_principal()
+      OR app_auth.is_teacher()
+    )
+  )
 );
 
 
@@ -382,21 +382,21 @@ ON classes
 FOR SELECT
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
+  (
+    (app_auth.is_superadmin() OR app_auth.is_super_admin())
+    OR (
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
-    OR preschool_id
-    = COALESCE(
-        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-        COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            app_auth.org_id()
-        )
+  )
+  OR preschool_id
+  = COALESCE(
+    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+    COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      app_auth.org_id()
     )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -405,32 +405,32 @@ ON classes
 FOR ALL
 TO public
 USING (
-    (
-        (app_auth.is_superadmin() OR app_auth.is_super_admin())
-        OR (
-            (app_auth.is_superadmin() OR app_auth.is_super_admin())
-            OR app_auth.is_super_admin()
-        )
-    )
-    OR preschool_id
-    = COALESCE(
-        COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-        COALESCE(
-            COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
-            app_auth.org_id()
-        )
-    )
-)
-WITH CHECK (
+  (
     (app_auth.is_superadmin() OR app_auth.is_super_admin())
     OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND (
-            app_auth.is_principal()
-            OR app_auth.is_teacher()
-        )
+      (app_auth.is_superadmin() OR app_auth.is_super_admin())
+      OR app_auth.is_super_admin()
     )
+  )
+  OR preschool_id
+  = COALESCE(
+    COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+    COALESCE(
+      COALESCE(app_auth.current_user_org_id(), app_auth.org_id()),
+      app_auth.org_id()
+    )
+  )
+)
+WITH CHECK (
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND (
+      app_auth.is_principal()
+      OR app_auth.is_teacher()
+    )
+  )
 );
 
 

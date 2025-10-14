@@ -310,6 +310,79 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {conversations.length > 0 && (
+        <View style={styles.toolbar}>
+          <TouchableOpacity
+            style={[styles.toolbarButton, { borderColor: theme.error }]}
+            onPress={() => {
+              Alert.alert(
+                'Delete All Conversations',
+                'This will permanently delete all conversations. Continue?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete All', style: 'destructive', onPress: async () => {
+                    try {
+                      if (!dashInstance) return;
+                      const all = await dashInstance.getAllConversations();
+                      for (const c of all) { await dashInstance.deleteConversation(c.id); }
+                      await loadConversations(dashInstance);
+                    } catch (e) {
+                      Alert.alert('Error', 'Failed to delete all conversations');
+                    }
+                  } }
+                ]
+              );
+            }}
+          >
+            <Ionicons name="trash" size={16} color={theme.error} />
+            <Text style={[styles.toolbarButtonText, { color: theme.error }]}>Delete All</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.toolbarButton, { borderColor: theme.border }]}
+            onPress={() => {
+              const runDelete = async (days: number) => {
+                try {
+                  if (!dashInstance) return;
+                  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+                  const all = await dashInstance.getAllConversations();
+                  for (const c of all) { if (c.updated_at < cutoff) { await dashInstance.deleteConversation(c.id); } }
+                  await loadConversations(dashInstance);
+                } catch (e) {
+                  Alert.alert('Error', 'Failed to delete old conversations');
+                }
+              };
+
+              const options = ['Older than 7 days', 'Older than 30 days', 'Older than 90 days', 'Cancel'];
+              if (Platform.OS === 'ios') {
+                ActionSheetIOS.showActionSheetWithOptions(
+                  { options, cancelButtonIndex: 3, destructiveButtonIndex: undefined },
+                  (idx) => {
+                    if (idx === 0) runDelete(7);
+                    else if (idx === 1) runDelete(30);
+                    else if (idx === 2) runDelete(90);
+                  }
+                );
+              } else {
+                Alert.alert(
+                  'Delete Old Conversations',
+                  'Choose a cutoff:',
+                  [
+                    { text: '7 days', onPress: () => runDelete(7) },
+                    { text: '30 days', onPress: () => runDelete(30) },
+                    { text: '90 days', onPress: () => runDelete(90) },
+                    { text: 'Cancel', style: 'cancel' },
+                  ]
+                );
+              }
+            }}
+          >
+            <Ionicons name="time" size={16} color={theme.textSecondary} />
+            <Text style={[styles.toolbarButtonText, { color: theme.textSecondary }]}>Delete Old…</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         data={conversations}
         keyExtractor={(item) => item.id}
@@ -356,6 +429,27 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
     paddingBottom: 80,
+  },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  toolbarButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  toolbarButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

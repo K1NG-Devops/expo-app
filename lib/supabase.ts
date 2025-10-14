@@ -50,27 +50,28 @@ try {
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Enhanced debugging for environment variable loading (development only)
+// Enhanced debugging for environment variable loading
 const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
-if (isDevelopment) {
-  try {
-    logger.debug('Supabase env check', { 
-      hasUrl: !!url, 
-      hasAnon: !!anon,
-      urlLength: url ? url.length : 0,
-      anonLength: anon ? anon.length : 0,
-      urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
-      anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING'
-    });
-    if (!url || !anon) {
-      logger.error('Missing Supabase environment variables!');
-      logger.error('EXPO_PUBLIC_SUPABASE_URL:', url ? 'present' : 'MISSING');
-      logger.error('EXPO_PUBLIC_SUPABASE_ANON_KEY:', anon ? 'present' : 'MISSING');
-    }
-  } catch (e) {
-    logger.error('Supabase debug error:', e);
+const envName = process.env.EXPO_PUBLIC_ENVIRONMENT || process.env.NODE_ENV || 'unknown';
+try {
+  const meta = { 
+    hasUrl: !!url, 
+    hasAnon: !!anon,
+    urlLength: url ? url.length : 0,
+    anonLength: anon ? anon.length : 0,
+    urlStart: url ? url.substring(0, 25) + '...' : 'MISSING',
+    anonStart: anon ? anon.substring(0, 20) + '...' : 'MISSING',
+    env: envName,
+  };
+  if (isDevelopment) {
+    logger.debug('Supabase env check', meta);
+  } else if (envName === 'preview') {
+    // Log minimally in preview to help diagnose missing env in release builds (no secrets)
+    console.log('[Supabase] Env summary', meta);
   }
-}
+  } catch (e) {
+    try { logger.error('Supabase debug error:', e); } catch { /* Logger unavailable */ }
+  }
 
 // SecureStore adapter (preferred for iOS). Note: SecureStore has a ~2KB limit per item on Android.
 const SecureStoreAdapter = SecureStore ? {
@@ -100,10 +101,37 @@ const MemoryStorageAdapter = {
   },
 };
 
+// Custom storage adapter for web that prevents cross-tab sync
+const IsolatedWebStorageAdapter = typeof window !== 'undefined' && Platform?.OS === 'web' ? {
+  getItem: async (key: string) => {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem: async (key: string, value: string) => {
+    try {
+      window.localStorage.setItem(key, value);
+      // Don't dispatch storage events to prevent cross-tab triggers
+    } catch {
+      // ignore
+    }
+  },
+  removeItem: async (key: string) => {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
+  },
+} : null;
+
 function chooseStorage() {
   try {
-    // Web platform: use localStorage via AsyncStorage or memory fallback
+    // Web platform: use isolated storage to prevent cross-tab sync
     if (Platform?.OS === 'web') {
+      if (IsolatedWebStorageAdapter) return IsolatedWebStorageAdapter;
       if (AsyncStorageAdapter) return AsyncStorageAdapter;
       return MemoryStorageAdapter;
     }
@@ -121,23 +149,50 @@ function chooseStorage() {
 let client: SupabaseClient | null = null;
 if (url && anon) {
   const storage = chooseStorage();
+  // Disable aggressive auto-refresh on web to prevent loading state loops
+  const isWeb = Platform?.OS === 'web';
+  const autoRefresh = isWeb ? false : true; // Only auto-refresh on mobile
+  
   client = createClient(url, anon, {
     auth: {
       storage: storage as any,
-      autoRefreshToken: true,
+      autoRefreshToken: autoRefresh,
       persistSession: true,
       detectSessionInUrl: false,
-      // Add debugging for token refresh issues
+      // Prevent storage sync events from triggering refreshes on web
+      storageKey: isWeb ? 'edudash-web-session' : 'sb-auth-token',
+      flowType: isWeb ? 'implicit' : 'pkce',
+      // Disable noisy debug logs (only enable explicitly for auth debugging)
       debug: process.env.EXPO_PUBLIC_DEBUG_SUPABASE === 'true',
     },
   });
+  
+  // Suppress excessive GoTrueClient debug logs in development
+  if (isDevelopment && typeof global !== 'undefined') {
+    const originalConsoleLog = console.log;
+    console.log = (...args: any[]) => {
+      // Filter out GoTrueClient session management spam
+      const msg = args[0];
+      if (typeof msg === 'string' && (
+        msg.includes('GoTrueClient@') && (
+          msg.includes('#_acquireLock') ||
+          msg.includes('#__loadSession()') ||
+          msg.includes('#_useSession') ||
+          msg.includes('#getSession() session from storage')
+        )
+      )) {
+        return; // Suppress
+      }
+      originalConsoleLog.apply(console, args);
+    };
+  }
 
   if (client && isDevelopment) {
     logger.info('Supabase client initialized successfully');
   }
 
   // Add global error handler for auth errors
-  client.auth.onAuthStateChange((event, session) => {
+  client.auth.onAuthStateChange((event) => {
     if (event === 'TOKEN_REFRESHED') {
       logger.info('Token refreshed successfully');
     } else if (event === 'SIGNED_OUT') {
@@ -147,6 +202,20 @@ if (url && anon) {
       storage.removeItem('edudash_user_profile').catch(() => {});
     }
   });
+  
+  // CRITICAL FIX: Block storage event listeners on web that trigger cross-tab refresh
+  if (isWeb && typeof window !== 'undefined') {
+    // Intercept and block storage events that Supabase listens to
+    const originalAddEventListener = window.addEventListener;
+    window.addEventListener = function(type: string, listener: any, options?: any) {
+      if (type === 'storage') {
+        // Block storage event listeners to prevent cross-tab sync
+        console.log('[Supabase] Blocking storage event listener to prevent cross-tab refresh');
+        return;
+      }
+      return originalAddEventListener.call(this, type, listener, options);
+    };
+  }
 }
 
 // Helper function to assert supabase client exists

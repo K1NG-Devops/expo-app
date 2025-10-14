@@ -9,11 +9,11 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- Create table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.whatsapp_contacts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  preschool_id UUID NOT NULL REFERENCES public.preschools(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  preschool_id UUID NOT NULL REFERENCES public.preschools (id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   phone_e164 TEXT NOT NULL,
   wa_user_id TEXT,
-  consent_status public.whatsapp_consent_status NOT NULL DEFAULT 'pending',
+  consent_status public.WHATSAPP_CONSENT_STATUS NOT NULL DEFAULT 'pending',
   last_opt_in_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

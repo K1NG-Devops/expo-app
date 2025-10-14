@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * AI TanStack Query Hooks
  * 
@@ -305,7 +306,7 @@ export function useAICacheClear() {
           await AsyncStorage.multiRemove(aiKeys);
         }
       } catch (error) {
-        console.warn('Failed to clear AI cache from AsyncStorage:', error);
+        logger.warn('Failed to clear AI cache from AsyncStorage:', error);
       }
     },
     
@@ -318,7 +319,7 @@ export function useAICacheClear() {
       try {
         await AsyncStorage.removeItem(CACHE_KEYS.USER_LIMITS + userId);
       } catch (error) {
-        console.warn('Failed to clear user AI cache:', error);
+        logger.warn('Failed to clear user AI cache:', error);
       }
     },
   };

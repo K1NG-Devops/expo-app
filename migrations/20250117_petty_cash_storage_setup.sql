@@ -13,7 +13,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES (
   'petty-cash-receipts',
   'petty-cash-receipts',
-  false, -- Private bucket
+  FALSE, -- Private bucket
   10485760, -- 10MB limit
   ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'image/heic']
 ) ON CONFLICT (id) DO NOTHING;

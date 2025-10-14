@@ -124,7 +124,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         styles.metricCard,
         size === 'large' && styles.metricCardLarge,
         size === 'small' && styles.metricCardSmall,
-        { marginHorizontal: cardGap / 2, marginBottom: cardGap }
+        { marginHorizontal: cardGap / 2, marginBottom: cardGap, borderLeftColor: color, shadowColor: color }
       ]}
       onPress={onPress}
       disabled={!onPress}
@@ -155,7 +155,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
   const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle, disabled }) => (
     <TouchableOpacity
-      style={[styles.actionCard, disabled && styles.actionCardDisabled]}
+      style={[styles.actionCard, disabled && styles.actionCardDisabled, { borderLeftColor: color, shadowColor: color }]}
       onPress={async () => {
         if (disabled) return;
         try {
@@ -300,7 +300,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
     {
       title: t('teacher.ai_assistant'),
       icon: 'sparkles',
-      color: '#8B5CF6',
+      color: theme.accent,
       onPress: () => handleQuickAction('ai_assistant'),
       disabled: tier === 'free'
     }
@@ -456,6 +456,7 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     backgroundColor: theme.surface,
     borderRadius: 16,
     padding: cardPadding,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -512,6 +513,7 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     marginHorizontal: cardGap / 2,
     marginBottom: cardGap,
     minHeight: isTablet ? 120 : isSmallScreen ? 90 : 100,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,

@@ -10,6 +10,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
 import { log, warn, debug, error as logError } from '@/lib/debug';
 
+// Polyfill for Promise.allSettled (for older JavaScript engines)
+if (!Promise.allSettled) {
+  Promise.allSettled = function <T>(promises: Array<Promise<T>>): Promise<Array<PromiseSettledResult<T>>> {
+    return Promise.all(
+      promises.map((promise) =>
+        Promise.resolve(promise)
+          .then((value) => ({ status: 'fulfilled' as const, value }))
+          .catch((reason) => ({ status: 'rejected' as const, reason }))
+      )
+    );
+  };
+}
+
 // Helper functions for business logic
 const formatTimeAgo = (dateString: string): string => {
   const date = new Date(dateString);
@@ -333,7 +346,7 @@ export const usePrincipalDashboard = () => {
               warn('⚠️ Self users row did not contain preschool_id');
             }
           } catch (e) {
-            console.warn('Self users row lookup threw:', e);
+            warn('Self users row lookup threw:', e);
           }
         }
       } else {
@@ -593,7 +606,7 @@ export const usePrincipalDashboard = () => {
             }
           }
         } catch (fetchUsersErr) {
-          console.warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
+          warn('Teacher/Parent user detail fetch by membership failed:', fetchUsersErr);
         }
 
         // Enhanced logging with actual data counts and sample records
@@ -805,8 +818,16 @@ export const usePrincipalDashboard = () => {
   }, [user]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Only fetch data if user exists
+    if (user?.id) {
+      fetchData();
+    } else {
+      // No user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
+    }
+  }, [fetchData, user]);
 
   const refresh = useCallback(() => {
     log('🔄 Refreshing Principal Dashboard data...');
@@ -1136,11 +1157,16 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
   }, [user, authLoading]);
 
   useEffect(() => {
-    // Only fetch data if auth is not loading
-    if (!authLoading) {
+    // Only fetch data if auth is not loading and user exists
+    if (!authLoading && user?.id) {
       fetchData();
+    } else if (!authLoading && !user) {
+      // Auth completed but no user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
     }
-  }, [fetchData, authLoading]);
+  }, [fetchData, authLoading, user]);
 
   const refresh = useCallback(() => {
     fetchData(true); // Force refresh from server
@@ -1396,11 +1422,16 @@ await offlineCacheService.cacheParentDashboard(
   }, [user, authLoading]);
 
   useEffect(() => {
-    // Only fetch data if auth is not loading
-    if (!authLoading) {
+    // Only fetch data if auth is not loading and user exists
+    if (!authLoading && user?.id) {
       fetchData();
+    } else if (!authLoading && !user) {
+      // Auth completed but no user - clear any stale data
+      setData(null);
+      setLoading(false);
+      setError(null);
     }
-  }, [fetchData, authLoading]);
+  }, [fetchData, authLoading, user]);
 
   const refresh = useCallback(() => {
     fetchData(true); // Force refresh from server

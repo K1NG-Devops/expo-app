@@ -52,6 +52,7 @@ export default function ProfilesGateScreen() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessValidation, setAccessValidation] = useState<ReturnType<typeof validateUserAccess> | null>(null);
+  const navigationInProgressRef = useRef(false);
 
   useEffect(() => {
     // Special case: If user came from biometric login and has no profile data,
@@ -64,8 +65,9 @@ export default function ProfilesGateScreen() {
           const { detectRoleAndSchool } = await import('@/lib/routeAfterLogin');
           const { role } = await detectRoleAndSchool(user);
           
-          if (role) {
+          if (role && !navigationInProgressRef.current) {
             console.log('Profiles-gate: Found existing user role:', role);
+            navigationInProgressRef.current = true;
             // Route based on detected role
             const routes = {
               'parent': '/screens/parent-dashboard',
@@ -88,7 +90,8 @@ export default function ProfilesGateScreen() {
       setAccessValidation(validation);
       
       // If user has valid access, route them appropriately
-      if (validation.hasAccess) {
+      if (validation.hasAccess && !navigationInProgressRef.current) {
+        navigationInProgressRef.current = true;
         routeAfterLogin(user, profile).catch(console.error);
       }
     } else {
@@ -169,13 +172,17 @@ export default function ProfilesGateScreen() {
       };
       
       const targetRoute = routes[selectedRole as keyof typeof routes];
-      if (targetRoute) {
+      if (targetRoute && !navigationInProgressRef.current) {
         console.log('Profile gate: Routing to:', targetRoute);
+        navigationInProgressRef.current = true;
         router.replace(targetRoute as any);
         return;
       }
       // Default fallback to sign-in
-      router.replace('/(auth)/sign-in' as any);
+      if (!navigationInProgressRef.current) {
+        navigationInProgressRef.current = true;
+        router.replace('/(auth)/sign-in' as any);
+      }
       return;
     } catch (error) {
       console.error('Profile gate: Continue failed:', error);
@@ -211,7 +218,8 @@ export default function ProfilesGateScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      router.replace('/landing');
+      // Ensure we land on the auth screen immediately after sign-out
+      router.replace('/(auth)/sign-in');
     } catch (error) {
       console.error('Sign out failed:', error);
     }

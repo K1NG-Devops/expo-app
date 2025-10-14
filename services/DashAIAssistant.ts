@@ -17,6 +17,9 @@ import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
 import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
+import { base64ToUint8Array } from '@/lib/utils/base64';
+import DashRealTimeAwareness from './DashRealTimeAwareness';
+import { DashAgenticIntegration } from './DashAgenticIntegration';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -26,6 +29,97 @@ try {
   }
 } catch (e) {
   console.debug('SecureStore import failed (web or unsupported platform)', e);
+}
+
+// ============================================
+// AGENTIC PRIMITIVES (Phase 1.3)
+// ============================================
+
+/** Autonomy level for AI agent behavior */
+export type AutonomyLevel = 'observer' | 'assistant' | 'partner' | 'autonomous';
+
+/** Risk level for action execution */
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+/** Retry strategy for failed actions */
+export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'linear_backoff' | 'scheduled';
+
+/** Decision record for traceability */
+export interface DecisionRecord {
+  id: string;
+  action: DashAction;
+  risk: RiskLevel;
+  confidence: number; // 0-1
+  rationale: string;
+  requiresApproval: boolean;
+  createdAt: number;
+  context: Record<string, any>;
+  memoryReferences?: string[]; // IDs of memories that influenced this decision
+}
+
+/** Execution history entry */
+export interface ExecutionHistoryEntry {
+  id: string;
+  taskId: string;
+  stepId: string;
+  action: DashAction;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'retrying';
+  startedAt: number;
+  finishedAt?: number;
+  result?: any;
+  error?: string;
+  retryCount: number;
+  decision?: DecisionRecord;
+  metrics: {
+    duration?: number;
+    resourcesUsed?: Record<string, any>;
+    confidence?: number;
+  };
+}
+
+/** Priority queue item for task scheduling */
+export interface QueueItem {
+  id: string;
+  taskId: string;
+  stepId?: string;
+  action: DashAction;
+  priority: number; // Higher number = higher priority
+  deadline?: number;
+  createdAt: number;
+  attemptCount: number;
+  dependencies?: string[]; // IDs of tasks that must complete first
+}
+
+/** Retry configuration for task steps */
+export interface RetryConfig {
+  max: number;
+  strategy: RetryStrategy;
+  delayMs: number;
+  backoffMultiplier?: number; // For exponential backoff
+  maxDelayMs?: number; // Cap for exponential backoff
+}
+
+export type DashAttachmentKind =
+  | 'image'
+  | 'pdf'
+  | 'document'
+  | 'spreadsheet'
+  | 'presentation'
+  | 'audio'
+  | 'other';
+
+export interface DashAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  bucket: string;
+  storagePath: string;
+  kind: DashAttachmentKind;
+  status: 'pending' | 'uploading' | 'uploaded' | 'failed';
+  previewUri?: string;
+  uploadProgress?: number;
+  meta?: Record<string, any>;
 }
 
 export interface DashMessage {
@@ -130,6 +224,20 @@ export interface DashTaskStep {
     criteria: string[];
   };
   actions?: DashAction[];
+  
+  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
+  /** Conditional expression for step execution (safe evaluation) */
+  condition?: string;
+  /** Step ID to execute on success */
+  onSuccessNext?: string;
+  /** Step ID to execute on failure */
+  onFailureNext?: string;
+  /** Retry configuration for this step */
+  retry?: RetryConfig;
+  /** Parallel execution group ID - steps with same ID run concurrently */
+  parallelGroupId?: string;
+  /** Maximum concurrent execution within parallel group */
+  maxConcurrency?: number;
 }
 
 export interface DashAction {
@@ -171,7 +279,7 @@ export interface DashConversation {
 
 export interface DashMemoryItem {
   id: string;
-  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight';
+  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight' | 'episodic' | 'working' | 'semantic';
   key: string;
   value: any;
   confidence: number;
@@ -188,6 +296,16 @@ export interface DashMemoryItem {
   emotional_weight?: number; // How emotionally significant this memory is
   retrieval_frequency?: number; // How often this memory is accessed
   tags?: string[];
+  
+  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
+  /** Importance score 1-10 for memory consolidation and pruning */
+  importance?: number;
+  /** Computed recency score for retrieval ranking */
+  recency_score?: number;
+  /** Access count for frequency tracking */
+  accessed_count?: number;
+  /** Vector embedding for semantic similarity (matches DB schema) */
+  text_embedding?: number[];
 }
 
 export interface DashUserProfile {
@@ -450,6 +568,9 @@ export class DashAIAssistant {
   private isRecording = false;
   private recordingObject: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
+  private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'unknown';
+  private audioPermissionLastChecked: number = 0;
+  private readonly PERMISSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -463,6 +584,7 @@ export class DashAIAssistant {
     type: string;
     data: any;
   }> = [];
+  private messageCountByConversation: Map<string, number> = new Map();
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
@@ -483,11 +605,11 @@ export class DashAIAssistant {
   }
 
   /**
-   * Initialize Dash AI Assistant
+   * Initialize Dash AI Assistant with Agentic Services
    */
   public async initialize(): Promise<void> {
     try {
-      console.log('[Dash] Initializing AI Assistant...');
+      console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
       
       // Initialize audio
       await this.initializeAudio();
@@ -499,10 +621,93 @@ export class DashAIAssistant {
       // Load user context
       await this.loadUserContext();
       
+      // Initialize agentic services
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
+      
+      if (session?.user && profile) {
+        await DashAgenticIntegration.initialize({
+          userId: session.user.id,
+          profile,
+          tier: profile.subscription_tier || 'starter',
+          role: profile.role || 'teacher',
+          language: profile.preferred_language || 'en'
+        });
+        
+        console.log('[Dash] Agentic services initialized');
+      }
+      
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
       console.error('[Dash] Failed to initialize AI Assistant:', error);
       throw error;
+    }
+  }
+
+  
+  /**
+   * Check if audio permission is granted (with caching)
+   */
+  private async checkAudioPermission(): Promise<boolean> {
+    try {
+      // Use cached status if recent (within 5 minutes)
+      const now = Date.now();
+      if (this.audioPermissionStatus !== 'unknown' && 
+          (now - this.audioPermissionLastChecked) < this.PERMISSION_CACHE_DURATION) {
+        return this.audioPermissionStatus === 'granted';
+      }
+
+      // Check current permission status without prompting
+      const { granted } = await Audio.getPermissionsAsync();
+      this.audioPermissionStatus = granted ? 'granted' : 'denied';
+      this.audioPermissionLastChecked = now;
+      
+      console.log(`[Dash] Audio permission status: ${this.audioPermissionStatus}`);
+      return granted;
+    } catch (error) {
+      console.error('[Dash] Failed to check audio permissions:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Request audio permission (only if not already granted)
+   */
+  private async requestAudioPermission(): Promise<boolean> {
+    try {
+      console.log('[Dash] Checking audio permission status...');
+      
+      // First check if already granted (using cache)
+      const alreadyGranted = await this.checkAudioPermission();
+      if (alreadyGranted) {
+        console.log('[Dash] Audio permission already granted (cached)');
+        return true;
+      }
+
+      // Permission not granted - request it
+      console.log('[Dash] Permission not granted, requesting from user...');
+      console.log('[Dash] Platform:', Platform.OS);
+      
+      const permissionResult = await Audio.requestPermissionsAsync();
+      console.log('[Dash] Permission result:', permissionResult);
+      
+      // Update cache with result
+      this.audioPermissionStatus = permissionResult.granted ? 'granted' : 'denied';
+      this.audioPermissionLastChecked = Date.now();
+      
+      if (permissionResult.granted) {
+        console.log('[Dash] ✅ Audio permission GRANTED by user');
+      } else {
+        console.warn('[Dash] ❌ Audio permission DENIED by user');
+        console.warn('[Dash] Full permission result:', JSON.stringify(permissionResult, null, 2));
+      }
+      
+      return permissionResult.granted;
+    } catch (error) {
+      console.error('[Dash] ❌ FAILED to request audio permissions:', error);
+      console.error('[Dash] Error details:', JSON.stringify(error, null, 2));
+      this.audioPermissionStatus = 'denied';
+      return false;
     }
   }
 
@@ -514,11 +719,19 @@ export class DashAIAssistant {
       // On web, expo-av audio mode options are not applicable; skip configuration
       if (Platform.OS === 'web') {
         console.debug('[Dash] Skipping audio mode configuration on web');
+        this.audioPermissionStatus = 'granted'; // Web doesn't need explicit permission
         return;
       }
 
-      await Audio.requestPermissionsAsync();
+      // Check current permission status (don't request during initialization)
+      const hasPermission = await this.checkAudioPermission();
+      if (!hasPermission) {
+        console.log('[Dash] Audio permission not granted yet - will request on first recording attempt');
+        // Don't throw - allow app to continue, will request permission when needed
+        return;
+      }
 
+      // Configure audio mode if permission is granted
       if (Platform.OS === 'ios') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
@@ -530,8 +743,11 @@ export class DashAIAssistant {
           playThroughEarpieceAndroid: false,
         } as any);
       }
+      
+      console.log('[Dash] Audio initialized successfully with permissions');
     } catch (error) {
       console.error('[Dash] Audio initialization failed:', error);
+      // Don't throw here - allow the app to continue without audio
     }
   }
 
@@ -640,6 +856,36 @@ export class DashAIAssistant {
     }
 
     try {
+      // Check and request permissions first (native platforms only)
+      if (Platform.OS !== 'web') {
+        const hasPermission = await this.requestAudioPermission();
+        if (!hasPermission) {
+          throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
+        }
+        
+        // Configure audio mode now that we have permission
+        console.log('[Dash] Configuring audio mode for recording...');
+        try {
+          if (Platform.OS === 'ios') {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: true,
+              playsInSilentModeIOS: true,
+            });
+          } else if (Platform.OS === 'android') {
+            await Audio.setAudioModeAsync({
+              allowsRecordingIOS: false,
+              playsInSilentModeIOS: true,
+              staysActiveInBackground: false,
+              shouldDuckAndroid: true,
+              playThroughEarpieceAndroid: false,
+            });
+          }
+          console.log('[Dash] Audio mode configured for recording');
+        } catch (audioModeError) {
+          console.warn('[Dash] Failed to set audio mode, will try recording anyway:', audioModeError);
+        }
+      }
+
       // Web compatibility checks for recording support and secure context
       if (Platform.OS === 'web') {
         try {
@@ -726,6 +972,90 @@ export class DashAIAssistant {
       console.error('[Dash] Failed to stop recording:', error);
       throw error;
     }
+  }
+
+  /**
+   * Pre-warm the recorder for faster start times
+   */
+  public async preWarmRecorder(): Promise<void> {
+    // Pre-warming logic can go here if needed
+    // For now, this is a no-op as startRecording handles initialization
+    return Promise.resolve();
+  }
+  
+  /**
+   * Check if recording is currently possible (has permissions)
+   */
+  public async canRecord(): Promise<boolean> {
+    if (Platform.OS === 'web') {
+      return true; // Web permissions are checked at recording time
+    }
+    return await this.checkAudioPermission();
+  }
+  
+  /**
+   * Get current permission status
+   */
+  public getPermissionStatus(): 'granted' | 'denied' | 'unknown' {
+    return this.audioPermissionStatus;
+  }
+
+  /**
+   * Transcribe audio only without sending to AI
+   */
+  public async transcribeOnly(
+    audioUri: string,
+    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void
+  ): Promise<{
+    transcript: string;
+    duration?: number;
+    storagePath?: string;
+    contentType?: string;
+    language?: string;
+    provider?: string;
+    error?: string;
+  }> {
+    return this.transcribeAudio(audioUri, onProgress);
+  }
+
+  /**
+   * Send a pre-prepared voice message (already transcribed)
+   */
+  public async sendPreparedVoiceMessage(
+    audioUri: string,
+    transcript: string,
+    duration: number,
+    conversationId?: string
+  ): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId;
+    if (!convId) {
+      throw new Error('No active conversation');
+    }
+
+    // Create user message with voice note
+    const userMessage: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: transcript,
+      timestamp: Date.now(),
+      voiceNote: {
+        audioUri,
+        duration,
+        transcript,
+        contentType: 'audio/m4a',
+        language: 'en-US',
+        provider: 'local'
+      }
+    };
+
+    // Add to conversation
+    await this.addMessageToConversation(convId, userMessage);
+
+    // Generate AI response
+    const assistantResponse = await this.generateResponse(transcript, convId);
+    await this.addMessageToConversation(convId, assistantResponse);
+
+    return assistantResponse;
   }
 
   /**
@@ -960,6 +1290,19 @@ export class DashAIAssistant {
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
+    // CRITICAL: Remove action text in asterisks like "*opens browser*" or "*typing*"
+    normalized = normalized.replace(/\*[^*]+\*/g, '');
+    
+    // CRITICAL: Remove standalone timestamps at the beginning of messages
+    // Patterns like "2:30 PM" or "14:30" or "2:30" at start of text
+    normalized = normalized.replace(/^\s*\d{1,2}:\d{2}\s*(?:AM|PM)?\s*[-–—]?\s*/i, '');
+    
+    // Remove markdown formatting that shouldn't be spoken
+    normalized = normalized.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // Links [text](url) -> text
+    normalized = normalized.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold **text** -> text
+    normalized = normalized.replace(/\*([^*]+)\*/g, '$1'); // Italic *text* -> text (after actions removed)
+    normalized = normalized.replace(/`([^`]+)`/g, '$1'); // Code `text` -> text
+    
     // Handle bullet points and list formatting FIRST (before other transformations)
     normalized = this.normalizeBulletPoints(normalized);
     
@@ -1156,8 +1499,8 @@ export class DashAIAssistant {
       .replace(/\n[\s]*(\d+)[.)\s]+/g, '\n') // Remove numbered bullets after newlines
       // Handle dashes in educational content (not math contexts)
       .replace(/([a-zA-Z])\s*-\s*([A-Z][a-z])/g, '$1, $2') // "Students - They will" -> "Students, They will"
-      // Handle dash separators in descriptions
-      .replace(/([a-z])\s*-\s*([a-z])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
+      // Handle dash separators in numeric ranges (preserve)
+      .replace(/([0-9])\s*-\s*([0-9])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
       // Clean up extra spaces and newlines
       .replace(/\n\s*\n/g, '. ') // Double newlines become sentence breaks
       .replace(/\n/g, '. ') // Single newlines become sentence breaks
@@ -1166,7 +1509,8 @@ export class DashAIAssistant {
   }
   
   /**
-   * Normalize special formatting like underscores and camelCase
+   * Normalize special formatting like underscores, hyphens, and camelCase
+   * IMPROVED: Better handling of compound words with hyphens
    */
   private normalizeSpecialFormatting(text: string): string {
     return text
@@ -1174,8 +1518,23 @@ export class DashAIAssistant {
       .replace(/([a-zA-Z]+)_([a-zA-Z]+)/g, '$1 $2')
       // Handle camelCase (firstName -> first name)
       .replace(/([a-z])([A-Z])/g, '$1 $2')
-      // Handle kebab-case (first-name -> first name)
-      .replace(/([a-zA-Z]+)-([a-zA-Z]+)/g, '$1 $2')
+      // IMPROVED: Handle kebab-case/hyphenated words PROPERLY
+      // This catches "step-by-step", "user-friendly", etc.
+      .replace(/\b([a-zA-Z]+)-([a-zA-Z]+)\b/g, (match, word1, word2) => {
+        // Special cases: keep common compound words natural
+        const compoundWords = [
+          'well-known', 'up-to-date', 'state-of-the-art', 'real-time',
+          'high-quality', 'low-cost', 'long-term', 'short-term',
+          'user-friendly', 'self-service', 'full-time', 'part-time'
+        ];
+        const lowercase = match.toLowerCase();
+        if (compoundWords.includes(lowercase)) {
+          // For TTS, just remove the hyphen to make it flow naturally
+          return `${word1} ${word2}`;
+        }
+        // For patterns like "step-by-step", we'll handle them recursively
+        return `${word1} ${word2}`;
+      })
       // Handle file extensions (.pdf -> dot P D F)
       .replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|png|gif)\b/gi, (match, ext) => {
         return ` dot ${ext.toUpperCase().split('').join(' ')}`;
@@ -1601,6 +1960,18 @@ export class DashAIAssistant {
     try {
       await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'PDF export failed' };
+    }
+  }
+
+  /**
+   * Export text as a PDF and return a downloadable URI and filename
+   */
+  public async exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
+    try {
+      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '');
+      return { success: true, uri, filename };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
     }
@@ -2388,6 +2759,21 @@ export class DashAIAssistant {
       
       console.log('[Dash] About to start speaking:', normalizedText.substring(0, 100) + '...');
       
+      // Ensure audio mode allows TTS playback (iOS silent switch, Android ducking)
+      try {
+        if (Platform.OS !== 'web') {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+          } as any);
+        }
+      } catch (e) {
+        console.warn('[Dash] Failed to set audio mode for TTS:', e);
+      }
+
       return new Promise<void>((resolve, reject) => {
         Speech.speak(normalizedText, {
           language: voiceSettings.language,
@@ -2434,63 +2820,90 @@ export class DashAIAssistant {
   }
 
   /**
-   * Generate AI response based on user input and context
+   * Generate AI response based on user input and context (AGENTIC VERSION)
+   * This method activates all agentic engines for intelligent, proactive responses
    */
   private async generateResponse(userInput: string, conversationId: string): Promise<DashMessage> {
     try {
-      // Get conversation history for context
+      console.log('[Dash Agent] Processing message with agentic engines...');
+      
+      // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      
-      // Get user context
-      const session = await getCurrentSession();
       const profile = await getCurrentProfile();
       
-      // Build context for AI
-      const context = {
+      // Build full context for agentic analysis
+      const fullContext = {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
         memory: Array.from(this.memory.values()),
         personality: this.personality,
         timestamp: new Date().toISOString(),
+        currentContext: await this.getCurrentContext(),
       };
 
-      // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
-      const response = await this.callAIServiceLegacy(context);
+      // PHASE 1: CONTEXT ANALYSIS - Understand user intent and context
+      console.log('[Dash Agent] Phase 1: Analyzing context...');
+      const { DashContextAnalyzer } = await import('./DashContextAnalyzer');
+      const analyzer = DashContextAnalyzer.getInstance();
+      const analysis = await analyzer.analyzeUserInput(userInput, recentMessages, fullContext.currentContext);
+      console.log('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
       
-      // Update memory based on interaction
-      await this.updateMemory(userInput, response);
-      
-      // Create assistant message
-      const assistantMessage: DashMessage = {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: response.content,
-        timestamp: Date.now(),
-        metadata: {
-          confidence: response.confidence || 0.9,
-          suggested_actions: response.suggested_actions || [],
-          references: response.references || [],
-          dashboard_action: response.dashboard_action
+      // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
+      console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
+      const { DashProactiveEngine } = await import('./DashProactiveEngine');
+      const proactiveEngine = DashProactiveEngine.getInstance();
+      const userRole = profile?.role || 'parent';
+      const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
+        autonomyLevel: this.autonomyLevel,
+        currentScreen: fullContext.currentContext?.screen_name,
+        recentActivity: fullContext.currentContext?.recent_actions,
+        timeContext: {
+          hour: new Date().getHours(),
+          dayOfWeek: new Date().getDay()
         }
-      };
-
-      // Post-process assistant message to avoid implying non-existent attachments (e.g., PDFs)
-      assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
-      return assistantMessage;
-    } catch (error) {
-      console.error('[Dash] Failed to generate response:', error);
+      });
+      console.log('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
       
-      // Fallback response
+      // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
+      console.log('[Dash Agent] Phase 3: Generating enhanced response...');
+      const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis);
+      
+      // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
+      if (opportunities.length > 0) {
+        console.log('[Dash Agent] Phase 4: Handling proactive opportunities...');
+        await this.handleProactiveOpportunities(opportunities, assistantMessage);
+      }
+      
+      // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
+      if (analysis.intent && analysis.intent.primary_intent) {
+        console.log('[Dash Agent] Phase 5: Handling action intent...');
+        await this.handleActionIntent(analysis.intent, assistantMessage);
+      }
+      
+      // Update enhanced memory with analysis context
+      await this.updateEnhancedMemory(userInput, assistantMessage, analysis);
+      
+      // Post-process to avoid file attachment claims
+      assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
+      
+      console.log('[Dash Agent] Response generation complete!');
+      return assistantMessage;
+      
+    } catch (error) {
+      console.error('[Dash Agent] Critical error in response generation:', error);
+      
+      // Return graceful error message without legacy fallback
       return {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
-        content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
+        content: "I'm experiencing a temporary issue. Please try again in a moment.",
         timestamp: Date.now(),
         metadata: {
           confidence: 0.1,
-          suggested_actions: ['try_again', 'contact_support']
+          suggested_actions: ['try_again'],
+          error: error instanceof Error ? error.message : 'Unknown error'
         }
       };
     }
@@ -2807,12 +3220,21 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    * Transcribe audio by uploading to Supabase Storage and invoking Edge Function.
    * - Web: uses blob: URI fetch
    * - Native: uses file:// fetch
+   * - Includes automatic retry on failure
+   * - Tracks feature health for diagnostics
    */
-  private async transcribeAudio(audioUri: string): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string }> {
+  private async transcribeAudio(
+    audioUri: string,
+    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void,
+    retryCount: number = 0
+  ): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string; error?: string }> {
     let storagePath: string | undefined;
     let contentType: string | undefined;
+    let errorDetails: string | undefined;
+    
     try {
       console.log('[Dash] Transcribing audio:', audioUri);
+      onProgress?.('validating', 0);
 
       // Language hint derived from personality voice settings
       const voiceLang = this.personality?.voice_settings?.language || 'en-ZA';
@@ -2821,74 +3243,178 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         return map[voiceLang] || voiceLang.slice(0, 2).toLowerCase();
       })();
 
-      // Determine user ID if available
-      let userId = 'anonymous';
-      try {
-        const { data: auth } = await assertSupabase().auth.getUser();
-        userId = auth?.user?.id || 'anonymous';
-      } catch {}
-
-      // Load blob from URI (works for both web (blob:) and native (file:))
-      const res = await fetch(audioUri);
-      if (!res.ok) {
-        throw new Error(`Failed to load recorded audio: ${res.status}`);
+      // Validate audio file exists and has content
+      onProgress?.('validating', 10);
+      if (!audioUri || audioUri.trim().length === 0) {
+        errorDetails = 'No audio file provided';
+        throw new Error('No audio file provided');
       }
-      const blob = await res.blob();
 
-      // Infer content type and extension
-      const uriLower = (audioUri || '').toLowerCase();
-      contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
-        : uriLower.endsWith('.mp3') ? 'audio/mpeg'
-        : uriLower.endsWith('.wav') ? 'audio/wav'
-        : uriLower.endsWith('.ogg') ? 'audio/ogg'
-        : uriLower.endsWith('.webm') ? 'audio/webm'
-        : 'application/octet-stream');
-      const ext = contentType.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
-        : contentType.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
-        : contentType.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
-        : contentType.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
-        : contentType.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
+      // Determine user ID if available (never use anonymous, it breaks RLS)
+      let userId: string | null = null;
+      try {
+        const supa = assertSupabase();
+        const [{ data: userData }, sessionRes] = await Promise.all([
+          supa.auth.getUser(),
+          supa.auth.getSession(),
+        ]);
+        userId = userData?.user?.id || sessionRes?.data?.session?.user?.id || null;
+      } catch {}
+      if (!userId) {
+        try {
+          const sess = await getCurrentSession();
+          userId = (sess as any)?.user?.id || null;
+        } catch {}
+      }
+      if (!userId) {
+        errorDetails = 'Authentication required';
+        throw new Error('You must be signed in to send voice messages.');
+      }
+      
+      onProgress?.('validating', 20);
+
+      // Prepare upload body for web vs native
+      let uploadBody: any;
+      let ext: string;
+      let uriLower = (audioUri || '').toLowerCase();
+
+      onProgress?.('uploading', 30);
+      
+      if (Platform.OS === 'web') {
+        // Web: fetch blob from blob:/http(s): URI
+        const res = await fetch(audioUri);
+        if (!res.ok) {
+          errorDetails = `Failed to load audio file: HTTP ${res.status}`;
+          throw new Error(`Failed to load recorded audio: ${res.status}`);
+        }
+        const blob = await res.blob();
+        
+        // Validate file size (max 25MB)
+        if (blob.size > 25 * 1024 * 1024) {
+          errorDetails = 'Audio file too large (max 25MB)';
+          throw new Error('Audio file is too large. Maximum size is 25MB.');
+        }
+        if (blob.size < 100) {
+          errorDetails = 'Audio file too small or empty';
+          throw new Error('Audio file appears to be empty.');
+        }
+        
+        contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
+          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+          : uriLower.endsWith('.wav') ? 'audio/wav'
+          : uriLower.endsWith('.ogg') ? 'audio/ogg'
+          : uriLower.endsWith('.webm') ? 'audio/webm'
+          : 'application/octet-stream');
+        try {
+          // Prefer File when available for better filename propagation
+          // @ts-ignore
+          uploadBody = typeof File !== 'undefined' ? new File([blob], 'recording', { type: contentType }) : blob;
+        } catch {
+          uploadBody = blob;
+        }
+      } else {
+        // Native (Android/iOS): read file as base64 and convert to Uint8Array (fetch(file://) is unreliable)
+        // Use robust conversion that doesn't rely on atob/Buffer
+        const base64Data = await FileSystem.readAsStringAsync(audioUri, { encoding: FileSystem.EncodingType.Base64 });
+        
+        // Validate file size
+        const estimatedSize = (base64Data.length * 3) / 4; // Rough byte size from base64
+        if (estimatedSize > 25 * 1024 * 1024) {
+          errorDetails = 'Audio file too large (max 25MB)';
+          throw new Error('Audio file is too large. Maximum size is 25MB.');
+        }
+        if (estimatedSize < 100) {
+          errorDetails = 'Audio file too small or empty';
+          throw new Error('Audio file appears to be empty.');
+        }
+        
+        const uint8Array = base64ToUint8Array(base64Data);
+        uploadBody = uint8Array;
+        contentType = uriLower.endsWith('.m4a') ? 'audio/mp4'
+          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+          : uriLower.endsWith('.wav') ? 'audio/wav'
+          : uriLower.endsWith('.ogg') ? 'audio/ogg'
+          : 'application/octet-stream';
+      }
+      
+      onProgress?.('uploading', 40);
+
+      // Infer extension and filename
+      ext = contentType?.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
+        : contentType?.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
+        : contentType?.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
+        : contentType?.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
+        : contentType?.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
         : 'bin';
       const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-      // Choose a platform-specific prefix for easier tracing
-      const prefix = Platform.OS === 'web' ? 'web' : Platform.OS;
-      storagePath = `${prefix}/${userId}/${fileName}`;
+      // Use a simple flat path structure (Supabase Storage may have nesting limits)
+      storagePath = `${userId}/${fileName}`;
 
       // Upload to Supabase Storage (voice-notes bucket)
-      let body: any;
-      try {
-        // Prefer File when available, otherwise upload Blob
-        // @ts-ignore: File may not exist in some environments
-        const maybeFile = typeof File !== 'undefined' ? new File([blob], fileName, { type: contentType }) : null;
-        body = maybeFile || blob;
-      } catch {
-        body = blob;
-      }
-
+      onProgress?.('uploading', 50);
       const { error: uploadError } = await assertSupabase()
         .storage
         .from('voice-notes')
-        .upload(storagePath, body, { contentType, upsert: true });
+        .upload(storagePath, uploadBody, { contentType, upsert: false });
       if (uploadError) {
+        errorDetails = `Storage upload failed: ${uploadError.message}`;
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
+      
+      onProgress?.('uploading', 70);
 
+      // Track start time for performance metrics
+      const transcribeStart = Date.now();
+      
       // Invoke the transcription function
+      onProgress?.('transcribing', 75);
       const { data, error: fnError } = await assertSupabase()
         .functions
         .invoke('transcribe-audio', {
           body: { storage_path: storagePath, language }
         });
+      
+      const transcribeTime = Date.now() - transcribeStart;
+      
+      // Update diagnostic metrics
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.recordMetric('transcriptionTime', transcribeTime);
+      } catch {}
+      
+      onProgress?.('transcribing', 95);
+      
       if (fnError) {
+        errorDetails = `Transcription service error: ${fnError.message || String(fnError)}`;
+        
+        // Retry logic for transient failures
+        if (retryCount < 2 && (fnError.message?.includes('timeout') || fnError.message?.includes('network'))) {
+          console.log(`[Dash] Retrying transcription (attempt ${retryCount + 1}/2)...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+          return this.transcribeAudio(audioUri, onProgress, retryCount + 1);
+        }
+        
         throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
       }
 
       const transcript = (data as any)?.transcript || '';
       const provider = (data as any)?.provider;
+      
+      if (!transcript || transcript.trim().length === 0) {
+        console.warn('[Dash] Transcription returned empty result');
+      }
+      
+      onProgress?.('complete', 100);
+
+      // Update feature health on success
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.updateFeatureHealth('transcription', true, transcribeTime);
+      } catch {}
 
       return {
-        transcript: transcript || 'Transcription returned empty result.',
+        transcript: transcript || 'No speech detected in audio.',
         storagePath,
         language,
         provider,
@@ -2896,11 +3422,48 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       };
     } catch (error) {
       console.error('[Dash] Transcription failed:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Update feature health on failure
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.updateFeatureHealth('transcription', false);
+        dashDiagnostics.logError({
+          type: 'TranscriptionError',
+          message: errorMessage,
+          context: { 
+            feature: 'transcription',
+            audioUri,
+            retryCount,
+            errorDetails 
+          }
+        });
+      } catch {}
+      
+      // More specific error messages based on error type
+      let userFriendlyError = "Voice message received - couldn't transcribe audio.";
+      if (errorDetails) {
+        if (errorDetails.includes('Authentication')) {
+          userFriendlyError = 'Please sign in to send voice messages.';
+        } else if (errorDetails.includes('too large')) {
+          userFriendlyError = 'Audio file is too large. Please record a shorter message.';
+        } else if (errorDetails.includes('too small') || errorDetails.includes('empty')) {
+          userFriendlyError = 'No audio detected. Please try recording again.';
+        } else if (errorDetails.includes('Storage upload')) {
+          userFriendlyError = 'Failed to upload audio. Please check your connection and try again.';
+        } else if (errorDetails.includes('Transcription service')) {
+          userFriendlyError = 'Transcription service is temporarily unavailable. Please try again later.';
+        } else {
+          userFriendlyError = `Transcription failed: ${errorDetails}`;
+        }
+      }
+      
       return {
-        transcript: "Voice message received - couldn't transcribe audio.",
+        transcript: userFriendlyError,
         storagePath,
         language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en',
         contentType,
+        error: errorDetails || errorMessage,
       };
     }
   }
@@ -3605,7 +4168,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
 
   /**
-   * Get current context
+   * Get current context with REAL app structure
    */
   private async getCurrentContext(): Promise<any> {
     try {
@@ -3619,15 +4182,174 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           is_work_hours: now.getHours() >= 8 && now.getHours() <= 17
         },
         user_state: {
-          role: profile?.role || 'unknown'
+          role: profile?.role || 'unknown',
+          organization_id: profile?.organization_id
         },
-        app_context: {
-          active_features: []
-        }
+      app_context: {
+        app_name: 'EduDash Pro',
+        platform: 'mobile',
+        navigation_type: 'stack', // STACK navigation, not tabs!
+        available_screens: this.getAvailableScreensForRole(profile?.role),
+        current_features: [
+          'voice_interaction',
+          'ai_assistance',
+          'student_management',
+          'class_analytics',
+          'attendance_tracking',
+          'parent_communication'
+        ]
+      }
       };
     } catch (error) {
       console.error('[Dash] Failed to get current context:', error);
       return {};
+    }
+  }
+  
+  /**
+   * Perform web search using the Edge Function
+   */
+  private async performWebSearch(
+    query: string,
+    options: any = {}
+  ): Promise<any> {
+    try {
+      const { data, error } = await assertSupabase()
+        .functions
+        .invoke('web-search', {
+          body: {
+            query,
+            options,
+            searchType: 'general'
+          }
+        });
+      
+      if (error) throw error;
+      return data || { results: [], error: 'No results returned' };
+    } catch (error) {
+      console.error('[Dash] Web search error:', error);
+      return {
+        query,
+        results: [],
+        error: error instanceof Error ? error.message : 'Search failed'
+      };
+    }
+  }
+  
+  /**
+   * Perform fact check using web search
+   */
+  private async performFactCheck(
+    statement: string
+  ): Promise<any> {
+    try {
+      const { data, error } = await assertSupabase()
+        .functions
+        .invoke('web-search', {
+          body: {
+            query: statement,
+            searchType: 'factCheck',
+            options: {
+              maxResults: 10,
+              safeSearch: true
+            }
+          }
+        });
+      
+      if (error) throw error;
+      
+      // Process fact check results
+      const result = data || {};
+      return {
+        statement,
+        sources: result.factCheckResults || result.results || [],
+        confidence: result.confidence || 0.5,
+        summary: result.summary || 'Unable to verify this claim with available sources.'
+      };
+    } catch (error) {
+      console.error('[Dash] Fact check error:', error);
+      return {
+        statement,
+        sources: [],
+        confidence: 0,
+        summary: 'Fact check service unavailable',
+        error: error instanceof Error ? error.message : 'Fact check failed'
+      };
+    }
+  }
+  
+  /**
+   * Get screen opening confirmation message
+   */
+  private getScreenOpeningConfirmation(route: string): string {
+    const screenNames: Record<string, string> = {
+      '/screens/ai-lesson-generator': 'Opening the AI Lesson Generator...',
+      '/screens/financial-dashboard': 'Taking you to the Financial Dashboard...',
+      '/screens/teacher-messages': 'Opening Messages...',
+      '/screens/worksheet-demo': 'Opening the Worksheet Generator...',
+      '/screens/student-management': 'Taking you to Student Management...',
+      '/screens/lessons-hub': 'Opening the Lessons Hub...',
+      '/screens/dash-assistant': 'Opening Dash Assistant...',
+      '/screens/teacher-reports': 'Opening Reports...',
+      '/screens/principal-announcement': 'Opening Announcements...',
+      '/screens/super-admin-announcements': 'Opening Platform Announcements...'
+    };
+    
+    return screenNames[route] || 'Opening the requested screen...';
+  }
+  
+  /**
+   * Get available screens based on user role
+   */
+  private getAvailableScreensForRole(role?: string): any {
+    const commonScreens = {
+      navigation: 'Stack navigation - use back button or swipe to go back',
+      home: 'Dashboard with quick stats and actions',
+      messages: 'Communication center',
+      settings: 'App settings and preferences',
+      profile: 'User profile management'
+    };
+    
+    switch (role) {
+      case 'principal':
+        return {
+          ...commonScreens,
+          dashboard: 'Principal Hub - school overview, metrics, applications',
+          teachers: 'Teacher management',
+          students: 'Student roster',
+          classes: 'Class management',
+          reports: 'School reports and analytics',
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
+        };
+      
+      case 'teacher':
+        return {
+          ...commonScreens,
+          dashboard: 'Teacher dashboard with class overview',
+          classes: 'My classes',
+          students: 'My students',
+          assignments: 'Assignment management',
+          attendance: 'Attendance tracking',
+          gradebook: 'Grading and assessment',
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
+        };
+      
+      case 'parent':
+        return {
+          ...commonScreens,
+          dashboard: 'Parent dashboard with child overview',
+          children: 'My children',
+          calendar: 'School calendar and events',
+          homework: 'Homework tracking',
+          progress: 'Child progress reports',
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
+        };
+      
+      default:
+        return {
+          ...commonScreens,
+          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
+        };
     }
   }
 
@@ -3636,73 +4358,300 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    */
   private async generateEnhancedResponse(content: string, conversationId: string, analysis: any): Promise<DashMessage> {
     try {
-      // Get role-specific greeting and capabilities
-      const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
-      const capabilities = roleSpec?.capabilities || [];
+      // Get REAL awareness context
+      const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
       
-      // Enhance the prompt with role context and capabilities
-      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
-
-CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
-
-RESPONSE GUIDELINES:
-- Be concise, practical, and directly helpful
-- Provide specific, actionable advice
-- Reference educational best practices when relevant
-- Use a warm but professional tone
-- Keep responses focused and avoid unnecessary elaboration
-- When suggesting actions, be specific about next steps`;
+      // Track message count for this conversation
+      const currentCount = this.messageCountByConversation.get(conversationId) || 0;
+      this.messageCountByConversation.set(conversationId, currentCount + 1);
+      awareness.conversation.messageCount = currentCount + 1;
       
-      if (roleSpec && this.userProfile?.role) {
-        systemPrompt += `
-
-ROLE-SPECIFIC CONTEXT:
-- You are helping a ${this.userProfile.role}
-- Communication tone: ${roleSpec.tone}
-- Your specialized capabilities: ${capabilities.join(', ')}
-- Role-specific greeting: ${roleSpec.greeting}`;
+      // Build enhanced system prompt with all agentic context
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
+      
+      let systemPrompt: string;
+      if (session?.user && profile) {
+        // Use enhanced agentic prompt
+        systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
+          userId: session.user.id,
+          profile,
+          tier: profile.subscription_tier || 'starter',
+          role: profile.role || 'teacher',
+          currentScreen: awareness?.navigation?.currentScreen,
+          language: profile.preferred_language || 'en'
+        });
+      } else {
+        // Fallback to basic prompt
+        systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
       }
-
-      // Add context awareness
-      if (analysis.context) {
-        systemPrompt += `
-
-CURRENT CONTEXT: ${JSON.stringify(analysis.context, null, 2)}`;
+      
+      // Generate contextual greeting if needed (only for new conversations)
+      const greeting = DashRealTimeAwareness.generateContextualGreeting(awareness);
+      
+      // Pre-parse navigation commands to reduce latency (open immediately when obvious)
+      const contentLower = content.toLowerCase();
+      let preDashboardAction: { type: 'open_screen'; route: string; params?: Record<string, any> } | null = null;
+      if (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book')) {
+        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
+          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
+        } else {
+          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
+        }
       }
-
-      // Add intent understanding
+      // Financial quick open
+      if (!preDashboardAction && (contentLower.includes('financial dashboard') || contentLower.includes('open finance'))) {
+        preDashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+      }
+      
+      let preOpened = false;
+      try {
+        if (preDashboardAction && DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness)) {
+          await DashRealTimeAwareness.openScreen(preDashboardAction.route, preDashboardAction.params);
+          preOpened = true;
+        }
+      } catch (e) {
+        console.warn('[Dash] Pre-open navigation failed:', e);
+      }
+      
+      // Add intent understanding to context
+      let enhancedPrompt = systemPrompt;
       if (analysis.intent) {
-        systemPrompt += `
+        enhancedPrompt += `
 
 USER INTENT: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})
 ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.intent.secondary_intents.join(', ')}` : ''}`;
       }
 
-      systemPrompt += `
-
-IMPORTANT: Always provide specific, contextual responses that directly address the user's needs. Avoid generic educational advice unless specifically requested.`;
-
       // Call AI service with enhanced context using homework_help action
       const aiResponse = await this.callAIService({
         action: 'homework_help',
         question: content,
-        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        context: enhancedPrompt,
         gradeLevel: 'General',
         conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
       });
 
+      // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
+      let dashboardAction = this.generateDashboardAction(analysis.intent);
+      // contentLower already defined above
+      
+      // Check if we should auto-execute based on intent
+      const shouldAutoOpen = DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness);
+      
+      // Financial dashboard keywords
+      if (!dashboardAction && (contentLower.includes('financial') || contentLower.includes('finance') || 
+          contentLower.includes('fees') || contentLower.includes('payments') || contentLower.includes('revenue'))) {
+        dashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+      }
+      // Petty cash keywords
+      if (!dashboardAction && (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book'))) {
+        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
+          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
+        } else {
+          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
+        }
+      }
+      
+      // Lesson generator keywords
+      if (!dashboardAction && (contentLower.includes('lesson') || contentLower.includes('plan') || 
+          contentLower.includes('curriculum'))) {
+        const params: Record<string, string> = this.extractLessonParameters(content, aiResponse.content || '');
+        dashboardAction = { type: 'open_screen', route: '/screens/ai-lesson-generator', params };
+      }
+      
+      // Messaging keywords
+      if (!dashboardAction && (contentLower.includes('message') || contentLower.includes('notify') || 
+          contentLower.includes('contact')) && (contentLower.includes('parent') || contentLower.includes('teacher'))) {
+        dashboardAction = { type: 'open_screen', route: '/screens/teacher-messages' };
+      }
+      
+      // Worksheet keywords
+      if (!dashboardAction && (contentLower.includes('worksheet') || contentLower.includes('activity') || 
+          contentLower.includes('practice') || contentLower.includes('exercise'))) {
+        const worksheetParams = this.extractWorksheetParameters(content, aiResponse.content || '');
+        dashboardAction = { type: 'open_screen', route: '/screens/worksheet-demo', params: worksheetParams };
+      }
+      
+      // Diagnostic keywords - self-awareness and repair
+      if (!dashboardAction && (contentLower.includes('diagnostic') || contentLower.includes('health check') || 
+          contentLower.includes('app status') || contentLower.includes('system health') || 
+          contentLower.includes('check app') || contentLower.includes('app issues'))) {
+        dashboardAction = { type: 'run_diagnostics' } as any;
+      }
+      // Fix/repair keywords
+      if (!dashboardAction && (contentLower.includes('fix app') || contentLower.includes('repair') || 
+          contentLower.includes('fix issues') || contentLower.includes('auto fix') || 
+          contentLower.includes('resolve issues'))) {
+        dashboardAction = { type: 'auto_fix' } as any;
+      }
+      
+      // Web search keywords
+      if (!dashboardAction && (contentLower.includes('search for') || contentLower.includes('search the web') || 
+          contentLower.includes('look up') || contentLower.includes('find information') || 
+          contentLower.includes('search online') || contentLower.includes('google'))) {
+        dashboardAction = { type: 'web_search' } as any;
+      }
+      // Fact check keywords
+      if (!dashboardAction && (contentLower.includes('fact check') || contentLower.includes('verify') || 
+          contentLower.includes('is it true') || contentLower.includes('check if'))) {
+        dashboardAction = { type: 'fact_check' } as any;
+      }
+      
+      // If screen action is detected and should auto-execute, open it immediately
+      if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen && !preOpened) {
+        // Actually open the screen right now!
+        await DashRealTimeAwareness.openScreen(dashboardAction.route, dashboardAction.params);
+        
+        // Prepend action confirmation to response
+        const actionConfirmation = this.getScreenOpeningConfirmation(dashboardAction.route);
+        aiResponse.content = `${actionConfirmation}\n\n${aiResponse.content || ''}`;
+      }
+      
+      // Handle diagnostic actions
+      if (dashboardAction && dashboardAction.type === 'run_diagnostics') {
+        try {
+          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+          const summary = await dashDiagnostics.getDiagnosticSummary();
+          aiResponse.content = `I've run a complete diagnostic check:\n\n${summary}\n\nWould you like me to automatically fix any issues I can resolve?`;
+        } catch (error) {
+          console.error('[Dash] Diagnostic run failed:', error);
+          aiResponse.content = "I encountered an error while running diagnostics. The diagnostic system itself may need attention.";
+        }
+      }
+      
+      // Handle auto-fix actions
+      if (dashboardAction && dashboardAction.type === 'auto_fix') {
+        try {
+          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+          const diagnostics = await dashDiagnostics.runFullDiagnostics();
+          
+          if (diagnostics.issues.length === 0) {
+            aiResponse.content = "Great news! I didn't find any issues that need fixing. The app is running smoothly.";
+          } else {
+            const { fixed, failed } = await dashDiagnostics.autoFixIssues();
+            
+            let response = "I've attempted to fix the detected issues:\n\n";
+            if (fixed.length > 0) {
+              response += `✅ **Fixed:**\n${fixed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
+            }
+            if (failed.length > 0) {
+              response += `❌ **Could not fix:**\n${failed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
+            }
+            response += "The app should be working better now. Let me know if you need further assistance!";
+            
+            aiResponse.content = response;
+          }
+        } catch (error) {
+          console.error('[Dash] Auto-fix failed:', error);
+          aiResponse.content = "I encountered an error while trying to fix the issues. You may need to restart the app manually.";
+        }
+      }
+      
+      // Handle web search actions
+      if (dashboardAction && dashboardAction.type === 'web_search') {
+        try {
+          // Extract search query from user content
+          let searchQuery = content
+            .replace(/search for|search the web for|look up|find information about|search online for|google/gi, '')
+            .trim();
+          
+          if (!searchQuery) {
+            aiResponse.content = "What would you like me to search for? Please provide a topic or question.";
+          } else {
+            aiResponse.content = `Searching the web for: "${searchQuery}"...\n\n`;
+            
+            // Perform web search via Edge Function
+            const searchResult = await this.performWebSearch(searchQuery, {
+              maxResults: 5,
+              safeSearch: true
+            });
+            
+            if (searchResult.error) {
+              aiResponse.content += `I encountered an issue while searching: ${searchResult.error}\n\nPlease try again later.`;
+            } else if (searchResult.results.length === 0) {
+              aiResponse.content += "I couldn't find any relevant results for your search. Try rephrasing your query.";
+            } else {
+              aiResponse.content += `Here's what I found:\n\n`;
+              searchResult.results.forEach((result, index) => {
+                aiResponse.content += `**${index + 1}. ${result.title}**\n`;
+                aiResponse.content += `${result.snippet}\n`;
+                aiResponse.content += `Source: ${result.source} - [${result.url}](${result.url})\n\n`;
+              });
+              
+              // Add educational context if relevant
+              if (awareness.user.role === 'teacher' || awareness.user.role === 'principal') {
+                aiResponse.content += "\n💡 **Tip**: I can also search specifically for educational resources. Just ask me to 'find educational resources about [topic]'.";
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[Dash] Web search failed:', error);
+          aiResponse.content = "I'm unable to search the web at the moment. Please check your internet connection and try again.";
+        }
+      }
+      
+      // Handle fact check actions
+      if (dashboardAction && dashboardAction.type === 'fact_check') {
+        try {
+          // Extract statement to fact-check
+          let statement = content
+            .replace(/fact check|verify|is it true that|check if/gi, '')
+            .trim();
+          
+          if (!statement) {
+            aiResponse.content = "What statement would you like me to fact-check? Please provide the claim or information you want verified.";
+          } else {
+            aiResponse.content = `Fact-checking: "${statement}"...\n\n`;
+            
+            // Perform fact check via web search
+            const factCheckResult = await this.performFactCheck(statement);
+            
+            if (factCheckResult.error) {
+              aiResponse.content += `I couldn't complete the fact-check: ${factCheckResult.error}`;
+            } else {
+              aiResponse.content += `**Confidence Level**: ${Math.round(factCheckResult.confidence * 100)}%\n\n`;
+              aiResponse.content += `**Summary**: ${factCheckResult.summary}\n\n`;
+              
+              if (factCheckResult.sources.length > 0) {
+                aiResponse.content += `**Sources**:\n`;
+                factCheckResult.sources.forEach((source, index) => {
+                  aiResponse.content += `${index + 1}. ${source.title} - [${source.url}](${source.url})\n`;
+                });
+              }
+              
+              aiResponse.content += "\n⚠️ **Note**: Always verify information from multiple reputable sources.";
+            }
+          }
+        } catch (error) {
+          console.error('[Dash] Fact check failed:', error);
+          aiResponse.content = "I couldn't perform the fact-check at this time. Please try again later.";
+        }
+      }
+      
+      // Prepend greeting if new conversation
+      const finalContent = greeting ? `${greeting}${aiResponse.content}` : (aiResponse.content || 'I apologize, but I encountered an issue processing your request.');
+      
       const assistantMessage: DashMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
-        content: aiResponse.content || 'I apologize, but I encountered an issue processing your request.',
+        content: finalContent,
         timestamp: Date.now(),
         metadata: {
           confidence: analysis.intent?.confidence || 0.5,
-          suggested_actions: this.generateSuggestedActions(analysis.intent, capabilities),
+          suggested_actions: this.generateSuggestedActions(analysis.intent, awareness.user.role),
           user_intent: analysis.intent,
-          dashboard_action: this.generateDashboardAction(analysis.intent)
+          dashboard_action: dashboardAction
         }
       };
+
+      // Track response with agentic integration
+      const responseTime = Date.now() - assistantMessage.timestamp + 100; // Approximate
+      await DashAgenticIntegration.handlePostResponse(true, responseTime, {
+        intent: analysis.intent?.primary_intent,
+        featureUsed: dashboardAction?.route,
+        action: dashboardAction
+      }).catch(err => console.warn('[Dash] Telemetry tracking failed:', err));
 
       return assistantMessage;
     } catch (error) {
@@ -3868,10 +4817,31 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
     }
   }
 
+  // Track last API call time for rate limit prevention
+  private lastAPICallTime: number = 0;
+  private readonly MIN_API_CALL_INTERVAL = 300; // Faster interactions: 300ms between calls
+
   /**
-   * Call AI service with enhanced context
+   * Call AI service with enhanced context and retry logic
+   * Now uses request queue to prevent rate limiting
    */
-  private async callAIService(params: any): Promise<any> {
+  private async callAIService(params: any, retryCount = 0): Promise<any> {
+    const MAX_RETRIES = 3;
+    const BASE_DELAY = 1000; // 1 second
+    
+    // Import AI request queue
+    const { aiRequestQueue } = await import('@/lib/ai-gateway/request-queue');
+    
+    // Debounce: Prevent rapid-fire API calls
+    const now = Date.now();
+    const timeSinceLastCall = now - this.lastAPICallTime;
+    if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
+      const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
+      console.log(`[Dash] Debouncing API call. Waiting ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    this.lastAPICallTime = Date.now();
+    
     try {
       const supabase = assertSupabase();
       
@@ -3881,30 +4851,127 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
       };
       
-      const { data, error } = await supabase.functions.invoke('ai-gateway', {
-        body: requestBody
+      // Queue the AI request to prevent rate limiting
+      const { data, error } = await aiRequestQueue.enqueue(() => 
+        supabase.functions.invoke('ai-gateway', {
+          body: requestBody
+        })
+      );
+      
+      if (error) {
+        const status = (error as any).context?.status || (error as any).status;
+        
+        // Log detailed error information
+        console.error('[Dash] AI Gateway Error:', {
+          message: error.message,
+          status,
+          statusText: (error as any).statusText,
+          retryCount,
+          context: (error as any).context,
+          details: error
+        });
+        
+        // Handle rate limiting (429) with exponential backoff
+        if (status === 429 && retryCount < MAX_RETRIES) {
+          // Respect Retry-After if provided; otherwise exponential backoff with jitter
+          let retryAfterMs = 0;
+          try {
+            const retryAfterHeader = (error as any)?.context?.headers?.map?.['retry-after'] || (error as any)?.context?.headers?.['retry-after'];
+            if (retryAfterHeader) {
+              const parsed = parseInt(String(retryAfterHeader));
+              if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
+            }
+          } catch {}
+          const expBackoff = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
+          const jitter = Math.floor(Math.random() * 500);
+          const delay = Math.max(retryAfterMs, expBackoff) + jitter;
+          console.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.callAIService(params, retryCount + 1);
+        }
+        
+        // Handle server errors (500, 502, 503, 504) with retry
+        if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
+          const delay = BASE_DELAY * (retryCount + 1); // 1s, 2s, 3s
+          console.warn(`[Dash] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.callAIService(params, retryCount + 1);
+        }
+        
+        throw error;
+      }
+      
+      return data;
+    } catch (error: any) {
+      const status = error?.context?.status || error?.status;
+      
+      // Enhanced error logging
+      console.error('[Dash] AI service call failed:', {
+        name: error?.name,
+        message: error?.message,
+        status,
+        statusCode: error?.statusCode,
+        retryCount,
+        context: error?.context,
+        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
+        requestParams: {
+          messages: params.messages?.length || 0,
+          hasSystemPrompt: !!params.system,
+          model: params.model
+        }
       });
       
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('[Dash] AI service call failed:', error);
-      return { content: 'I apologize, but I encountered an issue. Please try again.' };
+      // User-friendly error messages based on status
+      let userMessage = 'I apologize, but I encountered an issue. Please try again.';
+      
+      if (status === 429) {
+        userMessage = "I'm currently experiencing high demand. Please wait a moment and try again.";
+      } else if ([500, 502, 503, 504].includes(status)) {
+        userMessage = 'The AI service is temporarily unavailable. Please try again in a moment.';
+      } else if (status === 401 || status === 403) {
+        userMessage = 'Authentication issue detected. Please try signing out and back in.';
+      }
+      
+      return { 
+        content: userMessage,
+        error: true,
+        errorDetails: error?.message || 'Unknown error',
+        errorStatus: status
+      };
     }
   }
 
   /**
-   * Generate suggested actions based on intent and capabilities
+   * Generate suggested actions based on intent and user role
    */
-  private generateSuggestedActions(intent: any, capabilities: string[]): string[] {
+  private generateSuggestedActions(intent: any, userRole: string): string[] {
     const actions: string[] = [];
+    
+    // Role-based action suggestions
+    const roleCapabilities: Record<string, string[]> = {
+      'principal': ['lesson_planning', 'teacher_management', 'financial_oversight', 'communication'],
+      'teacher': ['lesson_planning', 'grading_assistance', 'student_management', 'parent_communication'],
+      'parent': ['homework_help', 'progress_tracking', 'communication']
+    };
+    
+    const capabilities = roleCapabilities[userRole] || [];
     
     if (intent?.primary_intent === 'create_lesson' && capabilities.includes('lesson_planning')) {
       actions.push('Create detailed lesson plan', 'Align with curriculum', 'Generate assessment rubric');
     } else if (intent?.primary_intent === 'grade_assignment' && capabilities.includes('grading_assistance')) {
       actions.push('Auto-grade assignments', 'Generate feedback', 'Track student progress');
-    } else if (intent?.primary_intent === 'parent_communication') {
+    } else if (intent?.primary_intent === 'parent_communication' && capabilities.includes('parent_communication')) {
       actions.push('Draft parent email', 'Schedule meeting', 'Share progress report');
+    } else {
+      // Default actions based on role
+      if (userRole === 'teacher') {
+        actions.push('Create lesson', 'View students', 'Check assignments');
+      } else if (userRole === 'principal') {
+        actions.push('View analytics', 'Manage teachers', 'Financial overview');
+      } else if (userRole === 'parent') {
+        actions.push('View children', 'Check homework', 'Message teacher');
+      }
     }
     
     return actions;
@@ -4013,6 +5080,37 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
     }
+  }
+
+  /**
+   * Append a user message to the current conversation (or specified conversation)
+   */
+  public async appendUserMessage(content: string, conversationId?: string): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
+    const msg: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content: content,
+      timestamp: Date.now(),
+    };
+    await this.addMessageToConversation(convId, msg);
+    return msg;
+  }
+
+  /**
+   * Append an assistant message to the current conversation (or specified conversation)
+   */
+  public async appendAssistantMessage(content: string, conversationId?: string, metadata?: DashMessage['metadata']): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
+    const msg: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'assistant',
+      content: content,
+      timestamp: Date.now(),
+      ...(metadata ? { metadata } : {}),
+    } as DashMessage;
+    await this.addMessageToConversation(convId, msg);
+    return msg;
   }
 }
 

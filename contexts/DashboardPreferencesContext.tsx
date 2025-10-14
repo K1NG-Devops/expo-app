@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -61,9 +62,9 @@ export const DashboardPreferencesProvider: React.FC<DashboardPreferencesProvider
       if (stored) {
         const parsed = JSON.parse(stored) as DashboardPreferences;
         setPreferences({ ...defaultPreferences, ...parsed });
-        console.log('📋 Dashboard preferences loaded:', parsed);
+        logger.info('📋 Dashboard preferences loaded:', parsed);
       } else {
-        console.log('📋 No stored dashboard preferences, using defaults');
+        logger.info('📋 No stored dashboard preferences, using defaults');
       }
     } catch (error) {
       console.error('Failed to load dashboard preferences:', error);
@@ -75,7 +76,7 @@ export const DashboardPreferencesProvider: React.FC<DashboardPreferencesProvider
   const savePreferences = async (newPreferences: DashboardPreferences) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newPreferences));
-      console.log('💾 Dashboard preferences saved:', newPreferences);
+      logger.info('💾 Dashboard preferences saved:', newPreferences);
     } catch (error) {
       console.error('Failed to save dashboard preferences:', error);
     }
@@ -111,7 +112,7 @@ export const DashboardPreferencesProvider: React.FC<DashboardPreferencesProvider
     setPreferences(defaultPreferences);
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
-      console.log('🔄 Dashboard preferences reset to defaults');
+      logger.info('🔄 Dashboard preferences reset to defaults');
     } catch (error) {
       console.error('Failed to reset dashboard preferences:', error);
     }

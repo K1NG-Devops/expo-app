@@ -223,6 +223,7 @@ export class AuthService {
         email: credentials.email.toLowerCase(),
         password: credentials.password,
         options: {
+          emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
           data: {
             first_name: credentials.firstName,
             last_name: credentials.lastName,

@@ -14,23 +14,23 @@ ON users
 FOR SELECT
 TO public
 USING (
-    app_auth.is_superadmin()
-    OR id = app_auth.current_user_id()
-    OR (
-        app_auth.is_principal()
-        AND COALESCE(preschool_id, organization_id)
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
-    OR (
-        app_auth.is_teacher()
-        AND role IN ('student', 'parent')
-        AND COALESCE(preschool_id, organization_id)
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
-    OR (
-        app_auth.is_parent()
-        AND role = 'teacher'
-        AND COALESCE(preschool_id, organization_id)
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  app_auth.is_superadmin()
+  OR id = app_auth.current_user_id()
+  OR (
+    app_auth.is_principal()
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
+  OR (
+    app_auth.is_teacher()
+    AND role IN ('student', 'parent')
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
+  OR (
+    app_auth.is_parent()
+    AND role = 'teacher'
+    AND COALESCE(preschool_id, organization_id)
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );

@@ -22,6 +22,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '@/constants/Colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { offlineCacheService } from '@/lib/services/offlineCacheService';
@@ -43,6 +44,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
   onClose,
   schoolId
 }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [stats, setStats] = useState<CacheStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,12 +87,12 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
 
   const handleClearUserCache = () => {
     Alert.alert(
-      'Clear Personal Cache',
-      'This will clear all cached data for your account. You may experience slower loading times until data is cached again.',
+      t('cache.clear_personal_title'),
+      t('cache.clear_personal_message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Clear',
+          text: t('cache.clear'),
           style: 'destructive',
           onPress: async () => {
             if (!user?.id) return;
@@ -98,10 +100,10 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
             setClearing(true);
             try {
               await offlineCacheService.clearUserCache(user.id);
-              Alert.alert('Success', 'Personal cache cleared successfully');
+              Alert.alert(t('common.success'), t('cache.personal_cleared'));
               await loadStats();
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear cache');
+              Alert.alert(t('common.error'), t('cache.clear_failed'));
               console.error('Failed to clear user cache:', error);
             } finally {
               setClearing(false);
@@ -114,26 +116,26 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
 
   const handleClearSchoolCache = () => {
     if (!schoolId || !user?.id) {
-      Alert.alert('Error', 'School information not available');
+      Alert.alert(t('common.error'), t('cache.school_info_unavailable'));
       return;
     }
 
     Alert.alert(
-      'Clear School Cache',
-      'This will clear all cached data for your entire school. All staff members will experience slower loading times until data is cached again. This action should only be performed if you are experiencing data synchronization issues.',
+      t('cache.clear_school_title'),
+      t('cache.clear_school_message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Clear School Cache',
+          text: t('cache.clear_school_button'),
           style: 'destructive',
           onPress: async () => {
             setClearing(true);
             try {
               await offlineCacheService.clearSchoolCache(schoolId, user.id);
-              Alert.alert('Success', 'School cache cleared successfully');
+              Alert.alert(t('common.success'), t('cache.school_cleared'));
               await loadStats();
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear school cache');
+              Alert.alert(t('common.error'), t('cache.clear_school_failed'));
               console.error('Failed to clear school cache:', error);
             } finally {
               setClearing(false);
@@ -145,17 +147,17 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
   };
 
   const getHealthStatus = (): { status: 'good' | 'warning' | 'critical', message: string } => {
-    if (!stats) return { status: 'warning', message: 'Unable to determine status' };
+    if (!stats) return { status: 'warning', message: t('cache.status_unknown') };
 
     if (stats.totalSize > 8 * 1024 * 1024) { // > 8MB
-      return { status: 'critical', message: 'Cache size is very large' };
+      return { status: 'critical', message: t('cache.size_very_large') };
     } else if (stats.totalSize > 5 * 1024 * 1024) { // > 5MB
-      return { status: 'warning', message: 'Cache size is moderate' };
+      return { status: 'warning', message: t('cache.size_moderate') };
     } else if (stats.hitRate < 0.3) { // < 30% hit rate
-      return { status: 'warning', message: 'Low cache efficiency' };
+      return { status: 'warning', message: t('cache.efficiency_low') };
     }
     
-    return { status: 'good', message: 'Cache operating efficiently' };
+    return { status: 'good', message: t('cache.operating_efficiently') };
   };
 
   const health = getHealthStatus();
@@ -164,7 +166,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Cache Management</Text>
+        <Text style={styles.title}>{t('cache.management')}</Text>
         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
           <Ionicons name="close" size={24} color={Colors.light.text} />
         </TouchableOpacity>
@@ -174,7 +176,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.light.tint} />
-            <Text style={styles.loadingText}>Loading cache statistics...</Text>
+            <Text style={styles.loadingText}>{t('cache.loading_stats')}</Text>
           </View>
         ) : (
           <>
@@ -186,7 +188,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
                   size={20} 
                   color={health.status === 'good' ? '#059669' : health.status === 'warning' ? '#EA580C' : '#DC2626'} 
                 />
-                <Text style={styles.sectionTitle}>Cache Health</Text>
+                <Text style={styles.sectionTitle}>{t('cache.health')}</Text>
               </View>
               <View style={[styles.healthBadge, { 
                 backgroundColor: health.status === 'good' ? '#059669' : health.status === 'warning' ? '#EA580C' : '#DC2626' 
@@ -199,28 +201,28 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="bar-chart" size={20} color={Colors.light.tint} />
-                <Text style={styles.sectionTitle}>Statistics</Text>
+                <Text style={styles.sectionTitle}>{t('cache.statistics')}</Text>
               </View>
               
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{formatBytes(stats?.totalSize || 0)}</Text>
-                  <Text style={styles.statLabel}>Total Size</Text>
+                  <Text style={styles.statLabel}>{t('cache.total_size')}</Text>
                 </View>
                 
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{stats?.entryCount || 0}</Text>
-                  <Text style={styles.statLabel}>Cache Entries</Text>
+                  <Text style={styles.statLabel}>{t('cache.entries')}</Text>
                 </View>
                 
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{Math.round((stats?.hitRate || 0) * 100)}%</Text>
-                  <Text style={styles.statLabel}>Hit Rate</Text>
+                  <Text style={styles.statLabel}>{t('cache.hit_rate')}</Text>
                 </View>
                 
                 <View style={styles.statCard}>
                   <Text style={styles.statValue}>{formatDate(stats?.newestEntry || 0)}</Text>
-                  <Text style={styles.statLabel}>Last Updated</Text>
+                  <Text style={styles.statLabel}>{t('cache.last_updated')}</Text>
                 </View>
               </View>
             </View>
@@ -229,7 +231,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="build" size={20} color={Colors.light.tint} />
-                <Text style={styles.sectionTitle}>Cache Management</Text>
+                <Text style={styles.sectionTitle}>{t('cache.management')}</Text>
               </View>
               
               <TouchableOpacity 
@@ -239,9 +241,9 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
               >
                 <Ionicons name="person" size={20} color={Colors.light.tint} />
                 <View style={styles.actionContent}>
-                  <Text style={styles.actionTitle}>Clear Personal Cache</Text>
+                  <Text style={styles.actionTitle}>{t('cache.clear_personal')}</Text>
                   <Text style={styles.actionDescription}>
-                    Clear cached data for your account only
+                    {t('cache.clear_personal_desc')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
@@ -255,9 +257,9 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
                 >
                   <Ionicons name="school" size={20} color="#DC2626" />
                   <View style={styles.actionContent}>
-                    <Text style={[styles.actionTitle, { color: '#DC2626' }]}>Clear School Cache</Text>
+                    <Text style={[styles.actionTitle, { color: '#DC2626' }]}>{t('cache.clear_school')}</Text>
                     <Text style={styles.actionDescription}>
-                      Clear cached data for entire school (Principal only)
+                      {t('cache.clear_school_desc')}
                     </Text>
                   </View>
                   <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
@@ -271,9 +273,9 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
               >
                 <Ionicons name="refresh" size={20} color={Colors.light.tabIconDefault} />
                 <View style={styles.actionContent}>
-                  <Text style={styles.actionTitle}>Refresh Statistics</Text>
+                  <Text style={styles.actionTitle}>{t('cache.refresh_stats')}</Text>
                   <Text style={styles.actionDescription}>
-                    Reload cache statistics and health status
+                    {t('cache.refresh_stats_desc')}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={Colors.light.tabIconDefault} />
@@ -284,19 +286,15 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="information-circle" size={20} color={Colors.light.tabIconDefault} />
-                <Text style={styles.sectionTitle}>About Cache</Text>
+                <Text style={styles.sectionTitle}>{t('cache.about')}</Text>
               </View>
               
               <Text style={styles.infoText}>
-                The offline cache stores dashboard data locally on your device for faster loading and offline access. 
-                Cache is automatically managed but can be cleared if you experience sync issues.
+                {t('cache.about_description')}
               </Text>
               
               <Text style={styles.infoText}>
-                • Cache expires automatically after 5-10 minutes{'\n'}
-                • Data is encrypted and user-specific{'\n'}
-                • Maximum cache size is limited to 10MB{'\n'}
-                • Cache improves loading speeds by 60-90%
+                {t('cache.about_details')}
               </Text>
             </View>
 
@@ -304,7 +302,7 @@ export const CacheManagement: React.FC<CacheManagementProps> = ({
             {clearing && (
               <View style={styles.clearingOverlay}>
                 <ActivityIndicator size="large" color={Colors.light.tint} />
-                <Text style={styles.clearingText}>Clearing cache...</Text>
+                <Text style={styles.clearingText}>{t('cache.clearing')}</Text>
               </View>
             )}
           </>

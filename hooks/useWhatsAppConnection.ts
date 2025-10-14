@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { logger } from '@/lib/logger';
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { assertSupabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -216,7 +217,7 @@ export const useWhatsAppConnection = () => {
 
       if (!existingContact) {
         // Already disconnected - just invalidate cache
-        console.log('No WhatsApp contact found - already disconnected')
+        logger.info('No WhatsApp contact found - already disconnected')
         return { alreadyDisconnected: true }
       }
 
@@ -283,7 +284,7 @@ export const useWhatsAppConnection = () => {
         throw new Error('WhatsApp not connected - no active contact found')
       }
 
-      console.log('Sending test message to contact:', currentStatus.contact.id)
+      logger.info('Sending test message to contact:', currentStatus.contact.id)
 
       const contactId = currentStatus.contact.id
       const parentName = profile?.first_name || 'Parent'
@@ -309,13 +310,13 @@ export const useWhatsAppConnection = () => {
           })
           return tmpl.data
         }
-      } catch (e) {
+      } catch {
         // fall through to text fallback
       }
 
       // 2) Fallback to plain text to ensure QA works even without templates
       const textBody = `Hello ${parentName}! 👋\n\nThis is a test message from EduDash Pro to confirm your WhatsApp connection. You’ll receive school updates here. Reply STOP to opt out.`
-      console.log('Sending WhatsApp message with body:', { 
+      logger.info('Sending WhatsApp message with body:', { 
         contact_id: contactId, 
         message_type: 'text',
         content_preview: textBody.substring(0, 50) + '...'
@@ -329,7 +330,7 @@ export const useWhatsAppConnection = () => {
         }
       })
       
-      console.log('WhatsApp send response:', txt)
+      logger.info('WhatsApp send response:', txt)
 
       if (txt.error) {
         console.error('WhatsApp send error:', txt.error)
@@ -424,39 +425,41 @@ export const useWhatsAppConnection = () => {
     optOut: () => optOutMutation.mutateAsync(),
     hardDisconnect: () => {
       // Complete disconnect - deletes the record entirely
-      return new Promise(async (resolve, reject) => {
-        try {
-          if (!user?.id || !profile?.organization_id) {
-            throw new Error('User or preschool not found')
+      return new Promise((resolve, reject) => {
+        (async () => {
+          try {
+            if (!user?.id || !profile?.organization_id) {
+              throw new Error('User or preschool not found')
+            }
+
+            // Delete the WhatsApp contact record completely
+            const { error } = await assertSupabase()
+              .from('whatsapp_contacts')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('preschool_id', profile.organization_id)
+
+            if (error) {
+              console.error('Error deleting WhatsApp contact:', error)
+              throw error
+            }
+
+            // Force refresh
+            queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
+            queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
+
+            // Track complete disconnection
+            track('edudash.whatsapp.hard_disconnect', {
+              user_id: user.id,
+              preschool_id: profile.organization_id,
+              timestamp: new Date().toISOString()
+            })
+
+            resolve({ success: true })
+          } catch (error) {
+            reject(error)
           }
-
-          // Delete the WhatsApp contact record completely
-          const { error } = await assertSupabase()
-            .from('whatsapp_contacts')
-            .delete()
-            .eq('user_id', user.id)
-            .eq('preschool_id', profile.organization_id)
-
-          if (error) {
-            console.error('Error deleting WhatsApp contact:', error)
-            throw error
-          }
-
-          // Force refresh
-          queryClient.invalidateQueries({ queryKey: queryKeys.whatsappContacts })
-          queryClient.removeQueries({ queryKey: queryKeys.whatsappContacts })
-
-          // Track complete disconnection
-          track('edudash.whatsapp.hard_disconnect', {
-            user_id: user.id,
-            preschool_id: profile.organization_id,
-            timestamp: new Date().toISOString()
-          })
-
-          resolve({ success: true })
-        } catch (error) {
-          reject(error)
-        }
+        })();
       })
     },
     sendTestMessage: sendTestMessageMutation.mutate,
