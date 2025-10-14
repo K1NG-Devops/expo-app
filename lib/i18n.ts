@@ -116,22 +116,24 @@ function detectLanguage(): string {
 }
 
 // Initialize i18n with English only
-i18n
-  .use(initReactI18next)
-  .init({
-    resources: baseResources,
-    lng: detectLanguage(),
-    fallbackLng: 'en',
-    defaultNS: 'common',
-    ns: ['common', 'whatsapp'],
-    interpolation: { escapeValue: false },
-    react: { useSuspense: false },
-    debug: process.env.NODE_ENV === 'development',
-    returnObjects: true,
-    keySeparator: '.',
-    pluralSeparator: '_',
-    saveMissing: process.env.NODE_ENV === 'development',
-  });
+if (!i18n.isInitialized) {
+  i18n
+    .use(initReactI18next)
+    .init({
+      resources: baseResources,
+      lng: detectLanguage(),
+      fallbackLng: 'en',
+      defaultNS: 'common',
+      ns: ['common', 'whatsapp'],
+      interpolation: { escapeValue: false },
+      react: { useSuspense: false },
+      debug: process.env.NODE_ENV === 'development',
+      returnObjects: true,
+      keySeparator: '.',
+      pluralSeparator: '_',
+      saveMissing: process.env.NODE_ENV === 'development',
+    });
+}
 
 /**
  * Lazy load language resources if not loaded yet

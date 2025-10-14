@@ -9,8 +9,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 import { salesOrPricingPath } from '@/lib/sales';
 import { navigateTo } from '@/lib/navigation/router-utils';
+import { useTranslation } from 'react-i18next';
 
 export default function PricingScreen() {
+  const { t } = useTranslation();
   const [annual, setAnnual] = useState(false);
   const { profile } = useAuth();
   const roleNorm = normalizeRole(String(profile?.role || ''));
@@ -45,7 +47,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             'Lesson generator (limited)',
             'Community support',
           ]}
-          ctaText="Start free"
+          ctaText={t('pricing.cta.start_free', { defaultValue: 'Start Free' })}
           onPress={() => navigateTo.signUpWithPlan({ tier: 'free', billing: annual ? 'annual' : 'monthly' })}
         />
       ),
@@ -62,7 +64,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             'Child-safe explanations',
             'Email support',
           ]}
-          ctaText="Choose Parent Starter"
+          ctaText={t('pricing.cta.choose_named', { defaultValue: 'Choose Parent Starter', name: 'Parent Starter' })}
           onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-starter', billing: annual ? 'annual' : 'monthly', auto: true })}
         />
       ),
@@ -79,7 +81,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             'Priority processing',
             'Basic analytics',
           ]}
-          ctaText="Choose Parent Plus"
+          ctaText={t('pricing.cta.choose_named', { defaultValue: 'Choose Parent Plus', name: 'Parent Plus' })}
           onPress={() => navigateTo.subscriptionSetup({ planId: 'parent-plus', billing: annual ? 'annual' : 'monthly', auto: true })}
         />
       ),
@@ -96,7 +98,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             'Grading Assistance · 20/mo',
             'Homework Helper · 100/mo',
           ]}
-          ctaText="Choose Private Teacher"
+          ctaText={t('pricing.cta.choose_named', { defaultValue: 'Choose Private Teacher', name: 'Private Teacher' })}
           onPress={() => navigateTo.subscriptionSetup({ planId: 'private-teacher', billing: annual ? 'annual' : 'monthly', auto: true })}
         />
       ),
@@ -117,7 +119,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             'Model selection (Haiku/Sonnet/Opus)',
             'Priority support',
           ]}
-          ctaText="Upgrade to Pro"
+          ctaText={t('subscription.upgradeToPro', { defaultValue: 'Upgrade to Pro' })}
           onPress={() => navigateTo.subscriptionSetup({ planId: 'pro', billing: annual ? 'annual' : 'monthly', auto: true })}
         />
       ),
@@ -126,29 +128,29 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: 'Pricing', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
+      <Stack.Screen options={{ title: t('pricing.title', { defaultValue: 'Pricing' }), headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
       <StatusBar style="light" />
       <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
         <ScrollView contentContainerStyle={styles.container}>
           {/* Free ribbon if on free tier */}
           {String((profile as any)?.plan_tier || 'free').toLowerCase() === 'free' && (
             <View style={{ backgroundColor: '#111827', borderColor: '#1f2937', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>You are on the Free plan</Text>
+              <Text style={{ color: '#9CA3AF', fontWeight: '700' }}>{t('pricing.free_ribbon', { defaultValue: 'You are on the Free plan' })}</Text>
               <TouchableOpacity onPress={() => navigateTo.subscriptionSetup({ planId: 'pro', billing: annual ? 'annual' : 'monthly', auto: true })} style={{ backgroundColor: '#00f5ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                <Text style={{ color: '#000', fontWeight: '800' }}>Upgrade</Text>
+                <Text style={{ color: '#000', fontWeight: '800' }}>{t('common.upgrade', { defaultValue: 'Upgrade' })}</Text>
               </TouchableOpacity>
             </View>
           )}
-          <Text style={styles.title}>Plans & Pricing</Text>
-          <Text style={styles.subtitle}>Flexible options for individuals, preschools and schools. AI usage includes monthly quotas. Overages require prepayment.</Text>
+          <Text style={styles.title}>{t('pricing.plans_title', { defaultValue: 'Plans & Pricing' })}</Text>
+          <Text style={styles.subtitle}>{t('pricing.subtitle_app', { defaultValue: 'Flexible options for individuals, preschools and schools. AI usage includes monthly quotas. Overages require prepayment.' })}</Text>
 
           {/* Billing toggle */}
           <View style={styles.toggleRow}>
             <TouchableOpacity onPress={() => setAnnual(false)} style={[styles.toggleBtn, !annual && styles.toggleBtnActive]}>
-              <Text style={[styles.toggleBtnText, !annual && styles.toggleBtnTextActive]}>Monthly</Text>
+              <Text style={[styles.toggleBtnText, !annual && styles.toggleBtnTextActive]}>{t('pricing.monthly', { defaultValue: 'Monthly' })}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setAnnual(true)} style={[styles.toggleBtn, annual && styles.toggleBtnActive]}>
-              <Text style={[styles.toggleBtnText, annual && styles.toggleBtnTextActive]}>Annual</Text>
+              <Text style={[styles.toggleBtnText, annual && styles.toggleBtnTextActive]}>{t('pricing.annual', { defaultValue: 'Annual' })}</Text>
             </TouchableOpacity>
           </View>
 
@@ -270,7 +272,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
               ctaText={canRequestEnterprise ? 'Contact sales' : 'Admin only'}
               onPress={() => {
                 if (!canRequestEnterprise) {
-                  Alert.alert('Restricted', 'Only principals or school admins can request Preschool Pro.');
+                  Alert.alert(t('common.restricted', { defaultValue: 'Restricted' }), t('pricing.restricted_principal_only', { defaultValue: 'Only principals or school admins can request Preschool Pro.' }));
                   return;
                 }
                 router.push('/sales/contact?plan=preschool-pro')
@@ -296,7 +298,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
               ctaText={canRequestEnterprise ? 'Contact sales' : 'Admin only'}
               onPress={() => {
                 if (!canRequestEnterprise) {
-                  Alert.alert('Restricted', 'Only principals or school admins can request Enterprise.');
+                  Alert.alert(t('common.restricted', { defaultValue: 'Restricted' }), t('pricing.restricted_enterprise_only', { defaultValue: 'Only principals or school admins can request Enterprise.' }));
                   return;
                 }
                 router.push('/sales/contact?plan=enterprise')
@@ -307,11 +309,11 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
 
           {/* Notes */}
           <View style={styles.notes}>
-            <Text style={styles.notesTitle}>Notes</Text>
-            <Text style={styles.noteItem}>• AI quotas are monthly and reset at the start of each month.</Text>
-            <Text style={styles.noteItem}>• Overages require prepayment; once paid, access resumes immediately.</Text>
-            <Text style={styles.noteItem}>• Model selection affects cost; Opus &gt; Sonnet &gt; Haiku. We recommend Haiku for most classroom use.</Text>
-            <Text style={styles.noteItem}>• For K-12 Enterprise pricing, contact sales. We tailor seat counts and AI usage pools to your school size and needs.</Text>
+            <Text style={styles.notesTitle}>{t('pricing.notes.title', { defaultValue: 'Notes' })}</Text>
+            <Text style={styles.noteItem}>• {t('pricing.notes.quota', { defaultValue: 'AI quotas are monthly and reset at the start of each month.' })}</Text>
+            <Text style={styles.noteItem}>• {t('pricing.notes.overages', { defaultValue: 'Overages require prepayment; once paid, access resumes immediately.' })}</Text>
+            <Text style={styles.noteItem}>• {t('pricing.notes.model_selection', { defaultValue: 'Model selection affects cost; Opus > Sonnet > Haiku. We recommend Haiku for most classroom use.' })}</Text>
+            <Text style={styles.noteItem}>• {t('pricing.notes.enterprise_contact', { defaultValue: 'For K-12 Enterprise pricing, contact sales. We tailor seat counts and AI usage pools to your school size and needs.' })}</Text>
           </View>
 
           {/* Comparison table */}
@@ -321,7 +323,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             onSelectPlan={(planId) => {
               if (planId === 'preschool-pro' || planId === 'enterprise') {
                 if (!canRequestEnterprise) {
-                  Alert.alert('Restricted', 'Only principals or school admins can submit these requests.');
+                  Alert.alert(t('common.restricted', { defaultValue: 'Restricted' }), t('pricing.restricted_submit_only', { defaultValue: 'Only principals or school admins can submit these requests.' }));
                   return;
                 }
                 router.push(`/sales/contact?plan=${planId}` as any)

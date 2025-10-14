@@ -24,6 +24,8 @@ serve(async (req: Request) => {
       headers: {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
+        // Required by OpenAI Realtime API
+        'OpenAI-Beta': 'realtime=v1',
       },
       body: JSON.stringify({
         model: OPENAI_REALTIME_MODEL,
@@ -47,11 +49,16 @@ serve(async (req: Request) => {
     }
 
     const session = await r.json()
-    // session.client_secret.value is the ephemeral token to return to clients
+    // Return provider-agnostic shape expected by the app
+    const model = session.model || OPENAI_REALTIME_MODEL
+    const token = session?.client_secret?.value || session?.client_secret || ''
+    const url = `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}`
+
     return new Response(JSON.stringify({
-      success: true,
-      model: session.model,
-      client_secret: session.client_secret
+      token,
+      url,
+      model,
+      expiresIn: 55 * 60, // seconds (ephemeral)
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

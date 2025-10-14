@@ -38,7 +38,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 import { toast } from '@/components/ui/ToastProvider';
-// VoiceRecordingModal removed - using inline mic button only
+import { VoiceRecorderSheet } from '@/components/ai/VoiceRecorderSheet';
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
 import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
@@ -75,7 +75,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
-  // Modal removed - using inline mic only
+  const [showVoiceRecorderModal, setShowVoiceRecorderModal] = useState(false);
+  const [pendingVoiceModal, setPendingVoiceModal] = useState(false);
   const [voiceTimerMs, setVoiceTimerMs] = useState(0);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -180,7 +181,37 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   }, [dashInstance, isInitialized]);
 
-  // Auto-scroll removed - inverted list handles this automatically
+  // If user tapped mic before Dash was ready, open the modal once ready
+  useEffect(() => {
+    console.log('[DashAssistant] Pending voice modal check:', {
+      pendingVoiceModal,
+      dashInstance: !!dashInstance,
+      isInitialized,
+      showVoiceRecorderModal
+    });
+    if (pendingVoiceModal && dashInstance && isInitialized) {
+      console.log('[DashAssistant] Opening deferred voice modal');
+      setShowVoiceRecorderModal(true);
+      setPendingVoiceModal(false);
+    }
+  }, [pendingVoiceModal, dashInstance, isInitialized]);
+
+  // Log modal state changes
+  useEffect(() => {
+    console.log('[DashAssistant] Voice recorder modal state changed:', showVoiceRecorderModal);
+  }, [showVoiceRecorderModal]);
+
+  // Auto-scroll to last message on messages change (initial load and updates)
+  useEffect(() => {
+    try {
+      if (messages && messages.length > 0) {
+        const idx = messages.length - 1;
+        setTimeout(() => {
+          try { flatListRef.current?.scrollToIndex({ index: idx, animated: false }); } catch {}
+        }, 0);
+      }
+    } catch {}
+  }, [messages.length]);
 
 
   // Focus effect to refresh when screen comes into focus
@@ -938,6 +969,11 @@ return (
       setTimeout(() => { try { if (autoSpeak) speakResponse(response); } catch {} }, 400);
     }
   });
+  
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log(`[DashAssistant] Voice state changed: ${vc.state}`);
+  }, [vc.state]);
 
   // Voice timer effect (tracks duration during prewarm/listening)
   useEffect(() => {
@@ -967,6 +1003,11 @@ return (
     }
   }, [vc.state]);
 
+  // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
+  const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch {} })(); }, []);
+  const streamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
+  
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
   React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
@@ -995,10 +1036,7 @@ return (
     }
   }, [streamingEnabled, showVoiceSending]);
 
-  // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
-  const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
-  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch {} })(); }, []);
-  const streamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
+  // Streaming state
   const [streamUserPartial, setStreamUserPartial] = React.useState('');
   const [streamAssistant, setStreamAssistant] = React.useState('');
   const [isStreaming, setIsStreaming] = React.useState(false);
@@ -1252,16 +1290,40 @@ return (
             renderItem={({ item, index }: any) => renderMessage(item, index)}
             contentContainerStyle={styles.messagesContent}
             style={styles.messagesContainer}
-            inverted={true}
             showsVerticalScrollIndicator={false}
             initialNumToRender={20}
             maxToRenderPerBatch={10}
             windowSize={21}
             removeClippedSubviews={Platform.OS === 'android'}
+            onContentSizeChange={() => {
+              // Auto-scroll to last item when content changes
+              try {
+                const lastIndex = Math.max(0, data.length - 1);
+                flatListRef.current?.scrollToIndex({ index: lastIndex, animated: false });
+              } catch (e) {
+                // ignore index errors during initial layout
+              }
+            }}
             ListFooterComponent={(
               <>
+                {/* Thinking indicator - show for loading, transcribing, or thinking states */}
+                {!isStreaming && !showVoiceRecorderModal && (
+                  isLoading || 
+                  vc.state === 'transcribing' || 
+                  vc.state === 'thinking'
+                ) && (
+                  <StreamingIndicator 
+                    showThinking 
+                    thinkingText={
+                      vc.state === 'transcribing' ? 'Transcribing your voice...' : 
+                      vc.state === 'thinking' ? 'Thinking...' :
+                      isLoading ? 'Processing...' :
+                      'Working...'
+                    } 
+                  />
+                )}
                 {/* Non-streaming voice send placeholder */}
-                {!streamingEnabled && showVoiceSending && (
+                {!streamingEnabled && !showVoiceRecorderModal && showVoiceSending && (
                   <View style={[styles.messageContainer, styles.userMessage]}>
                     <View style={[styles.messageBubble, { backgroundColor: theme.primary }]}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1277,10 +1339,6 @@ return (
                       </View>
                     </View>
                   </View>
-                )}
-                {/* Thinking indicator only when not streaming */}
-                {!isStreaming && (isLoading || vc.state === 'transcribing' || vc.state === 'thinking') && (
-                  <StreamingIndicator showThinking thinkingText={vc.state === 'transcribing' ? 'Transcribing...' : 'Thinking...'} />
                 )}
                 {renderSuggestedActions()}
               </>
@@ -1302,24 +1360,51 @@ return (
         voiceState={vc.state}
         isVoiceLocked={vc.isLocked}
         voiceTimerMs={voiceTimerMs}
-        onVoiceStart={() => {
+        onVoiceStart={async () => {
           try {
-            if (streamingEnabled) {
-              // Clear any previous streamed buffers and start realtime stream
-              setStreamUserPartial('');
-              setStreamAssistant('');
-              streamSpokenRef.current = false;
-              streamFinalizedRef.current = false;
-              realtime.startStream().catch((e: any) => console.error('Realtime start error:', e));
+            console.log('[DashAssistant] Voice start (mobile-first) triggered', {
+              streamingEnabled,
+              dashInstance: !!dashInstance,
+              isInitialized,
+              pendingVoiceModal
+            });
+
+            // Mobile-first: always use modal flow for now (ignore streaming)
+            // Basic Android microphone permission check
+            let hasMic = true;
+            try {
+              if (Platform.OS === 'android') {
+                const { PermissionsAndroid } = await import('react-native');
+                const granted = await PermissionsAndroid.request(
+                  PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+                );
+                hasMic = granted === PermissionsAndroid.RESULTS.GRANTED;
+              }
+            } catch {}
+            if (!hasMic) {
+              Alert.alert('Microphone Permission', 'Please enable microphone access to record audio.');
+              return;
+            }
+
+            console.log('[DashAssistant] Opening voice recorder modal');
+            if (dashInstance && isInitialized) {
+              console.log('[DashAssistant] Dash ready - showing modal immediately');
+              setShowVoiceRecorderModal(true);
             } else {
-              vc.startPress().catch((e) => console.error('Voice start error:', e));
+              console.log('[DashAssistant] Dash not ready - deferring modal');
+              setPendingVoiceModal(true);
+              try { toast.show?.('Preparing voice recorder…'); } catch {}
             }
           } catch (e) {
-            console.error('Voice start error:', e);
+            console.error('[DashAssistant] Voice start error:', e);
           }
         }}
         onVoiceEnd={() => {
           try {
+            // If the recording modal is active, let the modal own the stop/transcribe UX
+            if (showVoiceRecorderModal) {
+              return;
+            }
             if (streamingEnabled) {
               // Stop realtime stream; footer will show streaming assistant content if any
               realtime.stopStream().catch((e: any) => console.error('Realtime stop error:', e));
@@ -1336,13 +1421,22 @@ return (
         }}
         onVoiceLock={() => {
           try {
-            vc.lock();
+            // Only allow lock when an active listen is in progress
+            if (vc.state === 'listening' || vc.state === 'prewarm') {
+              vc.lock();
+            }
           } catch (e) {
             console.error('Voice lock error:', e);
           }
         }}
         onVoiceCancel={() => {
           try {
+            if (showVoiceRecorderModal) {
+              // Close modal and ensure any active recording is stopped
+              try { dashInstance?.stopRecording?.(); } catch {}
+              setShowVoiceRecorderModal(false);
+              return;
+            }
             if (streamingEnabled) {
               realtime.cancel().catch((e: any) => console.error('Realtime cancel error:', e));
               setStreamUserPartial('');
@@ -1360,6 +1454,26 @@ return (
 
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
+      
+      {/* Voice Recorder Modal with Progress Indicators */}
+      {dashInstance && isInitialized && (
+        <VoiceRecorderSheet
+          visible={showVoiceRecorderModal}
+          onClose={() => setShowVoiceRecorderModal(false)}
+          dash={dashInstance}
+          streaming={streamingEnabled}
+          onSend={async (audioUri, transcript, duration) => {
+            try {
+              // Send the transcribed message (text)
+              await sendMessage(transcript);
+              setShowVoiceRecorderModal(false);
+            } catch (e) {
+              console.error('[DashAssistant] Voice send error:', e);
+              Alert.alert('Error', 'Failed to send voice message. Please try again.');
+            }
+          }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };

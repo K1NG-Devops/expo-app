@@ -21,6 +21,9 @@ if (!Promise.allSettled) {
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
 
+// Global fetch guard to avoid duplicate initial fetches in dev (React StrictMode double-mount)
+const __FETCH_GUARD: Record<string, number> = ((global as any).__EDUDASH_FETCH_GUARD__ ??= {});
+
 export interface SchoolStats {
   students: { total: number; trend: string };
   staff: { total: number; trend: string };
@@ -733,8 +736,16 @@ export const usePrincipalHub = () => {
     }
   }, [userId, preschoolId, t]);
 
-  useEffect(() => {
+useEffect(() => {
     if (!userId || !preschoolId) return;
+    // Skip duplicate fetches triggered by dev StrictMode remounts within a short window
+    const key = `${userId}:${preschoolId}`;
+    const now = Date.now();
+    const last = __FETCH_GUARD[key] || 0;
+    if (now - last < 2000) {
+      return;
+    }
+    __FETCH_GUARD[key] = now;
     fetchData();
   }, [userId, preschoolId, fetchData]);
 

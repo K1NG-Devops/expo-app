@@ -117,14 +117,14 @@ export default function NotFound() {
         {/* Debug Information (Development Only) */}
         {__DEV__ && debugInfo && (
           <View style={styles.debugSection}>
-            <Text style={styles.debugTitle}>Debug Information</Text>
+            <Text style={styles.debugTitle}>{t('not_found.debug.title', { defaultValue: 'Debug Information' })}</Text>
             <View style={styles.debugCard}>
-              <Text style={styles.debugInfo}>Path: {debugInfo.pathname}</Text>
-              <Text style={styles.debugInfo}>User Role: {debugInfo.userRole}</Text>
-              <Text style={styles.debugInfo}>Authenticated: {debugInfo.isAuthenticated ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugInfo}>Can Go Back: {debugInfo.canGoBack ? 'Yes' : 'No'}</Text>
-              <Text style={styles.debugInfo}>Segments: {JSON.stringify(debugInfo.segments)}</Text>
-              <Text style={styles.debugInfoSmall}>Timestamp: {debugInfo.timestamp}</Text>
+              <Text style={styles.debugInfo}>{t('not_found.debug.path', { defaultValue: 'Path' })}: {debugInfo.pathname}</Text>
+              <Text style={styles.debugInfo}>{t('not_found.debug.user_role', { defaultValue: 'User Role' })}: {debugInfo.userRole}</Text>
+              <Text style={styles.debugInfo}>{t('not_found.debug.authenticated', { defaultValue: 'Authenticated' })}: {debugInfo.isAuthenticated ? t('common.yes', { defaultValue: 'Yes' }) : t('common.no', { defaultValue: 'No' })}</Text>
+              <Text style={styles.debugInfo}>{t('not_found.debug.can_go_back', { defaultValue: 'Can Go Back' })}: {debugInfo.canGoBack ? t('common.yes', { defaultValue: 'Yes' }) : t('common.no', { defaultValue: 'No' })}</Text>
+              <Text style={styles.debugInfo}>{t('not_found.debug.segments', { defaultValue: 'Segments' })}: {JSON.stringify(debugInfo.segments)}</Text>
+              <Text style={styles.debugInfoSmall}>{t('not_found.debug.timestamp', { defaultValue: 'Timestamp' })}: {debugInfo.timestamp}</Text>
             </View>
           </View>
         )}

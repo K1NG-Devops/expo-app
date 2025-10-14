@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 interface VoiceRecorderSheetProps {
   visible: boolean;
@@ -14,6 +15,7 @@ interface VoiceRecorderSheetProps {
 
 export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible, onClose, dash, onSend }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<'recording' | 'processing' | 'preview' | 'error'>('recording');
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [duration, setDuration] = useState<number>(0);
@@ -21,7 +23,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
   const [timer, setTimer] = useState<number>(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progressPhase, setProgressPhase] = useState<string>('Preparing...');
+  const [progressPhase, setProgressPhase] = useState<string>(t('voice.recording.starting', { defaultValue: 'Preparing...' }));
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<number | null>(null);
@@ -61,7 +63,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       if (timerRef.current) { clearInterval(timerRef.current as unknown as number); timerRef.current = null; }
       setPhase('processing');
       setError(null);
-      setProgressPhase('Stopping recording...');
+      setProgressPhase(t('voice.recording.stopping_recording', { defaultValue: 'Stopping recording...' }));
       setProgressPercent(10);
       
       const uri = await dash.stopRecording();
@@ -72,16 +74,16 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
         setProgressPercent(percent);
         switch (stage) {
           case 'validating':
-            setProgressPhase('Validating audio...');
+            setProgressPhase(t('voice.recording.validating_audio', { defaultValue: 'Validating audio...' }));
             break;
           case 'uploading':
-            setProgressPhase('Uploading to cloud...');
+            setProgressPhase(t('voice.recording.uploading_cloud', { defaultValue: 'Uploading to cloud...' }));
             break;
           case 'transcribing':
-            setProgressPhase('Transcribing speech...');
+            setProgressPhase(t('voice.recording.transcribing_speech', { defaultValue: 'Transcribing speech...' }));
             break;
           case 'complete':
-            setProgressPhase('Done!');
+            setProgressPhase(t('voice.recording.done', { defaultValue: 'Done!' }));
             break;
         }
       });
@@ -98,7 +100,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       }
     } catch (e) {
       console.error('[VoiceRecorderSheet] Failed to stop/transcribe', e);
-      const errorMsg = e instanceof Error ? e.message : 'Failed to process voice recording';
+      const errorMsg = e instanceof Error ? e.message : t('voice.recording.failed_process', { defaultValue: 'Failed to process voice recording' });
       setError(errorMsg);
       setPhase('error');
     }
@@ -113,7 +115,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       onClose();
     } catch (e) {
       console.error('[VoiceRecorderSheet] Send failed', e);
-      const errorMsg = e instanceof Error ? e.message : 'Failed to send message';
+      const errorMsg = e instanceof Error ? e.message : t('voice.recording.failed_send', { defaultValue: 'Failed to send message' });
       setError(errorMsg);
       setPhase('error');
       setSending(false);
@@ -145,7 +147,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       ).start();
     } catch (e) {
       console.error('[VoiceRecorderSheet] Failed to retry recording', e);
-      setError(e instanceof Error ? e.message : 'Failed to start recording');
+      setError(e instanceof Error ? e.message : t('voice.errors.failed_start', { defaultValue: 'Failed to start recording' }));
     }
   };
 
@@ -160,7 +162,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
           {/* Header */}
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>
-              {phase === 'recording' ? 'Listening…' : phase === 'processing' ? 'Transcribing…' : 'Preview'}
+              {phase === 'recording' ? t('voice.recording.listening', { defaultValue: 'Listening…' }) : phase === 'processing' ? t('voice.recording.transcribing', { defaultValue: 'Transcribing…' }) : t('voice.recording.preview', { defaultValue: 'Preview' })}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={22} color={theme.text} />
@@ -174,7 +176,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
                 <Ionicons name="mic" size={32} color={theme.onError || '#fff'} />
               </Animated.View>
               <Text style={[styles.timer, { color: theme.textSecondary }]}>{mm}:{ss}</Text>
-              <TouchableOpacity style={[styles.bigStop, { backgroundColor: theme.error }]} onPress={stop} accessibilityLabel="Stop recording">
+              <TouchableOpacity style={[styles.bigStop, { backgroundColor: theme.error }]} onPress={stop} accessibilityLabel={t('voice.recording.stop_recording_label', { defaultValue: 'Stop recording' })}>
                 <Ionicons name="stop" size={26} color={theme.onError || '#fff'} />
               </TouchableOpacity>
             </View>
@@ -196,15 +198,15 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
 
           {phase === 'preview' && (
             <View style={styles.preview}>
-              <Text style={[styles.previewText, { color: theme.text }]}>{transcript || 'No speech detected.'}</Text>
+              <Text style={[styles.previewText, { color: theme.text }]}>{transcript || t('voice.recording.no_speech_detected', { defaultValue: 'No speech detected.' })}</Text>
               <View style={styles.actionsRow}>
                 <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
                   <Ionicons name="trash-outline" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>Discard</Text>
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('voice.recording.discard', { defaultValue: 'Discard' })}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.sendBtn]} onPress={send} disabled={sending}>
                   <Ionicons name="arrow-up" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{sending ? 'Sending…' : 'Send'}</Text>
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{sending ? t('voice.recording.sending', { defaultValue: 'Sending…' }) : t('voice.recording.send', { defaultValue: 'Send' })}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -214,16 +216,16 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
             <View style={styles.preview}>
               <View style={[styles.errorBox, { backgroundColor: theme.errorLight || '#fee' }]}>
                 <Ionicons name="alert-circle" size={32} color={theme.error} />
-                <Text style={[styles.errorText, { color: theme.error }]}>{error || 'Something went wrong'}</Text>
+                <Text style={[styles.errorText, { color: theme.error }]}>{error || t('voice.recording.something_wrong', { defaultValue: 'Something went wrong' })}</Text>
               </View>
               <View style={styles.actionsRow}>
                 <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
                   <Ionicons name="close" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>Cancel</Text>
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionBtn, styles.retryBtn]} onPress={retry}>
                   <Ionicons name="refresh" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>Try Again</Text>
+                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('voice.recording.try_again', { defaultValue: 'Try Again' })}</Text>
                 </TouchableOpacity>
               </View>
             </View>

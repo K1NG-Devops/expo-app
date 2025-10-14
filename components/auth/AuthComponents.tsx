@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useAuth, useLogin, useRegister, useLogout } from '../../lib/auth/useAuth';
 
 /**
@@ -21,23 +22,24 @@ export const LoginForm: React.FC<{
   onLoginSuccess?: () => void;
   onSwitchToRegister?: () => void;
 }> = ({ onLoginSuccess, onSwitchToRegister }) => {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login, isLoading, error, clearError } = useLogin();
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please enter both email and password');
+      Alert.alert(t('common.error'), t('auth_comp.enter_email_password'));
       return;
     }
 
     const result = await login({ email: email.trim(), password });
     
     if (result.success) {
-      Alert.alert('Success', 'Login successful!');
+      Alert.alert(t('common.success'), t('auth_comp.login_successful'));
       onLoginSuccess?.();
     } else {
-      Alert.alert('Login Failed', result.error || 'An error occurred');
+      Alert.alert(t('auth_comp.login_failed'), result.error || t('common.unexpected_error'));
     }
   };
 
@@ -48,24 +50,24 @@ export const LoginForm: React.FC<{
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.form}>
-          <Text style={styles.title}>Sign In to EduDash Pro</Text>
+          <Text style={styles.title}>{t('auth_comp.sign_in_title')}</Text>
           
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity onPress={clearError}>
-                <Text style={styles.errorDismiss}>Dismiss</Text>
+                <Text style={styles.errorDismiss}>{t('auth_comp.dismiss')}</Text>
               </TouchableOpacity>
             </View>
           )}
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>{t('auth.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="Enter your email"
+              placeholder={t('auth_comp.enter_email')}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -74,12 +76,12 @@ export const LoginForm: React.FC<{
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('auth.password')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Enter your password"
+              placeholder={t('auth_comp.enter_password')}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -95,15 +97,15 @@ export const LoginForm: React.FC<{
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign In</Text>
+              <Text style={styles.buttonText}>{t('auth.signIn')}</Text>
             )}
           </TouchableOpacity>
 
           {onSwitchToRegister && (
             <View style={styles.switchContainer}>
-              <Text style={styles.switchText}>Don't have an account? </Text>
+              <Text style={styles.switchText}>{t('auth.dont_have_account')} </Text>
               <TouchableOpacity onPress={onSwitchToRegister}>
-                <Text style={styles.switchLink}>Sign Up</Text>
+                <Text style={styles.switchLink}>{t('auth.signUp')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -121,6 +123,7 @@ export const RegisterForm: React.FC<{
   onRegisterSuccess?: () => void;
   onSwitchToLogin?: () => void;
 }> = ({ onRegisterSuccess, onSwitchToLogin }) => {
+  const { t } = useTranslation();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -131,12 +134,12 @@ export const RegisterForm: React.FC<{
   const handleRegister = async () => {
     // Basic validation
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common.error'), t('auth_comp.fill_all_fields'));
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert(t('common.error'), t('auth_comp.passwords_no_match'));
       return;
     }
 
@@ -149,13 +152,13 @@ export const RegisterForm: React.FC<{
     
     if (result.success) {
       const message = result.requiresEmailVerification
-        ? 'Registration successful! Please check your email to verify your account.'
-        : 'Registration successful! You are now logged in.';
+        ? t('auth_comp.registration_verify_email')
+        : t('auth_comp.registration_success');
       
-      Alert.alert('Success', message);
+      Alert.alert(t('common.success'), message);
       onRegisterSuccess?.();
     } else {
-      Alert.alert('Registration Failed', result.error || 'An error occurred');
+      Alert.alert(t('auth_comp.registration_failed'), result.error || t('common.unexpected_error'));
     }
   };
 
@@ -166,38 +169,38 @@ export const RegisterForm: React.FC<{
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.form}>
-          <Text style={styles.title}>Create Your Account</Text>
-          <Text style={styles.subtitle}>Join EduDash Pro as a student</Text>
+          <Text style={styles.title}>{t('auth_comp.create_account')}</Text>
+          <Text style={styles.subtitle}>{t('auth_comp.join_as_student')}</Text>
           
           {error && (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>
               <TouchableOpacity onPress={clearError}>
-                <Text style={styles.errorDismiss}>Dismiss</Text>
+                <Text style={styles.errorDismiss}>{t('auth_comp.dismiss')}</Text>
               </TouchableOpacity>
             </View>
           )}
 
           <View style={styles.row}>
             <View style={[styles.inputContainer, styles.halfWidth]}>
-              <Text style={styles.label}>First Name</Text>
+              <Text style={styles.label}>{t('auth.firstName')}</Text>
               <TextInput
                 style={styles.input}
                 value={firstName}
                 onChangeText={setFirstName}
-                placeholder="First name"
+                placeholder={t('auth_comp.first_name_placeholder')}
                 autoCapitalize="words"
                 editable={!isLoading}
               />
             </View>
 
             <View style={[styles.inputContainer, styles.halfWidth]}>
-              <Text style={styles.label}>Last Name</Text>
+              <Text style={styles.label}>{t('auth.lastName')}</Text>
               <TextInput
                 style={styles.input}
                 value={lastName}
                 onChangeText={setLastName}
-                placeholder="Last name"
+                placeholder={t('auth_comp.last_name_placeholder')}
                 autoCapitalize="words"
                 editable={!isLoading}
               />
@@ -205,12 +208,12 @@ export const RegisterForm: React.FC<{
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email Address</Text>
+            <Text style={styles.label}>{t('auth.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="Enter your email"
+              placeholder={t('auth_comp.enter_email')}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -219,29 +222,29 @@ export const RegisterForm: React.FC<{
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('auth.password')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Create a strong password"
+              placeholder={t('auth_comp.create_password')}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
               editable={!isLoading}
             />
             <Text style={styles.hint}>
-              Minimum 12 characters with uppercase, lowercase, numbers, and symbols
+              {t('auth_comp.password_requirements')}
             </Text>
           </View>
 
           <View style={styles.inputContainer}>
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>{t('auth.confirmPassword')}</Text>
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Confirm your password"
+              placeholder={t('auth_comp.confirm_password_placeholder')}
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
@@ -257,15 +260,15 @@ export const RegisterForm: React.FC<{
             {isLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Create Account</Text>
+              <Text style={styles.buttonText}>{t('auth_comp.create_account_button')}</Text>
             )}
           </TouchableOpacity>
 
           {onSwitchToLogin && (
             <View style={styles.switchContainer}>
-              <Text style={styles.switchText}>Already have an account? </Text>
+              <Text style={styles.switchText}>{t('auth_comp.already_have_account')} </Text>
               <TouchableOpacity onPress={onSwitchToLogin}>
-                <Text style={styles.switchLink}>Sign In</Text>
+                <Text style={styles.switchLink}>{t('auth.signIn')}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -280,24 +283,25 @@ export const RegisterForm: React.FC<{
  * Displays current user information and logout option
  */
 export const UserProfile: React.FC = () => {
+  const { t } = useTranslation();
   const { profile, user, isAdmin, isInstructor, isStudent } = useAuth();
   const { logout, isLoading } = useLogout();
 
   const handleLogout = async () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('auth_comp.logout'),
+      t('auth_comp.logout_confirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('auth_comp.logout'),
           style: 'destructive',
           onPress: async () => {
             const result = await logout();
             if (result.success) {
-              Alert.alert('Success', 'Logged out successfully');
+              Alert.alert(t('common.success'), t('auth_comp.logout_success'));
             } else {
-              Alert.alert('Error', result.error || 'Failed to logout');
+              Alert.alert(t('common.error'), result.error || t('auth_comp.logout_failed'));
             }
           },
         },
@@ -308,7 +312,7 @@ export const UserProfile: React.FC = () => {
   if (!profile || !user) {
     return (
       <View style={styles.container}>
-        <Text style={styles.errorText}>No user profile found</Text>
+        <Text style={styles.errorText}>{t('auth_comp.no_profile')}</Text>
       </View>
     );
   }

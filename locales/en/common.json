@@ -16,6 +16,7 @@
     "unexpected_error": "An unexpected error occurred",
     "or": "or",
     "click_here": "Click here",
+    "go_now": "Go now",
     "try_again": "Try Again",
     "not_set": "Not set",
     "enabled": "Enabled",
@@ -104,6 +105,73 @@
     "admin": "Administrator",
     "superAdmin": "Super Admin"
   },
+  "admin": {
+    "header": {
+      "title": "🎛️ Admin Dashboard",
+      "subtitle": "Real-time school management"
+    },
+    "stats": {
+      "total_users": "Total Users",
+      "active_today": "Active Today",
+      "pending_invites": "Pending Invites",
+      "security_alerts": "Security Alerts"
+    },
+    "user_management": {
+      "title": "👥 User Management"
+    },
+    "pending_invitations": "📤 Pending Invitations",
+    "resend": "📤 Resend",
+    "cancel": "❌ Cancel",
+    "recent_activity": "📊 Recent Activity",
+    "quick_actions": "⚡ Quick Actions",
+    "security_settings_title": "🔐 Security Settings",
+    "security_settings_label": "Security Settings",
+    "opening_security": "Opening security management...",
+    "view_analytics": "View Analytics",
+    "analytics_title": "📊 Analytics",
+    "opening_analytics": "Opening analytics dashboard...",
+    "backup_title": "💾 Backup",
+    "starting_backup": "Starting system backup...",
+    "system_backup_label": "System Backup",
+    "data_refreshed_title": "✅ Data Refreshed",
+    "data_refreshed_desc": "Dashboard data has been updated with the latest information.",
+    "user_action_title": "{{action}} User",
+    "user_action_confirm": "Are you sure you want to {{action}} this user?",
+    "action_completed_title": "✅ Action Completed",
+    "action_completed_desc": "User has been {{action}} successfully.",
+    "invitation_resent_title": "📤 Invitation Resent",
+    "invitation_resent_desc": "The invitation has been sent again to the user.",
+    "invitation_cancelled_title": "❌ Invitation Cancelled",
+    "invitation_cancelled_desc": "The invitation has been cancelled.",
+    "last_seen": "Last seen",
+    "sent": "Sent"
+  },
+  "not_found": {
+    "title": "Route Not Found",
+    "subtitle": "The requested page doesn't exist in the app.",
+    "go_to_dashboard": "Go to Dashboard",
+    "go_to_home": "Go to Home",
+    "debug": {
+      "title": "Debug Information",
+      "path": "Path",
+      "user_role": "User Role",
+      "authenticated": "Authenticated",
+      "can_go_back": "Can Go Back",
+      "segments": "Segments",
+      "timestamp": "Timestamp"
+    }
+  },
+  "time": {
+    "just_now": "Just now",
+    "minutes_short_ago": "{{count}}m ago",
+    "hours_short_ago": "{{count}}h ago",
+    "days_short_ago": "{{count}}d ago"
+  },
+  "marketing": {
+    "pricing": {
+      "back_to_home": "Back to Home"
+    }
+  },
   "pricing": {
     "load_error": "Unable to load pricing information. Please try again later.",
     "loading": "Loading pricing plans...",
@@ -120,6 +188,38 @@
       "premium": { "desc": "Professional features for established schools" },
       "pro": { "desc": "Advanced solution for large schools" },
       "enterprise": { "desc": "Complete solution for large organizations" }
+    },
+    "subtitle_marketing": "Flexible pricing for schools of all sizes. Start free and scale as you grow.",
+    "plans_title": "Plans & Pricing",
+    "subtitle_app": "Flexible options for individuals, preschools and schools. AI usage includes monthly quotas. Overages require prepayment.",
+    "back_to_pricing": "Back to Pricing",
+    "free_ribbon": "You are on the Free plan",
+    "restricted_principal_only": "Only principals or school admins can request Preschool Pro.",
+    "restricted_enterprise_only": "Only principals or school admins can request Enterprise.",
+    "restricted_submit_only": "Only principals or school admins can submit these requests.",
+    "enterprise_subtitle": "Our enterprise solutions are designed for large school districts, government education departments, and multi-national education providers.",
+    "enterprise": {
+      "features": {
+        "multi_tenant": "Multi-tenant architecture",
+        "advanced_security": "Advanced security & compliance",
+        "custom_integrations": "Custom integrations & APIs",
+        "dedicated_support": "Dedicated support team"
+      }
+    },
+    "notes": {
+      "title": "Notes",
+      "quota": "AI quotas are monthly and reset at the start of each month.",
+      "overages": "Overages require prepayment; once paid, access resumes immediately.",
+      "model_selection": "Model selection affects cost; Opus > Sonnet > Haiku. We recommend Haiku for most classroom use.",
+      "enterprise_contact": "For K-12 Enterprise pricing, contact sales. We tailor seat counts and AI usage pools to your school size and needs."
+    },
+    "faq": {
+      "q1": "Can I upgrade or downgrade my plan anytime?",
+      "a1": "Yes! You can change your plan at any time. Upgrades take effect immediately, and downgrades take effect at the start of your next billing cycle.",
+      "q2": "Is there a setup fee?",
+      "a2": "No setup fees for Starter and Professional plans. Enterprise plans may include implementation services.",
+      "q3": "What payment methods do you accept?",
+      "a3": "We accept all major credit cards, PayFast, and bank transfers for South African customers."
     }
   },
   "dashboard": {
@@ -978,6 +1078,16 @@
       "pettyCash": "Petty Cash"
     },
     "noFeaturesEnabled": "No features enabled"
+},
+  "trends": {
+    "up": "up",
+    "down": "down",
+    "stable": "stable",
+    "high": "high",
+    "low": "low",
+    "needs_attention": "needs attention",
+    "excellent": "excellent",
+    "good": "good"
   },
   "teacher": {
     "performance": {
@@ -1263,6 +1373,46 @@
     "layout_switched": "Dashboard layout has been changed!",
     "welcome_message": "Welcome! I'm here to help with teaching, dashboard management, and school administration.",
     "initializing": "Initializing Dash..."
+  },
+  "voice": {
+    "recording": {
+      "listening": "Listening…",
+      "transcribing": "Transcribing…",
+      "preview": "Preview",
+      "speak_clearly": "🎤 Speak clearly into your microphone",
+      "stop_recording_label": "Stop recording",
+      "stop_recording_hint_stream": "Stops stream and finalizes transcript",
+      "stop_recording_hint_file": "Stops recording and transcribes your voice",
+      "finalizing_stream": "Finalizing stream...",
+      "stopping_recording": "Stopping recording...",
+      "validating_audio": "Validating audio...",
+      "uploading_cloud": "Uploading to cloud...",
+      "transcribing_speech": "Transcribing speech...",
+      "done": "Done!",
+      "usually_takes_seconds": "This usually takes a few seconds...",
+      "edit_transcript_label": "Edit transcript before sending:",
+      "no_speech_detected": "No speech detected.",
+      "discard": "Discard",
+      "send": "Send",
+      "sending": "Sending…",
+      "something_wrong": "Something went wrong",
+      "try_again": "Try Again",
+      "failed_streaming": "Failed to start realtime streaming",
+      "recording_captured": "Recording captured.",
+      "failed_process": "Failed to process voice recording",
+      "failed_send": "Failed to send message",
+      "slide_up_lock": "Slide up to lock",
+      "thinking": "Thinking...",
+      "starting": "Starting...",
+      "hold_to_record": "Hold to record • Slide up to lock",
+      "recording_locked": "Recording Locked"
+    },
+    "errors": {
+      "failed_start": "Failed to start recording",
+      "failed_stop": "Failed to stop/transcribe",
+      "cancel_error": "Cancel error",
+      "send_error": "Send error"
+    }
   },
   "cache": {
     "management": "Cache Management",

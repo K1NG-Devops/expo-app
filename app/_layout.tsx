@@ -17,14 +17,22 @@ import { initPerformanceMonitoring } from '@/lib/perf';
 import { installGlobalErrorHandler } from '@/lib/global-errors';
 import { initMonitoring } from '@/lib/monitoring';
 
-// Initialize critical systems
-initPerformanceMonitoring();
-installGlobalErrorHandler();
-initMonitoring();
+// Initialize critical systems (guarded to avoid double init in dev / fast refresh)
+const __globalAny: any = (global as any);
+if (!__globalAny.__EDUDASH_BOOTSTRAPPED__) {
+  initPerformanceMonitoring();
+  installGlobalErrorHandler();
+  initMonitoring();
+  __globalAny.__EDUDASH_BOOTSTRAPPED__ = true;
+}
 
 // Initialize lazy loading for ultra-fast navigation
 import { ChunkPreloader } from '@/lib/lazy-loading';
-ChunkPreloader.preloadCriticalChunks();
+try {
+  ChunkPreloader.preloadCriticalChunks();
+} catch {
+  // Non-critical; ignore in environments where preloader isn't available
+}
 
 // Initialize i18n BEFORE any components render
 import '@/lib/i18n';

@@ -29,6 +29,13 @@ const TIER_QUOTAS: Record<SubscriptionTier, { ai_requests: number; rpm_limit: nu
   'enterprise': { ai_requests: -1, rpm_limit: 60 }, // -1 = unlimited
 }
 
+// Development mode bypass (set DEVELOPMENT_MODE=true in Edge Function secrets)
+const isDevelopmentMode = (globalThis as any).Deno?.env?.get("DEVELOPMENT_MODE") === 'true';
+if (isDevelopmentMode) {
+  console.log('[AI Gateway] Development mode active - using relaxed rate limits');
+  TIER_QUOTAS['free'] = { ai_requests: 10000, rpm_limit: 100 };
+}
+
 function canAccessModel(userTier: SubscriptionTier, modelId: string): boolean {
   const normalizedModel = normalizeModelId(modelId)
   if (!normalizedModel) return false

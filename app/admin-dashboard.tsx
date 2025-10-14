@@ -257,7 +257,7 @@ export default function AdminDashboard() {
                 </Text>
               </View>
               <Text style={[styles.lastSeen, { color: theme.textTertiary }]}>
-                Last seen: {lastSeen}
+                {t('admin.last_seen', { defaultValue: 'Last seen' })}: {lastSeen}
               </Text>
             </View>
           </View>
@@ -314,10 +314,10 @@ export default function AdminDashboard() {
     const diffHours = Math.floor(diffMins / 60);
     const diffDays = Math.floor(diffHours / 24);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    if (diffMins < 1) return t('time.just_now', { defaultValue: 'Just now' });
+    if (diffMins < 60) return t('time.minutes_short_ago', { count: diffMins, defaultValue: '{{count}}m ago' });
+    if (diffHours < 24) return t('time.hours_short_ago', { count: diffHours, defaultValue: '{{count}}h ago' });
+    return t('time.days_short_ago', { count: diffDays, defaultValue: '{{count}}d ago' });
   };
 
   return (
@@ -330,10 +330,10 @@ export default function AdminDashboard() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>
-          🎛️ Admin Dashboard
+          {t('admin.header.title', { defaultValue: '🎛️ Admin Dashboard' })}
         </Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-          Real-time school management
+          {t('admin.header.subtitle', { defaultValue: 'Real-time school management' })}
         </Text>
       </View>
 
@@ -365,7 +365,7 @@ export default function AdminDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              👥 User Management
+              {t('admin.user_management.title', { defaultValue: '👥 User Management' })}
             </Text>
             <TouchableOpacity 
               style={[styles.addButton, { backgroundColor: theme.primary }]}
@@ -391,7 +391,7 @@ export default function AdminDashboard() {
                   {invitation.email}
                 </Text>
                 <Text style={[styles.invitationRole, { color: theme.textSecondary }]}>
-                  {invitation.role} • Sent {formatTimeAgo(invitation.sentDate)}
+                  {invitation.role} • {t('admin.sent', { defaultValue: 'Sent' })} {formatTimeAgo(invitation.sentDate)}
                 </Text>
               </View>
               <View style={styles.invitationActions}>
@@ -402,8 +402,6 @@ export default function AdminDashboard() {
                   <Text style={[styles.inviteActionText, { color: theme.onPrimary }]}>
                     {t('admin.resend', { defaultValue: '📤 Resend' })}
                   </Text>
-                    📤 Resend
-                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.inviteActionButton, { backgroundColor: theme.error }]}
@@ -411,8 +409,6 @@ export default function AdminDashboard() {
                 >
                   <Text style={[styles.inviteActionText, { color: theme.onError }]}>
                     {t('admin.cancel', { defaultValue: '❌ Cancel' })}
-                  </Text>
-                    ❌ Cancel
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -442,13 +438,13 @@ export default function AdminDashboard() {
             >
               <Text style={styles.quickActionIcon}>🔐</Text>
               <Text style={[styles.quickActionText, { color: theme.onPrimary }]}>
-                Security Settings
+                {t('admin.security_settings_label', { defaultValue: 'Security Settings' })}
               </Text>
             </TouchableOpacity>
             
             <TouchableOpacity
               style={[styles.quickActionButton, { backgroundColor: theme.secondary }]}
-              onPress={() => Alert.alert('📊 Analytics', 'Opening analytics dashboard...')}
+              onPress={() => Alert.alert(t('admin.analytics_title', { defaultValue: '📊 Analytics' }), t('admin.opening_analytics', { defaultValue: 'Opening analytics dashboard...' }))}
             >
               <Text style={styles.quickActionIcon}>📊</Text>
               <Text style={[styles.quickActionText, { color: theme.onSecondary }]}>
@@ -462,7 +458,7 @@ export default function AdminDashboard() {
             >
               <Text style={styles.quickActionIcon}>💾</Text>
               <Text style={[styles.quickActionText, { color: theme.onPrimary }]}>
-                System Backup
+                {t('admin.system_backup_label', { defaultValue: 'System Backup' })}
               </Text>
             </TouchableOpacity>
           </View>

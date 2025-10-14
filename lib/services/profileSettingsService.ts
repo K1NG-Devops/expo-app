@@ -118,7 +118,7 @@ export class ProfileSettingsService {
       try {
         const { data: existing } = await this.supabase.storage
           .from('signatures')
-          .list(user.user.id, { limit: 100 });
+          .list(`${user.user.id}/`, { limit: 100 });
 
         if (existing && existing.length > 0) {
           const filesToRemove = existing.map(f => `${user.user.id}/${f.name}`);
@@ -317,7 +317,7 @@ export class ProfileSettingsService {
       // Try to list the user's signature folder
       const { error } = await this.supabase.storage
         .from('signatures')
-        .list(user.user.id, { limit: 1 });
+        .list(`${user.user.id}/`, { limit: 1 });
 
       if (error) {
         return { available: false, error: error.message };

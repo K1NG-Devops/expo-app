@@ -19,6 +19,7 @@ import { WorksheetService } from './WorksheetService';
 import { DashTaskAutomation } from './DashTaskAutomation';
 import { base64ToUint8Array } from '@/lib/utils/base64';
 import DashRealTimeAwareness from './DashRealTimeAwareness';
+import { DashAgenticIntegration } from './DashAgenticIntegration';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -604,11 +605,11 @@ export class DashAIAssistant {
   }
 
   /**
-   * Initialize Dash AI Assistant
+   * Initialize Dash AI Assistant with Agentic Services
    */
   public async initialize(): Promise<void> {
     try {
-      console.log('[Dash] Initializing AI Assistant...');
+      console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
       
       // Initialize audio
       await this.initializeAudio();
@@ -620,6 +621,22 @@ export class DashAIAssistant {
       // Load user context
       await this.loadUserContext();
       
+      // Initialize agentic services
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
+      
+      if (session?.user && profile) {
+        await DashAgenticIntegration.initialize({
+          userId: session.user.id,
+          profile,
+          tier: profile.subscription_tier || 'starter',
+          role: profile.role || 'teacher',
+          language: profile.preferred_language || 'en'
+        });
+        
+        console.log('[Dash] Agentic services initialized');
+      }
+      
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
       console.error('[Dash] Failed to initialize AI Assistant:', error);
@@ -627,6 +644,7 @@ export class DashAIAssistant {
     }
   }
 
+  
   /**
    * Check if audio permission is granted (with caching)
    */
@@ -2642,7 +2660,8 @@ export class DashAIAssistant {
       
       // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
       console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
-      const proactiveEngine = (await import('./DashProactiveEngine')).default;
+      const { DashProactiveEngine } = await import('./DashProactiveEngine');
+      const proactiveEngine = DashProactiveEngine.getInstance();
       const userRole = profile?.role || 'parent';
       const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
         autonomyLevel: this.autonomyLevel,
@@ -2681,51 +2700,20 @@ export class DashAIAssistant {
       return assistantMessage;
       
     } catch (error) {
-      console.error('[Dash Agent] Agentic processing failed, falling back to legacy:', error);
+      console.error('[Dash Agent] Critical error in response generation:', error);
       
-      // Fallback to legacy implementation if agentic fails
-      try {
-        const conversation = await this.getConversation(conversationId);
-        const recentMessages = conversation?.messages.slice(-5) || [];
-        const profile = await getCurrentProfile();
-        
-        const context = {
-          userInput,
-          conversationHistory: recentMessages,
-          userProfile: profile,
-          memory: Array.from(this.memory.values()),
-          personality: this.personality,
-          timestamp: new Date().toISOString(),
-        };
-
-        const response = await this.callAIServiceLegacy(context);
-        await this.updateMemory(userInput, response);
-        
-        return {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'assistant',
-          content: this.ensureNoAttachmentClaims(response.content),
-          timestamp: Date.now(),
-          metadata: {
-            confidence: response.confidence || 0.7,
-            suggested_actions: response.suggested_actions || [],
-            references: response.references || [],
-            dashboard_action: response.dashboard_action
-          }
-        };
-      } catch (fallbackError) {
-        console.error('[Dash Agent] Fallback also failed:', fallbackError);
-        return {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'assistant',
-          content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
-          timestamp: Date.now(),
-          metadata: {
-            confidence: 0.1,
-            suggested_actions: ['try_again', 'contact_support']
-          }
-        };
-      }
+      // Return graceful error message without legacy fallback
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: "I'm experiencing a temporary issue. Please try again in a moment.",
+        timestamp: Date.now(),
+        metadata: {
+          confidence: 0.1,
+          suggested_actions: ['try_again'],
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
+      };
     }
   }
   
@@ -3007,10 +2995,13 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
    * Transcribe audio by uploading to Supabase Storage and invoking Edge Function.
    * - Web: uses blob: URI fetch
    * - Native: uses file:// fetch
+   * - Includes automatic retry on failure
+   * - Tracks feature health for diagnostics
    */
   private async transcribeAudio(
     audioUri: string,
-    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void
+    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void,
+    retryCount: number = 0
   ): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string; error?: string }> {
     let storagePath: string | undefined;
     let contentType: string | undefined;
@@ -3148,6 +3139,9 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       
       onProgress?.('uploading', 70);
 
+      // Track start time for performance metrics
+      const transcribeStart = Date.now();
+      
       // Invoke the transcription function
       onProgress?.('transcribing', 75);
       const { data, error: fnError } = await assertSupabase()
@@ -3156,10 +3150,26 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
           body: { storage_path: storagePath, language }
         });
       
+      const transcribeTime = Date.now() - transcribeStart;
+      
+      // Update diagnostic metrics
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.recordMetric('transcriptionTime', transcribeTime);
+      } catch {}
+      
       onProgress?.('transcribing', 95);
       
       if (fnError) {
         errorDetails = `Transcription service error: ${fnError.message || String(fnError)}`;
+        
+        // Retry logic for transient failures
+        if (retryCount < 2 && (fnError.message?.includes('timeout') || fnError.message?.includes('network'))) {
+          console.log(`[Dash] Retrying transcription (attempt ${retryCount + 1}/2)...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
+          return this.transcribeAudio(audioUri, onProgress, retryCount + 1);
+        }
+        
         throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
       }
 
@@ -3172,6 +3182,12 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       
       onProgress?.('complete', 100);
 
+      // Update feature health on success
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.updateFeatureHealth('transcription', true, transcribeTime);
+      } catch {}
+
       return {
         transcript: transcript || 'No speech detected in audio.',
         storagePath,
@@ -3182,6 +3198,22 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
     } catch (error) {
       console.error('[Dash] Transcription failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Update feature health on failure
+      try {
+        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+        dashDiagnostics.updateFeatureHealth('transcription', false);
+        dashDiagnostics.logError({
+          type: 'TranscriptionError',
+          message: errorMessage,
+          context: { 
+            feature: 'transcription',
+            audioUri,
+            retryCount,
+            errorDetails 
+          }
+        });
+      } catch {}
       
       // More specific error messages based on error type
       let userFriendlyError = "Voice message received - couldn't transcribe audio.";
@@ -3950,7 +3982,79 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
   
   /**
-   * Get confirmation message for screen opening
+   * Perform web search using the Edge Function
+   */
+  private async performWebSearch(
+    query: string,
+    options: any = {}
+  ): Promise<any> {
+    try {
+      const { data, error } = await assertSupabase()
+        .functions
+        .invoke('web-search', {
+          body: {
+            query,
+            options,
+            searchType: 'general'
+          }
+        });
+      
+      if (error) throw error;
+      return data || { results: [], error: 'No results returned' };
+    } catch (error) {
+      console.error('[Dash] Web search error:', error);
+      return {
+        query,
+        results: [],
+        error: error instanceof Error ? error.message : 'Search failed'
+      };
+    }
+  }
+  
+  /**
+   * Perform fact check using web search
+   */
+  private async performFactCheck(
+    statement: string
+  ): Promise<any> {
+    try {
+      const { data, error } = await assertSupabase()
+        .functions
+        .invoke('web-search', {
+          body: {
+            query: statement,
+            searchType: 'factCheck',
+            options: {
+              maxResults: 10,
+              safeSearch: true
+            }
+          }
+        });
+      
+      if (error) throw error;
+      
+      // Process fact check results
+      const result = data || {};
+      return {
+        statement,
+        sources: result.factCheckResults || result.results || [],
+        confidence: result.confidence || 0.5,
+        summary: result.summary || 'Unable to verify this claim with available sources.'
+      };
+    } catch (error) {
+      console.error('[Dash] Fact check error:', error);
+      return {
+        statement,
+        sources: [],
+        confidence: 0,
+        summary: 'Fact check service unavailable',
+        error: error instanceof Error ? error.message : 'Fact check failed'
+      };
+    }
+  }
+  
+  /**
+   * Get screen opening confirmation message
    */
   private getScreenOpeningConfirmation(route: string): string {
     const screenNames: Record<string, string> = {
@@ -4037,11 +4141,53 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       this.messageCountByConversation.set(conversationId, currentCount + 1);
       awareness.conversation.messageCount = currentCount + 1;
       
-      // Build awareness-driven system prompt
-      const systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
+      // Build enhanced system prompt with all agentic context
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
+      
+      let systemPrompt: string;
+      if (session?.user && profile) {
+        // Use enhanced agentic prompt
+        systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
+          userId: session.user.id,
+          profile,
+          tier: profile.subscription_tier || 'starter',
+          role: profile.role || 'teacher',
+          currentScreen: awareness?.navigation?.currentScreen,
+          language: profile.preferred_language || 'en'
+        });
+      } else {
+        // Fallback to basic prompt
+        systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
+      }
       
       // Generate contextual greeting if needed (only for new conversations)
       const greeting = DashRealTimeAwareness.generateContextualGreeting(awareness);
+      
+      // Pre-parse navigation commands to reduce latency (open immediately when obvious)
+      const contentLower = content.toLowerCase();
+      let preDashboardAction: { type: 'open_screen'; route: string; params?: Record<string, any> } | null = null;
+      if (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book')) {
+        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
+          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
+        } else {
+          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
+        }
+      }
+      // Financial quick open
+      if (!preDashboardAction && (contentLower.includes('financial dashboard') || contentLower.includes('open finance'))) {
+        preDashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+      }
+      
+      let preOpened = false;
+      try {
+        if (preDashboardAction && DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness)) {
+          await DashRealTimeAwareness.openScreen(preDashboardAction.route, preDashboardAction.params);
+          preOpened = true;
+        }
+      } catch (e) {
+        console.warn('[Dash] Pre-open navigation failed:', e);
+      }
       
       // Add intent understanding to context
       let enhancedPrompt = systemPrompt;
@@ -4063,7 +4209,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
 
       // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
       let dashboardAction = this.generateDashboardAction(analysis.intent);
-      const contentLower = content.toLowerCase();
+      // contentLower already defined above
       
       // Check if we should auto-execute based on intent
       const shouldAutoOpen = DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness);
@@ -4072,6 +4218,14 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       if (!dashboardAction && (contentLower.includes('financial') || contentLower.includes('finance') || 
           contentLower.includes('fees') || contentLower.includes('payments') || contentLower.includes('revenue'))) {
         dashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+      }
+      // Petty cash keywords
+      if (!dashboardAction && (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book'))) {
+        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
+          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
+        } else {
+          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
+        }
       }
       
       // Lesson generator keywords
@@ -4094,14 +4248,160 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         dashboardAction = { type: 'open_screen', route: '/screens/worksheet-demo', params: worksheetParams };
       }
       
+      // Diagnostic keywords - self-awareness and repair
+      if (!dashboardAction && (contentLower.includes('diagnostic') || contentLower.includes('health check') || 
+          contentLower.includes('app status') || contentLower.includes('system health') || 
+          contentLower.includes('check app') || contentLower.includes('app issues'))) {
+        dashboardAction = { type: 'run_diagnostics' } as any;
+      }
+      // Fix/repair keywords
+      if (!dashboardAction && (contentLower.includes('fix app') || contentLower.includes('repair') || 
+          contentLower.includes('fix issues') || contentLower.includes('auto fix') || 
+          contentLower.includes('resolve issues'))) {
+        dashboardAction = { type: 'auto_fix' } as any;
+      }
+      
+      // Web search keywords
+      if (!dashboardAction && (contentLower.includes('search for') || contentLower.includes('search the web') || 
+          contentLower.includes('look up') || contentLower.includes('find information') || 
+          contentLower.includes('search online') || contentLower.includes('google'))) {
+        dashboardAction = { type: 'web_search' } as any;
+      }
+      // Fact check keywords
+      if (!dashboardAction && (contentLower.includes('fact check') || contentLower.includes('verify') || 
+          contentLower.includes('is it true') || contentLower.includes('check if'))) {
+        dashboardAction = { type: 'fact_check' } as any;
+      }
+      
       // If screen action is detected and should auto-execute, open it immediately
-      if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen) {
+      if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen && !preOpened) {
         // Actually open the screen right now!
         await DashRealTimeAwareness.openScreen(dashboardAction.route, dashboardAction.params);
         
         // Prepend action confirmation to response
         const actionConfirmation = this.getScreenOpeningConfirmation(dashboardAction.route);
         aiResponse.content = `${actionConfirmation}\n\n${aiResponse.content || ''}`;
+      }
+      
+      // Handle diagnostic actions
+      if (dashboardAction && dashboardAction.type === 'run_diagnostics') {
+        try {
+          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+          const summary = await dashDiagnostics.getDiagnosticSummary();
+          aiResponse.content = `I've run a complete diagnostic check:\n\n${summary}\n\nWould you like me to automatically fix any issues I can resolve?`;
+        } catch (error) {
+          console.error('[Dash] Diagnostic run failed:', error);
+          aiResponse.content = "I encountered an error while running diagnostics. The diagnostic system itself may need attention.";
+        }
+      }
+      
+      // Handle auto-fix actions
+      if (dashboardAction && dashboardAction.type === 'auto_fix') {
+        try {
+          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
+          const diagnostics = await dashDiagnostics.runFullDiagnostics();
+          
+          if (diagnostics.issues.length === 0) {
+            aiResponse.content = "Great news! I didn't find any issues that need fixing. The app is running smoothly.";
+          } else {
+            const { fixed, failed } = await dashDiagnostics.autoFixIssues();
+            
+            let response = "I've attempted to fix the detected issues:\n\n";
+            if (fixed.length > 0) {
+              response += `✅ **Fixed:**\n${fixed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
+            }
+            if (failed.length > 0) {
+              response += `❌ **Could not fix:**\n${failed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
+            }
+            response += "The app should be working better now. Let me know if you need further assistance!";
+            
+            aiResponse.content = response;
+          }
+        } catch (error) {
+          console.error('[Dash] Auto-fix failed:', error);
+          aiResponse.content = "I encountered an error while trying to fix the issues. You may need to restart the app manually.";
+        }
+      }
+      
+      // Handle web search actions
+      if (dashboardAction && dashboardAction.type === 'web_search') {
+        try {
+          // Extract search query from user content
+          let searchQuery = content
+            .replace(/search for|search the web for|look up|find information about|search online for|google/gi, '')
+            .trim();
+          
+          if (!searchQuery) {
+            aiResponse.content = "What would you like me to search for? Please provide a topic or question.";
+          } else {
+            aiResponse.content = `Searching the web for: "${searchQuery}"...\n\n`;
+            
+            // Perform web search via Edge Function
+            const searchResult = await this.performWebSearch(searchQuery, {
+              maxResults: 5,
+              safeSearch: true
+            });
+            
+            if (searchResult.error) {
+              aiResponse.content += `I encountered an issue while searching: ${searchResult.error}\n\nPlease try again later.`;
+            } else if (searchResult.results.length === 0) {
+              aiResponse.content += "I couldn't find any relevant results for your search. Try rephrasing your query.";
+            } else {
+              aiResponse.content += `Here's what I found:\n\n`;
+              searchResult.results.forEach((result, index) => {
+                aiResponse.content += `**${index + 1}. ${result.title}**\n`;
+                aiResponse.content += `${result.snippet}\n`;
+                aiResponse.content += `Source: ${result.source} - [${result.url}](${result.url})\n\n`;
+              });
+              
+              // Add educational context if relevant
+              if (awareness.user.role === 'teacher' || awareness.user.role === 'principal') {
+                aiResponse.content += "\n💡 **Tip**: I can also search specifically for educational resources. Just ask me to 'find educational resources about [topic]'.";
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[Dash] Web search failed:', error);
+          aiResponse.content = "I'm unable to search the web at the moment. Please check your internet connection and try again.";
+        }
+      }
+      
+      // Handle fact check actions
+      if (dashboardAction && dashboardAction.type === 'fact_check') {
+        try {
+          // Extract statement to fact-check
+          let statement = content
+            .replace(/fact check|verify|is it true that|check if/gi, '')
+            .trim();
+          
+          if (!statement) {
+            aiResponse.content = "What statement would you like me to fact-check? Please provide the claim or information you want verified.";
+          } else {
+            aiResponse.content = `Fact-checking: "${statement}"...\n\n`;
+            
+            // Perform fact check via web search
+            const factCheckResult = await this.performFactCheck(statement);
+            
+            if (factCheckResult.error) {
+              aiResponse.content += `I couldn't complete the fact-check: ${factCheckResult.error}`;
+            } else {
+              aiResponse.content += `**Confidence Level**: ${Math.round(factCheckResult.confidence * 100)}%\n\n`;
+              aiResponse.content += `**Summary**: ${factCheckResult.summary}\n\n`;
+              
+              if (factCheckResult.sources.length > 0) {
+                aiResponse.content += `**Sources**:\n`;
+                factCheckResult.sources.forEach((source, index) => {
+                  aiResponse.content += `${index + 1}. ${source.title} - [${source.url}](${source.url})\n`;
+                });
+              }
+              
+              aiResponse.content += "\n⚠️ **Note**: Always verify information from multiple reputable sources.";
+            }
+          }
+        } catch (error) {
+          console.error('[Dash] Fact check failed:', error);
+          aiResponse.content = "I couldn't perform the fact-check at this time. Please try again later.";
+        }
       }
       
       // Prepend greeting if new conversation
@@ -4119,6 +4419,14 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           dashboard_action: dashboardAction
         }
       };
+
+      // Track response with agentic integration
+      const responseTime = Date.now() - assistantMessage.timestamp + 100; // Approximate
+      await DashAgenticIntegration.handlePostResponse(true, responseTime, {
+        intent: analysis.intent?.primary_intent,
+        featureUsed: dashboardAction?.route,
+        action: dashboardAction
+      }).catch(err => console.warn('[Dash] Telemetry tracking failed:', err));
 
       return assistantMessage;
     } catch (error) {
@@ -4286,7 +4594,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
 
   // Track last API call time for rate limit prevention
   private lastAPICallTime: number = 0;
-  private readonly MIN_API_CALL_INTERVAL = 2000; // 2 seconds between calls
+  private readonly MIN_API_CALL_INTERVAL = 300; // Faster interactions: 300ms between calls
 
   /**
    * Call AI service with enhanced context and retry logic
@@ -4340,9 +4648,19 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         
         // Handle rate limiting (429) with exponential backoff
         if (status === 429 && retryCount < MAX_RETRIES) {
-          const delay = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
+          // Respect Retry-After if provided; otherwise exponential backoff with jitter
+          let retryAfterMs = 0;
+          try {
+            const retryAfterHeader = (error as any)?.context?.headers?.map?.['retry-after'] || (error as any)?.context?.headers?.['retry-after'];
+            if (retryAfterHeader) {
+              const parsed = parseInt(String(retryAfterHeader));
+              if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
+            }
+          } catch {}
+          const expBackoff = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
+          const jitter = Math.floor(Math.random() * 500);
+          const delay = Math.max(retryAfterMs, expBackoff) + jitter;
           console.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.callAIService(params, retryCount + 1);
         }

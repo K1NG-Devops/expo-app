@@ -29,6 +29,7 @@ import Reanimated, {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { VoiceController } from '@/hooks/useVoiceController';
+import { useTranslation } from 'react-i18next';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const LOCK_THRESHOLD = -100; // Swipe up distance to lock (same as WhatsApp example)
@@ -48,6 +49,7 @@ interface VoiceRecordingModalProps {
 
 export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModalProps) {
   const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
   const [isLocked, setIsLocked] = useState(false);
   
   // Reanimated shared values for better performance
@@ -187,7 +189,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
       resetAnimations();
       onClose();
     } catch (e) {
-      console.error('Cancel error:', e);
+      console.error(t('voice.errors.cancel_error', { defaultValue: 'Cancel error' }), e);
     }
   };
 
@@ -199,7 +201,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
       resetAnimations();
       // onClose(); // Removed - modal closes via visible prop when state changes
     } catch (e) {
-      console.error('Send error:', e);
+      console.error(t('voice.errors.send_error', { defaultValue: 'Send error' }), e);
       onClose(); // Close on error
     }
   };
@@ -279,7 +281,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               </RNAnimated.View>
               
               <Text style={[styles.lockText, { color: theme.textSecondary }]}>
-                Slide up to lock
+                {t('voice.recording.slide_up_lock', { defaultValue: 'Slide up to lock' })}
               </Text>
             </View>
           </Reanimated.View>
@@ -291,11 +293,11 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
           <View style={styles.header}>
             {isProcessing ? (
               <Text style={[styles.timer, { color: theme.text, fontSize: 18 }]}>
-                {vc.state === 'transcribing' ? 'Transcribing...' : 'Thinking...'}
+                {vc.state === 'transcribing' ? t('voice.recording.transcribing', { defaultValue: 'Transcribing...' }) : t('voice.recording.thinking', { defaultValue: 'Thinking...' })}
               </Text>
             ) : isPrewarm ? (
               <Text style={[styles.timer, { color: theme.text, fontSize: 18 }]}>
-                Starting...
+                {t('voice.recording.starting', { defaultValue: 'Starting...' })}
               </Text>
             ) : (
               <View style={styles.timerContainer}>
@@ -344,7 +346,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
           {!isLocked && (
             <View style={styles.slideHint}>
               <Text style={[styles.slideText, { color: theme.textSecondary }]}>
-                Hold to record • Slide up to lock
+                {t('voice.recording.hold_to_record', { defaultValue: 'Hold to record • Slide up to lock' })}
               </Text>
             </View>
           )}
@@ -352,9 +354,9 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
         </PanGestureHandler>
 
         {/* Locked controls like WhatsApp */}
-        {isLocked && (
+          {isLocked && (
           <View style={styles.lockedControls}>
-            <Text style={[styles.lockedText, { color: theme.textSecondary }]}>Recording Locked</Text>
+            <Text style={[styles.lockedText, { color: theme.textSecondary }]}>{t('voice.recording.recording_locked', { defaultValue: 'Recording Locked' })}</Text>
             <View style={styles.lockedButtons}>
               <TouchableOpacity
                 style={[styles.actionButton, { backgroundColor: theme.error }]}

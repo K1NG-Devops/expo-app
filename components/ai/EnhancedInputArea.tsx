@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, Text, Keyboard } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -152,6 +152,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
     const message = text.trim();
     if (!message && attachments.length === 0) return;
     await onSend(message, attachments);
+    try { Keyboard.dismiss(); } catch {}
     setText('');
     setAttachments([]);
     onAttachmentsChange?.([]);
@@ -231,17 +232,21 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
                 activeOpacity={0.8}
                 onPress={() => {
                   try {
-                    // Tap-to-record: start + lock immediately for one-tap workflow
-                    if (!isVoiceLocked && (voiceState === 'idle' || !voiceState)) {
-                      runOnJS(onVoiceStartJS)();
-                      // Lock a moment later to ensure recorder starts
-                      setTimeout(() => { try { runOnJS(onVoiceLockJS)(); } catch {} }, 80);
-                    } else if (isVoiceLocked || voiceState === 'listening') {
+                    console.log('[EnhancedInputArea] Mic tapped', {
+                      isVoiceLocked,
+                      voiceState
+                    });
+                    // Tap-to-record: start recording immediately when not locked
+                    if (!isVoiceLocked) {
+                      console.log('[EnhancedInputArea] Starting voice recording');
+                      onVoiceStart?.();
+                    } else {
                       // Tap again to stop (send)
-                      runOnJS(onVoiceEndJS)();
+                      console.log('[EnhancedInputArea] Stopping voice recording');
+                      onVoiceEnd?.();
                     }
                   } catch (e) {
-                    // ignore
+                    console.error('[EnhancedInputArea] Mic tap error:', e);
                   }
                 }}
               >

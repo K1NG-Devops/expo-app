@@ -42,7 +42,7 @@ export default function DashAISettingsScreen() {
     soundEnabled: true,
     voiceSettings: {
       language: 'en-ZA',
-      voice: 'female',
+      voice: 'male',
       rate: 1.0,
       pitch: 1.0,
       volume: 0.8
@@ -88,7 +88,7 @@ export default function DashAISettingsScreen() {
         soundEnabled: true,
         voiceSettings: {
           language: personality.voice_settings?.language || 'en-ZA',
-          voice: 'female',
+          voice: 'male',
           rate: personality.voice_settings?.rate || 1.0,
           pitch: personality.voice_settings?.pitch || 1.0,
           volume: 0.8
@@ -310,13 +310,13 @@ export default function DashAISettingsScreen() {
         );
         
         if (matchingVoices.length > 0) {
-          // Prefer female voices if available
-          const femaleVoice = matchingVoices.find(voice => 
-            voice.name?.toLowerCase().includes('female') || 
-            voice.name?.toLowerCase().includes('woman') ||
-            voice.gender === 'female'
+          // Prefer male voices if available
+          const maleVoice = matchingVoices.find(voice => 
+            voice.name?.toLowerCase().includes('male') || 
+            voice.name?.toLowerCase().includes('man') ||
+            voice.gender === 'male'
           );
-          selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
+          selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
         }
       }
       
