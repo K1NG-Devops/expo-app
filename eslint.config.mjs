@@ -2,6 +2,7 @@ import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import parser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
+import i18next from 'eslint-plugin-i18next';
 
 export default [
   js.configs.recommended,
@@ -33,6 +34,7 @@ export default [
     plugins: {
       '@typescript-eslint': typescript,
       'react-hooks': reactHooks,
+      'i18next': i18next,
     },
     rules: {
       // Allow any for scaffolded/generated code
@@ -47,6 +49,11 @@ export default [
       // React hooks best practices
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      // i18n enforcement - warn on hardcoded strings in JSX
+      'i18next/no-literal-string': ['warn', {
+        markupOnly: true,
+        ignoreAttribute: ['testID', 'name', 'type', 'id', 'key', 'style'],
+      }],
       // Relax rules that conflict with current serverless patterns
       'no-useless-catch': 'off',
       'no-prototype-builtins': 'off',

@@ -597,6 +597,7 @@ export class DashAIAssistant {
   private static readonly TASKS_KEY = 'dash_active_tasks';
   private static readonly REMINDERS_KEY = 'dash_active_reminders';
   private static readonly INSIGHTS_KEY = 'dash_pending_insights';
+  private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
   public static getInstance(): DashAIAssistant {
     if (!DashAIAssistant.instance) {
@@ -1438,6 +1439,10 @@ export class DashAIAssistant {
    */
   private normalizeNumbers(text: string): string {
     return text
+      // PRIORITY 1: Handle South African currency (R500, R843.03) BEFORE other number patterns
+      .replace(/\bR\s*(\d{1,3}(?:,\d{3})*)(?:\.(\d{2}))?\b/g, (match, whole, cents) => {
+        return this.formatSouthAfricanCurrency(whole.replace(/,/g, ''), cents);
+      })
       // Handle large numbers with separators (e.g., 1,000 -> one thousand)
       .replace(/\b(\d{1,3}(?:,\d{3})+)\b/g, (match) => {
         const number = parseInt(match.replace(/,/g, ''));
@@ -1746,6 +1751,38 @@ export class DashAIAssistant {
     const numWords = this.numberToWords(numerator);
     const denWords = this.numberToOrdinal(denominator);
     return `${numWords} ${denWords}${numerator > 1 ? 's' : ''}`;
+  }
+
+  /**
+   * Format South African currency for natural speech
+   * Examples:
+   * - R500 -> "five hundred rand"
+   * - R843.03 -> "eight hundred and forty three rand and three cents"
+   * - R1,250.50 -> "one thousand two hundred and fifty rand and fifty cents"
+   */
+  private formatSouthAfricanCurrency(whole: string, cents?: string): string {
+    const wholeAmount = parseInt(whole);
+    let result = '';
+    
+    // Format the rand amount
+    if (wholeAmount === 0) {
+      result = 'zero rand';
+    } else if (wholeAmount === 1) {
+      result = 'one rand';
+    } else {
+      result = this.numberToWords(wholeAmount) + ' rand';
+    }
+    
+    // Add cents if present and non-zero
+    if (cents && cents !== '00') {
+      const centsAmount = parseInt(cents);
+      if (centsAmount > 0) {
+        const centsWords = this.numberToWords(centsAmount);
+        result += ` and ${centsWords} cent${centsAmount === 1 ? '' : 's'}`;
+      }
+    }
+    
+    return result;
   }
   
   /**
@@ -3909,6 +3946,72 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   }
 
   /**
+   * Get onboarding status
+   * @returns Object with completion status and optional timestamp
+   */
+  public async getOnboardingStatus(): Promise<{ completed: boolean; timestamp?: number }> {
+    try {
+      const raw = await AsyncStorage.getItem(DashAIAssistant.ONBOARDING_KEY);
+      if (!raw) return { completed: false };
+      
+      const parsed = JSON.parse(raw);
+      return {
+        completed: !!parsed.completed,
+        timestamp: parsed.timestamp
+      };
+    } catch (error) {
+      console.error('[Dash] Failed to get onboarding status:', error);
+      return { completed: false };
+    }
+  }
+
+  /**
+   * Check if onboarding has been completed
+   * @returns true if user has completed the Dash AI onboarding wizard
+   */
+  public async hasCompletedOnboarding(): Promise<boolean> {
+    try {
+      const status = await this.getOnboardingStatus();
+      return status.completed === true;
+    } catch (error) {
+      console.error('[Dash] Failed to check onboarding completion:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Mark onboarding as complete
+   * Called after user successfully completes the setup wizard
+   */
+  public async markOnboardingComplete(): Promise<void> {
+    try {
+      const payload = JSON.stringify({
+        completed: true,
+        timestamp: Date.now()
+      });
+      await AsyncStorage.setItem(DashAIAssistant.ONBOARDING_KEY, payload);
+      console.log('[Dash] Onboarding marked as complete');
+    } catch (error) {
+      console.error('[Dash] Failed to mark onboarding complete:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Reset onboarding status
+   * Allows user to go through the setup wizard again
+   */
+  public async resetOnboarding(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(DashAIAssistant.ONBOARDING_KEY);
+      console.log('[Dash] Onboarding status reset');
+    } catch (error) {
+      console.error('[Dash] Failed to reset onboarding:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Add memory item
    */
   private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
@@ -4606,12 +4709,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       
       // If screen action is detected and should auto-execute, open it immediately
       if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen && !preOpened) {
-        // Actually open the screen right now!
+        // Actually open the screen right now - NO CONFIRMATION to avoid duplicate screens
         await DashRealTimeAwareness.openScreen(dashboardAction.route, dashboardAction.params);
         
-        // Prepend action confirmation to response
-        const actionConfirmation = this.getScreenOpeningConfirmation(dashboardAction.route);
-        aiResponse.content = `${actionConfirmation}\n\n${aiResponse.content || ''}`;
+        // Don't add confirmation message - just let the screen open smoothly
+        // The user will see the screen open and understand what happened
       }
       
       // Handle diagnostic actions

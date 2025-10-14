@@ -1513,6 +1513,24 @@
     "profile": "Profile Settings",
     "notifications": "Notifications",
     "privacy": "Privacy",
+    "securityPrivacy": "Security & Privacy",
+    "dataProtection": "Data Protection",
+    "learnDataProtection": "Learn how we protect your data",
+    "appearanceLanguage": "Appearance & Language",
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "WhatsApp is configured",
+    "whatsappNotConfigured": "WhatsApp is not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "loadingSchoolSettings": "Loading school settings...",
+    "failedToLoadSettings": "Failed to load school settings",
+    "noFeaturesEnabled": "No features are currently enabled",
+    "aboutSupport": "About & Support",
     "language": {
       "title": "Language"
     },
@@ -1524,7 +1542,18 @@
     },
     "biometric": {
       "title": "Biometric Authentication",
+      "notAvailable": "Biometric authentication is not available on this device",
+      "setupRequired": "Please set up biometrics in your device settings first",
+      "enabled": "Biometric login is enabled",
+      "disabled": "Biometric login is disabled",
+      "fingerprint": "Fingerprint",
+      "faceId": "Face ID",
       "not_available_desc": "Biometric authentication is not available on this device. This feature requires fingerprint or face recognition hardware."
+    },
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financials",
+      "pettyCash": "Petty Cash"
     },
     "manage_alerts": "Manage your alerts",
     "notifications_coming_soon_desc": "Notification settings will be available in the next update.",
@@ -1560,5 +1589,109 @@
     "needs_attention": "needs attention",
     "low": "low",
     "high": "high"
+  },
+  "updates": {
+    "Restart App": "Restart App",
+    "Restart Now": "Restart Now",
+    "The app will restart to apply the update. Any unsaved changes will be lost.": "The app will restart to apply the update. Any unsaved changes will be lost."
+  },
+  "dash": {
+    "onboarding": {
+      "welcome": {
+        "title": "Meet Dash",
+        "subtitle": "Your AI assistant for EduDash Pro. I can help you save time and personalize learning.",
+        "start": "Get Started",
+        "skip": "Skip for now"
+      },
+      "roles": {
+        "title": "Tell me your role",
+        "subtitle": "I'll personalize recommendations for you.",
+        "options": {
+          "principal": "Principal",
+          "teacher": "Teacher",
+          "parent": "Parent",
+          "admin": "Administrator"
+        }
+      },
+      "communication_style": {
+        "title": "Choose communication style",
+        "subtitle": "How would you like Dash to communicate with you?",
+        "options": {
+          "professional": "Professional",
+          "casual": "Casual",
+          "encouraging": "Encouraging",
+          "formal": "Formal"
+        }
+      },
+      "features": {
+        "title": "Feature preferences",
+        "subtitle": "Enable what you want Dash to use proactively.",
+        "options": {
+          "voice": "Voice responses",
+          "proactiveHelp": "Proactive suggestions",
+          "memory": "Remember preferences",
+          "summaries": "Auto summaries",
+          "taskAssist": "Task assistance"
+        }
+      },
+      "voice_settings": {
+        "title": "Voice settings",
+        "subtitle": "Customize Dash's voice",
+        "language": "Language",
+        "voiceType": "Voice type",
+        "rate": "Speaking rate",
+        "pitch": "Pitch",
+        "testVoice": "Test voice",
+        "voiceTypeOptions": {
+          "female": "Female",
+          "male": "Male",
+          "neutral": "Neutral"
+        },
+        "languageOptions": {
+          "en-ZA": "English (South Africa)",
+          "en-US": "English (US)",
+          "en-GB": "English (UK)"
+        }
+      },
+      "review": {
+        "title": "Review your setup",
+        "subtitle": "Confirm your preferences before finishing.",
+        "finish": "Complete Setup",
+        "back": "Back",
+        "next": "Next",
+        "save": "Save",
+        "reset": "Reset",
+        "role": "Role",
+        "style": "Communication style",
+        "features": "Features",
+        "voice": "Voice"
+      },
+      "status": {
+        "completed": "Onboarding complete",
+        "incomplete": "Onboarding incomplete",
+        "saving": "Saving your preferences...",
+        "success": "Setup complete! Dash is ready to assist you."
+      },
+      "settings": {
+        "resetSetup": "Reset Dash Setup",
+        "resetSetupDescription": "Clear your onboarding and start over",
+        "resetConfirm": "Are you sure you want to reset Dash setup? This will clear all your personalization."
+      },
+      "errors": {
+        "saveFailed": "Failed to save preferences",
+        "loadFailed": "Failed to load onboarding state"
+      }
+    }
+  },
+  "actions": {
+    "continue": "Continue",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Finish",
+    "skip": "Skip",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "done": "Done"
   }
 }
