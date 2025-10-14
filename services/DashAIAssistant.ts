@@ -2775,14 +2775,39 @@ export class DashAIAssistant {
         console.warn('[Dash] Failed to set audio mode for TTS:', e);
       }
 
+      // Select best male voice if available
+      let selectedVoice: string | undefined = undefined;
+      try {
+        const availableVoices = await Speech.getAvailableVoicesAsync();
+        if (availableVoices && availableVoices.length > 0) {
+          const languageCode = voiceSettings.language?.substring(0, 2) || 'en';
+          const matchingVoices = availableVoices.filter(v => 
+            v.language?.startsWith(languageCode)
+          );
+          
+          if (matchingVoices.length > 0) {
+            // Prefer male voices
+            const maleVoice = matchingVoices.find(v => 
+              v.name?.toLowerCase().includes('male') || 
+              v.name?.toLowerCase().includes('man') ||
+              (v as any).gender === 'male'
+            );
+            selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
+            console.log('[Dash] Selected voice:', selectedVoice, 'from', matchingVoices.length, 'options');
+          }
+        }
+      } catch (e) {
+        console.warn('[Dash] Could not get available voices, using default:', e);
+      }
+
       return new Promise<void>((resolve, reject) => {
         Speech.speak(normalizedText, {
           language: voiceSettings.language,
           pitch: voiceSettings.pitch,
           rate: voiceSettings.rate,
-          voice: voiceSettings.voice,
+          voice: selectedVoice, // Use the selected male voice identifier
           onStart: () => {
-            console.log('[Dash] Started speaking');
+            console.log('[Dash] Started speaking with voice:', selectedVoice || 'default');
             callbacks?.onStart?.();
           },
           onDone: () => {

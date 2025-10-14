@@ -15,7 +15,13 @@ import * as Application from 'expo-application';
 import * as Device from 'expo-device';
 import { assertSupabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { logger } from '@/lib/utils/logger';
+
+// Simple logger replacement
+const logger = {
+  info: (...args: any[]) => console.log('[DashDiagnostic]', ...args),
+  warn: (...args: any[]) => console.warn('[DashDiagnostic]', ...args),
+  error: (...args: any[]) => console.error('[DashDiagnostic]', ...args),
+};
 
 export interface AppDiagnostics {
   system: {
