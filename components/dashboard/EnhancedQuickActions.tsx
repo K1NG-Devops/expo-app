@@ -71,7 +71,7 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
         {isPremiumBlocked && (
           <View style={styles.premiumBadge}>
             <Ionicons name="diamond" size={12} color="#FFD700" />
-            <Text style={styles.premiumBadgeText}>Premium</Text>
+            <Text style={styles.premiumBadgeText}>{t('subscription.premium', { defaultValue: 'Premium' })}</Text>
           </View>
         )}
         <View style={styles.iconContainer}>

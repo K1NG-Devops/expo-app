@@ -5,26 +5,19 @@
  * Tier-aware gating for attachments.
  */
 
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, Text, Keyboard } from 'react-native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  useAnimatedGestureHandler,
-  withSpring,
-  runOnJS,
-} from 'react-native-reanimated';
+import React, { useState, useRef } from 'react';
+import { View, TextInput, StyleSheet, TouchableOpacity, Text, Keyboard, Animated, Platform, Image, ActivityIndicator, ScrollView } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCapability } from '@/hooks/useCapability';
 import type { DashAttachment } from '@/services/DashAIAssistant';
 import type { VoiceState } from '@/hooks/useVoiceController';
 import { UpgradePromptModal } from './UpgradePromptModal';
-import {
-  pickDocuments,
-  pickImages,
-} from '@/services/AttachmentService';
+import { pickDocuments } from '@/services/AttachmentService';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImage } from '@/lib/ai/attachments';
 
 export interface EnhancedInputAreaProps {
   placeholder?: string;
@@ -41,88 +34,27 @@ export interface EnhancedInputAreaProps {
 }
 
 export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = false, onSend, onAttachmentsChange, onVoiceStart, onVoiceEnd, onVoiceLock, onVoiceCancel, voiceState, isVoiceLocked, voiceTimerMs }: EnhancedInputAreaProps) {
-  // Stable JS callbacks for use with runOnJS to avoid inline closures
-  const onVoiceStartJS = React.useCallback(() => {
-    try { onVoiceStart?.(); } catch (e) { console.error('Voice start error:', e); }
-  }, [onVoiceStart]);
-
-  const onVoiceEndJS = React.useCallback(() => {
-    try { onVoiceEnd?.(); } catch (e) { console.error('Voice end error:', e); }
-  }, [onVoiceEnd]);
-
-  const onVoiceLockJS = React.useCallback(() => {
-    try { onVoiceLock?.(); } catch (e) { console.error('Voice lock error:', e); }
-  }, [onVoiceLock]);
   const { theme, isDark } = useTheme();
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<DashAttachment[]>([]);
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const { can, tier } = useCapability();
+  const [uploading, setUploading] = useState(false);
+  const { can, tier} = useCapability();
 
   const canImages = can('multimodal.vision');
   const canDocs = can('multimodal.documents');
   
   const hasContent = text.trim().length > 0;
-
-  // WhatsApp-style gesture state for mic interactions
-  const [isGestureRecording, setIsGestureRecording] = useState(false);
-  const translateY = useSharedValue(0);
-
-  const LOCK_THRESHOLD = -100; // WhatsApp-style threshold (same as your example)
-
-  const onVoiceLockJSInternal = React.useCallback(() => {
-    onVoiceLockJS();
-  }, [onVoiceLockJS]);
-
-  // Gesture handler for WhatsApp-style swipe-up-lock
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      translateY.value = 0;
-      runOnJS(setIsGestureRecording)(true);
-      runOnJS(onVoiceStartJS)();
-    },
-    onActive: (event) => {
-      // Don't process further gestures if already locked
-      if (isVoiceLocked) return;
-      
-      // Track upward swipe (do not move the mic button itself)
-      if (event.translationY < 0) {
-        translateY.value = event.translationY;
-      }
-      
-      // Trigger lock when threshold crossed
-      if (event.translationY < LOCK_THRESHOLD) {
-        translateY.value = withSpring(0);
-        runOnJS(onVoiceLockJSInternal)();
-      }
-    },
-    onEnd: () => {
-      if (isVoiceLocked) {
-        // Keep recording, don't release
-        translateY.value = withSpring(0);
-      } else {
-        // Release and send
-        runOnJS(onVoiceEndJS)();
-      }
-      runOnJS(setIsGestureRecording)(false);
-    },
-    onCancel: () => {
-      // If gesture is cancelled (component rerender or pointer leaves), behave like release if not locked
-      if (!isVoiceLocked) {
-        runOnJS(onVoiceEndJS)();
-      }
-      runOnJS(setIsGestureRecording)(false);
-      translateY.value = withSpring(0);
-    },
-    onFail: () => {
-      // Treat failure similar to cancel
-      if (!isVoiceLocked) {
-        runOnJS(onVoiceEndJS)();
-      }
-      runOnJS(setIsGestureRecording)(false);
-      translateY.value = withSpring(0);
-    },
-  });
+  
+  // WhatsApp-style gesture state
+  const [isGestureActive, setIsGestureActive] = useState(false);
+  const slideX = useRef(new Animated.Value(0)).current;
+  const slideY = useRef(new Animated.Value(0)).current;
+  const lockIconOpacity = useRef(new Animated.Value(0)).current;
+  const cancelIconOpacity = useRef(new Animated.Value(0)).current;
+  
+  const LOCK_THRESHOLD = -60; // Slide up to lock
+  const CANCEL_THRESHOLD = -60; // Slide left to cancel
 
   const addAttachments = (items: DashAttachment[]) => {
     const next = [...attachments, ...items];
@@ -130,13 +62,81 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
     onAttachmentsChange?.(next);
   };
 
-  const handlePickImages = async () => {
+  const handleOpenCamera = async () => {
     if (!canImages) {
       setShowUpgrade(true);
       return;
     }
-    const picked = await pickImages();
-    if (picked?.length) addAttachments(picked);
+    try {
+      // Ask permissions only when needed
+      const { status: ps } = await ImagePicker.requestCameraPermissionsAsync();
+      if (ps !== 'granted') {
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (result?.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.uri) return;
+      
+      // Create pending attachment for immediate UI feedback
+      const pendingAtt: DashAttachment = {
+        id: `cam_${Date.now()}`,
+        name: asset.fileName || 'photo.jpg',
+        mimeType: 'image/jpeg',
+        size: asset.fileSize || 0,
+        bucket: '',
+        storagePath: '',
+        kind: 'image',
+        status: 'uploading',
+        previewUri: asset.uri,
+        uploadProgress: 0,
+      };
+      addAttachments([pendingAtt]);
+      
+      // Upload to Supabase Storage in background
+      setUploading(true);
+      try {
+        const uploadResult = await uploadImage(asset.uri, {
+          generateThumbnail: true,
+          convertToBase64: true, // For AI API calls
+        });
+        
+        // Update attachment with upload results
+        const uploadedAtt: DashAttachment = {
+          ...uploadResult.attachment,
+          status: 'uploaded',
+          meta: {
+            ...uploadResult.attachment.meta,
+            publicUrl: uploadResult.publicUrl,
+            base64: uploadResult.base64, // Store for AI API
+          },
+        };
+        
+        // Replace pending with uploaded
+        setAttachments(prev => 
+          prev.map(a => a.id === pendingAtt.id ? uploadedAtt : a)
+        );
+        onAttachmentsChange?.(attachments.map(a => a.id === pendingAtt.id ? uploadedAtt : a));
+        
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      } catch (uploadError) {
+        console.error('[EnhancedInputArea] Upload failed:', uploadError);
+        // Mark as failed
+        setAttachments(prev => 
+          prev.map(a => a.id === pendingAtt.id ? { ...a, status: 'failed' } : a)
+        );
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+      } finally {
+        setUploading(false);
+      }
+    } catch (e) {
+      console.error('[EnhancedInputArea] Camera error:', e);
+    }
   };
 
   const handlePickDocs = async () => {
@@ -147,55 +147,83 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
     const picked = await pickDocuments();
     if (picked?.length) addAttachments(picked);
   };
+  
+  const removeAttachment = (id: string) => {
+    const next = attachments.filter(a => a.id !== id);
+    setAttachments(next);
+    onAttachmentsChange?.(next);
+  };
 
   const handleSend = async () => {
     const message = text.trim();
     if (!message && attachments.length === 0) return;
-    await onSend(message, attachments);
-    try { Keyboard.dismiss(); } catch {}
+    
+    // Haptic feedback
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    
+    // Clear immediately for responsive UX
     setText('');
     setAttachments([]);
     onAttachmentsChange?.([]);
+    try { Keyboard.dismiss(); } catch {}
+    
+    // Send in background
+    await onSend(message, attachments);
   };
-
-  // Animated styles for WhatsApp-style feedback
-  const animatedButtonStyles = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  // Animated lock icon that follows finger
-  const animatedLockStyles = useAnimatedStyle(() => {
-    const opacity = translateY.value < 0 ? Math.min(1, Math.abs(translateY.value) / 50) : 0;
-    const scale = translateY.value < LOCK_THRESHOLD ? 1.2 : 1;
-    return {
-      opacity,
-      transform: [
-        { translateY: Math.max(translateY.value, -120) },
-        { scale },
-      ],
-    } as any;
-  });
 
   return (
     <View style={[styles.container, { borderColor: theme.border, backgroundColor: isDark ? '#0b0f14' : '#fff' }]}>
-      <View style={styles.toolbar}>
-        <TouchableOpacity onPress={handlePickImages} style={[styles.iconButton]}> 
-          <Ionicons name="image-outline" size={20} color={theme.text} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handlePickDocs} style={[styles.iconButton]}> 
-          <Ionicons name="document-text-outline" size={20} color={theme.text} />
-        </TouchableOpacity>
-      </View>
-
+      {/* Image Preview Row */}
+      {attachments.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.previewContainer}>
+          {attachments.map(att => (
+            <View key={att.id} style={[styles.imagePreview, { backgroundColor: theme.surface }]}>
+              <Image 
+                source={{ uri: att.previewUri || att.meta?.publicUrl }} 
+                style={styles.previewImage}
+                resizeMode="cover"
+              />
+              {att.status === 'uploading' && (
+                <View style={styles.uploadingOverlay}>
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+              {att.status === 'failed' && (
+                <View style={[styles.uploadingOverlay, { backgroundColor: 'rgba(220, 38, 38, 0.8)' }]}>
+                  <Ionicons name="alert-circle" size={20} color="#fff" />
+                </View>
+              )}
+              <TouchableOpacity 
+                style={[styles.removeButton, { backgroundColor: theme.error }]}
+                onPress={() => removeAttachment(att.id)}
+              >
+                <Ionicons name="close" size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+      
       <View style={styles.inputRow}>
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder={placeholder}
-          placeholderTextColor={theme.textSecondary}
-          multiline
-          style={[styles.input, { color: theme.text }]}
-        />
+        {/* Camera button: open device camera */}
+        <TouchableOpacity onPress={handleOpenCamera} style={[styles.iconButtonInline]}> 
+          <Ionicons name="camera-outline" size={24} color={theme.textSecondary} />
+        </TouchableOpacity>
+        
+        <View style={styles.inputWrapper}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor={theme.textSecondary}
+            multiline
+            style={[styles.input, { color: theme.text }]}
+          />
+          {/* Document upload button inside input field */}
+          <TouchableOpacity onPress={handlePickDocs} style={styles.iconButtonInInput}> 
+            <Ionicons name="attach-outline" size={22} color={theme.textSecondary} />
+          </TouchableOpacity>
+        </View>
         
         {/* Send/Mic toggle button */}
         {hasContent ? (
@@ -208,118 +236,139 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
           </TouchableOpacity>
         ) : (
           <View style={{ position: 'relative' }}>
-            {/* Floating lock icon that appears on swipe up */}
-            {(isGestureRecording || voiceState === 'listening') && !isVoiceLocked && (
+            {/* Lock indicator (appears when sliding up) */}
+            {isGestureActive && !isVoiceLocked && (
               <Animated.View 
                 style={[
-                  styles.floatingLock,
-                  { backgroundColor: theme.surface },
-                  animatedLockStyles
+                  styles.lockIndicator,
+                  { 
+                    backgroundColor: theme.surface,
+                    opacity: lockIconOpacity,
+                  }
                 ]}
                 pointerEvents="none"
               >
-                <Ionicons 
-                  name="lock-closed" 
-                  size={24} 
-                  color={theme.textSecondary} 
-                />
+                <Ionicons name="lock-closed" size={20} color={theme.text} />
+                <Text style={[{ marginTop: 4, fontSize: 10, color: theme.textSecondary }]}>Slide up to lock</Text>
                 <View style={[styles.lockArrow, { borderTopColor: theme.textSecondary }]} />
               </Animated.View>
             )}
             
-            <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isVoiceLocked}>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => {
-                  try {
-                    console.log('[EnhancedInputArea] Mic tapped', {
-                      isVoiceLocked,
-                      voiceState
-                    });
-                    // Tap-to-record: start recording immediately when not locked
-                    if (!isVoiceLocked) {
-                      console.log('[EnhancedInputArea] Starting voice recording');
-                      onVoiceStart?.();
-                    } else {
-                      // Tap again to stop (send)
-                      console.log('[EnhancedInputArea] Stopping voice recording');
-                      onVoiceEnd?.();
-                    }
-                  } catch (e) {
-                    console.error('[EnhancedInputArea] Mic tap error:', e);
+            {/* Cancel indicator (appears when sliding left) */}
+            {isGestureActive && !isVoiceLocked && (
+              <Animated.View 
+                style={[
+                  styles.cancelIndicator,
+                  { 
+                    backgroundColor: theme.surface,
+                    opacity: cancelIconOpacity,
                   }
-                }}
+                ]}
+                pointerEvents="none"
               >
-                <Animated.View style={[styles.actionButton, { backgroundColor: isGestureRecording || voiceState === 'listening' ? theme.error : theme.accent }]}>
-                  <Ionicons name="mic" size={20} color="#fff" />
+                <Ionicons name="close" size={20} color={theme.error} />
+                <Text style={[styles.cancelText, { color: theme.error }]}>Slide left to cancel</Text>
+              </Animated.View>
+            )}
+            
+            <PanGestureHandler
+              minDist={10}
+              onGestureEvent={(event) => {
+                if (!isGestureActive) return; // Only handle gesture if long press activated
+                
+                const { translationX, translationY } = event.nativeEvent;
+                
+                // Update slide animations
+                slideX.setValue(translationX);
+                slideY.setValue(translationY);
+                
+                // Show lock icon when sliding up
+                if (translationY < -20) {
+                  Animated.timing(lockIconOpacity, {
+                    toValue: Math.min(1, Math.abs(translationY) / 60),
+                    duration: 0,
+                    useNativeDriver: true,
+                  }).start();
+                  // Immediately lock once threshold crossed
+                  if (translationY < LOCK_THRESHOLD && !isVoiceLocked) {
+                    onVoiceLock?.();
+                  }
+                } else {
+                  lockIconOpacity.setValue(0);
+                }
+                
+                // Show cancel icon when sliding left
+                if (translationX < -20) {
+                  Animated.timing(cancelIconOpacity, {
+                    toValue: Math.min(1, Math.abs(translationX) / 80),
+                    duration: 0,
+                    useNativeDriver: true,
+                  }).start();
+                } else {
+                  cancelIconOpacity.setValue(0);
+                }
+              }}
+              onHandlerStateChange={(event) => {
+                const { state, translationX, translationY } = event.nativeEvent;
+                
+                if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
+                  if (!isGestureActive) return;
+                  
+                  setIsGestureActive(false);
+                  
+                  // Check if locked (slid up enough)
+                  if (translationY < LOCK_THRESHOLD) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                    onVoiceLock?.();
+                  }
+                  // Check if cancelled (slid left enough)
+                  else if (translationX < CANCEL_THRESHOLD) {
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+                    onVoiceCancel?.();
+                  }
+                  // Otherwise, send the recording
+                  else if (!isVoiceLocked) {
+                    onVoiceEnd?.();
+                  }
+                  
+                  // Reset animations
+                  Animated.parallel([
+                    Animated.timing(slideX, { toValue: 0, duration: 200, useNativeDriver: true }),
+                    Animated.timing(slideY, { toValue: 0, duration: 200, useNativeDriver: true }),
+                    Animated.timing(lockIconOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+                    Animated.timing(cancelIconOpacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+                  ]).start();
+                }
+              }}
+            >
+              <TouchableOpacity
+                onPressIn={() => {
+                  // Press-and-hold to record; sliding gestures available while pressed
+                  setIsGestureActive(true);
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onVoiceStart?.();
+                }}
+                activeOpacity={0.7}
+              >
+                <Animated.View
+                  style={[
+                    styles.actionButton,
+                    {
+                      backgroundColor: isGestureActive || voiceState === 'listening' ? theme.error : theme.primary,
+                      transform: [
+                        { translateX: slideX },
+                        { translateY: slideY },
+                      ],
+                    },
+                  ]}
+                >
+                  <Ionicons name="mic" size={24} color="#fff" />
                 </Animated.View>
               </TouchableOpacity>
             </PanGestureHandler>
           </View>
         )}
       </View>
-
-      {/* Recording indicator - WhatsApp style */}
-      {(isGestureRecording || voiceState === 'listening') && !isVoiceLocked && (
-        <View style={styles.recordingIndicator}>
-          <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-          <Text style={[styles.recordingText, { color: theme.text }]}>
-            Recording... {Math.floor((voiceTimerMs || 0) / 1000)}s
-          </Text>
-          {/* WhatsApp-style swipe up to lock hint */}
-          <View style={styles.gestureHintRow}>
-            <Ionicons name="chevron-up" size={14} color={theme.textSecondary} />
-            <Text style={[styles.recordingHint, { color: theme.textSecondary }]}>Slide up to lock</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Locked indicator pill */}
-      {isVoiceLocked && (
-        <View style={styles.lockedPill}>
-          <Ionicons name="lock-closed" size={14} color={theme.textSecondary} />
-          <Text style={[styles.lockedPillText, { color: theme.textSecondary }]}>Recording Locked</Text>
-        </View>
-      )}
-
-      {/* Locked controls - show when recording is locked */}
-      {isVoiceLocked && voiceState && (voiceState === 'prewarm' || voiceState === 'listening') && (
-        <View style={styles.lockedRow}>
-          <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-          <View style={[styles.timerPill, { backgroundColor: theme.surfaceVariant }]}>
-            <Text style={[styles.timerText, { color: theme.text }]}>
-              {Math.floor((voiceTimerMs || 0) / 1000)}s
-            </Text>
-          </View>
-          <View style={{ flex: 1 }} />
-          {/* Delete/Cancel */}
-          <TouchableOpacity 
-            style={[styles.lockedAction, { backgroundColor: theme.error }]}
-            onPress={onVoiceCancel}
-          >
-            <Ionicons name="trash" size={16} color="#fff" />
-            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Cancel</Text>
-          </TouchableOpacity>
-          <View style={{ width: 8 }} />
-          {/* Stop button (ends recording without needing to release gesture) */}
-          <TouchableOpacity 
-            style={[styles.lockedAction, { backgroundColor: theme.accent }]}
-            onPress={onVoiceEnd}
-          >
-            <Ionicons name="stop" size={16} color="#fff" />
-            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Stop</Text>
-          </TouchableOpacity>
-          <View style={{ width: 8 }} />
-          {/* Send */}
-          <TouchableOpacity 
-            style={[styles.lockedAction, { backgroundColor: theme.primary }]}
-            onPress={onVoiceEnd}
-          >
-            <Ionicons name="send" size={16} color="#fff" />
-            <Text style={[styles.lockedActionText, { color: '#fff' }]}>Send</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <UpgradePromptModal
         visible={showUpgrade}
@@ -335,34 +384,43 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
 const styles = StyleSheet.create({
   container: {
     borderTopWidth: 1,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 16,
-    gap: 8,
+    paddingHorizontal: 8,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
-  toolbar: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  iconButton: {
+  iconButtonInline: {
     padding: 8,
-    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    gap: 6,
+  },
+  inputWrapper: {
+    flex: 1,
+    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   input: {
     flex: 1,
-    minHeight: 44,
-    maxHeight: 140,
+    minHeight: 40,
+    maxHeight: 120,
     lineHeight: 20,
     paddingHorizontal: 12,
+    paddingRight: 40,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 20,
     backgroundColor: 'rgba(127,127,127,0.08)',
     fontSize: 15,
+  },
+  iconButtonInInput: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    padding: 4,
   },
   actionButton: {
     width: 40,
@@ -371,89 +429,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  recordingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  recordingText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  gestureHintRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginLeft: 8,
-  },
-  recordingHint: {
-    fontSize: 11,
-  },
-  lockedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  lockedPill: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: 'rgba(127,127,127,0.12)'
-  },
-  lockedPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  timerPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  timerText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  lockedAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-  },
-  lockedActionText: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  floatingLock: {
+  lockIndicator: {
     position: 'absolute',
     bottom: 50,
     left: '50%',
-    marginLeft: -25,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    marginLeft: -22,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
   lockArrow: {
     position: 'absolute',
@@ -465,5 +455,62 @@ const styles = StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
+  },
+  cancelIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  cancelText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  previewContainer: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    maxHeight: 100,
+  },
+  imagePreview: {
+    position: 'relative',
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 8,
+    overflow: 'hidden',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  uploadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

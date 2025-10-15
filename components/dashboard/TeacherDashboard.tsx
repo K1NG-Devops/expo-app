@@ -715,7 +715,7 @@ export const TeacherDashboard: React.FC = () => {
                 router.push('/screens/subscription-upgrade-post?reason=ai_progress');
               }}
             >
-              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Upgrade</Text>
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>{t('common.upgrade', { defaultValue: 'Upgrade' })}</Text>
             </TouchableOpacity>
           )}
           {/* Rewarded ad offer for disabled premium AI tools */}
@@ -788,7 +788,7 @@ export const TeacherDashboard: React.FC = () => {
           }}
           onPress={() => router.push("/screens/account")}
         >
-          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>Account</Text>
+          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>{t('navigation.account', { defaultValue: 'Account' })}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{
@@ -799,7 +799,7 @@ export const TeacherDashboard: React.FC = () => {
           }}
           onPress={() => refresh()}
         >
-          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>Refresh</Text>
+          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>{t('common.refresh', { defaultValue: 'Refresh' })}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{

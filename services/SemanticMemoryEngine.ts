@@ -74,6 +74,14 @@ export class SemanticMemoryEngine {
   }
 
   /**
+   * Initialize semantic memory engine (no-op for now)
+   */
+  public async initialize(): Promise<void> {
+    console.log('[SemanticMemory] Engine initialized');
+    return Promise.resolve();
+  }
+
+  /**
    * Store memory with vector embedding
    */
   public async storeMemory(

@@ -1611,9 +1611,9 @@ case 'homework':
               <Text style={styles.welcomeSubtitle}>
                 {(() => {
                   const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
-                  if (active) return `Managing ${active.firstName} ${active.lastName}`;
+if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Managing ${active.firstName} ${active.lastName}` });
                   if (children.length > 0) return t('dashboard.managingChildrenPlural', { count: children.length });
-                  return 'Welcome to EduDash Pro';
+                  return t('dashboard.welcome_generic', { defaultValue: 'Welcome to EduDash Pro' });
                 })()}
               </Text>
             </View>
@@ -1690,17 +1690,17 @@ case 'homework':
                 
                 <View style={styles.childStats}>
                   <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Attendance</Text>
+<Text style={styles.statLabel}>{t('parent.attendanceToday')}</Text>
                     <Text style={[styles.childStatValue, { color: theme.success }]}>{child.progressScore}%</Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Pending Homework</Text>
+<Text style={styles.statLabel}>{t('parent.pendingHomework')}</Text>
                     <Text style={[styles.childStatValue, child.homeworkPending > 0 ? { color: theme.warning } : { color: theme.success }]}>
                       {child.homeworkPending}
                     </Text>
                   </View>
                   <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Upcoming Events</Text>
+<Text style={styles.statLabel}>{t('parent.upcomingEvents')}</Text>
                     <Text style={[styles.childStatValue, { color: theme.primary }]}>{child.upcomingEvents}</Text>
                   </View>
                 </View>
@@ -1711,7 +1711,7 @@ case 'homework':
                     onPress={() => console.log('View attendance for', child.id)}
                   >
                     <Ionicons name="calendar" size={16} color={theme.primary} />
-                    <Text style={[styles.actionText, { color: theme.primary }]}>Attendance</Text>
+<Text style={[styles.actionText, { color: theme.primary }]}>{t('parent.attendanceToday')}</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
@@ -1719,7 +1719,7 @@ case 'homework':
                     onPress={() => console.log('View homework for', child.id)}
                   >
                     <Ionicons name="book" size={16} color={theme.success} />
-                    <Text style={[styles.actionText, { color: theme.success }]}>Homework</Text>
+<Text style={[styles.actionText, { color: theme.success }]}>{t('parent.pendingHomework')}</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
@@ -1727,13 +1727,13 @@ case 'homework':
                     onPress={() => handleQuickMessage(child)}
                   >
                     <Ionicons name="chatbubble" size={16} color={theme.accent} />
-                    <Text style={[styles.actionText, { color: theme.accent }]}>Message</Text>
+<Text style={[styles.actionText, { color: theme.accent }]}>{t('parent.messages')}</Text>
                   </TouchableOpacity>
                 </View>
                 
                 <View style={styles.lastActivityContainer}>
-                  <Text style={styles.lastActivityText}>
-                    Last activity: {child.lastActivity.toLocaleDateString()}
+<Text style={styles.lastActivityText}>
+                    {t('common.last_activity', { defaultValue: 'Last activity:' })} {child.lastActivity.toLocaleDateString()}
                   </Text>
                 </View>
               </View>
@@ -1773,9 +1773,9 @@ case 'homework':
                   <Ionicons name="mail" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{unreadMessageCount}</Text>
-                <Text style={styles.metricLabel}>New Messages</Text>
+<Text style={styles.metricLabel}>{t('parent.newMessages')}</Text>
                 <Text style={[styles.metricStatus, { color: unreadMessageCount > 0 ? theme.warning : theme.textSecondary }]}>
-                  {unreadMessageCount > 0 ? 'needs attention' : 'all read'}
+{unreadMessageCount > 0 ? t('trends.needs_attention') : t('notifications.all_read', { defaultValue: 'all read' })}
                 </Text>
               </TouchableOpacity>
 
@@ -1787,8 +1787,8 @@ case 'homework':
                   <Ionicons name="checkmark-circle" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{popStats?.proof_of_payment?.approved || 0}</Text>
-                <Text style={styles.metricLabel}>Approved Payments</Text>
-                <Text style={[styles.metricStatus, { color: theme.success }]}>verified</Text>
+<Text style={styles.metricLabel}>{t('parent.approvedPayments', { defaultValue: 'Approved Payments' })}</Text>
+<Text style={[styles.metricStatus, { color: theme.success }]}>{t('common.verified', { defaultValue: 'verified' })}</Text>
               </TouchableOpacity>
             </View>
 
@@ -1802,8 +1802,8 @@ case 'homework':
                   <Ionicons name="time" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{popStats?.proof_of_payment?.pending || 0}</Text>
-                <Text style={styles.metricLabel}>Pending Payments</Text>
-                <Text style={[styles.metricStatus, { color: theme.warning }]}>review needed</Text>
+<Text style={styles.metricLabel}>{t('parent.pendingPayments', { defaultValue: 'Pending Payments' })}</Text>
+<Text style={[styles.metricStatus, { color: theme.warning }]}>{t('common.review_needed', { defaultValue: 'review needed' })}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 

@@ -5,8 +5,14 @@
   "save": "Save",
   "app": {
     "name": "EduDash",
+    "fullName": "EduDash Pro",
     "tagline": "Empowering Education Through AI",
     "version": "1.0.0"
+  },
+  "fallback": {
+    "loading_issue": "Loading issue detected",
+    "description": "The app is having trouble loading. This might be due to network connectivity or configuration issues.",
+    "go_to_sign_in": "Go to Sign In"
   },
   "common": {
     "error": "Error",
@@ -43,6 +49,8 @@
     "switch_account": "Switch account"
   },
   "auth": {
+    "resend_confirmation": "Resend confirmation email",
+    "org_onboard_q": "Looking to onboard an organization?",
     "signIn": "Sign In",
     "signUp": "Sign Up",
     "signOut": "Sign Out",
@@ -63,6 +71,8 @@
     "dont_have_account": "Don't have an account?",
     "sign_in": {
       "enter_email_password": "Please enter email and password",
+      "welcome_back": "Welcome Back",
+      "sign_in_to_account": "Sign in to your account",
       "failed": "Sign In Failed",
       "signing_in": "Signing In...",
       "cta": "Sign In",
@@ -165,7 +175,9 @@
     "just_now": "Just now",
     "minutes_short_ago": "{{count}}m ago",
     "hours_short_ago": "{{count}}h ago",
-    "days_short_ago": "{{count}}d ago"
+    "days_short_ago": "{{count}}d ago",
+    "month": "month",
+    "year": "year"
   },
   "marketing": {
     "pricing": {
@@ -223,6 +235,7 @@
     }
   },
   "dashboard": {
+    "welcome_generic": "Welcome to EduDash Pro",
     "parentDashboard": "Parent Dashboard",
     "accessDenied": "Access Denied",
     "mobileAppAccessRequired": "Mobile app access is required to use this feature. Please contact your administrator.",
@@ -723,6 +736,8 @@
   },
   "transactions_categories": {},
   "parent": {
+    "approvedPayments": "Approved Payments",
+    "pendingPayments": "Pending Payments",
     "selectChild": "Select Child",
     "myChildren": "My Children",
     "communicationHub": "Communication Hub",
@@ -1026,7 +1041,8 @@
       "current": "Current Language",
       "available": "Available Languages",
       "comingSoon": "Coming Soon",
-      "soon": "Soon"
+      "soon": "Soon",
+      "sa_blurb": "We're working on adding support for all 11 official South African languages"
     },
     "theme": {
       "title": "Theme",
@@ -1137,6 +1153,7 @@
     "title": "Notifications",
     "markAllRead": "Mark All as Read",
     "noNotifications": "No notifications",
+    "all_read": "all read",
     "newAssignment": "New assignment: {{title}}",
     "gradePosted": "Grade posted for {{assignment}}",
     "reminderDue": "Reminder: {{assignment}} is due tomorrow"
@@ -1172,6 +1189,10 @@
   },
   "common": {
     "all": "All",
+    "processing": "Processing...",
+    "verified": "verified",
+    "review_needed": "review needed",
+    "last_activity": "Last activity:",
     "last_7_days": "Last 7 days",
     "last_30_days": "Last 30 days",
     "all_time": "All time",
@@ -1247,33 +1268,26 @@
     }
   },
   "subscription": {
-    "free": "Free",
-    "starter": "Starter",
-    "premium": "Premium", 
-    "enterprise": "Enterprise",
-    "upgrade": "Upgrade Plan",
-    "upgradeToPro": "Upgrade to Pro",
+    "currentPlan": "Current Plan",
+    "changePlanFor": "Change Plan - {{name}}",
+    "selectNewPlan": "Select New Plan ({{count}} available)",
+    "planOrderHint": "Plans are ordered from lowest to highest tier",
+    "billingFrequency": "Billing Frequency",
+    "billing_monthly": "Monthly",
+    "billing_annual": "Annual",
+    "numberOfSeats": "Number of Seats",
+    "enterSeats": "Enter number of seats",
+    "reasonOptional": "Reason (Optional)",
+    "reasonPlaceholder": "Reason for plan change...",
+    "changeSummary": "Change Summary",
+    "upgrade": "UPGRADE",
+    "downgrade": "DOWNGRADE",
+    "plan": "Plan",
     "billing": "Billing",
-    "usage": "Usage",
-    "limits": "Plan Limits",
-    "choose_your_plan": "Choose Your Plan",
-    "managePlan": "Manage plan",
-    "tiers": {
-      "free": "Free",
-      "starter": "Starter",
-      "basic": "Basic",
-      "premium": "Premium",
-      "pro": "Pro",
-      "enterprise": "Enterprise"
-    },
-    "tierSource": {
-      "caption": "Source: {{source}}",
-      "organization": "Organization plan",
-      "school_plan": "School subscription",
-      "school_default": "School default",
-      "user": "User setting",
-      "unknown": "Unknown"
-    }
+    "seatsLabel": "Seats",
+    "paymentRequiredNotice": "Payment required - The school principal will be notified via email and push notification to complete payment via PayFast.",
+    "notifySchoolToPay": "Notify School to Pay",
+    "confirmChange": "Confirm Change"
   },
   "lessons_create": {
     "title": "Create Lesson",
@@ -1307,6 +1321,14 @@
     "failed_load_title": "Failed to Load AI Data",
     "failed_load_desc": "Unable to load allocation data.",
     "retry": "Retry Loading"
+  },
+  "wireframes": {
+    "global_overview": "Global Platform Overview",
+    "no_leads_yet": "No Leads Yet",
+    "view_more_leads": "View {{count}} more leads",
+    "schools_by_region": "Schools by Region",
+    "no_schools_yet": "No schools registered yet",
+    "no_school_selected": "No School Selected"
   },
   "updates": {
     "Update Ready": "Update Ready",
@@ -1363,6 +1385,7 @@
   },
   "dash_ai": {
     "assistant_name": "Dash",
+    "optimizing": "Dash AI is optimizing...",
     "greeting": "Hi! I'm Dash, your AI teaching assistant. How can I help you today?",
     "voice_greeting": "Hello! Ready to work together?",
     "processing": "Processing your request...",
@@ -1372,7 +1395,12 @@
     "help_dashboard": "I can help you switch between dashboard layouts, adjust preferences, or explore different views.",
     "layout_switched": "Dashboard layout has been changed!",
     "welcome_message": "Welcome! I'm here to help with teaching, dashboard management, and school administration.",
-    "initializing": "Initializing Dash..."
+      "initializing": "Initializing Dash..."
+    },
+  "dash": {
+    "voice": {
+      "tooltip": "Tap to speak • Double-tap for chat"
+    }
   },
   "voice": {
     "recording": {
@@ -1804,5 +1832,92 @@
     "downloading": "Downloading...",
     "connecting": "Connecting...",
     "initializing": "Initializing..."
+  },
+  "apply": {
+    "screenTitle": "Apply for Job",
+    "headerTitle": "Apply for Position",
+    "loadingPosting": "Loading job posting...",
+    "notFoundTitle": "Job posting not found",
+    "notFoundDesc": "This job may have been removed or expired",
+    "jobNotAvailableTitle": "Job Not Available",
+    "jobNotAvailableDesc": "This job posting is no longer active.",
+    "jobExpiredTitle": "Job Expired",
+    "jobExpiredDesc": "This job posting has expired.",
+    "loadError": "Failed to load job posting",
+    "schoolPosition": "School Position",
+    "personalInfo": "Personal Information",
+    "phoneNumber": "Phone Number",
+    "yearsExperience": "Years of Experience",
+    "qualificationsTitle": "Qualifications",
+    "educationOptionalLabel": "Education & Certifications (Optional)",
+    "resumeLabel": "Resume/CV",
+    "uploadResumeCta": "Upload Resume/CV",
+    "uploadHint": "PDF or Word document, max 50MB",
+    "coverLetterOptional": "Cover Letter (Optional)",
+    "submitCta": "Submit Application",
+    "privacyNotice": "Your information will only be shared with the hiring school. We respect your privacy and comply with POPIA regulations.",
+    "fileTooLargeTitle": "File Too Large",
+    "fileTooLargeDesc": "Resume must be less than 50MB",
+    "invalidFileTypeTitle": "Invalid File Type",
+    "invalidFileTypeDesc": "Please upload a PDF or Word document",
+    "pickDocumentError": "Failed to pick document",
+    "validationErrorTitle": "Validation Error",
+    "error": {
+      "yearsExperienceNumber": "Please enter valid years of experience (number)",
+      "resumeRequired": "Please upload your resume"
+    },
+    "submittedTitle": "Application Submitted! 🎉",
+    "submittedDesc": "Your application has been received. The school will review your application and contact you if you're shortlisted for an interview.\n\nYou will receive a confirmation email shortly.",
+    "submitError": "Failed to submit application. Please try again.",
+    "placeholder": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "+27 82 123 4567",
+      "years": "e.g. 3",
+      "qualificationsText": "e.g. Bachelor's Degree in Early Childhood Education, SACE Registration",
+      "coverLetterLong": "Tell us why you're interested in this position and what makes you a great fit..."
+    }
+  },
+  "currency": {
+    "symbol": "R"
+  },
+  "invite": {
+    "opening_app": "Opening the app...",
+    "open_app_cta": "Open EduDash Pro App",
+    "install_google_play": "Install from Google Play",
+    "opening_parent_registration": "Opening the app for parent registration...",
+    "opening_join_by_code": "Opening the app to join by code..."
+  },
+  "landing": {
+    "verifying_email": "Verifying your email...",
+    "email_verified": "Email verified. Opening app...",
+    "email_verification_failed": "Email verification failed."
+  },
+  "demo": {
+    "header": {
+      "title": "🚀 EduDash Pro Demo",
+      "subtitle": "Comprehensive Authentication System - Complete!"
+    },
+    "sections": {
+      "project_overview": "📊 Project Overview",
+      "interactive_demos": "🎮 Interactive Demos",
+      "tap_any_demo": "Tap any demo below to see the components in action!",
+      "completed_components": "📦 Completed Components",
+      "whats_next": "🎯 What's Next?"
+    },
+    "stats": {
+      "complete": "Complete",
+      "components": "Components",
+      "lines_of_code": "Lines of Code"
+    },
+    "next": {
+      "auth_complete_title": "🎉 Authentication System Complete!",
+      "auth_complete_points": "You now have a production-ready authentication system with:\n• Enterprise-grade security\n• Multi-factor authentication\n• Comprehensive admin tools\n• Real-time monitoring\n• Mobile-responsive design",
+      "integration_ready": "💡 Integration Ready",
+      "integration_points": "All components are:\n• Fully typed with TypeScript\n• Theme-integrated and accessible\n• Production-ready with error handling\n• Documented with clear interfaces\n• Ready for backend integration"
+    },
+    "open_demo": "Open Demo →",
+    "localhost_prefix": "localhost:8082"
   }
 }

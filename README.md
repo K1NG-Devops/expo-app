@@ -221,11 +221,11 @@ See `docs/deployment/` for comprehensive build and deployment guides.
 
 ## Documentation
 
-- **[WARP.md](./WARP.md)** - Master development rules and project guidelines
-- **[Governance Rules](./docs/governance/rules.md)** - Code standards, logging, and file organization
-- **[Operations Guide](./docs/deployment/OPERATIONS.md)** - Day-to-day operational procedures
-- **[Feature Documentation](./docs/features/)** - Individual feature guides
-- **[Security Policies](./docs/security/)** - Security standards and compliance
+All documentation has been consolidated into a single master document:
+
+- [docs/README.md](./docs/README.md) — Single source of truth
+
+Legacy documentation has been archived in `docs/OBSOLETE/` for historical reference.
 
 ## Contributing
 

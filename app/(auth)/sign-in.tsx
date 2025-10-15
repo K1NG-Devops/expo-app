@@ -155,13 +155,21 @@ export default function SignIn() {
       if (authResult.success) {
         // Use stored credentials to sign in
         if (email && password) {
+          // Optionally clear the biometric loading overlay now; sign-in flow will proceed
+          setShowBiometricLoading(false);
+          // Delegate to email/password sign-in (will set its own loading state)
+          setLoading(false);
           await handleSignIn();
         } else {
+          // No saved credentials: stop any loading and show the form
           setShowBiometricLoading(false);
+          setLoading(false);
           Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.sign_in.no_saved_credentials', { defaultValue: 'No saved credentials found. Please sign in with your password.' }));
         }
       } else {
+        // Biometric failed/cancelled: stop spinners so user can use password
         setShowBiometricLoading(false);
+        setLoading(false);
         // Only show alert if user didn't just cancel
         if (authResult.error && !authResult.error.includes('cancel')) {
           Alert.alert(t('auth.biometric_failed.title', { defaultValue: 'Authentication Failed' }), authResult.error || t('auth.biometric_failed.desc', { defaultValue: 'Biometric authentication failed' }));
@@ -170,11 +178,8 @@ export default function SignIn() {
     } catch (error) {
       console.error('Biometric login error:', error);
       setShowBiometricLoading(false);
+      setLoading(false);
       Alert.alert(t('common.error', { defaultValue: 'Error' }), t('auth.biometric_failed.unexpected', { defaultValue: 'An error occurred during biometric authentication' }));
-    } finally {
-      if (!isAutoTrigger) {
-        setLoading(false);
-      }
     }
   };
 
@@ -591,14 +596,14 @@ export default function SignIn() {
               <View style={styles.logoCircle}>
                 <Ionicons name="school" size={32} color={theme.primary} />
               </View>
-              <Text style={styles.logoText}>EduDash Pro</Text>
-              <Text style={styles.logoSubtext}>AI-Powered Education Platform</Text>
+              <Text style={styles.logoText}>{t('app.fullName', { defaultValue: 'EduDash Pro' })}</Text>
+              <Text style={styles.logoSubtext}>{t('app.tagline', { defaultValue: 'Empowering Education Through AI' })}</Text>
             </View>
 
             <View style={styles.card}>
               <View style={styles.header}>
-                <Text style={styles.title}>Welcome Back</Text>
-                <Text style={styles.subtitle}>Sign in to your account</Text>
+                <Text style={styles.title}>{t('auth.sign_in.welcome_back', { defaultValue: 'Welcome Back' })}</Text>
+                <Text style={styles.subtitle}>{t('auth.sign_in.sign_in_to_account', { defaultValue: 'Sign in to your account' })}</Text>
               </View>
 
           {/* Biometric quick access - shown inline if available */}
@@ -683,7 +688,7 @@ export default function SignIn() {
               {biometricAvailable && storedUserEmail && (
                 <TouchableOpacity
                   style={styles.biometricQuickButton}
-                  onPress={handleBiometricLogin}
+                  onPress={() => handleBiometricLogin(false)}
                   disabled={loading}
                   activeOpacity={0.7}
                 >
@@ -706,7 +711,7 @@ export default function SignIn() {
               activeOpacity={0.7}
             >
               <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
-                Resend confirmation email
+                {t('auth.resend_confirmation', { defaultValue: 'Resend confirmation email' })}
               </Text>
             </TouchableOpacity>
           </View>
@@ -753,7 +758,7 @@ export default function SignIn() {
               onPress={() => router.push('/screens/org-onboarding' as any)}
             >
               <Text style={styles.schoolSignupText}>
-                Looking to onboard an organization? <Text style={styles.schoolSignupLinkText}>Click here</Text>
+                {t('auth.org_onboard_q', { defaultValue: 'Looking to onboard an organization?' })} <Text style={styles.schoolSignupLinkText}>{t('common.click_here', { defaultValue: 'Click here' })}</Text>
               </Text>
             </TouchableOpacity>
           </View>

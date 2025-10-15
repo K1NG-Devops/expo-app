@@ -8,6 +8,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { getAvailableLanguages, getComingSoonLanguages, changeLanguage, getCurrentLanguage, SupportedLanguage } from '@/lib/i18n';
 import { Colors } from '@/constants/Colors';
+import { useTranslation } from 'react-i18next';
 
 interface LanguageSelectorProps {
   onLanguageSelect?: (language: SupportedLanguage) => void;
@@ -18,6 +19,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   onLanguageSelect,
   showComingSoon = true,
 }) => {
+  const { t } = useTranslation();
   const currentLanguage = getCurrentLanguage();
   const availableLanguages = getAvailableLanguages();
   const comingSoonLanguages = getComingSoonLanguages();
@@ -56,7 +58,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       
       {language.comingSoon && (
         <View style={styles.comingSoonBadge}>
-          <Text style={styles.comingSoonText}>Coming Soon</Text>
+          <Text style={styles.comingSoonText}>{t('settings.language.comingSoon', { defaultValue: 'Coming Soon' })}</Text>
         </View>
       )}
       
@@ -70,16 +72,16 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Available Languages</Text>
+      <Text style={styles.sectionTitle}>{t('settings.language.available', { defaultValue: 'Available Languages' })}</Text>
       {availableLanguages.map((language) =>
         renderLanguageItem(language, language.code === currentLanguage)
       )}
 
       {showComingSoon && comingSoonLanguages.length > 0 && (
         <>
-          <Text style={styles.sectionTitle}>South African Languages - Coming Soon</Text>
+          <Text style={styles.sectionTitle}>{t('settings.language.comingSoon', { defaultValue: 'Coming Soon' })}</Text>
           <Text style={styles.sectionSubtitle}>
-            We're working on adding support for all 11 official South African languages
+            {t('settings.language.sa_blurb', { defaultValue: "We're working on adding support for all 11 official South African languages" })}
           </Text>
           {comingSoonLanguages.map((language) => renderLanguageItem(language))}
         </>

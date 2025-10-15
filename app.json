@@ -8,7 +8,7 @@
       "policy": "appVersion"
     },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/png/icon-1024.png",
     "userInterfaceStyle": "light",
     "scheme": "edudashpro",
     "newArchEnabled": true,
@@ -17,7 +17,7 @@
       "locales/**/*.json"
     ],
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/branding/png/icon-1024.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -27,8 +27,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/branding/png/icon-1024.png",
+        "backgroundColor": "#33C3D4"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.edudashpro",
@@ -94,12 +94,12 @@
       "silentLaunch": true
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/branding/png/icon-192.png",
       "name": "EduDash Pro - AI-Powered Educational Platform",
       "shortName": "EduDash Pro",
       "lang": "en",
       "scope": "/",
-      "themeColor": "#00f5ff",
+      "themeColor": "#33C3D4",
       "backgroundColor": "#0a0a0f",
       "description": "Revolutionary AI-powered educational platform for preschools. Trusted by educators worldwide for next-generation learning experiences with Society 5.0 technology.",
       "keywords": [

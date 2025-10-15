@@ -6,7 +6,9 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY')
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'openai' // 'deepgram' or 'openai'
+const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY')
+const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION')
+const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'auto' // 'azure', 'openai', 'deepgram', or 'auto'
 const OPENAI_TRANSCRIPTION_MODEL = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'whisper-1'
 
 // Create Supabase client with service role for bypassing RLS
@@ -112,6 +114,71 @@ async function transcribeWithDeepgram(audioUrl: string, language?: string): Prom
   return {
     transcript,
     language: detectedLanguage || language,
+    confidence,
+    word_count: wordCount
+  }
+}
+
+/**
+ * Transcribe audio using Azure Speech Services (Best for Afrikaans, isiZulu, isiXhosa)
+ */
+async function transcribeWithAzure(audioUrl: string, language?: string): Promise<TranscriptionResponse> {
+  if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+    throw new Error('Azure Speech API key or region not configured')
+  }
+
+  // Map language codes to Azure language codes
+  const languageMap: { [key: string]: string } = {
+    'en': 'en-ZA',  // English South Africa
+    'af': 'af-ZA',  // Afrikaans South Africa
+    'zu': 'zu-ZA',  // isiZulu South Africa
+    'xh': 'xh-ZA',  // isiXhosa South Africa
+    'st': 'en-ZA'   // Sesotho -> fallback to English SA
+  }
+
+  const azureLanguage = language ? (languageMap[language] || 'en-ZA') : 'en-ZA'
+
+  console.log('Transcribing with Azure Speech:', { audioUrl, language: azureLanguage })
+
+  // Download audio file first
+  const audioResponse = await fetch(audioUrl)
+  if (!audioResponse.ok) {
+    throw new Error(`Failed to download audio file: ${audioResponse.status}`)
+  }
+
+  const audioBlob = await audioResponse.blob()
+  const audioBuffer = await audioBlob.arrayBuffer()
+
+  // Call Azure Speech-to-Text API
+  const response = await fetch(
+    `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${azureLanguage}`,
+    {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Type': 'audio/wav', // Azure accepts various formats
+      },
+      body: audioBuffer,
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('Azure Speech API error:', error)
+    throw new Error(`Azure Speech API error: ${response.status} ${error}`)
+  }
+
+  const result = await response.json()
+  console.log('Azure Speech result:', result)
+
+  // Azure returns: { RecognitionStatus, DisplayText, Offset, Duration, NBest: [{Confidence, Lexical, ITN, MaskedITN, Display}] }
+  const transcript = result.DisplayText || ''
+  const confidence = result.NBest?.[0]?.Confidence || 0
+  const wordCount = transcript.split(/\s+/).filter(word => word.length > 0).length
+
+  return {
+    transcript,
+    language: azureLanguage,
     confidence,
     word_count: wordCount
   }
@@ -292,13 +359,24 @@ async function transcribeAudio(request: Request): Promise<Response> {
     // Determine language for transcription
     const language = transcriptionRequest.language || voiceNote?.language
 
-    // Perform transcription based on configured provider
+    // Perform transcription based on language and provider availability
     let transcription: TranscriptionResponse
     let providerUsed = TRANSCRIPTION_PROVIDER
     let usedFallback = false
 
     try {
-      if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
+      // SMART ROUTING: Use Azure for SA languages (af, zu, xh) as they have best support
+      const saLanguages = ['af', 'zu', 'xh']
+      const useAzure = (TRANSCRIPTION_PROVIDER === 'auto' || TRANSCRIPTION_PROVIDER === 'azure') && 
+                       saLanguages.includes(language || '') && 
+                       AZURE_SPEECH_KEY && 
+                       AZURE_SPEECH_REGION
+
+      if (useAzure) {
+        console.log(`Using Azure Speech for SA language: ${language}`)
+        transcription = await transcribeWithAzure(audioUrl, language)
+        providerUsed = 'azure'
+      } else if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
         console.log('Using OpenAI Whisper for transcription')
         transcription = await transcribeWithOpenAI(audioUrl, language)
         providerUsed = 'openai'
@@ -307,31 +385,40 @@ async function transcribeAudio(request: Request): Promise<Response> {
         transcription = await transcribeWithDeepgram(audioUrl, language)
         providerUsed = 'deepgram'
       } else {
-        // Fallback: try OpenAI first, then Deepgram
-        if (OPENAI_API_KEY) {
-          console.log('No provider configured, trying OpenAI Whisper first')
+        // Auto-select best provider based on availability
+        if (AZURE_SPEECH_KEY && saLanguages.includes(language || '')) {
+          console.log('Auto-selecting Azure for SA language')
+          transcription = await transcribeWithAzure(audioUrl, language)
+          providerUsed = 'azure'
+        } else if (OPENAI_API_KEY) {
+          console.log('Auto-selecting OpenAI Whisper')
           transcription = await transcribeWithOpenAI(audioUrl, language)
           providerUsed = 'openai'
         } else if (DEEPGRAM_API_KEY) {
-          console.log('No provider configured, trying Deepgram')
+          console.log('Auto-selecting Deepgram')
           transcription = await transcribeWithDeepgram(audioUrl, language)
           providerUsed = 'deepgram'
         } else {
-          throw new Error('No transcription provider configured. Please set OPENAI_API_KEY or DEEPGRAM_API_KEY.')
+          throw new Error('No transcription provider configured. Please set AZURE_SPEECH_KEY, OPENAI_API_KEY, or DEEPGRAM_API_KEY.')
         }
       }
     } catch (primaryError) {
       console.error(`Primary transcription provider (${providerUsed}) failed:`, primaryError)
       
-      // Try fallback provider
+      // Intelligent fallback: Azure -> Whisper -> Deepgram
       try {
-        if (providerUsed === 'openai' && DEEPGRAM_API_KEY) {
-          console.log('Falling back to Deepgram')
+        if (providerUsed === 'azure' && OPENAI_API_KEY) {
+          console.log('Azure failed, falling back to OpenAI Whisper')
+          transcription = await transcribeWithOpenAI(audioUrl, language)
+          providerUsed = 'openai'
+          usedFallback = true
+        } else if (providerUsed === 'openai' && DEEPGRAM_API_KEY) {
+          console.log('OpenAI failed, falling back to Deepgram')
           transcription = await transcribeWithDeepgram(audioUrl, language)
           providerUsed = 'deepgram'
           usedFallback = true
         } else if (providerUsed === 'deepgram' && OPENAI_API_KEY) {
-          console.log('Falling back to OpenAI Whisper')
+          console.log('Deepgram failed, falling back to OpenAI Whisper')
           transcription = await transcribeWithOpenAI(audioUrl, language)
           providerUsed = 'openai'
           usedFallback = true

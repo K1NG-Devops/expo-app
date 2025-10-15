@@ -457,7 +457,7 @@ class DashPDFGeneratorImpl {
       }
 
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         return null;
       }
 
@@ -465,7 +465,7 @@ class DashPDFGeneratorImpl {
       const { data, error } = await supabase
         .from('pdf_user_preferences')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', session.user_id)
         .single();
 
       if (error && error.code !== 'PGRST116') { // Not found is ok
@@ -499,7 +499,7 @@ class DashPDFGeneratorImpl {
       const supabase = assertSupabase();
       
       const prefsData = {
-        user_id: session.user.id,
+        user_id: session.user_id,
         organization_id: organizationId,
         default_theme: preferences.defaultTheme,
         default_font: preferences.defaultFont,
@@ -564,7 +564,7 @@ class DashPDFGeneratorImpl {
         query = query.eq('organization_id', organizationId).eq('is_org_shared', true);
       } else {
         // Show user's own templates + shared templates
-        query = query.or(`owner_user_id.eq.${session.user.id},and(organization_id.eq.${organizationId},is_org_shared.eq.true)`);
+        query = query.or(`owner_user_id.eq.${session.user_id},and(organization_id.eq.${organizationId},is_org_shared.eq.true)`);
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
@@ -622,7 +622,7 @@ class DashPDFGeneratorImpl {
       const { data, error } = await supabase
         .from('pdf_custom_templates')
         .insert({
-          owner_user_id: session.user.id,
+          owner_user_id: session.user_id,
           organization_id: organizationId,
           name: template.name,
           description: template.description,
@@ -1217,8 +1217,8 @@ class DashPDFGeneratorImpl {
       // Upload to Supabase Storage
       const supabase = assertSupabase();
       const storagePath = organizationId 
-        ? `${organizationId}/${session.user.id}/${filename}`
-        : `${session.user.id}/${filename}`;
+        ? `${organizationId}/${session.user_id}/${filename}`
+        : `${session.user_id}/${filename}`;
 
       const { error } = await supabase.storage
         .from('generated-pdfs')

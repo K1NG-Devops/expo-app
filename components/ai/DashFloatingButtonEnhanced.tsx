@@ -87,6 +87,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
   const rotationAnimation = useRef(new Animated.Value(0)).current;
   const tooltipAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const pulseAnimationRef = useRef<any>(null);
 
   useEffect(() => {
     initializeDashContext();
@@ -98,7 +99,13 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
       }
     }, 30000); // Check every 30 seconds
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Cleanup pulse animation
+      if (pulseAnimationRef.current) {
+        pulseAnimationRef.current.stop();
+      }
+    };
   }, [profile]);
 
   // Initialize Dash context and load data
@@ -108,7 +115,7 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
       await dashInstance.initialize();
       
       // Load active tasks and reminders
-      const tasks = await dashInstance.getActiveTasks();
+      const tasks = dashInstance.getActiveTasks();
       const reminders = await dashInstance.getActiveReminders();
       
       setActiveTasks(tasks);
@@ -207,39 +214,39 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
           },
           {
             id: 'staff_management',
-            title: 'Staff Management',
-            subtitle: 'Manage teachers',
+            title: 'View Teachers',
+            subtitle: 'Manage staff',
             icon: 'people-outline',
             color: '#DC2626',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/staff-management');
+              router.push('/screens/teacher-management');
             },
             priority: 'high',
             contextual: false
           },
           {
-            id: 'financial_reports',
-            title: 'Financial Reports',
-            subtitle: 'View finances',
+            id: 'reports',
+            title: 'School Reports',
+            subtitle: 'View analytics',
             icon: 'bar-chart-outline',
             color: '#7C3AED',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/financial-dashboard');
+              router.push('/screens/principal-reports');
             },
             priority: 'medium',
             contextual: false
           },
           {
-            id: 'enrollment',
-            title: 'Student Enrollment',
-            subtitle: 'Enroll new students',
-            icon: 'person-add-outline',
+            id: 'announcements',
+            title: 'Announcements',
+            subtitle: 'Send updates',
+            icon: 'megaphone-outline',
             color: '#F59E0B',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/student-enrollment');
+              router.push('/screens/principal-announcement');
             },
             priority: 'medium',
             contextual: false
@@ -270,33 +277,33 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
             color: '#3B82F6',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/child-progress');
+              router.push('/screens/parent-dashboard');
             },
             priority: 'high',
             contextual: true
           },
           {
             id: 'school_communication',
-            title: 'School Messages',
-            subtitle: 'View announcements',
+            title: 'Messages',
+            subtitle: 'View messages',
             icon: 'chatbubbles-outline',
             color: '#8B5CF6',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/parent-communication');
+              router.push('/screens/parent-messages');
             },
             priority: 'medium',
             contextual: false
           },
           {
-            id: 'calendar',
-            title: 'School Calendar',
-            subtitle: 'View events',
-            icon: 'calendar-outline',
+            id: 'announcements',
+            title: 'Announcements',
+            subtitle: 'View updates',
+            icon: 'megaphone-outline',
             color: '#F59E0B',
             action: () => {
               setShowQuickActionsModal(false);
-              router.push('/screens/school-calendar');
+              router.push('/screens/parent-dashboard');
             },
             priority: 'low',
             contextual: false
@@ -426,7 +433,12 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
 
   // Start pulse animation for attention
   const startPulseAnimation = () => {
-    Animated.loop(
+    // Stop any existing animation first
+    if (pulseAnimationRef.current) {
+      pulseAnimationRef.current.stop();
+    }
+    
+    pulseAnimationRef.current = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnimation, {
           toValue: 1.2,
@@ -439,7 +451,8 @@ export const DashFloatingButtonEnhanced: React.FC<DashFloatingButtonEnhancedProp
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    pulseAnimationRef.current.start();
   };
 
   const handlePress = async () => {

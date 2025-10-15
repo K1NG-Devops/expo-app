@@ -90,9 +90,9 @@ const DEFAULT_CONFIG: VoiceRecordingConfig = {
   enableBackgroundRecording: false,
   enableNoiseSupression: true,
   enableAutoGainControl: true,
-  chunkSizeMs: 250,
-  compressionBitrate: 64000, // 64kbps for voice
-  transport: 'webrtc', // Use WebRTC by default for best performance
+  chunkSizeMs: 1000, // CHANGED: 1s chunks for hybrid transcription
+  compressionBitrate: 32000, // CHANGED: 32kbps optimized for speech (84% size reduction)
+  transport: 'auto', // CHANGED: auto-detect best transport
   enableLiveTranscription: true, // Enable live transcription by default
 };
 
@@ -144,24 +144,24 @@ export function getAudioConfig(quality: AudioQuality): Audio.RecordingOptions {
         extension: '.m4a',
         outputFormat: Audio.AndroidOutputFormat.MPEG_4,
         audioEncoder: Audio.AndroidAudioEncoder.AAC,
-        sampleRate: 22050,
+        sampleRate: 16000, // OPTIMIZED: 16kHz ideal for speech recognition
         numberOfChannels: 1,
-        bitRate: 64000,
+        bitRate: 32000, // OPTIMIZED: 32kbps sufficient for voice
       },
       ios: {
         extension: '.m4a',
         outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
         audioQuality: Audio.IOSAudioQuality.MEDIUM,
-        sampleRate: 22050,
+        sampleRate: 16000, // OPTIMIZED: 16kHz ideal for speech recognition
         numberOfChannels: 1,
-        bitRate: 64000,
+        bitRate: 32000, // OPTIMIZED: 32kbps sufficient for voice
         linearPCMBitDepth: 16,
         linearPCMIsBigEndian: false,
         linearPCMIsFloat: false,
       },
       web: {
         mimeType: 'audio/webm;codecs=opus',
-        bitsPerSecond: 64000,
+        bitsPerSecond: 32000, // OPTIMIZED: 32kbps sufficient for voice
       },
     },
     high: {
@@ -207,7 +207,7 @@ export class VoicePipeline {
   private startTime: number = 0;
   private audioLevelSamples: number[] = [];
   private silenceStartTime: number = 0;
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private transcriptionCallback?: (chunk: TranscriptionChunk) => void;
   private stateCallback?: (state: RecordingState) => void;
   private useStreaming: boolean = true; // Track if we're using streaming mode

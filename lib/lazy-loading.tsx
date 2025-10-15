@@ -10,6 +10,7 @@ import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import { mark, measure } from './perf';
 import { logger } from './logger';
+import { useTranslation } from 'react-i18next';
 
 interface LazyComponentOptions {
   fallback?: React.ComponentType;
@@ -28,21 +29,24 @@ interface LazyLoadedModule<T = any> {
  * Smart loading indicator for Dash
  */
 const DashLoadingIndicator: React.FC<{ message?: string }> = ({ 
-  message = 'Loading...' 
-}) => (
-  <View style={styles.loadingContainer}>
-    <LinearGradient
-      colors={['#0a0a0f', '#1a0a2e']}
-      style={styles.loadingGradient}
-    >
-      <View style={styles.loadingContent}>
-        <ActivityIndicator size="large" color="#00f5ff" />
-        <Text style={styles.loadingText}>{message}</Text>
-        <Text style={styles.loadingSubtext}>🧠 Dash AI is optimizing...</Text>
-      </View>
-    </LinearGradient>
-  </View>
-);
+  message
+}) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.loadingContainer}>
+      <LinearGradient
+        colors={['#0a0a0f', '#1a0a2e']}
+        style={styles.loadingGradient}
+      >
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color="#00f5ff" />
+          <Text style={styles.loadingText}>{message || t('screens.loading')}</Text>
+          <Text style={styles.loadingSubtext}>🧠 {t('dash_ai.optimizing', { defaultValue: 'Dash AI is optimizing...' })}</Text>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+};
 
 /**
  * Smart error boundary for lazy loaded components
@@ -50,24 +54,27 @@ const DashLoadingIndicator: React.FC<{ message?: string }> = ({
 const DashErrorBoundary: React.FC<{ error: Error; retry: () => void }> = ({
   error,
   retry,
-}) => (
-  <View style={styles.errorContainer}>
-    <LinearGradient
-      colors={['#ff6b6b', '#ee5a52']}
-      style={styles.errorGradient}
-    >
-      <View style={styles.errorContent}>
-        <Text style={styles.errorTitle}>⚠️ Module Load Failed</Text>
-        <Text style={styles.errorMessage}>
-          {error.message || 'Failed to load component'}
-        </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={retry}>
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
-      </View>
-    </LinearGradient>
-  </View>
-);
+}) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.errorContainer}>
+      <LinearGradient
+        colors={['#ff6b6b', '#ee5a52']}
+        style={styles.errorGradient}
+      >
+        <View style={styles.errorContent}>
+          <Text style={styles.errorTitle}>⚠️ {t('errors.generic')}</Text>
+          <Text style={styles.errorMessage}>
+            {error.message || t('screens.error_loading')}
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={retry}>
+            <Text style={styles.retryText}>{t('navigation.retry')}</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+};
 
 /**
  * Create a lazy-loaded component with intelligent preloading

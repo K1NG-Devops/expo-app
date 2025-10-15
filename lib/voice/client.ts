@@ -76,6 +76,7 @@ class VoiceServiceClient {
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
       
       if (!user) {
         throw this.createError('AUTH_REQUIRED', 'User must be authenticated');
@@ -85,14 +86,28 @@ class VoiceServiceClient {
         .from('voice_preferences')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = no rows returned (acceptable)
-        throw error;
+      if (error) {
+        console.error('[VoiceService] Failed to fetch preferences:', error);
+        return null;
       }
 
-      return data || null;
+      if (!data) {
+        return null;
+      }
+
+      // Map database schema to TypeScript types
+      return {
+        user_id: data.user_id,
+        language: data.language_code as SupportedLanguage,
+        voice_id: data.tts_voice_id || '',
+        speaking_rate: data.tts_rate ? 1.0 + (data.tts_rate / 100) : 1.0,
+        pitch: data.tts_pitch ? 1.0 + (data.tts_pitch / 100) : 1.0,
+        volume: 1.0, // Not in DB schema, default
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
     } catch (error) {
       if ((error as VoiceServiceError).code) {
         throw error;
@@ -112,34 +127,78 @@ class VoiceServiceClient {
     
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!user) {
+      if (!user || !session) {
         throw this.createError('AUTH_REQUIRED', 'User must be authenticated');
       }
 
-      const preferenceData = {
-        ...preferences,
+      // Get preschool_id and role from session JWT
+      const preschoolId = (session.user as any)?.user_metadata?.preschool_id || 
+                         (session as any)?.preschool_id;
+      const role = (session.user as any)?.user_metadata?.role || 'parent';
+
+      if (!preschoolId) {
+        console.warn('[VoiceService] No preschool_id found in session, cannot save preferences');
+        throw this.createError('MISSING_PRESCHOOL', 'Preschool ID required');
+      }
+
+      // Map TypeScript types to database schema
+      const dbData: any = {
         user_id: user.id,
+        preschool_id: preschoolId,
+        role: role,
         updated_at: new Date().toISOString(),
       };
 
+      if (preferences.language) {
+        dbData.language_code = preferences.language;
+      }
+      if (preferences.voice_id) {
+        dbData.tts_voice_id = preferences.voice_id;
+      }
+      if (preferences.speaking_rate !== undefined) {
+        // Convert from 0.5-2.0 range to -50 to +50 range
+        dbData.tts_rate = Math.round((preferences.speaking_rate - 1.0) * 100);
+      }
+      if (preferences.pitch !== undefined) {
+        // Convert from 0.5-2.0 range to -50 to +50 range
+        dbData.tts_pitch = Math.round((preferences.pitch - 1.0) * 100);
+      }
+
       const { data, error } = await supabase
         .from('voice_preferences')
-        .upsert(preferenceData, {
-          onConflict: 'user_id',
+        .upsert(dbData, {
+          onConflict: 'preschool_id,user_id',
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
+        console.error('[VoiceService] Save error:', error);
         throw error;
       }
 
-      return data;
+      if (!data) {
+        throw new Error('No data returned after upsert');
+      }
+
+      // Map back to TypeScript types
+      return {
+        user_id: data.user_id,
+        language: data.language_code as SupportedLanguage,
+        voice_id: data.tts_voice_id || '',
+        speaking_rate: data.tts_rate ? 1.0 + (data.tts_rate / 100) : 1.0,
+        pitch: data.tts_pitch ? 1.0 + (data.tts_pitch / 100) : 1.0,
+        volume: 1.0,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
     } catch (error) {
       if ((error as VoiceServiceError).code) {
         throw error;
       }
+      console.error('[VoiceService] Failed to save preferences:', error);
       throw this.createError('SAVE_FAILED', 'Failed to save voice preferences', undefined, error);
     }
   }

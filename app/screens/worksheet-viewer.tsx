@@ -76,7 +76,6 @@ export default function WorksheetViewer() {
 
       const dash = DashAIAssistant.getInstance();
       await dash.initialize();
-
       // Try to get worksheet from Dash memory
       const memoryItems = await dash.getAllMemoryItems();
       const worksheetMemory = memoryItems.find(item => 
@@ -236,7 +235,7 @@ export default function WorksheetViewer() {
 
     try {
       setGenerating(true);
-      const pdfService = new EducationalPDFService();
+      const pdfService = EducationalPDFService;
       
       let pdfResult;
       

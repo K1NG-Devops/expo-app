@@ -126,10 +126,34 @@ export class AudioManager {
         playThroughEarpieceAndroid: false,
       });
 
-      // Create and start recording
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
+      // Create and start recording with voice-optimized settings
+      // 16kHz mono 32kbps AAC - optimized for speech, faster init, smaller files
+      const { recording } = await Audio.Recording.createAsync({
+        isMeteringEnabled: true,
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 16000, // Voice-optimized: 16kHz
+          numberOfChannels: 1, // Mono for voice
+          bitRate: 32000, // 32kbps sufficient for speech
+        },
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MEDIUM,
+          sampleRate: 16000, // Voice-optimized: 16kHz
+          numberOfChannels: 1, // Mono for voice
+          bitRate: 32000, // 32kbps sufficient for speech
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: 'audio/webm;codecs=opus',
+          bitsPerSecond: 32000, // 32kbps sufficient for speech
+        },
+      });
 
       this.recording = recording;
       this.recordingState = {

@@ -130,7 +130,7 @@ export class DashDiagnosticEngine {
         stack: event.reason?.stack,
         context: { promise: event.promise }
       });
-      if (originalHandler) originalHandler(event);
+      if (originalHandler) (originalHandler as any).call(global, event);
     };
     
     // Track console errors

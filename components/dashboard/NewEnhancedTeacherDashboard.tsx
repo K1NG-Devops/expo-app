@@ -245,21 +245,21 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
     },
     {
       title: t('teacher.classes_active'),
-      value: dashboardData?.activeClasses || '3',
+      value: dashboardData?.totalClasses || '3',
       icon: 'school',
       color: theme.secondary,
       trend: 'good'
     },
     {
       title: t('teacher.assignments_pending'),
-      value: dashboardData?.pendingAssignments || '8',
+      value: dashboardData?.pendingGrading || '8',
       icon: 'document-text',
       color: theme.warning,
       trend: 'attention'
     },
     {
       title: t('teacher.average_grade'),
-      value: dashboardData?.averageGrade || '85%',
+      value: dashboardData?.upcomingLessons || '0',
       icon: 'trophy',
       color: theme.success,
       trend: 'up'

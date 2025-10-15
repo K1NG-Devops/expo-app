@@ -13,9 +13,11 @@ import {
   Linking,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useTranslation } from 'react-i18next';
 
 export default function DemoIndex() {
   const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
 
   const demoPages = [
     {
@@ -96,10 +98,10 @@ export default function DemoIndex() {
       
       <View style={styles.demoFooter}>
         <Text style={[styles.urlText, { color: theme.textTertiary }]}>
-          localhost:8082{demo.url}
+          {t('demo.localhost_prefix', { defaultValue: 'localhost:8082' })}{demo.url}
         </Text>
         <Text style={[styles.openText, { color: demo.color }]}>
-          Open Demo →
+          {t('demo.open_demo', { defaultValue: 'Open Demo →' })}
         </Text>
       </View>
     </TouchableOpacity>
@@ -115,10 +117,10 @@ export default function DemoIndex() {
       {/* Header */}
       <View style={[styles.header, { backgroundColor: theme.surface }]}>
         <Text style={[styles.headerTitle, { color: theme.text }]}>
-          🚀 EduDash Pro Demo
+          {t('demo.header.title', { defaultValue: '🚀 EduDash Pro Demo' })}
         </Text>
         <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
-          Comprehensive Authentication System - Complete!
+          {t('demo.header.subtitle', { defaultValue: 'Comprehensive Authentication System - Complete!' })}
         </Text>
       </View>
 
@@ -126,7 +128,7 @@ export default function DemoIndex() {
         {/* Project Stats */}
         <View style={styles.statsSection}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            📊 Project Overview
+            {t('demo.sections.project_overview', { defaultValue: '📊 Project Overview' })}
           </Text>
           
           <View style={styles.statsGrid}>
@@ -135,7 +137,7 @@ export default function DemoIndex() {
                 {stats.completionPercentage}%
               </Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-                Complete
+                {t('demo.stats.complete', { defaultValue: 'Complete' })}
               </Text>
             </View>
             
@@ -144,7 +146,7 @@ export default function DemoIndex() {
                 {stats.totalComponents}
               </Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-                Components
+                {t('demo.stats.components', { defaultValue: 'Components' })}
               </Text>
             </View>
             
@@ -153,7 +155,7 @@ export default function DemoIndex() {
                 {stats.linesOfCode.toLocaleString()}+
               </Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-                Lines of Code
+                {t('demo.stats.lines_of_code', { defaultValue: 'Lines of Code' })}
               </Text>
             </View>
           </View>
@@ -172,10 +174,10 @@ export default function DemoIndex() {
         {/* Demo Pages */}
         <View style={styles.demosSection}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            🎮 Interactive Demos
+            {t('demo.sections.interactive_demos', { defaultValue: '🎮 Interactive Demos' })}
           </Text>
           <Text style={[styles.sectionDescription, { color: theme.textSecondary }]}>
-            Tap any demo below to see the components in action!
+            {t('demo.sections.tap_any_demo', { defaultValue: "Tap any demo below to see the components in action!" })}
           </Text>
           
           {demoPages.map(renderDemoCard)}
@@ -184,7 +186,7 @@ export default function DemoIndex() {
         {/* Components List */}
         <View style={styles.componentsSection}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            📦 Completed Components
+            {t('demo.sections.completed_components', { defaultValue: '📦 Completed Components' })}
           </Text>
           
           {completedComponents.map((component, index) => (
@@ -207,34 +209,24 @@ export default function DemoIndex() {
         {/* Next Steps */}
         <View style={styles.nextStepsSection}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            🎯 What's Next?
+            {t('demo.sections.whats_next', { defaultValue: "🎯 What's Next?" })}
           </Text>
           
           <View style={[styles.nextStepCard, { backgroundColor: theme.primaryLight + '20' }]}>
             <Text style={[styles.nextStepTitle, { color: theme.text }]}>
-              🎉 Authentication System Complete!
+              {t('demo.next.auth_complete_title', { defaultValue: '🎉 Authentication System Complete!' })}
             </Text>
             <Text style={[styles.nextStepText, { color: theme.textSecondary }]}>
-              You now have a production-ready authentication system with:
-              {'\n'}• Enterprise-grade security
-              {'\n'}• Multi-factor authentication
-              {'\n'}• Comprehensive admin tools
-              {'\n'}• Real-time monitoring
-              {'\n'}• Mobile-responsive design
+              {t('demo.next.auth_complete_points', { defaultValue: "You now have a production-ready authentication system with:\n• Enterprise-grade security\n• Multi-factor authentication\n• Comprehensive admin tools\n• Real-time monitoring\n• Mobile-responsive design" })}
             </Text>
           </View>
           
           <View style={[styles.nextStepCard, { backgroundColor: theme.secondary + '20' }]}>
             <Text style={[styles.nextStepTitle, { color: theme.text }]}>
-              💡 Integration Ready
+              {t('demo.next.integration_ready', { defaultValue: '💡 Integration Ready' })}
             </Text>
             <Text style={[styles.nextStepText, { color: theme.textSecondary }]}>
-              All components are:
-              {'\n'}• Fully typed with TypeScript
-              {'\n'}• Theme-integrated and accessible
-              {'\n'}• Production-ready with error handling
-              {'\n'}• Documented with clear interfaces
-              {'\n'}• Ready for backend integration
+              {t('demo.next.integration_points', { defaultValue: "All components are:\n• Fully typed with TypeScript\n• Theme-integrated and accessible\n• Production-ready with error handling\n• Documented with clear interfaces\n• Ready for backend integration" })}
             </Text>
           </View>
         </View>

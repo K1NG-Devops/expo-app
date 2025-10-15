@@ -51,6 +51,12 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
   const [isLocked, setIsLocked] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+
+  // Keep local lock state in sync with controller
+  useEffect(() => {
+    setIsLocked(vc.isLocked);
+  }, [vc.isLocked]);
   
   // Reanimated shared values for better performance
   const translateY = useSharedValue(0);
@@ -152,33 +158,55 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     }
   }, [isRecording, isLocked]);
 
-  // Gesture handler for swipe-up lock and release to send
+  // Ensure mic permission (Android) and auto-start when visible
+  const ensureMicPermission = async (): Promise<boolean> => {
+    try {
+      if (Platform.OS !== 'android') return true;
+      const { PermissionsAndroid } = await import('react-native');
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
+      );
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch {
+      return true; // best-effort
+    }
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!visible) return;
+        const ok = await ensureMicPermission();
+        if (!ok) return;
+        if (vc.state === 'idle' || vc.state === 'prewarm') {
+          await vc.startPress();
+        }
+      } catch {}
+    })();
+  }, [visible]);
+
+  // Gesture handler for swipe-up lock and WhatsApp-style send/cancel
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
-      // reset translation on start
       translateY.value = 0;
     },
     onActive: (event) => {
       if (isLocked) return;
-      // Only track vertical drag for lock gesture
       if (event.translationY < 0) {
         translateY.value = event.translationY;
       }
-      // Lock when threshold crossed
       if (event.translationY < LOCK_THRESHOLD && !isLocked) {
         runOnJS(setIsLocked)(true);
         translateY.value = withSpring(0);
-        // Lock the controller on UI thread
         runOnJS(vc.lock)();
       }
     },
     onEnd: () => {
       if (isLocked) {
-        // Reset position but keep recording
         translateY.value = withSpring(0);
       } else {
-        // Not locked -> release to send
-        runOnJS(handleSend)();
+        // WhatsApp-style: release to send (no left-cancel gesture)
+        runOnJS(() => { handleSend(); })();
       }
     },
   });
@@ -235,58 +263,51 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
 
   return (
     <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)' }]}>
-      <View style={[styles.container, { backgroundColor: theme.surface }]}>
-        {/* Lock indicator at top */}
-        <Reanimated.View style={[styles.lockIndicator, animatedLockIconStyles]}>
-            <View style={styles.lockColumn}>
-              <RNAnimated.View
-                style={{
-                  opacity: chevronAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.3, 0.8],
-                  }),
-                  transform: [{
-                    translateY: chevronAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [4, -4],
-                    }),
-                  }],
-                  marginBottom: 4,
+      <View style={[
+        styles.container,
+        { backgroundColor: theme.surface },
+        minimized ? styles.containerMini : null,
+      ]}>
+        {/* Header row with minimize; show timer here only when minimized */}
+        <View style={styles.headerTop}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {minimized && (
+              <>
+                <RNAnimated.View
+                  style={[
+                    styles.recordingDot,
+                    { backgroundColor: theme.error, transform: [{ scale: pulseAnim }] },
+                  ]}
+                />
+                <Text style={[styles.timerMini, { color: theme.text }]}>
+                  {formatTime(vc.timerMs)}
+                </Text>
+              </>
+            )}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {minimized && (
+              <TouchableOpacity
+                onPress={() => {
+                  const isActive = vc.state === 'listening' || vc.state === 'prewarm' || vc.state === 'transcribing';
+                  if (isActive) {
+                    handleCancel();
+                  } else {
+                    onClose();
+                  }
                 }}
+                accessibilityLabel={'Close'}
               >
-                <Ionicons name="chevron-up" size={24} color={theme.primary} />
-              </RNAnimated.View>
-              
-              <View style={[styles.lockIconContainer, { backgroundColor: theme.primary }]}>
-                <Ionicons name="lock-closed" size={22} color="#fff" />
-              </View>
-              
-              <RNAnimated.View
-                style={{
-                  opacity: chevronAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 0.3],
-                  }),
-                  transform: [{
-                    translateY: chevronAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-4, 4],
-                    }),
-                  }],
-                  marginTop: 4,
-                  marginBottom: 8,
-                }}
-              >
-                <Ionicons name="chevron-up" size={24} color={theme.primary} />
-              </RNAnimated.View>
-              
-              <Text style={[styles.lockText, { color: theme.textSecondary }]}>
-                {t('voice.recording.slide_up_lock', { defaultValue: 'Slide up to lock' })}
-              </Text>
-            </View>
-          </Reanimated.View>
-
-        {/* Main recording area */}
+                <Ionicons name="close" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={() => setMinimized((m) => !m)} accessibilityLabel={minimized ? 'Expand' : 'Minimize'}>
+              <Ionicons name={minimized ? 'chevron-up' : 'chevron-down'} size={22} color={theme.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {!minimized && (
         <PanGestureHandler onGestureEvent={gestureHandler} enabled={!isLocked}>
           <Reanimated.View style={[styles.recordingArea, animatedButtonStyles]}>
           {/* Recording indicator and timer */}
@@ -300,7 +321,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
                 {t('voice.recording.starting', { defaultValue: 'Starting...' })}
               </Text>
             ) : (
-              <View style={styles.timerContainer}>
+              <View style={[styles.timerContainer, { justifyContent: 'center' }]}>
                 <RNAnimated.View
                   style={[
                     styles.recordingDot,
@@ -310,7 +331,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
                     },
                   ]}
                 />
-                <Text style={[styles.timer, { color: theme.text }]}>
+                <Text style={[styles.timerLarge, { color: theme.text }]}>
                   {formatTime(vc.timerMs)}
                 </Text>
               </View>
@@ -321,6 +342,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
                 <Ionicons name="lock-closed" size={16} color={theme.textSecondary} />
               </View>
             )}
+            {/* Minimal UI: no extra hints to keep it clean */}
           </View>
 
           {/* Waveform */}
@@ -342,16 +364,10 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
             ))}
           </View>
 
-          {/* WhatsApp-style recording hint */}
-          {!isLocked && (
-            <View style={styles.slideHint}>
-              <Text style={[styles.slideText, { color: theme.textSecondary }]}>
-                {t('voice.recording.hold_to_record', { defaultValue: 'Hold to record • Slide up to lock' })}
-              </Text>
-            </View>
-          )}
+          {/* Hint removed to avoid overlap with action row */}
           </Reanimated.View>
         </PanGestureHandler>
+        )}
 
         {/* Locked controls like WhatsApp */}
           {isLocked && (
@@ -378,11 +394,46 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
         <View style={styles.actions}>
           {!isLocked && (
             <>
-              {/* Mic icon (centered when not locked) */}
+              {/* Cancel/Close on the left (red) */}
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: theme.error }]}
+                onPress={() => {
+                  const isActive = vc.state === 'listening' || vc.state === 'prewarm' || vc.state === 'transcribing';
+                  if (isActive) {
+                    handleCancel();
+                  } else {
+                    onClose();
+                  }
+                }}
+                activeOpacity={0.9}
+              >
+                <Ionicons name="close" size={18} color={'#fff'} />
+                <Text style={[styles.cancelText, { color: '#fff' }]}>
+                  {(vc.state === 'listening' || vc.state === 'prewarm' || vc.state === 'transcribing') ? t('voice.controls.cancel', { defaultValue: 'Cancel' }) : t('voice.controls.close', { defaultValue: 'Close' })}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Mic / Send on the right */}
               <View style={styles.micContainer}>
-                <View style={[styles.micButton, { backgroundColor: theme.primary }]}>
-                  <Ionicons name="mic" size={32} color="#fff" />
-                </View>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={async () => {
+                    try {
+                      if (vc.state === 'listening' || vc.state === 'prewarm') {
+                        await handleSend();
+                      } else {
+                        const ok = await ensureMicPermission();
+                        if (!ok) return;
+                        await vc.startPress();
+                      }
+                    } catch {}
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <View style={[styles.micButton, { backgroundColor: theme.primary }]}>
+                    <Ionicons name={(vc.state === 'listening' || vc.state === 'prewarm') ? 'send' : 'mic'} size={26} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
             </>
           )}
@@ -398,17 +449,22 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   container: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 50,
-    paddingBottom: Platform.OS === 'ios' ? 50 : 30,
-    paddingHorizontal: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+    paddingHorizontal: 20,
     minHeight: 340,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
+    shadowOffset: { width: 0, height: -6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
-    elevation: 12,
+    elevation: 16,
+  },
+  containerMini: {
+    minHeight: 96,
+    paddingTop: 6,
+    paddingBottom: 6,
   },
   lockIndicator: {
     position: 'absolute',
@@ -435,27 +491,44 @@ const styles = StyleSheet.create({
   recordingArea: {
     flex: 1,
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   recordingDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginRight: 14,
   },
   timer: {
-    fontSize: 32,
+    fontSize: 22,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
     letterSpacing: 1,
+  },
+  timerLarge: {
+    fontSize: 36,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 2,
+  },
+  timerMini: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   lockedIndicator: {
     padding: 4,
@@ -464,14 +537,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 80,
-    gap: 3,
-    marginVertical: 24,
+    height: 90,
+    gap: 4,
+    marginVertical: 28,
   },
   waveformBar: {
-    width: 4,
-    borderRadius: 2.5,
-    minHeight: 8,
+    width: 3.5,
+    borderRadius: 2,
+    minHeight: 10,
   },
   slideHint: {
     flexDirection: 'row',
@@ -489,7 +562,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    paddingHorizontal: 4,
   },
   actionButton: {
     width: 56,
@@ -499,25 +574,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   micContainer: {
-    flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   micButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -539,5 +614,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 24,
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 28,
+    minWidth: 120,
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  cancelText: {
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

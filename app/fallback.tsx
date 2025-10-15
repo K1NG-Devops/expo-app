@@ -2,30 +2,32 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 
 // Fallback component for blank screen issues
 export default function FallbackScreen() {
+  const { t } = useTranslation();
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.title}>EduDash Pro</Text>
-        <Text style={styles.subtitle}>Loading issue detected</Text>
+        <Text style={styles.title}>{t('app.fullName', { defaultValue: 'EduDash Pro' })}</Text>
+        <Text style={styles.subtitle}>{t('fallback.loading_issue', { defaultValue: 'Loading issue detected' })}</Text>
         <Text style={styles.description}>
-          The app is having trouble loading. This might be due to network connectivity or configuration issues.
+          {t('fallback.description', { defaultValue: 'The app is having trouble loading. This might be due to network connectivity or configuration issues.' })}
         </Text>
         
         <TouchableOpacity 
           style={styles.button} 
           onPress={() => router.replace('/(auth)/sign-in')}
         >
-          <Text style={styles.buttonText}>Go to Sign In</Text>
+          <Text style={styles.buttonText}>{t('fallback.go_to_sign_in', { defaultValue: 'Go to Sign In' })}</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.button, styles.retryButton]} 
           onPress={() => router.replace('/')}
         >
-          <Text style={styles.buttonText}>Retry</Text>
+          <Text style={styles.buttonText}>{t('common.retry', { defaultValue: 'Retry' })}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

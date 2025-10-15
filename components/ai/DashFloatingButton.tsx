@@ -1,6 +1,13 @@
 /**
  * Dash AI Assistant Floating Action Button
  * 
+ * @deprecated This is the legacy basic FAB component.
+ * For new implementations, use DashVoiceFloatingButton (voice-enabled, actively maintained)
+ * or DashFloatingButtonEnhanced (advanced features, requires fixes before use).
+ * 
+ * Current status: Maintained for backward compatibility only.
+ * Active usage: None (replaced by DashVoiceFloatingButton in _layout.tsx)
+ * 
  * A floating button that provides quick access to the Dash AI Assistant
  * from anywhere in the app with animated interactions.
  */
@@ -17,11 +24,13 @@ import {
   PanResponder,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BrandGradients } from '@/components/branding';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -309,28 +318,34 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
       ]}
     >
       {/* Tooltip */}
-      {showTooltip && (
-        <Animated.View
-          style={[
-            styles.tooltip,
-            {
-              backgroundColor: theme.cardBackground,
-              borderColor: theme.border,
-              opacity: tooltipAnimation,
-              transform: [{ scale: tooltipAnimation }],
-            },
-            position.includes('right') ? styles.tooltipRight : styles.tooltipLeft,
-          ]}
-          pointerEvents="none"
-        >
-          <Text style={[styles.tooltipText, { color: theme.text }]}>
-            Hi! I'm Dash, your AI assistant
-          </Text>
-          <Text style={[styles.tooltipSubtext, { color: theme.textSecondary }]}>
-            Tap to chat with me!
-          </Text>
-        </Animated.View>
-      )}
+      {showTooltip && (() => {
+        // @ts-ignore - get current pan position
+        const currentX = pan.x._value;
+        const isOnLeftSide = currentX < -(screenWidth / 3);
+        
+        return (
+          <Animated.View
+            style={[
+              styles.tooltip,
+              {
+                backgroundColor: theme.cardBackground,
+                borderColor: theme.border,
+                opacity: tooltipAnimation,
+                transform: [{ scale: tooltipAnimation }],
+              },
+              isOnLeftSide ? styles.tooltipRight : styles.tooltipLeft,
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={[styles.tooltipText, { color: theme.text }]}>
+              Hi! I'm Dash, your AI assistant
+            </Text>
+            <Text style={[styles.tooltipSubtext, { color: theme.textSecondary }]}>
+              Tap to chat with me!
+            </Text>
+          </Animated.View>
+        );
+      })()}
 
       {/* Main Button */}
       <Animated.View
@@ -344,44 +359,39 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
           },
         ]}
       >
-        <TouchableOpacity
+        <Animated.View
           style={[
             styles.button,
             {
-              backgroundColor: theme.primary,
+              backgroundColor: '#ffffff',
               shadowColor: theme.shadow,
               elevation: isPressed ? 4 : 8,
             },
           ]}
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={0.8}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {/* Sparkle icon with gradient effect */}
+          {/* New Dash Logo */}
           <View style={styles.iconContainer}>
-            <Ionicons
-              name="sparkles"
-              size={28}
-              color={theme.onPrimary}
+            <Image
+              source={require('@/assets/branding/png/icon-512.png')}
+              style={styles.logoImage}
+              contentFit="contain"
             />
             
-            {/* Animated glow effect */}
+            {/* Animated glow effect with brand gradient */}
             <Animated.View
               style={[
                 styles.glowEffect,
                 {
-                  backgroundColor: theme.primaryLight,
                   opacity: pulseAnimation.interpolate({
                     inputRange: [1, 1.05],
-                    outputRange: [0, 0.3],
+                    outputRange: [0.2, 0.5],
                   }),
                 },
               ]}
+              pointerEvents="none"
             />
           </View>
-        </TouchableOpacity>
+        </Animated.View>
       </Animated.View>
 
       {/* Ripple effect overlay */}
@@ -425,12 +435,19 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    width: 56,
+    height: 56,
+  },
+  logoImage: {
+    width: 48,
+    height: 48,
   },
   glowEffect: {
     position: 'absolute',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#33C3D4',
     zIndex: -1,
   },
   rippleEffect: {

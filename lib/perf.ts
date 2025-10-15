@@ -5,6 +5,8 @@
  * without adding significant overhead to the runtime bundle.
  */
 
+import React from 'react';
+
 const marks = new Map<string, number>();
 
 /**

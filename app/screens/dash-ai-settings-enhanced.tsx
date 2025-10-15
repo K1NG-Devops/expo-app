@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,9 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
-import * as Speech from 'expo-speech';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { initAndMigrate, setVoicePrefs, normalizeLanguageCode, resolveDefaultVoiceId } from '@/lib/ai/dashSettings';
 
 export default function DashAISettingsEnhancedScreen() {
   const { theme } = useTheme();
@@ -88,10 +88,9 @@ export default function DashAISettingsEnhancedScreen() {
     reducedMotion: false
   });
   
-  const [availableVoices, setAvailableVoices] = useState<any[]>([]);
   const [streamingPref, setStreamingPref] = useState<boolean>(false);
-  useEffect(() => { (async () => { try { const v = await AsyncStorage.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPref(v === 'true'); } catch {} })(); }, []);
-  const toggleStreamingPref = async (v: boolean) => { setStreamingPref(v); try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch {} };
+  useEffect(() => { (async () => { try { const v = await AsyncStorage.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPref(v === 'true'); } catch (e) { if (__DEV__) console.warn('[Dash Settings] load streaming pref', e); } })(); }, []);
+  const toggleStreamingPref = async (v: boolean) => { setStreamingPref(v); try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch (e) { if (__DEV__) console.warn('[Dash Settings] save streaming pref', e); } };
   const [expandedSections, setExpandedSections] = useState({
     personality: false,
     voice: false,
@@ -103,14 +102,12 @@ export default function DashAISettingsEnhancedScreen() {
     accessibility: false
   });
 
-  useEffect(() => {
-    initializeDashAI();
-  }, []);
-
-  const initializeDashAI = async () => {
+  const initializeDashAI = useCallback(async () => {
     try {
       setLoading(true);
       await dashAI.initialize();
+      // One-time migrate legacy keys into SSOT (no-op after first run)
+      try { await initAndMigrate(); } catch (e) { if (__DEV__) console.warn('[Dash Settings] migration warn', e); }
       
       // Load current settings from DashAI service
       const personality = dashAI.getPersonality();
@@ -132,23 +129,20 @@ export default function DashAISettingsEnhancedScreen() {
       };
       
       setSettings(loadedSettings);
-      console.log('📋 Enhanced settings loaded from DashAI:', loadedSettings);
-      
-      // Load available voices for the platform
-      try {
-        const voices = await Speech.getAvailableVoicesAsync();
-        setAvailableVoices(voices);
-        console.log('🎤 Available voices:', voices.length);
-      } catch (error) {
-        console.warn('Failed to load available voices:', error);
-      }
+      if (__DEV__) console.log('📋 Enhanced settings loaded from DashAI:', loadedSettings);
     } catch (error) {
       console.error('Failed to initialize Dash AI:', error);
       Alert.alert('Error', 'Failed to load enhanced Dash AI settings');
     } finally {
       setLoading(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashAI]);
+
+  useEffect(() => {
+    initializeDashAI();
+  }, [initializeDashAI]);
+
 
   const handleSettingsChange = (key: string, value: any) => {
     setSettings(prev => ({
@@ -182,7 +176,26 @@ export default function DashAISettingsEnhancedScreen() {
       };
       
       await dashAI.savePersonality(dashPersonality);
-      console.log('✅ Enhanced settings saved to DashAI');
+
+      // Persist voice prefs to SSOT (Supabase voice_preferences)
+      try {
+        const langNorm = normalizeLanguageCode(settings.voiceLanguage);
+        // If a provider-specific voice name was selected, keep it; otherwise map by gender
+        const isProviderVoice = /Neural$/i.test(settings.voiceType || '');
+        const gender = settings.voiceType === 'male' ? 'male' : settings.voiceType === 'female' ? 'female' : 'female';
+        const voice_id = isProviderVoice ? settings.voiceType : resolveDefaultVoiceId(langNorm, gender as any);
+        await setVoicePrefs({
+          language: langNorm as any,
+          voice_id,
+          speaking_rate: settings.voiceRate,
+          pitch: settings.voicePitch,
+          volume: settings.voiceVolume,
+        });
+      } catch (e) {
+        console.warn('[Dash AI Enhanced] Failed to persist voice preferences:', e);
+      }
+
+      if (__DEV__) console.log('✅ Enhanced settings saved to DashAI & voice_preferences');
       
       Alert.alert(
         'Settings Saved',
@@ -202,94 +215,22 @@ export default function DashAISettingsEnhancedScreen() {
 
   const testVoiceAdvanced = async () => {
     try {
-      console.log('[Enhanced Voice Test] Testing advanced TTS voice settings', {
-        platform: Platform.OS,
-        voiceType: settings.voiceType
-      });
-      
-      // Determine target voice gender from settings
-      const targetGender = settings.voiceType || 'male';
-      console.log('[Enhanced Voice Test] Target gender:', targetGender);
-      
-      // Platform-specific voice handling
-      let selectedVoice = undefined;
-      let adjustedPitch = settings.voicePitch;
-      let adjustedRate = settings.voiceRate;
-      
-      if (Platform.OS === 'android') {
-        // Android: Use pitch modulation instead of voice identifier
-        if (targetGender === 'male') {
-          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85); // Lower pitch for male
-          console.log('[Enhanced Voice Test] Android: Using MALE voice simulation with pitch:', adjustedPitch);
-        } else {
-          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15); // Higher pitch for female
-          console.log('[Enhanced Voice Test] Android: Using FEMALE voice simulation with pitch:', adjustedPitch);
-        }
-      } else {
-        // iOS: Try to find specific voice identifier
-        if (availableVoices.length > 0) {
-          const languageCode = settings.voiceLanguage.substring(0, 2);
-          const matchingVoices = availableVoices.filter(voice => 
-            voice.language?.startsWith(languageCode)
-          );
-          
-          console.log('[Enhanced Voice Test] iOS: Found', matchingVoices.length, 'voices for', languageCode);
-          
-          if (matchingVoices.length > 0) {
-            if (targetGender === 'male') {
-              const maleVoice = matchingVoices.find(voice => 
-                voice.name?.toLowerCase().includes('male') || 
-                voice.name?.toLowerCase().includes('man') ||
-                voice.gender === 'male'
-              );
-              selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
-              console.log('[Enhanced Voice Test] iOS: Selected MALE voice:', maleVoice?.name || selectedVoice);
-            } else {
-              const femaleVoice = matchingVoices.find(voice => 
-                voice.name?.toLowerCase().includes('female') || 
-                voice.name?.toLowerCase().includes('woman') ||
-                voice.gender === 'female'
-              );
-              selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
-              console.log('[Enhanced Voice Test] iOS: Selected FEMALE voice:', femaleVoice?.name || selectedVoice);
-            }
-          }
-        }
-      }
-      
       const personalityMessages = {
-        'professional': 'Good day. I\'m Dash, your professional AI teaching assistant. I\'m ready to help with your educational needs.',
-        'casual': 'Hey there! I\'m Dash, your friendly AI buddy. Ready to learn something awesome together?',
-        'encouraging': 'Hello! I\'m Dash, and I\'m here to support you every step of the way. You\'re doing great!',
-        'formal': 'Greetings. I am Dash, your dedicated educational assistant. I am prepared to assist with your academic endeavors.'
+        professional: "Good day. I'm Dash, your professional AI teaching assistant. I'm ready to help with your educational needs.",
+        casual: "Hey there! I'm Dash, your friendly AI buddy. Ready to learn something awesome together?",
+        encouraging: "Hello! I'm Dash, and I'm here to support you every step of the way. You're doing great!",
+        formal: "Greetings. I am Dash, your dedicated educational assistant. I am prepared to assist with your academic endeavors.",
+      } as const;
+
+      const content = (personalityMessages as any)[settings.personality] || personalityMessages.encouraging;
+      const msg = {
+        id: `msg_test_${Date.now()}`,
+        type: 'assistant' as const,
+        content,
+        timestamp: Date.now(),
       };
-      
-      const testMessage = personalityMessages[settings.personality] || personalityMessages['encouraging'];
-      
-      const speechOptions: any = {
-        language: settings.voiceLanguage,
-        pitch: adjustedPitch,
-        rate: adjustedRate,
-        volume: settings.voiceVolume,
-        onStart: () => {
-          console.log('[Enhanced Voice Test] Started speaking', { voice: selectedVoice || 'default', pitch: adjustedPitch });
-        },
-        onDone: () => {
-          console.log('[Enhanced Voice Test] Finished speaking');
-          Alert.alert('Voice Test', 'Voice test completed successfully!');
-        },
-        onError: (error: any) => {
-          console.error('[Enhanced Voice Test] Speech error:', error);
-          Alert.alert('Voice Test Error', 'Could not test voice settings. Please check device audio.');
-        }
-      };
-      
-      // Only add voice parameter on iOS
-      if (Platform.OS === 'ios' && selectedVoice) {
-        speechOptions.voice = selectedVoice;
-      }
-      
-      await Speech.speak(testMessage, speechOptions);
+      await dashAI.speakResponse(msg as any);
+      Alert.alert('Voice Test', 'Voice test completed successfully!');
     } catch (error) {
       console.error('[Enhanced Voice Test] Failed:', error);
       Alert.alert('Voice Test Failed', 'Could not test advanced voice settings');
@@ -370,7 +311,7 @@ export default function DashAISettingsEnhancedScreen() {
         [
           { text: 'Copy to Clipboard', onPress: () => {
             // Clipboard.setString(settingsJSON);
-            console.log('Settings JSON:', settingsJSON);
+            if (__DEV__) console.log('Settings JSON:', settingsJSON);
           }},
           { text: 'OK' }
         ]
@@ -657,52 +598,145 @@ export default function DashAISettingsEnhancedScreen() {
               ]
             )}
 
-            <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
-              <View style={styles.settingInfo}>
-                <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
-                <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
-                  {Platform.OS === 'android' 
-                    ? 'Android: Voice distinction simulated using pitch modulation'
-                    : 'iOS: Uses device-specific voice packs'}
-                </Text>
-              </View>
-              <View style={styles.pickerContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.pickerOption,
-                    { 
-                      backgroundColor: settings.voiceType === 'male' ? theme.primary : 'transparent',
-                      borderColor: theme.border
-                    }
-                  ]}
-                  onPress={() => handleSettingsChange('voiceType', 'male')}
-                >
-                  <Text style={[
-                    styles.pickerOptionText,
-                    { color: settings.voiceType === 'male' ? 'white' : theme.text }
-                  ]}>
-                    👨 Male
+            {/* Azure Neural Voice Names (for Afrikaans/Zulu) */}
+            {(settings.voiceLanguage === 'af' || settings.voiceLanguage === 'zu') && (
+              <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>Azure Neural Voice</Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+                    {settings.voiceLanguage === 'af' ? 'Premium Afrikaans voices' : 'Premium isiZulu voices'}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.pickerOption,
-                    { 
-                      backgroundColor: settings.voiceType === 'female' ? theme.primary : 'transparent',
-                      borderColor: theme.border
-                    }
-                  ]}
-                  onPress={() => handleSettingsChange('voiceType', 'female')}
-                >
-                  <Text style={[
-                    styles.pickerOptionText,
-                    { color: settings.voiceType === 'female' ? 'white' : theme.text }
-                  ]}>
-                    👩 Female
-                  </Text>
-                </TouchableOpacity>
+                </View>
+                <View style={{ flexDirection: 'column', gap: 8 }}>
+                  {settings.voiceLanguage === 'af' && (
+                    <>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'af-ZA-AdriNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'af-ZA-AdriNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'af-ZA-AdriNeural' ? 'white' : theme.text }
+                        ]}>
+                          👩 Adri (Female)
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'af-ZA-WillemNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'af-ZA-WillemNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'af-ZA-WillemNeural' ? 'white' : theme.text }
+                        ]}>
+                          👨 Willem (Male)
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {settings.voiceLanguage === 'zu' && (
+                    <>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'zu-ZA-ThembaNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'zu-ZA-ThembaNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'zu-ZA-ThembaNeural' ? 'white' : theme.text }
+                        ]}>
+                          👨 Themba (Male)
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'zu-ZA-ThandoNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'zu-ZA-ThandoNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'zu-ZA-ThandoNeural' ? 'white' : theme.text }
+                        ]}>
+                          👩 Thando (Female)
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
               </View>
-            </View>
+            )}
+
+            {/* Generic Voice Gender (for English and other languages) */}
+            {settings.voiceLanguage !== 'af' && settings.voiceLanguage !== 'zu' && (
+              <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
+                <View style={styles.settingInfo}>
+                  <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+                    {Platform.OS === 'android' 
+                      ? 'Android: Voice distinction simulated using pitch modulation'
+                      : 'iOS: Uses device-specific voice packs'}
+                  </Text>
+                </View>
+                <View style={styles.pickerContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerOption,
+                      { 
+                        backgroundColor: settings.voiceType === 'male' ? theme.primary : 'transparent',
+                        borderColor: theme.border
+                      }
+                    ]}
+                    onPress={() => handleSettingsChange('voiceType', 'male')}
+                  >
+                    <Text style={[
+                      styles.pickerOptionText,
+                      { color: settings.voiceType === 'male' ? 'white' : theme.text }
+                    ]}>
+                      👨 Male
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerOption,
+                      { 
+                        backgroundColor: settings.voiceType === 'female' ? theme.primary : 'transparent',
+                        borderColor: theme.border
+                      }
+                    ]}
+                    onPress={() => handleSettingsChange('voiceType', 'female')}
+                  >
+                    <Text style={[
+                      styles.pickerOptionText,
+                      { color: settings.voiceType === 'female' ? 'white' : theme.text }
+                    ]}>
+                      👩 Female
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
             {renderSliderSetting(
               'voiceRate',

@@ -1,3 +1,4 @@
+import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
@@ -74,6 +75,32 @@ export default function RootLayout() {
       trackAppLaunch();
     } catch {
       // Optional telemetry; ignore failures to avoid impacting UX
+    }
+
+    // Pre-warm audio recorder on mobile for faster FAB voice interaction
+    if (Platform.OS !== 'web') {
+      try {
+        // Initialize audio manager early
+        import('@/lib/voice/audio').then(({ audioManager }) => {
+          audioManager.initialize().catch((err) => {
+            if (__DEV__) {
+              console.log('[App] Audio manager pre-warm failed:', err);
+            }
+          });
+        }).catch(() => {});
+
+        // Pre-warm Dash AI recorder
+        import('@/services/DashAIAssistant').then(({ DashAIAssistant }) => {
+          const dash = DashAIAssistant.getInstance();
+          dash.preWarmRecorder().catch((err) => {
+            if (__DEV__) {
+              console.log('[App] Dash recorder pre-warm failed:', err);
+            }
+          });
+        }).catch(() => {});
+      } catch (e) {
+        // Non-critical; ignore
+      }
     }
 
     if (Platform.OS === 'web') {
@@ -221,16 +248,18 @@ export default function RootLayout() {
                   >
                     {/* Let Expo Router auto-discover screens */}
                   </Stack>
-            </GestureHandlerRootView>
-            
-            {/* OTA Update Banner */}
-            <GlobalUpdateBanner />
-            
-            {/* Voice-Enabled Dash Floating Button (Global Access) */}
-            {!isAuthRoute && <DashVoiceFloatingButton showWelcomeMessage={true} />}
-            
-            {/* Platform-specific components */}
-              {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
+                  
+                  {/* OTA Update Banner */}
+                  <GlobalUpdateBanner />
+                  
+                  {/* Voice-Enabled Dash Floating Button (Global Access) */}
+                  {(!isAuthRoute && !(pathname || '').includes('dash-assistant')) && (
+                    <DashVoiceFloatingButton showWelcomeMessage={true} />
+                  )}
+                  
+                  {/* Platform-specific components */}
+                  {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
+                  </GestureHandlerRootView>
             </DashboardPreferencesProvider>
               </ToastProvider>
           </ThemeProvider>

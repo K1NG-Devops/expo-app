@@ -18,6 +18,7 @@ import { adminUpdateSubscriptionPlan, listActivePlans, type SubscriptionPlan } f
 import { createCheckout } from '@/lib/payments';
 import { track } from '@/lib/analytics';
 import { Linking } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
 interface Subscription {
   id: string;
@@ -49,6 +50,7 @@ export default function PlanChangeModal({
   onSuccess,
 }: PlanChangeModalProps) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [plansLoading, setPlansLoading] = useState(false);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -491,10 +493,10 @@ export default function PlanChangeModal({
             style={[styles.backButton, { backgroundColor: theme.primary }]}
             onPress={onClose}
           >
-            <Text style={[styles.backButtonText, { color: theme.onPrimary }]}>← Back</Text>
+<Text style={[styles.backButtonText, { color: theme.onPrimary }]}>{t('navigation.back', { defaultValue: 'Back' })}</Text>
           </TouchableOpacity>
           <Text style={[styles.title, { color: theme.text }]}>
-            Change Plan - {school.name}
+{t('subscription.changePlanFor', { name: school?.name, defaultValue: 'Change Plan - {{name}}' })}
           </Text>
           <TouchableOpacity
             style={[styles.closeButton, { backgroundColor: theme.surface }]}
@@ -508,28 +510,28 @@ export default function PlanChangeModal({
           {/* Current Plan Summary */}
           {currentPlan && (
             <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={[styles.summaryTitle, { color: theme.text }]}>Current Plan</Text>
+<Text style={[styles.summaryTitle, { color: theme.text }]}>{t('subscription.currentPlan', { defaultValue: 'Current Plan' })}</Text>
               <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
                 {currentPlan.name} • {subscription.billing_frequency} • {subscription.seats_total} seats
               </Text>
               <Text style={[styles.summaryPrice, { color: theme.textSecondary }]}>
-                R{currentPrice}/{subscription.billing_frequency === 'annual' ? 'year' : 'month'}
+R{currentPrice}/{subscription.billing_frequency === 'annual' ? t('time.year', { defaultValue: 'year' }) : t('time.month', { defaultValue: 'month' })}
               </Text>
             </View>
           )}
 
           {/* Plan Selection */}
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            Select New Plan ({plans.length} available)
+{t('subscription.selectNewPlan', { count: plans.length, defaultValue: 'Select New Plan ({{count}} available)' })}
           </Text>
           <Text style={[styles.sectionSubtitle, { color: theme.textTertiary }]}>
-            Plans are ordered from lowest to highest tier
+            {t('subscription.planOrderHint', { defaultValue: 'Plans are ordered from lowest to highest tier' })}
           </Text>
           
           {plansLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.primary} />
-              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>Loading plans...</Text>
+              <Text style={[styles.loadingText, { color: theme.textSecondary }]}>{t('pricing.loading', { defaultValue: 'Loading pricing plans...' })}</Text>
             </View>
           ) : (
             <>
@@ -538,7 +540,7 @@ export default function PlanChangeModal({
           )}
 
           {/* Billing Frequency */}
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Billing Frequency</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('subscription.billingFrequency', { defaultValue: 'Billing Frequency' })}</Text>
           <View style={styles.billingRow}>
             {(['monthly', 'annual'] as const).map((freq) => (
               <TouchableOpacity
@@ -555,30 +557,30 @@ export default function PlanChangeModal({
                   { color: theme.textSecondary },
                   billingFrequency === freq && { color: theme.primary, fontWeight: '700' }
                 ]}>
-                  {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                  {t(`subscription.billing_${freq}`, { defaultValue: freq.charAt(0).toUpperCase() + freq.slice(1) })}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
           {/* Seats */}
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Number of Seats</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('subscription.numberOfSeats', { defaultValue: 'Number of Seats' })}</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
             value={seatsTotal}
             onChangeText={setSeatsTotal}
             keyboardType="numeric"
-            placeholder="Enter number of seats"
+            placeholder={t('subscription.enterSeats', { defaultValue: 'Enter number of seats' })}
             placeholderTextColor={theme.textTertiary}
           />
 
           {/* Reason (Optional) */}
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Reason (Optional)</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('subscription.reasonOptional', { defaultValue: 'Reason (Optional)' })}</Text>
           <TextInput
             style={[styles.reasonInput, { backgroundColor: theme.surface, color: theme.text, borderColor: theme.border }]}
             value={reason}
             onChangeText={setReason}
-            placeholder="Reason for plan change..."
+            placeholder={t('subscription.reasonPlaceholder', { defaultValue: 'Reason for plan change...' })}
             placeholderTextColor={theme.textTertiary}
             multiline
             numberOfLines={3}
@@ -588,35 +590,35 @@ export default function PlanChangeModal({
           {newPlan && (
             <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.primary }]}>
               <View style={styles.summaryHeader}>
-                <Text style={[styles.summaryTitle, { color: theme.text }]}>Change Summary</Text>
+                <Text style={[styles.summaryTitle, { color: theme.text }]}>{t('subscription.changeSummary', { defaultValue: 'Change Summary' })}</Text>
                 {newPrice > currentPrice && (
                   <View style={[styles.upgradeBadge, { backgroundColor: theme.primary + '20' }]}>
-                    <Text style={[styles.upgradeBadgeText, { color: theme.primary }]}>UPGRADE</Text>
+                    <Text style={[styles.upgradeBadgeText, { color: theme.primary }]}>{t('subscription.upgrade', { defaultValue: 'UPGRADE' })}</Text>
                   </View>
                 )}
                 {newPrice < currentPrice && (
                   <View style={[styles.downgradeBadge, { backgroundColor: '#ef4444' + '20' }]}>
-                    <Text style={[styles.downgradeBadgeText, { color: '#ef4444' }]}>DOWNGRADE</Text>
+                    <Text style={[styles.downgradeBadgeText, { color: '#ef4444' }]}>{t('subscription.downgrade', { defaultValue: 'DOWNGRADE' })}</Text>
                   </View>
                 )}
               </View>
               
               <View style={styles.changeRow}>
-                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Plan</Text>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>{t('subscription.plan', { defaultValue: 'Plan' })}</Text>
                 <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
                   {currentPlan?.name || 'Unknown'} → {newPlan.name}
                 </Text>
               </View>
               
               <View style={styles.changeRow}>
-                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Billing</Text>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>{t('subscription.billing', { defaultValue: 'Billing' })}</Text>
                 <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
                   {subscription.billing_frequency} → {billingFrequency}
                 </Text>
               </View>
               
               <View style={styles.changeRow}>
-                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>Seats</Text>
+                <Text style={[styles.changeLabel, { color: theme.textTertiary }]}>{t('subscription.seatsLabel', { defaultValue: 'Seats' })}</Text>
                 <Text style={[styles.summaryText, { color: theme.textSecondary }]}>
                   {subscription.seats_total} → {seatsTotal} seats
                 </Text>
@@ -624,7 +626,7 @@ export default function PlanChangeModal({
               
               <View style={[styles.priceRow, { borderTopColor: theme.border }]}>
                 <Text style={[styles.summaryPrice, { color: theme.primary }]}>
-                  R{currentPrice} → R{newPrice}/{billingFrequency === 'annual' ? 'year' : 'month'}
+                  R{currentPrice} → R{newPrice}/{billingFrequency === 'annual' ? t('time.year', { defaultValue: 'year' }) : t('time.month', { defaultValue: 'month' })}
                 </Text>
                 {newPrice > currentPrice && (
                   <Text style={[styles.priceIncrease, { color: theme.primary }]}>
@@ -637,7 +639,7 @@ export default function PlanChangeModal({
                 <View style={[styles.paymentNotice, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
                   <Text style={[styles.paymentIcon, { color: theme.primary }]}>💳</Text>
                   <Text style={[styles.billingNote, { color: theme.primary, flex: 1 }]}>
-                    Payment required - The school principal will be notified via email and push notification to complete payment via PayFast.
+                    {t('subscription.paymentRequiredNotice', { defaultValue: 'Payment required - The school principal will be notified via email and push notification to complete payment via PayFast.' })}
                   </Text>
                 </View>
               )}
@@ -651,7 +653,7 @@ export default function PlanChangeModal({
             style={[styles.cancelButton, { borderColor: theme.border }]}
             onPress={onClose}
           >
-            <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>Cancel</Text>
+            <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>{t('common.cancel', { defaultValue: 'Cancel' })}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -683,7 +685,7 @@ export default function PlanChangeModal({
             {loading ? (
               <View style={styles.buttonContent}>
                 <ActivityIndicator size="small" color={theme.onPrimary} style={{ marginRight: 8 }} />
-                <Text style={[styles.confirmButtonText, { color: theme.onPrimary }]}>Processing...</Text>
+                <Text style={[styles.confirmButtonText, { color: theme.onPrimary }]}>{t('common.processing', { defaultValue: 'Processing...' })}</Text>
               </View>
             ) : (
               <View style={styles.buttonContent}>
@@ -703,7 +705,7 @@ export default function PlanChangeModal({
                   </Text>
                 )}
                 <Text style={[styles.confirmButtonText, { color: theme.onPrimary }]}>
-                  {buttonMessage || (isPaymentRequired() ? 'Notify School to Pay' : 'Confirm Change')}
+{buttonMessage || (isPaymentRequired() ? t('subscription.notifySchoolToPay', { defaultValue: 'Notify School to Pay' }) : t('subscription.confirmChange', { defaultValue: 'Confirm Change' }))}
                 </Text>
               </View>
             )}

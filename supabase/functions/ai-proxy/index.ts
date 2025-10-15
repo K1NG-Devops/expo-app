@@ -28,6 +28,10 @@ interface AIProxyRequest {
     prompt?: string
     context?: string
     audio_url?: string  // For transcription requests
+    images?: Array<{
+      data: string  // base64-encoded image
+      media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+    }>
     metadata?: Record<string, any>
   }
   metadata?: {
@@ -115,14 +119,79 @@ async function checkQuota(
   }
 }
 
-async function callClaude(prompt: string): Promise<{
+type ClaudeModel = 'claude-3-haiku-20240307' | 'claude-3-5-sonnet-20241022'
+type SubscriptionTier = 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise'
+
+// Model pricing per million tokens
+const MODEL_PRICING = {
+  'claude-3-haiku-20240307': {
+    input: 0.00000025,   // $0.25/1M
+    output: 0.00000125,  // $1.25/1M
+  },
+  'claude-3-5-sonnet-20241022': {
+    input: 0.000003,     // $3.00/1M
+    output: 0.000015,    // $15.00/1M
+  }
+}
+
+// Tier-based model selection
+function selectModelForTier(tier: SubscriptionTier, hasImages: boolean): ClaudeModel {
+  // Vision requires Sonnet 3.5
+  if (hasImages) {
+    // Only Basic tier (R299) and above get vision
+    if (['basic', 'premium', 'pro', 'enterprise'].includes(tier)) {
+      return 'claude-3-5-sonnet-20241022'
+    }
+    throw new Error('Vision features require Basic subscription (R299) or higher')
+  }
+  
+  // For text-only, use Haiku for lower tiers, Sonnet for premium
+  if (['pro', 'enterprise'].includes(tier)) {
+    return 'claude-3-5-sonnet-20241022'
+  }
+  
+  return 'claude-3-haiku-20240307'
+}
+
+async function callClaude(
+  prompt: string,
+  tier: SubscriptionTier,
+  images?: Array<{ data: string; media_type: string }>
+): Promise<{
   content: string
   tokensIn: number
   tokensOut: number
   cost: number
+  model: string
 }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('Anthropic API key not configured')
+  }
+
+  const hasImages = images && images.length > 0
+  const model = selectModelForTier(tier, hasImages)
+  
+  // Build message content
+  let messageContent: any
+  if (hasImages) {
+    // Multi-modal message with images
+    messageContent = [
+      ...images.map(img => ({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.media_type,
+          data: img.data,
+        }
+      })),
+      {
+        type: 'text',
+        text: prompt
+      }
+    ]
+  } else {
+    // Text-only message
+    messageContent = prompt
   }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -133,12 +202,12 @@ async function callClaude(prompt: string): Promise<{
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-haiku-20240307', // Using Haiku for cost efficiency
+      model,
       max_tokens: 4096,
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: messageContent
         }
       ],
       system: 'You are an AI assistant helping with educational content. Always provide age-appropriate, safe, and helpful responses. Focus on learning outcomes and educational value.'
@@ -155,16 +224,16 @@ async function callClaude(prompt: string): Promise<{
   const tokensIn = result.usage?.input_tokens || 0
   const tokensOut = result.usage?.output_tokens || 0
   
-  // Claude 3 Haiku pricing
-  const costPerInputToken = 0.00000025  // $0.25/1M tokens
-  const costPerOutputToken = 0.00000125 // $1.25/1M tokens
-  const cost = (tokensIn * costPerInputToken) + (tokensOut * costPerOutputToken)
+  // Calculate cost based on model
+  const pricing = MODEL_PRICING[model]
+  const cost = (tokensIn * pricing.input) + (tokensOut * pricing.output)
 
   return {
     content: result.content[0]?.text || '',
     tokensIn,
     tokensOut,
-    cost
+    cost,
+    model
   }
 }
 
@@ -229,14 +298,15 @@ serve(async (req: Request): Promise<Response> => {
       )
     }
 
-    // Get user profile for preschool_id
+    // Get user profile for preschool_id and subscription tier
     const { data: profile } = await supabaseAdmin
       .from('users')
-      .select('preschool_id')
+      .select('preschool_id, subscription_tier')
       .eq('auth_user_id', user.id)
       .single()
 
     const preschoolId = profile?.preschool_id || null
+    const tier: SubscriptionTier = (profile?.subscription_tier?.toLowerCase() || 'free') as SubscriptionTier
     const startTime = Date.now()
 
     // Check quota before proceeding
@@ -266,9 +336,12 @@ serve(async (req: Request): Promise<Response> => {
     // Redact PII from prompt per WARP.md
     const { redactedText, redactionCount } = redactPII(payload.prompt)
     
+    // Extract images if present
+    const images = payload.images
+    
     // Call Claude API
     try {
-      const aiResult = await callClaude(redactedText)
+      const aiResult = await callClaude(redactedText, tier, images)
       
       // Log successful usage
       const { data: logData, error: logError } = await supabaseAdmin
@@ -278,7 +351,7 @@ serve(async (req: Request): Promise<Response> => {
           preschool_id: preschoolId,
           organization_id: preschoolId,
           service_type: service_type,
-          ai_model_used: 'claude-3-haiku-20240307',
+          ai_model_used: aiResult.model,
           status: 'success',
           input_tokens: aiResult.tokensIn,
           output_tokens: aiResult.tokensOut,
@@ -289,9 +362,12 @@ serve(async (req: Request): Promise<Response> => {
           metadata: {
             ...metadata,
             scope,
+            tier,
+            has_images: images && images.length > 0,
+            image_count: images?.length || 0,
             redaction_count: redactionCount,
-            input_cost: aiResult.tokensIn * 0.00000025,
-            output_cost: aiResult.tokensOut * 0.00000125
+            input_cost: aiResult.cost - (aiResult.tokensOut * MODEL_PRICING[aiResult.model as ClaudeModel].output),
+            output_cost: aiResult.tokensOut * MODEL_PRICING[aiResult.model as ClaudeModel].output
           }
         })
         .select('id')
@@ -325,7 +401,7 @@ serve(async (req: Request): Promise<Response> => {
           preschool_id: preschoolId,
           organization_id: preschoolId,
           service_type: service_type,
-          ai_model_used: 'claude-3-haiku-20240307',
+          ai_model_used: tier === 'free' || tier === 'starter' ? 'claude-3-haiku-20240307' : 'claude-3-5-sonnet-20241022',
           status: 'error',
           input_tokens: 0,
           output_tokens: 0,

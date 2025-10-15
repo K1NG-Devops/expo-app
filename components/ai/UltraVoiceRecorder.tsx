@@ -85,7 +85,7 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
   }));
   const waveformAnimation = useRef(new Animated.Value(0)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
-  const audioLevelIntervalRef = useRef<NodeJS.Timeout>();
+  const audioLevelIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Pre-warm audio system on mount for ultra-fast startup
   useEffect(() => {
@@ -286,7 +286,7 @@ export const UltraVoiceRecorder = ultraMemo<UltraVoiceRecorderProps>(({
   const stopAudioLevelMonitoring = useCallback(() => {
     if (audioLevelIntervalRef.current) {
       clearInterval(audioLevelIntervalRef.current);
-      audioLevelIntervalRef.current = undefined;
+      audioLevelIntervalRef.current = null;
     }
   }, []);
 

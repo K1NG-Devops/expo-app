@@ -31,7 +31,7 @@ export async function withTimeout<T>(
   const { fallback, signal, onTimeout } = options;
 
   return new Promise<T>((resolve, reject) => {
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let settled = false;
 
     // Handle abort signal
@@ -118,7 +118,7 @@ export function wait(ms: number, signal?: AbortSignal): Promise<void> {
       return;
     }
 
-    const timeoutId = setTimeout(() => {
+    const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
       if (signal) {
         signal.removeEventListener('abort', abortHandler);
       }
@@ -220,7 +220,7 @@ export function debounceAsync<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   delayMs: number
 ): T {
-  let timeoutId: NodeJS.Timeout | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let pendingPromise: Promise<any> | null = null;
 
   return ((...args: any[]) => {

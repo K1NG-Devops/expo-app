@@ -1,0 +1,32 @@
+name: Docs Policy Enforcement
+
+on:
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  enforce-docs-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed files
+        id: diff
+        run: |
+          git fetch origin ${GITHUB_BASE_REF} --depth=1 || true
+          # List changed files in the PR against the base branch
+          git diff --name-only origin/${GITHUB_BASE_REF}...HEAD > changed_files.txt || true
+          echo "Changed files:" && cat changed_files.txt || true
+
+      - name: Enforce policy (only docs/README.md allowed under docs/ except OBSOLETE)
+        run: |
+          # Fail if any added/modified file under docs/ is not README.md or under OBSOLETE/
+          set -e
+          if grep -E "^docs/(?!README\.md)(?!OBSOLETE/)" changed_files.txt >/dev/null 2>&1; then
+            echo "Detected changes under docs/ outside README.md or OBSOLETE/. Please consolidate docs into docs/README.md."
+            echo "Offending files:" 
+            grep -E "^docs/(?!README\.md)(?!OBSOLETE/)" changed_files.txt || true
+            exit 1
+          fi
+          echo "Docs policy check passed."

@@ -4,9 +4,10 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, Animated, Easing, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BrandGradients } from '@/components/branding';
+import { useTranslation } from 'react-i18next';
 
 interface LoadingScreenProps {
   message?: string;
@@ -14,9 +15,10 @@ interface LoadingScreenProps {
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({ 
-  message = 'Loading...', 
+  message,
   showLogo = true 
 }) => {
+  const { t } = useTranslation();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
@@ -57,7 +59,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
   return (
     <LinearGradient
-      colors={['#6366f1', '#8b5cf6', '#7c3aed']}
+      colors={BrandGradients.primary}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -94,21 +96,25 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
             ]}
           />
 
-          {/* Dark circle background */}
+          {/* Logo circle with new branding */}
           <View style={styles.logoCircle}>
-            {/* Icon container with subtle rotation */}
+            {/* New EduDash Pro logo */}
             <Animated.View style={{ transform: [{ rotate }] }}>
-              <Ionicons name="stats-chart" size={80} color="#ffffff" />
+              <Image 
+                source={require('@/assets/branding/png/icon-512.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
             </Animated.View>
           </View>
         </View>
       )}
 
       {/* App name */}
-      <Text style={styles.appName}>EduDash Pro</Text>
+      <Text style={styles.appName}>{t('app.fullName', { defaultValue: 'EduDash Pro' })}</Text>
       
       {/* Loading message */}
-      {message && <Text style={styles.message}>{message}</Text>}
+      <Text style={styles.message}>{message || t('screens.loading', { defaultValue: 'Loading...' })}</Text>
       
       {/* Loading indicator dots */}
       <View style={styles.dotsContainer}>
@@ -183,7 +189,7 @@ const styles = StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: '#1e293b',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -191,6 +197,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 12,
+  },
+  logoImage: {
+    width: 140,
+    height: 140,
   },
   appName: {
     fontSize: 32,

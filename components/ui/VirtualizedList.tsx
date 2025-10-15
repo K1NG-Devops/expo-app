@@ -6,8 +6,9 @@
  */
 
 import React, { memo, useCallback, useMemo } from 'react';
-import { ListRenderItem, ViewStyle, RefreshControl } from 'react-native';
+import { ViewStyle, RefreshControl, StyleProp } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import type { ListRenderItem } from '@shopify/flash-list';
 import { measureRender } from '@/lib/perf';
 import { logger } from '@/lib/logger';
 
@@ -20,8 +21,8 @@ interface VirtualizedListProps<T> {
   onRefresh?: () => void;
   onEndReached?: () => void;
   onEndReachedThreshold?: number;
-  style?: ViewStyle;
-  contentContainerStyle?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  contentContainerStyle?: StyleProp<ViewStyle>;
   testID?: string;
   EmptyComponent?: React.ComponentType;
   HeaderComponent?: React.ComponentType;
@@ -157,8 +158,8 @@ export const UltraFastList = memo(<T extends { id: string | number }>(
       }}
     />
   );
-}) as <T extends { id: string | number }>(props: VirtualizedListProps<T>) => JSX.Element;
-
+}) as <T extends { id: string | number }>(props: VirtualizedListProps<T>) => React.ReactElement;
+;(UltraFastList as any).displayName = 'UltraFastList';
 UltraFastList.displayName = 'UltraFastList';
 
 /**
@@ -189,8 +190,8 @@ export const DashChatList = memo(<T extends { id: string | number; timestamp?: n
     inverted?: boolean;
     maintainVisibleContentPosition?: boolean;
   }
-) => JSX.Element;
-
+) => React.ReactElement;
+;(DashChatList as any).displayName = 'DashChatList';
 DashChatList.displayName = 'DashChatList';
 
 /**
@@ -211,8 +212,8 @@ export const DashLessonGrid = memo(<T extends { id: string | number }>(
   );
 }) as <T extends { id: string | number }>(
   props: Omit<VirtualizedListProps<T>, 'estimatedItemSize' | 'numColumns'>
-) => JSX.Element;
-
+) => React.ReactElement;
+;(DashLessonGrid as any).displayName = 'DashLessonGrid';
 DashLessonGrid.displayName = 'DashLessonGrid';
 
 export default measureRender(UltraFastList, 'UltraFastList');

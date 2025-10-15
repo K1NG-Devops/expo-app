@@ -89,95 +89,35 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
         return false;
       }
 
-      // Prefer native WebRTC on iOS/Android if available
-      if (Platform.OS === 'ios' || Platform.OS === 'android') {
-        try {
-          const { createWebRTCSession } = await import('@/lib/voice/webrtcProvider');
-          const sess = createWebRTCSession();
-          const started = await sess.start({
-            token: token || '',
-            url: wsUrl,
-            onPartialTranscript,
-            onFinalTranscript,
-            onAssistantToken,
-          });
-          if (started) {
-            webrtcRef.current = sess;
-            setStatusSafe('streaming');
-            return true;
-          }
-        } catch (e) {
-          console.warn('[RealtimeVoice] WebRTC start failed on native, will not fallback to browser MediaRecorder:', e);
-          // On native, avoid falling back to browser MediaRecorder path which is not available
-          setStatusSafe('error');
-          return false;
+      // Use WebSocket provider for all platforms (web, iOS, Android)
+      try {
+        const { createWebRTCSession } = await import('@/lib/voice/webrtcProvider');
+        const sess = createWebRTCSession();
+        const started = await sess.start({
+          token: token || '',
+          url: wsUrl,
+          onPartialTranscript,
+          onFinalTranscript,
+          onAssistantToken,
+        });
+        if (started) {
+          webrtcRef.current = sess;
+          setStatusSafe('streaming');
+          return true;
         }
-        // If WebRTC didn't throw but didn't start, treat as error on native to avoid MediaRecorder fallback
+      } catch (e) {
+        console.warn('[RealtimeVoice] WebSocket provider start failed:', e);
         setStatusSafe('error');
         return false;
       }
+      
+      // If provider didn't start, treat as error
+      setStatusSafe('error');
+      return false;
 
-      if (token) {
-        const hasQuery = wsUrl.includes('?');
-        wsUrl += `${hasQuery ? '&' : '?'}token=${encodeURIComponent(token)}`;
-      }
-
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = async () => {
-        // Start microphone (web only)
-        try {
-          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
-          if (!nav?.mediaDevices?.getUserMedia) {
-            throw new Error('mediaDevices.getUserMedia is not available in this environment');
-          }
-          const media = await nav.mediaDevices.getUserMedia({ audio: true });
-          streamRef.current = media;
-          const mr = new MediaRecorder(media, { mimeType: 'audio/webm' });
-          mediaRef.current = mr;
-          mr.ondataavailable = async (ev: BlobEvent) => {
-            if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            if (ev.data && ev.data.size > 0) {
-              const buf = await ev.data.arrayBuffer();
-              ws.send(buf);
-            }
-          };
-          mr.start(Math.max(50, timesliceMs));
-          setStatusSafe('streaming');
-        } catch (e) {
-          console.error('[RealtimeVoice] getUserMedia failed:', e);
-          setStatusSafe('error');
-          try { ws.close(); } catch {}
-        }
-      };
-
-      ws.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg?.type === 'partial_transcript') {
-            onPartialTranscript?.(String(msg.text || ''));
-          } else if (msg?.type === 'final_transcript') {
-            onFinalTranscript?.(String(msg.text || ''));
-          } else if (msg?.type === 'assistant_token') {
-            onAssistantToken?.(String(msg.text || ''));
-          } else if (msg?.type === 'done') {
-            setStatusSafe('finished');
-          }
-        } catch {
-          // silently ignore non-JSON frames
-        }
-      };
-
-      ws.onerror = () => {
-        setStatusSafe('error');
-      };
-
-      ws.onclose = () => {
-        setStatusSafe('disconnected');
-      };
-
-      return true;
+      // This code path is no longer used; WebSocket provider handles all platforms
+      console.warn('[RealtimeVoice] Unexpected code path reached');
+      return false;
     } catch (e) {
       console.error('[RealtimeVoice] startStream failed:', e);
       setStatusSafe('error');

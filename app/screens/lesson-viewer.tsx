@@ -142,7 +142,7 @@ export default function LessonViewer() {
 
     try {
       setGenerating(true);
-      const pdfService = new EducationalPDFService();
+      const pdfService = EducationalPDFService;
       
       const pdfResult = await pdfService.generateLessonPlanPDF({
         title: lesson.title,
@@ -316,7 +316,7 @@ export default function LessonViewer() {
         {/* Learning Objectives */}
         <View style={[styles.section, { backgroundColor: theme.surface }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            <Ionicons name="target-outline" size={18} color={theme.primary} /> Learning Objectives
+            <Ionicons name="flag-outline" size={18} color={theme.primary} /> Learning Objectives
           </Text>
           {lesson.objectives.map((objective, index) => (
             <View key={index} style={styles.listItem}>

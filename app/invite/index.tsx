@@ -3,11 +3,12 @@ import { View, ActivityIndicator, Text, Platform, TouchableOpacity } from 'react
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { assertSupabase } from '@/lib/supabase';
-
+import { useTranslation } from 'react-i18next';
 export default function InviteEntry() {
   const params = useLocalSearchParams<{ code?: string }>();
   const isWeb = Platform.OS === 'web';
   const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.edudashpro';
+  const { t } = useTranslation();
 
   const [detectedType, setDetectedType] = useState<'parent' | 'student' | 'member' | 'unknown'>('unknown');
 
@@ -74,12 +75,12 @@ export default function InviteEntry() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: '#0a0a0f' }}>
         <ActivityIndicator color="#00f5ff" />
-        <Text style={{ color: '#ffffff', textAlign: 'center' }}>Opening the app...</Text>
+        <Text style={{ color: '#ffffff', textAlign: 'center' }}>{t('invite.opening_app', { defaultValue: 'Opening the app...' })}</Text>
         <TouchableOpacity onPress={() => tryOpenApp(targetHint)} style={{ backgroundColor: '#00f5ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
-          <Text style={{ color: '#000', fontWeight: '800' }}>Open EduDash Pro App</Text>
+          <Text style={{ color: '#000', fontWeight: '800' }}>{t('invite.open_app_cta', { defaultValue: 'Open EduDash Pro App' })}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => Linking.openURL(playStoreUrl)}>
-          <Text style={{ color: '#9CA3AF', textDecorationLine: 'underline' }}>Install from Google Play</Text>
+          <Text style={{ color: '#9CA3AF', textDecorationLine: 'underline' }}>{t('invite.install_google_play', { defaultValue: 'Install from Google Play' })}</Text>
         </TouchableOpacity>
       </View>
     );

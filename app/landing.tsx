@@ -3,6 +3,7 @@ import { View, ActivityIndicator, Text, Platform, TouchableOpacity } from 'react
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Linking from 'expo-linking';
 import { assertSupabase } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 
 // Central landing handler for deep links
 // Supports flows:
@@ -13,6 +14,7 @@ export default function LandingHandler() {
   const params = useLocalSearchParams<any>();
   const [status, setStatus] = useState<'loading'|'ready'|'error'|'done'>('loading');
   const [message, setMessage] = useState<string>('');
+  const { t } = useTranslation();
 
   const isWeb = Platform.OS === 'web';
   const playStoreUrl = 'https://play.google.com/store/apps/details?id=com.edudashpro';
@@ -58,11 +60,11 @@ export default function LandingHandler() {
         // EMAIL CONFIRMATION: verify via token_hash if provided
         const tokenHash = query.token_hash || query.token || '';
         if ((flow === 'email-confirm' || query.type === 'email') && tokenHash) {
-          setMessage('Verifying your email...');
+setMessage(t('landing.verifying_email', { defaultValue: 'Verifying your email...' }));
           try {
             const { data, error } = await assertSupabase().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
             if (error) throw error;
-            setMessage('Email verified. Opening app...');
+setMessage(t('landing.email_verified', { defaultValue: 'Email verified. Opening app...' }));
             setStatus('done');
             // On native, route to sign-in or dashboard
             if (!isWeb) {
@@ -74,7 +76,7 @@ export default function LandingHandler() {
             return;
           } catch (e: any) {
             setStatus('error');
-            setMessage(e?.message || 'Email verification failed.');
+setMessage(e?.message || t('landing.email_verification_failed', { defaultValue: 'Email verification failed.' }));
             // Still try to open the app so the user can continue there
             if (isWeb) tryOpenApp(`/post-verify-error`);
             return;
@@ -90,7 +92,7 @@ export default function LandingHandler() {
             return;
           }
           // On web: attempt to open app with deep link to parent registration
-          setMessage('Opening the app for parent registration...');
+setMessage(t('invite.opening_parent_registration', { defaultValue: 'Opening the app for parent registration...' }));
           setStatus('ready');
           tryOpenApp(`/screens/parent-registration?invitationCode=${encodeURIComponent(inviteCode)}`);
           return;
@@ -102,7 +104,7 @@ export default function LandingHandler() {
             router.replace(`/screens/student-join-by-code?code=${encodeURIComponent(inviteCode)}` as any);
             return;
           }
-          setMessage('Opening the app to join by code...');
+setMessage(t('invite.opening_join_by_code', { defaultValue: 'Opening the app to join by code...' }));
           setStatus('ready');
           tryOpenApp(`/screens/student-join-by-code?code=${encodeURIComponent(inviteCode)}`);
           return;
@@ -113,12 +115,12 @@ export default function LandingHandler() {
           router.replace('/');
           return;
         }
-        setMessage('Opening the app...');
+setMessage(t('invite.opening_app', { defaultValue: 'Opening the app...' }));
         setStatus('ready');
         tryOpenApp('/');
       } catch (e: any) {
         setStatus('error');
-        setMessage(e?.message || 'Something went wrong.');
+setMessage(e?.message || t('common.unexpected_error', { defaultValue: 'Something went wrong.' }));
       }
     };
     run();
@@ -140,10 +142,10 @@ export default function LandingHandler() {
       <ActivityIndicator color="#00f5ff" />
       {!!message && <Text style={{ color: '#ffffff', textAlign: 'center' }}>{message}</Text>}
       <TouchableOpacity onPress={() => tryOpenApp('/')} style={{ backgroundColor: '#00f5ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
-        <Text style={{ color: '#000', fontWeight: '800' }}>Open EduDash Pro App</Text>
+        <Text style={{ color: '#000', fontWeight: '800' }}>{t('invite.open_app_cta', { defaultValue: 'Open EduDash Pro App' })}</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => Linking.openURL(playStoreUrl)}>
-        <Text style={{ color: '#9CA3AF', textDecorationLine: 'underline' }}>Install from Google Play</Text>
+        <Text style={{ color: '#9CA3AF', textDecorationLine: 'underline' }}>{t('invite.install_google_play', { defaultValue: 'Install from Google Play' })}</Text>
       </TouchableOpacity>
     </View>
   );

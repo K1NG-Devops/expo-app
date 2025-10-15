@@ -1,10 +1,26 @@
 /**
- * Voice-Enabled Dash AI Assistant Floating Button
+ * Dash AI Voice-Enabled Floating Action Button
  * 
- * A floating button with integrated voice capabilities:
- * - Single tap: Quick voice interaction (speak to Dash, get spoken response)
- * - Double tap: Opens full Dash chat modal
- * - Draggable to any position on screen
+ * @status ACTIVE - Primary FAB component in use
+ * @location app/_layout.tsx (currently deployed)
+ * 
+ * This is the main floating action button with voice recording capabilities.
+ * Features:
+ * - Voice recording with tap-and-hold gesture
+ * - Drag-to-reposition with position persistence
+ * - Double-tap to reset position
+ * - Smooth animations and haptic feedback
+ * - Permission handling for audio recording
+ * 
+ * Architecture:
+ * - Uses PanResponder for gesture handling (no conflicts)
+ * - Integrates with DashAIAssistant service
+ * - Respects theme context
+ * - AsyncStorage for position persistence
+ * 
+ * Related components:
+ * - DashFloatingButton: Legacy basic version (deprecated)
+ * - DashFloatingButtonEnhanced: Advanced features (not in use, needs fixes)
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -17,8 +33,6 @@ import {
   Platform,
   Text,
   PanResponder,
-  Modal,
-  UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -27,28 +41,33 @@ import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useVoiceInteraction } from '@/lib/voice';
+import { useVoiceController } from '@/hooks/useVoiceController';
+import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
+import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
+import { RealtimeVoiceOverlay } from '@/components/ai/RealtimeVoiceOverlay';
+import { useTranslation } from 'react-i18next';
 
-// Conditional BlurView import with fallback
-let BlurView: any = null;
-let BLURVIEW_NATIVE_AVAILABLE = false;
-try {
-  const blurModule = require('expo-blur');
-  if (blurModule && blurModule.BlurView) {
-    // Verify native view manager exists to avoid runtime crash
-    const name = 'ExpoBlurView';
-    const config = (UIManager as any)?.getViewManagerConfig
-      ? (UIManager as any).getViewManagerConfig(name)
-      : (UIManager as any)?.[name];
-    if (config) {
-      BlurView = blurModule.BlurView;
-      BLURVIEW_NATIVE_AVAILABLE = true;
-    }
-  }
-} catch (e) {
-  console.log('[DashVoiceFAB] BlurView not available, using fallback');
-}
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Safe movement bounds and helpers to prevent the FAB from going off-screen
+const RIGHT_MARGIN = 20; // matches styles.container.right
+const BOTTOM_MARGIN = Platform.OS === 'ios' ? 90 : 80; // matches styles.container.bottom
+const LEFT_MARGIN = 20; // keep some space from the left edge
+const TOP_MARGIN = 100; // avoid headers/notches (aligned with getInitialPosition)
+
+const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+const getBounds = () => {
+  const minX = -(screenWidth - FAB_SIZE - (LEFT_MARGIN + RIGHT_MARGIN)); // negative toward left
+  const maxX = 0; // 0 = right edge (anchored at right)
+  const minY = -(screenHeight - FAB_SIZE - (TOP_MARGIN + BOTTOM_MARGIN)); // negative toward top
+  const maxY = 0; // 0 = bottom edge (anchored at bottom)
+  return { minX, maxX, minY, maxY };
+};
+const clampPosition = (x: number, y: number) => {
+  const { minX, maxX, minY, maxY } = getBounds();
+  return { x: clamp(x, minX, maxX), y: clamp(y, minY, maxY) };
+};
 
 interface DashVoiceFloatingButtonProps {
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
@@ -58,7 +77,7 @@ interface DashVoiceFloatingButtonProps {
 
 const FAB_POSITION_KEY = '@dash_fab_position';
 const FAB_SIZE = 60;
-const DOUBLE_TAP_DELAY = 300; // ms
+const LONG_PRESS_DELAY = 450; // ms
 
 export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = ({
   position = 'bottom-right',
@@ -66,9 +85,11 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   style,
 }) => {
   const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
   const [showQuickVoice, setShowQuickVoice] = useState(false);
+  const [showRealtime, setShowRealtime] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   
   const scaleAnimation = useRef(new Animated.Value(1)).current;
@@ -77,21 +98,25 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const voiceAnimation = useRef(new Animated.Value(0)).current;
   
   const pan = useRef(new Animated.ValueXY()).current;
-  const lastTap = useRef<number>(0);
-  const tapTimer = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressActivated = useRef<boolean>(false);
   
-  // Voice interaction hook
+  // Legacy quick voice hook for permissions and speaking
   const {
     recordingState,
-    startRecording,
-    stopRecording,
-    speak,
     isSpeaking,
     stopSpeaking,
     hasPermission,
     requestPermission,
-    preferredLanguage,
   } = useVoiceInteraction();
+
+  // Unified controller for modern recording modal
+  const dash = React.useMemo(() => DashAIAssistant.getInstance(), []);
+  const vc = useVoiceController(dash, {
+    onResponse: async (message) => {
+      try { await dash.speakResponse(message); } catch (e) { console.warn('[DashVoiceFAB] speakResponse error:', e); }
+    },
+  });
 
   // Load saved position on mount
   useEffect(() => {
@@ -104,9 +129,16 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
       const saved = await AsyncStorage.getItem(FAB_POSITION_KEY);
       if (saved) {
         const { x, y } = JSON.parse(saved);
-        pan.setValue({ x, y });
+        const clamped = clampPosition(x, y);
+        pan.setValue({ x: clamped.x, y: clamped.y });
+        // Re-save if we corrected an out-of-bounds persisted position
+        if (clamped.x !== x || clamped.y !== y) {
+          savePosition(clamped.x, clamped.y);
+        }
       } else {
-        pan.setValue(getInitialPosition());
+        const initial = getInitialPosition();
+        const clamped = clampPosition(initial.x, initial.y);
+        pan.setValue({ x: clamped.x, y: clamped.y });
       }
     } catch (e) {
       console.error('Failed to load FAB position:', e);
@@ -198,134 +230,58 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
 
   const handleSingleTap = async () => {
     if (isDragging) return;
-
     try {
+      // Open full Dash assistant
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // Check permissions
-      if (hasPermission === false) {
-        const granted = await requestPermission();
-        if (!granted) {
-          // Fallback to full modal if no mic permission
-          router.push('/screens/dash-assistant');
-          return;
-        }
-      }
-
-      // Make sure a conversation exists to receive the response
-      await ensureConversation();
-
-      // Show quick voice interface
-      setShowQuickVoice(true);
-
-      // Start recording
-      await startRecording();
+      router.push('/screens/dash-assistant');
     } catch (error) {
-      console.error('[DashVoiceFAB] Single tap failed:', error);
-      // Fallback to full modal
+      console.error('[DashVoiceFAB] Single tap navigation failed:', error);
+    }
+  };
+
+  // Long press will start app-wide quick voice modal
+  const handleLongPress = async () => {
+    if (isDragging) return;
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+      // Always ensure mic permission on Android to avoid second long-press
+      try {
+        if (Platform.OS === 'android') {
+          const { PermissionsAndroid } = await import('react-native');
+          const status = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+          if (status !== PermissionsAndroid.RESULTS.GRANTED) {
+            router.push('/screens/dash-assistant');
+            return;
+          }
+        }
+      } catch {}
+
+      await ensureConversation();
+      // Prefer realtime streaming overlay; fallback to quick voice modal if unavailable
+      setShowRealtime(true);
+    } catch (e) {
+      console.error('[DashVoiceFAB] Long press failed:', e);
       router.push('/screens/dash-assistant');
     }
   };
 
-  const handleDoubleTap = () => {
-    if (isDragging) return;
-    
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    // Stop any ongoing voice interaction
-    if (recordingState.isRecording) {
-      stopRecording();
-    }
-    if (isSpeaking) {
-      stopSpeaking();
-    }
-    setShowQuickVoice(false);
-    
-    // Open full Dash modal
-    router.push('/screens/dash-assistant');
-  };
-
-  const handleVoiceComplete = async () => {
-    try {
-      // Stop recording and get audio URI
-      const audioUri = await stopRecording();
-      
-      if (!audioUri) {
-        setShowQuickVoice(false);
-        return;
-      }
-
-      // Ensure we have an active conversation
-      const dash = DashAIAssistant.getInstance();
-      let convId = await ensureConversation();
-
-      // Send voice message end-to-end (transcribes + responds)
-      let response: any = null;
-      try {
-        response = await dash.sendVoiceMessage(audioUri, convId || undefined);
-      } catch (e: any) {
-        if (String(e?.message || '').includes('No active conversation')) {
-          convId = await dash.startNewConversation('Quick Voice');
-          response = await dash.sendVoiceMessage(audioUri, convId || undefined);
-        } else {
-          throw e;
-        }
-      }
-      
-      if (response && response.content) {
-        setDashResponse(response.content);
-        
-        // Speak the response using Dash's TTS (South African English by default)
-        try {
-          await dash.speakResponse(response);
-        } catch (speakErr) {
-          console.warn('[DashVoiceFAB] speakResponse failed, falling back to hook speak:', speakErr);
-          await speak(response.content, preferredLanguage);
-        }
-      }
-
-      // Close after speaking
-      setTimeout(() => {
-        setShowQuickVoice(false);
-        setDashResponse('');
-      }, 1000);
-    } catch (error) {
-      console.error('[DashVoiceFAB] Voice complete failed:', error);
-      setShowQuickVoice(false);
-      try { router.push('/screens/dash-assistant'); } catch {}
-    }
-  };
-
-  // Placeholder transcription function - replace with actual implementation
-  const transcribeAudio = async (uri: string): Promise<string | null> => {
-    // TODO: Call your transcription service here
-    // This is where you'd integrate with Azure Speech-to-Text or OpenAI Whisper
-    console.log('[DashVoiceFAB] Transcribing audio:', uri);
-    return "Hello Dash"; // Placeholder
-  };
 
   const handlePress = () => {
-    const now = Date.now();
-    const timeSinceLastTap = now - lastTap.current;
-
-    if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
-      // Double tap detected
-      if (tapTimer.current) {
-        clearTimeout(tapTimer.current);
-        tapTimer.current = null;
-      }
-      handleDoubleTap();
-    } else {
-      // Potential single tap - wait to see if another tap comes
-      lastTap.current = now;
-      tapTimer.current = setTimeout(() => {
-        handleSingleTap();
-        tapTimer.current = null;
-      }, DOUBLE_TAP_DELAY);
+    // Single tap triggers navigation (if long press hasn't activated)
+    if (!longPressActivated.current) {
+      handleSingleTap();
     }
   };
 
   const handlePressIn = () => {
+    // Start long-press timer
+    longPressActivated.current = false;
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressActivated.current = true;
+      handleLongPress();
+    }, LONG_PRESS_DELAY);
     Animated.spring(scaleAnimation, {
       toValue: 0.9,
       useNativeDriver: true,
@@ -333,6 +289,10 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   };
 
   const handlePressOut = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
     Animated.spring(scaleAnimation, {
       toValue: 1,
       friction: 3,
@@ -359,26 +319,59 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
         handlePressIn();
       },
       onPanResponderMove: (_, gesture) => {
-        if (Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10) {
+        // Only mark as dragging if moved more than tolerance
+        if (Math.abs(gesture.dx) > 15 || Math.abs(gesture.dy) > 15) {
           setIsDragging(true);
           if (showTooltip) setShowTooltip(false);
+          // Cancel long-press if dragging
+          if (longPressTimer.current) {
+            clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
+            longPressActivated.current = false;
+          }
         }
-        Animated.event([null, { dx: pan.x, dy: pan.y }], {
-          useNativeDriver: false,
-        })(_, gesture);
+        // Compute absolute candidate position from current offset + delta
+        // @ts-ignore
+        const ox = pan.x._offset || 0;
+        // @ts-ignore
+        const oy = pan.y._offset || 0;
+        const targetX = ox + gesture.dx;
+        const targetY = oy + gesture.dy;
+        const clamped = clampPosition(targetX, targetY);
+        // Set value relative to current offset so the UI stays smooth
+        // @ts-ignore
+        pan.x.setValue(clamped.x - ox);
+        // @ts-ignore
+        pan.y.setValue(clamped.y - oy);
       },
       onPanResponderRelease: (_, gesture) => {
         pan.flattenOffset();
         handlePressOut();
 
-        // Save position
-        // @ts-ignore
-        const x = pan.x._value;
-        // @ts-ignore
-        const y = pan.y._value;
-        savePosition(x, y);
+        // Cancel long-press if user dragged far
+        if (Math.abs(gesture.dx) > 10 || Math.abs(gesture.dy) > 10) {
+          longPressActivated.current = false;
+          if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+        }
 
-        // If barely moved, treat as tap
+        // Read absolute position, clamp to screen bounds, animate to safe position, then save
+        // @ts-ignore
+        const currentX = pan.x._value || 0;
+        // @ts-ignore
+        const currentY = pan.y._value || 0;
+        const clamped = clampPosition(currentX, currentY);
+
+        if (clamped.x !== currentX || clamped.y !== currentY) {
+          Animated.spring(pan, {
+            toValue: { x: clamped.x, y: clamped.y },
+            useNativeDriver: false,
+            friction: 7,
+            tension: 40,
+          }).start();
+        }
+        savePosition(clamped.x, clamped.y);
+
+        // If barely moved, treat as tap (unless long-press already handled)
         if (!isDragging && Math.abs(gesture.dx) < 10 && Math.abs(gesture.dy) < 10) {
           handlePress();
         }
@@ -388,14 +381,11 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     })
   ).current;
 
-  const formatDuration = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
-  };
 
   return (
     <>
       {/* Floating Action Button */}
+      {!showQuickVoice && !showRealtime && (
       <Animated.View
         style={[
           styles.container,
@@ -416,8 +406,8 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
             {
               backgroundColor: recordingState.isRecording 
                 ? '#FF3B30' 
-                : theme.colors.primary || '#007AFF',
-              shadowColor: recordingState.isRecording ? '#FF3B30' : theme.colors.primary || '#007AFF',
+                : theme.primary || '#007AFF',
+              shadowColor: recordingState.isRecording ? '#FF3B30' : theme.primary || '#007AFF',
             },
           ]}
         >
@@ -437,121 +427,40 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
         </View>
 
         {/* Tooltip */}
-        {showTooltip && (
-          <Animated.View
-            style={[
-              styles.tooltip,
-              {
-                opacity: tooltipAnimation,
-                backgroundColor: isDark ? '#2C2C2E' : '#FFF',
-              },
-            ]}
-          >
-            <Text style={[styles.tooltipText, { color: theme.colors.text }]}>
-              Tap to speak • Double-tap for chat
-            </Text>
-          </Animated.View>
-        )}
       </Animated.View>
+      )}
 
-      {/* Quick Voice Interaction Modal */}
-      <Modal
-        visible={showQuickVoice}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (recordingState.isRecording) {
-            stopRecording();
-          }
-          setShowQuickVoice(false);
+      {/* Realtime streaming overlay (web) with fallback */}
+      <RealtimeVoiceOverlay
+        visible={showRealtime}
+        onClose={() => setShowRealtime(false)}
+        onFallback={() => {
+          // Fallback to non-streaming modal
+          setShowRealtime(false);
+          setShowQuickVoice(true);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          {BlurView && BLURVIEW_NATIVE_AVAILABLE ? (
-            <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
-          ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)' }]} />
-          )}
-          
-          <View style={[styles.voiceContainer, { backgroundColor: isDark ? '#1C1C1E' : '#FFF' }]}>
-            {/* Recording Indicator */}
-            {recordingState.isRecording && (
-              <View style={styles.recordingSection}>
-                <Animated.View
-                  style={[
-                    styles.recordingPulse,
-                    {
-                      opacity: voiceAnimation,
-                      transform: [
-                        {
-                          scale: voiceAnimation.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [1, 1.3],
-                          }),
-                        },
-                      ],
-                    },
-                  ]}
-                >
-                  <View style={styles.recordingDot} />
-                </Animated.View>
-                <Text style={[styles.statusText, { color: theme.colors.text }]}>
-                  Listening...
-                </Text>
-                <Text style={[styles.durationText, { color: theme.colors.textSecondary }]}>
-                  {formatDuration(recordingState.duration)}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.stopButton, { backgroundColor: '#FF3B30' }]}
-                  onPress={handleVoiceComplete}
-                >
-                  <Ionicons name="stop" size={24} color="#FFF" />
-                  <Text style={styles.stopButtonText}>Stop & Send</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+      />
 
-            {/* Speaking Indicator */}
-            {isSpeaking && (
-              <View style={styles.speakingSection}>
-                <View style={styles.speakingIcon}>
-                  <Ionicons name="volume-high" size={48} color={theme.colors.primary} />
-                </View>
-                <Text style={[styles.statusText, { color: theme.colors.text }]}>
-                  Dash is speaking...
-                </Text>
-                {dashResponse && (
-                  <Text style={[styles.responseText, { color: theme.colors.textSecondary }]}>
-                    {dashResponse}
-                  </Text>
-                )}
-              </View>
-            )}
-
-            {/* Instructions */}
-            {!recordingState.isRecording && !isSpeaking && (
-              <View style={styles.instructionsSection}>
-                <Ionicons name="mic-circle" size={64} color={theme.colors.primary} />
-                <Text style={[styles.statusText, { color: theme.colors.text }]}>
-                  Starting...
-                </Text>
-              </View>
-            )}
-
-            {/* Close button */}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => {
-                if (recordingState.isRecording) stopRecording();
-                if (isSpeaking) stopSpeaking();
-                setShowQuickVoice(false);
-              }}
-            >
-              <Ionicons name="close-circle" size={32} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      {/* Modern WhatsApp-style Voice Recording Modal */}
+      {showQuickVoice && (
+        <VoiceRecordingModal
+          vc={vc}
+          visible={showQuickVoice}
+          onClose={() => {
+            try { vc.cancel(); } catch {}
+            setShowQuickVoice(false);
+          }}
+        />
+      )}
+      
+      {/* Global speaking overlay - shows when Dash is speaking */}
+      <DashSpeakingOverlay 
+        isSpeaking={isSpeaking}
+        onStopSpeaking={() => {
+          stopSpeaking();
+          setDashResponse('');
+        }}
+      />
     </>
   );
 };
@@ -589,7 +498,6 @@ const styles = StyleSheet.create({
   tooltipText: {
     fontSize: 12,
     fontWeight: '600',
-    whiteSpace: 'nowrap',
   },
   modalOverlay: {
     flex: 1,

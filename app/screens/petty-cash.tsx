@@ -979,7 +979,15 @@ const { error } = await assertSupabase()
             
             <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => router.push('/screens/petty-cash-reconcile')}
+              onPress={() => {
+                try {
+                  const { safeRouter } = require('@/lib/navigation/safeRouter');
+                  safeRouter.push('/screens/petty-cash-reconcile');
+                } catch {
+                  // Fallback to default if safeRouter unavailable
+                  router.push('/screens/petty-cash-reconcile');
+                }
+              }}
             >
               <Ionicons name="calculator" size={24} color="#8B5CF6" />
               <Text style={styles.actionText}>{t('petty_cash.reconcile')}</Text>

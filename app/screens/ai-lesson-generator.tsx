@@ -153,7 +153,12 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
 
   const onOpenWithDash = () => {
     const initialMessage = buildDashPrompt()
-    router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+    try {
+      const { safeRouter } = require('@/lib/navigation/safeRouter');
+      safeRouter.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+    } catch {
+      router.push({ pathname: '/screens/dash-assistant', params: { initialMessage } })
+    }
   }
   
   const onExportPDF = async () => {

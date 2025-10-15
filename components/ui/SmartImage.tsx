@@ -6,8 +6,8 @@
  */
 
 import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, ViewStyle, StyleSheet, Dimensions } from 'react-native';
-import { Image, ImageSource, ImageContentFit, ImageTransition } from 'expo-image';
+import { View, Text, ViewStyle, StyleSheet, Dimensions, StyleProp } from 'react-native';
+import { Image, ImageSource, ImageContentFit, ImageTransition, ImageDecodeFormat } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ultraMemo, useSmartMemo, useStableStyles } from '@/lib/smart-memo';
 import { mark, measure } from '@/lib/perf';
@@ -17,7 +17,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface SmartImageProps {
   source: ImageSource | string;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   contentFit?: ImageContentFit;
   placeholder?: ImageSource | string;
   placeholderContentFit?: ImageContentFit;
@@ -25,7 +25,7 @@ interface SmartImageProps {
   priority?: 'low' | 'normal' | 'high';
   cachePolicy?: 'none' | 'disk' | 'memory' | 'memory-disk';
   allowDownscaling?: boolean;
-  decodeFormat?: 'rgb565' | 'rgba8888' | 'auto';
+  decodeFormat?: ImageDecodeFormat;
   recyclingKey?: string;
   onLoad?: () => void;
   onError?: (error: any) => void;
@@ -51,7 +51,7 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
   priority = 'normal',
   cachePolicy = 'memory-disk',
   allowDownscaling = true,
-  decodeFormat = 'auto',
+  decodeFormat,
   recyclingKey,
   onLoad,
   onError,
@@ -65,7 +65,7 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
 }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const loadStartTime = useRef<number>();
+  const loadStartTime = useRef<number | null>(null);
 
   // Intelligent size optimization
   const optimizedSource = useSmartMemo(() => {
@@ -76,18 +76,18 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
   }, [source, maxWidth, maxHeight, allowDownscaling], 'image_source_optimization');
 
   // Stable styles with aspect ratio handling
-  const stableStyles = useStableStyles(() => {
-    const baseStyle = StyleSheet.flatten(style);
+  const stableStyles = useStableStyles<StyleProp<ViewStyle>>(() => {
+    const baseStyle = StyleSheet.flatten(style) as ViewStyle | undefined;
     
     if (aspectRatio && !baseStyle?.height && !baseStyle?.width) {
-      const width = baseStyle?.width || maxWidth || screenWidth * 0.8;
+      const widthNum = typeof baseStyle?.width === 'number' ? baseStyle.width : (maxWidth || screenWidth * 0.8);
       return [
-        { width, height: width / aspectRatio },
+        { width: widthNum, height: (widthNum as number) / (aspectRatio as number) },
         baseStyle,
       ];
     }
     
-    return baseStyle;
+    return baseStyle as StyleProp<ViewStyle>;
   }, [style, aspectRatio, maxWidth]);
 
   // Performance-tracked load handlers
@@ -151,7 +151,7 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
   }, [blurhash, isLoading]);
 
   return (
-    <View style={stableStyles} testID={testID}>
+    <View style={stableStyles as any} testID={testID}>
       <Image
         source={optimizedSource}
         style={StyleSheet.absoluteFill}
@@ -201,7 +201,7 @@ export const SmartAvatar = ultraMemo<{
   uri?: string;
   name?: string;
   size?: number;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   priority?: 'low' | 'normal' | 'high';
   testID?: string;
 }>(({
@@ -212,24 +212,24 @@ export const SmartAvatar = ultraMemo<{
   priority = 'high', // Avatars are usually important
   testID,
 }) => {
-  const avatarStyles = useStableStyles(() => ([
+  const avatarStyles = useStableStyles<StyleProp<ViewStyle>>(() => ([
     styles.avatar,
     {
       width: size,
       height: size,
       borderRadius: size / 2,
     },
-    style,
+    style as any,
   ]), [size, style]);
 
-  const fallbackStyles = useStableStyles(() => ({
+  const fallbackStyles = useStableStyles<ViewStyle>(() => ({
     width: size,
     height: size,
     borderRadius: size / 2,
     backgroundColor: getAvatarColor(name),
     justifyContent: 'center',
     alignItems: 'center',
-  }), [size, name]);
+  } as ViewStyle), [size, name]);
 
   const initials = name
     .split(' ')

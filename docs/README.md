@@ -1,149 +1,118 @@
-# EduDashPro Documentation
+# EduDash Pro — Master Documentation (Single Source of Truth)
 
-Welcome to the comprehensive documentation for EduDashPro, the leading educational dashboard platform for South African education.
+This is the only living documentation file for EduDash Pro. All other documentation has been archived to `docs/OBSOLETE/`. Update this file for any new changes, fixes, or summaries.
 
-## 📁 Documentation Structure
-
-### 🏛️ [Governance](./governance/) - Project Rules & Policies
-Core rules, policies, and governance documents that guide the entire project.
-
-- **[WARP.md](./governance/WARP.md)** - Master Rules Document (highest authority)
-- **[rules.md](./governance/rules.md)** - Development Rules & Principles
-- **[development-workflow.md](./governance/development-workflow.md)** - Standard Development Process
-- **[git-workflow.md](./governance/git-workflow.md)** - Git Branching & Merge Strategy
-
-### 🏗️ [Architecture](./architecture/) - System Design & Structure
-High-level architecture documents and system design principles.
-
-- **[ai-flow.md](./architecture/ai-flow.md)** - AI Integration Architecture
-
-### 🔒 [Security](./security/) - Authentication, Authorization & RLS
-Security policies, authentication systems, and access control documentation.
-
-- **[complete-action-plan.md](./security/complete-action-plan.md)** - Comprehensive security implementation plan
-- **[fixes-readme.md](./security/fixes-readme.md)** - Security-related fixes and patches
-- **[desired_access_matrix.md](./security/desired_access_matrix.md)** - Role-based access control matrix
-- **[jwt_claims.md](./security/jwt_claims.md)** - JWT token structure and claims
-- **[manifest-development-guide.md](./security/manifest-development-guide.md)** - Security manifest development
-- **[policy_templates.md](./security/policy_templates.md)** - Row-level security policy templates
-- **[progress_summary.md](./security/progress_summary.md)** - Security implementation progress
-- **[quick-start-manifest.md](./security/quick-start-manifest.md)** - Quick start security setup
-- **[rbac_audit.md](./security/rbac_audit.md)** - Role-based access control audit
-- **[rls_gap_analysis.md](./security/rls_gap_analysis.md)** - Row-level security gap analysis
-- **[tenant_model.md](./security/tenant_model.md)** - Multi-tenant security model
-
-### 🚀 [Deployment](./deployment/) - Release & Infrastructure
-Deployment guides, checklists, and infrastructure documentation.
-
-- **[checklist.md](./deployment/checklist.md)** - Pre-deployment verification checklist
-- **[guide-fix-auth.md](./deployment/guide-fix-auth.md)** - Authentication fix deployment guide
-- **[install-local-build.md](./deployment/install-local-build.md)** - Local development setup
-- **[manual-function-deployment.md](./deployment/manual-function-deployment.md)** - Manual function deployment procedures
-
-### 🔧 [Fixes](./fixes/) - Bug Fixes & Issue Resolutions
-Documentation of specific bug fixes and their solutions.
-
-- **[summary.md](./fixes/summary.md)** - Summary of applied fixes
-- **[push-notifications-400-error.md](./fixes/push-notifications-400-error.md)** - Push notification error resolution
-- **[urgent-action-plan.md](./fixes/urgent-action-plan.md)** - Critical issue response plan
-- **[immediate-fix.md](./fixes/immediate-fix.md)** - Emergency fix procedures
-- **[data-not-defined-fix.md](./fixes/data-not-defined-fix.md)** - Data definition error fixes
-- **[superadmin-loading-state-fix.md](./fixes/superadmin-loading-state-fix.md)** - Superadmin dashboard loading fixes
-
-### ✨ [Features](./features/) - Feature Documentation & Specs
-Feature specifications, implementation guides, and functionality documentation.
-
-- **[summary.md](./features/summary.md)** - Overview of implemented features
-- **[avatar-storage-setup.md](./features/avatar-storage-setup.md)** - Avatar storage configuration
-
-### 📊 [Analysis](./analysis/) - Progress & Analysis Reports
-Progress reports, implementation summaries, and analytical documents.
-
-- **[implementation-progress.md](./analysis/implementation-progress.md)** - Overall implementation status
-- **[phase2-progress.md](./analysis/phase2-progress.md)** - Phase 2 development progress
-- **[principal-dashboard-actions.md](./analysis/principal-dashboard-actions.md)** - Principal dashboard analysis
-- **[cleanup-summary.md](./analysis/cleanup-summary.md)** - Code cleanup and refactoring summary
-
-### 💾 [Database](./database/) - Database Design & Operations
-Database design, migration guides, and maintenance procedures.
-
-- **[backup-guide.md](./database/backup-guide.md)** - Database backup and recovery procedures
-- **[health-check-summary.md](./database/health-check-summary.md)** - Database health monitoring
-- **[team-sql-rules-rollout.md](./database/team-sql-rules-rollout.md)** - Team SQL access rules implementation
-
-### 📄 Additional Documents
-Standalone documents that don't fit into other categories.
-
-- **[AI_QUOTA_ALLOCATION_SYSTEM.md](./AI_QUOTA_ALLOCATION_SYSTEM.md)** - AI quota management system
-- **[INVOICE_NOTIFICATIONS.md](./INVOICE_NOTIFICATIONS.md)** - Invoice notification system
-- **[K12_ORGANIZATION_SUPPORT_PLAN.md](./K12_ORGANIZATION_SUPPORT_PLAN.md)** - K-12 support implementation
-- **[PHASE1_COMPLETION_REPORT.md](./PHASE1_COMPLETION_REPORT.md)** - Phase 1 completion summary
-- **[SUPERADMIN_DASHBOARD_UPGRADE_PLAN.md](./SUPERADMIN_DASHBOARD_UPGRADE_PLAN.md)** - Superadmin dashboard upgrade plan
-- **[SUPERADMIN_PHASE1_IMPLEMENTATION_SUMMARY.md](./SUPERADMIN_PHASE1_IMPLEMENTATION_SUMMARY.md)** - Phase 1 superadmin implementation
+Last Updated: 2025-10-14
 
 ---
 
-## 📋 Quick Navigation
+## Purpose
 
-### For Developers
-- Start with [Governance](./governance/) to understand core rules
-- Review [Security](./security/) for RLS and authentication patterns
-- Use [Fixes](./fixes/) for troubleshooting common issues
-- Check [Architecture](./architecture/) for system design
-
-### For Administrators
-- Review [Deployment](./deployment/) for release procedures
-- Check [Analysis](./analysis/) for project status
-- Use [Database](./database/) for operational procedures
-
-### For Product Team
-- Review [Features](./features/) for functionality specifications
-- Check [Analysis](./analysis/) for implementation progress
-- Use [Architecture](./architecture/) for system understanding
+- Consolidate all project knowledge into one authoritative document
+- Provide a current-state snapshot of the app that matches the code
+- Offer quick start instructions and governance essentials
+- Track known issues and next actions (non-DB focus)
 
 ---
 
-## 🎯 Documentation Standards
+## Current State Snapshot (2025-10-14)
 
-### File Naming Convention
-- Use lowercase with hyphens: `feature-name.md`
-- Include version dates when relevant: `report-2025-01-13.md`
-- Use descriptive names that indicate content clearly
+### Voice System
+- Deployment: Text-to-Speech proxy deployed (edge function: `tts-proxy`)
+- Data model: `voice_preferences`, `voice_audio_cache`, `voice_usage_logs`
+- Storage: `tts-cache` bucket configured with appropriate access controls
+- Languages: Afrikaans (af), isiZulu (zu) ready; others fallback as needed
+- Quick test: From the app’s voice demo screen, select a language and test synthesis
 
-### Content Structure
-All documentation should follow this structure:
-1. **Clear title and purpose**
-2. **Prerequisites or context**  
-3. **Step-by-step procedures**
-4. **Examples and code snippets**
-5. **Troubleshooting section**
-6. **Success criteria or verification**
+Reference: voice deployment success summary (archived in `docs/OBSOLETE/voice/DEPLOYMENT_SUCCESS.md`).
 
-### Cross-References
-- Link to related documents within the same category
-- Reference the governance documents when applicable
-- Include links to external resources when helpful
+### Dash AI Configuration
+- Default model: Claude 3.5 Sonnet (20241022) for Starter and above; Haiku for Free
+- Voice defaults: Male voice enabled by default; UI toggle available (Male/Female)
+- Request queue: ~1.5s spacing between requests; sequential processing with timeout
+- Tier quotas (dev mode may increase internal quotas); external provider limits still apply
+- Recommendation: If 429s occur, verify provider tier limits; optionally increase spacing to ~3s and add user-facing rate-limit feedback
+
+Reference: consolidated analysis (archived in `docs/OBSOLETE/fixes/DASH_COMPLETE_ANALYSIS_2025-10-14.md`).
+
+### Recent Fixes — Highlights
+- Loading experience improvements and dashboard greeting visibility
+- Biometric sign-in button and secure credential save/restore
+- Avatar initials logic (first + last name)
+- Petty cash UI overflow fix; error handling improvements in WhatsApp send function
+- Various UX refinements and informative error messaging
+
+Reference: status summaries and fixes (archived in `docs/OBSOLETE/status/FIXES_APPLIED.md` and `docs/OBSOLETE/fixes/`).
 
 ---
 
-## 🔄 Maintenance
+## Quick Start (Developer)
 
-This documentation structure is maintained by the development team and updated with each major release. For questions or suggestions about the documentation organization, please refer to the [WARP.md](./governance/WARP.md) governance document.
+1) Install
+- Node 18+, npm 8+, Expo CLI, EAS CLI, Supabase CLI
+- Android Studio (Android) and Xcode (iOS on macOS)
 
-## 🔗 Quick Links
+2) Environment
+- Copy `.env.example` → `.env` and fill required values
+- Ensure public keys/URLs only; never commit secrets
 
-- [Main Project README](../README.md)
-- [Contributing Guidelines](./governance/development-workflow.md)
-- [Security Policies](./security/)
-- [Deployment Procedures](./deployment/)
+3) Database linking (local/staging)
+- Link your Supabase project (as applicable)
+- Apply migrations and verify (as applicable to your workflow)
 
-## 🎆 Getting Started
+4) Run
+- Start the app with dev client and open on device/emulator
 
-1. **New developers**: Start with [Governance](./governance/) to understand project standards
-2. **Security review**: Check [Security](./security/) for access control and compliance
-3. **Deployment**: Follow [Deployment](./deployment/) guides for environment setup
-4. **Feature development**: Reference [Features](./features/) and [Architecture](./architecture/)
-5. **Issue resolution**: Consult [Fixes](./fixes/) for known issues and solutions
+See project root README for detailed setup and scripts.
 
-**Last Updated**: 2025-01-15  
-**Next Review**: 2025-02-15
+---
+
+## Governance Essentials
+
+- Logging: Use centralized logger (no `console.log`/`console.debug` in production)
+- Code quality: Type-check and lint before PRs; follow repository conventions
+- Source of truth: Update THIS file for documentation; do not add new files under `docs/` (except images/assets if needed)
+
+---
+
+## Known Issues / Next Actions (Non-DB)
+
+- External rate limits: Even with internal quotas, provider 429s can occur; verify account tier, consider increasing request spacing and add user feedback
+- Edge function dependencies: Some features (e.g., AI usage/allocations) depend on specific functions being deployed; ensure required functions are active for the target environment
+- Device verification: Test voice synthesis and recording on physical devices (Android/iOS) for end-to-end confirmation
+
+---
+
+## Change Log
+
+- 2025-10-14
+  - Voice system live (tts-proxy, preferences/cache tables, storage bucket)
+  - Male voice default + UI toggle; improved display logic
+  - Rate-limit guidance and UX feedback recommendations
+  - Documentation consolidated into a single master file; all others archived
+
+- 2025-10-01
+  - App UX improvements (loading, dashboard greeting, biometric sign-in)
+  - Error handling improvements; UI overflow fixes; WhatsApp function resilience
+
+---
+
+## Archive Notice
+
+All legacy documentation has been moved to `docs/OBSOLETE/` on 2025-10-14 for historical reference. Do not update archived files. Any new or revised documentation must be added to this master file.
+
+---
+
+## Contributor Notes
+
+- All documentation updates belong in this file (docs/README.md). Do not add new docs files elsewhere.
+- If you need to reference historical content, link to files under `docs/OBSOLETE/` and summarize here.
+
+### How to add a change to this doc
+
+Use this micro-template when appending to the Change Log:
+
+- Date: YYYY-MM-DD
+- Context: What area or feature this affects
+- Change: One-line summary of the change
+- Impact: Why it matters (user-visible, developer guidance, etc.)

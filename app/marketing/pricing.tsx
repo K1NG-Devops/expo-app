@@ -313,7 +313,7 @@ const Header = () => {
         <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.logoGradient}>
           <IconSymbol name="help-circle" size={28} color="#000000" />
         </LinearGradient>
-        <Text style={styles.logoText}>EduDash Pro</Text>
+        <Text style={styles.logoText}>{t('app.fullName', { defaultValue: 'EduDash Pro' })}</Text>
       </View>
       
       <TouchableOpacity 

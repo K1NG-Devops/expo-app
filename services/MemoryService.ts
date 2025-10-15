@@ -84,7 +84,7 @@ class MemoryServiceClass {
       const { data, error } = await supabase
         .from('ai_memories')
         .insert({
-          preschool_id: profile.preschool_id,
+          preschool_id: (profile as any).organization_id,
           user_id: profile.id,
           memory_type: input.type,
           content: input.content,
@@ -141,7 +141,7 @@ class MemoryServiceClass {
           query_embedding: embeddingResult.vector,
           match_count: topK,
           min_similarity: minSimilarity,
-          preschool_id: profile.preschool_id,
+          preschool_id: (profile as any).organization_id,
           user_id: profile.id
         });
 
@@ -169,7 +169,7 @@ class MemoryServiceClass {
       const { data, error } = await supabase
         .from('ai_memories')
         .select('*')
-        .eq('preschool_id', profile.preschool_id)
+        .eq('preschool_id', (profile as any).organization_id)
         .eq('user_id', profile.id)
         .order('importance', { ascending: false })
         .order('created_at', { ascending: false })
@@ -203,7 +203,7 @@ class MemoryServiceClass {
       await supabase
         .from('ai_context_snapshots')
         .insert({
-          preschool_id: profile.preschool_id,
+          preschool_id: (profile as any).organization_id,
           user_id: profile.id,
           snapshot: context
         });
@@ -224,7 +224,7 @@ class MemoryServiceClass {
       await supabase
         .from('ai_memories')
         .update({ 
-          accessed_count: supabase.sql`accessed_count + 1` 
+          accessed_count: (supabase as any).sql`accessed_count + 1`
         })
         .eq('id', memoryId);
     } catch (error) {

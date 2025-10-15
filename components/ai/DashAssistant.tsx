@@ -38,10 +38,12 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 import { toast } from '@/components/ui/ToastProvider';
-import { VoiceRecorderSheet } from '@/components/ai/VoiceRecorderSheet';
+import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
 import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
+import { DashVoiceInput } from '@/components/ai/DashVoiceInput';
+import { VoiceRecordingBar } from '@/components/ai/VoiceRecordingBar';
 import { assertSupabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -78,6 +80,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [showVoiceRecorderModal, setShowVoiceRecorderModal] = useState(false);
   const [pendingVoiceModal, setPendingVoiceModal] = useState(false);
   const [voiceTimerMs, setVoiceTimerMs] = useState(0);
+  const [voiceInputMode, setVoiceInputMode] = useState<'note' | 'live'>('note'); // 'note' = recording modal, 'live' = real-time ASR
+  const [showVoiceModeMenu, setShowVoiceModeMenu] = useState(false);
+  const [liveVoiceText, setLiveVoiceText] = useState('');
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false); // WhatsApp-style inline recording
+  const [voiceRecordingPaused, setVoiceRecordingPaused] = useState(false);
   const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
@@ -321,11 +328,26 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
 const sendMessage = async (text: string = inputText.trim(), attachmentsOverride?: DashAttachment[]) => {
 const attachmentsToUpload = attachmentsOverride ?? selectedAttachments;
-if ((!text && attachmentsToUpload.length === 0) || !dashInstance || isLoading) return;
+
+// Guard with user-visible feedback instead of silent return
+if (!dashInstance) {
+  try { Alert.alert('Dash is starting', 'Please wait a moment and try again.'); } catch {}
+  return;
+}
+if (!text && attachmentsToUpload.length === 0) {
+  // Nothing to send
+  return;
+}
+if (isLoading) {
+  try { Alert.alert('Please wait', 'Dash is still processing your previous message.'); } catch {}
+  return;
+}
 
     try {
       setIsLoading(true);
       setIsUploading(true);
+      // Clear input immediately for responsive UX
+      const originalText = text;
       setInputText('');
 
       // Upload attachments first if any
@@ -354,8 +376,9 @@ for (const attachment of attachmentsToUpload) {
 
       setIsUploading(false);
 
-      const userText = text || 'Attached files';
-      const response = await dashInstance.sendMessage(userText);
+      const userText = originalText || 'Attached files';
+      // Pass uploaded attachments to DashAIAssistant for vision support
+      const response = await dashInstance.sendMessage(userText, uploadedAttachments);
       
       // Clear selected attachments after successful send
       setSelectedAttachments([]);
@@ -688,6 +711,10 @@ return (
             const prev = messages[index - 1];
             const retryText = prev && prev.type === 'user' ? prev.content : message.content;
             sendMessage(retryText);
+          } : undefined}
+          onRetry={isUser ? () => {
+            // Retry sending the user's message
+            sendMessage(message.content);
           } : undefined}
         />
 
@@ -1266,6 +1293,17 @@ return (
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
+            accessibilityLabel="Voice Mode"
+            onPress={() => setShowVoiceModeMenu(true)}
+          >
+            <Ionicons 
+              name={voiceInputMode === 'live' ? 'radio-outline' : 'mic-outline'} 
+              size={screenWidth < 400 ? 18 : 22} 
+              color={theme.primary} 
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconButton}
             accessibilityLabel="Settings"
             onPress={() => router.push('/screens/dash-ai-settings')}
           >
@@ -1316,13 +1354,22 @@ return (
             windowSize={21}
             removeClippedSubviews={Platform.OS === 'android'}
             onContentSizeChange={() => {
-              // Auto-scroll to last item when content changes
-              try {
-                const lastIndex = Math.max(0, data.length - 1);
-                flatListRef.current?.scrollToIndex({ index: lastIndex, animated: false });
-              } catch (e) {
-                // ignore index errors during initial layout
-              }
+              // Auto-scroll to bottom when content changes
+              setTimeout(() => {
+                try {
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                } catch (e) {
+                  // Ignore scroll errors during layout
+                }
+              }, 100);
+            }}
+            onLayout={() => {
+              // Initial scroll to bottom after first layout
+              setTimeout(() => {
+                try {
+                  flatListRef.current?.scrollToEnd({ animated: false });
+                } catch {}
+              }, 200);
             }}
             ListFooterComponent={(
               <>
@@ -1367,12 +1414,56 @@ return (
         );
       })()}
 
-      {/* Input Area */}
+      {/* Live Voice Input Overlay (when in live mode and active) */}
+      {voiceInputMode === 'live' && (
+        <View style={styles.liveVoiceContainer}>
+          <DashVoiceInput
+            onTextRecognized={(text) => {
+              setLiveVoiceText(text);
+              setInputText(text);
+            }}
+            onListeningChange={(listening) => {
+              // Optional: update UI based on listening state
+            }}
+            language="en-ZA"
+            autoSend={false}
+            disabled={isLoading}
+          />
+        </View>
+      )}
+
+      {/* WhatsApp-style Voice Recording Bar */}
+      {isVoiceRecording && (
+        <VoiceRecordingBar
+          isRecording={isVoiceRecording}
+          timerMs={voiceTimerMs}
+          isPaused={voiceRecordingPaused}
+          onDelete={() => {
+            setIsVoiceRecording(false);
+            setVoiceRecordingPaused(false);
+            vc.cancel();
+          }}
+          onPause={() => {
+            setVoiceRecordingPaused(!voiceRecordingPaused);
+            // Pause/resume logic handled by voice controller if supported
+          }}
+          onSend={async () => {
+            setIsVoiceRecording(false);
+            setVoiceRecordingPaused(false);
+            await vc.release();
+          }}
+        />
+      )}
+
+      {/* Input Area - Hide when recording */}
+      {!isVoiceRecording && (
       <EnhancedInputArea
         sending={isLoading || isUploading}
         onSend={async (text, atts) => {
           try {
-            setSelectedAttachments(atts || []);
+            // Pass attachments and clear input state immediately
+            setInputText('');
+            setSelectedAttachments([]);
             await sendMessage(text, atts || []);
           } catch {}
         }}
@@ -1381,15 +1472,29 @@ return (
         isVoiceLocked={vc.isLocked}
         voiceTimerMs={voiceTimerMs}
         onVoiceStart={async () => {
+          // Use live ASR if in live mode, otherwise use voice note recording
+          if (voiceInputMode === 'live') {
+            // Live mode is always visible, user clicks the DashVoiceInput button directly
+            return;
+          }
+          
+          // Voice note recording mode - WhatsApp style: instant start
           try {
-            console.log('[DashAssistant] Voice start (mobile-first) triggered', {
+            console.log('[DashAssistant] Starting WhatsApp-style instant recording');
+            
+            // Start recording immediately
+            setIsVoiceRecording(true);
+            await vc.startPress();
+            
+            return; // Skip old modal logic
+            
+            console.log('[DashAssistant] Voice start triggered', {
               streamingEnabled,
               dashInstance: !!dashInstance,
               isInitialized,
-              pendingVoiceModal
+              realtimeAvailable: !!realtime
             });
 
-            // Mobile-first: always use modal flow for now (ignore streaming)
             // Basic Android microphone permission check
             let hasMic = true;
             try {
@@ -1406,14 +1511,31 @@ return (
               return;
             }
 
-            console.log('[DashAssistant] Opening voice recorder modal');
-            if (dashInstance && isInitialized) {
-              console.log('[DashAssistant] Dash ready - showing modal immediately');
-              setShowVoiceRecorderModal(true);
+            // USE STREAMING if enabled, otherwise fall back to modal
+            if (streamingEnabled && realtime) {
+              console.log('[DashAssistant] ⚡ Using realtime streaming');
+              try {
+                await realtime.startStream();
+                console.log('[DashAssistant] ✅ Streaming started');
+              } catch (streamError) {
+                console.error('[DashAssistant] ❌ Streaming failed, falling back to modal:', streamError);
+                // Fallback to modal if streaming fails
+                if (dashInstance && isInitialized) {
+                  setShowVoiceRecorderModal(true);
+                } else {
+                  setPendingVoiceModal(true);
+                  try { toast.show?.('Preparing voice recorder…'); } catch {}
+                }
+              }
             } else {
-              console.log('[DashAssistant] Dash not ready - deferring modal');
-              setPendingVoiceModal(true);
-              try { toast.show?.('Preparing voice recorder…'); } catch {}
+              // Streaming disabled or unavailable - use modal
+              console.log('[DashAssistant] 📝 Using voice recorder modal (streaming disabled)');
+              if (dashInstance && isInitialized) {
+                setShowVoiceRecorderModal(true);
+              } else {
+                setPendingVoiceModal(true);
+                try { toast.show?.('Preparing voice recorder…'); } catch {}
+              }
             }
           } catch (e) {
             console.error('[DashAssistant] Voice start error:', e);
@@ -1421,6 +1543,11 @@ return (
         }}
         onVoiceEnd={() => {
           try {
+            // WhatsApp-style: handled by recording bar send button
+            if (isVoiceRecording) {
+              return;
+            }
+            
             // If the recording modal is active, let the modal own the stop/transcribe UX
             if (showVoiceRecorderModal) {
               return;
@@ -1451,6 +1578,13 @@ return (
         }}
         onVoiceCancel={() => {
           try {
+            // WhatsApp-style: handled by recording bar delete button
+            if (isVoiceRecording) {
+              setIsVoiceRecording(false);
+              vc.cancel();
+              return;
+            }
+            
             if (showVoiceRecorderModal) {
               // Close modal and ensure any active recording is stopped
               try { dashInstance?.stopRecording?.(); } catch {}
@@ -1471,25 +1605,79 @@ return (
           }
         }}
       />
+      )}
+
+      {/* Voice Mode Selection Menu */}
+      {showVoiceModeMenu && (
+        <View style={styles.voiceModeMenuOverlay}>
+          <TouchableOpacity 
+            style={styles.voiceModeMenuBackdrop} 
+            onPress={() => setShowVoiceModeMenu(false)}
+            activeOpacity={1}
+          />
+          <View style={[styles.voiceModeMenu, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.voiceModeMenuTitle, { color: theme.text }]}>Voice Input Mode</Text>
+            
+            <TouchableOpacity
+              style={[
+                styles.voiceModeMenuItem,
+                voiceInputMode === 'note' && { backgroundColor: theme.primaryLight }
+              ]}
+              onPress={() => {
+                setVoiceInputMode('note');
+                setShowVoiceModeMenu(false);
+                toast.success?.('Voice mode: Recording');
+              }}
+            >
+              <Ionicons name="mic" size={24} color={voiceInputMode === 'note' ? theme.primary : theme.text} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.voiceModeMenuItemTitle, { color: voiceInputMode === 'note' ? theme.primary : theme.text }]}>
+                  Voice Note Recording
+                </Text>
+                <Text style={[styles.voiceModeMenuItemDesc, { color: theme.textSecondary }]}>
+                  Record and transcribe voice notes
+                </Text>
+              </View>
+              {voiceInputMode === 'note' && <Ionicons name="checkmark" size={24} color={theme.primary} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.voiceModeMenuItem,
+                voiceInputMode === 'live' && { backgroundColor: theme.primaryLight }
+              ]}
+              onPress={() => {
+                setVoiceInputMode('live');
+                setShowVoiceModeMenu(false);
+                toast.success?.('Voice mode: Live ASR');
+              }}
+            >
+              <Ionicons name="radio" size={24} color={voiceInputMode === 'live' ? theme.primary : theme.text} />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.voiceModeMenuItemTitle, { color: voiceInputMode === 'live' ? theme.primary : theme.text }]}>
+                  Live Speech Recognition
+                </Text>
+                <Text style={[styles.voiceModeMenuItemDesc, { color: theme.textSecondary }]}>
+                  Real-time voice-to-text (en-ZA, af-ZA, zu-ZA, xh-ZA)
+                </Text>
+              </View>
+              {voiceInputMode === 'live' && <Ionicons name="checkmark" size={24} color={theme.primary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
       
-      {/* Voice Recorder Modal with Progress Indicators */}
+      {/* WhatsApp-style Voice Recording Modal (controller-driven) */}
       {dashInstance && isInitialized && (
-        <VoiceRecorderSheet
+        <VoiceRecordingModal
+          vc={vc}
           visible={showVoiceRecorderModal}
-          onClose={() => setShowVoiceRecorderModal(false)}
-          dash={dashInstance}
-          onSend={async (audioUri, transcript, duration) => {
-            try {
-              // Send the transcribed message (text)
-              await sendMessage(transcript);
-              setShowVoiceRecorderModal(false);
-            } catch (e) {
-              console.error('[DashAssistant] Voice send error:', e);
-              Alert.alert('Error', 'Failed to send voice message. Please try again.');
-            }
+          onClose={() => {
+            try { vc.cancel(); } catch {}
+            setShowVoiceRecorderModal(false);
           }}
         />
       )}
@@ -1883,16 +2071,66 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginRight: 4,
   },
-  attachButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  voiceModeMenuOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+  },
+  voiceModeMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  voiceModeMenu: {
+    width: '85%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    position: 'relative',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  voiceModeMenuTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  voiceModeMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  voiceModeMenuItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  voiceModeMenuItemDesc: {
+    fontSize: 13,
+  },
+  liveVoiceContainer: {
+    position: 'absolute',
+    bottom: 80,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
   },
   attachBadge: {
     position: 'absolute',

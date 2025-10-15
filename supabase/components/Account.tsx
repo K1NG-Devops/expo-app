@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { StyleSheet, View, Alert } from 'react-native'
 import { Button, Input } from '@rneui/themed'
+import { useTranslation } from 'react-i18next'
 import { Session } from '@supabase/supabase-js'
 import Avatar from './Avatar'
 
 export default function Account({ session }: { session: Session }) {
   const [loading, setLoading] = useState(true)
+  const { t } = useTranslation()
   const [username, setUsername] = useState('')
   const [website, setWebsite] = useState('')
   const [avatarUrl, setAvatarUrl] = useState('')
@@ -91,7 +93,7 @@ export default function Account({ session }: { session: Session }) {
         />
       </View>
       <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input label="Email" value={session?.user?.email} disabled />
+        <Input label={t('auth.email', { defaultValue: 'Email' })} value={session?.user?.email} disabled />
       </View>
       <View style={styles.verticallySpaced}>
         <Input label="Username" value={username || ''} onChangeText={(text) => setUsername(text)} />
@@ -102,14 +104,14 @@ export default function Account({ session }: { session: Session }) {
 
       <View style={[styles.verticallySpaced, styles.mt20]}>
         <Button
-          title={loading ? 'Loading ...' : 'Update'}
+          title={loading ? t('screens.loading', { defaultValue: 'Loading...' }) : t('common.save', { defaultValue: 'Save' })}
           onPress={() => updateProfile({ username, website, avatar_url: avatarUrl })}
           disabled={loading}
         />
       </View>
 
       <View style={styles.verticallySpaced}>
-        <Button title="Sign Out" onPress={() => supabase.auth.signOut()} />
+        <Button title={t('auth.signOut', { defaultValue: 'Sign Out' })} onPress={() => supabase.auth.signOut()} />
       </View>
     </View>
   )

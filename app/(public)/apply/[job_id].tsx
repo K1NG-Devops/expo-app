@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -17,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useTheme } from '@/contexts/ThemeContext';
 import HiringHubService from '@/lib/services/HiringHubService';
 import { JobPosting } from '@/types/hiring';
+import { useTranslation } from 'react-i18next';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ALLOWED_MIME_TYPES = [
@@ -29,6 +29,7 @@ export default function PublicJobApplicationScreen() {
   const { job_id } = useLocalSearchParams<{ job_id: string }>();
   const { theme } = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -56,21 +57,21 @@ export default function PublicJobApplicationScreen() {
       setLoading(true);
       const data = await HiringHubService.getJobPostingById(job_id);
       
-      if (!data || data.status !== 'active') {
-        Alert.alert('Job Not Available', 'This job posting is no longer active.');
+if (!data || data.status !== 'active') {
+        Alert.alert(t('apply.jobNotAvailableTitle'), t('apply.jobNotAvailableDesc'));
         return;
       }
 
       // Check if expired
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        Alert.alert('Job Expired', 'This job posting has expired.');
+if (data.expires_at && new Date(data.expires_at) < new Date()) {
+        Alert.alert(t('apply.jobExpiredTitle'), t('apply.jobExpiredDesc'));
         return;
       }
 
       setJobPosting(data);
     } catch (error: any) {
-      console.error('Error loading job posting:', error);
-      Alert.alert('Error', error.message || 'Failed to load job posting');
+console.error('Error loading job posting:', error);
+      Alert.alert(t('common.error'), error.message || t('apply.loadError'));
     } finally {
       setLoading(false);
     }
@@ -88,21 +89,21 @@ export default function PublicJobApplicationScreen() {
       const file = result.assets[0];
 
       // Validate file size
-      if (file.size && file.size > MAX_FILE_SIZE) {
-        Alert.alert('File Too Large', 'Resume must be less than 50MB');
+if (file.size && file.size > MAX_FILE_SIZE) {
+        Alert.alert(t('apply.fileTooLargeTitle'), t('apply.fileTooLargeDesc'));
         return;
       }
 
       // Validate file type
-      if (file.mimeType && !ALLOWED_MIME_TYPES.includes(file.mimeType)) {
-        Alert.alert('Invalid File Type', 'Please upload a PDF or Word document');
+if (file.mimeType && !ALLOWED_MIME_TYPES.includes(file.mimeType)) {
+        Alert.alert(t('apply.invalidFileTypeTitle'), t('apply.invalidFileTypeDesc'));
         return;
       }
 
       setResumeFile(file);
     } catch (error) {
-      console.error('Error picking document:', error);
-      Alert.alert('Error', 'Failed to pick document');
+console.error('Error picking document:', error);
+      Alert.alert(t('common.error'), t('apply.pickDocumentError'));
     }
   };
 
@@ -112,38 +113,38 @@ export default function PublicJobApplicationScreen() {
   };
 
   const validateForm = (): boolean => {
-    if (!firstName.trim()) {
-      Alert.alert('Validation Error', 'First name is required');
+if (!firstName.trim()) {
+      Alert.alert(t('apply.validationErrorTitle'), t('validation.required', { field: t('auth.firstName') }));
       return false;
     }
 
-    if (!lastName.trim()) {
-      Alert.alert('Validation Error', 'Last name is required');
+if (!lastName.trim()) {
+      Alert.alert(t('apply.validationErrorTitle'), t('validation.required', { field: t('auth.lastName') }));
       return false;
     }
 
-    if (!email.trim()) {
-      Alert.alert('Validation Error', 'Email is required');
+if (!email.trim()) {
+      Alert.alert(t('apply.validationErrorTitle'), t('validation.required', { field: t('auth.email') }));
       return false;
     }
 
-    if (!validateEmail(email)) {
-      Alert.alert('Validation Error', 'Please enter a valid email address');
+if (!validateEmail(email)) {
+      Alert.alert(t('apply.validationErrorTitle'), t('validation.email_invalid'));
       return false;
     }
 
-    if (!phone.trim()) {
-      Alert.alert('Validation Error', 'Phone number is required');
+if (!phone.trim()) {
+      Alert.alert(t('apply.validationErrorTitle'), t('validation.required', { field: t('apply.phoneNumber') }));
       return false;
     }
 
-    if (!experienceYears.trim() || isNaN(Number(experienceYears))) {
-      Alert.alert('Validation Error', 'Please enter valid years of experience (number)');
+if (!experienceYears.trim() || isNaN(Number(experienceYears))) {
+      Alert.alert(t('apply.validationErrorTitle'), t('apply.error.yearsExperienceNumber'));
       return false;
     }
 
-    if (!resumeFile) {
-      Alert.alert('Validation Error', 'Please upload your resume');
+if (!resumeFile) {
+      Alert.alert(t('apply.validationErrorTitle'), t('apply.error.resumeRequired'));
       return false;
     }
 
@@ -191,12 +192,12 @@ export default function PublicJobApplicationScreen() {
       );
 
       // Success!
-      Alert.alert(
-        'Application Submitted! 🎉',
-        'Your application has been received. The school will review your application and contact you if you\'re shortlisted for an interview.\n\nYou will receive a confirmation email shortly.',
+Alert.alert(
+        t('apply.submittedTitle'),
+        t('apply.submittedDesc'),
         [
           {
-            text: 'OK',
+            text: t('common.ok'),
             onPress: () => {
               // Clear form
               setFirstName('');
@@ -212,8 +213,8 @@ export default function PublicJobApplicationScreen() {
         ]
       );
     } catch (error: any) {
-      console.error('Error submitting application:', error);
-      Alert.alert('Error', error.message || 'Failed to submit application. Please try again.');
+console.error('Error submitting application:', error);
+      Alert.alert(t('common.error'), error.message || t('apply.submitError'));
     } finally {
       setSubmitting(false);
     }
@@ -223,8 +224,8 @@ export default function PublicJobApplicationScreen() {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>Loading job posting...</Text>
+<ActivityIndicator size="large" color={theme.primary} />
+          <Text style={styles.loadingText}>{t('apply.loadingPosting')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -235,9 +236,9 @@ export default function PublicJobApplicationScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color={theme.error} />
-          <Text style={styles.errorText}>Job posting not found</Text>
+<Text style={styles.errorText}>{t('apply.notFoundTitle')}</Text>
           <Text style={styles.errorSubtext}>
-            This job may have been removed or expired
+            {t('apply.notFoundDesc')}
           </Text>
         </View>
       </SafeAreaView>
@@ -246,12 +247,12 @@ export default function PublicJobApplicationScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Stack.Screen options={{ title: 'Apply for Job', headerShown: false }} />
+<Stack.Screen options={{ title: t('apply.screenTitle'), headerShown: false }} />
 
       {/* Header */}
       <View style={styles.header}>
         <Ionicons name="briefcase-outline" size={24} color={theme.primary} />
-        <Text style={styles.headerTitle}>Apply for Position</Text>
+<Text style={styles.headerTitle}>{t('apply.headerTitle')}</Text>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
@@ -260,7 +261,7 @@ export default function PublicJobApplicationScreen() {
           <Text style={styles.jobTitle}>{jobPosting.title}</Text>
           <View style={styles.jobMetaRow}>
             <Ionicons name="business-outline" size={16} color={theme.textSecondary} />
-            <Text style={styles.jobMeta}>School Position</Text>
+<Text style={styles.jobMeta}>{t('apply.schoolPosition')}</Text>
           </View>
           {jobPosting.location && (
             <View style={styles.jobMetaRow}>
@@ -271,54 +272,54 @@ export default function PublicJobApplicationScreen() {
           {(jobPosting.salary_range_min || jobPosting.salary_range_max) && (
             <View style={styles.jobMetaRow}>
               <Ionicons name="cash-outline" size={16} color={theme.textSecondary} />
-              <Text style={styles.jobMeta}>
-                R{jobPosting.salary_range_min?.toLocaleString()} - R
+<Text style={styles.jobMeta}>
+                {t('currency.symbol', { defaultValue: 'R' })}{jobPosting.salary_range_min?.toLocaleString()} - {t('currency.symbol', { defaultValue: 'R' })}
                 {jobPosting.salary_range_max?.toLocaleString()}
               </Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>Personal Information</Text>
+<Text style={styles.sectionTitle}>{t('apply.personalInfo')}</Text>
 
         {/* First Name */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            First Name <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('auth.firstName')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
             value={firstName}
             onChangeText={setFirstName}
-            placeholder="John"
+placeholder={t('apply.placeholder.firstName')}
             placeholderTextColor={theme.textSecondary}
           />
         </View>
 
         {/* Last Name */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            Last Name <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('auth.lastName')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
             value={lastName}
             onChangeText={setLastName}
-            placeholder="Doe"
+placeholder={t('apply.placeholder.lastName')}
             placeholderTextColor={theme.textSecondary}
           />
         </View>
 
         {/* Email */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            Email <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('auth.email')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
             value={email}
             onChangeText={setEmail}
-            placeholder="john.doe@example.com"
+placeholder={t('apply.placeholder.email')}
             placeholderTextColor={theme.textSecondary}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -327,14 +328,14 @@ export default function PublicJobApplicationScreen() {
 
         {/* Phone */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            Phone Number <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('apply.phoneNumber')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
             value={phone}
             onChangeText={setPhone}
-            placeholder="+27 82 123 4567"
+placeholder={t('apply.placeholder.phone')}
             placeholderTextColor={theme.textSecondary}
             keyboardType="phone-pad"
           />
@@ -342,29 +343,29 @@ export default function PublicJobApplicationScreen() {
 
         {/* Experience Years */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            Years of Experience <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('apply.yearsExperience')} <Text style={styles.required}>*</Text>
           </Text>
           <TextInput
             style={styles.input}
             value={experienceYears}
             onChangeText={setExperienceYears}
-            placeholder="e.g. 3"
+placeholder={t('apply.placeholder.years')}
             placeholderTextColor={theme.textSecondary}
             keyboardType="numeric"
           />
         </View>
 
-        <Text style={styles.sectionTitle}>Qualifications</Text>
+<Text style={styles.sectionTitle}>{t('apply.qualificationsTitle')}</Text>
 
         {/* Qualifications */}
         <View style={styles.field}>
-          <Text style={styles.label}>Education & Certifications (Optional)</Text>
+<Text style={styles.label}>{t('apply.educationOptionalLabel')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={qualifications}
             onChangeText={setQualifications}
-            placeholder="e.g. Bachelor's Degree in Early Childhood Education, SACE Registration"
+placeholder={t('apply.placeholder.qualificationsText')}
             placeholderTextColor={theme.textSecondary}
             multiline
             numberOfLines={3}
@@ -374,8 +375,8 @@ export default function PublicJobApplicationScreen() {
 
         {/* Resume Upload */}
         <View style={styles.field}>
-          <Text style={styles.label}>
-            Resume/CV <Text style={styles.required}>*</Text>
+<Text style={styles.label}>
+            {t('apply.resumeLabel')} <Text style={styles.required}>*</Text>
           </Text>
           <TouchableOpacity style={styles.uploadButton} onPress={handlePickResume}>
             <Ionicons
@@ -385,10 +386,10 @@ export default function PublicJobApplicationScreen() {
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.uploadButtonText}>
-                {resumeFile ? resumeFile.name : 'Upload Resume/CV'}
+{resumeFile ? resumeFile.name : t('apply.uploadResumeCta')}
               </Text>
               {!resumeFile && (
-                <Text style={styles.uploadButtonHint}>PDF or Word document, max 50MB</Text>
+<Text style={styles.uploadButtonHint}>{t('apply.uploadHint')}</Text>
               )}
             </View>
             {resumeFile && (
@@ -401,12 +402,12 @@ export default function PublicJobApplicationScreen() {
 
         {/* Cover Letter */}
         <View style={styles.field}>
-          <Text style={styles.label}>Cover Letter (Optional)</Text>
+<Text style={styles.label}>{t('apply.coverLetterOptional')}</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
             value={coverLetter}
             onChangeText={setCoverLetter}
-            placeholder="Tell us why you're interested in this position and what makes you a great fit..."
+placeholder={t('apply.placeholder.coverLetterLong')}
             placeholderTextColor={theme.textSecondary}
             multiline
             numberOfLines={6}
@@ -425,7 +426,7 @@ export default function PublicJobApplicationScreen() {
           ) : (
             <>
               <Ionicons name="paper-plane" size={20} color="#FFFFFF" />
-              <Text style={styles.submitButtonText}>Submit Application</Text>
+<Text style={styles.submitButtonText}>{t('apply.submitCta')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -433,9 +434,8 @@ export default function PublicJobApplicationScreen() {
         {/* Privacy Notice */}
         <View style={styles.privacyNotice}>
           <Ionicons name="shield-checkmark-outline" size={18} color={theme.textSecondary} />
-          <Text style={styles.privacyText}>
-            Your information will only be shared with the hiring school. We respect your privacy
-            and comply with POPIA regulations.
+<Text style={styles.privacyText}>
+            {t('apply.privacyNotice')}
           </Text>
         </View>
       </ScrollView>

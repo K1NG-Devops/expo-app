@@ -543,4 +543,3 @@ const decisionEngineInstance = DashDecisionEngine.getInstance();
 export default decisionEngineInstance;
 
 // Export class for type purposes
-export { DashDecisionEngine };

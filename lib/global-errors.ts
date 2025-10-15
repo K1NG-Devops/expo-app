@@ -13,10 +13,9 @@ import { logger } from './logger';
  */
 export function installGlobalErrorHandler() {
   // React Native specific global error handling
-  if (typeof global !== 'undefined' && global.ErrorUtils) {
-    const defaultHandler = global.ErrorUtils.getGlobalHandler?.();
-
-    global.ErrorUtils.setGlobalHandler?.((error, isFatal) => {
+  if (typeof global !== 'undefined' && (global as any).ErrorUtils) {
+    const defaultHandler = (global as any).ErrorUtils.getGlobalHandler?.();
+    (global as any).ErrorUtils.setGlobalHandler?.((error: any, isFatal: any) => {
       // Always log critical unhandled errors
       logger.forceError('Unhandled JavaScript error', {
         message: error?.message || String(error),

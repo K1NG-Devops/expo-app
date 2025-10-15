@@ -19,13 +19,13 @@ export function ultraMemo<P extends Record<string, any>>(
   displayName?: string
 ): React.ComponentType<P> {
   const MemoComponent = React.memo(Component, propsAreEqual);
-  MemoComponent.displayName = displayName || `UltraMemo(${Component.displayName || Component.name})`;
+  ;(MemoComponent as any).displayName = displayName || `UltraMemo(${(Component as any).displayName || (Component as any).name})`;
   
   if (__DEV__) {
-    return measureRender(MemoComponent, MemoComponent.displayName);
+    return measureRender(MemoComponent as unknown as React.ComponentType<P>, (MemoComponent as any).displayName);
   }
   
-  return MemoComponent;
+  return MemoComponent as unknown as React.ComponentType<P>;
 }
 
 /**
@@ -102,7 +102,7 @@ export function useSmartCallback<T extends (...args: any[]) => any>(
   
   if (__DEV__ && debugLabel) {
     // Track callback stability in development
-    const prevDepsRef = useRef<React.DependencyList>();
+    const prevDepsRef = useRef<React.DependencyList | null>(null);
     
     useEffect(() => {
       if (prevDepsRef.current && prevDepsRef.current !== deps) {
