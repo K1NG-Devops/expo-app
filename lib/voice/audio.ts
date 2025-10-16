@@ -3,15 +3,18 @@
  * 
  * Handles audio playback for TTS using expo-av
  * Recording removed - use streaming via useVoiceController instead
+ * Now uses AudioModeCoordinator to prevent conflicts with WebRTC streaming
  */
 
 import { Audio } from 'expo-av';
 import type { PlaybackState } from './types';
+import AudioModeCoordinator, { AudioModeSession } from '../AudioModeCoordinator';
 
 export class AudioManager {
   private static instance: AudioManager | null = null;
   private sound: Audio.Sound | null = null;
   private isInitialized: boolean = false;
+  private audioSession: AudioModeSession | null = null;
   private playbackState: PlaybackState = {
     isPlaying: false,
     duration: 0,
@@ -30,6 +33,7 @@ export class AudioManager {
 
   /**
    * Initialize audio system
+   * Now uses AudioModeCoordinator for safe audio mode management
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) {
@@ -37,17 +41,12 @@ export class AudioManager {
     }
 
     try {
-      // Set initial audio mode
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      // Initialize audio mode coordinator
+      await AudioModeCoordinator.initialize();
       this.isInitialized = true;
+      console.log('[AudioManager] ✅ Initialized with AudioModeCoordinator');
     } catch (error) {
-      console.error('[AudioManager] Failed to initialize:', error);
+      console.error('[AudioManager] ❌ Failed to initialize:', error);
     }
   }
 
@@ -56,6 +55,7 @@ export class AudioManager {
 
   /**
    * Play audio from URI
+   * Uses AudioModeCoordinator to request TTS audio mode
    * 
    * @param uri Audio file URI
    * @param onUpdate Callback for playback state updates
@@ -65,14 +65,9 @@ export class AudioManager {
       // Stop any existing playback
       await this.stop();
 
-      // Configure audio mode for playback
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      // Request TTS audio mode from coordinator
+      this.audioSession = await AudioModeCoordinator.requestAudioMode('tts');
+      console.log('[AudioManager] 🎵 TTS audio session started:', this.audioSession.id);
 
       // Load and play sound
       const { sound } = await Audio.Sound.createAsync(
@@ -103,6 +98,12 @@ export class AudioManager {
 
       this.sound = sound;
     } catch (error) {
+      // Release audio session on error
+      if (this.audioSession) {
+        await this.audioSession.release();
+        this.audioSession = null;
+      }
+
       this.playbackState = {
         isPlaying: false,
         duration: 0,
@@ -146,6 +147,7 @@ export class AudioManager {
 
   /**
    * Stop playback and cleanup
+   * Releases audio session back to coordinator
    */
   async stop(): Promise<void> {
     try {
@@ -154,13 +156,21 @@ export class AudioManager {
         await this.sound.unloadAsync();
         this.sound = null;
       }
+
+      // Release audio session
+      if (this.audioSession) {
+        await this.audioSession.release();
+        console.log('[AudioManager] 🔓 TTS audio session released');
+        this.audioSession = null;
+      }
+
       this.playbackState = {
         isPlaying: false,
         duration: 0,
         position: 0,
       };
     } catch (error) {
-      console.error('[AudioManager] Failed to stop:', error);
+      console.error('[AudioManager] ❌ Failed to stop:', error);
     }
   }
 

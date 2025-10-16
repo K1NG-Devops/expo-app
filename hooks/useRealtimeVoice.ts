@@ -31,7 +31,7 @@ interface UseRealtimeVoiceOptions {
   tokenProvider?: () => Promise<string | null>; // return auth token or null
   timesliceMs?: number; // MediaRecorder timeslice
   language?: string; // 'en' | 'af' | 'zu' | 'xh' | 'nso'
-  transcriptionModel?: string; // 'whisper-1' | 'gpt-4o-mini-transcribe'
+  transcriptionModel?: string; // Must be 'whisper-1' for OpenAI Realtime API
   vadSilenceMs?: number; // default 700
   onPartialTranscript?: (text: string) => void;
   onFinalTranscript?: (text: string) => void;

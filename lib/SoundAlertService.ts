@@ -3,6 +3,7 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { assertSupabase } from './supabase';
+import AudioModeCoordinator from './AudioModeCoordinator';
 
 export type AlertType = 
   | 'urgent' 
@@ -98,26 +99,23 @@ class SoundAlertService {
 
   /**
    * Initialize the sound alert service
+   * Now uses AudioModeCoordinator to prevent conflicts with WebRTC streaming
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
     try {
-      // Configure audio session
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
+      // Initialize audio mode coordinator
+      // This ensures audio mode is coordinated with streaming and TTS
+      await AudioModeCoordinator.initialize();
 
       // Preload default sounds
       await this.preloadSounds();
 
       this.isInitialized = true;
-      console.log('SoundAlertService initialized successfully');
+      console.log('[SoundAlertService] ✅ Initialized with AudioModeCoordinator');
     } catch (error) {
-      console.error('Failed to initialize SoundAlertService:', error);
+      console.error('[SoundAlertService] ❌ Failed to initialize:', error);
       throw error;
     }
   }
@@ -195,29 +193,34 @@ class SoundAlertService {
 
   /**
    * Play system notification sound
+   * Uses AudioModeCoordinator to safely manage audio mode
    */
   private async playSystemNotificationSound(alert: SoundAlert, settings: SoundAlertSettings): Promise<void> {
     try {
-      // For basic sound feedback, we can trigger a simple notification
-      // that will play the system notification sound
-      const notification = {
-        title: alert.title,
-        body: alert.message,
-        data: alert.data,
-        sound: true, // Use default system sound
-      };
-
       // Only play if not in quiet hours and enabled
       if (settings.enabled && (!settings.quietHoursEnabled || !this.isInQuietHours(settings))) {
-        // For testing purposes, we'll just log the sound play
-        console.log(`Playing ${settings.soundStyle} sound for ${alert.type} alert`);
-        
-        // In a real implementation, you might want to show a brief notification
-        // or use a different approach to play system sounds
+        // Use coordinator to request notification audio mode
+        await AudioModeCoordinator.withAudioMode('notification', async () => {
+          // For basic sound feedback, we can trigger a simple notification
+          // that will play the system notification sound
+          const notification = {
+            title: alert.title,
+            body: alert.message,
+            data: alert.data,
+            sound: true, // Use default system sound
+          };
+
+          console.log(
+            `[SoundAlertService] 🔊 Playing ${settings.soundStyle} sound for ${alert.type} alert`
+          );
+          
+          // In a real implementation, you might want to show a brief notification
+          // or use a different approach to play system sounds
+        });
       }
 
     } catch (error) {
-      console.warn('Failed to play system notification sound:', error);
+      console.warn('[SoundAlertService] ⚠️ Failed to play notification sound:', error);
     }
   }
 

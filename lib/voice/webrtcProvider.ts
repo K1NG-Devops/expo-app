@@ -1,14 +1,16 @@
 // OpenAI Realtime provider (WebSocket for web; native mobile uses WebRTC SDP negotiation)
 // Streams mic to OpenAI Realtime and emits transcription/assistant tokens
+// Now uses AudioModeCoordinator to prevent conflicts with TTS and notifications
 
 import { Platform } from 'react-native';
 import { wait } from '@/lib/utils/async';
+import AudioModeCoordinator, { AudioModeSession } from '../AudioModeCoordinator';
 
 export interface StartOptions {
   token: string; // OpenAI ephemeral client_secret
   url: string; // Realtime base URL (wss://api.openai.com/v1/realtime?model=...)
   language?: string; // 'en' | 'af' | 'zu' | 'xh' | 'nso'
-  transcriptionModel?: string; // default 'whisper-1' or 'gpt-4o-mini-transcribe'
+  transcriptionModel?: string; // Must be 'whisper-1' for OpenAI Realtime API
   vadSilenceMs?: number; // VAD silence duration
   onPartialTranscript?: (t: string) => void;
   onFinalTranscript?: (t: string) => void;
@@ -42,6 +44,7 @@ export function createWebRTCSession(): WebRTCSession {
   let mediaRecorder: any = null; // web-only
   let audioChunkInterval: any = null; // legacy
   let isMuted = false;
+  let audioSession: AudioModeSession | null = null; // Audio mode coordinator session
 
   // Native WebRTC refs
   let pc: any = null;
@@ -55,6 +58,10 @@ export function createWebRTCSession(): WebRTCSession {
       }
 
       try {
+        // Request streaming audio mode from coordinator
+        audioSession = await AudioModeCoordinator.requestAudioMode('streaming');
+        console.log('[realtimeProvider] 🎵 Streaming audio session started:', audioSession.id);
+
         const isWeb = Platform.OS === 'web';
 
         if (isWeb) {
@@ -222,6 +229,13 @@ export function createWebRTCSession(): WebRTCSession {
               console.log('[realtimeProvider] ✅ Audio buffer committed');
             }
             
+            // Handle transcription failures
+            if (message.type === 'conversation.item.input_audio_transcription.failed') {
+              console.error('[realtimeProvider] ❌ Transcription failed:', message.error?.message);
+              console.error('[realtimeProvider] 👉 Check: Is transcription model valid? Using whisper-1?');
+              // Don't call error callbacks here as this is handled per-item, not fatal
+            }
+            
             switch (message.type) {
               case 'conversation.item.input_audio_transcription.delta':
                 console.log('[realtimeProvider] 🎙️ PARTIAL transcript delta:', message.delta);
@@ -308,7 +322,15 @@ export function createWebRTCSession(): WebRTCSession {
         active = true;
         return true;
       } catch (e) {
-        console.warn('[realtimeProvider] start failed:', e);
+        console.warn('[realtimeProvider] ❌ start failed:', e);
+        
+        // Release audio session on failure
+        if (audioSession) {
+          await audioSession.release();
+          console.log('[realtimeProvider] 🔓 Streaming audio session released (error)');
+          audioSession = null;
+        }
+        
         // Cleanup on failure
         try {
           if (mediaRecorder?.stop) mediaRecorder.stop();
@@ -440,7 +462,18 @@ export function createWebRTCSession(): WebRTCSession {
         try { pc?.close?.(); } catch {}
         dc = null; pc = null;
         
-        console.log('[realtimeProvider] Cleanup complete');
+        // Release audio session
+        if (audioSession) {
+          try {
+            await audioSession.release();
+            console.log('[realtimeProvider] 🔓 Streaming audio session released');
+            audioSession = null;
+          } catch (e) {
+            console.warn('[realtimeProvider] ⚠️ Failed to release audio session:', e);
+          }
+        }
+        
+        console.log('[realtimeProvider] ✅ Cleanup complete');
       } catch (error) {
         console.error('[realtimeProvider] Stop error:', error);
         mediaRecorder = null;
