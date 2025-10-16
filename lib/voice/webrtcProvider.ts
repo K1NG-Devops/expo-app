@@ -288,37 +288,50 @@ export function createWebRTCSession(): WebRTCSession {
         const answerSdp = await resp.text();
         await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp } as any));
 
-        // Configure session when data channel opens
-        dc.onopen = () => {
-          console.log('[realtimeProvider] 🟢 Data channel opened, configuring session...');
-          try {
-            // OpenAI supported languages for Realtime API
-            const supportedLanguages = ['af', 'ar', 'az', 'be', 'bg', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'fa', 'fi', 'fr', 'gl', 'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'kk', 'kn', 'ko', 'lt', 'lv', 'mi', 'mk', 'mr', 'ms', 'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sr', 'sv', 'sw', 'ta', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'];
-            const langToSend = opts.language && supportedLanguages.includes(opts.language) ? opts.language : undefined;
-            if (opts.language && !langToSend) {
-              console.warn(`[realtimeProvider] ⚠️ Language '${opts.language}' not supported by OpenAI, using auto-detect`);
-            }
-            
-            const sessionConfig = {
-              type: 'session.update',
-              session: {
-                turn_detection: { type: 'server_vad', silence_duration_ms: Math.max(300, Math.min(2000, opts.vadSilenceMs ?? 700)) },
-                input_audio_transcription: {
-                  model: opts.transcriptionModel || 'whisper-1',
-                  ...(langToSend ? { language: langToSend } : {}),
+        // Wait for data channel to open (critical for transcription to work)
+        console.log('[realtimeProvider] ⏳ Waiting for data channel to open...');
+        const dataChannelReady = new Promise<boolean>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            console.error('[realtimeProvider] ❌ Data channel open timeout');
+            reject(new Error('Data channel failed to open within 10 seconds'));
+          }, 10000);
+          
+          dc.onopen = () => {
+            clearTimeout(timeout);
+            console.log('[realtimeProvider] 🟢 Data channel opened, configuring session...');
+            try {
+              // OpenAI supported languages for Realtime API
+              const supportedLanguages = ['af', 'ar', 'az', 'be', 'bg', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'fa', 'fi', 'fr', 'gl', 'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'kk', 'kn', 'ko', 'lt', 'lv', 'mi', 'mk', 'mr', 'ms', 'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sr', 'sv', 'sw', 'ta', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'];
+              const langToSend = opts.language && supportedLanguages.includes(opts.language) ? opts.language : undefined;
+              if (opts.language && !langToSend) {
+                console.warn(`[realtimeProvider] ⚠️ Language '${opts.language}' not supported by OpenAI, using auto-detect`);
+              }
+              
+              const sessionConfig = {
+                type: 'session.update',
+                session: {
+                  turn_detection: { type: 'server_vad', silence_duration_ms: Math.max(300, Math.min(2000, opts.vadSilenceMs ?? 700)) },
+                  input_audio_transcription: {
+                    model: opts.transcriptionModel || 'whisper-1',
+                    ...(langToSend ? { language: langToSend } : {}),
+                  },
+                  modalities: ['text', 'audio'],  // Ensure both text and audio responses
+                  voice: 'alloy',
                 },
-                modalities: ['text', 'audio'],  // Ensure both text and audio responses
-                voice: 'alloy',
-              },
-            };
-            console.log('[realtimeProvider] 📤 Sending session config:', JSON.stringify(sessionConfig, null, 2));
-            dc.send(JSON.stringify(sessionConfig));
-            console.log('[realtimeProvider] ✅ Session configuration sent');
-          } catch (e) {
-            console.error('[realtimeProvider] ❌ Failed to send session config:', e);
-          }
-        };
-
+              };
+              console.log('[realtimeProvider] 📤 Sending session config:', JSON.stringify(sessionConfig, null, 2));
+              dc.send(JSON.stringify(sessionConfig));
+              console.log('[realtimeProvider] ✅ Session configuration sent');
+              resolve(true);
+            } catch (e) {
+              console.error('[realtimeProvider] ❌ Failed to send session config:', e);
+              reject(e);
+            }
+          };
+        });
+        
+        await dataChannelReady;
+        console.log('[realtimeProvider] ✅ Data channel ready, stream fully initialized');
         active = true;
         return true;
       } catch (e) {

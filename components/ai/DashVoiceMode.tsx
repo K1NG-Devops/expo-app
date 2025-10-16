@@ -99,7 +99,8 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       setUserTranscript(partial);
       
       // Interrupt Dash if user starts speaking while Dash is responding
-      if (speaking && partial.length > 0) {
+      // Even short words should interrupt (improved sensitivity)
+      if (speaking && partial.length >= 2) {
         console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
         try {
           // Stop current speech (both device TTS and audio manager)
@@ -110,6 +111,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           import('@/lib/voice/audio').then(({ audioManager }) => {
             audioManager.stop().catch(e => console.warn('[DashVoiceMode] Audio stop error:', e));
           }).catch(() => {});
+          
+          // Provide haptic feedback for interruption
+          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
         } catch (e) {
           console.warn('[DashVoiceMode] Failed to stop speech:', e);
         }
@@ -156,9 +160,18 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
       
       // Send message to AI
-      console.log('[DashVoiceMode] Sending message to AI...');
+      console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
       const response = await dashInstance.sendMessage(transcript);
       console.log('[DashVoiceMode] ✅ Received AI response:', response.id);
+      
+      // Override response language to match orb language for TTS
+      // This ensures TTS speaks in the same language as the orb input
+      if (response.metadata) {
+        response.metadata.detected_language = activeLang;
+      } else {
+        response.metadata = { detected_language: activeLang };
+      }
+      console.log('[DashVoiceMode] 📢 TTS will use language:', activeLang);
       
       const responseText = response.content || '';
       setAiResponse(responseText);
@@ -292,6 +305,17 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       }
       
       console.log('[DashVoiceMode] 🔌 Attempting to start realtime stream with language:', activeLang);
+      
+      // Save orb language preference to database (async, non-blocking)
+      // This ensures future sessions use the correct language
+      try {
+        const voiceService = (await import('@/lib/voice/client')).voiceService;
+        await voiceService.savePreferences({ language: activeLang as any });
+        console.log('[DashVoiceMode] ✅ Saved language preference:', activeLang);
+      } catch (e) {
+        console.warn('[DashVoiceMode] ⚠️ Failed to save language preference:', e);
+      }
+      
       setErrorMessage('Connecting...');
       const ok = await realtime.startStream();
       console.log('[DashVoiceMode] 📡 Stream start result:', ok);
@@ -367,7 +391,22 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   };
 
   const handleClose = async () => {
+    // Stop streaming
     try { await realtime.stopStream(); } catch {}
+    
+    // Stop TTS playback
+    console.log('[DashVoiceMode] 🛑 Stopping TTS on close');
+    setSpeaking(false);
+    try {
+      // Stop device TTS
+      dashInstance?.stopSpeaking?.();
+      // Stop audio manager TTS
+      const { audioManager } = await import('@/lib/voice/audio');
+      await audioManager.stop();
+    } catch (e) {
+      console.warn('[DashVoiceMode] ⚠️ Error stopping TTS:', e);
+    }
+    
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     onClose();
   };
