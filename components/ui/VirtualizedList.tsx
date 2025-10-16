@@ -135,7 +135,7 @@ export const UltraFastList = memo(<T extends { id: string | number }>(
       onEndReached={handleEndReached}
       onEndReachedThreshold={onEndReachedThreshold}
       style={style}
-      contentContainerStyle={contentContainerStyle}
+      contentContainerStyle={contentContainerStyle as any}
       testID={testID}
       ListEmptyComponent={EmptyComponent}
       ListHeaderComponent={HeaderComponent}
@@ -144,9 +144,9 @@ export const UltraFastList = memo(<T extends { id: string | number }>(
       horizontal={horizontal}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}
-      maxToRenderPerBatch={maxToRenderPerBatch}
-      windowSize={windowSize}
-      removeClippedSubviews={removeClippedSubviews}
+      // maxToRenderPerBatch not supported by FlashList
+      // windowSize not supported by FlashList
+      // removeClippedSubviews not supported by FlashList
       // FlashList specific optimizations
       estimatedFirstItemOffset={0}
       drawDistance={windowSize * estimatedItemSize}
@@ -160,7 +160,6 @@ export const UltraFastList = memo(<T extends { id: string | number }>(
   );
 }) as <T extends { id: string | number }>(props: VirtualizedListProps<T>) => React.ReactElement;
 ;(UltraFastList as any).displayName = 'UltraFastList';
-UltraFastList.displayName = 'UltraFastList';
 
 /**
  * Chat list component optimized for Dash conversations
@@ -192,7 +191,6 @@ export const DashChatList = memo(<T extends { id: string | number; timestamp?: n
   }
 ) => React.ReactElement;
 ;(DashChatList as any).displayName = 'DashChatList';
-DashChatList.displayName = 'DashChatList';
 
 /**
  * Lesson grid for Dash's educational content
@@ -214,6 +212,5 @@ export const DashLessonGrid = memo(<T extends { id: string | number }>(
   props: Omit<VirtualizedListProps<T>, 'estimatedItemSize' | 'numColumns'>
 ) => React.ReactElement;
 ;(DashLessonGrid as any).displayName = 'DashLessonGrid';
-DashLessonGrid.displayName = 'DashLessonGrid';
 
 export default measureRender(UltraFastList, 'UltraFastList');

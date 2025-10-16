@@ -76,7 +76,7 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
   }, [source, maxWidth, maxHeight, allowDownscaling], 'image_source_optimization');
 
   // Stable styles with aspect ratio handling
-  const stableStyles = useStableStyles<StyleProp<ViewStyle>>(() => {
+  const stableStyles = useStableStyles(() => {
     const baseStyle = StyleSheet.flatten(style) as ViewStyle | undefined;
     
     if (aspectRatio && !baseStyle?.height && !baseStyle?.width) {
@@ -84,10 +84,10 @@ export const SmartImage = ultraMemo<SmartImageProps>(({
       return [
         { width: widthNum, height: (widthNum as number) / (aspectRatio as number) },
         baseStyle,
-      ];
+      ] as any;
     }
     
-    return baseStyle as StyleProp<ViewStyle>;
+    return (baseStyle || {}) as any;
   }, [style, aspectRatio, maxWidth]);
 
   // Performance-tracked load handlers
@@ -212,7 +212,7 @@ export const SmartAvatar = ultraMemo<{
   priority = 'high', // Avatars are usually important
   testID,
 }) => {
-  const avatarStyles = useStableStyles<StyleProp<ViewStyle>>(() => ([
+  const avatarStyles = useStableStyles(() => ([
     styles.avatar,
     {
       width: size,

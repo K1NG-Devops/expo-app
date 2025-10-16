@@ -135,6 +135,8 @@ export function useTextToSpeech() {
 
 /**
  * Hook for audio recording
+ * @deprecated Use useVoiceController with streaming instead
+ * Recording via expo-av has been removed in favor of real-time streaming
  */
 export function useVoiceRecording() {
   const [recordingState, setRecordingState] = useState<RecordingState>({
@@ -144,62 +146,31 @@ export function useVoiceRecording() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const managerRef = useRef<AudioManager>(audioManager);
 
-  // Check permissions on mount
-  useEffect(() => {
-    const checkPermissions = async () => {
-      const granted = await managerRef.current.hasPermissions();
-      setHasPermission(granted);
-    };
-    checkPermissions();
-  }, []);
-
+  // Deprecated: Recording methods no longer functional
+  // Use useVoiceController with streaming instead
+  
   const requestPermission = useCallback(async () => {
-    const granted = await managerRef.current.requestPermissions();
-    setHasPermission(granted);
-    return granted;
+    console.warn('[useVoiceRecording] DEPRECATED: Use useVoiceController instead');
+    setHasPermission(false);
+    return false;
   }, []);
 
   const startRecording = useCallback(async () => {
-    try {
-      await managerRef.current.startRecording((state) => {
-        setRecordingState(state);
-      });
-    } catch (error) {
-      console.error('[useVoiceRecording] Failed to start recording:', error);
-      setRecordingState({
-        isRecording: false,
-        duration: 0,
-        error: error instanceof Error ? error.message : 'Failed to start recording',
-      });
-    }
-  }, []);
-
-  const stopRecording = useCallback(async (): Promise<string | null> => {
-    try {
-      const uri = await managerRef.current.stopRecording();
-      setRecordingState({
-        isRecording: false,
-        duration: recordingState.duration,
-        uri,
-      });
-      return uri;
-    } catch (error) {
-      console.error('[useVoiceRecording] Failed to stop recording:', error);
-      setRecordingState({
-        isRecording: false,
-        duration: 0,
-        error: error instanceof Error ? error.message : 'Failed to stop recording',
-      });
-      return null;
-    }
-  }, [recordingState.duration]);
-
-  const cancelRecording = useCallback(async () => {
-    await managerRef.current.cancelRecording();
+    console.warn('[useVoiceRecording] DEPRECATED: Use useVoiceController instead');
     setRecordingState({
       isRecording: false,
       duration: 0,
+      error: 'Recording via expo-av removed. Use useVoiceController with streaming.',
     });
+  }, []);
+
+  const stopRecording = useCallback(async (): Promise<string | null> => {
+    console.warn('[useVoiceRecording] DEPRECATED: Use useVoiceController instead');
+    return null;
+  }, []);
+
+  const cancelRecording = useCallback(async () => {
+    console.warn('[useVoiceRecording] DEPRECATED: Use useVoiceController instead');
   }, []);
 
   // Cleanup on unmount

@@ -8,10 +8,7 @@
 // Core client
 export { voiceService, VoiceServiceClient } from './client';
 
-// Audio manager
-export { audioManager, AudioManager } from './audio';
-
-// React hooks
+// React hooks (recording hooks deprecated; prefer streaming controllers)
 export {
   useVoicePreferences,
   useTextToSpeech,

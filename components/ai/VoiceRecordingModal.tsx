@@ -73,13 +73,8 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
   const isProcessing = vc.state === 'transcribing' || vc.state === 'thinking';
   const isPrewarm = vc.state === 'prewarm';
 
-  // Auto-close modal when processing completes
-  useEffect(() => {
-    if (visible && vc.state === 'idle' && !isRecording && !isProcessing) {
-      // Processing finished, close modal
-      onClose();
-    }
-  }, [vc.state, visible, isRecording, isProcessing, onClose]);
+  // Auto-close modal when processing completes (only if not manually closed)
+  // Removed: modal now closes immediately after send to prevent double-tap
 
   // Show/hide lock icon and pulse animation for recording indicator
   useEffect(() => {
@@ -163,24 +158,22 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
     try {
       if (Platform.OS !== 'android') return true;
       const { PermissionsAndroid } = await import('react-native');
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-      );
+      const perm = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+      const already = await PermissionsAndroid.check(perm as any);
+      if (already) return true;
+      const granted = await PermissionsAndroid.request(perm as any);
       return granted === PermissionsAndroid.RESULTS.GRANTED;
     } catch {
       return true; // best-effort
     }
   };
 
+  // Removed auto-start to avoid double mic start; user must tap mic to start
   useEffect(() => {
     (async () => {
       try {
         if (!visible) return;
-        const ok = await ensureMicPermission();
-        if (!ok) return;
-        if (vc.state === 'idle' || vc.state === 'prewarm') {
-          await vc.startPress();
-        }
+        await ensureMicPermission();
       } catch {}
     })();
   }, [visible]);
@@ -223,11 +216,12 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
 
   const handleSend = async () => {
     try {
-      // DON'T close the modal immediately - let it stay open during transcription
-      // The modal will close automatically when vc.state changes from 'listening'
-      await vc.release();
+      console.log('[VoiceRecordingModal] Sending recording and closing modal');
+      // Close modal immediately to prevent double-tap issues
       resetAnimations();
-      // onClose(); // Removed - modal closes via visible prop when state changes
+      onClose();
+      // Process in background
+      await vc.release();
     } catch (e) {
       console.error(t('voice.errors.send_error', { defaultValue: 'Send error' }), e);
       onClose(); // Close on error
@@ -417,20 +411,28 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
               <View style={styles.micContainer}>
                 <TouchableOpacity
                   activeOpacity={0.85}
+                  disabled={isProcessing} // Disable during transcription/thinking
                   onPress={async () => {
                     try {
                       if (vc.state === 'listening' || vc.state === 'prewarm') {
                         await handleSend();
-                      } else {
+                      } else if (vc.state === 'idle') {
+                        // Only allow starting new recording if truly idle
                         const ok = await ensureMicPermission();
                         if (!ok) return;
                         await vc.startPress();
                       }
-                    } catch {}
+                      // Otherwise ignore (transcribing/thinking/error states)
+                    } catch (e) {
+                      console.error('[VoiceRecordingModal] Mic button error:', e);
+                    }
                   }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <View style={[styles.micButton, { backgroundColor: theme.primary }]}>
+                  <View style={[styles.micButton, { 
+                    backgroundColor: isProcessing ? theme.textSecondary : theme.primary,
+                    opacity: isProcessing ? 0.5 : 1
+                  }]}>
                     <Ionicons name={(vc.state === 'listening' || vc.state === 'prewarm') ? 'send' : 'mic'} size={26} color="#fff" />
                   </View>
                 </TouchableOpacity>

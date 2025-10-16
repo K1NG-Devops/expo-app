@@ -256,46 +256,39 @@ export class DashConversationState {
    */
   static getLanguageAndVoiceContext(language?: string): string {
     const lang = language || this.currentSession?.userPreferences.preferredLanguage || 'en';
+    console.log(`[ConversationState] 🗣️  Building voice context for: ${lang} (${this.getLanguageName(lang)})`);
 
-    let context = '\n## VOICE & LANGUAGE SETTINGS\n\n';
+    let context = '\n## LANGUAGE & RESPONSE MODE\n\n';
     
-    context += `**Dash's Voice:** Male voice (you are Dash, a male AI assistant)\n`;
-    context += `**Current Language:** ${this.getLanguageName(lang)}\n`;
-    context += `**Pronunciation:** Use proper accent and pronunciation for ${this.getLanguageName(lang)}\n\n`;
+    context += `**Response Language:** ${this.getLanguageName(lang)} (${lang})\n`;
+    context += `**CRITICAL:** If user speaks ${this.getLanguageName(lang)}, respond NATURALLY in ${this.getLanguageName(lang)}. Do NOT explain what they said. Do NOT translate. Just respond naturally.\n\n`;
 
-    // Punctuation awareness
-    context += `**CRITICAL - Punctuation Awareness:**\n`;
-    context += `- "minus" or "negative" = mathematical subtraction (e.g., "5 minus 3" or "-5")\n`;
-    context += `- "dash" or "hyphen" = the punctuation mark "-" (e.g., "2023-01-15" or "first-name")\n`;
-    context += `- ALWAYS clarify when user says "minus" vs "dash"\n`;
-    context += `- Example: "5 minus 3" NOT "5 dash 3"\n`;
-    context += `- Example: "2023 dash 01 dash 15" for dates, NOT "2023 minus 01 minus 15"\n\n`;
-
-    // Language-specific guidance
+    // Language-specific natural response examples
     switch (lang) {
       case 'af':
-        context += `**Afrikaans Guidance:**\n`;
-        context += `- Use proper Afrikaans pronunciation\n`;
-        context += `- Common phrases: "Hallo", "Dankie", "Asseblief"\n`;
-        context += `- Roll R's naturally, use guttural sounds appropriately\n`;
+        context += `**Example Response (Afrikaans):**\n`;
+        context += `If user says "Hallo Dash", respond: "Hallo! Hoe gaan dit vandag?"\n`;
+        context += `NOT: "'Hallo' is Afrikaans for hello. Let me explain..."\n\n`;
         break;
       case 'zu':
-        context += `**isiZulu Guidance:**\n`;
-        context += `- Use proper Zulu pronunciation and clicks\n`;
-        context += `- Common phrases: "Sawubona", "Ngiyabonga", "Uxolo"\n`;
-        context += `- Respect tonal variations\n`;
+        context += `**Example Response (isiZulu):**\n`;
+        context += `If user says "Unjani Dash?", respond: "Ngiyaphila, ngiyabonga! Wena unjani?"\n`;
+        context += `NOT: "You asked 'How are you' in Zulu. Let me explain..."\n\n`;
         break;
       case 'xh':
-        context += `**isiXhosa Guidance:**\n`;
-        context += `- Use proper Xhosa pronunciation with clicks\n`;
-        context += `- Common phrases: "Molo", "Enkosi", "Uxolo"\n`;
-        context += `- Master the three click sounds (c, q, x)\n`;
+        context += `**Example Response (isiXhosa):**\n`;
+        context += `If user says "Molo Dash", respond: "Molo! Unjani namhlanje?"\n`;
+        context += `NOT: "'Molo' means hello in Xhosa. Let me teach you..."\n\n`;
+        break;
+      case 'nso':
+        context += `**Example Response (Sepedi):**\n`;
+        context += `If user says "Thobela Dash", respond: "Thobela! O kae?"\n`;
+        context += `NOT: "'Thobela' is a Sepedi greeting. Let me explain..."\n\n`;
         break;
       default:
-        context += `**English (South African) Guidance:**\n`;
-        context += `- Use neutral, clear pronunciation\n`;
-        context += `- Avoid overly formal or robotic speech\n`;
-        context += `- Be warm and approachable\n`;
+        context += `**Example Response (English):**\n`;
+        context += `If user says "Hi Dash", respond: "Hi! How can I help you today?"\n`;
+        context += `Be conversational, not educational unless specifically teaching.\n\n`;
     }
 
     return context;

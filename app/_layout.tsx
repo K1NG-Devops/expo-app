@@ -253,7 +253,11 @@ export default function RootLayout() {
                   <GlobalUpdateBanner />
                   
                   {/* Voice-Enabled Dash Floating Button (Global Access) */}
-                  {(!isAuthRoute && !(pathname || '').includes('dash-assistant')) && (
+                  {(!isAuthRoute && 
+                    !(pathname || '').includes('dash-assistant') && 
+                    !(pathname || '').toLowerCase().includes('landing') &&
+                    pathname !== '/landing' &&
+                    pathname !== 'landing') && (
                     <DashVoiceFloatingButton showWelcomeMessage={true} />
                   )}
                   

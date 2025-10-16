@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import { useRealtimeVoice } from './useRealtimeVoice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from 'react-i18next';
 
 export type VoiceState = 'idle' | 'prewarm' | 'listening' | 'transcribing' | 'thinking' | 'speaking' | 'error';
 
@@ -26,26 +29,78 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
   const [prefAutoSilence, setPrefAutoSilence] = useState<number>(7000);
   const [prefListenCap, setPrefListenCap] = useState<number>(15000);
   const [prefDefaultLocked, setPrefDefaultLocked] = useState<boolean>(false);
+  const [streamingEnabled, setStreamingEnabled] = useState(false);
   const [state, setState] = useState<VoiceState>('idle');
   const [isLocked, setLocked] = useState(false);
   const [timerMs, setTimerMs] = useState(0);
   const listenTimerRef = useRef<number | null>(null);
   const tickRef = useRef<number | null>(null);
+  const streamTranscriptRef = useRef<string>('');
+  const streamCompleteRef = useRef<boolean>(false);
 
   const clearTimers = () => {
     if (listenTimerRef.current) { clearTimeout(listenTimerRef.current as unknown as number); listenTimerRef.current = null; }
     if (tickRef.current) { clearInterval(tickRef.current as unknown as number); tickRef.current = null; }
   };
 
+  // Check if streaming is enabled from env or preferences
+  useEffect(() => {
+    (async () => {
+      try {
+        const envEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true';
+        const prefValue = await AsyncStorage.getItem('@dash_streaming_enabled');
+        setStreamingEnabled(envEnabled || prefValue === 'true');
+      } catch {
+        setStreamingEnabled(false);
+      }
+    })();
+  }, []);
+
+  const { i18n } = useTranslation();
+  const mapLang = (l?: string) => {
+    const base = String(l || '').toLowerCase();
+    if (base.startsWith('af')) return 'af';
+    if (base.startsWith('zu')) return 'zu';
+    if (base.startsWith('xh')) return 'xh';
+    if (base.startsWith('nso') || base.startsWith('st') || base.startsWith('so')) return 'nso';
+    if (base.startsWith('en')) return 'en';
+    return 'en';
+  };
+  const activeLang = mapLang(i18n?.language);
+
+  // Initialize real-time voice streaming
+  const realtimeVoice = useRealtimeVoice({
+    enabled: streamingEnabled,
+    language: activeLang,
+    onPartialTranscript: (text) => {
+      streamTranscriptRef.current = text || '';
+      console.log('[VoiceController] Streaming partial:', text);
+    },
+    onFinalTranscript: (text) => {
+      streamTranscriptRef.current = text || '';
+      streamCompleteRef.current = true;
+      console.log('[VoiceController] Streaming final:', text);
+    },
+    onAssistantToken: (token) => {
+      // Handle assistant responses if needed in the future
+      console.log('[VoiceController] Assistant token:', token);
+    },
+    onStatusChange: (status) => {
+      console.log('[VoiceController] Stream status:', status);
+      if (status === 'error' && state === 'listening') {
+        console.warn('[VoiceController] Streaming failed, will fallback to batch');
+      }
+    },
+  });
+
   // Load voice prefs (async storage) once
   useEffect(() => {
     (async () => {
       try {
-        const AS = (await import('@react-native-async-storage/async-storage')).default;
         const [a, b, c] = await Promise.all([
-          AS.getItem('@voice_auto_silence_ms'),
-          AS.getItem('@voice_listen_cap_ms'),
-          AS.getItem('@voice_default_lock'),
+          AsyncStorage.getItem('@voice_auto_silence_ms'),
+          AsyncStorage.getItem('@voice_listen_cap_ms'),
+          AsyncStorage.getItem('@voice_default_lock'),
         ]);
         if (a && !Number.isNaN(Number(a))) setPrefAutoSilence(Math.max(2000, Number(a)));
         if (b && !Number.isNaN(Number(b))) setPrefListenCap(Math.max(5000, Number(b)));
@@ -80,11 +135,43 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       if (state === 'speaking') {
         try { await dash.stopSpeaking(); } catch {}
       }
+      
+      // Log language but allow all - OpenAI Realtime will handle what it can
+      console.log('[VoiceController] 🌍 Starting recording for language:', activeLang);
+      
+      // Reset streaming state
+      streamTranscriptRef.current = '';
+      streamCompleteRef.current = false;
+      
       setLocked(false);
       setState('prewarm');
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
       try { await dash.preWarmRecorder(); } catch {}
-      await dash.startRecording();
+      
+      // Start streaming if enabled (local file recording removed)
+      let started = false;
+      console.log('[VoiceController] 🎬 Attempting to start voice recording...');
+      console.log('[VoiceController] 📊 Config - streamingEnabled:', streamingEnabled, 'realtimeVoice.enabled:', realtimeVoice.enabled, 'language:', activeLang);
+      
+      if (streamingEnabled && realtimeVoice.enabled) {
+        console.log('[VoiceController] 🚀 Starting streaming transcription via realtimeVoice.startStream()...');
+        started = await realtimeVoice.startStream();
+        console.log('[VoiceController] 📋 Stream start result:', started);
+        if (!started) {
+          console.error('[VoiceController] ❌ Streaming failed to start; local file recording has been removed');
+        }
+      } else {
+        console.error('[VoiceController] ⚠️ Cannot start: streaming not enabled or realtimeVoice not ready');
+        console.error('[VoiceController] Debug: streamingEnabled=', streamingEnabled, ', realtimeVoice.enabled=', realtimeVoice.enabled);
+      }
+      
+      if (!started) {
+        console.error('[VoiceController] ❌ Recording failed to start, setting error state');
+        setState('error');
+        return;
+      }
+      console.log('[VoiceController] ✅ Voice recording started successfully, transitioning to listening state');
+
       setState('listening');
       startTick();
       if (prefDefaultLocked) {
@@ -95,10 +182,11 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       } else {
         startAutoSilence();
       }
-    } catch {
+    } catch (err) {
+      console.error('[VoiceController] Start error:', err);
       setState('error');
     }
-  }, [dash, state]);
+  }, [dash, state, streamingEnabled, realtimeVoice]);
 
   const lock = useCallback(() => {
     setLocked(true);
@@ -116,60 +204,102 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       if (state !== 'listening' && state !== 'prewarm') return;
       clearTimers();
 
-      // If user releases very quickly during prewarm, wait briefly for recorder to start
-      if (state === 'prewarm' && !dash.isCurrentlyRecording()) {
-        let waited = 0;
-        const step = 100; // ms
-        const max = 800;  // ms
-        while (!dash.isCurrentlyRecording() && waited < max) {
-          await new Promise(res => setTimeout(res, step));
-          waited += step;
-        }
-      }
+      // Local file recording removed: skip waiting for expo-av recorder
 
       setState('transcribing');
-      let uri: string | null = null;
-      try { uri = await dash.stopRecording(); } catch {}
-
-      // If recording never actually started, treat as cancel
-      if (!uri) {
-        setState('idle');
-        return;
-      }
-
-      const tr = await dash.transcribeOnly(uri, (phase, percent) => {
-        // Progress updates during transcription
-        console.log(`[VoiceController] Transcription ${phase}: ${percent}%`);
-        // Stay in 'transcribing' state during validation, uploading, and transcribing phases
-      });
       
-      // Check for transcription errors
-      if (tr.error) {
-        console.error('[VoiceController] Transcription failed:', tr.error);
+      // Wait for stream to finish connecting if still connecting
+      const currentStatus = realtimeVoice.statusRef.current;
+      console.log('[VoiceController] 🔍 Checking stream status before stopping. Current:', currentStatus);
+      if (streamingEnabled && (currentStatus === 'connecting' || currentStatus === 'streaming')) {
+        // First, wait for stream to establish (increased from 5s to 12s for slow WebRTC handshakes)
+        if (currentStatus === 'connecting') {
+          console.log('[VoiceController] ⏳ Stream still connecting, waiting up to 12 seconds...');
+          const establishWait = 12000; // Increased timeout
+          const checkInterval = 100;
+          let waited = 0;
+          // Use statusRef.current to get live status on each iteration
+          while (waited < establishWait && realtimeVoice.statusRef.current === 'connecting') {
+            await new Promise(resolve => setTimeout(resolve, checkInterval));
+            waited += checkInterval;
+          }
+          const finalStatus = realtimeVoice.statusRef.current;
+          console.log('[VoiceController] ✅ Wait complete. Waited:', waited, 'ms. Final status:', finalStatus);
+          if (finalStatus === 'connecting') {
+            console.warn('[VoiceController] ⚠️ Stream still connecting after timeout - this may indicate a connection issue');
+          }
+        }
+        
+        // Now stop the stream
+        console.log('[VoiceController] Stopping streaming transcription...');
+        await realtimeVoice.stopStream();
+        
+        // Wait for final transcript events to arrive (increased from 3s to 5s)
+        console.log('[VoiceController] ⏳ Waiting for final transcript...');
+        const maxWait = 5000; // Increased timeout
+        const checkInterval = 100;
+        let waited = 0;
+        while (waited < maxWait && !streamCompleteRef.current && streamTranscriptRef.current.trim().length === 0) {
+          await new Promise(resolve => setTimeout(resolve, checkInterval));
+          waited += checkInterval;
+        }
+        console.log('[VoiceController] Waited', waited, 'ms for transcript. Complete:', streamCompleteRef.current, 'Length:', streamTranscriptRef.current.length);
+      }
+      
+      let transcript = '';
+      let duration = 0;
+      
+      if (streamingEnabled) {
+        if (streamTranscriptRef.current && streamTranscriptRef.current.trim().length > 0) {
+          console.log('[VoiceController] ✅ Using streaming transcript:', streamTranscriptRef.current);
+          transcript = streamTranscriptRef.current;
+          duration = Math.floor(timerMs / 1000);
+        } else {
+          console.error('[VoiceController] ❌ No streaming transcript available after waiting');
+          setState('error');
+          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+          return;
+        }
+      } else {
+        // Non-streaming path no longer supported
+        console.warn('[VoiceController] Non-streaming voice note is disabled (expo-av removed)');
         setState('error');
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
         return;
       }
       
+      // Generate AI response (no local audio URI available in streaming mode)
       setState('thinking');
-      const response = await dash.sendPreparedVoiceMessage(uri, tr.transcript || '', tr.duration || 0);
+      const response = await dash.sendPreparedVoiceMessage('', transcript, duration);
       onResponse?.(response);
       setState('idle');
       try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-    } catch {
+    } catch (err) {
+      console.error('[VoiceController] Release error:', err);
       setState('error');
     } finally {
+      // Cleanup streaming
+      if (streamingEnabled && realtimeVoice.statusRef.current !== 'disconnected') {
+        try { await realtimeVoice.cancel(); } catch {}
+      }
       clearTimers();
       setLocked(false);
       setTimerMs(0);
+      streamTranscriptRef.current = '';
+      streamCompleteRef.current = false;
     }
-  }, [dash, onResponse, state]);
+  }, [dash, onResponse, state, streamingEnabled, realtimeVoice, timerMs]);
 
   const cancel = useCallback(async () => {
     try {
       if (!dash) return;
-      if (state === 'listening' || state === 'prewarm' || state === 'transcribing') {
-        try { await dash.stopRecording(); } catch {}
+      
+      // Cancel streaming if active
+      if (streamingEnabled && realtimeVoice.statusRef.current !== 'disconnected') {
+        try { await realtimeVoice.cancel(); } catch {}
       }
+      
+      // Local recording disabled: do not call dash.stopRecording()
       if (state === 'speaking') {
         try { await dash.stopSpeaking(); } catch {}
       }
@@ -178,8 +308,10 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       setLocked(false);
       setTimerMs(0);
       setState('idle');
+      streamTranscriptRef.current = '';
+      streamCompleteRef.current = false;
     }
-  }, [dash, state]);
+  }, [dash, state, streamingEnabled, realtimeVoice]);
 
   const interrupt = useCallback(async () => {
     try { if (dash) await dash.stopSpeaking(); } catch {}

@@ -489,7 +489,7 @@ class DashPDFGeneratorImpl {
   async saveUserPreferences(preferences: Partial<UserPDFPreferences>): Promise<boolean> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 
@@ -543,7 +543,7 @@ class DashPDFGeneratorImpl {
   }): Promise<CustomTemplate[]> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         return [];
       }
 
@@ -611,7 +611,7 @@ class DashPDFGeneratorImpl {
   async createTemplate(template: Omit<CustomTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<CustomTemplate | null> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 
@@ -1195,7 +1195,7 @@ class DashPDFGeneratorImpl {
   private async uploadToStorage(localUri: string, filename: string): Promise<string> {
     try {
       const session = await getCurrentSession();
-      if (!session?.user?.id) {
+      if (!session?.user_id) {
         throw new Error('User not authenticated');
       }
 

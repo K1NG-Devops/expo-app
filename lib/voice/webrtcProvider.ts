@@ -1,13 +1,15 @@
-// OpenAI Realtime API WebSocket provider
-// Uses WebSocket protocol for real-time audio streaming and transcription
-// Currently supports web platform only; native platforms fall back to batch upload
+// OpenAI Realtime provider (WebSocket for web; native mobile uses WebRTC SDP negotiation)
+// Streams mic to OpenAI Realtime and emits transcription/assistant tokens
 
 import { Platform } from 'react-native';
 import { wait } from '@/lib/utils/async';
 
 export interface StartOptions {
   token: string; // OpenAI ephemeral client_secret
-  url: string; // WebSocket URL (wss://api.openai.com/v1/realtime)
+  url: string; // Realtime base URL (wss://api.openai.com/v1/realtime?model=...)
+  language?: string; // 'en' | 'af' | 'zu' | 'xh' | 'nso'
+  transcriptionModel?: string; // default 'whisper-1' or 'gpt-4o-mini-transcribe'
+  vadSilenceMs?: number; // VAD silence duration
   onPartialTranscript?: (t: string) => void;
   onFinalTranscript?: (t: string) => void;
   onAssistantToken?: (t: string) => void;
@@ -17,16 +19,33 @@ export interface WebRTCSession {
   start: (opts: StartOptions) => Promise<boolean>;
   stop: () => Promise<void>;
   isActive: () => boolean;
+  updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => void;
+  setMuted: (muted: boolean) => void;
 }
 
+function buildRestUrlFromWs(wsUrl: string): string {
+  // Convert wss://... to https://... for SDP negotiation
+  try {
+    const u = new URL(wsUrl);
+    u.protocol = 'https:';
+    return u.toString();
+  } catch {
+    return wsUrl.replace(/^wss:/, 'https:');
+  }
+}
 
 export function createWebRTCSession(): WebRTCSession {
   let active = false;
   let closed = false;
-  let ws: WebSocket | null = null;
+  let ws: WebSocket | null = null; // web-only
   let localStream: any = null;
-  let mediaRecorder: any = null;
-  let audioChunkInterval: any = null;
+  let mediaRecorder: any = null; // web-only
+  let audioChunkInterval: any = null; // legacy
+  let isMuted = false;
+
+  // Native WebRTC refs
+  let pc: any = null;
+  let dc: any = null;
 
   return {
     async start(opts: StartOptions) {
@@ -36,224 +55,262 @@ export function createWebRTCSession(): WebRTCSession {
       }
 
       try {
-        console.log('[realtimeProvider] Starting OpenAI Realtime WebSocket connection...');
-        
-        // Check WebSocket availability
         const isWeb = Platform.OS === 'web';
-        const hasWebSocket = typeof WebSocket !== 'undefined';
-        
-        if (!hasWebSocket) {
-          throw new Error('WebSocket not available in this environment');
-        }
-        
-        // Native platforms are not supported via direct WebSocket to OpenAI in this client
-        // Only allow WebSocket streaming on web to avoid header/token issues and crashes
-        if (!isWeb) {
-          console.warn('[realtimeProvider] WebSocket realtime not supported on native. Falling back.');
-          return false;
-        }
-        // Connect to OpenAI Realtime API via WebSocket (web only)
-        const wsUrl = `${opts.url}${opts.url.includes('?') ? '&' : '?'}authorization=Bearer ${encodeURIComponent(opts.token)}`;
-        ws = new WebSocket(wsUrl);
-        ws.binaryType = 'arraybuffer';
 
-        // Wait for WebSocket to open
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('WebSocket connection timeout'));
-          }, 10000);
+        if (isWeb) {
+          console.log('[realtimeProvider] Starting OpenAI Realtime over WebSocket (web)');
+          const hasWebSocket = typeof WebSocket !== 'undefined';
+          if (!hasWebSocket) throw new Error('WebSocket not available');
 
-          ws!.onopen = () => {
-            clearTimeout(timeout);
-            console.log('[realtimeProvider] WebSocket connected');
-            resolve();
+          // Browser: connect via WebSocket + MediaRecorder chunks
+          const wsUrl = `${opts.url}${opts.url.includes('?') ? '&' : '?'}authorization=Bearer ${encodeURIComponent(opts.token)}`;
+          ws = new WebSocket(wsUrl);
+          ws.binaryType = 'arraybuffer';
+
+          // Await open
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('WebSocket connection timeout')), 10000);
+            ws!.onopen = () => { clearTimeout(timeout); resolve(); };
+            ws!.onerror = (error) => { clearTimeout(timeout); reject(error as any); };
+          });
+
+          ws.onmessage = (event) => {
+            try {
+              const message = JSON.parse(event.data);
+              
+              // Log all event types for debugging
+              if (message?.type) console.log('[realtimeProvider] WS event:', message.type);
+              
+              // Log error details
+              if (message.type === 'error') {
+                console.error('[realtimeProvider] ❌ ERROR from OpenAI:', JSON.stringify(message, null, 2));
+                if (message.error) {
+                  console.error('[realtimeProvider] Error type:', message.error.type);
+                  console.error('[realtimeProvider] Error message:', message.error.message);
+                  console.error('[realtimeProvider] Error code:', message.error.code);
+                }
+              }
+              
+              switch (message.type) {
+                case 'conversation.item.input_audio_transcription.delta':
+                  opts.onPartialTranscript?.(message.delta || '');
+                  break;
+                case 'conversation.item.input_audio_transcription.completed':
+                  opts.onFinalTranscript?.(message.transcript || '');
+                  break;
+                case 'response.audio_transcript.delta':
+                case 'response.output_text.delta':
+                  opts.onAssistantToken?.(message.delta || '');
+                  break;
+                case 'response.audio_transcript.done':
+                  if (message.transcript) opts.onAssistantToken?.(message.transcript);
+                  break;
+              }
+            } catch {}
           };
 
-          ws!.onerror = (error) => {
-            clearTimeout(timeout);
-            console.error('[realtimeProvider] WebSocket error:', error);
-            reject(new Error('WebSocket connection failed'));
+          // Mic capture
+          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+          if (!nav?.mediaDevices?.getUserMedia) throw new Error('getUserMedia not available');
+          localStream = await nav.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 24000, echoCancellation: true, noiseSuppression: true } });
+
+          const mimeType = (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))
+            ? 'audio/webm;codecs=opus' : 'audio/webm';
+          mediaRecorder = new MediaRecorder(localStream, { mimeType, audioBitsPerSecond: 24000 });
+          mediaRecorder.ondataavailable = async (event: any) => {
+            if (event.data?.size > 0 && ws?.readyState === WebSocket.OPEN) {
+              const arrayBuffer = await event.data.arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+              ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: base64 }));
+            }
           };
+          mediaRecorder.start(100);
+
+          // Start paused if muted
+          try {
+            if (isMuted && mediaRecorder.state === 'recording' && mediaRecorder.pause) mediaRecorder.pause();
+          } catch {}
+
+          // Session config
+          // OpenAI supported languages for Realtime API
+          const supportedLanguages = ['af', 'ar', 'az', 'be', 'bg', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'fa', 'fi', 'fr', 'gl', 'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'kk', 'kn', 'ko', 'lt', 'lv', 'mi', 'mk', 'mr', 'ms', 'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sr', 'sv', 'sw', 'ta', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'];
+          const langToSend = opts.language && supportedLanguages.includes(opts.language) ? opts.language : undefined;
+          if (opts.language && !langToSend) {
+            console.warn(`[realtimeProvider] ⚠️ Language '${opts.language}' not supported by OpenAI, using auto-detect`);
+          }
+          
+          const sessionConfig = {
+            type: 'session.update',
+            session: {
+              turn_detection: { type: 'server_vad', silence_duration_ms: Math.max(300, Math.min(2000, opts.vadSilenceMs ?? 700)) },
+              input_audio_transcription: {
+                model: opts.transcriptionModel || 'whisper-1',
+                ...(langToSend ? { language: langToSend } : {}),
+              },
+              modalities: ['text', 'audio'],  // Ensure both text and audio responses
+              voice: 'alloy',
+            }
+          };
+          console.log('[realtimeProvider] 📤 Sending WS session config:', JSON.stringify(sessionConfig, null, 2));
+          ws.send(JSON.stringify(sessionConfig));
+          console.log('[realtimeProvider] ✅ WS session configuration sent');
+
+          active = true;
+          return true;
+        }
+
+        // Native (Android/iOS): Use react-native-webrtc + SDP negotiation
+        console.log('[realtimeProvider] Starting OpenAI Realtime over WebRTC (native)');
+        const { RTCPeerConnection, mediaDevices, RTCSessionDescription } = await import('react-native-webrtc');
+        const restUrl = buildRestUrlFromWs(opts.url); // https://api.openai.com/v1/realtime?model=...
+
+        // Get mic
+        localStream = await mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } as any, video: false } as any);
+
+        // Create peer connection
+        pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+        } as any);
+
+        // Add audio track
+        localStream.getAudioTracks().forEach((track: any) => {
+          // Apply mute state immediately
+          try { track.enabled = !isMuted; } catch {}
+          pc.addTrack(track, localStream);
         });
 
-        // Handle incoming messages from OpenAI
-        ws.onmessage = (event) => {
+        // Data channel for events
+        dc = pc.createDataChannel('oai-events');
+        
+        // Log data channel state changes
+        dc.onclose = () => { console.log('[realtimeProvider] 🔴 Data channel state: closed'); };
+        dc.onerror = (err: any) => { console.error('[realtimeProvider] ❌ Data channel error:', err); };
+        
+        dc.onmessage = (e: any) => {
           try {
-            const message = JSON.parse(event.data);
-            console.log('[realtimeProvider] Received:', message.type);
-
-            // Handle different OpenAI Realtime API event types
+            const raw = String(e.data || '');
+            let message: any = {};
+            try { message = JSON.parse(raw); } catch { console.log('[realtimeProvider] DC message (non-JSON):', raw.slice(0,120)); return; }
+            
+            // Log ALL events with full payload for debugging
+            if (message?.type) {
+              console.log('[realtimeProvider] 📨 DC event:', message.type);
+              // Log full payload for important events
+              if (message.type.includes('transcription') || message.type.includes('audio') || message.type === 'error' || message.type.includes('input_audio')) {
+                console.log('[realtimeProvider] 📋 Full event:', JSON.stringify(message, null, 2));
+              }
+            }
+            
+            // Log error details
+            if (message.type === 'error') {
+              console.error('[realtimeProvider] ❌ ERROR from OpenAI:', JSON.stringify(message, null, 2));
+              if (message.error) {
+                console.error('[realtimeProvider] Error type:', message.error.type);
+                console.error('[realtimeProvider] Error message:', message.error.message);
+                console.error('[realtimeProvider] Error code:', message.error.code);
+              }
+            }
+            
+            // Log audio buffer events
+            if (message.type === 'input_audio_buffer.speech_started') {
+              console.log('[realtimeProvider] 🎤 Speech detected!');
+            }
+            if (message.type === 'input_audio_buffer.speech_stopped') {
+              console.log('[realtimeProvider] 🛑 Speech stopped, processing...');
+            }
+            if (message.type === 'input_audio_buffer.committed') {
+              console.log('[realtimeProvider] ✅ Audio buffer committed');
+            }
+            
             switch (message.type) {
-              case 'conversation.item.input_audio_transcription.completed':
-                // Final transcript from user audio
-                if (opts.onFinalTranscript && message.transcript) {
-                  opts.onFinalTranscript(message.transcript);
-                }
-                break;
-              
               case 'conversation.item.input_audio_transcription.delta':
-                // Partial transcript from user audio
-                if (opts.onPartialTranscript && message.delta) {
-                  opts.onPartialTranscript(message.delta);
-                }
+                console.log('[realtimeProvider] 🎙️ PARTIAL transcript delta:', message.delta);
+                opts.onPartialTranscript?.(message.delta || '');
                 break;
-
+              case 'conversation.item.input_audio_transcription.completed':
+                console.log('[realtimeProvider] ✅ FINAL transcript:', message.transcript);
+                opts.onFinalTranscript?.(message.transcript || '');
+                break;
               case 'response.audio_transcript.delta':
-                // Assistant response text (streaming)
-                if (opts.onAssistantToken && message.delta) {
-                  opts.onAssistantToken(message.delta);
-                }
+              case 'response.output_text.delta':
+                opts.onAssistantToken?.(message.delta || '');
                 break;
-
               case 'response.audio_transcript.done':
-                // Complete assistant response
-                if (opts.onAssistantToken && message.transcript) {
-                  opts.onAssistantToken(message.transcript);
-                }
-                break;
-
-              case 'error':
-                console.error('[realtimeProvider] Server error:', message.error);
+                if (message.transcript) opts.onAssistantToken?.(message.transcript);
                 break;
             }
-          } catch (error) {
-            console.warn('[realtimeProvider] Failed to parse message:', error);
+          } catch (err) {
+            console.error('[realtimeProvider] ❌ Message handler error:', err);
           }
         };
 
-        // Get microphone access - platform-specific
-        if (isWeb) {
-          // Web platform: use browser MediaRecorder
-          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
-          if (!nav?.mediaDevices?.getUserMedia) {
-            throw new Error('getUserMedia not available');
-          }
+        // Create offer
+        const offer = await pc.createOffer({ offerToReceiveAudio: false } as any);
+        await pc.setLocalDescription(offer);
 
-          localStream = await nav.mediaDevices.getUserMedia({ 
-            audio: {
-              channelCount: 1,
-              sampleRate: 24000,
-              echoCancellation: true,
-              noiseSuppression: true,
-            } 
-          });
-
-          console.log('[realtimeProvider] Web microphone access granted');
-
-          const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
-            ? 'audio/webm;codecs=opus' 
-            : 'audio/webm';
-          
-          mediaRecorder = new MediaRecorder(localStream, { 
-            mimeType,
-            audioBitsPerSecond: 24000 
-          });
-
-          mediaRecorder.ondataavailable = async (event: any) => {
-            if (event.data.size > 0 && ws?.readyState === WebSocket.OPEN) {
-              const arrayBuffer = await event.data.arrayBuffer();
-              const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-              
-              ws.send(JSON.stringify({
-                type: 'input_audio_buffer.append',
-                audio: base64
-              }));
-            }
+        // Wait briefly for ICE gathering (simple approach)
+        const waitForIce = new Promise<void>((resolve) => {
+          if (pc.iceGatheringState === 'complete') return resolve();
+          const check = () => {
+            if (pc.iceGatheringState === 'complete') resolve();
           };
+          pc.addEventListener('icegatheringstatechange', check);
+          setTimeout(() => resolve(), 1500);
+        });
+        await waitForIce;
 
-          mediaRecorder.start(100);
-          console.log('[realtimeProvider] Web recording started');
-          
-        } else {
-          // Native platform: use react-native-webrtc
-          const webrtcModule = await import('react-native-webrtc');
-          const { mediaDevices } = webrtcModule;
-          
-          if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
-            throw new Error('mediaDevices.getUserMedia not available on this platform');
-          }
+        // POST SDP offer -> receive SDP answer
+        const sdp = pc.localDescription?.sdp || offer.sdp || '';
+        const resp = await fetch(restUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${opts.token}`,
+            'Content-Type': 'application/sdp',
+            'OpenAI-Beta': 'realtime=v1',
+          },
+          body: sdp,
+        });
+        if (!resp.ok) throw new Error(`Realtime SDP negotiation failed: ${resp.status}`);
+        const answerSdp = await resp.text();
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: answerSdp } as any));
 
-          localStream = await mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: false 
-          } as any);
-
-          console.log('[realtimeProvider] Native microphone access granted');
-
-          // For native, we need to periodically sample the audio track
-          // This is a simplified approach - in production you'd use native modules
-          // to get actual PCM audio data
-          const audioTrack = localStream.getAudioTracks()[0];
-          
-          if (!audioTrack) {
-            throw new Error('No audio track available');
-          }
-
-          // Create AudioContext for processing (if available)
-          if (typeof AudioContext !== 'undefined' || typeof (window as any)?.webkitAudioContext !== 'undefined') {
-            const AudioContextClass = (typeof AudioContext !== 'undefined' ? AudioContext : (window as any).webkitAudioContext) as any;
-            const audioContext = new AudioContextClass({ sampleRate: 24000 });
-            const source = audioContext.createMediaStreamSource(localStream);
-            const processor = audioContext.createScriptProcessor(4096, 1, 1);
-            
-            processor.onaudioprocess = (e: any) => {
-              if (ws?.readyState === WebSocket.OPEN) {
-                const inputData = e.inputBuffer.getChannelData(0);
-                // Convert Float32Array to Int16Array (PCM16)
-                const pcm16 = new Int16Array(inputData.length);
-                for (let i = 0; i < inputData.length; i++) {
-                  const s = Math.max(-1, Math.min(1, inputData[i]));
-                  pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-                // Convert to base64
-                const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
-                ws.send(JSON.stringify({
-                  type: 'input_audio_buffer.append',
-                  audio: base64
-                }));
-              }
-            };
-            
-            source.connect(processor);
-            processor.connect(audioContext.destination);
-            mediaRecorder = { audioContext, source, processor }; // Store for cleanup
-            
-          } else {
-            // Fallback: send empty audio chunks periodically
-            // This keeps the connection alive but won't provide actual audio
-            console.warn('[realtimeProvider] AudioContext not available on native, using fallback');
-            audioChunkInterval = setInterval(() => {
-              if (ws?.readyState === WebSocket.OPEN) {
-                // Send empty audio buffer to keep connection alive
-                ws.send(JSON.stringify({
-                  type: 'input_audio_buffer.append',
-                  audio: ''
-                }));
-              }
-            }, 100);
-          }
-          
-          console.log('[realtimeProvider] Native recording started');
-        }
-
-        // Send session configuration
-        ws.send(JSON.stringify({
-          type: 'session.update',
-          session: {
-            turn_detection: { type: 'server_vad' },
-            input_audio_transcription: {
-              model: 'whisper-1'
+        // Configure session when data channel opens
+        dc.onopen = () => {
+          console.log('[realtimeProvider] 🟢 Data channel opened, configuring session...');
+          try {
+            // OpenAI supported languages for Realtime API
+            const supportedLanguages = ['af', 'ar', 'az', 'be', 'bg', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 'es', 'et', 'fa', 'fi', 'fr', 'gl', 'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'kk', 'kn', 'ko', 'lt', 'lv', 'mi', 'mk', 'mr', 'ms', 'ne', 'nl', 'no', 'pl', 'pt', 'ro', 'ru', 'sk', 'sl', 'sr', 'sv', 'sw', 'ta', 'th', 'tl', 'tr', 'uk', 'ur', 'vi', 'zh'];
+            const langToSend = opts.language && supportedLanguages.includes(opts.language) ? opts.language : undefined;
+            if (opts.language && !langToSend) {
+              console.warn(`[realtimeProvider] ⚠️ Language '${opts.language}' not supported by OpenAI, using auto-detect`);
             }
+            
+            const sessionConfig = {
+              type: 'session.update',
+              session: {
+                turn_detection: { type: 'server_vad', silence_duration_ms: Math.max(300, Math.min(2000, opts.vadSilenceMs ?? 700)) },
+                input_audio_transcription: {
+                  model: opts.transcriptionModel || 'whisper-1',
+                  ...(langToSend ? { language: langToSend } : {}),
+                },
+                modalities: ['text', 'audio'],  // Ensure both text and audio responses
+                voice: 'alloy',
+              },
+            };
+            console.log('[realtimeProvider] 📤 Sending session config:', JSON.stringify(sessionConfig, null, 2));
+            dc.send(JSON.stringify(sessionConfig));
+            console.log('[realtimeProvider] ✅ Session configuration sent');
+          } catch (e) {
+            console.error('[realtimeProvider] ❌ Failed to send session config:', e);
           }
-        }));
+        };
 
         active = true;
         return true;
-        
       } catch (e) {
         console.warn('[realtimeProvider] start failed:', e);
         // Cleanup on failure
-        try { 
+        try {
           if (mediaRecorder?.stop) mediaRecorder.stop();
           if (mediaRecorder?.audioContext) {
             try { mediaRecorder.processor?.disconnect(); } catch {}
@@ -264,9 +321,59 @@ export function createWebRTCSession(): WebRTCSession {
         try { if (audioChunkInterval) clearInterval(audioChunkInterval); } catch {}
         try { localStream?.getTracks?.().forEach((t: any) => t.stop()); } catch {}
         try { ws?.close(); } catch {}
+        try { dc?.close?.(); } catch {}
+        try { pc?.close?.(); } catch {}
         active = false;
         return false;
       }
+    },
+    
+    updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => {
+      try {
+        const payload = {
+          type: 'session.update',
+          session: {
+            ...(cfg.vadSilenceMs ? { turn_detection: { type: 'server_vad', silence_duration_ms: Math.max(300, Math.min(2000, cfg.vadSilenceMs)) } } : {}),
+            ...(cfg.language || cfg.transcriptionModel
+              ? { input_audio_transcription: {
+                    ...(cfg.transcriptionModel ? { model: cfg.transcriptionModel } : {}),
+                    ...(cfg.language ? { language: cfg.language } : {}),
+                 } }
+              : {}),
+          },
+        } as any;
+        if (Platform.OS === 'web') {
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+        } else {
+          try { dc?.send?.(JSON.stringify(payload)); } catch {}
+        }
+      } catch {}
+    },
+
+    setMuted: (muted: boolean) => {
+      isMuted = !!muted;
+      try {
+        if (Platform.OS === 'web') {
+          // Pause/resume MediaRecorder if available
+          if (mediaRecorder) {
+            try {
+              if (isMuted && mediaRecorder.state === 'recording' && mediaRecorder.pause) mediaRecorder.pause();
+              if (!isMuted && mediaRecorder.state === 'paused' && mediaRecorder.resume) mediaRecorder.resume();
+            } catch {}
+          }
+          // Also disable mic track to be safe
+          const stream: any = localStream;
+          if (stream?.getAudioTracks) {
+            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch {} });
+          }
+        } else {
+          // Native: toggle track enabled
+          const stream: any = localStream;
+          if (stream?.getAudioTracks) {
+            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch {} });
+          }
+        }
+      } catch {}
     },
     
     async stop() {
@@ -282,15 +389,12 @@ export function createWebRTCSession(): WebRTCSession {
       console.log('[realtimeProvider] Beginning cleanup...');
       
       try {
-        // Stop MediaRecorder or AudioContext
+        // Stop MediaRecorder or AudioContext (web)
         if (mediaRecorder) {
           try {
-            console.log('[realtimeProvider] Stopping media recorder/processor');
             if (mediaRecorder.state !== undefined && mediaRecorder.state !== 'inactive') {
-              // Web MediaRecorder
               mediaRecorder.stop();
             } else if (mediaRecorder.audioContext) {
-              // Native AudioContext processing
               try { mediaRecorder.processor?.disconnect(); } catch {}
               try { mediaRecorder.source?.disconnect(); } catch {}
               try { mediaRecorder.audioContext?.close(); } catch {}
@@ -301,63 +405,51 @@ export function createWebRTCSession(): WebRTCSession {
           }
         }
         
-        // Clear audio chunk interval if exists
+        // Clear interval
         if (audioChunkInterval) {
-          try {
-            clearInterval(audioChunkInterval);
-            audioChunkInterval = null;
-          } catch (e) {
-            console.warn('[realtimeProvider] Clear interval error:', e);
-          }
+          try { clearInterval(audioChunkInterval); audioChunkInterval = null; } catch {}
         }
         
         // Stop all media tracks
         if (localStream) {
           try {
-            const tracks = localStream.getTracks();
-            console.log(`[realtimeProvider] Stopping ${tracks.length} media tracks`);
-            tracks.forEach((track) => {
-              try {
-                track.stop();
-              } catch (e) {
-                console.warn('[realtimeProvider] Track stop error:', e);
-              }
-            });
+            const tracks = localStream.getTracks?.() || [];
+            tracks.forEach((track: any) => { try { track.stop(); } catch {} });
             localStream = null;
           } catch (e) {
             console.warn('[realtimeProvider] Stream getTracks error:', e);
           }
         }
         
-        // Close WebSocket
+        // Close WS (web)
         if (ws) {
           try {
             if (ws.readyState === WebSocket.OPEN) {
-              // Send input audio buffer commit
-              ws.send(JSON.stringify({
-                type: 'input_audio_buffer.commit'
-              }));
-              await wait(100); // Brief wait for server to process
+              ws.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+              await wait(100);
             }
-            console.log('[realtimeProvider] Closing WebSocket');
             ws.close();
             ws = null;
           } catch (e) {
             console.warn('[realtimeProvider] WebSocket close error:', e);
           }
         }
+
+        // Close data channel / peer connection (native)
+        try { dc?.close?.(); } catch {}
+        try { pc?.close?.(); } catch {}
+        dc = null; pc = null;
         
         console.log('[realtimeProvider] Cleanup complete');
       } catch (error) {
         console.error('[realtimeProvider] Stop error:', error);
-        // Still clear references even on error
         mediaRecorder = null;
         localStream = null;
         ws = null;
-        if (audioChunkInterval) {
-          try { clearInterval(audioChunkInterval); } catch {}
-          audioChunkInterval = null;
-        }
+        try { dc?.close?.(); } catch {}
+        try { pc?.close?.(); } catch {}
+        dc = null; pc = null;
+        if (audioChunkInterval) { try { clearInterval(audioChunkInterval); } catch {}; audioChunkInterval = null; }
       }
     },
     

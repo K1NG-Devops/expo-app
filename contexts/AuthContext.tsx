@@ -420,6 +420,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Fetch enhanced profile on sign in
             const enhancedProfile = await fetchProfileLocal(s.user.id);
 
+            // Best-effort: update last_login_at via RPC for OAuth and external flows
+            try {
+              await assertSupabase().rpc('update_user_last_login');
+            } catch (e) {
+              logger.debug('update_user_last_login RPC failed (non-blocking)', e);
+            }
+
             // Register or update push token (best-effort)
             try {
               const { registerPushDevice } = await import('@/lib/notifications');

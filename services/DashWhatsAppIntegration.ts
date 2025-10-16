@@ -170,7 +170,7 @@ export class DashWhatsAppIntegration {
       Include: brief introduction, what they can expect, and next steps.
       Tone: friendly and professional, max 160 characters for WhatsApp.`;
       
-      const response = await this.dashInstance.sendMessage(welcomePrompt, conversationId);
+      const response = await this.dashInstance.sendMessage(welcomePrompt, undefined, conversationId);
       
       // Send the message via WhatsApp (would integrate with WhatsApp Business API)
       await this.sendWhatsAppMessage(phone, {
@@ -478,7 +478,7 @@ export class DashWhatsAppIntegration {
       
       // Process message with Dash AI
       if (this.dashInstance && conversationId) {
-        const response = await this.dashInstance.sendMessage(message, conversationId);
+        const response = await this.dashInstance.sendMessage(message, undefined, conversationId);
         
         // Send response back via WhatsApp
         await this.sendWhatsAppMessage(phone, {
@@ -766,6 +766,7 @@ export class DashWhatsAppIntegration {
       // Send initial Dash greeting
       const greeting = await this.dashInstance.sendMessage(
         "A user from WhatsApp wants to chat. Provide a warm, helpful greeting and ask how you can assist them today.",
+        undefined,
         conversationId
       );
       

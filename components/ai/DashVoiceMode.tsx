@@ -1,0 +1,552 @@
+/**
+ * Dash Voice Mode - Elegant ChatGPT-style Voice Interface
+ * 
+ * Full-screen voice conversation mode with:
+ * - Pulsing orb animation
+ * - Real-time transcription
+ * - Auto-speak responses
+ * - Clean, minimal UI
+ */
+
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useVoicePreferences } from '@/lib/voice/hooks';
+import { useTranslation } from 'react-i18next';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import { toast } from '@/components/ui/ToastProvider';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.5;
+
+interface DashVoiceModeProps {
+  visible: boolean;
+  onClose: () => void;
+  dashInstance: DashAIAssistant | null;
+  onMessageSent?: (message: DashMessage) => void;
+  forcedLanguage?: string;
+}
+
+export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({ 
+  visible, 
+  onClose, 
+  dashInstance,
+  onMessageSent,
+  forcedLanguage
+}) => {
+  const { theme, isDark } = useTheme();
+  const [userTranscript, setUserTranscript] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [ready, setReady] = useState(false);
+  const [streamingEnabled, setStreamingEnabled] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  
+  // Debug logging on state changes
+  useEffect(() => {
+    console.log('[DashVoiceMode] 🔍 State Update:', {
+      visible,
+      ready,
+      streamingEnabled,
+      speaking,
+      hasTranscript: userTranscript.length > 0,
+      hasResponse: aiResponse.length > 0,
+      hasDashInstance: !!dashInstance
+    });
+  }, [visible, ready, streamingEnabled, speaking, userTranscript, aiResponse, dashInstance]);
+  
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;  // Start visible
+  const orbGlowAnim = useRef(new Animated.Value(0)).current;
+
+  const { preferences } = useVoicePreferences();
+  const { i18n } = useTranslation();
+  const [errorMessage, setErrorMessage] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
+  
+  // Memoize language mapping to prevent re-calculation on every render
+  const mapLang = useCallback((l?: string) => {
+    const base = String(l || '').toLowerCase();
+    if (base.startsWith('af')) return 'af';
+    if (base.startsWith('zu')) return 'zu';
+    if (base.startsWith('xh')) return 'xh';
+    if (base.startsWith('nso') || base.startsWith('st') || base.startsWith('so')) return 'nso';
+    if (base.startsWith('en')) return 'en';
+    return 'en';
+  }, []);
+  
+  // Memoize language calculation to prevent render loops
+  const activeLang = useMemo(() => {
+    const uiLang = mapLang(i18n?.language);
+    const prefLang = mapLang(preferences?.language);
+    return forcedLanguage ? mapLang(forcedLanguage) : (prefLang || uiLang);
+  }, [forcedLanguage, preferences?.language, i18n?.language, mapLang]);
+
+  const processedRef = useRef(false);
+
+  const realtime = useRealtimeVoice({
+    enabled: streamingEnabled,
+    language: activeLang,
+    transcriptionModel: 'whisper-1', // OpenAI Realtime only supports whisper-1
+    vadSilenceMs: 700, // 700ms of silence triggers end-of-speech detection
+    onPartialTranscript: (t) => {
+      const partial = String(t || '').trim();
+      console.log('[DashVoiceMode] 🎤 Partial transcript:', partial);
+      setUserTranscript(partial);
+      
+      // Interrupt Dash if user starts speaking while Dash is responding
+      if (speaking && partial.length > 0) {
+        console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
+        try {
+          // Stop current speech (both device TTS and audio manager)
+          setSpeaking(false);
+          dashInstance?.stopSpeaking?.(); // Stop expo-speech device TTS
+          
+          // Also stop audio manager if playing Edge Function TTS
+          import('@/lib/voice/audio').then(({ audioManager }) => {
+            audioManager.stop().catch(e => console.warn('[DashVoiceMode] Audio stop error:', e));
+          }).catch(() => {});
+        } catch (e) {
+          console.warn('[DashVoiceMode] Failed to stop speech:', e);
+        }
+      }
+    },
+    onFinalTranscript: async (t) => {
+      const transcript = String(t || '').trim();
+      console.log('[DashVoiceMode] ✅ Final transcript received:', transcript);
+      console.log('[DashVoiceMode] 🔍 Processing state:', {
+        alreadyProcessed: processedRef.current,
+        isEmpty: !transcript,
+        willProcess: transcript && !processedRef.current
+      });
+      setUserTranscript(transcript);
+      if (!transcript) {
+        console.warn('[DashVoiceMode] ⚠️ Empty transcript, skipping');
+        return;
+      }
+      if (processedRef.current) {
+        console.warn('[DashVoiceMode] ⚠️ Already processed, skipping duplicate');
+        return;
+      }
+      await handleTranscript(transcript);
+    },
+    onAssistantToken: (tok) => {
+      // Real-time assistant token streaming (not used in this mode)
+      console.log('[DashVoiceMode] 🤖 Assistant token (unused):', tok?.substring(0, 20));
+    },
+    onStatusChange: (status) => {
+      console.log('[DashVoiceMode] 📡 Realtime status changed:', status);
+    },
+  });
+
+  const handleTranscript = async (transcript: string) => {
+    if (!dashInstance) {
+      console.error('[DashVoiceMode] ❌ No dashInstance available!');
+      setErrorMessage('AI Assistant not ready. Please close and try again.');
+      try { toast.error?.('AI Assistant not initialized'); } catch {}
+      setTimeout(() => onClose(), 2000);
+      return;
+    }
+    try {
+      processedRef.current = true;
+      console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
+      
+      // Send message to AI
+      console.log('[DashVoiceMode] Sending message to AI...');
+      const response = await dashInstance.sendMessage(transcript);
+      console.log('[DashVoiceMode] ✅ Received AI response:', response.id);
+      
+      const responseText = response.content || '';
+      setAiResponse(responseText);
+      
+      // Notify parent component BEFORE speaking (so UI updates immediately)
+      console.log('[DashVoiceMode] Calling onMessageSent callback');
+      onMessageSent?.(response);
+      
+      // Speak response
+      if (responseText) {
+        setSpeaking(true);
+        await speakText(responseText);
+        setSpeaking(false);
+        
+        // Reset for next user input
+        processedRef.current = false;
+        setUserTranscript('');
+        console.log('[DashVoiceMode] ✅ Ready for next input');
+      }
+    } catch (error) {
+      console.error('[DashVoiceMode] Error processing message:', error);
+      setSpeaking(false);
+      processedRef.current = false;
+    }
+  };
+
+  // Speak text using device TTS or Edge Function
+  const speakText = async (text: string) => {
+    if (!dashInstance) {
+      console.error('[DashVoiceMode] ❌ Cannot speak: no dashInstance');
+      return;
+    }
+    
+    console.log('[DashVoiceMode] 🔊 Preparing to speak:', {
+      textLength: text.length,
+      preview: text.substring(0, 50)
+    });
+    
+    try {
+      // Use DashAIAssistant's built-in TTS (Edge Function + audio manager)
+      const dummyMessage: DashMessage = {
+        id: `voice_${Date.now()}`,
+        type: 'assistant',
+        content: text,
+        timestamp: Date.now(),
+      };
+      
+      console.log('[DashVoiceMode] 🎵 Calling dashInstance.speakResponse...');
+      await dashInstance.speakResponse(dummyMessage, {
+        onStart: () => console.log('[DashVoiceMode] ✅ TTS started successfully'),
+        onDone: () => console.log('[DashVoiceMode] ✅ TTS completed successfully'),
+        onError: (err) => console.error('[DashVoiceMode] ❌ TTS error:', err),
+      });
+      console.log('[DashVoiceMode] 🎵 TTS call completed');
+    } catch (error) {
+      console.error('[DashVoiceMode] ❌ TTS Edge Function failed:', error);
+      console.log('[DashVoiceMode] 🔄 Attempting device TTS fallback...');
+      try {
+        const Speech = await import('expo-speech');
+        const localeMap: Record<string, string> = {
+          en: 'en-ZA',
+          af: 'af-ZA',
+          zu: 'zu-ZA',
+          xh: 'xh-ZA',
+          nso: 'en-ZA', // fallback
+        };
+        const locale = localeMap[activeLang] || 'en-ZA';
+        console.log('[DashVoiceMode] 🔊 Device TTS with locale:', locale);
+        Speech.speak(text, { language: locale, pitch: 1.0, rate: 0.98 });
+        console.log('[DashVoiceMode] ✅ Device TTS started');
+      } catch (e) {
+        console.error('[DashVoiceMode] ❌ Device TTS also failed:', e);
+      }
+    }
+  };
+
+  // Check streaming availability
+  useEffect(() => {
+    (async () => {
+      try {
+        const env = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true';
+        const pref = await AsyncStorage.getItem('@dash_streaming_enabled');
+        const enabled = env || pref === 'true';
+        console.log('[DashVoiceMode] 🔧 Streaming config:', { env, pref, enabled });
+        setStreamingEnabled(enabled);
+      } catch (e) {
+        console.error('[DashVoiceMode] ❌ Failed to check streaming config:', e);
+      }
+    })();
+  }, []);
+
+  // Start streaming when visible
+  useEffect(() => {
+    if (!visible) return;
+    
+    console.log('[DashVoiceMode] 🚀 Starting voice mode session');
+    
+    (async () => {
+      setUserTranscript('');
+      setAiResponse('');
+      setReady(false);
+      setErrorMessage('');
+      setRetryCount(0);
+      processedRef.current = false;
+      
+      // CRITICAL: Check if dashInstance is available before starting
+      if (!dashInstance) {
+        console.error('[DashVoiceMode] ❌ Cannot start: dashInstance is null!');
+        setErrorMessage('AI Assistant not initialized. Please wait and try again.');
+        try { toast.error?.('Please wait for AI to initialize'); } catch {}
+        setTimeout(() => onClose(), 2500);
+        return;
+      }
+      
+      // Block indigenous SA languages (zu, xh, nso) - they MUST use Azure, not OpenAI Realtime
+      const isIndigenous = ['zu', 'xh', 'nso'].includes(activeLang);
+      if (isIndigenous) {
+        const langName = activeLang === 'zu' ? 'Zulu' : activeLang === 'xh' ? 'Xhosa' : 'Northern Sotho';
+        console.error('[DashVoiceMode] ❌ OpenAI Realtime does NOT support', langName);
+        setErrorMessage(`${langName} uses Azure Speech. Please use the recording button.`);
+        try { toast.error?.(`${langName} not supported in Voice Mode`); } catch {}
+        setTimeout(() => onClose(), 2500);
+        return;
+      }
+      
+      if (!streamingEnabled) {
+        console.error('[DashVoiceMode] ❌ Streaming not enabled!');
+        setErrorMessage('Voice streaming is disabled. Check settings.');
+        setTimeout(() => onClose(), 2000);
+        return;
+      }
+      
+      console.log('[DashVoiceMode] 🔌 Attempting to start realtime stream with language:', activeLang);
+      setErrorMessage('Connecting...');
+      const ok = await realtime.startStream();
+      console.log('[DashVoiceMode] 📡 Stream start result:', ok);
+      
+      if (ok) {
+        console.log('[DashVoiceMode] ✅ Stream started successfully!');
+        setReady(true);
+        setErrorMessage('');
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+        // Start animations
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+        startPulseAnimation();
+      } else {
+        console.error('[DashVoiceMode] ❌ Failed to start stream!');
+        // Basic retry once
+        setErrorMessage('Connection failed. Retrying...');
+        setTimeout(async () => {
+          const retryOk = await realtime.startStream();
+          if (retryOk) {
+            setReady(true);
+            setErrorMessage('');
+            startPulseAnimation();
+          } else {
+            setErrorMessage('Unable to connect. Please try again later.');
+            setTimeout(() => onClose(), 2500);
+          }
+        }, 1000);
+      }
+    })();
+    
+    return () => {
+      console.log('[DashVoiceMode] 📴 Cleaning up voice mode session');
+      try { realtime.stopStream(); } catch {}
+      stopPulseAnimation();
+      setErrorMessage('');
+    };
+  }, [visible, streamingEnabled, activeLang]);
+
+  // If stream ends without explicit final event, use the last transcript
+  useEffect(() => {
+    if (!visible) return;
+    if (realtime.status === 'finished' && !processedRef.current) {
+      const tx = userTranscript.trim();
+      if (tx.length > 0) {
+        console.log('[DashVoiceMode] ⚠️ Using last transcript after finish');
+        handleTranscript(tx);
+      } else {
+        console.warn('[DashVoiceMode] ❗ Finished without transcript');
+      }
+    }
+  }, [realtime.status, userTranscript, visible]);
+
+  // Pulse animation for orb
+  const startPulseAnimation = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+      ])
+    ).start();
+    
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orbGlowAnim, { toValue: 1, duration: 1500, useNativeDriver: false }),
+        Animated.timing(orbGlowAnim, { toValue: 0, duration: 1500, useNativeDriver: false }),
+      ])
+    ).start();
+  };
+
+  const stopPulseAnimation = () => {
+    pulseAnim.stopAnimation();
+    orbGlowAnim.stopAnimation();
+  };
+
+  const handleClose = async () => {
+    try { await realtime.stopStream(); } catch {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    onClose();
+  };
+
+  if (!visible) return null;
+
+  const orbColor = speaking ? theme.success : theme.primary;
+  const glowColor = orbGlowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [`${orbColor}00`, `${orbColor}60`],
+  });
+
+  const isListening = ready && realtime.status === 'streaming';
+
+  return (
+    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
+      {/* Orb Container */}
+      <View style={styles.orbContainer}>
+        {/* Glow */}
+        <Animated.View
+          style={[
+            styles.orbGlow,
+            {
+              backgroundColor: glowColor,
+              transform: [{ scale: pulseAnim.interpolate({ inputRange: [1, 1.15], outputRange: [1, 1.3] }) }],
+            },
+          ]}
+        />
+        
+        {/* Main Orb */}
+        <Animated.View
+          style={[
+            styles.orb,
+            {
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[orbColor, orbColor + 'CC', orbColor + '99']}
+            style={styles.orbGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+        
+        {/* Status Icon */}
+        <Animated.View style={[styles.statusIcon, { opacity: fadeAnim }]}>
+          <Ionicons
+            name={speaking ? 'volume-high' : isListening ? (realtime.muted ? 'mic-off' : 'mic') : 'hourglass'}
+            size={48}
+            color="#fff"
+          />
+        </Animated.View>
+
+        {/* Mute toggle button */}
+        {isListening && (
+          <TouchableOpacity
+            onPress={() => {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              realtime.toggleMute();
+            }}
+            style={[styles.muteButton, { backgroundColor: realtime.muted ? '#E53935' : '#3C3C3C' }]}
+          >
+            <Ionicons name={realtime.muted ? 'mic-off' : 'mic'} size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Status Text */}
+      <Animated.View style={[styles.statusContainer, { opacity: fadeAnim }]}>
+        <Text style={[styles.statusTitle, { color: errorMessage ? theme.error : theme.text }]}>
+          {errorMessage || (speaking ? '🔊 Dash is speaking...' : isListening ? (realtime.muted ? 'Muted' : 'Listening...') : 'Connecting...')}
+        </Text>
+        
+        {!errorMessage && userTranscript && (
+          <Text style={[styles.transcriptText, { color: theme.textSecondary }]} numberOfLines={3}>
+            {userTranscript}
+          </Text>
+        )}
+        
+        {!errorMessage && aiResponse && !speaking && (
+          <Text style={[styles.responseText, { color: theme.text }]} numberOfLines={4}>
+            {aiResponse}
+          </Text>
+        )}
+      </Animated.View>
+
+      {/* Close Button */}
+      <TouchableOpacity
+        style={[styles.closeButton, { backgroundColor: theme.surface }]}
+        onPress={handleClose}
+      >
+        <Ionicons name="close" size={24} color={theme.text} />
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  orbContainer: {
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  orbGlow: {
+    position: 'absolute',
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
+  },
+  orb: {
+    width: ORB_SIZE * 0.75,
+    height: ORB_SIZE * 0.75,
+    borderRadius: (ORB_SIZE * 0.75) / 2,
+    overflow: 'hidden',
+  },
+  orbGradient: {
+    width: '100%',
+    height: '100%',
+  },
+  statusIcon: {
+    position: 'absolute',
+  },
+  statusContainer: {
+    marginTop: 40,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    maxWidth: SCREEN_WIDTH * 0.9,
+  },
+  statusTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  transcriptText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  responseText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  muteButton: {
+    position: 'absolute',
+    bottom: -8,
+    right: (ORB_SIZE * 0.125),
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff55',
+  },
+});

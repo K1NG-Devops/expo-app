@@ -17,8 +17,9 @@
 
 /**
  * Available subscription tiers in ascending order of features
+ * Matches database subscription_tier enum
  */
-export type Tier = 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise';
+export type Tier = 'free' | 'starter' | 'premium' | 'enterprise';
 
 /**
  * Granular capability identifiers for feature gating
@@ -102,16 +103,11 @@ export const CAPABILITY_MATRIX: Readonly<Record<Tier, readonly DashCapability[]>
   
   starter: [
     'chat.basic',
-    'memory.lite',
-    'lessons.basic',
-    'insights.basic',
-  ],
-  
-  basic: [
-    'chat.basic',
     'chat.streaming',
     'memory.lite',
     'memory.standard',
+    'multimodal.vision',         // Phase 2.1: Vision support for Starter tier (R299)
+    'multimodal.documents',      // Document processing for Starter tier
     'homework.assign',
     'homework.grade.basic',
     'lessons.basic',
@@ -120,39 +116,9 @@ export const CAPABILITY_MATRIX: Readonly<Record<Tier, readonly DashCapability[]>
     'export.pdf.basic',
     'export.conversation',
   ],
+  
   
   premium: [
-    'chat.basic',
-    'chat.streaming',
-    'chat.thinking',
-    'memory.standard',
-    'memory.advanced',
-    'memory.patterns',
-    'multimodal.vision',
-    'multimodal.ocr',
-    'multimodal.documents',
-    'multimodal.handwriting',
-    'homework.assign',
-    'homework.grade.basic',
-    'homework.grade.advanced',
-    'homework.rubric',
-    'homework.feedback',
-    'lessons.basic',
-    'lessons.curriculum',
-    'lessons.adaptive',
-    'lessons.personalized',
-    'insights.basic',
-    'insights.proactive',
-    'insights.realtime',
-    'agent.workflows',
-    'agent.background',
-    'export.pdf.basic',
-    'export.pdf.advanced',
-    'export.conversation',
-    'processing.background',
-  ],
-  
-  pro: [
     'chat.basic',
     'chat.streaming',
     'chat.thinking',
@@ -271,7 +237,7 @@ export function hasCapability(tier: Tier, capability: DashCapability): boolean {
  * 
  * @example
  * ```typescript
- * const capabilities = getCapabilities('basic');
+ * const capabilities = getCapabilities('starter');
  * console.log(capabilities); // ['chat.basic', 'chat.streaming', ...]
  * ```
  */
@@ -296,7 +262,7 @@ export function getCapabilities(tier: Tier): readonly DashCapability[] {
  * - [ ] Return tier display name instead of identifier
  */
 export function getRequiredTier(capability: DashCapability): Tier | null {
-  const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+  const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
   
   for (const tier of tiers) {
     if (hasCapability(tier, capability)) {
@@ -320,7 +286,7 @@ export function getRequiredTier(capability: DashCapability): Tier | null {
  * ```
  */
 export function getExclusiveCapabilities(tier: Tier): DashCapability[] {
-  const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+  const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
   const tierIndex = tiers.indexOf(tier);
   
   if (tierIndex === 0) {
@@ -343,13 +309,13 @@ export function getExclusiveCapabilities(tier: Tier): DashCapability[] {
  * 
  * @example
  * ```typescript
- * if (compareTiers('premium', 'basic') > 0) {
- *   console.log('Premium is higher than basic');
+ * if (compareTiers('premium', 'starter') > 0) {
+ *   console.log('Premium is higher than starter');
  * }
  * ```
  */
 export function compareTiers(tier1: Tier, tier2: Tier): number {
-  const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+  const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
   return tiers.indexOf(tier1) - tiers.indexOf(tier2);
 }
 
@@ -439,11 +405,11 @@ export function assertCapability(
  * 
  * @example
  * ```typescript
- * const access = checkCapabilities('basic', [
+ * const access = checkCapabilities('starter', [
  *   'chat.streaming',
  *   'multimodal.vision'
  * ]);
- * // { 'chat.streaming': true, 'multimodal.vision': false }
+ * // { 'chat.streaming': true, 'multimodal.vision': true }
  * ```
  */
 export function checkCapabilities(
@@ -470,11 +436,9 @@ export function getTierInfo(tier: Tier): {
 } {
   const tiers = {
     free: { name: 'Free', color: '#8E8E93', order: 0 },
-    starter: { name: 'Starter', color: '#8E8E93', order: 1 },
-    basic: { name: 'Basic', color: '#34C759', order: 2 },
-    premium: { name: 'Premium', color: '#FF9500', order: 3 },
-    pro: { name: 'Pro', color: '#AF52DE', order: 4 },
-    enterprise: { name: 'Enterprise', color: '#007AFF', order: 5 },
+    starter: { name: 'Starter', color: '#34C759', order: 1 },
+    premium: { name: 'Premium', color: '#FF9500', order: 2 },
+    enterprise: { name: 'Enterprise', color: '#007AFF', order: 3 },
   };
   
   return { id: tier, ...tiers[tier] };

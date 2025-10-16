@@ -48,9 +48,7 @@ function getIconForTier(tier: Tier): string {
   const icons: Record<Tier, string> = {
     free: '🆓',
     starter: '🌱',
-    basic: '📘',
     premium: '⭐',
-    pro: '💎',
     enterprise: '🏢',
   };
   return icons[tier];

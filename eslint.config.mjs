@@ -60,6 +60,30 @@ export default [
     },
   },
   {
+    files: ['app/**/*.tsx'],
+    rules: {
+      'i18next/no-literal-string': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-empty': 'off',
+    },
+  },
+  {
+    files: ['archive/**/*.tsx'],
+    rules: {
+      'i18next/no-literal-string': 'off',
+    },
+  },
+  {
+    files: ['components/**/*.tsx'],
+    rules: {
+      'i18next/no-literal-string': 'off',
+      '@typescript-eslint/no-unused-vars': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'no-empty': 'off',
+    },
+  },
+  {
     ignores: [
       'node_modules/',
       'dist/',

@@ -131,17 +131,39 @@ async function callClaudeMessages(apiKey: string, payload: Record<string, any>, 
   return res;
 }
 
+function smartStyle(): string {
+  return (
+    "You are a smart, professional colleague.\n" +
+    "- Mirror the language of the user's last message.\n" +
+    "- Keep answers concise (1–3 sentences) unless more detail is explicitly requested.\n" +
+    "- Be non‑theatrical: no stage directions, no roleplay, no emojis, no filler like ‘let me’.\n" +
+    "- State actionable facts directly and avoid unnecessary preamble."
+  );
+}
+
 function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance"): string {
   if (kind === "lesson_generation") {
-    return "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment.";
+    return (
+      "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment." +
+      "\n\n" + smartStyle()
+    );
   }
   if (kind === "homework_help") {
-    return "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers.";
+    return (
+      "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers." +
+      "\n\n" + smartStyle()
+    );
   }
   if (kind === "general_assistance") {
-    return "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice.";
+    return (
+      "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice." +
+      "\n\n" + smartStyle()
+    );
   }
-  return "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate.";
+  return (
+    "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate." +
+    "\n\n" + smartStyle()
+  );
 }
 
 function buildMessagesFromInputs(kind: string, body: any) {

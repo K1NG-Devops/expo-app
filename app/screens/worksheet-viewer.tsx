@@ -257,9 +257,11 @@ export default function WorksheetViewer() {
           title: worksheet.title,
           type: worksheet.type,
           ageGroup: worksheet.ageGroup,
-          difficulty: worksheet.difficulty,
-          activities: worksheet.activities || [],
-          instructions: 'Complete all activities to the best of your ability.'
+          // activities: worksheet.activities || [], // TODO: Add activities support to PDF service
+          contentSections: worksheet.activities?.map(a => ({
+            title: a.title,
+            content: a.description || a.instructions
+          })) || [],
         });
       }
 

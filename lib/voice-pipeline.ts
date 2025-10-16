@@ -21,7 +21,6 @@
  * - Memory usage: < 10MB for 5min recording
  */
 
-import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { logger } from './logger';
 import { mark, measure, timeAsync } from './perf';
@@ -96,111 +95,14 @@ const DEFAULT_CONFIG: VoiceRecordingConfig = {
   enableLiveTranscription: true, // Enable live transcription by default
 };
 
-/**
- * Get optimal audio quality based on network conditions
- */
-export function getAdaptiveQuality(): AudioQuality {
-  // In a real app, check network speed and connection type
-  // For now, return medium quality
-  return 'medium';
-}
-
-/**
- * Get audio recording configuration based on quality setting
- */
-export function getAudioConfig(quality: AudioQuality): Audio.RecordingOptions {
-  const actualQuality = quality === 'adaptive' ? getAdaptiveQuality() : quality;
-  
-  const configs: Record<Exclude<AudioQuality, 'adaptive'>, Audio.RecordingOptions> = {
-    low: {
-      isMeteringEnabled: true,
-      android: {
-        extension: '.m4a',
-        outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-        audioEncoder: Audio.AndroidAudioEncoder.AAC,
-        sampleRate: 16000,
-        numberOfChannels: 1,
-        bitRate: 32000,
-      },
-      ios: {
-        extension: '.m4a',
-        outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-        audioQuality: Audio.IOSAudioQuality.MIN,
-        sampleRate: 16000,
-        numberOfChannels: 1,
-        bitRate: 32000,
-        linearPCMBitDepth: 16,
-        linearPCMIsBigEndian: false,
-        linearPCMIsFloat: false,
-      },
-      web: {
-        mimeType: 'audio/webm;codecs=opus',
-        bitsPerSecond: 32000,
-      },
-    },
-    medium: {
-      isMeteringEnabled: true,
-      android: {
-        extension: '.m4a',
-        outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-        audioEncoder: Audio.AndroidAudioEncoder.AAC,
-        sampleRate: 16000, // OPTIMIZED: 16kHz ideal for speech recognition
-        numberOfChannels: 1,
-        bitRate: 32000, // OPTIMIZED: 32kbps sufficient for voice
-      },
-      ios: {
-        extension: '.m4a',
-        outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-        audioQuality: Audio.IOSAudioQuality.MEDIUM,
-        sampleRate: 16000, // OPTIMIZED: 16kHz ideal for speech recognition
-        numberOfChannels: 1,
-        bitRate: 32000, // OPTIMIZED: 32kbps sufficient for voice
-        linearPCMBitDepth: 16,
-        linearPCMIsBigEndian: false,
-        linearPCMIsFloat: false,
-      },
-      web: {
-        mimeType: 'audio/webm;codecs=opus',
-        bitsPerSecond: 32000, // OPTIMIZED: 32kbps sufficient for voice
-      },
-    },
-    high: {
-      isMeteringEnabled: true,
-      android: {
-        extension: '.m4a',
-        outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-        audioEncoder: Audio.AndroidAudioEncoder.AAC,
-        sampleRate: 44100,
-        numberOfChannels: 2,
-        bitRate: 128000,
-      },
-      ios: {
-        extension: '.m4a',
-        outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-        audioQuality: Audio.IOSAudioQuality.HIGH,
-        sampleRate: 44100,
-        numberOfChannels: 2,
-        bitRate: 128000,
-        linearPCMBitDepth: 16,
-        linearPCMIsBigEndian: false,
-        linearPCMIsFloat: false,
-      },
-      web: {
-        mimeType: 'audio/webm;codecs=opus',
-        bitsPerSecond: 128000,
-      },
-    },
-  };
-  
-  return configs[actualQuality];
-}
+// NOTE: Local recording config functions removed - streaming-only architecture
+// WebRTC streaming handles all voice recording now
 
 // ============================================================================
 // Voice Recording Pipeline Class
 // ============================================================================
 
 export class VoicePipeline {
-  private recording: Audio.Recording | null = null;
   private webrtcSession: WebRTCSession | null = null;
   private config: VoiceRecordingConfig;
   private state: RecordingState = 'idle';
@@ -210,7 +112,6 @@ export class VoicePipeline {
   private monitoringInterval: ReturnType<typeof setInterval> | null = null;
   private transcriptionCallback?: (chunk: TranscriptionChunk) => void;
   private stateCallback?: (state: RecordingState) => void;
-  private useStreaming: boolean = true; // Track if we're using streaming mode
   private accumulatedTranscription: string = ''; // Accumulate transcription chunks
   
   constructor(config: Partial<VoiceRecordingConfig> = {}) {
@@ -218,28 +119,14 @@ export class VoicePipeline {
   }
   
   /**
-   * Pre-warm the audio system for ultra-fast startup
-   * Call this early (e.g., on app startup or screen mount)
+   * Pre-warm the streaming voice system
+   * WebRTC handles permissions internally, no expo-av setup needed
    */
   public async preWarm(): Promise<void> {
     const { duration } = await timeAsync('voice_pipeline_prewarm', async () => {
       try {
-        // Set audio mode
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-          staysActiveInBackground: this.config.enableBackgroundRecording,
-        });
-        
-        // Pre-request permissions
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-          logger.warn('🎤 Audio permission not granted during pre-warm');
-        }
-        
-        logger.debug('🚀 Voice pipeline pre-warmed');
+        // WebRTC streaming will handle audio setup when session starts
+        logger.debug('🚀 Voice pipeline pre-warmed (streaming-only)');
       } catch (error) {
         logger.warn('Voice pipeline pre-warm failed', error);
       }
@@ -270,11 +157,9 @@ export class VoicePipeline {
         mark('recording_init');
         this.setState('initializing');
         
-        // Determine if we should use streaming (WebRTC)
+        // Always use streaming (no expo-av fallback)
         const shouldUseStreaming = this.config.enableLiveTranscription !== false && 
                                   (this.config.transport === 'webrtc' || this.config.transport === 'auto');
-        
-        this.useStreaming = shouldUseStreaming;
         
         if (shouldUseStreaming) {
           logger.info('🎤 Starting WebRTC streaming session...');
@@ -282,10 +167,10 @@ export class VoicePipeline {
           // Fetch realtime token from Edge Function
           const tokenData = await getRealtimeToken();
           if (!tokenData) {
-            logger.error('Failed to get realtime token, falling back to non-streaming');
-            this.useStreaming = false;
-            // Fall through to traditional recording
-          } else {
+            logger.error('Failed to get realtime token - cannot start recording');
+            this.setState('error');
+            return false;
+          }
             // Create and start WebRTC session
             this.webrtcSession = createWebRTCSession();
             
@@ -318,46 +203,29 @@ export class VoicePipeline {
               },
             });
             
-            if (started) {
-              this.startTime = Date.now();
-              this.audioLevelSamples = [];
-              this.silenceStartTime = 0;
-              this.setState('recording');
-              measure('recording_init');
-              logger.info('🎤 WebRTC streaming recording started');
-              return true;
-            } else {
-              logger.warn('WebRTC session failed to start, falling back');
-              this.useStreaming = false;
-              this.webrtcSession = null;
-            }
+          if (started) {
+            this.startTime = Date.now();
+            this.audioLevelSamples = [];
+            this.silenceStartTime = 0;
+            this.setState('recording');
+            measure('recording_init');
+            logger.info('🎤 WebRTC streaming recording started');
+            return true;
+          } else {
+            logger.error('WebRTC session failed to start');
+            this.webrtcSession = null;
+            this.setState('error');
+            return false;
           }
         }
         
-        // Fallback: Traditional expo-av recording (non-streaming)
-        logger.info('🎤 Starting traditional audio recording (no streaming)...');
-        this.recording = new Audio.Recording();
-        const audioConfig = getAudioConfig(this.config.quality);
-        
-        await this.recording.prepareToRecordAsync(audioConfig);
-        await this.recording.startAsync();
-        
-        measure('recording_init');
-        
-        this.startTime = Date.now();
-        this.audioLevelSamples = [];
-        this.silenceStartTime = 0;
-        this.setState('recording');
-        
-        // Start audio level monitoring for traditional recording
-        this.startMonitoring();
-        
-        logger.info('🎤 Traditional recording started');
-        return true;
+        // Streaming is required - no fallback
+        logger.error('Streaming not enabled or not available');
+        this.setState('error');
+        return false;
       } catch (error) {
         logger.error('Failed to start recording', error);
         this.setState('error');
-        this.useStreaming = false;
         return false;
       }
     });
@@ -397,79 +265,44 @@ export class VoicePipeline {
     try {
       const duration = this.getDuration();
       
-      // Handle WebRTC streaming session
-      if (this.useStreaming && this.webrtcSession) {
-        logger.info('🎤 Stopping WebRTC streaming session...');
-        await this.webrtcSession.stop();
-        this.webrtcSession = null;
-        this.setState('idle');
-        
-        // Track streaming metrics
-        track('edudash.voice.streaming_complete', {
-          duration_ms: duration,
-          quality: this.config.quality,
-          transport: 'webrtc',
-          transcription_length: this.accumulatedTranscription.length,
-        });
-        
-        logger.info('🎤 WebRTC streaming stopped', { 
-          duration, 
-          transcription_length: this.accumulatedTranscription.length 
-        });
-        
-        // Return result with transcription (no file URI for streaming)
-        return {
-          uri: '', // No file for streaming
-          duration,
-          metrics: {
-            duration,
-            fileSize: 0, // No file
-            sampleRate: 16000, // OpenAI Realtime API uses 16kHz
-            bitrate: 64000,
-            channels: 1,
-            format: 'webrtc-stream',
-            peakAmplitude: 0,
-            averageAmplitude: 0,
-          },
-          transcription: this.accumulatedTranscription.trim(),
-        };
-      }
-      
-      // Handle traditional expo-av recording
-      if (!this.recording) {
+      // Handle WebRTC streaming session (streaming-only)
+      if (!this.webrtcSession) {
         throw new Error('No active recording session');
       }
       
-      logger.info('🎤 Stopping traditional recording...');
-      await this.recording.stopAndUnloadAsync();
-      const uri = this.recording.getURI();
-      const status = await this.recording.getStatusAsync();
-      
-      if (!uri) {
-        throw new Error('No recording URI available');
-      }
-      
-      // Get audio metrics
-      const metrics = await this.getAudioMetrics(uri, status);
-      
-      // Clean up
-      this.recording = null;
+      logger.info('🎤 Stopping WebRTC streaming session...');
+      await this.webrtcSession.stop();
+      this.webrtcSession = null;
       this.setState('idle');
       
-      logger.info('🎤 Traditional recording stopped', { duration: metrics.duration, size: metrics.fileSize });
-      
-      // Track recording metrics
-      track('edudash.voice.recording_complete', {
-        duration_ms: metrics.duration,
-        file_size_bytes: metrics.fileSize,
+      // Track streaming metrics
+      track('edudash.voice.streaming_complete', {
+        duration_ms: duration,
         quality: this.config.quality,
-        peak_amplitude: metrics.peakAmplitude,
+        transport: 'webrtc',
+        transcription_length: this.accumulatedTranscription.length,
       });
       
+      logger.info('🎤 WebRTC streaming stopped', { 
+        duration, 
+        transcription_length: this.accumulatedTranscription.length 
+      });
+      
+      // Return result with transcription (no file URI for streaming)
       return {
-        uri,
-        duration: metrics.duration,
-        metrics,
+        uri: '', // No file for streaming
+        duration,
+        metrics: {
+          duration,
+          fileSize: 0, // No file
+          sampleRate: 16000, // OpenAI Realtime API uses 16kHz
+          bitrate: 64000,
+          channels: 1,
+          format: 'webrtc-stream',
+          peakAmplitude: 0,
+          averageAmplitude: 0,
+        },
+        transcription: this.accumulatedTranscription.trim(),
       };
     } catch (error) {
       logger.error('Failed to stop recording', error);
@@ -486,48 +319,23 @@ export class VoicePipeline {
   }
   
   /**
-   * Pause recording (if supported)
+   * Pause recording (not supported in streaming mode)
    */
   public async pauseRecording(): Promise<boolean> {
-    if (!this.recording || this.state !== 'recording') {
-      return false;
-    }
-    
-    try {
-      await this.recording.pauseAsync();
-      this.setState('paused');
-      this.stopMonitoring();
-      logger.debug('🎤 Recording paused');
-      return true;
-    } catch (error) {
-      logger.error('Failed to pause recording', error);
-      return false;
-    }
+    logger.warn('Pause not supported in streaming mode');
+    return false;
   }
   
   /**
-   * Resume recording
+   * Resume recording (not supported in streaming mode)
    */
   public async resumeRecording(): Promise<boolean> {
-    if (!this.recording || this.state !== 'paused') {
-      return false;
-    }
-    
-    try {
-      await this.recording.startAsync();
-      this.setState('recording');
-      this.startMonitoring();
-      logger.debug('🎤 Recording resumed');
-      return true;
-    } catch (error) {
-      logger.error('Failed to resume recording', error);
-      return false;
-    }
+    logger.warn('Resume not supported in streaming mode');
+    return false;
   }
   
   /**
-   * Cancel recording and cleanup
-   * Handles both WebRTC streaming and traditional recording
+   * Cancel recording and cleanup (streaming-only)
    */
   public async cancelRecording(): Promise<void> {
     this.stopMonitoring();
@@ -544,26 +352,8 @@ export class VoicePipeline {
       }
     }
     
-    // Clean up traditional recording if active
-    if (this.recording) {
-      try {
-        await this.recording.stopAndUnloadAsync();
-        const uri = this.recording.getURI();
-        
-        // Delete the recording file
-        if (uri) {
-          await FileSystem.deleteAsync(uri, { idempotent: true });
-        }
-      } catch (error) {
-        logger.error('Failed to cancel recording', error);
-      } finally {
-        this.recording = null;
-      }
-    }
-    
     // Reset state
     this.accumulatedTranscription = '';
-    this.useStreaming = false;
     this.setState('idle');
     logger.debug('🎤 Recording cancelled');
   }
@@ -587,32 +377,11 @@ export class VoicePipeline {
   
   /**
    * Get current audio level (0-1)
-   * For WebRTC streaming, returns simulated level since WebRTC handles audio internally
+   * Simulated for WebRTC streaming (WebRTC handles audio internally)
    */
   public async getAudioLevel(): Promise<number> {
-    // For WebRTC streaming, return simulated audio level
-    if (this.useStreaming) {
-      // Simulate natural audio level variation for waveform animation
-      return 0.3 + Math.random() * 0.4; // Random between 0.3-0.7
-    }
-    
-    // For traditional recording, get actual audio metering
-    if (!this.recording) return 0;
-    
-    try {
-      const status = await this.recording.getStatusAsync();
-      if ('metering' in status && typeof status.metering === 'number') {
-        // Convert decibels to 0-1 range
-        // -160 dB (silence) to 0 dB (max)
-        const db = status.metering;
-        const normalized = Math.max(0, Math.min(1, (db + 160) / 160));
-        return normalized;
-      }
-    } catch (error) {
-      logger.debug('Failed to get audio metering', error);
-    }
-    
-    return 0;
+    // Simulate natural audio level variation for waveform animation
+    return 0.3 + Math.random() * 0.4; // Random between 0.3-0.7
   }
   
   // ============================================================================
@@ -662,31 +431,7 @@ export class VoicePipeline {
     }
   }
   
-  private async getAudioMetrics(uri: string, status: any): Promise<AudioMetrics> {
-    const fileInfo = await FileSystem.getInfoAsync(uri);
-    const fileSize = fileInfo.exists && 'size' in fileInfo ? fileInfo.size : 0;
-    
-    const duration = 'durationMillis' in status ? status.durationMillis : this.getDuration();
-    
-    const peakAmplitude = this.audioLevelSamples.length > 0
-      ? Math.max(...this.audioLevelSamples)
-      : 0;
-      
-    const averageAmplitude = this.audioLevelSamples.length > 0
-      ? this.audioLevelSamples.reduce((a, b) => a + b, 0) / this.audioLevelSamples.length
-      : 0;
-    
-    return {
-      duration,
-      fileSize,
-      sampleRate: 22050, // Default from config
-      bitrate: this.config.compressionBitrate,
-      channels: 1,
-      format: 'm4a',
-      peakAmplitude,
-      averageAmplitude,
-    };
-  }
+  // NOTE: getAudioMetrics removed - not needed for streaming-only architecture
 }
 
 // ============================================================================
@@ -745,22 +490,11 @@ export async function queueOfflineAudio(uri: string, metadata: any): Promise<voi
 
 /**
  * Get audio duration from file
+ * NOTE: Removed expo-av dependency - not needed for streaming-only
  */
 export async function getAudioDuration(uri: string): Promise<number> {
-  try {
-    const sound = new Audio.Sound();
-    await sound.loadAsync({ uri });
-    const status = await sound.getStatusAsync();
-    await sound.unloadAsync();
-    
-    if (status.isLoaded && 'durationMillis' in status) {
-      return status.durationMillis || 0;
-    }
-    return 0;
-  } catch (error) {
-    logger.error('Failed to get audio duration', error);
-    return 0;
-  }
+  logger.warn('getAudioDuration: Not supported in streaming-only mode');
+  return 0;
 }
 
 // ============================================================================

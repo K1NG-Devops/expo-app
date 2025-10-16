@@ -5,10 +5,8 @@
  * and deep integration with EduDash Pro services.
  */
 
-import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
 import { voiceService } from '@/lib/voice/client';
-import { audioManager } from '@/lib/voice/audio';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { assertSupabase } from '@/lib/supabase';
@@ -570,9 +568,9 @@ export class DashAIAssistant {
   private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
-  private recordingObject: Audio.Recording | null = null;
-  private soundObject: Audio.Sound | null = null;
-  private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'unknown';
+  private recordingObject: any = null;
+  private soundObject: any = null;
+  private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'granted';
   private audioPermissionLastChecked: number = 0;
   private readonly PERMISSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   
@@ -676,106 +674,28 @@ export class DashAIAssistant {
    * Check if audio permission is granted (with caching)
    */
   private async checkAudioPermission(): Promise<boolean> {
-    try {
-      // Use cached status if recent (within 5 minutes)
-      const now = Date.now();
-      if (this.audioPermissionStatus !== 'unknown' && 
-          (now - this.audioPermissionLastChecked) < this.PERMISSION_CACHE_DURATION) {
-        return this.audioPermissionStatus === 'granted';
-      }
-
-      // Check current permission status without prompting
-      const { granted } = await Audio.getPermissionsAsync();
-      this.audioPermissionStatus = granted ? 'granted' : 'denied';
-      this.audioPermissionLastChecked = now;
-      
-      console.log(`[Dash] Audio permission status: ${this.audioPermissionStatus}`);
-      return granted;
-    } catch (error) {
-      console.error('[Dash] Failed to check audio permissions:', error);
-      return false;
-    }
+    // Local mic recording has been removed; streaming path manages permissions itself
+    this.audioPermissionStatus = 'granted';
+    this.audioPermissionLastChecked = Date.now();
+    return true;
   }
 
   /**
    * Request audio permission (only if not already granted)
    */
   private async requestAudioPermission(): Promise<boolean> {
-    try {
-      console.log('[Dash] Checking audio permission status...');
-      
-      // First check if already granted (using cache)
-      const alreadyGranted = await this.checkAudioPermission();
-      if (alreadyGranted) {
-        console.log('[Dash] Audio permission already granted (cached)');
-        return true;
-      }
-
-      // Permission not granted - request it
-      console.log('[Dash] Permission not granted, requesting from user...');
-      console.log('[Dash] Platform:', Platform.OS);
-      
-      const permissionResult = await Audio.requestPermissionsAsync();
-      console.log('[Dash] Permission result:', permissionResult);
-      
-      // Update cache with result
-      this.audioPermissionStatus = permissionResult.granted ? 'granted' : 'denied';
-      this.audioPermissionLastChecked = Date.now();
-      
-      if (permissionResult.granted) {
-        console.log('[Dash] ✅ Audio permission GRANTED by user');
-      } else {
-        console.warn('[Dash] ❌ Audio permission DENIED by user');
-        console.warn('[Dash] Full permission result:', JSON.stringify(permissionResult, null, 2));
-      }
-      
-      return permissionResult.granted;
-    } catch (error) {
-      console.error('[Dash] ❌ FAILED to request audio permissions:', error);
-      console.error('[Dash] Error details:', JSON.stringify(error, null, 2));
-      this.audioPermissionStatus = 'denied';
-      return false;
-    }
+    // Local mic recording removed; return true and let streaming/WebRTC handle prompts
+    this.audioPermissionStatus = 'granted';
+    this.audioPermissionLastChecked = Date.now();
+    return true;
   }
 
   /**
    * Initialize audio system
    */
   private async initializeAudio(): Promise<void> {
-    try {
-      // On web, expo-av audio mode options are not applicable; skip configuration
-      if (Platform.OS === 'web') {
-        console.debug('[Dash] Skipping audio mode configuration on web');
-        this.audioPermissionStatus = 'granted'; // Web doesn't need explicit permission
-        return;
-      }
-
-      // Check current permission status (don't request during initialization)
-      const hasPermission = await this.checkAudioPermission();
-      if (!hasPermission) {
-        console.log('[Dash] Audio permission not granted yet - will request on first recording attempt');
-        // Don't throw - allow app to continue, will request permission when needed
-        return;
-      }
-
-      // Configure audio mode if permission is granted
-      if (Platform.OS === 'ios') {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-      } else if (Platform.OS === 'android') {
-        await Audio.setAudioModeAsync({
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-        } as any);
-      }
-      
-      console.log('[Dash] Audio initialized successfully with permissions');
-    } catch (error) {
-      console.error('[Dash] Audio initialization failed:', error);
-      // Don't throw here - allow the app to continue without audio
-    }
+    // Local expo-av audio configuration removed
+    this.audioPermissionStatus = 'granted';
   }
 
   /**
@@ -850,6 +770,38 @@ export class DashAIAssistant {
     const assistantResponse = await this.generateResponse(content, convId, attachments);
     await this.addMessageToConversation(convId, assistantResponse);
 
+    // Handle assistant-requested actions
+    try {
+      const act = assistantResponse?.metadata?.dashboard_action as any;
+      if (act?.type === 'create_reminder') {
+        const title = String(act?.title || 'Reminder');
+        const when = String(act?.schedule_at || act?.when || '');
+        if (when) {
+          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
+        }
+      }
+    } catch {}
+
+    // Natural language reminder fallback (if assistant didn't emit structured action)
+    try {
+      const act = assistantResponse?.metadata?.dashboard_action as any;
+      if (!(act?.type === 'create_reminder')) {
+        const iso = this.parseScheduleAtFromText(content || '');
+        if (iso && /\bremind\b/i.test(content || '')) {
+          const title = 'Reminder';
+          try { await this.createReminder(title, iso, { source: 'nlp' }); } catch (e) { console.warn('[Dash] NL reminder failed:', e); }
+        }
+      }
+    } catch {}
+
+    // Best-effort: sync context (language/traits) to backend
+    try {
+      await this.syncContextAfterTurn({
+        detectedLanguage: assistantResponse?.metadata?.detected_language as any,
+        sessionId: convId,
+      });
+    } catch {}
+
     return assistantResponse;
   }
 
@@ -866,28 +818,30 @@ export class DashAIAssistant {
     const tr = await this.transcribeAudio(audioUri);
     const transcript = tr.transcript;
     
-    // Auto-save detected language to voice preferences for future responses
+    // Auto-detect language from transcription
+    let detectedLanguage = 'en'; // Default to English
     if (tr.language) {
-      try {
-        const mappedLanguage = this.mapLanguageCode(tr.language);
-        console.log(`[Dash] Auto-detected language: ${tr.language} → ${mappedLanguage}`);
-        
-        // Save to voice preferences for consistent responses
-        await voiceService.savePreferences({
-          language: mappedLanguage as any,
+      const mappedLanguage = this.mapLanguageCode(tr.language);
+      detectedLanguage = mappedLanguage;
+      console.log(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
+      
+      // Save to preferences asynchronously (non-blocking for this response)
+      voiceService.savePreferences({
+        language: mappedLanguage as any,
+      }).catch(err => console.warn('[Dash] Failed to save voice preference:', err));
+      
+      // Also save to conversation state (non-blocking)
+      import('./DashConversationState').then(({ DashConversationState }) => {
+        DashConversationState.updatePreferences({
+          preferredLanguage: mappedLanguage
         });
-        
-        console.log(`[Dash] Saved voice preference: ${mappedLanguage}`);
-      } catch (err) {
-        console.warn('[Dash] Failed to save detected language preference:', err);
-      }
+      }).catch(err => console.warn('[Dash] Failed to save conversation preference:', err));
     }
     
-    // Get audio duration
-    const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
-    const status = await sound.getStatusAsync();
-    const duration = status.isLoaded ? status.durationMillis || 0 : 0;
-    await sound.unloadAsync();
+    console.log(`[Dash] 🔄 Will use detected language for this response: ${detectedLanguage}`);
+    
+    // Duration is provided by transcription when available; otherwise 0
+    const duration = (tr as any).duration || 0;
 
     // Create user message with voice note
     const userMessage: DashMessage = {
@@ -913,8 +867,8 @@ export class DashAIAssistant {
     // Add to conversation
     await this.addMessageToConversation(convId, userMessage);
 
-    // Generate AI response
-    const assistantResponse = await this.generateResponse(transcript, convId);
+    // Generate AI response with detected language context
+    const assistantResponse = await this.generateResponseWithLanguage(transcript, convId, detectedLanguage);
     await this.addMessageToConversation(convId, assistantResponse);
 
     return assistantResponse;
@@ -924,136 +878,23 @@ export class DashAIAssistant {
    * Start voice recording
    */
   public async startRecording(): Promise<void> {
-    if (this.isRecording) {
-      throw new Error('Already recording');
-    }
-
-    try {
-      // Check and request permissions first (native platforms only)
-      if (Platform.OS !== 'web') {
-        const hasPermission = await this.requestAudioPermission();
-        if (!hasPermission) {
-          throw new Error('Microphone permission is required for voice recording. Please enable microphone access in your device settings and try again.');
-        }
-        
-        // Configure audio mode now that we have permission
-        console.log('[Dash] Configuring audio mode for recording...');
-        try {
-          if (Platform.OS === 'ios') {
-            await Audio.setAudioModeAsync({
-              allowsRecordingIOS: true,
-              playsInSilentModeIOS: true,
-            });
-          } else if (Platform.OS === 'android') {
-            await Audio.setAudioModeAsync({
-              allowsRecordingIOS: false,
-              playsInSilentModeIOS: true,
-              staysActiveInBackground: false,
-              shouldDuckAndroid: true,
-              playThroughEarpieceAndroid: false,
-            });
-          }
-          console.log('[Dash] Audio mode configured for recording');
-        } catch (audioModeError) {
-          console.warn('[Dash] Failed to set audio mode, will try recording anyway:', audioModeError);
-        }
-      }
-
-      // Web compatibility checks for recording support and secure context
-      if (Platform.OS === 'web') {
-        try {
-          const w: any = typeof window !== 'undefined' ? window : null;
-          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
-
-          const isSecure = w && (w.isSecureContext || w.location?.protocol === 'https:' || w.location?.hostname === 'localhost' || w.location?.hostname === '127.0.0.1');
-          if (!isSecure) {
-            throw new Error('Microphone requires a secure context (HTTPS or localhost).');
-          }
-
-          if (!nav?.mediaDevices?.getUserMedia) {
-            throw new Error('Your browser does not support microphone capture (mediaDevices.getUserMedia missing). Please use Chrome or Edge.');
-          }
-
-          if (w?.MediaRecorder && typeof (w as any).MediaRecorder.isTypeSupported === 'function') {
-            const preferred = 'audio/webm';
-            if (!(w as any).MediaRecorder.isTypeSupported(preferred)) {
-              console.warn(`[Dash] ${preferred} not fully supported; the browser may record using a different container/codec.`);
-            }
-          } else {
-            console.warn('[Dash] MediaRecorder is not available; recording may not work in this browser (e.g., Safari).');
-          }
-        } catch (compatErr) {
-          console.error('[Dash] Web recording compatibility error:', compatErr);
-          throw compatErr;
-        }
-      }
-
-      console.log('[Dash] Starting recording...');
-      this.recordingObject = new Audio.Recording();
-
-      // Use the Expo AV recording API with voice-optimized settings
-      // 16kHz mono 32kbps AAC - faster init, smaller files, optimized for speech
-      await this.recordingObject.prepareToRecordAsync({
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 16000, // Voice-optimized: 16kHz sufficient for speech
-          numberOfChannels: 1, // Mono for voice
-          bitRate: 32000, // 32kbps sufficient for speech
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.MEDIUM,
-          sampleRate: 16000, // Voice-optimized: 16kHz sufficient for speech
-          numberOfChannels: 1, // Mono for voice
-          bitRate: 32000, // 32kbps sufficient for speech
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-      } as Audio.RecordingOptions);
-
-      await this.recordingObject.startAsync();
-      this.isRecording = true;
-      console.log('[Dash] Recording started');
-    } catch (error) {
-      console.error('[Dash] Failed to start recording:', error);
-      throw error;
-    }
+    // Local recording removed (expo-av). Use streaming controller instead.
+    throw new Error('Local mic recording is disabled. Use streaming voice input.');
   }
 
   /**
    * Stop voice recording and return audio URI
    */
   public async stopRecording(): Promise<string> {
-    if (!this.isRecording || !this.recordingObject) {
-      throw new Error('Not recording');
-    }
-
-    try {
-      console.log('[Dash] Stopping recording...');
-      await this.recordingObject.stopAndUnloadAsync();
-      const recordingUri = this.recordingObject.getURI();
-      
-      this.recordingObject = null;
-      this.isRecording = false;
-      
-      console.log('[Dash] Recording stopped:', recordingUri);
-      return recordingUri || '';
-    } catch (error) {
-      console.error('[Dash] Failed to stop recording:', error);
-      throw error;
-    }
+    // Local recording removed
+    throw new Error('Local mic recording is disabled.');
   }
 
   /**
    * Pre-warm the recorder for faster start times
    */
   public async preWarmRecorder(): Promise<void> {
-    // Pre-warming logic can go here if needed
-    // For now, this is a no-op as startRecording handles initialization
+    // No-op
     return Promise.resolve();
   }
   
@@ -1061,10 +902,8 @@ export class DashAIAssistant {
    * Check if recording is currently possible (has permissions)
    */
   public async canRecord(): Promise<boolean> {
-    if (Platform.OS === 'web') {
-      return true; // Web permissions are checked at recording time
-    }
-    return await this.checkAudioPermission();
+    // Local recording removed; always return false to signal streaming-only
+    return false;
   }
   
   /**
@@ -1129,7 +968,114 @@ export class DashAIAssistant {
     const assistantResponse = await this.generateResponse(transcript, convId);
     await this.addMessageToConversation(convId, assistantResponse);
 
+    // Handle assistant-requested actions
+    try {
+      const act = assistantResponse?.metadata?.dashboard_action as any;
+      if (act?.type === 'create_reminder') {
+        const title = String(act?.title || 'Reminder');
+        const when = String(act?.schedule_at || act?.when || '');
+        if (when) {
+          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
+        }
+      }
+    } catch {}
+
+    // Best-effort: sync context using detected language from voice
+    try {
+      await this.syncContextAfterTurn({
+        detectedLanguage: undefined,
+        sessionId: convId,
+      });
+    } catch {}
+
     return assistantResponse;
+  }
+
+  /**
+   * Parse simple time expressions from user text (today/tomorrow at HH:MM, in X minutes/hours/days)
+   */
+  private parseScheduleAtFromText(text: string): string | null {
+    try {
+      const now = new Date();
+      const t = (text || '').toLowerCase();
+
+      // in X minutes/hours/days
+      const inMatch = t.match(/\bremind\b.*?\bin\s+(\d+)\s+(minute|minutes|hour|hours|day|days)\b/);
+      if (inMatch) {
+        const qty = parseInt(inMatch[1], 10);
+        const unit = inMatch[2];
+        const d = new Date(now);
+        if (unit.startsWith('minute')) d.setMinutes(d.getMinutes() + qty);
+        else if (unit.startsWith('hour')) d.setHours(d.getHours() + qty);
+        else d.setDate(d.getDate() + qty);
+        return d.toISOString();
+      }
+
+      // tomorrow at HH[:MM]
+      let m = t.match(/\btomorrow\b.*?\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
+      if (m) {
+        const h = parseInt(m[1], 10);
+        const min = m[2] ? parseInt(m[2], 10) : 0;
+        const d = new Date(now);
+        d.setDate(d.getDate() + 1);
+        d.setHours(h, min, 0, 0);
+        return d.toISOString();
+      }
+
+      // today at HH[:MM]
+      m = t.match(/\btoday\b.*?\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
+      if (m) {
+        const h = parseInt(m[1], 10);
+        const min = m[2] ? parseInt(m[2], 10) : 0;
+        const d = new Date(now);
+        d.setHours(h, min, 0, 0);
+        if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+        return d.toISOString();
+      }
+
+      // at HH[:MM] (assume today or next day if passed)
+      m = t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
+      if (m && /\bremind\b/.test(t)) {
+        const h = parseInt(m[1], 10);
+        const min = m[2] ? parseInt(m[2], 10) : 0;
+        const d = new Date(now);
+        d.setHours(h, min, 0, 0);
+        if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+        return d.toISOString();
+      }
+      return null;
+    } catch { return null; }
+  }
+
+  /**
+   * Sync per-user context to backend edge function (best-effort)
+   */
+  private async syncContextAfterTurn(args: { detectedLanguage?: string; sessionId?: string }) {
+    try {
+      const supa = assertSupabase();
+      await supa.functions.invoke('dash-context-sync', {
+        body: {
+          detected_language: args.detectedLanguage || null,
+          traits: {},
+          session_id: args.sessionId || null,
+        },
+      } as any);
+    } catch (e) {
+      // non-fatal
+      console.warn('[Dash] Context sync failed:', e);
+    }
+  }
+
+  /**
+   * Create a scheduled reminder via edge function
+   */
+  public async createReminder(title: string, scheduleAtISO: string, payload?: Record<string, any>): Promise<{ success: boolean; id?: string }> {
+    const supa = assertSupabase();
+    const { data, error } = await supa.functions.invoke('dash-reminders-create', {
+      body: { title, schedule_at: scheduleAtISO, payload: payload || {} },
+    } as any);
+    if (error) throw error as any;
+    return (data as any) || { success: true };
   }
 
   /**
@@ -1194,7 +1140,7 @@ export class DashAIAssistant {
     }
 
     // Topic/theme: allow quoted phrases or after keywords
-    const topicQuoted = fullTextRaw.match(/topic\s*[:\-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
+const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"]{3,80})\"\s*(lesson|plan)/i);
     if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
       const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
       if (t) params.topic = t;
@@ -1208,7 +1154,7 @@ export class DashAIAssistant {
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-    const numMatch = fullText.match(/(\d{1,3})\s*\-?\s*(?:minute|min)s?\b/i);
+const numMatch = fullText.match(/(\\d{1,3})\\s*-?\\s*(?:minute|min)s?\\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -1219,7 +1165,7 @@ export class DashAIAssistant {
     if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
 
     // Objectives: capture bullet points and sentences
-    const lines = fullTextRaw.split(/\n|;|•|\-/).map(s => s.trim()).filter(Boolean);
+const lines = fullTextRaw.split(/\\n|;|•|-/).map(s => s.trim()).filter(Boolean);
     const objectiveCandidates: string[] = [];
     const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
     for (const ln of lines) {
@@ -1921,11 +1867,6 @@ export class DashAIAssistant {
           'Differentiation strategies',
           'Resource recommendations'
         ]
-      };
-      
-      return {
-        success: false,
-        error: 'Failed to generate lesson content'
       };
       
     } catch (error) {
@@ -2846,12 +2787,11 @@ export class DashAIAssistant {
    * Converts transcription language codes (e.g., 'af-ZA') to app format ('af')
    * Note: Only returns TTS-supported languages (af, zu, xh, nso)
    */
-  private mapLanguageCode(azureCode: string): 'af' | 'zu' | 'xh' | 'nso' {
-    const mapping: Record<string, 'af' | 'zu' | 'xh' | 'nso'> = {
-      // English defaults to Afrikaans (TTS-supported)
-      'en-ZA': 'af',
-      'en-US': 'af',
-      'en': 'af',
+private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
+    const mapping: Record<string, 'en' | 'af' | 'zu' | 'xh' | 'nso'> = {
+      'en-ZA': 'en',
+      'en-US': 'en',
+      'en': 'en',
       'af-ZA': 'af',
       'af': 'af',
       'zu-ZA': 'zu',
@@ -2863,13 +2803,93 @@ export class DashAIAssistant {
       'st-ZA': 'nso', // Sesotho maps to Sepedi
       'st': 'nso',
     };
-    return mapping[azureCode] || 'af'; // Default to Afrikaans
+    // Default to English if unknown
+    return mapping[azureCode] || 'en';
+  }
+
+  /**
+   * Speak text using Azure TTS via Edge Function
+   * Used for South African languages (af, zu, xh, nso)
+   */
+  private async speakWithAzureTTS(
+    text: string,
+    language: 'af' | 'zu' | 'xh' | 'nso',
+    callbacks?: {
+      onStart?: () => void;
+      onDone?: () => void;
+      onStopped?: () => void;
+      onError?: (error: any) => void;
+    }
+  ): Promise<void> {
+    const { assertSupabase } = await import('@/lib/supabase');
+    const { audioManager } = await import('@/lib/voice/audio');
+    
+    console.log(`[Dash] Calling Azure TTS Edge Function for ${language}`);
+    
+    try {
+      const supabase = assertSupabase();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('No auth session for TTS Edge Function');
+      }
+      
+      // Call tts-proxy Edge Function
+      const { data, error } = await supabase.functions.invoke('tts-proxy', {
+        body: {
+          text,
+          language, // Send as 'language' (Edge Function accepts both 'lang' and 'language')
+          style: 'friendly',
+          rate: 0, // Use default rate
+          pitch: 0, // Use default pitch
+        },
+      });
+      
+      if (error) {
+        console.error('[Dash] TTS Edge Function error:', error);
+        throw error;
+      }
+      
+      if (data.fallback === 'device') {
+        // Edge Function says to use device TTS
+        console.log('[Dash] Edge Function returned device fallback');
+        throw new Error('Edge Function returned device fallback');
+      }
+      
+      const audioUrl = data.audio_url;
+      if (!audioUrl) {
+        throw new Error('No audio URL returned from Edge Function');
+      }
+      
+      console.log(`[Dash] ✅ Azure TTS audio URL received (cached: ${data.cache_hit || false})`);
+      
+      // Play the audio using audio manager
+      callbacks?.onStart?.();
+      
+      // Use audioManager.play() with status callback
+      await audioManager.play(audioUrl, (playbackState) => {
+        if (!playbackState.isPlaying && playbackState.position === 0 && !playbackState.error) {
+          // Playback finished
+          console.log('[Dash] Azure TTS playback finished');
+          callbacks?.onDone?.();
+        } else if (playbackState.error) {
+          console.error('[Dash] Azure TTS playback error:', playbackState.error);
+          callbacks?.onError?.(new Error(playbackState.error));
+        }
+      });
+      
+    } catch (error) {
+      console.error('[Dash] speakWithAzureTTS failed:', error);
+      throw error; // Re-throw so speakResponse can fall back to device TTS
+    }
   }
 
   /**
    * Play Dash's response with voice synthesis (Unified pipeline)
+   * Uses Azure TTS for SA languages (af, zu, xh, nso) via Edge Function
+   * Falls back to device TTS for other languages or if Azure fails
    */
-  public async speakResponse(message: DashMessage, callbacks?: {
+public async speakResponse(message: DashMessage, callbacks?: {
     onStart?: () => void;
     onDone?: () => void;
     onStopped?: () => void;
@@ -2891,62 +2911,37 @@ export class DashAIAssistant {
 
       console.log('[Dash] About to start speaking (unified):', normalizedText.substring(0, 100) + '...');
 
-      // Ensure audio mode allows TTS playback (iOS silent switch, Android ducking)
-      try {
-        if (Platform.OS !== 'web') {
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
-          } as any);
+      // Get user preferences and detect language
+      const prefs = await voiceService.getPreferences().catch(() => null);
+      const vs = this.personality.voice_settings || { rate: 1.0, pitch: 1.0, language: 'en' } as any;
+
+      // Derive language: preference → message metadata → content heuristic → personality default
+      let language = (prefs?.language as any) || undefined;
+      if (!language) {
+        const metaLang = (message.metadata?.detected_language || '').toString();
+        if (metaLang) language = this.mapLanguageCode(metaLang);
+        else language = this.detectLikelyAppLanguageFromText(message.content);
+      }
+      if (!language) language = (vs.language?.toLowerCase()?.slice(0, 2) as any) || 'en';
+
+      console.log(`[Dash] Speaking in language: ${language}`);
+
+      // SA languages should use Azure TTS (via Edge Function) for authentic voices
+      const saLanguages = ['af', 'zu', 'xh', 'nso'];
+      const useAzureTTS = saLanguages.includes(language);
+
+      if (useAzureTTS) {
+        console.log(`[Dash] 🇿🇦 Using Azure TTS for ${language}`);
+        try {
+          await this.speakWithAzureTTS(normalizedText, language, callbacks);
+          return; // Success - exit early
+        } catch (azureError) {
+          console.error('[Dash] Azure TTS failed, falling back to device TTS:', azureError);
+          // Fall through to device TTS
         }
-      } catch (e) {
-        console.warn('[Dash] Failed to set audio mode for TTS:', e);
       }
 
-      // Prefer server-side TTS via Edge Function (SSOT)
-      try {
-        const prefs = await voiceService.getPreferences();
-        // Fallback to personality voice settings if prefs are missing
-        const vs = this.personality.voice_settings || { rate: 1.0, pitch: 1.0, language: 'af' };
-        
-        // PRIORITY: 1. Saved preference (from auto-detection) > 2. Personality default
-        // The preference is already updated with detected language in sendVoiceMessage()
-        let language = (prefs?.language as any) || vs.language?.toLowerCase()?.slice(0, 3) || 'af';
-        
-        // Log language selection for debugging
-        console.log(`[Dash] Speaking in language: ${language} (from ${prefs?.language ? 'saved preference' : 'personality default'})`);
-        
-        const voice_id = prefs?.voice_id;
-        const speaking_rate = prefs?.speaking_rate ?? vs.rate ?? 1.0;
-        const pitch = prefs?.pitch ?? vs.pitch ?? 1.0;
-        const volume = prefs?.volume ?? 1.0;
-
-        callbacks?.onStart?.();
-        const tts = await voiceService.synthesize({
-          text: normalizedText,
-          language,
-          voice_id,
-          speaking_rate,
-          pitch,
-          volume,
-        } as any);
-
-        await audioManager.play(tts.audio_url, (state) => {
-          // When playback naturally ends, we can signal done once
-          if (!state.isPlaying && state.position >= state.duration && state.duration > 0) {
-            callbacks?.onDone?.();
-          }
-        });
-        // If we reached here, the audio has started playing successfully
-        return;
-      } catch (serverErr) {
-        console.warn('[Dash] Server TTS failed, falling back to device TTS:', serverErr);
-      }
-
-      // Fallback: device TTS via expo-speech (keeps previous behavior)
+      // Device TTS via expo-speech (fallback or default for non-SA languages)
       const voiceSettings = this.personality.voice_settings;
 
       // Platform-specific fallback voice handling
@@ -3023,11 +3018,52 @@ export class DashAIAssistant {
   }
 
   /**
+   * Robust heuristic language detection for text
+   * Enhanced with case-insensitive matching and language-specific markers
+   */
+  private detectLikelyAppLanguageFromText(text: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
+    try {
+      const t = (text || '').toLowerCase();
+      
+      // UNIQUE markers for each language (highest priority)
+      const uniqueMarkers = {
+        // Xhosa-specific words (not in Zulu)
+        xh: /\b(molo|ndiyabulela|uxolo|ewe|hayi|yintoni|ndiza|umntwana)\b/i,
+        // Zulu-specific words (not in Xhosa)
+        zu: /\b(sawubona|ngiyabonga|ngiyaphila|umfundi|siyakusiza|ufunde|yebo|cha|baba|umama)\b/i,
+        // Afrikaans-specific
+        af: /\b(hallo|asseblief|baie|goed|graag|ek|jy|nie|met|van|is|dit)\b/i,
+        // Sepedi-specific
+        nso: /\b(thobela|le\s+kae|ke\s+a\s+leboga|hle|ka\s+kgopelo)\b/i,
+      };
+      
+      // SHARED words (lower priority, used as tiebreakers)
+      const sharedWords = {
+        // "unjani", "kakhulu", "enkosi" are shared between Zulu/Xhosa
+        zuXhShared: /\b(unjani|kakhulu|enkosi)\b/i,
+      };
+      
+      // Check unique markers first (most reliable)
+      if (uniqueMarkers.xh.test(t)) return 'xh';
+      if (uniqueMarkers.zu.test(t)) return 'zu';
+      if (uniqueMarkers.af.test(t)) return 'af';
+      if (uniqueMarkers.nso.test(t)) return 'nso';
+      
+      // If only shared Nguni words detected, default to Zulu (more common)
+      if (sharedWords.zuXhShared.test(t)) return 'zu';
+      
+      // No strong signals → default to English (SA)
+      return 'en';
+    } catch {
+      return 'en';
+    }
+  }
+
+  /**
    * Stop current speech
    */
   public async stopSpeaking(): Promise<void> {
     try {
-      try { await audioManager.stop(); } catch {}
       // Check if Speech module is available
       if (Speech && typeof Speech.stop === 'function') {
         await Speech.stop();
@@ -3041,9 +3077,21 @@ export class DashAIAssistant {
    * Generate AI response based on user input and context (AGENTIC VERSION)
    * This method activates all agentic engines for intelligent, proactive responses
    */
-  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[]): Promise<DashMessage> {
+  /**
+   * Generate response with explicit language context from voice detection
+   */
+  private async generateResponseWithLanguage(userInput: string, conversationId: string, detectedLanguage?: string): Promise<DashMessage> {
+    return this.generateResponse(userInput, conversationId, undefined, detectedLanguage);
+  }
+
+  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
     try {
       console.log('[Dash Agent] Processing message with agentic engines...');
+      if (detectedLanguage) {
+        console.log(`[Dash Agent] ✅ Using detected language: ${detectedLanguage}`);
+      } else {
+        console.log('[Dash Agent] ⚠️  No detected language provided, will use fallback chain');
+      }
       
       // Lightweight intent guard for common conversational openers
       const inputLC = String(userInput || '').trim().toLowerCase();
@@ -3102,7 +3150,7 @@ export class DashAIAssistant {
       
       // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
       console.log('[Dash Agent] Phase 3: Generating enhanced response...');
-      const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments);
+      const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments, detectedLanguage);
       
       // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
       if (opportunities.length > 0) {
@@ -4078,7 +4126,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
    * Check if currently recording
    */
   public isCurrentlyRecording(): boolean {
-    return this.isRecording;
+    return false;
   }
 
   /**
@@ -4727,7 +4775,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   /**
    * Generate enhanced response with role-based intelligence
    */
-  private async generateEnhancedResponse(content: string, conversationId: string, analysis: any, attachments?: DashAttachment[]): Promise<DashMessage> {
+  private async generateEnhancedResponse(content: string, conversationId: string, analysis: any, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
     try {
       // Get REAL awareness context
       const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
@@ -4741,16 +4789,58 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const session = await getCurrentSession();
       const profile = await getCurrentProfile();
       
+      // Determine language with priority: voice detection > saved prefs > text heuristic > default EN
+      let language = detectedLanguage;
+      let languageSource = 'detected-voice';
+      
+      if (!language) {
+        try {
+          const prefs = await voiceService.getPreferences();
+          if (prefs?.language) {
+            language = prefs.language;
+            languageSource = 'saved-prefs';
+          }
+        } catch (err) {
+          console.warn('[Dash] Failed to get voice preferences:', err);
+        }
+      }
+      
+      if (!language) {
+        const { DashConversationState } = await import('./DashConversationState');
+        const convLang = DashConversationState.getPreferences()?.preferredLanguage;
+        if (convLang) {
+          language = convLang;
+          languageSource = 'conversation-state';
+        }
+      }
+      
+      if (!language) {
+        language = this.detectLikelyAppLanguageFromText(content);
+        languageSource = 'text-heuristic';
+      }
+      
+      if (!language) {
+        language = 'en';
+        languageSource = 'default-fallback';
+      }
+      
+      console.log(`[Dash] 🌍 Building AI prompt | Language: ${language} | Source: ${languageSource}`);
+      
+      // CRITICAL: Inject language explicitly into agentic context
+      if (!detectedLanguage && language !== 'en') {
+        console.log(`[Dash] ⚠️  Language from ${languageSource}, not from voice detection - AI may not respond naturally`);
+      }
+      
       let systemPrompt: string;
       if (session?.user_id && profile) {
-        // Use enhanced agentic prompt
+        // Use enhanced agentic prompt with correct language
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
           userId: session.user_id,
           profile,
           tier: 'starter',
           role: (profile as any).role || 'teacher',
           currentScreen: awareness?.app?.currentScreen,
-          language: 'en'
+          language: language
         });
       } else {
         // Fallback to basic prompt
@@ -5622,11 +5712,19 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
    */
   public async appendUserMessage(content: string, conversationId?: string): Promise<DashMessage> {
     const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
+
+    // Heuristic language detection for typed/streamed text to inform TTS of the next assistant reply
+    let detectedLang: 'en' | 'af' | 'zu' | 'xh' | 'nso' = 'en';
+    try {
+      detectedLang = this.detectLikelyAppLanguageFromText(content);
+    } catch {}
+
     const msg: DashMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: 'user',
       content: content,
       timestamp: Date.now(),
+      metadata: { detected_language: detectedLang },
     };
     await this.addMessageToConversation(convId, msg);
     return msg;

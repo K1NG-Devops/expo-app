@@ -28,6 +28,12 @@ export interface DashAwareness {
     availableScreens: string[];
     recentScreens: string[];
   };
+  data: {
+    studentCount?: number;
+    classCount?: number;
+    teacherCount?: number;
+    preschoolId?: string;
+  };
   conversation: {
     messageCount: number;
     isNewConversation: boolean;
@@ -67,12 +73,16 @@ export class DashRealTimeAwareness {
     // Get real app structure
     const appStructure = this.getAppStructure(profile?.role);
     
+    // Get real data counts
+    const dataContext = await this.getDataContext(profile);
+    
     // Get conversation context
     const conversationContext = this.getConversationContext(conversationId);
     
     this.awareness = {
       user: userIdentity,
       app: appStructure,
+      data: dataContext,
       conversation: conversationContext,
       capabilities: {
         canOpenScreens: true,
@@ -214,6 +224,53 @@ export class DashRealTimeAwareness {
   }
   
   /**
+   * Get real data counts from database
+   */
+  private async getDataContext(profile: UserProfile | null): Promise<DashAwareness['data']> {
+    if (!profile) {
+      return {};
+    }
+    
+    try {
+      const preschoolId = (profile as any).preschool_id;
+      if (!preschoolId) {
+        return {};
+      }
+      
+      const supabase = assertSupabase();
+      
+      // Get actual student count
+      const { count: studentCount } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('preschool_id', preschoolId);
+      
+      // Get class count  
+      const { count: classCount } = await supabase
+        .from('classes')
+        .select('*', { count: 'exact', head: true })
+        .eq('preschool_id', preschoolId);
+      
+      // Get teacher count
+      const { count: teacherCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('preschool_id', preschoolId)
+        .eq('role', 'teacher');
+      
+      return {
+        studentCount: studentCount ?? undefined,
+        classCount: classCount ?? undefined,
+        teacherCount: teacherCount ?? undefined,
+        preschoolId
+      };
+    } catch (error) {
+      console.error('[DashAwareness] Failed to get data context:', error);
+      return {};
+    }
+  }
+  
+  /**
    * Track conversation context
    */
   private getConversationContext(conversationId: string): DashAwareness['conversation'] {
@@ -296,6 +353,13 @@ USER IDENTITY:
 - Name: ${user.name} (${user.role} at ${user.organization})
 - Current conversation: ${conversation.messageCount} messages
 - ${conversation.isNewConversation ? 'NEW conversation' : 'ONGOING - DO NOT GREET AGAIN'}
+
+REAL DATA (from database):
+${awareness.data.studentCount !== undefined ? `- Students: ${awareness.data.studentCount}` : '- Students: Not loaded yet'}
+${awareness.data.classCount !== undefined ? `- Classes: ${awareness.data.classCount}` : ''}
+${awareness.data.teacherCount !== undefined ? `- Teachers: ${awareness.data.teacherCount}` : ''}
+
+CRITICAL: Use ONLY the real data above. NEVER make up student counts or other statistics.
 
 RESPONSE STYLE:
 - Direct and concise (1-3 sentences for simple questions)

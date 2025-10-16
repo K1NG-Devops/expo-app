@@ -231,9 +231,10 @@ export function getDateRange(period: 'today' | 'yesterday' | 'week' | 'month' | 
     case 'today':
       return { start: startOfDay(now), end: endOfDay(now) };
     
-    case 'yesterday':
+    case 'yesterday': {
       const yesterday = subDays(now, 1);
       return { start: startOfDay(yesterday), end: endOfDay(yesterday) };
+    }
     
     case 'week':
       return { start: getThisWeekStart(), end: getThisWeekEnd() };

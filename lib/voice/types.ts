@@ -4,7 +4,7 @@
  * Type definitions for the South African multilingual voice system
  */
 
-export type SupportedLanguage = 'af' | 'zu' | 'xh' | 'nso';
+export type SupportedLanguage = 'en' | 'af' | 'zu' | 'xh' | 'nso';
 
 export interface VoicePreference {
   user_id: string;
@@ -93,6 +93,14 @@ export interface LanguageInfo {
 }
 
 export const SUPPORTED_LANGUAGES: Record<SupportedLanguage, LanguageInfo> = {
+  en: {
+    code: 'en',
+    name: 'English (SA)',
+    englishName: 'English (South Africa)',
+    flag: '🇿🇦',
+    defaultVoiceId: 'en-ZA-LeahNeural',
+    sampleText: 'Hello, welcome to EduDash Pro. I can help you teach and learn better.',
+  },
   af: {
     code: 'af',
     name: 'Afrikaans',
@@ -114,7 +122,7 @@ export const SUPPORTED_LANGUAGES: Record<SupportedLanguage, LanguageInfo> = {
     name: 'isiXhosa',
     englishName: 'Xhosa',
     flag: '🇿🇦',
-    defaultVoiceId: 'xh-ZA-Online',
+    defaultVoiceId: 'xh-ZA-YaandeNeural',
     sampleText: 'Molo, wamkelekile kwi-EduDash Pro. Sikunceda ukuba ufunde ngcono.',
   },
   nso: {
@@ -129,8 +137,9 @@ export const SUPPORTED_LANGUAGES: Record<SupportedLanguage, LanguageInfo> = {
 
 // Voice provider priorities
 export const PROVIDER_PRIORITY: Record<SupportedLanguage, Array<'azure' | 'google' | 'openai'>> = {
+  en: ['azure'],      // English (SA) on Azure
   af: ['azure'],      // Full support on Azure
   zu: ['azure'],      // Full support on Azure
-  xh: ['google'],     // Google Cloud TTS
-  nso: ['openai'],    // OpenAI Whisper (fallback)
+  xh: ['azure'],      // Now supported via Azure YaandeNeural
+  nso: ['openai'],    // Fallback
 };

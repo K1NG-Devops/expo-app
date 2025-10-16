@@ -1,3 +1,16 @@
+/**
+ * DEPRECATION NOTICE:
+ * This batch transcription Edge Function is now LEGACY and maintained only for fallback.
+ * 
+ * PREFERRED APPROACH: Use real-time streaming transcription via WebSocket/WebRTC.
+ * - Faster user experience (transcription as you speak)
+ * - Lower latency for AI responses
+ * - Better language detection
+ * 
+ * This function remains as a graceful fallback when streaming is unavailable or fails.
+ * See: hooks/useRealtimeVoice.ts and hooks/useVoiceController.ts for streaming implementation.
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
@@ -325,10 +338,17 @@ async function transcribeAudio(request: Request): Promise<Response> {
         .from('voice_notes')
         .select('*')
         .eq('id', transcriptionRequest.voice_note_id)
-        .single()
+        .maybeSingle()
 
       if (error) {
-        return new Response(JSON.stringify({ error: `Voice note not found: ${error.message}` }), {
+        return new Response(JSON.stringify({ error: `Voice note query error: ${error.message}` }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Voice note not found' }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         })
@@ -345,7 +365,7 @@ async function transcribeAudio(request: Request): Promise<Response> {
         .from('voice_notes')
         .select('*')
         .eq('storage_path', transcriptionRequest.storage_path)
-        .single()
+        .maybeSingle()
       
       voiceNote = data // May be null if this is just a file transcription
       

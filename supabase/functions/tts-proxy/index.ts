@@ -15,11 +15,14 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // Types
 interface TTSRequest {
   text: string;
-  lang: 'af' | 'zu' | 'xh' | 'st' | 'nso' | 'en';
+  lang?: 'af' | 'zu' | 'xh' | 'st' | 'nso' | 'en';
+  language?: 'af' | 'zu' | 'xh' | 'st' | 'nso' | 'en'; // Accept both param names
   voiceId?: string;
+  voice_id?: string; // Accept both param names
   style?: 'friendly' | 'empathetic' | 'professional' | 'cheerful';
   rate?: number; // -50 to +50
   pitch?: number; // -50 to +50
+  speaking_rate?: number; // Accept as alias for rate
   format?: 'mp3' | 'ogg' | 'wav';
 }
 
@@ -38,14 +41,20 @@ const LANG_MAP: Record<string, string> = {
   xh: 'xh-ZA',
   st: 'nso-ZA',
   nso: 'nso-ZA',
-  en: 'en-US',
+  en: 'en-ZA',
 };
 
 // Default Azure voices (based on testing)
 const AZURE_VOICES: Record<string, string> = {
-  'af-ZA': 'af-ZA-WillemNeural', // Male, warm
-  'zu-ZA': 'zu-ZA-ThembaNeural', // Male, clear
-  'en-US': 'en-US-GuyNeural', // Male, friendly
+  'af-ZA': 'af-ZA-AdriNeural', // Female, warm, natural Afrikaans
+  'af-ZA-male': 'af-ZA-WillemNeural', // Male, warm Afrikaans
+  'zu-ZA': 'zu-ZA-ThandoNeural', // Female, clear isiZulu
+  'zu-ZA-male': 'zu-ZA-ThembaNeural', // Male, clear isiZulu
+  'xh-ZA': 'xh-ZA-YaandeNeural', // Female, isiXhosa
+  'nso-ZA': 'nso-ZA-Online', // Sepedi/Northern Sotho (OpenAI fallback if needed)
+  'en-ZA': 'en-ZA-LeahNeural', // Female, South African English
+  'en-US': 'en-US-JennyNeural', // Female, friendly US English
+  'en-US-male': 'en-US-GuyNeural', // Male, friendly US English
 };
 
 /**
@@ -77,18 +86,28 @@ async function checkCache(hash: string): Promise<{ url: string; provider: string
       .from('tts_audio_cache')
       .select('storage_path, provider')
       .eq('hash', hash)
-      .single();
+      .maybeSingle(); // Use maybeSingle() instead of single() to handle cache misses gracefully
 
     if (error || !data) return null;
 
-    // Update hit count and last used
-    await supabase
+    // Update hit count and last used (fire and forget - don't block on cache update)
+    supabase
       .from('tts_audio_cache')
-      .update({
-        hit_count: supabase.rpc('increment', { row_id: hash, column_name: 'hit_count' }),
-        last_used_at: new Date().toISOString(),
+      .select('hit_count')
+      .eq('hash', hash)
+      .maybeSingle()
+      .then(({ data: cacheData }) => {
+        if (cacheData) {
+          return supabase
+            .from('tts_audio_cache')
+            .update({
+              hit_count: (cacheData.hit_count || 0) + 1,
+              last_used_at: new Date().toISOString(),
+            })
+            .eq('hash', hash);
+        }
       })
-      .eq('hash', hash);
+      .catch(err => console.warn('[Cache] Failed to update hit count:', err));
 
     // Get signed URL
     const { data: urlData } = await supabase.storage
@@ -342,22 +361,29 @@ serve(async (req) => {
     const preschoolId = user.user_metadata?.preschool_id || 'unknown';
     const userId = user.id;
 
-    // Parse request
+    // Parse request (handle both param names for compatibility)
     const request: TTSRequest = await req.json();
-    const { text, lang, voiceId, style, rate, pitch, format } = request;
+    const { text, lang, language, voiceId, voice_id, style, rate, pitch, speaking_rate, format } = request;
 
-    if (!text || !lang) {
-      return new Response(JSON.stringify({ error: 'Missing required fields: text, lang' }), {
+    // Use language param name OR lang param name
+    const effectiveLang = language || lang;
+    
+    if (!text || !effectiveLang) {
+      return new Response(JSON.stringify({ error: 'Missing required fields: text, language/lang' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const providerLang = LANG_MAP[lang] || 'en-US';
-    const effectiveVoiceId = voiceId || AZURE_VOICES[providerLang] || '';
+    const providerLang = LANG_MAP[effectiveLang] || 'en-US';
+    const effectiveVoiceId = voice_id || voiceId || AZURE_VOICES[providerLang] || '';
     const effectiveStyle = style || 'friendly';
-    const effectiveRate = rate || 0;
-    const effectivePitch = pitch || 0;
+    const effectiveRate = speaking_rate ?? rate ?? 0;
+    const effectivePitch = pitch ?? 0;
+    
+    // Log TTS request for debugging
+    console.log(`[TTS Request] lang: ${effectiveLang} → ${providerLang}, voice: ${effectiveVoiceId}, style: ${effectiveStyle}, rate: ${effectiveRate}, pitch: ${effectivePitch}`);
+    console.log(`[TTS Text] "${text.substring(0, 100)}${text.length > 100 ? '...' : ''}"`);
 
     // Check cache
     const cacheKey = await generateCacheKey(
@@ -375,11 +401,12 @@ serve(async (req) => {
       console.log(`[Cache HIT] ${cacheKey.substring(0, 8)}`);
       return new Response(
         JSON.stringify({
-          audioUrl: cached.url,
+          audio_url: cached.url,
           provider: cached.provider,
           language: providerLang,
-          cacheHit: true,
-        } as TTSResponse),
+          cache_hit: true,
+          content_hash: cacheKey,
+        }),
         {
           headers: {
             'Content-Type': 'application/json',
@@ -394,8 +421,8 @@ serve(async (req) => {
     let audioBlob: Blob;
     let provider: 'azure' | 'google' | 'device' = 'azure';
 
-    // Try Azure first for af-ZA and zu-ZA
-    if (['af-ZA', 'zu-ZA', 'en-US'].includes(providerLang) && AZURE_SPEECH_KEY) {
+// Try Azure first for supported locales
+    if (['af-ZA', 'zu-ZA', 'xh-ZA', 'en-ZA', 'en-US'].includes(providerLang) && AZURE_SPEECH_KEY) {
       try {
         audioBlob = await synthesizeAzure(text, providerLang, effectiveVoiceId, effectiveStyle, effectiveRate, effectivePitch);
         provider = 'azure';
@@ -457,11 +484,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        audioUrl,
+        audio_url: audioUrl,
         provider,
         language: providerLang,
-        cacheHit: false,
-      } as TTSResponse),
+        cache_hit: false,
+        content_hash: cacheKey,
+      }),
       {
         headers: {
           'Content-Type': 'application/json',

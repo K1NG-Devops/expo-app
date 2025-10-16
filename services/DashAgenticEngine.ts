@@ -21,8 +21,8 @@ import type {
   DashGoal,
   AutonomyLevel 
 } from './DashAIAssistant';
-import DashDecisionEngine from './DashDecisionEngine';
-import DashProactiveEngine from './DashProactiveEngine';
+import decisionEngine from './DashDecisionEngine';
+import ProactiveEngine from './DashProactiveEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
 
 export class DashAgenticEngine {
@@ -472,7 +472,7 @@ export class DashAgenticEngine {
       const autonomyLevel: AutonomyLevel = 'assistant'; // TODO: Load from user preferences
 
       // Check for proactive suggestions using ProactiveEngine
-      const proactiveSuggestions = await DashProactiveEngine.checkForSuggestions(
+      const proactiveSuggestions = await ProactiveEngine.checkForSuggestions(
         profile.role as any,
         {
           autonomyLevel,
@@ -658,7 +658,7 @@ export class DashAgenticEngine {
 
       const autonomyLevel: AutonomyLevel = 'assistant';
       
-      const suggestions = await DashProactiveEngine.checkForSuggestions(
+      const suggestions = await ProactiveEngine.checkForSuggestions(
         profile.role as any,
         {
           autonomyLevel,
@@ -685,7 +685,7 @@ export class DashAgenticEngine {
     context: { autonomyLevel: AutonomyLevel; userRole: string }
   ): Promise<any> {
     try {
-      const decision = await DashDecisionEngine.decide(actionCandidate, context);
+      const decision = await decisionEngine.decide(actionCandidate, context);
       
       // If decision approved and doesn't require approval, execute it
       if (decision.plan.shouldExecute && !decision.plan.requiresApproval) {
@@ -712,8 +712,8 @@ export class DashAgenticEngine {
     return {
       activeTasks: this.activeTasks.size,
       activeReminders: this.activeReminders.size,
-      decisionStats: DashDecisionEngine.getDecisionStats(),
-      proactiveStats: DashProactiveEngine.getStats()
+      decisionStats: decisionEngine.getDecisionStats(),
+      proactiveStats: ProactiveEngine.getStats()
     };
   }
 

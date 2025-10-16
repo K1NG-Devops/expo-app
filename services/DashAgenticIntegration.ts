@@ -21,8 +21,59 @@ export interface AgenticContext {
   language?: string;
 }
 
+/**
+ * Role-based agentic capabilities
+ * Superadmin gets full agentic mode, others get assistant mode
+ */
+export interface AgenticCapabilities {
+  mode: 'assistant' | 'agent';
+  canRunDiagnostics: boolean;
+  canMakeCodeChanges: boolean;
+  canAccessSystemLevel: boolean;
+  canAutoExecuteHighRisk: boolean;
+  autonomyLevel: 'limited' | 'moderate' | 'full';
+}
+
 export class DashAgenticIntegration {
   private static initialized = false;
+  
+  /**
+   * Get role-based agentic capabilities
+   * Superadmin: Full agentic mode with all capabilities
+   * Others: Assistant mode with limited autonomy
+   */
+  static getAgenticCapabilities(role: string): AgenticCapabilities {
+    const isSuperadmin = role === 'superadmin';
+    
+    if (isSuperadmin) {
+      return {
+        mode: 'agent',
+        canRunDiagnostics: true,
+        canMakeCodeChanges: true,
+        canAccessSystemLevel: true,
+        canAutoExecuteHighRisk: true,
+        autonomyLevel: 'full'
+      };
+    }
+    
+    // Default for all other roles (teacher, principal, parent)
+    return {
+      mode: 'assistant',
+      canRunDiagnostics: false,
+      canMakeCodeChanges: false,
+      canAccessSystemLevel: false,
+      canAutoExecuteHighRisk: false,
+      autonomyLevel: 'limited'
+    };
+  }
+  
+  /**
+   * Check if agentic mode is enabled for user
+   */
+  static isAgenticEnabled(context: AgenticContext): boolean {
+    const capabilities = this.getAgenticCapabilities(context.role);
+    return capabilities.mode === 'agent';
+  }
   
   /**
    * Initialize all agentic services
@@ -59,16 +110,17 @@ export class DashAgenticIntegration {
     awareness: any,
     context: AgenticContext
   ): Promise<string> {
+    const targetLanguage = context.language || context.profile?.preferred_language || 'en';
+    console.log(`[AgenticIntegration] 🎯 Building prompt for language: ${targetLanguage}`);
+    
     // Start with real-time awareness prompt
     let prompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
     
     // Get conversation context
     const conversationContext = DashConversationState.getConversationContext();
     
-    // Get language and voice context
-    const languageContext = DashConversationState.getLanguageAndVoiceContext(
-      context.language || context.profile?.preferred_language
-    );
+    // Get language and voice context (this sets multilingual behavior)
+    const languageContext = DashConversationState.getLanguageAndVoiceContext(targetLanguage);
     
     // Build platform knowledge context
     const platformContext = DashEduDashKnowledge.buildPromptContext(
@@ -89,12 +141,41 @@ export class DashAgenticIntegration {
     );
     prompt += '\n\n' + capabilitySummary;
     
-    // Add autonomy guidelines
+    // Get role-based agentic capabilities
+    const capabilities = this.getAgenticCapabilities(context.role);
+    
+    // Add role-based autonomy guidelines
     const autonomySettings = await DashAutonomyManager.getSettings();
     prompt += '\n\n## AUTONOMY SETTINGS\n\n';
-    prompt += `**Mode:** ${autonomySettings.mode} (${autonomySettings.mode === 'assistant' ? 'cautious, asks approval' : 'more autonomous'})\n`;
+    prompt += `**Role:** ${context.role}\n`;
+    prompt += `**Agentic Mode:** ${capabilities.mode.toUpperCase()} (${capabilities.mode === 'assistant' ? 'cautious, asks approval' : 'autonomous, can take proactive actions'})\n`;
+    prompt += `**Autonomy Level:** ${capabilities.autonomyLevel}\n`;
     prompt += `**Auto-execute Low Risk:** ${autonomySettings.autoExecuteLowRisk ? 'YES' : 'NO'}\n`;
     prompt += `**Auto-execute Medium Risk:** ${autonomySettings.autoExecuteMediumRisk ? 'YES' : 'NO'}\n`;
+    prompt += `**Auto-execute High Risk:** ${capabilities.canAutoExecuteHighRisk ? 'YES (SUPERADMIN ONLY)' : 'NO'}\n`;
+    
+    // Add superadmin-specific capabilities
+    if (capabilities.mode === 'agent') {
+      prompt += '\n\n## AGENTIC CAPABILITIES (SUPERADMIN)\n\n';
+      prompt += '**System-Level Access:** You have full system-level access and can:\n';
+      prompt += '- Run comprehensive app diagnostics\n';
+      prompt += '- Execute database health checks\n';
+      prompt += '- Inspect and modify system configurations\n';
+      prompt += '- Access and analyze logs and telemetry\n';
+      prompt += '- Suggest and implement code-level fixes\n';
+      prompt += '- Execute administrative commands\n\n';
+      prompt += '**Diagnostic Commands:**\n';
+      prompt += '- "run diagnostics" - Full app health check\n';
+      prompt += '- "check database" - Verify database integrity\n';
+      prompt += '- "inspect logs" - Review error logs and telemetry\n';
+      prompt += '- "system status" - Overall system health report\n\n';
+      prompt += '**IMPORTANT:** When user requests diagnostics or system-level operations:\n';
+      prompt += '1. Acknowledge their superadmin status\n';
+      prompt += '2. Execute comprehensive checks proactively\n';
+      prompt += '3. Provide detailed technical analysis\n';
+      prompt += '4. Suggest specific fixes with code examples if applicable\n';
+      prompt += '5. Ask for confirmation before making changes\n';
+    }
     
     return prompt;
   }

@@ -44,7 +44,9 @@ import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
 import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
 import { DashVoiceInput } from '@/components/ai/DashVoiceInput';
 import { VoiceRecordingBar } from '@/components/ai/VoiceRecordingBar';
+import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { assertSupabase } from '@/lib/supabase';
+import { useTranslation } from 'react-i18next';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { 
@@ -82,6 +84,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [voiceTimerMs, setVoiceTimerMs] = useState(0);
   const [voiceInputMode, setVoiceInputMode] = useState<'note' | 'live'>('note'); // 'note' = recording modal, 'live' = real-time ASR
   const [showVoiceModeMenu, setShowVoiceModeMenu] = useState(false);
+  const [showVoiceMode, setShowVoiceMode] = useState(false); // Elegant full-screen voice mode
+  const [voiceModeLang, setVoiceModeLang] = useState<string | undefined>(undefined);
   const [liveVoiceText, setLiveVoiceText] = useState('');
   const [isVoiceRecording, setIsVoiceRecording] = useState(false); // WhatsApp-style inline recording
   const [voiceRecordingPaused, setVoiceRecordingPaused] = useState(false);
@@ -181,12 +185,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
-  // Pre-warm recorder after initialization for faster start
-  useEffect(() => {
-    if (dashInstance && isInitialized) {
-      try { dashInstance.preWarmRecorder(); } catch {}
-    }
-  }, [dashInstance, isInitialized]);
+  // Pre-warm removed - useVoiceController handles recorder warm-up to avoid conflicts
 
   // If user tapped mic before Dash was ready, open the modal once ready
   useEffect(() => {
@@ -1017,6 +1016,22 @@ return (
     }
   });
   
+  // Ensure only ONE recording mode is active at a time
+  useEffect(() => {
+    if (showVoiceMode || showVoiceRecorderModal) {
+      // Cancel any vc-based recording when modals open
+      try {
+        if (vc.state === 'listening' || vc.state === 'prewarm') {
+          console.log('[DashAssistant] Modal opened - canceling vc recording');
+          vc.cancel();
+        }
+        if (isVoiceRecording) {
+          setIsVoiceRecording(false);
+        }
+      } catch {}
+    }
+  }, [showVoiceMode, showVoiceRecorderModal]);
+  
   // Log state changes for debugging
   useEffect(() => {
     console.log(`[DashAssistant] Voice state changed: ${vc.state}`);
@@ -1043,8 +1058,8 @@ return (
     if (vc.state === 'error') {
       try {
         Alert.alert(
-          'Microphone Permission',
-          'Microphone access is required for voice messages. Please enable it in your device settings and try again.'
+          'Voice input unavailable',
+          'We could not start voice input. If this persists, check microphone permission in system settings and try again.'
         );
       } catch {}
     }
@@ -1089,9 +1104,22 @@ return (
   const [isStreaming, setIsStreaming] = React.useState(false);
   const streamSpokenRef = React.useRef(false);
   const streamFinalizedRef = React.useRef(false);
+  const { i18n } = useTranslation();
+  const mapLang = (l?: string) => {
+    const base = String(l || '').toLowerCase();
+    if (base.startsWith('af')) return 'af';
+    if (base.startsWith('zu')) return 'zu';
+    if (base.startsWith('xh')) return 'xh';
+    if (base.startsWith('nso') || base.startsWith('st') || base.startsWith('so')) return 'nso';
+    if (base.startsWith('en')) return 'en';
+    return 'en';
+  };
+  const activeLang = mapLang(i18n?.language);
+
   const realtime = useRealtimeVoice({
     enabled: streamingEnabled,
-    // Provide token from Supabase session for authenticated WSS
+    language: activeLang,
+    // Provide token from Supabase session for authenticated provider calls
     tokenProvider: async () => {
       try {
         const supa = assertSupabase();
@@ -1268,13 +1296,6 @@ return (
             <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.iconButton}
-            accessibilityLabel="Command Palette"
-            onPress={() => setShowCommandPalette(true)}
-          >
-            <Ionicons name="compass-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
-          </TouchableOpacity>
           {isSpeaking && (
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: theme.error }]}
@@ -1284,23 +1305,69 @@ return (
               <Ionicons name="stop" size={screenWidth < 400 ? 18 : 22} color={theme.onError || theme.background} />
             </TouchableOpacity>
           )}
+          {/* Voice Mode Orb Button */}
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: theme.primary + '20' }]}
+            accessibilityLabel="Voice Mode"
+            onPress={async () => {
+              try {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                
+                // Stop any active recording before opening voice mode
+                console.log('[DashAssistant] Stopping any active recordings before opening voice mode');
+                try {
+                  await vc.cancel();
+                  if (isVoiceRecording) {
+                    setIsVoiceRecording(false);
+                    setVoiceRecordingPaused(false);
+                  }
+                } catch (e) {
+                  console.warn('[DashAssistant] Error stopping active recording:', e);
+                }
+                
+                // Check user's language preference
+                const voiceLang = await AsyncStorage.getItem('@dash_voice_language');
+                const lang = String(voiceLang || 'en').toLowerCase();
+                
+                // SA indigenous languages (zu, xh, nso) MUST use Azure Speech
+                // OpenAI Realtime API does NOT support these languages
+                const isIndigenousLang = lang.startsWith('zu') || lang.startsWith('xh') || lang.startsWith('nso');
+                
+                if (isIndigenousLang) {
+                  // ALWAYS use recording modal (Azure via Edge Function) for indigenous languages
+                  const langName = lang.startsWith('zu') ? 'Zulu' : lang.startsWith('xh') ? 'Xhosa' : 'Northern Sotho';
+                  console.log(`[DashAssistant] 🌍 ${langName} language detected - routing to Azure Speech (recording modal)`);
+                  toast.info?.(`Using Azure Speech for ${langName}`);
+                  setShowVoiceRecorderModal(true);
+                } else {
+                  // Check if dashInstance is ready before opening voice mode
+                  if (!dashInstance || !isInitialized) {
+                    console.warn('[DashAssistant] ⚠️ Dash not initialized yet, please wait');
+                    toast.warn?.('AI Assistant is starting up. Please wait...');
+                    return;
+                  }
+                  
+                  // Use voice mode orb (OpenAI Realtime) for supported languages
+                  console.log(`[DashAssistant] 🌐 Language '${lang}' supports OpenAI Realtime - opening voice mode`);
+                  setVoiceModeLang(lang);
+                  setShowVoiceMode(true);
+                }
+              } catch (e) {
+                console.error('[DashAssistant] Failed to determine voice mode:', e);
+                // Safe fallback: use recording modal (works for all languages)
+                console.log('[DashAssistant] Falling back to recording modal');
+                setShowVoiceRecorderModal(true);
+              }
+            }}
+          >
+            <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color={theme.primary} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Conversations"
             onPress={() => router.push('/screens/dash-conversations-history')}
           >
             <Ionicons name="time-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconButton}
-            accessibilityLabel="Voice Mode"
-            onPress={() => setShowVoiceModeMenu(true)}
-          >
-            <Ionicons 
-              name={voiceInputMode === 'live' ? 'radio-outline' : 'mic-outline'} 
-              size={screenWidth < 400 ? 18 : 22} 
-              color={theme.primary} 
-            />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
@@ -1487,56 +1554,6 @@ return (
             await vc.startPress();
             
             return; // Skip old modal logic
-            
-            console.log('[DashAssistant] Voice start triggered', {
-              streamingEnabled,
-              dashInstance: !!dashInstance,
-              isInitialized,
-              realtimeAvailable: !!realtime
-            });
-
-            // Basic Android microphone permission check
-            let hasMic = true;
-            try {
-              if (Platform.OS === 'android') {
-                const { PermissionsAndroid } = await import('react-native');
-                const granted = await PermissionsAndroid.request(
-                  PermissionsAndroid.PERMISSIONS.RECORD_AUDIO
-                );
-                hasMic = granted === PermissionsAndroid.RESULTS.GRANTED;
-              }
-            } catch {}
-            if (!hasMic) {
-              Alert.alert('Microphone Permission', 'Please enable microphone access to record audio.');
-              return;
-            }
-
-            // USE STREAMING if enabled, otherwise fall back to modal
-            if (streamingEnabled && realtime) {
-              console.log('[DashAssistant] ⚡ Using realtime streaming');
-              try {
-                await realtime.startStream();
-                console.log('[DashAssistant] ✅ Streaming started');
-              } catch (streamError) {
-                console.error('[DashAssistant] ❌ Streaming failed, falling back to modal:', streamError);
-                // Fallback to modal if streaming fails
-                if (dashInstance && isInitialized) {
-                  setShowVoiceRecorderModal(true);
-                } else {
-                  setPendingVoiceModal(true);
-                  try { toast.show?.('Preparing voice recorder…'); } catch {}
-                }
-              }
-            } else {
-              // Streaming disabled or unavailable - use modal
-              console.log('[DashAssistant] 📝 Using voice recorder modal (streaming disabled)');
-              if (dashInstance && isInitialized) {
-                setShowVoiceRecorderModal(true);
-              } else {
-                setPendingVoiceModal(true);
-                try { toast.show?.('Preparing voice recorder…'); } catch {}
-              }
-            }
           } catch (e) {
             console.error('[DashAssistant] Voice start error:', e);
           }
@@ -1681,6 +1698,53 @@ return (
           }}
         />
       )}
+
+      {/* Elegant ChatGPT-style Voice Mode */}
+      <DashVoiceMode
+        visible={showVoiceMode}
+        onClose={() => {
+          console.log('[DashAssistant] Closing DashVoiceMode');
+          setShowVoiceMode(false);
+          setVoiceModeLang(undefined);
+        }}
+        dashInstance={dashInstance}
+        forcedLanguage={voiceModeLang}
+        onMessageSent={(msg) => {
+          // Update messages when voice mode sends a message
+          (async () => {
+            try {
+              console.log('[DashAssistant] Voice mode message received, updating UI');
+              const convId = dashInstance?.getCurrentConversationId();
+              if (convId) {
+                // Add a small delay to ensure AsyncStorage has finished writing
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const updatedConv = await dashInstance?.getConversation(convId);
+                if (updatedConv) {
+                  console.log('[DashAssistant] Fetched updated conversation:', updatedConv.messages.length, 'messages');
+                  setMessages([...updatedConv.messages]); // Force new array reference for React update
+                  setConversation({ ...updatedConv });
+                  
+                  // Scroll to bottom after state update
+                  setTimeout(() => {
+                    try {
+                      flatListRef.current?.scrollToEnd({ animated: true });
+                    } catch (e) {
+                      console.warn('[DashAssistant] Scroll failed:', e);
+                    }
+                  }, 150);
+                } else {
+                  console.warn('[DashAssistant] No conversation found with ID:', convId);
+                }
+              } else {
+                console.warn('[DashAssistant] No current conversation ID');
+              }
+            } catch (e) {
+              console.error('[DashAssistant] Failed to update messages from voice mode:', e);
+            }
+          })();
+        }}
+      />
     </KeyboardAvoidingView>
   );
 };

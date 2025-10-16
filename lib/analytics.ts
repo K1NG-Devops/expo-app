@@ -225,39 +225,32 @@ export function identifyUser(userId: string, properties: Record<string, any> = {
       production_db_dev: flags.production_db_dev_mode,
     });
     
-    // Guard Sentry.Native calls with platform check
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      try {
-        Sentry.Native?.setUser({
+    // Set user context in Sentry with proper null checks
+    try {
+      if (Platform.OS === 'ios' || Platform.OS === 'android') {
+        // Native platforms
+        if (Sentry.Native && typeof Sentry.Native.setUser === 'function') {
+          Sentry.Native.setUser({
+            id: userId,
+            ...scrubbedProperties,
+          });
+        }
+      } else if (Sentry.Browser && typeof Sentry.Browser.setUser === 'function') {
+        // Web platform
+        Sentry.Browser.setUser({
           id: userId,
           ...scrubbedProperties,
         });
-      } catch (sentryError) {
-        if (__DEV__) {
-          console.debug('[Analytics] Sentry setUser failed:', sentryError);
-        }
+      }
+    } catch (sentryError) {
+      if (__DEV__) {
+        console.debug('[Analytics] Sentry setUser failed:', sentryError);
       }
     }
     
     const ph = getPostHog();
     if (ph) {
       ph.identify(userId, scrubbedProperties);
-    }
-    
-    // Set user context in Sentry (with fallback)
-    try {
-      Sentry.Native.setUser({
-        id: userId,
-        ...scrubbedProperties,
-      });
-    } catch {
-      // Fallback to browser setUser if native is not available
-      if (Sentry.Browser) {
-        Sentry.Browser.setUser({
-          id: userId,
-          ...scrubbedProperties,
-        });
-      }
     }
     
   } catch (error) {

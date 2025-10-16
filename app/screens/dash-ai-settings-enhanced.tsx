@@ -96,8 +96,6 @@ export default function DashAISettingsEnhancedScreen() {
     voice: false,
     chat: false,
     learning: false,
-    advanced: false,
-    privacy: false,
     custom: false,
     accessibility: false
   });
@@ -150,6 +148,17 @@ export default function DashAISettingsEnhancedScreen() {
       [key]: value
     }));
   };
+  
+  // Auto-save settings after changes (debounced)
+  useEffect(() => {
+    if (loading || saving) return; // Don't auto-save during initial load or while saving
+    
+    const timer = setTimeout(() => {
+      saveSettings();
+    }, 1500); // Wait 1.5 seconds after last change before saving
+    
+    return () => clearTimeout(timer);
+  }, [settings, loading, saving]);
 
   const saveSettings = async () => {
     try {
@@ -196,12 +205,6 @@ export default function DashAISettingsEnhancedScreen() {
       }
 
       if (__DEV__) console.log('✅ Enhanced settings saved to DashAI & voice_preferences');
-      
-      Alert.alert(
-        'Settings Saved',
-        'Your enhanced Dash AI settings have been saved successfully.',
-        [{ text: 'OK' }]
-      );
     } catch (error) {
       console.error('Failed to save enhanced settings:', error);
       Alert.alert(
@@ -215,25 +218,110 @@ export default function DashAISettingsEnhancedScreen() {
 
   const testVoiceAdvanced = async () => {
     try {
-      const personalityMessages = {
-        professional: "Good day. I'm Dash, your professional AI teaching assistant. I'm ready to help with your educational needs.",
-        casual: "Hey there! I'm Dash, your friendly AI buddy. Ready to learn something awesome together?",
-        encouraging: "Hello! I'm Dash, and I'm here to support you every step of the way. You're doing great!",
-        formal: "Greetings. I am Dash, your dedicated educational assistant. I am prepared to assist with your academic endeavors.",
-      } as const;
-
-      const content = (personalityMessages as any)[settings.personality] || personalityMessages.encouraging;
+      // First, save current settings to ensure voice preferences are applied
+      console.log('[Test Voice] Applying current settings...');
+      const langNorm = normalizeLanguageCode(settings.voiceLanguage);
+      const isProviderVoice = /Neural$/i.test(settings.voiceType || '');
+      const gender = settings.voiceType === 'male' ? 'male' : settings.voiceType === 'female' ? 'female' : 'female';
+      const voice_id = isProviderVoice ? settings.voiceType : resolveDefaultVoiceId(langNorm, gender as any);
+      
+      // Save to voice preferences (SSOT)
+      await setVoicePrefs({
+        language: langNorm as any,
+        voice_id,
+        speaking_rate: settings.voiceRate,
+        pitch: settings.voicePitch,
+        volume: settings.voiceVolume,
+      });
+      
+      // Also update DashAI personality for immediate use
+      const dashPersonality = {
+        personality_traits: [settings.personality, 'educational', 'supportive'],
+        response_style: settings.personality,
+        voice_settings: {
+          language: settings.voiceLanguage,
+          voice: settings.voiceType,
+          rate: settings.voiceRate,
+          pitch: settings.voicePitch,
+          volume: settings.voiceVolume
+        },
+      };
+      await dashAI.savePersonality(dashPersonality);
+      
+      console.log('[Test Voice] Settings applied. Language:', langNorm, 'Voice:', voice_id);
+      
+      // Language-specific test messages
+      const testMessages: Record<string, Record<string, string>> = {
+        en: {
+          professional: "Good day. I'm Dash, your professional AI teaching assistant. I'm ready to help with your educational needs.",
+          casual: "Hey there! I'm Dash, your friendly AI buddy. Ready to learn something awesome together?",
+          encouraging: "Hello! I'm Dash, and I'm here to support you every step of the way. You're doing great!",
+          formal: "Greetings. I am Dash, your dedicated educational assistant. I am prepared to assist with your academic endeavors.",
+        },
+        af: {
+          professional: "Goeiedag. Ek is Dash, jou professionele onderwysassistent. Ek is gereed om jou te help.",
+          casual: "Haai daar! Ek is Dash, jou vriendelike helper. Klaar om iets awesome te leer?",
+          encouraging: "Hallo! Ek is Dash, en ek is hier om jou elke stap van die pad te ondersteun. Jy doen great!",
+          formal: "Groete. Ek is Dash, jou toegewyde opvoedkundige assistent. Ek is gereed om jou te help.",
+        },
+        zu: {
+          professional: "Sawubona. Ngingu-Dash, umsizi wakho wezemfundo. Ngikulungele ukukusiza.",
+          casual: "Yebo! Ngingu-Dash, umngane wakho. Usukulungele ukufunda into enhle?",
+          encouraging: "Sawubona! Ngingu-Dash, futhi ngilapha ukukusekela ezinyathelweni zonke. Wenza kahle!",
+          formal: "Sanibonani. Ngingu-Dash, umsizi wakho wezemfundo ozinikele. Ngikulungele ukukusiza.",
+        },
+        xh: {
+          professional: "Molo. NdinguDash, umncedisi wakho wemfundo. Ndikulungele ukukunceda.",
+          casual: "Ewe! NdinguDash, umhlobo wakho. Ukulungele ukufunda into entle?",
+          encouraging: "Molo! NdinguDash, kwaye ndilapha ukukuxhasa kwinyathelo ngalinye. Wenza kakuhle!",
+          formal: "Molweni. NdinguDash, umncedisi wakho wemfundo ozinikeleyo. Ndikulungele ukukunceda.",
+        },
+        nso: {
+          professional: "Thobela. Ke Dash, mothusi wa gago wa thuto. Ke lokile go go thuša.",
+          casual: "Hei! Ke Dash, mogwera wa gago. O lokile go ithuta se se botse?",
+          encouraging: "Dumela! Ke Dash, gomme ke fano go go thekga mo kgatong ye nngwe le ye nngwe. O dira gabotse!",
+          formal: "Dumelang. Ke Dash, mothusi wa gago wa thuto yo a ikgafilego. Ke lokile go go thuša.",
+        },
+      };
+      
+      // Get appropriate test message
+      const langKey = langNorm as keyof typeof testMessages;
+      const messages = testMessages[langKey] || testMessages.en;
+      const content = messages[settings.personality] || messages.encouraging;
+      
+      console.log('[Test Voice] Playing test message in', langNorm);
+      
       const msg = {
         id: `msg_test_${Date.now()}`,
         type: 'assistant' as const,
         content,
         timestamp: Date.now(),
       };
+      
       await dashAI.speakResponse(msg as any);
-      Alert.alert('Voice Test', 'Voice test completed successfully!');
+      
+      // Show success with language info
+      const langNames: Record<string, string> = {
+        en: 'English',
+        af: 'Afrikaans',
+        zu: 'isiZulu',
+        xh: 'isiXhosa',
+        nso: 'Northern Sotho'
+      };
+      const langName = langNames[langNorm] || langNorm;
+      const voiceName = voice_id.replace(/Neural$/i, '').replace(/-/g, ' ');
+      
+      Alert.alert(
+        'Voice Test Complete',
+        `Testing ${langName} voice: ${voiceName}\n\nRate: ${settings.voiceRate.toFixed(1)}x | Pitch: ${settings.voicePitch.toFixed(1)}x`,
+        [{ text: 'OK' }]
+      );
     } catch (error) {
       console.error('[Enhanced Voice Test] Failed:', error);
-      Alert.alert('Voice Test Failed', 'Could not test advanced voice settings');
+      Alert.alert(
+        'Voice Test Failed', 
+        'Could not test voice settings. Please check your internet connection and try again.'
+      );
     }
   };
 
@@ -300,26 +388,6 @@ export default function DashAISettingsEnhancedScreen() {
     );
   };
 
-  const exportSettings = async () => {
-    try {
-      const settingsJSON = JSON.stringify(settings, null, 2);
-      
-      // In a real app, you'd use a sharing library or file system API
-      Alert.alert(
-        'Export Settings',
-        'Settings exported to clipboard (in a real app, this would save to a file)',
-        [
-          { text: 'Copy to Clipboard', onPress: () => {
-            // Clipboard.setString(settingsJSON);
-            if (__DEV__) console.log('Settings JSON:', settingsJSON);
-          }},
-          { text: 'OK' }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('Export Failed', 'Could not export settings');
-    }
-  };
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
@@ -328,15 +396,12 @@ export default function DashAISettingsEnhancedScreen() {
     }));
   };
 
-  const renderSectionHeader = (title: string, section: keyof typeof expandedSections, icon: string) => (
+  const renderSectionHeader = (title: string, section: keyof typeof expandedSections) => (
     <TouchableOpacity
       style={[styles.sectionHeader, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => toggleSection(section)}
     >
-      <View style={styles.sectionHeaderContent}>
-        <Text style={styles.sectionIcon}>{icon}</Text>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
-      </View>
+      <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
       <Text style={[styles.expandIcon, { color: theme.textSecondary }]}>
         {expandedSections[section] ? '▼' : '▶'}
       </Text>
@@ -399,7 +464,7 @@ export default function DashAISettingsEnhancedScreen() {
     title: string,
     subtitle: string,
     value: string,
-    options: { label: string; value: string }[]
+    options: { label: string; value: string; disabled?: boolean }[]
   ) => (
     <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
       <View style={styles.settingInfo}>
@@ -414,15 +479,17 @@ export default function DashAISettingsEnhancedScreen() {
               styles.pickerOption,
               { 
                 backgroundColor: value === option.value ? theme.primary : 'transparent',
-                borderColor: theme.border
+                borderColor: theme.border,
+                opacity: option.disabled ? 0.4 : 1
               }
             ]}
-            onPress={() => handleSettingsChange(key, option.value)}
+            onPress={() => !option.disabled && handleSettingsChange(key, option.value)}
+            disabled={option.disabled}
           >
             <Text style={[
               styles.pickerOptionText,
               { 
-                color: value === option.value ? 'white' : theme.text
+                color: value === option.value ? 'white' : option.disabled ? theme.textSecondary : theme.text
               }
             ]}>
               {option.label}
@@ -453,60 +520,14 @@ export default function DashAISettingsEnhancedScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScreenHeader 
-        title="Enhanced Dash AI Settings" 
-        subtitle="Advanced configuration options" 
+        title="Dash AI Settings" 
+        subtitle="Configure your AI assistant" 
       />
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Quick Actions */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.cardTitle, { color: theme.text }]}>Quick Actions</Text>
-          
-          <View style={styles.actionRow}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
-              onPress={testVoiceAdvanced}
-            >
-              <Text style={[styles.actionButtonText, { color: theme.text }]}>
-                🎤 Test Voice
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.primary, borderWidth: 1, borderColor: theme.primary, opacity: saving ? 0.6 : 1 }]}
-              onPress={saveSettings}
-              disabled={saving}
-            >
-              <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>
-                {saving ? '💾 Saving...' : '💾 Save All'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.actionRow}>
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
-              onPress={exportSettings}
-            >
-              <Text style={[styles.actionButtonText, { color: theme.text }]}>
-                📤 Export
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.error }]}
-              onPress={resetToDefaults}
-            >
-              <Text style={[styles.actionButtonText, { color: theme.error }]}>
-                🔄 Reset
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Personality Settings */}
-        {renderSectionHeader('Personality & Behavior', 'personality', '🎭')}
+        {renderSectionHeader('Personality & Behavior', 'personality')}
         {expandedSections.personality && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderPickerSetting(
@@ -522,19 +543,6 @@ export default function DashAISettingsEnhancedScreen() {
               ]
             )}
             
-            {renderToggleSetting(
-              'adaptiveTone',
-              'Adaptive Tone',
-              'Adjusts communication style based on context',
-              settings.adaptiveTone
-            )}
-            
-            {renderToggleSetting(
-              'emotionalIntelligence',
-              'Emotional Intelligence',
-              'Recognizes and responds to emotional cues',
-              settings.emotionalIntelligence
-            )}
 
             <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
               <View style={styles.settingInfo}>
@@ -560,7 +568,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Voice Settings */}
-        {renderSectionHeader('Voice & Speech', 'voice', '🗣️')}
+        {renderSectionHeader('Voice & Speech', 'voice')}
         {expandedSections.voice && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {/* Realtime Streaming (Beta) toggle */}
@@ -594,17 +602,22 @@ export default function DashAISettingsEnhancedScreen() {
                 { label: 'English (SA)', value: 'en-ZA' },
                 { label: 'English (US)', value: 'en-US' },
                 { label: 'Afrikaans', value: 'af' },
-                { label: 'Zulu', value: 'zu' }
+                { label: 'isiZulu', value: 'zu' },
+                { label: 'isiXhosa (Coming Soon)', value: 'xh', disabled: true },
+                { label: 'Northern Sotho (Coming Soon)', value: 'nso', disabled: true }
               ]
             )}
 
-            {/* Azure Neural Voice Names (for Afrikaans/Zulu) */}
-            {(settings.voiceLanguage === 'af' || settings.voiceLanguage === 'zu') && (
+            {/* Azure Neural Voice Names (for SA languages) */}
+            {['af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
               <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingTitle, { color: theme.text }]}>Azure Neural Voice</Text>
                   <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
-                    {settings.voiceLanguage === 'af' ? 'Premium Afrikaans voices' : 'Premium isiZulu voices'}
+                    {settings.voiceLanguage === 'af' && 'Premium Afrikaans voices'}
+                    {settings.voiceLanguage === 'zu' && 'Premium isiZulu voices'}
+                    {settings.voiceLanguage === 'xh' && 'isiXhosa voice (Azure Speech)'}
+                    {settings.voiceLanguage === 'nso' && 'Northern Sotho voice (Azure Speech)'}
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'column', gap: 8 }}>
@@ -684,12 +697,17 @@ export default function DashAISettingsEnhancedScreen() {
                       </TouchableOpacity>
                     </>
                   )}
+                  {(settings.voiceLanguage === 'xh' || settings.voiceLanguage === 'nso') && (
+                    <Text style={[styles.settingSubtitle, { color: theme.textSecondary, padding: 8 }]}>
+                      Azure Speech supports {settings.voiceLanguage === 'xh' ? 'isiXhosa' : 'Northern Sotho'} with default voice.
+                    </Text>
+                  )}
                 </View>
               </View>
             )}
 
             {/* Generic Voice Gender (for English and other languages) */}
-            {settings.voiceLanguage !== 'af' && settings.voiceLanguage !== 'zu' && (
+            {!['af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
               <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
@@ -767,6 +785,18 @@ export default function DashAISettingsEnhancedScreen() {
               1.0,
               0.1
             )}
+            
+            {/* Test Voice Button */}
+            <View style={[styles.settingRow, { borderBottomColor: theme.border, paddingTop: 8 }]}>
+              <TouchableOpacity 
+                style={[styles.actionButton, { backgroundColor: theme.primary, borderWidth: 1, borderColor: theme.primary, flex: 1 }]}
+                onPress={testVoiceAdvanced}
+              >
+                <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>
+                  🎤 Test Voice
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {renderToggleSetting(
               'autoReadResponses',
@@ -785,7 +815,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Chat Behavior */}
-        {renderSectionHeader('Chat & Interaction', 'chat', '💬')}
+        {renderSectionHeader('Chat & Interaction', 'chat')}
         {expandedSections.chat && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -809,19 +839,6 @@ export default function DashAISettingsEnhancedScreen() {
               settings.showTypingIndicator
             )}
 
-            {renderToggleSetting(
-              'readReceiptEnabled',
-              'Read Receipts',
-              'Show when messages are read',
-              settings.readReceiptEnabled
-            )}
-
-            {renderToggleSetting(
-              'soundEnabled',
-              'Sound Effects',
-              'Play notification sounds',
-              settings.soundEnabled
-            )}
 
             {renderToggleSetting(
               'autoSuggestQuestions',
@@ -840,7 +857,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Learning & Memory */}
-        {renderSectionHeader('Learning & Memory', 'learning', '🧠')}
+        {renderSectionHeader('Learning & Memory', 'learning')}
         {expandedSections.learning && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -857,109 +874,13 @@ export default function DashAISettingsEnhancedScreen() {
               settings.learnFromInteractions
             )}
 
-            {renderToggleSetting(
-              'personalizedRecommendations',
-              'Personalized Recommendations',
-              'Tailor suggestions to your needs',
-              settings.personalizedRecommendations
-            )}
-
-            {renderToggleSetting(
-              'crossSessionMemory',
-              'Cross-Session Memory',
-              'Remember context between sessions',
-              settings.crossSessionMemory
-            )}
-
-            {renderSliderSetting(
-              'memoryRetentionDays',
-              'Memory Retention',
-              'Days to keep conversation history',
-              settings.memoryRetentionDays,
-              1,
-              365,
-              1
-            )}
           </View>
         )}
 
-        {/* Advanced Features */}
-        {renderSectionHeader('Advanced Features', 'advanced', '⚙️')}
-        {expandedSections.advanced && (
-          <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {renderToggleSetting(
-              'predictiveText',
-              'Predictive Text',
-              'Suggest completions while typing',
-              settings.predictiveText
-            )}
 
-            {renderToggleSetting(
-              'smartNotifications',
-              'Smart Notifications',
-              'Intelligent notification timing',
-              settings.smartNotifications
-            )}
-
-            {renderToggleSetting(
-              'offlineMode',
-              'Offline Mode',
-              'Limited functionality without internet',
-              settings.offlineMode
-            )}
-
-            {renderToggleSetting(
-              'dataSync',
-              'Data Synchronization',
-              'Sync settings across devices',
-              settings.dataSync
-            )}
-
-            {renderToggleSetting(
-              'experimentalFeatures',
-              'Experimental Features',
-              'Enable beta features (may be unstable)',
-              settings.experimentalFeatures
-            )}
-          </View>
-        )}
-
-        {/* Privacy & Data */}
-        {renderSectionHeader('Privacy & Data', 'privacy', '🔒')}
-        {expandedSections.privacy && (
-          <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            {renderToggleSetting(
-              'dataCollection',
-              'Data Collection',
-              'Allow data collection for improvements',
-              settings.dataCollection
-            )}
-
-            {renderToggleSetting(
-              'anonymousUsage',
-              'Anonymous Usage Stats',
-              'Share anonymous usage statistics',
-              settings.anonymousUsage
-            )}
-
-            {renderToggleSetting(
-              'shareAnalytics',
-              'Share Analytics',
-              'Help improve Dash with usage data',
-              settings.shareAnalytics
-            )}
-
-            {renderToggleSetting(
-              'localProcessing',
-              'Local Processing',
-              'Process data on device when possible',
-              settings.localProcessing
-            )}
-          </View>
-        )}
 
         {/* Custom Instructions */}
-        {renderSectionHeader('Customization', 'custom', '🎨')}
+        {renderSectionHeader('Customization', 'custom')}
         {expandedSections.custom && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderPickerSetting(
@@ -1000,7 +921,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Accessibility */}
-        {renderSectionHeader('Accessibility', 'accessibility', '♿')}
+        {renderSectionHeader('Accessibility', 'accessibility')}
         {expandedSections.accessibility && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -1033,15 +954,22 @@ export default function DashAISettingsEnhancedScreen() {
           </View>
         )}
 
-        {/* Back to Basic Settings */}
-        <TouchableOpacity 
-          style={[styles.backButton, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => router.back()}
-        >
-          <Text style={[styles.backButtonText, { color: theme.primary }]}>
-            ← Back to Basic Settings
-          </Text>
-        </TouchableOpacity>
+        {/* Reset to Defaults Action */}
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 24 }]}>
+          <View style={{ alignItems: 'center', marginBottom: 12 }}>
+            <Text style={[{ color: theme.textSecondary, fontSize: 12 }]}>
+              {saving ? '💾 Saving...' : '✅ Settings auto-save'}
+            </Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.error }]}
+            onPress={resetToDefaults}
+          >
+            <Text style={[styles.actionButtonText, { color: theme.error }]}>
+              Reset to Defaults
+            </Text>
+          </TouchableOpacity>
+        </View>
 
       </ScrollView>
     </SafeAreaView>
@@ -1100,14 +1028,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 2,
-  },
-  sectionHeaderContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  sectionIcon: {
-    fontSize: 24,
   },
   sectionTitle: {
     fontSize: 18,

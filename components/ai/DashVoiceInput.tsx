@@ -54,28 +54,43 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
 
   // Initialize Voice
   useEffect(() => {
-    Voice.onSpeechStart = onSpeechStart;
-    Voice.onSpeechEnd = onSpeechEnd;
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechPartialResults = onSpeechPartialResults;
-    Voice.onSpeechError = onSpeechError;
-    Voice.onSpeechRecognized = onSpeechRecognized;
+    // Check if Voice module is available
+    if (!Voice || typeof Voice.isAvailable !== 'function') {
+      console.warn('[DashVoiceInput] Voice module not available');
+      setIsAvailable(false);
+      return;
+    }
 
-    // Check if speech recognition is available
-    Voice.isAvailable()
-      .then((available: number) => {
-        setIsAvailable(available === 1);
-        if (available !== 1) {
-          console.warn('[DashVoiceInput] Speech recognition not available');
-        }
-      })
-      .catch((e: any) => {
-        console.error('[DashVoiceInput] Error checking availability:', e);
-        setIsAvailable(false);
-      });
+    try {
+      Voice.onSpeechStart = onSpeechStart;
+      Voice.onSpeechEnd = onSpeechEnd;
+      Voice.onSpeechResults = onSpeechResults;
+      Voice.onSpeechPartialResults = onSpeechPartialResults;
+      Voice.onSpeechError = onSpeechError;
+      Voice.onSpeechRecognized = onSpeechRecognized;
+
+      // Check if speech recognition is available
+      Voice.isAvailable()
+        .then((available: number) => {
+          setIsAvailable(available === 1);
+          if (available !== 1) {
+            console.warn('[DashVoiceInput] Speech recognition not available');
+          }
+        })
+        .catch((e: any) => {
+          console.error('[DashVoiceInput] Error checking availability:', e);
+          setIsAvailable(false);
+        });
+    } catch (initError) {
+      console.error('[DashVoiceInput] Voice initialization error:', initError);
+      setIsAvailable(false);
+      return;
+    }
 
     return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
+      if (Voice && typeof Voice.destroy === 'function') {
+        Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+      }
     };
   }, []);
 

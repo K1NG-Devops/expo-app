@@ -316,9 +316,9 @@ export function MessageBubbleModern({
           })}
         </Text>
 
-        {/* Retry button (only for user messages) */}
+        {/* Retry button (only for user messages - positioned on left) */}
         {showActions && isUser && onRetry && (
-          <View style={styles.actionsUser}>
+          <View style={styles.actionsUserLeft}>
             <TouchableOpacity
               style={[styles.actionButtonUser, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
               onPress={onRetry}
@@ -559,6 +559,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     gap: 4,
     justifyContent: 'flex-end',
+  },
+  actionsUserLeft: {
+    flexDirection: 'row',
+    marginTop: 6,
+    gap: 4,
+    justifyContent: 'flex-start',
+    marginBottom: 4,
   },
   actionButton: {
     flexDirection: 'row',

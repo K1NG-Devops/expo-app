@@ -44,7 +44,8 @@ import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
 import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
-import { RealtimeVoiceOverlay } from '@/components/ai/RealtimeVoiceOverlay';
+// import { RealtimeVoiceOverlay } from '@/components/ai/RealtimeVoiceOverlay';
+import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { useTranslation } from 'react-i18next';
 
 
@@ -78,6 +79,7 @@ interface DashVoiceFloatingButtonProps {
 const FAB_POSITION_KEY = '@dash_fab_position';
 const FAB_SIZE = 60;
 const LONG_PRESS_DELAY = 450; // ms
+const HOLD_TO_TALK = true; // long-press press-and-hold streaming
 
 export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = ({
   position = 'bottom-right',
@@ -89,7 +91,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
   const [showQuickVoice, setShowQuickVoice] = useState(false);
-  const [showRealtime, setShowRealtime] = useState(false);
+  const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   
   const scaleAnimation = useRef(new Animated.Value(1)).current;
@@ -100,6 +102,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const pan = useRef(new Animated.ValueXY()).current;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressActivated = useRef<boolean>(false);
+  const lastTapRef = useRef<number>(0);
   
   // Legacy quick voice hook for permissions and speaking
   const {
@@ -231,16 +234,15 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const handleSingleTap = async () => {
     if (isDragging) return;
     try {
-      // Open full Dash assistant
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       router.push('/screens/dash-assistant');
     } catch (error) {
-      console.error('[DashVoiceFAB] Single tap navigation failed:', error);
+      console.error('[DashVoiceFAB] Single tap failed:', error);
     }
   };
 
   // Long press will start app-wide quick voice modal
-  const handleLongPress = async () => {
+const handleLongPress = async () => {
     if (isDragging) return;
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -249,27 +251,64 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
       try {
         if (Platform.OS === 'android') {
           const { PermissionsAndroid } = await import('react-native');
-          const status = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-          if (status !== PermissionsAndroid.RESULTS.GRANTED) {
-            router.push('/screens/dash-assistant');
-            return;
+          console.log('[DashVoiceFAB] 🔍 Checking mic permission on long press...');
+          const perm = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+          const already = await PermissionsAndroid.check(perm as any);
+          console.log('[DashVoiceFAB] ✅ Permission already granted:', already);
+          if (!already) {
+            console.log('[DashVoiceFAB] 🔒 Requesting mic permission...');
+            const status = await PermissionsAndroid.request(perm as any);
+            console.log('[DashVoiceFAB] 📋 Permission result:', status, 'GRANTED?', status === PermissionsAndroid.RESULTS.GRANTED);
+            if (status !== PermissionsAndroid.RESULTS.GRANTED) {
+              console.error('[DashVoiceFAB] ❌ Permission DENIED, aborting long press');
+              return;
+            }
+            console.log('[DashVoiceFAB] ✅ Permission GRANTED, continuing with voice mode');
           }
         }
-      } catch {}
+      } catch (err) {
+        console.error('[DashVoiceFAB] ⚠️ Permission check error:', err);
+      }
 
+      // Ensure dash is initialized before opening voice mode
+      try {
+        await dash.initialize();
+      } catch (e) {
+        console.error('[DashVoiceFAB] ❌ Failed to initialize Dash:', e);
+        return;
+      }
+      
       await ensureConversation();
-      // Prefer realtime streaming overlay; fallback to quick voice modal if unavailable
-      setShowRealtime(true);
+      // Open elegant full-screen voice mode
+      setShowQuickVoice(false);
+      setShowVoiceMode(true);
     } catch (e) {
       console.error('[DashVoiceFAB] Long press failed:', e);
-      router.push('/screens/dash-assistant');
     }
   };
 
 
   const handlePress = () => {
-    // Single tap triggers navigation (if long press hasn't activated)
-    if (!longPressActivated.current) {
+    if (longPressActivated.current) return;
+    const now = Date.now();
+    const delta = now - (lastTapRef.current || 0);
+    lastTapRef.current = now;
+    if (delta < 300) {
+      // Double tap -> toggle elegant voice mode
+      try { Haptics.selectionAsync(); } catch {}
+      setShowQuickVoice(false);
+      // Ensure dash is initialized before toggling voice mode
+      if (!showVoiceMode) {
+        dash.initialize().then(() => {
+          setShowVoiceMode(true);
+        }).catch(e => {
+          console.error('[DashVoiceFAB] ❌ Failed to initialize:', e);
+        });
+      } else {
+        setShowVoiceMode(false);
+      }
+    } else {
+      // Single tap -> open full Dash assistant
       handleSingleTap();
     }
   };
@@ -288,10 +327,14 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     }).start();
   };
 
-  const handlePressOut = () => {
+const handlePressOut = () => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
+    }
+    // If long-press activated, do nothing — user closes voice mode via X
+    if (HOLD_TO_TALK && longPressActivated.current && showVoiceMode) {
+      longPressActivated.current = false;
     }
     Animated.spring(scaleAnimation, {
       toValue: 1,
@@ -385,7 +428,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   return (
     <>
       {/* Floating Action Button */}
-      {!showQuickVoice && !showRealtime && (
+      {!showQuickVoice && !showVoiceMode && (
       <Animated.View
         style={[
           styles.container,
@@ -419,7 +462,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
             >
               <Ionicons name="mic" size={28} color="#FFF" />
             </Animated.View>
-          ) : isSpeaking ? (
+) : isSpeaking ? (
             <Ionicons name="volume-high" size={28} color="#FFF" />
           ) : (
             <Ionicons name="sparkles" size={28} color="#FFF" />
@@ -430,15 +473,12 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
       </Animated.View>
       )}
 
-      {/* Realtime streaming overlay (web) with fallback */}
-      <RealtimeVoiceOverlay
-        visible={showRealtime}
-        onClose={() => setShowRealtime(false)}
-        onFallback={() => {
-          // Fallback to non-streaming modal
-          setShowRealtime(false);
-          setShowQuickVoice(true);
-        }}
+      {/* Elegant ChatGPT-style Voice Mode */}
+      <DashVoiceMode
+        visible={showVoiceMode}
+        onClose={() => setShowVoiceMode(false)}
+        dashInstance={dash}
+        onMessageSent={() => { /* no-op */ }}
       />
 
       {/* Modern WhatsApp-style Voice Recording Modal */}

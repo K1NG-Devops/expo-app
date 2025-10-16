@@ -1,23 +1,17 @@
 /**
- * Audio Recording and Playback Manager
+ * Audio Playback Manager
  * 
- * Handles audio recording and playback using expo-av
- * Includes permissions management and state tracking
+ * Handles audio playback for TTS using expo-av
+ * Recording removed - use streaming via useVoiceController instead
  */
 
 import { Audio } from 'expo-av';
-import { Platform } from 'react-native';
-import type { RecordingState, PlaybackState } from './types';
+import type { PlaybackState } from './types';
 
 export class AudioManager {
   private static instance: AudioManager | null = null;
-  private recording: Audio.Recording | null = null;
   private sound: Audio.Sound | null = null;
   private isInitialized: boolean = false;
-  private recordingState: RecordingState = {
-    isRecording: false,
-    duration: 0,
-  };
   private playbackState: PlaybackState = {
     isPlaying: false,
     duration: 0,
@@ -57,195 +51,8 @@ export class AudioManager {
     }
   }
 
-  /**
-   * Request microphone permissions
-   */
-  async requestPermissions(): Promise<boolean> {
-    try {
-      const { status } = await Audio.requestPermissionsAsync();
-      return status === 'granted';
-    } catch (error) {
-      console.error('[AudioManager] Failed to request permissions:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Check if microphone permissions are granted
-   */
-  async hasPermissions(): Promise<boolean> {
-    try {
-      const { status } = await Audio.getPermissionsAsync();
-      return status === 'granted';
-    } catch (error) {
-      console.error('[AudioManager] Failed to check permissions:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Start recording audio
-   * 
-   * @param onUpdate Callback for recording state updates
-   */
-  async startRecording(onUpdate?: (state: RecordingState) => void): Promise<void> {
-    try {
-      // Stop any existing recording first
-      if (this.recording) {
-        try {
-          await this.recording.stopAndUnloadAsync();
-        } catch (e) {
-          console.warn('[AudioManager] Failed to stop existing recording:', e);
-        }
-        this.recording = null;
-      }
-
-      // Stop any playing sound
-      if (this.sound) {
-        try {
-          await this.sound.stopAsync();
-          await this.sound.unloadAsync();
-        } catch (e) {
-          console.warn('[AudioManager] Failed to stop existing sound:', e);
-        }
-        this.sound = null;
-      }
-
-      // Request permissions first
-      const hasPermission = await this.requestPermissions();
-      if (!hasPermission) {
-        throw new Error('Microphone permission not granted');
-      }
-
-      // Configure audio mode for recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      // Create and start recording with voice-optimized settings
-      // 16kHz mono 32kbps AAC - optimized for speech, faster init, smaller files
-      const { recording } = await Audio.Recording.createAsync({
-        isMeteringEnabled: true,
-        android: {
-          extension: '.m4a',
-          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-          audioEncoder: Audio.AndroidAudioEncoder.AAC,
-          sampleRate: 16000, // Voice-optimized: 16kHz
-          numberOfChannels: 1, // Mono for voice
-          bitRate: 32000, // 32kbps sufficient for speech
-        },
-        ios: {
-          extension: '.m4a',
-          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
-          audioQuality: Audio.IOSAudioQuality.MEDIUM,
-          sampleRate: 16000, // Voice-optimized: 16kHz
-          numberOfChannels: 1, // Mono for voice
-          bitRate: 32000, // 32kbps sufficient for speech
-          linearPCMBitDepth: 16,
-          linearPCMIsBigEndian: false,
-          linearPCMIsFloat: false,
-        },
-        web: {
-          mimeType: 'audio/webm;codecs=opus',
-          bitsPerSecond: 32000, // 32kbps sufficient for speech
-        },
-      });
-
-      this.recording = recording;
-      this.recordingState = {
-        isRecording: true,
-        duration: 0,
-      };
-
-      // Set up status updates
-      if (onUpdate) {
-        recording.setOnRecordingStatusUpdate((status) => {
-          if (status.isRecording) {
-            this.recordingState = {
-              isRecording: true,
-              duration: status.durationMillis,
-            };
-            onUpdate(this.recordingState);
-          }
-        });
-      }
-    } catch (error) {
-      this.recordingState = {
-        isRecording: false,
-        duration: 0,
-        error: error instanceof Error ? error.message : 'Failed to start recording',
-      };
-      if (onUpdate) {
-        onUpdate(this.recordingState);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Stop recording and return the audio URI
-   */
-  async stopRecording(): Promise<string> {
-    try {
-      if (!this.recording) {
-        throw new Error('No active recording');
-      }
-
-      await this.recording.stopAndUnloadAsync();
-      const uri = this.recording.getURI();
-      
-      this.recording = null;
-      this.recordingState = {
-        isRecording: false,
-        duration: 0,
-        uri: uri || undefined,
-      };
-
-      // Reset audio mode after recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      if (!uri) {
-        throw new Error('Failed to get recording URI');
-      }
-
-      return uri;
-    } catch (error) {
-      this.recordingState = {
-        isRecording: false,
-        duration: 0,
-        error: error instanceof Error ? error.message : 'Failed to stop recording',
-      };
-      throw error;
-    }
-  }
-
-  /**
-   * Cancel recording without saving
-   */
-  async cancelRecording(): Promise<void> {
-    try {
-      if (this.recording) {
-        await this.recording.stopAndUnloadAsync();
-        this.recording = null;
-      }
-      this.recordingState = {
-        isRecording: false,
-        duration: 0,
-      };
-    } catch (error) {
-      console.error('[AudioManager] Failed to cancel recording:', error);
-    }
-  }
+  // NOTE: Recording methods removed - use useVoiceController with streaming instead
+  // Only TTS playback methods remain below
 
   /**
    * Play audio from URI
@@ -357,12 +164,7 @@ export class AudioManager {
     }
   }
 
-  /**
-   * Get current recording state
-   */
-  getRecordingState(): RecordingState {
-    return { ...this.recordingState };
-  }
+  // NOTE: getRecordingState removed - not needed for playback-only
 
   /**
    * Get current playback state
@@ -375,7 +177,6 @@ export class AudioManager {
    * Cleanup all resources
    */
   async cleanup(): Promise<void> {
-    await this.cancelRecording();
     await this.stop();
   }
 }

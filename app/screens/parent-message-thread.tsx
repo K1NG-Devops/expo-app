@@ -2,15 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  KeyboardAvoidingView,
+  StyleSheet,
   Platform,
-  Alert,
+  KeyboardAvoidingView,
   ActivityIndicator,
-  ScrollView,
+  FlatList,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -124,10 +123,9 @@ export default function ParentMessageThreadScreen() {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { user } = useAuth();
-  const scrollViewRef = useRef<ScrollView>(null);
   const [messageText, setMessageText] = useState('');
   const [isSending, setIsSending] = useState(false);
-  
+  const scrollViewRef = useRef<FlatList>(null);
   // Hooks
   const { data: messages = [], isLoading, error, refetch } = useThreadMessages(threadId);
   const sendMessageMutation = useSendMessage();

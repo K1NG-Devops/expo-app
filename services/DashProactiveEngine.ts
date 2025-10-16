@@ -11,7 +11,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
-import DashDecisionEngine, { type ActionCandidate, type Decision } from './DashDecisionEngine';
+import decisionEngine, { type ActionCandidate, type Decision } from './DashDecisionEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
 import type { AutonomyLevel } from './DashAIAssistant';
 
@@ -590,7 +590,7 @@ export class DashProactiveEngine {
     };
 
     // Use decision engine to evaluate and execute
-    const decision = await DashDecisionEngine.decide(candidate, context);
+    const decision = await decisionEngine.decide(candidate, context);
 
     return decision;
   }

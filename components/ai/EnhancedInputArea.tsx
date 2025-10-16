@@ -46,8 +46,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
   
   const hasContent = text.trim().length > 0;
   
-  // WhatsApp-style gesture state
-  const [isGestureActive, setIsGestureActive] = useState(false);
+  // Gesture state for slide-to-lock while recording
   const slideX = useRef(new Animated.Value(0)).current;
   const slideY = useRef(new Animated.Value(0)).current;
   const lockIconOpacity = useRef(new Animated.Value(0)).current;
@@ -236,8 +235,8 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
           </TouchableOpacity>
         ) : (
           <View style={{ position: 'relative' }}>
-            {/* Lock indicator (appears when sliding up) */}
-            {isGestureActive && !isVoiceLocked && (
+            {/* Lock indicator (appears when sliding up while recording) */}
+            {(voiceState === 'listening' || voiceState === 'prewarm') && !isVoiceLocked && (
               <Animated.View 
                 style={[
                   styles.lockIndicator,
@@ -254,8 +253,8 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
               </Animated.View>
             )}
             
-            {/* Cancel indicator (appears when sliding left) */}
-            {isGestureActive && !isVoiceLocked && (
+            {/* Cancel indicator (appears when sliding left while recording) */}
+            {(voiceState === 'listening' || voiceState === 'prewarm') && !isVoiceLocked && (
               <Animated.View 
                 style={[
                   styles.cancelIndicator,
@@ -274,7 +273,8 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             <PanGestureHandler
               minDist={10}
               onGestureEvent={(event) => {
-                if (!isGestureActive) return; // Only handle gesture if long press activated
+                // Only handle gestures when actively recording
+                if (voiceState !== 'listening' && voiceState !== 'prewarm') return;
                 
                 const { translationX, translationY } = event.nativeEvent;
                 
@@ -312,9 +312,8 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
                 const { state, translationX, translationY } = event.nativeEvent;
                 
                 if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-                  if (!isGestureActive) return;
-                  
-                  setIsGestureActive(false);
+                  // Only handle if recording is active
+                  if (voiceState !== 'listening' && voiceState !== 'prewarm') return;
                   
                   // Check if locked (slid up enough)
                   if (translationY < LOCK_THRESHOLD) {
@@ -325,10 +324,6 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
                   else if (translationX < CANCEL_THRESHOLD) {
                     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
                     onVoiceCancel?.();
-                  }
-                  // Otherwise, send the recording
-                  else if (!isVoiceLocked) {
-                    onVoiceEnd?.();
                   }
                   
                   // Reset animations
@@ -342,11 +337,16 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
               }}
             >
               <TouchableOpacity
-                onPressIn={() => {
-                  // Press-and-hold to record; sliding gestures available while pressed
-                  setIsGestureActive(true);
+                onPress={() => {
+                  // Toggle recording: tap to start, tap again to stop and send
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onVoiceStart?.();
+                  if (voiceState === 'idle' || voiceState === 'error') {
+                    // Start recording
+                    onVoiceStart?.();
+                  } else if (voiceState === 'listening' || voiceState === 'prewarm') {
+                    // Stop and send
+                    onVoiceEnd?.();
+                  }
                 }}
                 activeOpacity={0.7}
               >
@@ -354,7 +354,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
                   style={[
                     styles.actionButton,
                     {
-                      backgroundColor: isGestureActive || voiceState === 'listening' ? theme.error : theme.primary,
+                      backgroundColor: voiceState === 'listening' || voiceState === 'prewarm' ? theme.error : theme.primary,
                       transform: [
                         { translateX: slideX },
                         { translateY: slideY },
@@ -374,7 +374,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         visible={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         currentTier={tier}
-        requiredTier={'premium'}
+        requiredTier={'starter'}
         capability={!canImages ? 'multimodal.vision' : 'multimodal.documents'}
       />
     </View>

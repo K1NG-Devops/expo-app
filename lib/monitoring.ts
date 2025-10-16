@@ -134,9 +134,10 @@ export function initMonitoring(config?: { enableInDevelopment?: boolean; environ
   started = true;
 
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
-  if (!dsn) {
+  const looksValidDsn = !!dsn && /https?:\/\/.+@.+/i.test(dsn);
+  if (!looksValidDsn) {
     if (__DEV__) {
-      console.log('Monitoring: No Sentry DSN provided, skipping initialization');
+      console.log('Monitoring: No valid Sentry DSN, skipping initialization');
     }
     return;
   }
@@ -177,8 +178,9 @@ export function startMonitoring() {
   const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
   const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true';
   const sentryExplicitlyDisabled = process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false' || process.env.EXPO_PUBLIC_ENABLE_SENTRY === 'false';
-  const SENTRY_ENABLED = !telemetryDisabled && !sentryExplicitlyDisabled;
-  if (SENTRY_ENABLED && SENTRY_DSN) {
+  const looksValidDsn = !!SENTRY_DSN && /https?:\/\/.+@.+/i.test(SENTRY_DSN);
+  const SENTRY_ENABLED = !telemetryDisabled && !sentryExplicitlyDisabled && looksValidDsn;
+  if (SENTRY_ENABLED) {
     try {
       const sentryConfig = configureSentryForAndroid();
       Sentry.init(sentryConfig);

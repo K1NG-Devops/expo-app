@@ -8,10 +8,12 @@ declare module 'react' {
 }
 
 // Only polyfill if React.use is not available (React <19)
+/* eslint-disable no-import-assign */
 if (!('use' in React)) {
   // @ts-ignore - We're adding the method at runtime
-  React.use = React.useContext;
+  React.use = React.useContext as any;
 }
+/* eslint-enable no-import-assign */
 
 // Export to ensure module side effects run
 export {};

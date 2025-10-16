@@ -56,8 +56,26 @@ class VoiceServiceClient {
         );
       }
 
-      const data: TTSResponse = await response.json();
-      return data;
+      const raw = await response.json();
+
+      // Normalize response keys and handle fallback responses
+      if (raw?.fallback === 'device') {
+        throw this.createError('DEVICE_FALLBACK', 'Edge function requested device TTS fallback', 'device', raw);
+      }
+
+      const normalized: TTSResponse = {
+        audio_url: raw.audio_url || raw.audioUrl,
+        cache_hit: (raw.cache_hit ?? raw.cacheHit) ?? false,
+        provider: raw.provider || 'azure',
+        content_hash: raw.content_hash || raw.contentHash || '',
+        duration_ms: raw.duration_ms || raw.durationMs,
+      } as TTSResponse;
+
+      if (!normalized.audio_url) {
+        throw this.createError('NO_AUDIO_URL', 'TTS proxy did not return an audio URL', normalized.provider, raw);
+      }
+
+      return normalized;
     } catch (error) {
       if ((error as VoiceServiceError).code) {
         throw error;

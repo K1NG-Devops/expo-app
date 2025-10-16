@@ -118,7 +118,7 @@ export function ConversationSidebar({ onSelectConversation, onNewConversation, w
         visible={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         currentTier={tier}
-        requiredTier={'basic'}
+        requiredTier={'starter'}
         capability={'memory.standard'}
         featureName={'Conversation Search'}
       />
