@@ -568,10 +568,7 @@ export class DashAIAssistant {
   private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
-  private recordingObject: any = null;
-  private soundObject: any = null;
   private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'granted';
-  private audioPermissionLastChecked: number = 0;
   private readonly PERMISSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
   
   // Enhanced agentic capabilities
@@ -676,7 +673,6 @@ export class DashAIAssistant {
   private async checkAudioPermission(): Promise<boolean> {
     // Local mic recording has been removed; streaming path manages permissions itself
     this.audioPermissionStatus = 'granted';
-    this.audioPermissionLastChecked = Date.now();
     return true;
   }
 
@@ -686,7 +682,6 @@ export class DashAIAssistant {
   private async requestAudioPermission(): Promise<boolean> {
     // Local mic recording removed; return true and let streaming/WebRTC handle prompts
     this.audioPermissionStatus = 'granted';
-    this.audioPermissionLastChecked = Date.now();
     return true;
   }
 
@@ -716,7 +711,9 @@ export class DashAIAssistant {
     await this.saveConversation(conversation);
     try {
       await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-    } catch {}
+    } catch (error) {
+      console.warn('[Dash] Failed to save conversation ID to storage:', error);
+    }
     return conversationId;
   }
 
@@ -780,7 +777,9 @@ export class DashAIAssistant {
           try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.warn('[Dash] Failed to handle dashboard action:', error);
+    }
 
     // Natural language reminder fallback (if assistant didn't emit structured action)
     try {
@@ -792,7 +791,9 @@ export class DashAIAssistant {
           try { await this.createReminder(title, iso, { source: 'nlp' }); } catch (e) { console.warn('[Dash] NL reminder failed:', e); }
         }
       }
-    } catch {}
+    } catch (error) {
+      console.warn('[Dash] Failed to create natural language reminder:', error);
+    }
 
     // Best-effort: sync context (language/traits) to backend
     try {
@@ -800,7 +801,9 @@ export class DashAIAssistant {
         detectedLanguage: assistantResponse?.metadata?.detected_language as any,
         sessionId: convId,
       });
-    } catch {}
+    } catch (error) {
+      console.warn('[Dash] Failed to sync context to backend:', error);
+    }
 
     return assistantResponse;
   }
@@ -1154,7 +1157,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-const numMatch = fullText.match(/(\\d{1,3})\\s*-?\\s*(?:minute|min)s?\\b/i);
+    const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -1165,7 +1168,7 @@ const numMatch = fullText.match(/(\\d{1,3})\\s*-?\\s*(?:minute|min)s?\\b/i);
     if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
 
     // Objectives: capture bullet points and sentences
-const lines = fullTextRaw.split(/\\n|;|•|-/).map(s => s.trim()).filter(Boolean);
+    const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean);
     const objectiveCandidates: string[] = [];
     const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
     for (const ln of lines) {
@@ -5929,7 +5932,9 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     let detectedLang: 'en' | 'af' | 'zu' | 'xh' | 'nso' = 'en';
     try {
       detectedLang = this.detectLikelyAppLanguageFromText(content);
-    } catch {}
+    } catch (error) {
+      console.warn('[Dash] Failed to detect language from text:', error);
+    }
 
     const msg: DashMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
