@@ -484,7 +484,7 @@ serve(async (req: Request) => {
         if (done) {
           // Emit a final summary event with accumulated text
           controller.enqueue(new TextEncoder().encode(encodeSSE({ type: "final", feedback: accumulated })));
-          try { await logUsage({ serviceType: 'grading_assistance', model: streamModel, system: streamSystem, input: (body.submission || ''), output: accumulated, inputTokens: null, outputTokens: null, totalCost: null, status: 'success' }); } catch {}
+          try { await logUsage({ serviceType: 'grading_assistance', model: streamModel, system: streamSystem, input: (body.submission || ''), output: accumulated, inputTokens: null, outputTokens: null, totalCost: null, status: 'success' }); } catch { /* Intentional: non-fatal */ }
           controller.enqueue(new TextEncoder().encode(encodeSSE("[DONE]")));
           controller.close();
           return;
@@ -511,7 +511,7 @@ serve(async (req: Request) => {
         }
       },
       cancel() {
-        try { reader.cancel(); } catch {}
+        try { reader.cancel(); } catch { /* Intentional: non-fatal */ }
       },
     });
 
@@ -550,7 +550,7 @@ serve(async (req: Request) => {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch {}
+      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch { /* Intentional: non-fatal */ }
       // Graceful fallback: return a basic, safe message instead of 500
       const fallback = action === 'lesson_generation'
         ? `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`
@@ -565,7 +565,7 @@ serve(async (req: Request) => {
     try {
       const usage = (data && (data.usage || null)) || null;
       await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: content, inputTokens: usage?.input_tokens ?? null, outputTokens: usage?.output_tokens ?? null, totalCost: null, status: 'success' });
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return json({ content, usage: data.usage || null, cost: null });
   }
 

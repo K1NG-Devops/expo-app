@@ -28,7 +28,7 @@ export function VoiceDock({ vc }: { vc: VoiceController }) {
           setShowHint(true);
           await AsyncStorage.setItem('@voice_hint_shown', '1');
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     })();
   }, []);
 

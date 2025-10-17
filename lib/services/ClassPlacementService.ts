@@ -88,7 +88,7 @@ export class ClassPlacementService {
         const ageYears = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
         // Heuristic: <6 => pre_k, else foundation
         targetGrade = ageYears < 6 ? 'pre_k' : 'foundation';
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     }
 
     if (!targetGrade) {
@@ -146,7 +146,7 @@ export class ClassPlacementService {
       if (student) {
         preschoolId = preschoolId || student.preschool_id;
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     if (!preschoolId) return null;
 

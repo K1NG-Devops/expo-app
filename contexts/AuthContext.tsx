@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/(auth)/sign-in');
       } catch (navErr) {
         console.error('[AuthContext] Navigation to sign-in failed:', navErr);
-        try { router.replace('/sign-in'); } catch {}
+        try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
       }
     } catch (error) {
       console.error('[AuthContext] Sign out failed:', error);
@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.replace('/(auth)/sign-in');
       } catch (navErr) {
         console.error('[AuthContext] Navigation to sign-in failed:', navErr);
-        try { router.replace('/sign-in'); } catch {}
+        try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
       }
     }
   }, [user?.id, profile?.role, session]);
@@ -264,7 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const prefersDark = (globalThis as any).matchMedia('(prefers-color-scheme: dark)')?.matches;
         if (prefersDark) root.classList.add('dark'); else root.classList.remove('dark');
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     (async () => {
       try {

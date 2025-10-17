@@ -70,15 +70,15 @@ interface FilterOptions {
 }
 
 export default function TeachersDetailScreen() {
-  const { t } = useTranslation(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const { t } = useTranslation();  
   const { user, profile } = useAuth();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [filteredTeachers, setFilteredTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showTeacherModal, setShowTeacherModal] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [showTeacherModal, setShowTeacherModal] = useState(false);  
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);  
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 

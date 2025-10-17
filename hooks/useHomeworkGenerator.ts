@@ -36,7 +36,7 @@ export function useHomeworkGenerator() {
       const text: string = (data && data.content) || '';
       setResult({ text, __fallbackUsed: !!(data && (data as any).provider_error) });
 
-      incrementUsage('homework_help', 1).catch(() => {});
+      incrementUsage('homework_help', 1).catch(() => { /* Intentional: error handled */ });
       logUsageEvent({
         feature: 'homework_help',
         model: String(payload.model),
@@ -44,7 +44,7 @@ export function useHomeworkGenerator() {
         tokensOut: (data && data.usage?.output_tokens) || 0,
         estCostCents: (data && data.cost) || 0,
         timestamp: new Date().toISOString(),
-      }).catch(() => {});
+      }).catch(() => { /* Intentional: error handled */ });
 
       return text;
     } catch (e: any) {
@@ -59,8 +59,8 @@ export function useHomeworkGenerator() {
         const response = await dash.sendMessage(prompt);
         const text = response.content || '';
         setResult({ text, __fallbackUsed: true });
-        incrementUsage('homework_help', 1).catch(() => {});
-        logUsageEvent({ feature: 'homework_help', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
+        incrementUsage('homework_help', 1).catch(() => { /* Intentional: error handled */ });
+        logUsageEvent({ feature: 'homework_help', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => { /* Intentional: error handled */ });
         return text;
       } catch (fallbackErr) {
         setError(e?.message || 'Failed to generate help');

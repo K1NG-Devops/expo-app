@@ -300,7 +300,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
               const ratio = present / windowAtt.length; // 0..1
               progressScore = Math.max(60, Math.min(100, Math.round(60 + ratio * 40)));
             }
-          } catch {}
+          } catch { /* Intentional: non-fatal */ }
 
           try {
             // Homework pending: assignments for class not yet submitted by this child
@@ -457,7 +457,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   // Handle active child change and persist
   useEffect(() => {
     if (activeChildId) {
-      AsyncStorage.setItem('@edudash_active_child_id', activeChildId).catch(() => {});
+      AsyncStorage.setItem('@edudash_active_child_id', activeChildId).catch(() => { /* Intentional: error handled */ });
       // Reload metrics for the newly selected child
       if (activeChildId && childrenCards.find(c => c.id === activeChildId)) {
         loadUrgentMetrics(activeChildId);
@@ -531,7 +531,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             ? status as 'present' | 'absent' | 'late' 
             : 'unknown';
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       
       // 5. Get upcoming events count
       let upcomingEvents = 0;
@@ -545,7 +545,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             .lte('start_time', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
           
           upcomingEvents = count || 0;
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
       
       setUrgentMetrics({
@@ -1631,7 +1631,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                       require('react-native').Vibration.vibrate(15);
                     }
                   }
-                } catch {}
+                } catch { /* Intentional: non-fatal */ }
               }}
             >
               <Ionicons 

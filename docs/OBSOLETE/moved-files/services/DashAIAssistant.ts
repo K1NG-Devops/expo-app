@@ -562,7 +562,7 @@ export class DashAIAssistant {
     await this.saveConversation(conversation);
     try {
       await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return conversationId;
   }
 
@@ -2694,7 +2694,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
       try {
         const { data: auth } = await assertSupabase().auth.getUser();
         userId = auth?.user?.id || 'anonymous';
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Load blob from URI (works for both web (blob:) and native (file:))
       const res = await fetch(audioUri);
@@ -3021,7 +3021,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         await this.saveConversation(conversation);
         try {
           await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
     } catch (error) {
       console.error('[Dash] Failed to add message to conversation:', error);
@@ -3071,7 +3071,7 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   public setCurrentConversationId(conversationId: string): void {
     this.currentConversationId = conversationId;
     // Persist pointer so canvas resumes the last chat
-    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch {}
+    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch { /* Intentional: non-fatal */ }
   }
 
   /**

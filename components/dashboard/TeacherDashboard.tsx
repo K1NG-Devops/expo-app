@@ -165,7 +165,7 @@ export const TeacherDashboard: React.FC = () => {
         },
         all_caps_count: caps?.length || 0,
       });
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }, [user?.id, seatStatus, teacherHasSeat, hasActiveSeat, planTier, (profile as any)?.capabilities]);
 
   // Use the custom data hook
@@ -956,7 +956,7 @@ export const TeacherDashboard: React.FC = () => {
           onPress={() => {
             const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
             setLayout(newLayout);
-            try { Feedback.vibrate(15); } catch {}
+            try { Feedback.vibrate(15); } catch { /* Intentional: non-fatal */ }
           }}
           accessibilityLabel={`Switch to ${preferences.layout === 'classic' ? 'enhanced' : 'classic'} layout`}
           accessibilityHint="Toggles between classic and enhanced dashboard layouts"
@@ -1047,7 +1047,7 @@ export const TeacherDashboard: React.FC = () => {
                           require('react-native').Vibration.vibrate(15);
                         }
                       }
-                    } catch {}
+                    } catch { /* Intentional: non-fatal */ }
                   }}
                 >
                   <Ionicons 

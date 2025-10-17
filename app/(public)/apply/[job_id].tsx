@@ -47,7 +47,7 @@ export default function PublicJobApplicationScreen() {
 
   useEffect(() => {
     loadJobPosting();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [job_id]);
 
   const loadJobPosting = async () => {

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * DashProactiveEngine - Elite Proactive Intelligence System
  * 

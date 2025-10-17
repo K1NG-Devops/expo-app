@@ -174,7 +174,7 @@ export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModa
       try {
         if (!visible) return;
         await ensureMicPermission();
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     })();
   }, [visible]);
 

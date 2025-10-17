@@ -70,7 +70,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
       // Ask permissions only when needed
       const { status: ps } = await ImagePicker.requestCameraPermissionsAsync();
       if (ps !== 'granted') {
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch { /* Intentional: non-fatal */ }
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -122,14 +122,14 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
         );
         onAttachmentsChange?.(attachments.map(a => a.id === pendingAtt.id ? uploadedAtt : a));
         
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* Intentional: non-fatal */ }
       } catch (uploadError) {
         console.error('[EnhancedInputArea] Upload failed:', uploadError);
         // Mark as failed
         setAttachments(prev => 
           prev.map(a => a.id === pendingAtt.id ? { ...a, status: 'failed' } : a)
         );
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch { /* Intentional: non-fatal */ }
       } finally {
         setUploading(false);
       }
@@ -158,13 +158,13 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
     if (!message && attachments.length === 0) return;
     
     // Haptic feedback
-    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
     
     // Clear immediately for responsive UX
     setText('');
     setAttachments([]);
     onAttachmentsChange?.([]);
-    try { Keyboard.dismiss(); } catch {}
+    try { Keyboard.dismiss(); } catch { /* Intentional: non-fatal */ }
     
     // Send in background
     await onSend(message, attachments);
@@ -366,7 +366,7 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
                     }
                   } catch (error) {
                     console.error('[EnhancedInputArea] ❌ Mic button error:', error);
-                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => { /* Intentional: error handled */ });
                   }
                 }}
                 activeOpacity={0.7}

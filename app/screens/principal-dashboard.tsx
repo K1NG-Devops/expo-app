@@ -35,7 +35,7 @@ export default function PrincipalDashboardScreen() {
       try { 
         router.replace('/(auth)/sign-in'); 
       } catch (e) {
-        try { router.replace('/sign-in'); } catch {}
+        try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
       }
       return;
     }

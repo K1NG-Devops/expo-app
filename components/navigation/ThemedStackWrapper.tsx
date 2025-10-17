@@ -69,7 +69,7 @@ export function ThemedStackWrapper() {
           // Reset sequence and navigate
           seqRef.lastKey = '';
           seqRef.lastTime = 0;
-          try { router.push(route as any); } catch {}
+          try { router.push(route as any); } catch { /* Intentional: non-fatal */ }
           return;
         }
       }

@@ -646,7 +646,7 @@ const { error } = await assertSupabase()
           { text: t('common.cancel'), style: 'cancel' },
         ]
       );
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   };
 
   const viewReceiptsForTransaction = async (transactionId: string) => {

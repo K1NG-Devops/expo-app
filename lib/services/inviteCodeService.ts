@@ -75,7 +75,7 @@ export class InviteCodeService {
         .limit(1)
         .maybeSingle();
       if (existing) return existing as unknown as SchoolInvitationCode;
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     for (let attempt = 0; attempt < 3; attempt++) {
       const code = generateReadableCode(length);

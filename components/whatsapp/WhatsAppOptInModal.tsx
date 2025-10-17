@@ -177,8 +177,8 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
     try {
       await optIn(phoneNumber, true)
-      try { await Feedback.vibrate(30); } catch {}
-      try { await Feedback.playSuccess(); } catch {}
+      try { await Feedback.vibrate(30); } catch { /* Intentional: non-fatal */ }
+      try { await Feedback.playSuccess(); } catch { /* Intentional: non-fatal */ }
       setStep('success')
       onSuccess?.()
     } catch (error) {
@@ -311,8 +311,8 @@ export const WhatsAppOptInModal: React.FC<WhatsAppOptInModalProps> = ({
 
     try {
       await sendTestMessage()
-      try { await Feedback.vibrate(30); } catch {}
-      try { await Feedback.playSuccess(); } catch {}
+      try { await Feedback.vibrate(30); } catch { /* Intentional: non-fatal */ }
+      try { await Feedback.playSuccess(); } catch { /* Intentional: non-fatal */ }
       Alert.alert(
         t('whatsapp:testMessageSent'),
         t('whatsapp:testMessageSentMessage'),

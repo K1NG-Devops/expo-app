@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
 

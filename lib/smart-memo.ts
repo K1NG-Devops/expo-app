@@ -99,18 +99,17 @@ export function useSmartCallback<T extends (...args: any[]) => any>(
   debugLabel?: string
 ): T {
   const stableCallback = useCallback(callback, deps);
+  const prevDepsRef = useRef<React.DependencyList | null>(null);
   
-  if (__DEV__ && debugLabel) {
-    // Track callback stability in development
-    const prevDepsRef = useRef<React.DependencyList | null>(null);
-    
-    useEffect(() => {
+  useEffect(() => {
+    if (__DEV__ && debugLabel) {
+      // Track callback stability in development
       if (prevDepsRef.current && prevDepsRef.current !== deps) {
         logger.debug(`🔄 Smart callback ${debugLabel} recreated due to deps change`);
       }
       prevDepsRef.current = deps;
-    });
-  }
+    }
+  });
   
   return stableCallback;
 }

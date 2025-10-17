@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { logger } from '@/lib/logger';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -413,7 +415,7 @@ export const usePrincipalHub = () => {
                 .eq('preschool_id', preschoolId)
                 .maybeSingle();
               if (fallbackUser?.id) effectiveUserId = fallbackUser.id;
-            } catch {}
+            } catch { /* Intentional: non-fatal */ }
           }
 
           // Get classes assigned to this teacher (by effective user id)

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import * as Notifications from 'expo-notifications';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';

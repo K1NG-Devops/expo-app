@@ -115,7 +115,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
             console.log('[DashVoiceMode] ✅ Speech stopped successfully');
             
             // Provide haptic feedback for interruption
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }
           } catch (e) {
             console.warn('[DashVoiceMode] Failed to stop speech:', e);
           }
@@ -154,7 +154,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     if (!dashInstance) {
       console.error('[DashVoiceMode] ❌ No dashInstance available!');
       setErrorMessage('AI Assistant not ready. Please close and try again.');
-      try { toast.error?.('AI Assistant not initialized'); } catch {}
+      try { toast.error?.('AI Assistant not initialized'); } catch { /* Intentional: non-fatal */ }
       setTimeout(() => onClose(), 2000);
       return;
     }
@@ -183,8 +183,11 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       console.log('[DashVoiceMode] Calling onMessageSent callback');
       onMessageSent?.(response);
       
+      // Check if response should be spoken (prevent error loops)
+      const shouldSpeak = !(response.metadata as any)?.doNotSpeak;
+      
       // Speak response
-      if (responseText) {
+      if (responseText && shouldSpeak) {
         // Reset abort flag before starting new speech
         abortSpeechRef.current = false;
         setSpeaking(true);
@@ -198,10 +201,14 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           // Reset for next user input
           processedRef.current = false;
           setUserTranscript('');
-          console.log('[DashVoiceMode] ✅ Ready for next input');
-        } else {
-          console.log('[DashVoiceMode] ⚠️ Speech was aborted, not resetting state');
+          setAiResponse('');
         }
+      } else if (!shouldSpeak) {
+        // Speech was skipped due to doNotSpeak flag (error loop prevention)
+        console.log('[DashVoiceMode] ⚠️ Speech skipped due to doNotSpeak flag (error loop prevention)');
+        setSpeaking(false);
+        processedRef.current = false;
+        setUserTranscript('');
       }
     } catch (error) {
       console.error('[DashVoiceMode] Error processing message:', error);
@@ -321,7 +328,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       if (!dashInstance) {
         console.error('[DashVoiceMode] ❌ Cannot start: dashInstance is null!');
         setErrorMessage('AI Assistant not initialized. Please wait and try again.');
-        try { toast.error?.('Please wait for AI to initialize'); } catch {}
+        try { toast.error?.('Please wait for AI to initialize'); } catch { /* Intentional: non-fatal */ }
         setTimeout(() => onClose(), 2500);
         return;
       }
@@ -332,7 +339,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
         const langName = activeLang === 'zu' ? 'Zulu' : activeLang === 'xh' ? 'Xhosa' : 'Northern Sotho';
         console.error('[DashVoiceMode] ❌ OpenAI Realtime does NOT support', langName);
         setErrorMessage(`${langName} uses Azure Speech. Please use the recording button.`);
-        try { toast.error?.(`${langName} not supported in Voice Mode`); } catch {}
+        try { toast.error?.(`${langName} not supported in Voice Mode`); } catch { /* Intentional: non-fatal */ }
         setTimeout(() => onClose(), 2500);
         return;
       }
@@ -364,7 +371,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
         console.log('[DashVoiceMode] ✅ Stream started successfully!');
         setReady(true);
         setErrorMessage('');
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
         // Start animations
         Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
         startPulseAnimation();
@@ -388,7 +395,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     
     return () => {
       console.log('[DashVoiceMode] 📴 Cleaning up voice mode session');
-      try { realtime.stopStream(); } catch {}
+      try { realtime.stopStream(); } catch { /* Intentional: non-fatal */ }
       stopPulseAnimation();
       setErrorMessage('');
     };
@@ -432,7 +439,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
 
   const handleClose = async () => {
     // Stop streaming
-    try { await realtime.stopStream(); } catch {}
+    try { await realtime.stopStream(); } catch { /* Intentional: non-fatal */ }
     
     // Stop TTS playback
     console.log('[DashVoiceMode] 🛑 Stopping TTS on close');
@@ -447,7 +454,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       console.warn('[DashVoiceMode] ⚠️ Error stopping TTS:', e);
     }
     
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }
     onClose();
   };
 
@@ -508,7 +515,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
             onPress={async () => {
               try { 
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
-              } catch {}
+              } catch { /* Intentional: non-fatal */ }
               console.log('[DashVoiceMode] 🛑 User pressed stop button - aborting speech');
               
               // Set abort flag to prevent speech from continuing
@@ -534,7 +541,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
         {isListening && (
           <TouchableOpacity
             onPress={() => {
-              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }
               realtime.toggleMute();
             }}
             style={[styles.muteButton, { backgroundColor: realtime.muted ? '#E53935' : '#3C3C3C' }]}

@@ -79,7 +79,7 @@ export default function GlobalShortcuts() {
           e.preventDefault()
           seqRef.lastKey = ''
           seqRef.lastTime = 0
-          try { router.push(route as any) } catch {}
+          try { router.push(route as any) } catch { /* Intentional: non-fatal */ }
           return
         }
       }

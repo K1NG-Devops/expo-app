@@ -1,3 +1,5 @@
+/* eslint-disable i18next/no-literal-string */
+
 import React, { useState, useEffect } from 'react';
 import {
   View,

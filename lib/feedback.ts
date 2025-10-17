@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 let AsyncStorage: any = null;
 try {
   AsyncStorage = require('@react-native-async-storage/async-storage').default;
-} catch {}
+} catch { /* Intentional: non-fatal */ }
 
 async function isEnabled(key: string, defaultVal = true): Promise<boolean> {
   try {

@@ -294,7 +294,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               onPress={() => {
                 const newLayout = preferences.layout === 'enhanced' ? 'classic' : 'enhanced';
                 setLayout(newLayout);
-                try { Feedback.vibrate(15); } catch {}
+                try { Feedback.vibrate(15); } catch { /* Intentional: non-fatal */ }
               }}
               activeOpacity={0.7}
             >

@@ -29,7 +29,7 @@ export default function ManageSubscriptionScreen() {
           setLoading(false);
           return;
         }
-        try { Purchases.configure({ apiKey: key }); } catch {}
+        try { Purchases.configure({ apiKey: key }); } catch { /* Intentional: non-fatal */ }
         const info = await Purchases.getCustomerInfo();
         if (active) setCustomerInfo(info);
       } catch {

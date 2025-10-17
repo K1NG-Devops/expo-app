@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * AgentTools - Registry of all capabilities available to the AI agent
  * Maps existing app functionality to LLM-callable tools

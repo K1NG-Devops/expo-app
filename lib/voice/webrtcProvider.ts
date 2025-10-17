@@ -113,7 +113,7 @@ export function createWebRTCSession(): WebRTCSession {
                   if (message.transcript) opts.onAssistantToken?.(message.transcript);
                   break;
               }
-            } catch {}
+            } catch { /* Intentional: non-fatal error */ }
           };
 
           // Mic capture
@@ -136,7 +136,7 @@ export function createWebRTCSession(): WebRTCSession {
           // Start paused if muted
           try {
             if (isMuted && mediaRecorder.state === 'recording' && mediaRecorder.pause) mediaRecorder.pause();
-          } catch {}
+          } catch { /* Intentional: non-fatal error */ }
 
           // Session config
           // OpenAI supported languages for Realtime API
@@ -182,7 +182,7 @@ export function createWebRTCSession(): WebRTCSession {
         // Add audio track
         localStream.getAudioTracks().forEach((track: any) => {
           // Apply mute state immediately
-          try { track.enabled = !isMuted; } catch {}
+          try { track.enabled = !isMuted; } catch { /* Intentional: non-fatal error */ }
           pc.addTrack(track, localStream);
         });
 
@@ -348,16 +348,16 @@ export function createWebRTCSession(): WebRTCSession {
         try {
           if (mediaRecorder?.stop) mediaRecorder.stop();
           if (mediaRecorder?.audioContext) {
-            try { mediaRecorder.processor?.disconnect(); } catch {}
-            try { mediaRecorder.source?.disconnect(); } catch {}
-            try { mediaRecorder.audioContext?.close(); } catch {}
+            try { mediaRecorder.processor?.disconnect(); } catch { /* Intentional: non-fatal error */ }
+            try { mediaRecorder.source?.disconnect(); } catch { /* Intentional: non-fatal error */ }
+            try { mediaRecorder.audioContext?.close(); } catch { /* Intentional: non-fatal error */ }
           }
-        } catch {}
-        try { if (audioChunkInterval) clearInterval(audioChunkInterval); } catch {}
-        try { localStream?.getTracks?.().forEach((t: any) => t.stop()); } catch {}
-        try { ws?.close(); } catch {}
-        try { dc?.close?.(); } catch {}
-        try { pc?.close?.(); } catch {}
+        } catch { /* Intentional: non-fatal error */ }
+        try { if (audioChunkInterval) clearInterval(audioChunkInterval); } catch { /* Intentional: non-fatal error */ }
+        try { localStream?.getTracks?.().forEach((t: any) => t.stop()); } catch { /* Intentional: non-fatal error */ }
+        try { ws?.close(); } catch { /* Intentional: non-fatal error */ }
+        try { dc?.close?.(); } catch { /* Intentional: non-fatal error */ }
+        try { pc?.close?.(); } catch { /* Intentional: non-fatal error */ }
         active = false;
         return false;
       }
@@ -380,9 +380,9 @@ export function createWebRTCSession(): WebRTCSession {
         if (Platform.OS === 'web') {
           if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
         } else {
-          try { dc?.send?.(JSON.stringify(payload)); } catch {}
+          try { dc?.send?.(JSON.stringify(payload)); } catch { /* Intentional: non-fatal error */ }
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal error */ }
     },
 
     setMuted: (muted: boolean) => {
@@ -394,21 +394,21 @@ export function createWebRTCSession(): WebRTCSession {
             try {
               if (isMuted && mediaRecorder.state === 'recording' && mediaRecorder.pause) mediaRecorder.pause();
               if (!isMuted && mediaRecorder.state === 'paused' && mediaRecorder.resume) mediaRecorder.resume();
-            } catch {}
+            } catch { /* Intentional: non-fatal error */ }
           }
           // Also disable mic track to be safe
           const stream: any = localStream;
           if (stream?.getAudioTracks) {
-            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch {} });
+            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch { /* Intentional: non-fatal error */ } });
           }
         } else {
           // Native: toggle track enabled
           const stream: any = localStream;
           if (stream?.getAudioTracks) {
-            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch {} });
+            stream.getAudioTracks().forEach((t: any) => { try { t.enabled = !isMuted; } catch { /* Intentional: non-fatal error */ } });
           }
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal error */ }
     },
     
     async stop() {
@@ -430,9 +430,9 @@ export function createWebRTCSession(): WebRTCSession {
             if (mediaRecorder.state !== undefined && mediaRecorder.state !== 'inactive') {
               mediaRecorder.stop();
             } else if (mediaRecorder.audioContext) {
-              try { mediaRecorder.processor?.disconnect(); } catch {}
-              try { mediaRecorder.source?.disconnect(); } catch {}
-              try { mediaRecorder.audioContext?.close(); } catch {}
+              try { mediaRecorder.processor?.disconnect(); } catch { /* Intentional: non-fatal error */ }
+              try { mediaRecorder.source?.disconnect(); } catch { /* Intentional: non-fatal error */ }
+              try { mediaRecorder.audioContext?.close(); } catch { /* Intentional: non-fatal error */ }
             }
             mediaRecorder = null;
           } catch (e) {
@@ -442,14 +442,14 @@ export function createWebRTCSession(): WebRTCSession {
         
         // Clear interval
         if (audioChunkInterval) {
-          try { clearInterval(audioChunkInterval); audioChunkInterval = null; } catch {}
+          try { clearInterval(audioChunkInterval); audioChunkInterval = null; } catch { /* Intentional: non-fatal error */ }
         }
         
         // Stop all media tracks
         if (localStream) {
           try {
             const tracks = localStream.getTracks?.() || [];
-            tracks.forEach((track: any) => { try { track.stop(); } catch {} });
+            tracks.forEach((track: any) => { try { track.stop(); } catch { /* Intentional: non-fatal error */ } });
             localStream = null;
           } catch (e) {
             console.warn('[realtimeProvider] Stream getTracks error:', e);
@@ -481,11 +481,11 @@ export function createWebRTCSession(): WebRTCSession {
               console.warn('[realtimeProvider] ⚠️ Failed to send commit on native:', e);
             }
           }
-        } catch {}
+        } catch { /* Intentional: non-fatal error */ }
         
         // Close data channel / peer connection (native)
-        try { dc?.close?.(); } catch {}
-        try { pc?.close?.(); } catch {}
+        try { dc?.close?.(); } catch { /* Intentional: non-fatal error */ }
+        try { pc?.close?.(); } catch { /* Intentional: non-fatal error */ }
         dc = null; pc = null;
         
         // Release audio session
@@ -505,10 +505,10 @@ export function createWebRTCSession(): WebRTCSession {
         mediaRecorder = null;
         localStream = null;
         ws = null;
-        try { dc?.close?.(); } catch {}
-        try { pc?.close?.(); } catch {}
+        try { dc?.close?.(); } catch { /* Intentional: non-fatal error */ }
+        try { pc?.close?.(); } catch { /* Intentional: non-fatal error */ }
         dc = null; pc = null;
-        if (audioChunkInterval) { try { clearInterval(audioChunkInterval); } catch {}; audioChunkInterval = null; }
+        if (audioChunkInterval) { try { clearInterval(audioChunkInterval); } catch { /* Intentional: non-fatal error */ }; audioChunkInterval = null; }
       }
     },
     

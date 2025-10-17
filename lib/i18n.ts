@@ -96,7 +96,7 @@ function detectLanguage(): string {
       if (persisted && persisted in SUPPORTED_LANGUAGES) {
         return persisted;
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     // Get device locale
     const locales = getLocales();

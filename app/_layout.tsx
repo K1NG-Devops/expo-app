@@ -103,7 +103,7 @@ function LayoutContent() {
               console.log('[App] Audio manager pre-warm failed:', err);
             }
           });
-        }).catch(() => {});
+        }).catch(() => { /* Intentional: error handled */ });
 
         // Pre-warm Dash AI recorder
         import('@/services/DashAIAssistant').then(({ DashAIAssistant }) => {
@@ -113,7 +113,7 @@ function LayoutContent() {
               console.log('[App] Dash recorder pre-warm failed:', err);
             }
           });
-        }).catch(() => {});
+        }).catch(() => { /* Intentional: error handled */ });
       } catch (e) {
         // Non-critical; ignore
       }

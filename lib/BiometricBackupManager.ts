@@ -325,10 +325,10 @@ export class BiometricBackupManager {
   static async disableBiometricBackup(): Promise<void> {
     try {
       await Promise.all([
-        storage.removeItem(BACKUP_KEY).catch(() => {}),
-        storage.removeItem(FALLBACK_PIN_KEY).catch(() => {}),
-        storage.removeItem(SECURITY_QUESTIONS_KEY).catch(() => {}),
-        storage.removeItem(BACKUP_RECOVERY_KEY).catch(() => {}),
+        storage.removeItem(BACKUP_KEY).catch(() => { /* Intentional: error handled */ }),
+        storage.removeItem(FALLBACK_PIN_KEY).catch(() => { /* Intentional: error handled */ }),
+        storage.removeItem(SECURITY_QUESTIONS_KEY).catch(() => { /* Intentional: error handled */ }),
+        storage.removeItem(BACKUP_RECOVERY_KEY).catch(() => { /* Intentional: error handled */ }),
       ]);
     } catch (error) {
       console.error("Error disabling biometric backup:", error);

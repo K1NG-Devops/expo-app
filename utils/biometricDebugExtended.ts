@@ -69,7 +69,7 @@ export class BiometricDebugExtended {
         logger.info('Supabase Session:', data.session ? 'Active' : 'None');
         logger.info('Supabase User:', data.session?.user?.email || 'None');
         if (error) logger.info('Supabase Error:', error);
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       logger.info('\n✅ All tests completed!');
       

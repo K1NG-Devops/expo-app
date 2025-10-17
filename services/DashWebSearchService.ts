@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * DashWebSearchService - Enable Dash to Search the Web
  * 

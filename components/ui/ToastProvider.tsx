@@ -16,7 +16,7 @@ export const toast = {
   success: (message: string, durationMs = 2500) => globalShow?.({ message, type: 'success', durationMs }),
   warn: (message: string, durationMs = 3000) => {
     if (Platform.OS === 'android') {
-      try { ToastAndroid.show(message, ToastAndroid.SHORT) } catch {}
+      try { ToastAndroid.show(message, ToastAndroid.SHORT) } catch { /* Intentional: non-fatal */ }
     }
     globalShow?.({ message, type: 'warn', durationMs })
   },

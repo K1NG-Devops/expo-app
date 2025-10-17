@@ -72,7 +72,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
   const setStatusSafe = useCallback((s: RealtimeStatus) => {
     statusRef.current = s; // Keep ref in sync
     setStatus(s);
-    try { onStatusChange?.(s); } catch {}
+    try { onStatusChange?.(s); } catch { /* Intentional: non-fatal */ }
   }, [onStatusChange]);
 
   const startStream = useCallback(async () => {
@@ -126,7 +126,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
       console.log('[RealtimeVoice] 🛣️ Provider decision:', { isIndigenousSALang, isSALang, provider, providerToUse });
 
       // Prefer caller tokenProvider; fallback to Edge Function token
-      try { token = (await tokenProvider?.()) || ''; } catch {}
+      try { token = (await tokenProvider?.()) || ''; } catch { /* Intentional: non-fatal */ }
 
       if (providerToUse === 'azure') {
         try {
@@ -175,7 +175,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
           const started = await sess.start({ token, region, language, vadSilenceMs, onPartialTranscript, onFinalTranscript });
           if (started) {
             (webrtcRef as any).current = sess as any; // reuse ref for uniform stop path
-            try { (webrtcRef as any).current.setMuted(muted); } catch {}
+            try { (webrtcRef as any).current.setMuted(muted); } catch { /* Intentional: non-fatal */ }
             setStatusSafe('streaming');
             return true;
           } else {
@@ -237,7 +237,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
           const startedAzure = await sessAzure.start({ token, region, language, vadSilenceMs, onPartialTranscript, onFinalTranscript });
           if (startedAzure) {
             (webrtcRef as any).current = sessAzure as any;
-            try { (webrtcRef as any).current.setMuted(muted); } catch {}
+            try { (webrtcRef as any).current.setMuted(muted); } catch { /* Intentional: non-fatal */ }
             setStatusSafe('streaming');
             return true;
           } else {
@@ -288,7 +288,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
             
             if (started) {
               webrtcRef.current = sess as any;
-              try { webrtcRef.current.setMuted?.(muted); } catch {}
+              try { webrtcRef.current.setMuted?.(muted); } catch { /* Intentional: non-fatal */ }
               setStatusSafe('streaming');
               console.log('[RealtimeVoice] ✅ OpenAI Realtime fallback successful!');
               return true;
@@ -413,16 +413,16 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
   }, [setStatusSafe]);
 
   const cancel = useCallback(async () => {
-    try { await webrtcRef.current?.stop(); webrtcRef.current = null; } catch {}
-    try { mediaRef.current?.stop(); } catch {}
-    try { streamRef.current?.getTracks()?.forEach((t) => t.stop()); } catch {}
-    try { wsRef.current?.close(); } catch {}
+    try { await webrtcRef.current?.stop(); webrtcRef.current = null; } catch { /* Intentional: non-fatal */ }
+    try { mediaRef.current?.stop(); } catch { /* Intentional: non-fatal */ }
+    try { streamRef.current?.getTracks()?.forEach((t) => t.stop()); } catch { /* Intentional: non-fatal */ }
+    try { wsRef.current?.close(); } catch { /* Intentional: non-fatal */ }
     setStatusSafe('disconnected');
   }, [setStatusSafe]);
 
   const setMuted = useCallback((m: boolean) => {
     setMutedState(!!m);
-    try { webrtcRef.current?.setMuted?.(!!m); } catch {}
+    try { webrtcRef.current?.setMuted?.(!!m); } catch { /* Intentional: non-fatal */ }
   }, []);
 
   const toggleMute = useCallback(() => {
@@ -431,21 +431,21 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
 
   // Cleanup on unmount
   useEffect(() => () => {
-    try { mediaRef.current?.stop(); } catch {}
-    try { streamRef.current?.getTracks()?.forEach((t) => t.stop()); } catch {}
-    try { wsRef.current?.close(); } catch {}
+    try { mediaRef.current?.stop(); } catch { /* Intentional: non-fatal */ }
+    try { streamRef.current?.getTracks()?.forEach((t) => t.stop()); } catch { /* Intentional: non-fatal */ }
+    try { wsRef.current?.close(); } catch { /* Intentional: non-fatal */ }
   }, []);
 
   // React to language changes during an active stream
   useEffect(() => {
     if (status === 'streaming' && webrtcRef.current && (language || vadSilenceMs || transcriptionModel)) {
-      try { webrtcRef.current.updateTranscriptionConfig({ language, vadSilenceMs, transcriptionModel }); } catch {}
+      try { webrtcRef.current.updateTranscriptionConfig({ language, vadSilenceMs, transcriptionModel }); } catch { /* Intentional: non-fatal */ }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [language, vadSilenceMs, transcriptionModel, status]);
 
   const setLanguage = useCallback((lang: string) => {
-    try { webrtcRef.current?.updateTranscriptionConfig({ language: lang }); } catch {}
+    try { webrtcRef.current?.updateTranscriptionConfig({ language: lang }); } catch { /* Intentional: non-fatal */ }
   }, []);
 
   return {

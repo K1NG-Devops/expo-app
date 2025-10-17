@@ -380,7 +380,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       try {
         const sAfter = await getQuotaStatus('lesson_generation')
         setQuotaStatus(sAfter)
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       console.log('[Lesson Generator] Updated display with local usage:', localUsageAfterGeneration)
       
       // Show success toast
@@ -400,7 +400,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
       // Clean up abort controller and progress interval
       setAbortController(null)
       if (progressInterval) {
-        try { clearInterval(progressInterval) } catch {}
+        try { clearInterval(progressInterval) } catch { /* Intentional: non-fatal */ }
         setProgressInterval(null)
       }
       setPending(false)
@@ -587,7 +587,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
                     onPress={() => {
                       setSelectedModel(m.id)
                       // Persist preference
-                      setPreferredModel(m.id, 'lesson_generation').catch(() => {})
+                      setPreferredModel(m.id, 'lesson_generation').catch(() => { /* Intentional: error handled */ })
                     }} 
                     style={{
                       paddingHorizontal: 12, 

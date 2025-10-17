@@ -604,7 +604,7 @@ export class GoogleCalendarService {
           .eq('id', userId)
           .maybeSingle();
         preschoolId = (me as any)?.preschool_id || null;
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       await supabase.from('integration_audit_log').insert({
         integration_type: 'google_calendar',

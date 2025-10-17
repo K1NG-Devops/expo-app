@@ -105,7 +105,7 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
         if (a && !Number.isNaN(Number(a))) setPrefAutoSilence(Math.max(2000, Number(a)));
         if (b && !Number.isNaN(Number(b))) setPrefListenCap(Math.max(5000, Number(b)));
         if (c !== null) setPrefDefaultLocked(c === 'true');
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     })();
   }, []);
 
@@ -133,7 +133,7 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
         return;
       }
       if (state === 'speaking') {
-        try { await dash.stopSpeaking(); } catch {}
+        try { await dash.stopSpeaking(); } catch { /* Intentional: non-fatal */ }
       }
       
       // Log language but allow all - OpenAI Realtime will handle what it can
@@ -145,8 +145,8 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       
       setLocked(false);
       setState('prewarm');
-      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-      try { await dash.preWarmRecorder(); } catch {}
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
+      try { await dash.preWarmRecorder(); } catch { /* Intentional: non-fatal */ }
       
       // Start streaming if enabled (local file recording removed)
       let started = false;
@@ -190,11 +190,11 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
 
   const lock = useCallback(() => {
     setLocked(true);
-    try { Haptics.selectionAsync(); } catch {}
+    try { Haptics.selectionAsync(); } catch { /* Intentional: non-fatal */ }
     clearTimeout(listenTimerRef.current as unknown as number);
     listenTimerRef.current = (setTimeout(async () => {
       // Defer calling release via event loop to avoid closure order issues
-      try { await release(); } catch {}
+      try { await release(); } catch { /* Intentional: non-fatal */ }
     }, prefListenCap) as unknown) as number;
   }, [prefListenCap]);
 
@@ -215,8 +215,8 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       // If user released while still connecting, cancel gracefully instead of erroring
       if (streamingEnabled && currentStatus === 'connecting') {
         console.warn('[VoiceController] ⚠️ Release while connecting — cancelling instead of transcribing');
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
-        try { await realtimeVoice.cancel(); } catch {}
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch { /* Intentional: non-fatal */ }
+        try { await realtimeVoice.cancel(); } catch { /* Intentional: non-fatal */ }
         setState('idle');
         return;
       }
@@ -248,14 +248,14 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
         } else {
           console.error('[VoiceController] ❌ No streaming transcript available after waiting');
           setState('error');
-          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch { /* Intentional: non-fatal */ }
           return;
         }
       } else {
         // Non-streaming path no longer supported
         console.warn('[VoiceController] Non-streaming voice note is disabled (expo-av removed)');
         setState('error');
-        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch {}
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch { /* Intentional: non-fatal */ }
         return;
       }
       
@@ -264,14 +264,14 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       const response = await dash.sendPreparedVoiceMessage('', transcript, duration);
       onResponse?.(response);
       setState('idle');
-      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* Intentional: non-fatal */ }
     } catch (err) {
       console.error('[VoiceController] Release error:', err);
       setState('error');
     } finally {
       // Cleanup streaming
       if (streamingEnabled && realtimeVoice.statusRef.current !== 'disconnected') {
-        try { await realtimeVoice.cancel(); } catch {}
+        try { await realtimeVoice.cancel(); } catch { /* Intentional: non-fatal */ }
       }
       clearTimers();
       setLocked(false);
@@ -287,12 +287,12 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       
       // Cancel streaming if active
       if (streamingEnabled && realtimeVoice.statusRef.current !== 'disconnected') {
-        try { await realtimeVoice.cancel(); } catch {}
+        try { await realtimeVoice.cancel(); } catch { /* Intentional: non-fatal */ }
       }
       
       // Local recording disabled: do not call dash.stopRecording()
       if (state === 'speaking') {
-        try { await dash.stopSpeaking(); } catch {}
+        try { await dash.stopSpeaking(); } catch { /* Intentional: non-fatal */ }
       }
     } finally {
       clearTimers();
@@ -305,8 +305,8 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
   }, [dash, state, streamingEnabled, realtimeVoice]);
 
   const interrupt = useCallback(async () => {
-    try { if (dash) await dash.stopSpeaking(); } catch {}
-    try { await Haptics.selectionAsync(); } catch {}
+    try { if (dash) await dash.stopSpeaking(); } catch { /* Intentional: non-fatal */ }
+    try { await Haptics.selectionAsync(); } catch { /* Intentional: non-fatal */ }
     setState('idle');
   }, [dash]);
 

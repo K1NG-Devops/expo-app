@@ -49,7 +49,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
           setTimer((t) => t + 1);
         }, 1000) as unknown) as number;
         // Haptic feedback
-        try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+        try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
         // Pulse anim
         Animated.loop(
           Animated.sequence([
@@ -72,8 +72,8 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
       // Stop any ongoing recording when unmounting
       if (phase === 'recording') {
         try {
-          dash.stopRecording().catch(() => {});
-        } catch {}
+          dash.stopRecording().catch(() => { /* Intentional: error handled */ });
+        } catch { /* Intentional: non-fatal */ }
       }
     };
   }, [visible]);
@@ -131,7 +131,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
     setSending(true);
     try {
       await onSend(audioUri, transcript, duration);
-      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* Intentional: non-fatal */ }
       // Reset state before closing to ensure clean next open
       resetState();
       onClose();
@@ -171,7 +171,7 @@ export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible,
         setTimer((t) => t + 1);
       }, 1000) as unknown) as number;
       // Haptic feedback
-      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
       // Pulse anim
       Animated.loop(
         Animated.sequence([

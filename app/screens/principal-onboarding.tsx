@@ -19,7 +19,7 @@ export default function PrincipalOnboardingScreen() {
   // Guard: if user is not authenticated, never show onboarding
   useEffect(() => {
     if (!user) {
-      try { router.replace('/(auth)/sign-in'); } catch {}
+      try { router.replace('/(auth)/sign-in'); } catch { /* Intentional: non-fatal */ }
     }
   }, [user]);
 
@@ -332,7 +332,7 @@ export default function PrincipalOnboardingScreen() {
               style={styles.input}
               value={schoolName}
               onChangeText={(v) => { setSchoolName(v); persist({ schoolName: v }); }}
-              placeholder="e.g. Bright Beginnings Preschool"
+              placeholder="e.g. Bright Beginnings School"
               autoCapitalize="words"
             />
 

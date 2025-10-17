@@ -99,6 +99,6 @@ export class TeacherInviteService {
       } catch (e) {
         // ignore if table not present
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }
 }
