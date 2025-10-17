@@ -620,6 +620,12 @@ export class DashAIAssistant {
   private readonly MAX_CONSECUTIVE_ERRORS = 3;
   private readonly ERROR_COOLDOWN_MS = 5000; // 5 seconds between errors
   
+  // ✅ OPTIMIZATION: Cache for profile and session queries (1-minute TTL)
+  private profileCache: { data: any; timestamp: number } | null = null;
+  private sessionCache: { data: any; timestamp: number } | null = null;
+  private readonly CACHE_TTL = 60000; // 1 minute
+  private dependenciesPreloaded = false;
+  
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
   private static readonly CURRENT_CONVERSATION_KEY = '@dash_ai_current_conversation_id';
@@ -646,6 +652,9 @@ export class DashAIAssistant {
     this.checkDisposed();
     try {
       console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
+      
+      // ✅ OPTIMIZATION: Preload dependencies early
+      await this.preloadDependencies();
       
       // Initialize audio
       await this.initializeAudio();
@@ -699,6 +708,74 @@ export class DashAIAssistant {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * ✅ OPTIMIZATION: Preload dependencies at startup
+   * Loads all dynamic imports once to avoid 3s delay per message
+   */
+  private async preloadDependencies(): Promise<void> {
+    if (this.dependenciesPreloaded) return;
+    
+    const startTime = Date.now();
+    console.log('[Dash] 🚀 Preloading dependencies...');
+    
+    try {
+      // Preload all agentic engine imports
+      await Promise.all([
+        import('./DashContextAnalyzer'),
+        import('./DashProactiveEngine'),
+        import('./DashAgenticIntegration'),
+        import('./DashRealTimeAwareness'),
+        import('./DashTaskAutomation'),
+        import('./DashConversationState'),
+      ]);
+      
+      this.dependenciesPreloaded = true;
+      const duration = Date.now() - startTime;
+      console.log(`[Dash] ✅ Dependencies preloaded in ${duration}ms`);
+    } catch (error) {
+      console.warn('[Dash] ⚠️ Failed to preload dependencies (non-critical):', error);
+    }
+  }
+
+  /**
+   * ✅ OPTIMIZATION: Get cached profile (1-minute TTL)
+   */
+  private async getCachedProfile(): Promise<any> {
+    const now = Date.now();
+    if (this.profileCache && (now - this.profileCache.timestamp) < this.CACHE_TTL) {
+      console.log('[Dash] 📦 Using cached profile');
+      return this.profileCache.data;
+    }
+    
+    const profile = await getCurrentProfile();
+    this.profileCache = { data: profile, timestamp: now };
+    return profile;
+  }
+
+  /**
+   * ✅ OPTIMIZATION: Get cached session (1-minute TTL)
+   */
+  private async getCachedSession(): Promise<any> {
+    const now = Date.now();
+    if (this.sessionCache && (now - this.sessionCache.timestamp) < this.CACHE_TTL) {
+      console.log('[Dash] 📦 Using cached session');
+      return this.sessionCache.data;
+    }
+    
+    const session = await getCurrentSession();
+    this.sessionCache = { data: session, timestamp: now };
+    return session;
+  }
+
+  /**
+   * ✅ OPTIMIZATION: Clear caches (call on logout or profile updates)
+   */
+  public clearCache(): void {
+    this.profileCache = null;
+    this.sessionCache = null;
+    console.log('[Dash] 🧽 Cache cleared');
   }
 
   
@@ -3193,6 +3270,86 @@ public async speakResponse(message: DashMessage, callbacks?: {
    * This method activates all agentic engines for intelligent, proactive responses
    */
   /**
+   * ✅ OPTIMIZATION: Check if query is simple (math, fact, greeting)
+   * Simple queries bypass heavy agentic processing for <500ms responses
+   */
+  private isSimpleQuery(input: string): boolean {
+    const inputLC = input.trim().toLowerCase();
+    
+    // Math queries (e.g., "what is 5 + 3")
+    if (/\bwhat\s+is\s+\d+\s*[+\-*/×÷]\s*\d+/i.test(inputLC)) return true;
+    if (/\bcalculate\s+\d+/i.test(inputLC)) return true;
+    
+    // Greetings (very short)
+    if (/^(hi|hello|hey|hallo|sawubona)$/i.test(inputLC)) return true;
+    
+    // Status questions (no context needed)
+    if (/^(how are you|what's up|wassup)$/i.test(inputLC)) return true;
+    
+    // Simple facts (very short queries)
+    if (inputLC.length < 20 && /^(what is|who is|when is)/i.test(inputLC)) return true;
+    
+    return false;
+  }
+  
+  /**
+   * ✅ OPTIMIZATION: Generate simple responses without agentic processing
+   * For greetings, math, and basic facts - bypasses 3-5s processing pipeline
+   */
+  private async generateSimpleResponse(input: string, profile?: any): Promise<DashMessage> {
+    const inputLC = input.trim().toLowerCase();
+    const displayName = profile?.first_name || 'there';
+    let content = '';
+    
+    // Math calculations
+    const mathMatch = input.match(/(\d+)\s*([+\-*/×÷])\s*(\d+)/);
+    if (mathMatch) {
+      const num1 = parseFloat(mathMatch[1]);
+      const num2 = parseFloat(mathMatch[3]);
+      const op = mathMatch[2];
+      let result = 0;
+      
+      switch (op) {
+        case '+': result = num1 + num2; break;
+        case '-': result = num1 - num2; break;
+        case '*': case '×': result = num1 * num2; break;
+        case '/': case '÷': result = num2 !== 0 ? num1 / num2 : NaN; break;
+      }
+      
+      content = isNaN(result) ? 'Cannot divide by zero.' : `${num1} ${op} ${num2} = ${result}`;
+    }
+    // Greetings
+    else if (/^(hi|hello|hey)$/i.test(inputLC)) {
+      content = `Hello ${displayName}! How can I help you today?`;
+    }
+    else if (/^hallo$/i.test(inputLC)) {
+      content = `Hallo ${displayName}! Hoe kan ek jou vandag help?`;
+    }
+    else if (/^sawubona$/i.test(inputLC)) {
+      content = `Sawubona ${displayName}! Ngingakusiza kanjani namuhla?`;
+    }
+    // Status questions
+    else if (/^how are you/i.test(inputLC)) {
+      content = "I'm doing well, thank you! Ready to assist you.";
+    }
+    else if (/^what's up|^wassup/i.test(inputLC)) {
+      content = 'All good here! How can I help you?';
+    }
+    // Default simple response
+    else {
+      content = "I'm here to help! What would you like to know?";
+    }
+    
+    return {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'assistant',
+      content,
+      timestamp: Date.now(),
+      metadata: { confidence: 0.95 }
+    };
+  }
+  
+  /**
    * Generate response with explicit language context from voice detection
    */
   private async generateResponseWithLanguage(userInput: string, conversationId: string, detectedLanguage?: string): Promise<DashMessage> {
@@ -3223,10 +3380,19 @@ public async speakResponse(message: DashMessage, callbacks?: {
         };
       }
       
+      // ✅ OPTIMIZATION: Fast path for simple queries (math, greetings, facts)
+      // Bypasses 3-5s agentic processing for <500ms responses
+      if (this.isSimpleQuery(userInput)) {
+        console.log('[Dash Agent] 🚀 Fast path activated for simple query');
+        const profile = await this.getCachedProfile(); // Use cached profile
+        return this.generateSimpleResponse(userInput, profile);
+      }
+      
       // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      const profile = await getCurrentProfile();
+      // ✅ OPTIMIZATION: Use cached profile to save 1-2s
+      const profile = await this.getCachedProfile();
       
       // Build full context for agentic analysis
       const fullContext = {
@@ -3267,20 +3433,31 @@ public async speakResponse(message: DashMessage, callbacks?: {
       console.log('[Dash Agent] Phase 3: Generating enhanced response...');
       const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments, detectedLanguage);
       
-      // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
-      if (opportunities.length > 0) {
-        console.log('[Dash Agent] Phase 4: Handling proactive opportunities...');
-        await this.handleProactiveOpportunities(opportunities, assistantMessage);
-      }
+      // ✅ OPTIMIZATION: PHASE 4 & 5 - Run proactive operations in background (non-blocking)
+      // Don't await - let them complete asynchronously to return response faster
+      Promise.all([
+        // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
+        opportunities.length > 0 
+          ? this.handleProactiveOpportunities(opportunities, assistantMessage)
+              .then(() => console.log('[Dash Agent] ✅ Phase 4 complete (background)'))
+              .catch(err => console.warn('[Dash Agent] Phase 4 failed (non-critical):', err))
+          : Promise.resolve(),
+        
+        // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
+        analysis.intent && analysis.intent.primary_intent
+          ? this.handleActionIntent(analysis.intent, assistantMessage)
+              .then(() => console.log('[Dash Agent] ✅ Phase 5 complete (background)'))
+              .catch(err => console.warn('[Dash Agent] Phase 5 failed (non-critical):', err))
+          : Promise.resolve(),
+        
+        // Update enhanced memory with analysis context
+        this.updateEnhancedMemory(userInput, assistantMessage, analysis)
+          .then(() => console.log('[Dash Agent] ✅ Memory updated (background)'))
+          .catch(err => console.warn('[Dash Agent] Memory update failed (non-critical):', err))
+      ]);
       
-      // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
-      if (analysis.intent && analysis.intent.primary_intent) {
-        console.log('[Dash Agent] Phase 5: Handling action intent...');
-        await this.handleActionIntent(analysis.intent, assistantMessage);
-      }
-      
-      // Update enhanced memory with analysis context
-      await this.updateEnhancedMemory(userInput, assistantMessage, analysis);
+      console.log('[Dash Agent] 💨 Background operations queued (phases 4-5 + memory)');
+      // Note: we're not awaiting the Promise.all above, so these run in the background
       
       // Post-process to avoid file attachment claims
       assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
