@@ -1064,17 +1064,36 @@ return (
     }
   }, [vc.state]);
 
-  // Notify on voice errors (e.g., permission denied)
+  // Notify on voice errors with more specific messaging
   useEffect(() => {
     if (vc.state === 'error') {
       try {
-        Alert.alert(
-          'Voice input unavailable',
-          'We could not start voice input. If this persists, check microphone permission in system settings and try again.'
-        );
+        // Check if streaming is enabled to provide better error message
+        const isStreamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
+        
+        if (!isStreamingEnabled) {
+          Alert.alert(
+            'Voice Recording Unavailable',
+            'Voice recording requires streaming to be enabled. Please restart the app or contact support if this continues.',
+            [
+              { text: 'Use Voice Modal Instead', onPress: () => setShowVoiceRecorderModal(true) },
+              { text: 'OK', style: 'default' }
+            ]
+          );
+        } else {
+          Alert.alert(
+            'Voice Input Unavailable',
+            'Could not connect to voice service. Please check your internet connection and try again.',
+            [
+              { text: 'Use Voice Modal Instead', onPress: () => setShowVoiceRecorderModal(true) },
+              { text: 'Try Again', onPress: () => vc.startPress().catch(() => {}) },
+              { text: 'OK', style: 'cancel' }
+            ]
+          );
+        }
       } catch { /* Intentional: non-fatal */ }
     }
-  }, [vc.state]);
+  }, [vc.state, streamingPrefEnabled]);
 
   // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
   const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
@@ -1577,9 +1596,22 @@ return (
             if (vc.state === 'error') {
               console.error('[DashAssistant] ❌ Voice recording failed to start');
               setIsVoiceRecording(false);
+              
+              // Offer fallback to voice modal
+              console.log('[DashAssistant] Offering fallback to voice recording modal');
               Alert.alert(
                 'Voice Input Unavailable', 
-                'Could not start voice recording. Please check microphone permissions in your device settings and try again.'
+                'Could not start voice recording. Would you like to try the voice recording modal instead?',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { 
+                    text: 'Use Voice Modal', 
+                    onPress: () => {
+                      console.log('[DashAssistant] User chose voice modal fallback');
+                      setShowVoiceRecorderModal(true);
+                    }
+                  }
+                ]
               );
               return;
             }
