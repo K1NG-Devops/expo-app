@@ -33,6 +33,14 @@ export interface DashMemoryItem {
     name: string;
   }>;
   embeddings?: number[];
+  reinforcement_count?: number;
+  emotional_weight?: number;
+  retrieval_frequency?: number;
+  tags?: string[];
+  importance?: number;
+  recency_score?: number;
+  accessed_count?: number;
+  text_embedding?: number[];
 }
 
 export interface InteractionRecord {
@@ -304,14 +312,23 @@ export class DashMemoryManager {
   }
   
   /**
-   * Dispose and clean up resources
+   * Clear all state (memory, cache, history, message counts)
    */
-  public dispose(): void {
-    console.log('[DashMemoryManager] Disposing...');
+  public clearAllState(): void {
+    console.log('[DashMemoryManager] Clearing all state...');
     this.memory.clear();
     this.contextCache.clear();
     this.interactionHistory = [];
     this.messageCountByConversation.clear();
+    console.log('[DashMemoryManager] All state cleared');
+  }
+  
+  /**
+   * Dispose and clean up resources
+   */
+  public dispose(): void {
+    console.log('[DashMemoryManager] Disposing...');
+    this.clearAllState();
     this.isDisposed = true;
     console.log('[DashMemoryManager] Disposed');
   }

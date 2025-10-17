@@ -22,6 +22,8 @@ import { DashTaskAutomation } from './DashTaskAutomation';
 import { base64ToUint8Array } from '@/lib/utils/base64';
 import DashRealTimeAwareness from './DashRealTimeAwareness';
 import { DashAgenticIntegration } from './DashAgenticIntegration';
+import { DashMemoryManager } from './modules/DashMemoryManager';
+import { DashVoiceController } from './modules/DashVoiceController';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -596,10 +598,13 @@ export class DashAIAssistant {
   private static readonly MESSAGE_HISTORY_LIMIT = 10;
   
   private currentConversationId: string | null = null;
-  private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
   private isDisposed = false;
+  
+  // Modular components (Phase 4 refactoring)
+  private memoryManager: DashMemoryManager;
+  private voiceController: DashVoiceController;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -608,13 +613,6 @@ export class DashAIAssistant {
   private activeReminders: Map<string, DashReminder> = new Map();
   private pendingInsights: Map<string, DashInsight> = new Map();
   private proactiveTimer: ReturnType<typeof setTimeout> | null = null;
-  private contextCache: Map<string, any> = new Map();
-  private interactionHistory: Array<{
-    timestamp: number;
-    type: string;
-    data: any;
-  }> = [];
-  private messageCountByConversation: Map<string, number> = new Map();
   private lastErrorTimestamp: number = 0;
   private consecutiveErrors: number = 0;
   private readonly MAX_CONSECUTIVE_ERRORS = 3;
@@ -638,6 +636,12 @@ export class DashAIAssistant {
   private static readonly INSIGHTS_KEY = 'dash_pending_insights';
   private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
+  private constructor() {
+    // Initialize modular components
+    this.memoryManager = new DashMemoryManager();
+    this.voiceController = new DashVoiceController();
+  }
+
   public static getInstance(): DashAIAssistant {
     if (!DashAIAssistant.instance) {
       DashAIAssistant.instance = new DashAIAssistant();
@@ -659,8 +663,8 @@ export class DashAIAssistant {
       // Initialize audio
       await this.initializeAudio();
       
-      // Load persistent data
-      await this.loadMemory();
+      // Load persistent data (delegated to modules)
+      await this.memoryManager.loadMemory();
       await this.loadPersonality();
       
       // Load user context
@@ -703,11 +707,7 @@ export class DashAIAssistant {
    * Return all memory items currently in memory cache
    */
   public getAllMemoryItems(): DashMemoryItem[] {
-    try {
-      return Array.from(this.memory.values());
-    } catch {
-      return [];
-    }
+    return this.memoryManager.getAllMemoryItems();
   }
 
   /**
@@ -2560,7 +2560,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     }
     
     // Memory-based suggestions (check recent activities)
-    const recentMemory = Array.from(this.memory.values())
+    const recentMemory = this.memoryManager.getAllMemoryItems()
       .filter(item => item.created_at > Date.now() - (24 * 60 * 60 * 1000)) // Last 24 hours
       .sort((a, b) => b.created_at - a.created_at)
       .slice(0, 5);
@@ -2598,7 +2598,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     const hour = currentTime.getHours();
     
     // Analyze user patterns from memory
-    const recentMemory = Array.from(this.memory.values())
+    const recentMemory = this.memoryManager.getAllMemoryItems()
       .filter(item => item.created_at > Date.now() - (7 * 24 * 60 * 60 * 1000))
       .sort((a, b) => b.created_at - a.created_at);
     
@@ -3019,181 +3019,26 @@ private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
   }
 
   /**
-   * Play Dash's response with voice synthesis (Unified pipeline)
+   * Play Dash's response with voice synthesis (delegated to voiceController)
    * Uses Azure TTS for SA languages (af, zu, xh, nso) via Edge Function
    * Falls back to device TTS for other languages or if Azure fails
    */
-public async speakResponse(message: DashMessage, callbacks?: {
+  public async speakResponse(message: DashMessage, callbacks?: {
     onStart?: () => void;
     onDone?: () => void;
     onStopped?: () => void;
     onError?: (error: any) => void;
   }): Promise<void> {
-    if (message.type !== 'assistant') {
-      return;
-    }
-
-    // Reset abort flag at the start of new speech
-    this.isSpeechAborted = false;
-
-    try {
-      // Check abort flag before starting
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before starting');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      // Intelligently normalize the text before speaking
-      const normalizedText = this.normalizeTextForSpeech(message.content);
-
-      if (normalizedText.length === 0) {
-        console.log('[Dash] No speakable content after normalization');
-        callbacks?.onError?.('No speakable content after normalization');
-        return;
-      }
-
-      console.log('[Dash] About to start speaking (unified):', normalizedText.substring(0, 100) + '...');
-
-      // Get user preferences and detect language
-      const prefs = await voiceService.getPreferences().catch(() => null);
-      const vs = this.personality.voice_settings || { rate: 1.0, pitch: 1.0, language: 'en' } as any;
-
-      // Derive language: preference → message metadata → content heuristic → personality default
-      let language = (prefs?.language as any) || undefined;
-      if (!language) {
-        const metaLang = (message.metadata?.detected_language || '').toString();
-        if (metaLang) language = this.mapLanguageCode(metaLang);
-        else language = this.detectLikelyAppLanguageFromText(message.content);
-      }
-      if (!language) language = (vs.language?.toLowerCase()?.slice(0, 2) as any) || 'en';
-
-      console.log(`[Dash] Speaking in language: ${language}`);
-
-      // Check abort flag before Azure TTS
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure TTS');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      // SA languages should use Azure TTS (via Edge Function) for authentic voices
-      const saLanguages = ['af', 'zu', 'xh', 'nso'];
-      const useAzureTTS = saLanguages.includes(language);
-
-      if (useAzureTTS) {
-        console.log(`[Dash] 🇿🇦 Using Azure TTS for ${language}`);
-        try {
-          await this.speakWithAzureTTS(normalizedText, language, callbacks);
-          
-          // Check abort flag after Azure TTS completes
-          if (this.isSpeechAborted) {
-            console.log('[Dash] ⚠️ Speech was aborted during Azure TTS');
-            callbacks?.onStopped?.();
-          }
-          return; // Success - exit early
-        } catch (azureError) {
-          console.error('[Dash] Azure TTS failed, falling back to device TTS:', azureError);
-          // Fall through to device TTS
-        }
-      }
-
-      // Device TTS via expo-speech (fallback or default for non-SA languages)
-      const voiceSettings = this.personality.voice_settings;
-
-      // Platform-specific fallback voice handling
-      let selectedVoice: string | undefined = undefined;
-      let adjustedPitch = voiceSettings.pitch || 1.0;
-      let adjustedRate = voiceSettings.rate || 1.0;
-      const targetGender = voiceSettings.voice || 'male';
-
-      if (Platform.OS === 'android') {
-        if (targetGender === 'male') {
-          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85);
-        } else {
-          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15);
-        }
-      } else {
-        try {
-          // Check if Speech module is available before using it
-          if (Speech && typeof Speech.getAvailableVoicesAsync === 'function') {
-            const availableVoices = await Speech.getAvailableVoicesAsync();
-            if (availableVoices && availableVoices.length > 0) {
-              const languageCode = voiceSettings.language?.substring(0, 2) || 'en';
-              const matchingVoices = availableVoices.filter(v => v.language?.startsWith(languageCode));
-              if (matchingVoices.length > 0) {
-                if (targetGender === 'male') {
-                  const maleVoice = matchingVoices.find(v => v.name?.toLowerCase().includes('male') || v.name?.toLowerCase().includes('man') || (v as any).gender === 'male');
-                  selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
-                } else {
-                  const femaleVoice = matchingVoices.find(v => v.name?.toLowerCase().includes('female') || v.name?.toLowerCase().includes('woman') || (v as any).gender === 'female');
-                  selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[Dash] Fallback: could not get available voices, using default:', e);
-        }
-      }
-
-      return new Promise<void>((resolve, reject) => {
-        // Check abort flag before device TTS
-        if (this.isSpeechAborted) {
-          console.log('[Dash] ⚠️ Speech aborted before device TTS');
-          callbacks?.onStopped?.();
-          resolve();
-          return;
-        }
-
-        const speechOptions: any = {
-          language: voiceSettings.language,
-          pitch: adjustedPitch,
-          rate: adjustedRate,
-          onStart: () => {
-            // Check abort flag even after TTS starts
-            if (this.isSpeechAborted) {
-              console.log('[Dash] ⚠️ Speech aborted during device TTS start');
-              if (Speech && typeof Speech.stop === 'function') {
-                Speech.stop();
-              }
-              callbacks?.onStopped?.();
-              resolve();
-              return;
-            }
-            callbacks?.onStart?.();
-          },
-          onDone: () => {
-            if (!this.isSpeechAborted) {
-              callbacks?.onDone?.();
-            } else {
-              callbacks?.onStopped?.();
-            }
-            resolve();
-          },
-          onStopped: () => {
-            callbacks?.onStopped?.();
-            resolve();
-          },
-          onError: (error: any) => {
-            callbacks?.onError?.(error);
-            reject(error);
-          },
-        };
-        if (Platform.OS === 'ios' && selectedVoice) speechOptions.voice = selectedVoice;
-        // Check if Speech module is available
-        if (Speech && typeof Speech.speak === 'function') {
-          Speech.speak(normalizedText, speechOptions);
-        } else {
-          console.warn('[Dash] Speech module not available, skipping device TTS');
-          reject(new Error('Speech module not available'));
-        }
-      });
-    } catch (error) {
-      console.error('[Dash] Failed to speak response:', error);
-      callbacks?.onError?.(error);
-      throw error;
-    }
+    // Cast voice settings for compatibility
+    const voiceSettings = {
+      ...this.personality.voice_settings,
+      voice: (this.personality.voice_settings.voice === 'female' ? 'female' : 'male') as 'male' | 'female'
+    };
+    return this.voiceController.speakResponse(
+      message,
+      voiceSettings,
+      callbacks
+    );
   }
 
   /**
@@ -3239,30 +3084,10 @@ public async speakResponse(message: DashMessage, callbacks?: {
   }
 
   /**
-   * Stop current speech (device TTS and audio manager)
-   * Also cancels any ongoing AI response generation
+   * Stop current speech (delegated to voiceController)
    */
   public async stopSpeaking(): Promise<void> {
-    try {
-      // Set global abort flag to prevent any ongoing/queued speech
-      this.isSpeechAborted = true;
-      console.log('[Dash] 🛑 Speech abort flag set');
-      
-      // Stop device TTS (expo-speech)
-      if (Speech && typeof Speech.stop === 'function') {
-        await Speech.stop();
-        console.log('[Dash] ✅ Device TTS stopped');
-      }
-      
-      // Stop audio manager (Azure TTS playback)
-      const { audioManager } = await import('@/lib/voice/audio');
-      await audioManager.stop();
-      console.log('[Dash] ✅ Audio manager stopped');
-      
-      console.log('[Dash] ✅ Stopped all speech playback');
-    } catch (error) {
-      console.error('[Dash] Failed to stop speaking:', error);
-    }
+    return this.voiceController.stopSpeaking();
   }
 
   /**
@@ -3399,7 +3224,7 @@ public async speakResponse(message: DashMessage, callbacks?: {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
-        memory: Array.from(this.memory.values()),
+        memory: this.memoryManager.getAllMemoryItems(),
         personality: this.personality,
         timestamp: new Date().toISOString(),
         currentContext: await this.getCurrentContext(),
@@ -4143,100 +3968,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     }
   }
 
-  /**
-   * Load persistent memory from storage
-   */
-  private async loadMemory(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const memoryData = await storage.getItem(DashAIAssistant.MEMORY_KEY);
-      
-      if (memoryData) {
-        const memoryArray: DashMemoryItem[] = JSON.parse(memoryData);
-        this.memory = new Map(memoryArray.map(item => [item.key, item]));
-        
-        // Clean expired items
-        this.cleanExpiredMemory();
-        
-        console.log(`[Dash] Loaded ${this.memory.size} memory items`);
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load memory:', error);
-    }
-  }
-
-  /**
-   * Save memory to persistent storage
-   */
-  private async saveMemory(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const memoryArray = Array.from(this.memory.values());
-      await storage.setItem(DashAIAssistant.MEMORY_KEY, JSON.stringify(memoryArray));
-    } catch (error) {
-      console.error('[Dash] Failed to save memory:', error);
-    }
-  }
-
-  /**
-   * Update memory based on interaction
-   */
-  private async updateMemory(userInput: string, response: any): Promise<void> {
-    try {
-      // Extract key information to remember
-      const timestamp = Date.now();
-      
-      // Remember user preferences
-      if (userInput.includes('prefer') || userInput.includes('like')) {
-        const memoryItem: DashMemoryItem = {
-          id: `pref_${timestamp}`,
-          type: 'preference',
-          key: `user_preference_${timestamp}`,
-          value: userInput,
-          confidence: 0.8,
-          created_at: timestamp,
-          updated_at: timestamp,
-          expires_at: timestamp + (30 * 24 * 60 * 60 * 1000) // 30 days
-        };
-        this.memory.set(memoryItem.key, memoryItem);
-      }
-      
-      // Remember context for future conversations
-      const contextItem: DashMemoryItem = {
-        id: `ctx_${timestamp}`,
-        type: 'context',
-        key: `conversation_context_${timestamp}`,
-        value: {
-          input: userInput,
-          response: response.content,
-          timestamp
-        },
-        confidence: 0.6,
-        created_at: timestamp,
-        updated_at: timestamp,
-        expires_at: timestamp + (7 * 24 * 60 * 60 * 1000) // 7 days
-      };
-      this.memory.set(contextItem.key, contextItem);
-      
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to update memory:', error);
-    }
-  }
-
-  /**
-   * Clean expired memory items
-   */
-  private cleanExpiredMemory(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-    this.memory.forEach((item, key) => {
-      if (item.expires_at && item.expires_at < now) {
-        keysToDelete.push(key);
-      }
-    });
-    keysToDelete.forEach(key => this.memory.delete(key));
-  }
+  // Memory operations now delegated to DashMemoryManager
 
   /**
    * Load user context for personalization
@@ -4459,22 +4191,17 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   }
 
   /**
-   * Get memory items
+   * Get memory items (delegated to memoryManager)
    */
   public getMemory(): DashMemoryItem[] {
-    return Array.from(this.memory.values());
+    return this.memoryManager.getAllMemoryItems();
   }
 
   /**
-   * Clear all memory
+   * Clear all memory (delegated to memoryManager)
    */
   public async clearMemory(): Promise<void> {
-    try {
-      this.memory.clear();
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to clear memory:', error);
-    }
+    await this.memoryManager.clearMemory();
   }
 
   /**
@@ -4544,22 +4271,10 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   }
 
   /**
-   * Add memory item
+   * Add memory item (delegated to memoryManager)
    */
   private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
-    try {
-      const memoryItem: DashMemoryItem = {
-        ...item,
-        id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        created_at: Date.now(),
-        updated_at: Date.now()
-      };
-      
-      this.memory.set(memoryItem.key, memoryItem);
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to add memory item:', error);
-    }
+    await this.memoryManager.addMemoryItem(item);
   }
 
   /**
@@ -5103,9 +4818,8 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
       
       // Track message count for this conversation
-      const currentCount = this.messageCountByConversation.get(conversationId) || 0;
-      this.messageCountByConversation.set(conversationId, currentCount + 1);
-      awareness.conversation.messageCount = currentCount + 1;
+      this.memoryManager.incrementMessageCount(conversationId);
+      awareness.conversation.messageCount = this.memoryManager.getMessageCount(conversationId);
       
       // Build enhanced system prompt with all agentic context
       const session = await getCurrentSession();
@@ -5606,8 +5320,8 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       const timestamp = Date.now();
       
-      const intentMemory: DashMemoryItem = {
-        id: `intent_${timestamp}`,
+      // Add intent memory
+      await this.memoryManager.addMemoryItem({
         type: 'pattern',
         key: `user_intent_${analysis.intent.primary_intent}`,
         value: {
@@ -5617,18 +5331,14 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           timestamp: timestamp
         },
         confidence: analysis.intent.confidence,
-        created_at: timestamp,
-        updated_at: timestamp,
         expires_at: timestamp + (90 * 24 * 60 * 60 * 1000),
         reinforcement_count: 1,
         tags: ['intent', 'pattern', analysis.intent.category]
-      };
-      
-      this.memory.set(intentMemory.key, intentMemory);
+      });
       
       if (response.metadata?.confidence && response.metadata.confidence > 0.7) {
-        const successMemory: DashMemoryItem = {
-          id: `success_${timestamp}`,
+        // Add success memory
+        await this.memoryManager.addMemoryItem({
           type: 'interaction',
           key: `successful_interaction_${timestamp}`,
           value: {
@@ -5638,17 +5348,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             confidence: response.metadata.confidence
           },
           confidence: response.metadata.confidence,
-          created_at: timestamp,
-          updated_at: timestamp,
           expires_at: timestamp + (30 * 24 * 60 * 60 * 1000),
           emotional_weight: 1.0,
           tags: ['success', 'interaction']
-        };
-        
-        this.memory.set(successMemory.key, successMemory);
+        });
       }
-      
-      await this.saveMemory();
     } catch (error) {
       console.error('[Dash] Failed to update enhanced memory:', error);
     }
@@ -6197,16 +5901,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       this.proactiveTimer = null;
     }
     
-    // Clear all Maps to prevent memory leaks
-    this.memory.clear();
+    // Clear all Maps and state (delegated to modules)
+    this.memoryManager.clearAllState();
     this.activeTasks.clear();
     this.activeReminders.clear();
     this.pendingInsights.clear();
-    this.contextCache.clear();
-    this.messageCountByConversation.clear();
-    
-    // Clear interaction history array
-    this.interactionHistory = [];
     
     // Reset conversation pointer
     this.currentConversationId = null;
