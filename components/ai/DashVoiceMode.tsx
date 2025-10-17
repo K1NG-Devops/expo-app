@@ -415,19 +415,19 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     }
   }, [realtime.status, userTranscript, visible]);
 
-  // Pulse animation for orb
+  // Enhanced pulse animation for Society 5.0 - smoother, more organic
   const startPulseAnimation = () => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.15, duration: 1000, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1.18, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
       ])
     ).start();
     
     Animated.loop(
       Animated.sequence([
-        Animated.timing(orbGlowAnim, { toValue: 1, duration: 1500, useNativeDriver: false }),
-        Animated.timing(orbGlowAnim, { toValue: 0, duration: 1500, useNativeDriver: false }),
+        Animated.timing(orbGlowAnim, { toValue: 1, duration: 1800, useNativeDriver: false }),
+        Animated.timing(orbGlowAnim, { toValue: 0, duration: 1800, useNativeDriver: false }),
       ])
     ).start();
   };
@@ -599,12 +599,24 @@ const styles = StyleSheet.create({
     width: ORB_SIZE,
     height: ORB_SIZE,
     borderRadius: ORB_SIZE / 2,
+    // Enhanced glow effect for Society 5.0
+    shadowColor: '#0066FF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 40,
+    elevation: 20,
   },
   orb: {
     width: ORB_SIZE * 0.75,
     height: ORB_SIZE * 0.75,
     borderRadius: (ORB_SIZE * 0.75) / 2,
     overflow: 'hidden',
+    // Enhanced depth and 3D feel
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 15,
   },
   orbGradient: {
     width: '100%',
@@ -612,67 +624,88 @@ const styles = StyleSheet.create({
   },
   statusIcon: {
     position: 'absolute',
+    // Add subtle shadow to icon for depth
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   statusContainer: {
-    marginTop: 40,
+    marginTop: 50,
     paddingHorizontal: 32,
     alignItems: 'center',
     maxWidth: SCREEN_WIDTH * 0.9,
   },
   statusTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     textAlign: 'center',
     marginBottom: 16,
+    letterSpacing: 0.3,
   },
   transcriptText: {
-    fontSize: 14,
+    fontSize: 15,
     textAlign: 'center',
     marginBottom: 12,
+    lineHeight: 22,
+    opacity: 0.9,
   },
   responseText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
     textAlign: 'center',
     marginTop: 8,
+    lineHeight: 22,
   },
   closeButton: {
     position: 'absolute',
     top: 60,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    // Enhanced Society 5.0 button styling
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   muteButton: {
     position: 'absolute',
     bottom: -8,
     right: (ORB_SIZE * 0.125),
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#ffffff55',
+    // Enhanced button depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   stopButton: {
     position: 'absolute',
     bottom: -8,
     left: (ORB_SIZE * 0.125),
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#ffffff55',
+    // Enhanced button depth
+    shadowColor: '#E53935',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
