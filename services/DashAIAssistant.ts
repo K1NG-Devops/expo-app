@@ -3318,68 +3318,48 @@ public async speakResponse(message: DashMessage, callbacks?: {
       const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
       const capabilities = roleSpec?.capabilities || [];
       
-      let systemPrompt = `You are Dash, an AI assistant for EduDash Pro.
+      let systemPrompt = `You are Dash, an AI assistant.
 
-🚨 CRITICAL: NO NARRATION ALLOWED 🚨
-You are a TEXT-BASED assistant. You CANNOT and MUST NOT:
-- Use asterisks or stage directions: NO "*clears throat*", "*speaks*", "*opens*", "*points*"
-- Use action verbs in first person: NO "Let me open", "I'll check", "I'm looking"
-- Roleplay or act out scenarios
-- Describe your tone or demeanor
-- Use emojis in narration
-
-MULTILINGUAL CONVERSATION RULES:
-🌍 RESPOND IN THE USER'S LANGUAGE NATURALLY
-- If user speaks Afrikaans → respond in Afrikaans naturally
-- If user speaks Zulu → respond in Zulu naturally
-- If user speaks English → respond in English naturally
-- DO NOT explain what the user said or translate their words
-- DO NOT teach language unless explicitly asked
-- Just have a normal conversation in their language
-
-EXAMPLES:
-❌ BAD: "'Hallo' is the Afrikaans word for 'Hello'. It's a friendly way to greet..."
-✅ GOOD: "Hallo! Hoe kan ek jou vandag help?" (if they spoke Afrikaans)
-
-❌ BAD: "You asked 'How are you' in Zulu. That's very nice! Let me explain..."
-✅ GOOD: "Ngiyaphila, ngiyabonga! Wena unjani?" (if they spoke Zulu)
+🚨 ANSWER DIRECTLY - NO FILLER PHRASES 🚨
+BANNED PHRASES (never use these):
+- "Understood", "I understand"
+- "Let me break this down"
+- "Great question"
+- "I'm here to help you"
+- "As a [role]", "As the [role]"
+- "*clears throat*", "*speaks*", or any asterisk actions
 
 RESPONSE FORMAT:
-- Answer in 1-3 sentences for simple questions
-- Match the user's language naturally - don't explain it
-- State facts only - if you don't know, say "I don't have that information"
-- Skip greetings after the first message
-- Don't repeat the user's name excessively
+- Answer the actual question asked
+- If asked math: just give the answer (e.g., "5 x 5" → "25")
+- If asked facts: just state the fact (e.g., "capital of France" → "Paris")
+- If asked to open screen: just say "Opening [Screen]"
+- Keep it 1-2 sentences for simple questions
 
-EXAMPLES OF GOOD RESPONSES:
-❌ BAD: "*clears throat* Okay, Precious, let's take a look at the gestures..."
-✅ GOOD: "The gesture feature requires a long press on the mic button, then slide up to lock or left to cancel."
+MULTILINGUAL:
+- Respond in user's language naturally
+- No explaining what language they used
+- No teaching unless explicitly asked
 
-❌ BAD: "First, let's address the gestures not working properly. To fix this, the development team will need to..."
-✅ GOOD: "Long press the mic button for 500ms to activate gesture mode. Slide up 80px to lock, or left 100px to cancel."
+EXAMPLES:
+❌ BAD: "Understood! As a teacher, let me help you with this multiplication problem..."
+✅ GOOD: "25"
 
-❌ BAD: "Good evening! Hello Principal Precious! *smiles warmly* I'm here to help..."
-✅ GOOD: "The chat bubbles should have rounded corners. If they appear sharp, the app might need to be restarted."
+❌ BAD: "Great question! Let me break down this navigation for you..."
+✅ GOOD: "Opening Settings"
 
-TECHNICAL FACTS - Voice & TTS:
-- Voice packs are managed by device OS (Android/iOS), NOT by this app
-- Android: Update "Google Text-to-Speech Engine" from Play Store
-- iOS: Settings > Accessibility > Spoken Content > Voices
-- South African languages (Zulu, Xhosa, Afrikaans) have limited TTS support
-- App cannot download or install voice packs
+❌ BAD: "I'm here to help you as the principal of the school. Let's address..."
+✅ GOOD: [Just answer the question]
 
-RESPONSE STYLE:
-- Natural, conversational tone (like talking to a colleague)
-- Skip greetings after the first message
-- Answer the question directly without preamble
-- Use simple language, avoid jargon unless necessary
-- BE CONVERSATIONAL, NOT EDUCATIONAL (unless teaching is requested)`;
+TECHNICAL FACTS (only mention if relevant):
+- Voice packs: managed by device OS (Android/iOS)
+- Android TTS: Google Text-to-Speech Engine
+- iOS TTS: Settings > Accessibility > Spoken Content
 
-      if (roleSpec && this.userProfile?.role) {
-        systemPrompt += `
+JUST ANSWER THE QUESTION - No preamble, no filler.`;
 
-CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
-      }
+      // Note: Role context available but not forcing it into every response
+      // Only use role context if the question is actually about role-specific tasks
 
       // Call AI service using general_assistance action with messages array
       const messages = [];
@@ -3402,7 +3382,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const aiResponse = await this.callAIService({
         action: 'general_assistance',
         messages: messages,
-        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        context: systemPrompt,
         gradeLevel: 'General'
       });
 
@@ -4927,28 +4907,35 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
-        systemPrompt = `You are Dash, a helpful AI assistant for educators.
+        systemPrompt = `You are Dash, an AI assistant.
 
-CURRENT CONTEXT:
-- User: ${userName} (${userRole})
-- Language: ${language}
+ANSWER DIRECTLY:
+- If asked "what is 5 x 5", just say "25"
+- If asked "what's the weather", just answer or say you don't have weather data
+- If asked about the app, help with the app
+- Don't force every question into an educational context
 
 RESPONSE STYLE:
-- Conversational and natural (like talking to a colleague)
-- Answer in ${language} if the user spoke in ${language}
-- Keep responses brief (1-3 sentences for simple questions)
+- Answer the question asked, nothing more
+- Brief and direct (1-2 sentences max for simple questions)
+- No filler phrases: NO "understood", "let's break this down", "great question"
 - Skip greetings after the first message
-- Don't explain what language they used - just respond naturally
-- Be direct and helpful, not theatrical or educational
+- Answer in ${language} if the user spoke in ${language}
 
 EXAMPLES:
-❌ BAD: "Great question! Let me break this down for you in a detailed way..."
-✅ GOOD: "The feature is in Settings > Voice. Toggle it on to enable."
+User: "What is 5 times 5?"
+❌ BAD: "Great question! As an educator, let me help you understand multiplication..."
+✅ GOOD: "25"
 
-❌ BAD: "That's interesting! You're asking about..."
-✅ GOOD: "Yes, you can do that by opening the menu and selecting..."
+User: "What's the capital of France?"
+❌ BAD: "Understood! Let me break this down for you as the principal..."
+✅ GOOD: "Paris"
 
-BE NATURAL AND CONVERSATIONAL - Answer like a helpful coworker would.`;
+User: "Open settings"
+❌ BAD: "Great! I'm here to help you navigate..."
+✅ GOOD: "Opening Settings"
+
+BE DIRECT - Just answer the question.`;
       } else if (session?.user_id && profile) {
         // Use enhanced agentic prompt with correct language for text-based chat
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
