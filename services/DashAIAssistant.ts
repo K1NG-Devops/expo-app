@@ -4178,7 +4178,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
    */
   private async loadUserContext(): Promise<void> {
     try {
-      const profile = await getCurrentProfile();
+      const profile = await this.getCachedProfile();
       if (profile) {
         // Update personality based on user role
         this.personality = {
@@ -4849,7 +4849,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
   private async getCurrentContext(): Promise<any> {
     try {
       const now = new Date();
-      const profile = await getCurrentProfile();
+      const profile = await this.getCachedProfile();
       
       return {
         time_context: {
