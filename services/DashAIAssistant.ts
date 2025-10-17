@@ -931,7 +931,7 @@ export class DashAIAssistant {
     // Auto-detect language from transcription
     let detectedLanguage = 'en'; // Default to English
     if (tr.language) {
-      const mappedLanguage = this.mapLanguageCode(tr.language);
+      const mappedLanguage = this.messageHandler.mapLanguageCode(tr.language);
       detectedLanguage = mappedLanguage;
       console.log(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
       
@@ -2887,139 +2887,13 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
-   * Legacy method for backward compatibility
+   * Legacy method for backward compatibility (delegated to messageHandler)
    */
   private cleanTextForSpeech(text: string): string {
-    return this.normalizeTextForSpeech(text);
+    return this.messageHandler.normalizeTextForSpeech(text);
   }
   
-  /**
-   * Map Azure language codes to app language codes
-   * Converts transcription language codes (e.g., 'af-ZA') to app format ('af')
-   * Note: Only returns TTS-supported languages (af, zu, xh, nso)
-   */
-private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
-    const mapping: Record<string, 'en' | 'af' | 'zu' | 'xh' | 'nso'> = {
-      'en-ZA': 'en',
-      'en-US': 'en',
-      'en': 'en',
-      'af-ZA': 'af',
-      'af': 'af',
-      'zu-ZA': 'zu',
-      'zu': 'zu',
-      'xh-ZA': 'xh',
-      'xh': 'xh',
-      'nso-ZA': 'nso',
-      'nso': 'nso',
-      'st-ZA': 'nso', // Sesotho maps to Sepedi
-      'st': 'nso',
-    };
-    // Default to English if unknown
-    return mapping[azureCode] || 'en';
-  }
-
-  /**
-   * Speak text using Azure TTS via Edge Function
-   * Used for South African languages (af, zu, xh, nso)
-   */
-  private async speakWithAzureTTS(
-    text: string,
-    language: 'af' | 'zu' | 'xh' | 'nso',
-    callbacks?: {
-      onStart?: () => void;
-      onDone?: () => void;
-      onStopped?: () => void;
-      onError?: (error: any) => void;
-    }
-  ): Promise<void> {
-    const { assertSupabase } = await import('@/lib/supabase');
-    const { audioManager } = await import('@/lib/voice/audio');
-    
-    console.log(`[Dash] Calling Azure TTS Edge Function for ${language}`);
-    
-    try {
-      // Check abort flag before making network call
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure TTS network call');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      const supabase = assertSupabase();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No auth session for TTS Edge Function');
-      }
-      
-      // Call tts-proxy Edge Function
-      const { data, error } = await supabase.functions.invoke('tts-proxy', {
-        body: {
-          text,
-          language, // Send as 'language' (Edge Function accepts both 'lang' and 'language')
-          style: 'friendly',
-          rate: 0, // Use default rate
-          pitch: 0, // Use default pitch
-        },
-      });
-      
-      if (error) {
-        console.error('[Dash] TTS Edge Function error:', error);
-        throw error;
-      }
-      
-      if (data.fallback === 'device') {
-        // Edge Function says to use device TTS
-        console.log('[Dash] Edge Function returned device fallback');
-        throw new Error('Edge Function returned device fallback');
-      }
-      
-      const audioUrl = data.audio_url;
-      if (!audioUrl) {
-        throw new Error('No audio URL returned from Edge Function');
-      }
-      
-      console.log(`[Dash] ✅ Azure TTS audio URL received (cached: ${data.cache_hit || false})`);
-      
-      // Check abort flag before playing
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure audio playback');
-        callbacks?.onStopped?.();
-        return;
-      }
-      
-      // Play the audio using audio manager
-      callbacks?.onStart?.();
-      
-      // Use audioManager.play() with status callback
-      await audioManager.play(audioUrl, (playbackState) => {
-        // Check abort flag during playback
-        if (this.isSpeechAborted) {
-          console.log('[Dash] ⚠️ Speech aborted during Azure playback');
-          audioManager.stop();
-          callbacks?.onStopped?.();
-          return;
-        }
-
-        if (!playbackState.isPlaying && playbackState.position === 0 && !playbackState.error) {
-          // Playback finished
-          console.log('[Dash] Azure TTS playback finished');
-          if (!this.isSpeechAborted) {
-            callbacks?.onDone?.();
-          } else {
-            callbacks?.onStopped?.();
-          }
-        } else if (playbackState.error) {
-          console.error('[Dash] Azure TTS playback error:', playbackState.error);
-          callbacks?.onError?.(new Error(playbackState.error));
-        }
-      });
-      
-    } catch (error) {
-      console.error('[Dash] speakWithAzureTTS failed:', error);
-      throw error; // Re-throw so speakResponse can fall back to device TTS
-    }
-  }
+  // mapLanguageCode and speakWithAzureTTS now handled by messageHandler and voiceController
 
   /**
    * Play Dash's response with voice synthesis (delegated to voiceController)
@@ -3044,47 +2918,7 @@ private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
     );
   }
 
-  /**
-   * Robust heuristic language detection for text
-   * Enhanced with case-insensitive matching and language-specific markers
-   */
-  private detectLikelyAppLanguageFromText(text: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
-    try {
-      const t = (text || '').toLowerCase();
-      
-      // UNIQUE markers for each language (highest priority)
-      const uniqueMarkers = {
-        // Xhosa-specific words (not in Zulu)
-        xh: /\b(molo|ndiyabulela|uxolo|ewe|hayi|yintoni|ndiza|umntwana)\b/i,
-        // Zulu-specific words (not in Xhosa)
-        zu: /\b(sawubona|ngiyabonga|ngiyaphila|umfundi|siyakusiza|ufunde|yebo|cha|baba|umama)\b/i,
-        // Afrikaans-specific
-        af: /\b(hallo|asseblief|baie|goed|graag|ek|jy|nie|met|van|is|dit)\b/i,
-        // Sepedi-specific
-        nso: /\b(thobela|le\s+kae|ke\s+a\s+leboga|hle|ka\s+kgopelo)\b/i,
-      };
-      
-      // SHARED words (lower priority, used as tiebreakers)
-      const sharedWords = {
-        // "unjani", "kakhulu", "enkosi" are shared between Zulu/Xhosa
-        zuXhShared: /\b(unjani|kakhulu|enkosi)\b/i,
-      };
-      
-      // Check unique markers first (most reliable)
-      if (uniqueMarkers.xh.test(t)) return 'xh';
-      if (uniqueMarkers.zu.test(t)) return 'zu';
-      if (uniqueMarkers.af.test(t)) return 'af';
-      if (uniqueMarkers.nso.test(t)) return 'nso';
-      
-      // If only shared Nguni words detected, default to Zulu (more common)
-      if (sharedWords.zuXhShared.test(t)) return 'zu';
-      
-      // No strong signals → default to English (SA)
-      return 'en';
-    } catch {
-      return 'en';
-    }
-  }
+  // detectLikelyAppLanguageFromText now handled by messageHandler
 
   /**
    * Stop current speech (delegated to voiceController)
@@ -4854,7 +4688,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       }
       
       if (!language) {
-        language = this.detectLikelyAppLanguageFromText(content);
+        language = this.messageHandler.detectLanguageFromText(content);
         languageSource = 'text-heuristic';
       }
       
@@ -5953,7 +5787,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     // Heuristic language detection for typed/streamed text to inform TTS of the next assistant reply
     let detectedLang: 'en' | 'af' | 'zu' | 'xh' | 'nso' = 'en';
     try {
-      detectedLang = this.detectLikelyAppLanguageFromText(content);
+      detectedLang = this.messageHandler.detectLanguageFromText(content);
     } catch (error) {
       console.warn('[Dash] Language detection failed, using default (non-fatal):', error);
     }
