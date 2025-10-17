@@ -7,8 +7,7 @@
  * This is the main floating action button with voice AI capabilities.
  * Features:
  * - Single tap: Opens full Dash Assistant chat interface
- * - Double tap: Toggles elegant voice mode (DashVoiceMode)
- * - Long press: Opens voice mode for hands-free interaction
+ * - Long press: Opens elegant voice mode (DashVoiceMode) for hands-free interaction
  * - Drag-to-reposition with position persistence
  * - Smooth animations and haptic feedback
  * - Permission handling for audio recording
@@ -100,7 +99,6 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const pan = useRef(new Animated.ValueXY()).current;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressActivated = useRef<boolean>(false);
-  const lastTapRef = useRef<number>(0);
   
   // Legacy quick voice hook for permissions and speaking
   const {
@@ -323,35 +321,10 @@ const handleLongPress = async () => {
 
 
   const handlePress = () => {
+    // Ignore if long-press already activated
     if (longPressActivated.current) return;
-    const now = Date.now();
-    const delta = now - (lastTapRef.current || 0);
-    lastTapRef.current = now;
-    if (delta < 300) {
-      // Double tap -> toggle elegant voice mode
-      playClickSound();
-      try { 
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch((e) => {
-          console.log('[FAB] Double-tap haptic failed:', e);
-        }); 
-      } catch { /* Intentional: non-fatal */ }
-      // Ensure dash is initialized before toggling voice mode
-      if (!showVoiceMode) {
-        setIsLoading(true);
-        dash.initialize().then(() => {
-          setShowVoiceMode(true);
-          setIsLoading(false);
-        }).catch(e => {
-          console.error('[DashVoiceFAB] ❌ Failed to initialize:', e);
-          setIsLoading(false);
-        });
-      } else {
-        setShowVoiceMode(false);
-      }
-    } else {
-      // Single tap -> open full Dash assistant
-      handleSingleTap();
-    }
+    // Single tap always opens Dash Assistant chat
+    handleSingleTap();
   };
 
   const handlePressIn = () => {

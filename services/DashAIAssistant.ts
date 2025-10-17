@@ -5972,12 +5972,41 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
 
   /**
    * Cleanup resources and dispose of all caches
+   * 
+   * Implements the dispose pattern for safe resource cleanup.
+   * Call this when the DashAIAssistant instance is no longer needed,
+   * such as when a component unmounts or the app is closing.
+   * 
+   * @remarks
+   * After calling cleanup/dispose, any further operations on this instance
+   * will throw an error. A new instance must be created via getInstance().
+   * 
+   * Cleans up:
+   * - Active timers and intervals
+   * - All Maps (memory, tasks, reminders, insights, context, message counts)
+   * - Interaction history arrays
+   * - Error tracking state
+   * - Active speech/TTS (stops any ongoing speech playback)
+   * 
+   * @example
+   * ```typescript
+   * const dash = DashAIAssistant.getInstance();
+   * // ... use dash ...
+   * dash.dispose(); // Clean up when done
+   * ```
    */
   public cleanup(): void {
     console.log('[Dash] Cleaning up AI Assistant resources...');
     
     // Mark as disposed
     this.isDisposed = true;
+    
+    // Stop any active speech immediately
+    try {
+      this.stopSpeaking();
+    } catch (e) {
+      console.warn('[Dash] Failed to stop speech during cleanup (non-fatal):', e);
+    }
     
     // Clear timers
     if (this.proactiveTimer) {
@@ -5996,11 +6025,29 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     // Clear interaction history array
     this.interactionHistory = [];
     
+    // Reset conversation pointer
+    this.currentConversationId = null;
+    
     // Reset error tracking
     this.consecutiveErrors = 0;
     this.lastErrorTimestamp = 0;
     
-    console.log('[Dash] Cleanup complete');
+    console.log('[Dash] Cleanup complete - instance disposed');
+  }
+  
+  /**
+   * Dispose of the DashAIAssistant instance and free all resources.
+   * 
+   * This is an alias for cleanup() that follows the standard dispose pattern.
+   * 
+   * @remarks
+   * After calling dispose, the instance is marked as disposed and cannot be used.
+   * Any subsequent method calls will throw an error.
+   * 
+   * @see cleanup
+   */
+  public dispose(): void {
+    this.cleanup();
   }
   
   /**
