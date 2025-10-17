@@ -1,0 +1,11 @@
+=== BASELINE METRICS ===
+Date: Fri Oct 17 06:27:13 PM SAST 2025
+
+Total service files:
+38
+
+Total service lines:
+ 26689 total
+
+Singleton instances (getInstance calls):
+42

@@ -4,23 +4,21 @@
  * @status ACTIVE - Primary FAB component in use
  * @location app/_layout.tsx (currently deployed)
  * 
- * This is the main floating action button with voice recording capabilities.
+ * This is the main floating action button with voice AI capabilities.
  * Features:
- * - Voice recording with tap-and-hold gesture
+ * - Single tap: Opens full Dash Assistant chat interface
+ * - Double tap: Toggles elegant voice mode (DashVoiceMode)
+ * - Long press: Opens voice mode for hands-free interaction
  * - Drag-to-reposition with position persistence
- * - Double-tap to reset position
  * - Smooth animations and haptic feedback
  * - Permission handling for audio recording
  * 
  * Architecture:
- * - Uses PanResponder for gesture handling (no conflicts)
- * - Integrates with DashAIAssistant service
+ * - Uses PanResponder for gesture handling
+ * - Integrates with DashAIAssistant singleton service
+ * - Integrates with DashVoiceMode for full-screen voice UI
  * - Respects theme context
  * - AsyncStorage for position persistence
- * 
- * Related components:
- * - DashFloatingButton: Legacy basic version (deprecated)
- * - DashFloatingButtonEnhanced: Advanced features (not in use, needs fixes)
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -44,9 +42,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
-import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
 import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
-// import { RealtimeVoiceOverlay } from '@/components/ai/RealtimeVoiceOverlay';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { useTranslation } from 'react-i18next';
 
@@ -92,7 +88,6 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const { t } = useTranslation();
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
-  const [showQuickVoice, setShowQuickVoice] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -318,7 +313,6 @@ const handleLongPress = async () => {
       
       await ensureConversation();
       // Open elegant full-screen voice mode
-      setShowQuickVoice(false);
       setShowVoiceMode(true);
       setIsLoading(false);
     } catch (e) {
@@ -341,7 +335,6 @@ const handleLongPress = async () => {
           console.log('[FAB] Double-tap haptic failed:', e);
         }); 
       } catch { /* Intentional: non-fatal */ }
-      setShowQuickVoice(false);
       // Ensure dash is initialized before toggling voice mode
       if (!showVoiceMode) {
         setIsLoading(true);
@@ -484,7 +477,7 @@ const handlePressOut = () => {
   return (
     <>
       {/* Floating Action Button */}
-      {!showQuickVoice && !showVoiceMode && (
+      {!showVoiceMode && (
       <Animated.View
         style={[
           styles.container,
@@ -538,18 +531,6 @@ const handlePressOut = () => {
         dashInstance={dash}
         onMessageSent={() => { /* no-op */ }}
       />
-
-      {/* Modern WhatsApp-style Voice Recording Modal */}
-      {showQuickVoice && (
-        <VoiceRecordingModal
-          vc={vc}
-          visible={showQuickVoice}
-          onClose={() => {
-            try { vc.cancel(); } catch { /* Intentional: non-fatal */ }
-            setShowQuickVoice(false);
-          }}
-        />
-      )}
       
       {/* Global speaking overlay - shows when Dash is speaking */}
       <DashSpeakingOverlay 
