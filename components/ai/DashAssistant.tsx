@@ -1770,16 +1770,17 @@ return (
       )}
 
       {/* Elegant ChatGPT-style Voice Mode */}
-      <DashVoiceMode
-        visible={showVoiceMode}
-        onClose={() => {
-          console.log('[DashAssistant] Closing DashVoiceMode');
-          setShowVoiceMode(false);
-          setVoiceModeLang(undefined);
-        }}
-        dashInstance={dashInstance}
-        forcedLanguage={voiceModeLang}
-        onMessageSent={(msg) => {
+      {dashInstance && isInitialized && (
+        <DashVoiceMode
+          visible={showVoiceMode}
+          onClose={() => {
+            console.log('[DashAssistant] Closing DashVoiceMode');
+            setShowVoiceMode(false);
+            setVoiceModeLang(undefined);
+          }}
+          dashInstance={dashInstance}
+          forcedLanguage={voiceModeLang}
+          onMessageSent={(msg) => {
           // Update messages when voice mode sends a message
           (async () => {
             try {
@@ -1814,7 +1815,8 @@ return (
             }
           })();
         }}
-      />
+        />
+      )}
     </KeyboardAvoidingView>
   );
 };

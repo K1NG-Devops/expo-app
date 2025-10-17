@@ -71,19 +71,22 @@ trainee1@soilofafrica.dev
 - Easy to filter: `WHERE email LIKE '%.dev'`
 - Google owns `.dev` TLD and enforces HTTPS (blocks accidental exposure)
 
-### Layer 5: Explicit Migration Exclusion
+### Layer 5: Explicit Migration Isolation
 
-**In `supabase/config.toml`:**
-```toml
-[db]
-# Exclude seed migrations from production
-seed_paths = ["supabase/migrations/99999999999999_seed_*.sql"]
+In this repo, dev-only seeds live in `supabase/local_migrations` (gitignored) and are applied manually. They are never part of `supabase/migrations`.
+
+Apply locally:
+```bash
+supabase db query -f supabase/local_migrations/<seed_file>.sql
 ```
 
-**In CI/CD pipeline:**
+CI/CD guard (optional): ensure no seed-like files exist under tracked migrations:
 ```bash
-# Deploy to production (exclude seed migrations)
-supabase db push --exclude-migrations "99999999999999_seed_*.sql"
+# Fail if any 99999* seed files are accidentally added to tracked migrations
+if ls supabase/migrations/99999* 2>/dev/null; then
+  echo "ERROR: Seed-like migrations detected under supabase/migrations";
+  exit 1;
+fi
 ```
 
 ---
@@ -299,7 +302,7 @@ FOR EACH ROW EXECUTE FUNCTION prevent_dev_emails_in_prod();
 
 ## 🎓 Example: Soil Of Africa Seed Data
 
-**Location:** `supabase/migrations/99999999999999_seed_soil_of_africa_dev_only.sql`
+**Location:** `supabase/local_migrations/99999999999999_seed_soil_of_africa_dev_only.sql`
 
 **What it creates:**
 - Organization: `org_soil_of_africa_dev`
@@ -315,7 +318,7 @@ FOR EACH ROW EXECUTE FUNCTION prevent_dev_emails_in_prod();
 
 **To run:**
 ```bash
-supabase db push  # Only in development
+supabase db query -f supabase/local_migrations/99999999999999_seed_soil_of_africa_dev_only.sql
 ```
 
 **To clean:**
@@ -328,11 +331,11 @@ npm run cleanup-seeds
 ## 📝 Quick Reference Commands
 
 ```bash
-# Create new seed migration (manual file creation)
-touch supabase/migrations/99999999999999_seed_description.sql
+# Create new seed file (manual file creation)
+touch supabase/local_migrations/99999999999999_seed_description.sql
 
-# Apply migrations (development only)
-supabase db push
+# Apply a local seed (development only)
+supabase db query -f supabase/local_migrations/99999999999999_seed_description.sql
 
 # Clean seed data
 npm run cleanup-seeds
@@ -340,11 +343,11 @@ npm run cleanup-seeds
 # Audit production safety
 npm run audit-prod-safety
 
-# Deploy to production (excludes seeds)
-supabase db push --exclude-migrations "99999*"
+# Deploy to production
+supabase db push  # seeds not included (gitignored)
 
-# List all seed migrations
-ls supabase/migrations/99999*
+# List local seed files
+ls supabase/local_migrations/*.sql
 ```
 
 ---
