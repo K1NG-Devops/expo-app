@@ -18,19 +18,19 @@ import type { AIQuotaFeature } from './limits';
 function getBaseQuotasByTier(tier: string): Record<AIQuotaFeature, number> {
   switch (tier.toLowerCase()) {
     case 'free':
-      return { lesson_generation: 5, grading_assistance: 5, homework_help: 15 };
+      return { lesson_generation: 5, grading_assistance: 5, homework_help: 15, transcription: 60 };
     case 'parent_starter':
-      return { lesson_generation: 0, grading_assistance: 0, homework_help: 30 };
+      return { lesson_generation: 0, grading_assistance: 0, homework_help: 30, transcription: 120 };
     case 'parent_plus':
-      return { lesson_generation: 0, grading_assistance: 0, homework_help: 100 };
+      return { lesson_generation: 0, grading_assistance: 0, homework_help: 100, transcription: 300 };
     case 'private_teacher':
-      return { lesson_generation: 20, grading_assistance: 20, homework_help: 100 };
+      return { lesson_generation: 20, grading_assistance: 20, homework_help: 100, transcription: 600 };
     case 'pro':
-      return { lesson_generation: 50, grading_assistance: 100, homework_help: 300 };
+      return { lesson_generation: 50, grading_assistance: 100, homework_help: 300, transcription: 1800 };
     case 'enterprise':
-      return { lesson_generation: 5000, grading_assistance: 10000, homework_help: 30000 };
+      return { lesson_generation: 5000, grading_assistance: 10000, homework_help: 30000, transcription: 36000 };
     default:
-      return { lesson_generation: 5, grading_assistance: 5, homework_help: 15 };
+      return { lesson_generation: 5, grading_assistance: 5, homework_help: 15, transcription: 60 };
   }
 }
 
@@ -84,12 +84,12 @@ export async function getSchoolAISubscriptionDirect(preschoolId: string): Promis
         subscription_tier: tier as any,
         org_type: 'preschool' as any,
         total_quotas: baseQuotas,
-        allocated_quotas: { 'lesson_generation': 0, 'grading_assistance': 0, 'homework_help': 0 },
+        allocated_quotas: { 'lesson_generation': 0, 'grading_assistance': 0, 'homework_help': 0, 'transcription': 0 },
         available_quotas: baseQuotas,
-        total_usage: { 'lesson_generation': 0, 'grading_assistance': 0, 'homework_help': 0 },
+        total_usage: { 'lesson_generation': 0, 'grading_assistance': 0, 'homework_help': 0, 'transcription': 0 },
         allow_teacher_self_allocation: false,
-        default_teacher_quotas: { 'lesson_generation': 10, 'grading_assistance': 5, 'homework_help': 20 },
-        max_individual_quota: { 'lesson_generation': Math.floor(baseQuotas.lesson_generation * 0.5), 'grading_assistance': Math.floor(baseQuotas.grading_assistance * 0.5), 'homework_help': Math.floor(baseQuotas.homework_help * 0.5) },
+        default_teacher_quotas: { 'lesson_generation': 10, 'grading_assistance': 5, 'homework_help': 20, 'transcription': 30 },
+        max_individual_quota: { 'lesson_generation': Math.floor(baseQuotas.lesson_generation * 0.5), 'grading_assistance': Math.floor(baseQuotas.grading_assistance * 0.5), 'homework_help': Math.floor(baseQuotas.homework_help * 0.5), 'transcription': Math.floor(baseQuotas.transcription * 0.5) },
         current_period_start: new Date().toISOString(),
         current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString(),
@@ -115,23 +115,27 @@ export async function getSchoolAISubscriptionDirect(preschoolId: string): Promis
         'lesson_generation': 0,
         'grading_assistance': 0,
         'homework_help': 0,
+        'transcription': 0,
       },
       available_quotas: baseQuotas,
       total_usage: {
         'lesson_generation': 0,
         'grading_assistance': 0,
         'homework_help': 0,
+        'transcription': 0,
       },
       allow_teacher_self_allocation: false,
       default_teacher_quotas: {
         'lesson_generation': 20,
         'grading_assistance': 30,
         'homework_help': 50,
+        'transcription': 300,
       },
       max_individual_quota: {
         'lesson_generation': Math.floor(baseQuotas.lesson_generation * 0.5),
         'grading_assistance': Math.floor(baseQuotas.grading_assistance * 0.5),
         'homework_help': Math.floor(baseQuotas.homework_help * 0.5),
+        'transcription': Math.floor(baseQuotas.transcription * 0.5),
       },
       current_period_start: new Date().toISOString(),
       current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
@@ -381,16 +385,19 @@ export async function allocateAIQuotasDirect(
         lesson_generation: allocatedQuotas.claude_messages || 0,
         grading_assistance: allocatedQuotas.content_generation || 0,
         homework_help: allocatedQuotas.assessment_ai || 0,
+        transcription: allocatedQuotas.transcription || 0,
       },
       used_quotas: {
         lesson_generation: usedQuotas.claude_messages || 0,
         grading_assistance: usedQuotas.content_generation || 0,
         homework_help: usedQuotas.assessment_ai || 0,
+        transcription: usedQuotas.transcription || 0,
       },
       remaining_quotas: {
         lesson_generation: Math.max(0, (allocatedQuotas.claude_messages || 0) - (usedQuotas.claude_messages || 0)),
         grading_assistance: Math.max(0, (allocatedQuotas.content_generation || 0) - (usedQuotas.content_generation || 0)),
         homework_help: Math.max(0, (allocatedQuotas.assessment_ai || 0) - (usedQuotas.assessment_ai || 0)),
+        transcription: Math.max(0, (allocatedQuotas.transcription || 0) - (usedQuotas.transcription || 0)),
       },
       allocated_by: allocation.allocated_by,
       allocated_at: allocation.allocated_at,

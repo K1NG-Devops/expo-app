@@ -15,6 +15,7 @@ module.exports = ({ config }) => {
     'expo-router',
     'expo-updates',
     'sentry-expo',
+    'expo-audio',
     [
       'react-native-google-mobile-ads',
       {
@@ -57,7 +58,7 @@ module.exports = ({ config }) => {
     icon: './assets/icon.png',
     userInterfaceStyle: 'light',
     scheme: 'edudashpro',
-    newArchEnabled: true,
+    newArchEnabled: false,
     assetBundlePatterns: [
       '**/*',
       'locales/**/*.json',
@@ -105,9 +106,6 @@ module.exports = ({ config }) => {
         'android.permission.ACCESS_FINE_LOCATION',
         'android.permission.ACCESS_COARSE_LOCATION',
       ],
-      compileSdkVersion: 34,
-      targetSdkVersion: 34,
-      minSdkVersion: 21,
       versionCode: 3,
     },
     plugins,

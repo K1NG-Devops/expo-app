@@ -3060,14 +3060,21 @@ public async speakResponse(message: DashMessage, callbacks?: {
   }
 
   /**
-   * Stop current speech
+   * Stop current speech (device TTS and audio manager)
+   * Also cancels any ongoing AI response generation
    */
   public async stopSpeaking(): Promise<void> {
     try {
-      // Check if Speech module is available
+      // Stop device TTS (expo-speech)
       if (Speech && typeof Speech.stop === 'function') {
         await Speech.stop();
       }
+      
+      // Stop audio manager (Azure TTS playback)
+      const { audioManager } = await import('@/lib/voice/audio');
+      await audioManager.stop();
+      
+      console.log('[Dash] ✅ Stopped all speech playback');
     } catch (error) {
       console.error('[Dash] Failed to stop speaking:', error);
     }
@@ -3097,7 +3104,7 @@ public async speakResponse(message: DashMessage, callbacks?: {
       const inputLC = String(userInput || '').trim().toLowerCase();
       if (inputLC.includes('can you hear me')) {
         const profile = await getCurrentProfile();
-        const displayName = (profile as any)?.full_name || (profile as any)?.first_name || 'there';
+        const displayName = (profile as any)?.first_name || 'there';
         const content = `Yes, I can hear you clearly, ${displayName}. How can I help you today?`;
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -3134,8 +3141,8 @@ public async speakResponse(message: DashMessage, callbacks?: {
       
       // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
       console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
-      const { DashProactiveEngine } = await import('./DashProactiveEngine');
-      const proactiveEngine = DashProactiveEngine.getInstance();
+      const proactiveEngineModule = await import('./DashProactiveEngine');
+      const proactiveEngine = proactiveEngineModule.default; // Use default export (already an instance)
       const userRole = profile?.role || 'parent';
       const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
         autonomyLevel: this.autonomyLevel,
@@ -3342,7 +3349,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         const params: Record<string, string> = this.extractLessonParameters(userInput, aiResponse?.content || '');
         
         // Add tier-appropriate model selection
-        const userTier = this.getUserTier();
+        const userTier = await this.getUserTier();
         switch (userTier) {
           case 'starter':
           case 'premium':
@@ -4468,7 +4475,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
           this.userProfile = {
             userId: currentProfile.id,
             role: currentProfile.role as any,
-            name: (currentProfile as any).full_name || 'User',
+            name: (currentProfile as any).first_name || 'User',
             preferences: {
               communication_style: 'friendly',
               notification_frequency: 'daily_digest',
@@ -4831,9 +4838,39 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         console.log(`[Dash] ⚠️  Language from ${languageSource}, not from voice detection - AI may not respond naturally`);
       }
       
+      // Determine if this is a voice interaction (from orb/voice mode)
+      const isVoiceMode = languageSource === 'detected-voice' || detectedLanguage !== undefined;
+      
       let systemPrompt: string;
-      if (session?.user_id && profile) {
-        // Use enhanced agentic prompt with correct language
+      if (isVoiceMode) {
+        // STREAMLINED CONVERSATIONAL PROMPT FOR VOICE
+        const userName = awareness?.user?.name || 'there';
+        const userRole = (profile as any)?.role || 'user';
+        
+        systemPrompt = `You are Dash, a helpful AI assistant for educators.
+
+CURRENT CONTEXT:
+- User: ${userName} (${userRole})
+- Language: ${language}
+
+RESPONSE STYLE:
+- Conversational and natural (like talking to a colleague)
+- Answer in ${language} if the user spoke in ${language}
+- Keep responses brief (1-3 sentences for simple questions)
+- Skip greetings after the first message
+- Don't explain what language they used - just respond naturally
+- Be direct and helpful, not theatrical or educational
+
+EXAMPLES:
+❌ BAD: "Great question! Let me break this down for you in a detailed way..."
+✅ GOOD: "The feature is in Settings > Voice. Toggle it on to enable."
+
+❌ BAD: "That's interesting! You're asking about..."
+✅ GOOD: "Yes, you can do that by opening the menu and selecting..."
+
+BE NATURAL AND CONVERSATIONAL - Answer like a helpful coworker would.`;
+      } else if (session?.user_id && profile) {
+        // Use enhanced agentic prompt with correct language for text-based chat
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
           userId: session.user_id,
           profile,
@@ -5324,10 +5361,23 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       const supabase = assertSupabase();
       
-      // Include model from environment variables if not specified
+      // Tier-based model selection - Sonnet for paid tiers, Haiku for free
+      let selectedModel = params.model;
+      if (!selectedModel) {
+        const userTier = await this.getUserTier();
+        if (userTier === 'free') {
+          selectedModel = 'claude-3-haiku-20240307';
+          console.log('[Dash] Using Haiku for free tier');
+        } else {
+          // Paid tiers (starter, premium, pro, enterprise) get Sonnet
+          selectedModel = 'claude-3-5-sonnet-20241022';
+          console.log(`[Dash] Using Sonnet 3.5 for ${userTier} tier`);
+        }
+      }
+      
       const requestBody = {
         ...params,
-        model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
+        model: selectedModel
       };
       
       // Queue the AI request to prevent rate limiting
@@ -5675,12 +5725,96 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   
   /**
    * Get user's subscription tier for model selection
+   * Queries database to determine actual subscription level
    */
-  private getUserTier(): 'free' | 'starter' | 'premium' | 'enterprise' {
-    // For now, return 'starter' as default since we don't have subscription info in DashAIAssistant
-    // This should be updated to check actual subscription status when available
-    // TODO: Integrate with subscription context or session data
-    return 'starter';
+  private async getUserTier(): Promise<'free' | 'starter' | 'premium' | 'enterprise'> {
+    try {
+      const supabase = assertSupabase();
+      const { data: userRes } = await supabase.auth.getUser();
+      if (!userRes?.user) return 'free';
+      
+      const user = userRes.user;
+      
+      // Check user metadata first (fastest)
+      const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
+      if (metaTier && ['free', 'starter', 'premium', 'enterprise'].includes(metaTier)) {
+        return metaTier as 'free' | 'starter' | 'premium' | 'enterprise';
+      }
+      
+      // Get school/org ID
+      let schoolId = (user?.user_metadata as any)?.preschool_id;
+      let orgId = (user?.user_metadata as any)?.organization_id;
+      
+      if (!schoolId || !orgId) {
+        const { data: userRow } = await supabase
+          .from('users')
+          .select('preschool_id, organization_id')
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
+        schoolId = schoolId || userRow?.preschool_id;
+        orgId = orgId || userRow?.organization_id;
+      }
+      
+      // Check organization tier
+      if (orgId) {
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('plan_tier')
+          .eq('id', orgId)
+          .maybeSingle();
+        if (org?.plan_tier) {
+          const tierStr = String(org.plan_tier).toLowerCase();
+          if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
+            return tierStr as 'starter' | 'premium' | 'enterprise';
+          }
+        }
+      }
+      
+      // Check school subscription
+      if (schoolId) {
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('plan_id')
+          .eq('school_id', schoolId)
+          .in('status', ['active', 'trialing'])
+          .maybeSingle();
+        
+        if (sub?.plan_id) {
+          const { data: plan } = await supabase
+            .from('subscription_plans')
+            .select('tier')
+            .eq('id', sub.plan_id)
+            .maybeSingle();
+          
+          if (plan?.tier) {
+            const tierStr = String(plan.tier).toLowerCase();
+            if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
+              return tierStr as 'starter' | 'premium' | 'enterprise';
+            }
+          }
+        }
+        
+        // Fallback to school default tier
+        const { data: school } = await supabase
+          .from('preschools')
+          .select('subscription_tier')
+          .eq('id', schoolId)
+          .maybeSingle();
+        
+        if (school?.subscription_tier) {
+          const tierStr = String(school.subscription_tier).toLowerCase();
+          if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
+            return tierStr as 'starter' | 'premium' | 'enterprise';
+          }
+        }
+      }
+      
+      // Default to free
+      return 'free';
+    } catch (error) {
+      console.error('[Dash] Failed to determine user tier:', error);
+      return 'free'; // Safe fallback
+    }
   }
 
   /**

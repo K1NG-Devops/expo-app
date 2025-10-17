@@ -11,6 +11,16 @@
  * See: hooks/useRealtimeVoice.ts and hooks/useVoiceController.ts for streaming implementation.
  */
 
+/**
+ * [TESTING MODE - 2025-01-16]
+ * OpenAI Whisper-1 temporarily disabled to validate Deepgram Nova-2 performance.
+ * Current routing:
+ * - SA languages (zu, af, xh) → Azure Speech Service
+ * - English → Deepgram Nova-2 only (no Whisper fallback)
+ * 
+ * TODO: Re-enable Whisper as fallback after Deepgram validation complete
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
@@ -261,6 +271,27 @@ async function transcribeWithOpenAI(audioUrl: string, language?: string): Promis
 }
 
 /**
+ * Check transcription quota for user
+ */
+async function checkTranscriptionQuota(userId: string, preschoolId?: string): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-usage', {
+      body: { action: 'check_quota', feature: 'transcription', userId, preschoolId }
+    })
+    
+    if (error) {
+      console.warn('Quota check failed, allowing by default:', error)
+      return { allowed: true }
+    }
+    
+    return data || { allowed: true }
+  } catch (error) {
+    console.warn('Quota check error, allowing by default:', error)
+    return { allowed: true }
+  }
+}
+
+/**
  * Update voice note with transcription results
  */
 async function updateVoiceNoteTranscription(voiceNoteId: string, transcription: TranscriptionResponse) {
@@ -316,6 +347,23 @@ async function trackTranscriptionEvent(voiceNote: any, transcription: Transcript
           provider: TRANSCRIPTION_PROVIDER
         }
       })
+
+    // Also log usage for quota tracking
+    await supabase.from('ai_usage_logs').insert({
+      preschool_id: voiceNote.preschool_id,
+      user_id: voiceNote.created_by,
+      feature: 'transcription',
+      tier: 'batch',
+      provider: TRANSCRIPTION_PROVIDER,
+      metadata: {
+        voice_note_id: voiceNote.id,
+        transcript_length: transcription.transcript.length,
+        word_count: transcription.word_count,
+        language: transcription.language,
+        session_id: `batch_transcription_${Date.now()}`,
+      },
+      created_at: new Date().toISOString(),
+    })
   } catch (error) {
     console.error('Error tracking transcription event:', error)
   }
@@ -331,6 +379,30 @@ async function transcribeAudio(request: Request): Promise<Response> {
 
     let voiceNote: any
     let audioUrl: string
+
+    // Check transcription quota before processing
+    if (transcriptionRequest.voice_note_id) {
+      // Get voice note to check user
+      const { data: voiceNoteData } = await supabase
+        .from('voice_notes')
+        .select('created_by, preschool_id')
+        .eq('id', transcriptionRequest.voice_note_id)
+        .maybeSingle()
+      
+      if (voiceNoteData?.created_by) {
+        const quotaCheck = await checkTranscriptionQuota(voiceNoteData.created_by, voiceNoteData.preschool_id)
+        if (!quotaCheck.allowed) {
+          return new Response(JSON.stringify({ 
+            error: 'Transcription quota exceeded',
+            reason: quotaCheck.reason,
+            remaining: quotaCheck.remaining || 0
+          }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+      }
+    }
 
     // Get voice note information
     if (transcriptionRequest.voice_note_id) {
@@ -379,6 +451,9 @@ async function transcribeAudio(request: Request): Promise<Response> {
     // Determine language for transcription
     const language = transcriptionRequest.language || voiceNote?.language
 
+    // [TEST MODE] Whisper-1 disabled - Azure for SA languages, Deepgram for English only
+    console.log('[TEST MODE] Whisper-1 disabled - Azure for SA languages, Deepgram for English only')
+    
     // Perform transcription based on language and provider availability
     let transcription: TranscriptionResponse
     let providerUsed = TRANSCRIPTION_PROVIDER
@@ -387,7 +462,7 @@ async function transcribeAudio(request: Request): Promise<Response> {
     try {
       // SMART ROUTING: Use Azure for SA languages (af, zu, xh) as they have best support
       const saLanguages = ['af', 'zu', 'xh']
-      const useAzure = (TRANSCRIPTION_PROVIDER === 'auto' || TRANSCRIPTION_PROVIDER === 'azure') && 
+      const useAzure = (TRANSCRIPTION_PROVIDER === 'auto' || TRANSCRIPTION_PROVIDER === 'azure' || TRANSCRIPTION_PROVIDER === 'deepgram') && 
                        saLanguages.includes(language || '') && 
                        AZURE_SPEECH_KEY && 
                        AZURE_SPEECH_REGION
@@ -396,57 +471,46 @@ async function transcribeAudio(request: Request): Promise<Response> {
         console.log(`Using Azure Speech for SA language: ${language}`)
         transcription = await transcribeWithAzure(audioUrl, language)
         providerUsed = 'azure'
-      } else if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
-        console.log('Using OpenAI Whisper for transcription')
-        transcription = await transcribeWithOpenAI(audioUrl, language)
-        providerUsed = 'openai'
       } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && DEEPGRAM_API_KEY) {
-        console.log('Using Deepgram for transcription')
+        console.log('Using Deepgram for English transcription')
         transcription = await transcribeWithDeepgram(audioUrl, language)
         providerUsed = 'deepgram'
       } else {
-        // Auto-select best provider based on availability
+        // Auto-select: Azure for SA languages, Deepgram for everything else
         if (AZURE_SPEECH_KEY && saLanguages.includes(language || '')) {
           console.log('Auto-selecting Azure for SA language')
           transcription = await transcribeWithAzure(audioUrl, language)
           providerUsed = 'azure'
-        } else if (OPENAI_API_KEY) {
-          console.log('Auto-selecting OpenAI Whisper')
-          transcription = await transcribeWithOpenAI(audioUrl, language)
-          providerUsed = 'openai'
         } else if (DEEPGRAM_API_KEY) {
-          console.log('Auto-selecting Deepgram')
+          console.log('Auto-selecting Deepgram for English')
           transcription = await transcribeWithDeepgram(audioUrl, language)
           providerUsed = 'deepgram'
         } else {
-          throw new Error('No transcription provider configured. Please set AZURE_SPEECH_KEY, OPENAI_API_KEY, or DEEPGRAM_API_KEY.')
+          throw new Error('No transcription provider configured. Please set AZURE_SPEECH_KEY or DEEPGRAM_API_KEY.')
         }
       }
     } catch (primaryError) {
-      console.error(`Primary transcription provider (${providerUsed}) failed:`, primaryError)
+      console.error(`[TEST MODE] Primary transcription provider (${providerUsed}) failed:`, primaryError)
       
-      // Intelligent fallback: Azure -> Whisper -> Deepgram
+      // [DISABLED FOR TESTING] Whisper fallback commented out
+      // Intelligent fallback: Azure <-> Deepgram only (no Whisper)
       try {
-        if (providerUsed === 'azure' && OPENAI_API_KEY) {
-          console.log('Azure failed, falling back to OpenAI Whisper')
-          transcription = await transcribeWithOpenAI(audioUrl, language)
-          providerUsed = 'openai'
-          usedFallback = true
-        } else if (providerUsed === 'openai' && DEEPGRAM_API_KEY) {
-          console.log('OpenAI failed, falling back to Deepgram')
+        if (providerUsed === 'azure' && DEEPGRAM_API_KEY) {
+          console.log('[TEST MODE] Azure failed, falling back to Deepgram')
           transcription = await transcribeWithDeepgram(audioUrl, language)
           providerUsed = 'deepgram'
           usedFallback = true
-        } else if (providerUsed === 'deepgram' && OPENAI_API_KEY) {
-          console.log('Deepgram failed, falling back to OpenAI Whisper')
-          transcription = await transcribeWithOpenAI(audioUrl, language)
-          providerUsed = 'openai'
+        } else if (providerUsed === 'deepgram' && AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+          console.log('[TEST MODE] Deepgram failed, falling back to Azure')
+          transcription = await transcribeWithAzure(audioUrl, language)
+          providerUsed = 'azure'
           usedFallback = true
         } else {
+          console.error('[TEST MODE] No fallback available, Whisper-1 is disabled')
           throw primaryError
         }
       } catch (fallbackError) {
-        console.error('Fallback transcription provider also failed:', fallbackError)
+        console.error('[TEST MODE] Fallback transcription provider also failed:', fallbackError)
         throw primaryError
       }
     }

@@ -1,3 +1,12 @@
+/**
+ * [TESTING MODE - 2025-01-16]
+ * OpenAI Whisper-1 temporarily disabled to validate Deepgram Nova-2 performance.
+ * Current routing:
+ * - All languages → Deepgram Nova-2 only (no Whisper fallback)
+ * 
+ * TODO: Re-enable Whisper as fallback after Deepgram validation complete
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
@@ -144,6 +153,27 @@ async function transcribeWithDeepgram(audioFile: File, language: string = 'en'):
 }
 
 /**
+ * Check transcription quota for user
+ */
+async function checkTranscriptionQuota(userId: string, preschoolId?: string): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-usage', {
+      body: { action: 'check_quota', feature: 'transcription', userId, preschoolId }
+    })
+    
+    if (error) {
+      console.warn('Quota check failed, allowing by default:', error)
+      return { allowed: true }
+    }
+    
+    return data || { allowed: true }
+  } catch (error) {
+    console.warn('Quota check error, allowing by default:', error)
+    return { allowed: true }
+  }
+}
+
+/**
  * Log usage to ai_usage_logs table
  */
 async function logUsage(
@@ -158,13 +188,14 @@ async function logUsage(
     await supabase.from('ai_usage_logs').insert({
       preschool_id: preschoolId,
       user_id: userId,
-      feature: 'asr',
+      feature: 'transcription',
       tier: 'chunk',
       provider,
       metadata: {
         chunk_index: chunkIndex,
         latency_ms: latencyMs,
         success,
+        session_id: `transcription_${Date.now()}`,
       },
       created_at: new Date().toISOString(),
     })
@@ -201,6 +232,19 @@ serve(async (req: Request) => {
 
     userId = authContext.userId
     preschoolId = authContext.preschoolId
+
+    // Check transcription quota before processing
+    const quotaCheck = await checkTranscriptionQuota(userId, preschoolId)
+    if (!quotaCheck.allowed) {
+      return new Response(JSON.stringify({ 
+        error: 'Transcription quota exceeded',
+        reason: quotaCheck.reason,
+        remaining: quotaCheck.remaining || 0
+      }), {
+        status: 429,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
 
     // Parse multipart form data
     const formData = await req.formData()
@@ -248,7 +292,9 @@ serve(async (req: Request) => {
     }
     sessionChunkCounts.set(sessionId, currentCount + 1)
 
-    // Transcribe with primary provider (Deepgram Nova-2 for speed)
+    // [TEST MODE] Whisper-1 disabled - using Deepgram Nova-2 only
+    console.log('[TEST MODE] Whisper-1 disabled - using Deepgram Nova-2 only')
+    
     let result: { transcript: string; error?: string }
     let usedFallback = false
 
@@ -257,20 +303,22 @@ serve(async (req: Request) => {
       result = await transcribeWithDeepgram(audioFile, language)
       provider = 'deepgram'
       
-      // Try Whisper fallback if Deepgram failed
-      if (result.error && OPENAI_API_KEY) {
-        console.log(`Chunk ${chunkIndex}: Deepgram failed, trying Whisper fallback`)
-        result = await transcribeWithWhisper(audioFile, language)
-        provider = 'whisper'
-        usedFallback = true
+      // [DISABLED FOR TESTING] Whisper fallback commented out
+      // if (result.error && OPENAI_API_KEY) {
+      //   console.log(`Chunk ${chunkIndex}: Deepgram failed, trying Whisper fallback`)
+      //   result = await transcribeWithWhisper(audioFile, language)
+      //   provider = 'whisper'
+      //   usedFallback = true
+      // }
+      
+      // If Deepgram fails, return explicit error (no fallback during testing)
+      if (result.error) {
+        console.error(`[TEST MODE] Deepgram failed for chunk ${chunkIndex}, no fallback available`)
       }
-    } else if (OPENAI_API_KEY) {
-      // Fallback to Whisper if Deepgram not configured
-      result = await transcribeWithWhisper(audioFile, language)
-      provider = 'whisper'
     } else {
       return new Response(JSON.stringify({ 
-        error: 'No transcription provider configured'
+        error: 'Deepgram API key not configured',
+        details: 'Whisper-1 is currently disabled for testing'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

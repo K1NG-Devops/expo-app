@@ -208,35 +208,26 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
 
       setState('transcribing');
       
-      // Wait for stream to finish connecting if still connecting
+      // Handle stream stop
       const currentStatus = realtimeVoice.statusRef.current;
       console.log('[VoiceController] 🔍 Checking stream status before stopping. Current:', currentStatus);
-      if (streamingEnabled && (currentStatus === 'connecting' || currentStatus === 'streaming')) {
-        // First, wait for stream to establish (increased from 5s to 12s for slow WebRTC handshakes)
-        if (currentStatus === 'connecting') {
-          console.log('[VoiceController] ⏳ Stream still connecting, waiting up to 12 seconds...');
-          const establishWait = 12000; // Increased timeout
-          const checkInterval = 100;
-          let waited = 0;
-          // Use statusRef.current to get live status on each iteration
-          while (waited < establishWait && realtimeVoice.statusRef.current === 'connecting') {
-            await new Promise(resolve => setTimeout(resolve, checkInterval));
-            waited += checkInterval;
-          }
-          const finalStatus = realtimeVoice.statusRef.current;
-          console.log('[VoiceController] ✅ Wait complete. Waited:', waited, 'ms. Final status:', finalStatus);
-          if (finalStatus === 'connecting') {
-            console.warn('[VoiceController] ⚠️ Stream still connecting after timeout - this may indicate a connection issue');
-          }
-        }
-        
-        // Now stop the stream
+
+      // If user released while still connecting, cancel gracefully instead of erroring
+      if (streamingEnabled && currentStatus === 'connecting') {
+        console.warn('[VoiceController] ⚠️ Release while connecting — cancelling instead of transcribing');
+        try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+        try { await realtimeVoice.cancel(); } catch {}
+        setState('idle');
+        return;
+      }
+
+      // If already streaming, stop and wait briefly for final transcript
+      if (streamingEnabled && currentStatus === 'streaming') {
         console.log('[VoiceController] Stopping streaming transcription...');
         await realtimeVoice.stopStream();
         
-        // Wait for final transcript events to arrive (increased from 3s to 5s)
         console.log('[VoiceController] ⏳ Waiting for final transcript...');
-        const maxWait = 5000; // Increased timeout
+        const maxWait = 5000;
         const checkInterval = 100;
         let waited = 0;
         while (waited < maxWait && !streamCompleteRef.current && streamTranscriptRef.current.trim().length === 0) {

@@ -1,10 +1,11 @@
 import 'react-native-gesture-handler';
-import React, { useEffect } from 'react';
+import 'react-native-get-random-values';
+import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryProvider } from '@/lib/query/queryClient';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
@@ -59,14 +60,29 @@ if (Platform.OS === 'web') {
   }
 }
 
-export default function RootLayout() {
+// Inner component that has access to AuthContext
+function LayoutContent() {
   const pathname = usePathname();
+  const { loading: authLoading } = useAuth();
+  const [showFAB, setShowFAB] = useState(false);
+  
   const isAuthRoute = typeof pathname === 'string' && (
     pathname.startsWith('/(auth)') ||
     pathname === '/sign-in' ||
     pathname === '/(auth)/sign-in' ||
     pathname.includes('auth-callback')
   );
+  
+  // Show FAB after auth is loaded and a brief delay for dashboard to render
+  useEffect(() => {
+    if (!authLoading) {
+      const timer = setTimeout(() => {
+        setShowFAB(true);
+      }, 800); // 800ms delay after auth loads
+      
+      return () => clearTimeout(timer);
+    }
+  }, [authLoading]);
   // Hide development navigation header on web
   useEffect(() => {
     // Track OTA/app launch (non-blocking)
@@ -229,6 +245,42 @@ export default function RootLayout() {
   }, []);
 
   return (
+    <>
+      {/* Global themed status bar for consistent visibility across screens */}
+      <ThemedStatusBar />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            presentation: 'card',
+            animationTypeForReplace: 'push',
+          }}
+        >
+          {/* Let Expo Router auto-discover screens */}
+        </Stack>
+        
+        {/* OTA Update Banner */}
+        <GlobalUpdateBanner />
+        
+        {/* Voice-Enabled Dash Floating Button (Global Access) */}
+        {showFAB && (!isAuthRoute && 
+          !(pathname || '').includes('dash-assistant') && 
+          !(pathname || '').toLowerCase().includes('landing') &&
+          pathname !== '/landing' &&
+          pathname !== 'landing') && (
+          <DashVoiceFloatingButton showWelcomeMessage={true} />
+        )}
+        
+        {/* Platform-specific components */}
+        {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
+      </GestureHandlerRootView>
+    </>
+  );
+}
+
+// Root layout wrapper with providers
+export default function RootLayout() {
+  return (
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
@@ -236,38 +288,11 @@ export default function RootLayout() {
             <ThemeProvider>
               <ToastProvider>
                 <DashboardPreferencesProvider>
-                  {/* Global themed status bar for consistent visibility across screens */}
-                  <ThemedStatusBar />
-                  <GestureHandlerRootView style={{ flex: 1 }}>
-                    <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      presentation: 'card',
-                      animationTypeForReplace: 'push',
-                    }}
-                  >
-                    {/* Let Expo Router auto-discover screens */}
-                  </Stack>
-                  
-                  {/* OTA Update Banner */}
-                  <GlobalUpdateBanner />
-                  
-                  {/* Voice-Enabled Dash Floating Button (Global Access) */}
-                  {(!isAuthRoute && 
-                    !(pathname || '').includes('dash-assistant') && 
-                    !(pathname || '').toLowerCase().includes('landing') &&
-                    pathname !== '/landing' &&
-                    pathname !== 'landing') && (
-                    <DashVoiceFloatingButton showWelcomeMessage={true} />
-                  )}
-                  
-                  {/* Platform-specific components */}
-                  {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
-                  </GestureHandlerRootView>
-            </DashboardPreferencesProvider>
+                  <LayoutContent />
+                </DashboardPreferencesProvider>
               </ToastProvider>
-          </ThemeProvider>
-        </UpdatesProvider>
+            </ThemeProvider>
+          </UpdatesProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

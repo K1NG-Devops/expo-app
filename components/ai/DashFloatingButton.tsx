@@ -243,6 +243,9 @@ export const DashFloatingButton: React.FC<DashFloatingButtonProps> = ({
   
   const handlePressIn = () => {
     setIsPressed(true);
+    // Light haptic feedback on touch
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    
     Animated.parallel([
       Animated.timing(scaleAnimation, {
         toValue: 0.95,

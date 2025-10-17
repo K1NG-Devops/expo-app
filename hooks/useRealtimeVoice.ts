@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { withTimeout, wait } from '@/lib/utils/async';
+import { SubscriptionContext } from '@/contexts/SubscriptionContext';
 
 // Realtime voice streaming hook (client-side scaffolding)
 // - Streams audio chunks to a websocket endpoint if enabled
@@ -54,6 +55,9 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
     onAssistantToken,
     onStatusChange,
   } = opts;
+
+  // Get subscription tier for OpenAI fallback gating
+  const { tier: subscriptionTier } = useContext(SubscriptionContext);
 
   const [status, setStatus] = useState<RealtimeStatus>('disconnected');
   const [muted, setMutedState] = useState<boolean>(false);
@@ -186,40 +190,125 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
         }
       }
 
-      // Use WebSocket provider for all platforms (web, iOS, Android)
+      // Use Claude + Deepgram streaming provider for all platforms
       try {
-        console.log('[RealtimeVoice] 🎤 Starting WebRTC session with url:', wsUrl);
-        const { createWebRTCSession } = await import('@/lib/voice/webrtcProvider');
-        const sess = createWebRTCSession();
+        console.log('[RealtimeVoice] 🎤 Starting Claude + Deepgram streaming session');
+        const { createClaudeVoiceSession } = await import('@/lib/voice/claudeProvider');
+        const sess = createClaudeVoiceSession();
         console.log('[RealtimeVoice] 🚀 Calling sess.start...');
         const started = await sess.start({
-          token: token || '',
-          url: wsUrl,
           language,
-          transcriptionModel,
-          vadSilenceMs,
           onPartialTranscript,
           onFinalTranscript,
           onAssistantToken,
+          systemPrompt: 'You are Dash, a helpful AI assistant for EduDash Pro. Keep responses concise and friendly for voice conversations (2-3 sentences max).',
         });
         console.log('[RealtimeVoice] 📋 sess.start result:', started);
         if (started) {
           webrtcRef.current = sess as any;
-          // Apply existing mute state to new session
-          try { webrtcRef.current.setMuted(muted); } catch {}
-          console.log('[RealtimeVoice] ✅ Stream started successfully, status -> streaming');
+          console.log('[RealtimeVoice] ✅ Claude + Deepgram streaming started successfully');
           setStatusSafe('streaming');
           return true;
         } else {
           console.error('[RealtimeVoice] ❌ sess.start returned false');
         }
       } catch (e) {
-        console.error('[RealtimeVoice] ❌ WebSocket provider start failed:', e);
-        setStatusSafe('error');
-        return false;
+        console.error('[RealtimeVoice] ❌ Claude streaming provider start failed:', e);
       }
+
+      // Fallback to Azure Speech if Claude+Deepgram is unavailable
+      // Note: Azure may fail on React Native (no Web Audio API)
+      if (Platform.OS === 'web') {
+        try {
+          console.log('[RealtimeVoice] 🔁 Falling back to Azure Speech session (web only)...');
+          const { createAzureSpeechSession } = await import('@/lib/voice/azureProvider');
+          // Re-fetch token/region if missing
+          if (!token || !region) {
+            try {
+              const { getAzureSpeechToken } = await import('@/lib/voice/realtimeToken');
+              const t = await getAzureSpeechToken();
+              if (t?.token) token = token || t.token;
+              if (t?.region) region = region || t.region;
+            } catch (e) {
+              console.warn('[RealtimeVoice] Fallback getAzureSpeechToken failed:', e);
+            }
+          }
+          const sessAzure = createAzureSpeechSession();
+          const startedAzure = await sessAzure.start({ token, region, language, vadSilenceMs, onPartialTranscript, onFinalTranscript });
+          if (startedAzure) {
+            (webrtcRef as any).current = sessAzure as any;
+            try { (webrtcRef as any).current.setMuted(muted); } catch {}
+            setStatusSafe('streaming');
+            return true;
+          } else {
+            console.error('[RealtimeVoice] ❌ Azure fallback session start failed');
+          }
+        } catch (e) {
+          console.error('[RealtimeVoice] ❌ Azure fallback error:', e);
+        }
+      } else {
+        console.log('[RealtimeVoice] 📱 Skipping Azure Speech (native platform - requires Web Audio API)');
+      }
+
+      // FINAL FALLBACK: OpenAI Realtime (Premium users only)
+      // - Works on all platforms via WebRTC
+      // - Only for non-indigenous languages (zu, xh, nso not supported by OpenAI)
+      // - Gated to premium/pro/enterprise tiers ($18/hr cost)
+      const isPremiumUser = ['premium', 'pro', 'enterprise'].includes(subscriptionTier);
       
-      // If provider didn't start, treat as error
+      if (!isIndigenousSALang && isPremiumUser) {
+        try {
+          console.log('[RealtimeVoice] 🔁 FINAL FALLBACK: OpenAI Realtime (Premium tier)...');
+          
+          // Get OpenAI token
+          let openaiToken = '';
+          let openaiUrl = url;
+          try {
+            const { getRealtimeToken } = await import('@/lib/voice/realtimeToken');
+            const rt = await getRealtimeToken();
+            if (rt?.url) openaiUrl = rt.url;
+            if (rt?.token) openaiToken = rt.token;
+          } catch (e) {
+            console.warn('[RealtimeVoice] Failed to fetch OpenAI token:', e);
+          }
+          
+          if (openaiUrl && openaiToken) {
+            const { createWebRTCSession } = await import('@/lib/voice/webrtcProvider');
+            const sess = createWebRTCSession();
+            const started = await sess.start({
+              token: openaiToken,
+              url: openaiUrl,
+              language,
+              transcriptionModel,
+              vadSilenceMs,
+              onPartialTranscript,
+              onFinalTranscript,
+              onAssistantToken,
+            });
+            
+            if (started) {
+              webrtcRef.current = sess as any;
+              try { webrtcRef.current.setMuted?.(muted); } catch {}
+              setStatusSafe('streaming');
+              console.log('[RealtimeVoice] ✅ OpenAI Realtime fallback successful!');
+              return true;
+            } else {
+              console.error('[RealtimeVoice] ❌ OpenAI fallback start failed');
+            }
+          } else {
+            console.warn('[RealtimeVoice] ⚠️ OpenAI fallback skipped: missing token/url');
+          }
+        } catch (e) {
+          console.error('[RealtimeVoice] ❌ OpenAI fallback error:', e);
+        }
+      } else if (!isIndigenousSALang && !isPremiumUser) {
+        console.log('[RealtimeVoice] 🔒 OpenAI fallback skipped: requires premium subscription (current tier:', subscriptionTier, ')');
+      } else {
+        console.log('[RealtimeVoice] ⚠️ OpenAI fallback skipped: indigenous language not supported');
+      }
+
+      // If all providers failed, treat as error
+      console.error('[RealtimeVoice] ❌ All voice providers failed');
       setStatusSafe('error');
       return false;
     } catch (e) {

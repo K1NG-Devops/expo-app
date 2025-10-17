@@ -33,6 +33,7 @@ import {
   Platform,
   Text,
   PanResponder,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -40,6 +41,7 @@ import { router } from 'expo-router';
 import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
@@ -93,6 +95,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const [showQuickVoice, setShowQuickVoice] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   
   const scaleAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
@@ -214,6 +217,24 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recordingState.isRecording]);
 
+  // Play click sound for tactile feedback
+  const playClickSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('@/assets/sounds/notification.wav'),
+        { shouldPlay: true, volume: 0.3 }
+      );
+      // Unload after playing to prevent memory leak
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          sound.unloadAsync();
+        }
+      });
+    } catch (e) {
+      console.log('[FAB] Click sound failed:', e);
+    }
+  };
+
   // Ensure a conversation exists and Dash is initialized
   const ensureConversation = async (): Promise<string | null> => {
     try {
@@ -234,10 +255,19 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const handleSingleTap = async () => {
     if (isDragging) return;
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setIsLoading(true);
+      // Play click sound
+      playClickSound();
+      // Strong haptic for tap confirmation
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch((e) => {
+        console.log('[FAB] Tap haptic failed:', e);
+      });
       router.push('/screens/dash-assistant');
+      // Reset loading after navigation (short delay for visual feedback)
+      setTimeout(() => setIsLoading(false), 500);
     } catch (error) {
       console.error('[DashVoiceFAB] Single tap failed:', error);
+      setIsLoading(false);
     }
   };
 
@@ -245,7 +275,13 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
 const handleLongPress = async () => {
     if (isDragging) return;
     try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      setIsLoading(true);
+      // Play distinct sound for long-press
+      playClickSound();
+      // Heavy haptic with error logging
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch((e) => {
+        console.log('[FAB] Long-press haptic failed:', e);
+      });
 
       // Always ensure mic permission on Android to avoid second long-press
       try {
@@ -261,6 +297,7 @@ const handleLongPress = async () => {
             console.log('[DashVoiceFAB] 📋 Permission result:', status, 'GRANTED?', status === PermissionsAndroid.RESULTS.GRANTED);
             if (status !== PermissionsAndroid.RESULTS.GRANTED) {
               console.error('[DashVoiceFAB] ❌ Permission DENIED, aborting long press');
+              setIsLoading(false);
               return;
             }
             console.log('[DashVoiceFAB] ✅ Permission GRANTED, continuing with voice mode');
@@ -275,6 +312,7 @@ const handleLongPress = async () => {
         await dash.initialize();
       } catch (e) {
         console.error('[DashVoiceFAB] ❌ Failed to initialize Dash:', e);
+        setIsLoading(false);
         return;
       }
       
@@ -282,8 +320,10 @@ const handleLongPress = async () => {
       // Open elegant full-screen voice mode
       setShowQuickVoice(false);
       setShowVoiceMode(true);
+      setIsLoading(false);
     } catch (e) {
       console.error('[DashVoiceFAB] Long press failed:', e);
+      setIsLoading(false);
     }
   };
 
@@ -295,14 +335,22 @@ const handleLongPress = async () => {
     lastTapRef.current = now;
     if (delta < 300) {
       // Double tap -> toggle elegant voice mode
-      try { Haptics.selectionAsync(); } catch {}
+      playClickSound();
+      try { 
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch((e) => {
+          console.log('[FAB] Double-tap haptic failed:', e);
+        }); 
+      } catch {}
       setShowQuickVoice(false);
       // Ensure dash is initialized before toggling voice mode
       if (!showVoiceMode) {
+        setIsLoading(true);
         dash.initialize().then(() => {
           setShowVoiceMode(true);
+          setIsLoading(false);
         }).catch(e => {
           console.error('[DashVoiceFAB] ❌ Failed to initialize:', e);
+          setIsLoading(false);
         });
       } else {
         setShowVoiceMode(false);
@@ -314,6 +362,14 @@ const handleLongPress = async () => {
   };
 
   const handlePressIn = () => {
+    // Play click sound
+    playClickSound();
+    
+    // Strong haptic feedback on touch
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch((e) => {
+      console.log('[FAB] Haptic failed:', e);
+    });
+    
     // Start long-press timer
     longPressActivated.current = false;
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
@@ -454,7 +510,9 @@ const handlePressOut = () => {
             },
           ]}
         >
-          {recordingState.isRecording ? (
+          {isLoading ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : recordingState.isRecording ? (
             <Animated.View
               style={{
                 opacity: voiceAnimation,

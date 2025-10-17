@@ -67,9 +67,6 @@ if (process.env.NODE_ENV === 'production') {
   };
 }
 
-// Enable symlinks for monorepos or linked modules
-config.resolver.unstable_enableSymlinks = true;
-
 // Enable faster rebuilds with persistent cache
 config.resetCache = false;
 

@@ -11,7 +11,6 @@
     "icon": "./assets/branding/png/icon-1024.png",
     "userInterfaceStyle": "light",
     "scheme": "edudashpro",
-    "newArchEnabled": true,
     "assetBundlePatterns": [
       "**/*",
       "locales/**/*.json"
@@ -46,9 +45,6 @@
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
-      "minSdkVersion": 21,
       "versionCode": 3
     },
     "plugins": [

@@ -111,6 +111,16 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   useEffect(() => {
     const initializeDash = async () => {
       try {
+        // Diagnostic: Check streaming configuration
+        console.log('[DashAssistant] 🔍 Streaming configuration check:');
+        console.log('[DashAssistant] - ENV EXPO_PUBLIC_DASH_STREAMING:', process.env.EXPO_PUBLIC_DASH_STREAMING);
+        try {
+          const stored = await AsyncStorage.getItem('@dash_streaming_enabled');
+          console.log('[DashAssistant] - AsyncStorage @dash_streaming_enabled:', stored);
+        } catch (e) {
+          console.warn('[DashAssistant] - Could not read AsyncStorage:', e);
+        }
+        
         const dash = DashAIAssistant.getInstance();
         await dash.initialize();
         setDashInstance(dash);
@@ -1548,14 +1558,41 @@ return (
           // Voice note recording mode - WhatsApp style: instant start
           try {
             console.log('[DashAssistant] Starting WhatsApp-style instant recording');
+            console.log('[DashAssistant] Voice controller state:', vc.state);
+            console.log('[DashAssistant] Dash instance:', !!dashInstance, 'Initialized:', isInitialized);
+            
+            // Check if Dash is initialized
+            if (!dashInstance || !isInitialized) {
+              console.error('[DashAssistant] ❌ Dash not initialized yet');
+              Alert.alert('Please Wait', 'AI Assistant is still starting up. Please wait a moment and try again.');
+              return;
+            }
             
             // Start recording immediately
             setIsVoiceRecording(true);
             await vc.startPress();
             
+            // Check if recording started successfully
+            if (vc.state === 'error') {
+              console.error('[DashAssistant] ❌ Voice recording failed to start');
+              setIsVoiceRecording(false);
+              Alert.alert(
+                'Voice Input Unavailable', 
+                'Could not start voice recording. Please check microphone permissions in your device settings and try again.'
+              );
+              return;
+            }
+            
+            console.log('[DashAssistant] ✅ Voice recording started, state:', vc.state);
+            
             return; // Skip old modal logic
           } catch (e) {
             console.error('[DashAssistant] Voice start error:', e);
+            setIsVoiceRecording(false);
+            Alert.alert(
+              'Voice Recording Error',
+              'Failed to start voice recording. Please try again or check your microphone permissions.'
+            );
           }
         }}
         onVoiceEnd={() => {

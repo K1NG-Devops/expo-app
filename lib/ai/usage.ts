@@ -93,7 +93,7 @@ function chooseStorage() {
 
 const storage = chooseStorage();
 
-export type AIUsageFeature = 'lesson_generation' | 'grading_assistance' | 'homework_help'
+export type AIUsageFeature = 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'transcription'
 
 const STORAGE_PREFIX = 'ai_usage'
 
@@ -133,9 +133,10 @@ export async function getUsage(): Promise<AIUsageRecord> {
       lesson_generation: Number(parsed.lesson_generation) || 0,
       grading_assistance: Number(parsed.grading_assistance) || 0,
       homework_help: Number(parsed.homework_help) || 0,
+      transcription: Number(parsed.transcription) || 0,
     }
   } catch {
-    return { lesson_generation: 0, grading_assistance: 0, homework_help: 0 }
+    return { lesson_generation: 0, grading_assistance: 0, homework_help: 0, transcription: 0 }
   }
 }
 
@@ -327,6 +328,7 @@ export async function getServerUsage(): Promise<AIUsageRecord | null> {
       lesson_generation: Number(src.lesson_generation ?? src.lesson ?? src.lessons ?? 0) || 0,
       grading_assistance: Number(src.grading_assistance ?? src.grading ?? 0) || 0,
       homework_help: Number(src.homework_help ?? src.helper ?? 0) || 0,
+      transcription: Number(src.transcription ?? src.asr ?? 0) || 0,
     }
     return counts
   } catch {
@@ -344,7 +346,7 @@ export async function syncLocalUsageToServer(): Promise<void> {
   
   try {
     const local = await getUsage()
-    const localTotal = local.lesson_generation + local.grading_assistance + local.homework_help
+    const localTotal = local.lesson_generation + local.grading_assistance + local.homework_help + local.transcription
     
     // Only sync if there's local usage to sync
     if (localTotal > 0) {

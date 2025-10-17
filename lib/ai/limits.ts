@@ -3,18 +3,18 @@ import { getCombinedUsage, type AIUsageRecord } from '@/lib/ai/usage'
 import { getOrgType, canUseAllocation, type OrgType } from '@/lib/subscriptionRules'
 import { getDefaultModels } from '@/lib/ai/models'
 
-export type AIQuotaFeature = 'lesson_generation' | 'grading_assistance' | 'homework_help'
+export type AIQuotaFeature = 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'transcription'
 export type Tier = 'free' | 'parent_starter' | 'parent_plus' | 'private_teacher' | 'pro' | 'enterprise'
 
 export type QuotaMap = Record<AIQuotaFeature, number>
 
 const DEFAULT_MONTHLY_QUOTAS: Record<Tier, QuotaMap> = {
-  free: { lesson_generation: 5, grading_assistance: 5, homework_help: 15 },
-  parent_starter: { lesson_generation: 0, grading_assistance: 0, homework_help: 30 },
-  parent_plus: { lesson_generation: 0, grading_assistance: 0, homework_help: 100 },
-  private_teacher: { lesson_generation: 20, grading_assistance: 20, homework_help: 100 },
-  pro: { lesson_generation: 50, grading_assistance: 100, homework_help: 300 },
-  enterprise: { lesson_generation: 5000, grading_assistance: 10000, homework_help: 30000 },
+  free: { lesson_generation: 5, grading_assistance: 5, homework_help: 15, transcription: 60 }, // ~30 minutes of voice
+  parent_starter: { lesson_generation: 0, grading_assistance: 0, homework_help: 30, transcription: 120 }, // ~60 minutes
+  parent_plus: { lesson_generation: 0, grading_assistance: 0, homework_help: 100, transcription: 300 }, // ~2.5 hours
+  private_teacher: { lesson_generation: 20, grading_assistance: 20, homework_help: 100, transcription: 600 }, // ~5 hours
+  pro: { lesson_generation: 50, grading_assistance: 100, homework_help: 300, transcription: 1800 }, // ~15 hours
+  enterprise: { lesson_generation: 5000, grading_assistance: 10000, homework_help: 30000, transcription: 36000 }, // ~300 hours
 }
 
 export type EffectiveLimits = {
@@ -229,6 +229,7 @@ export async function getTeacherSpecificQuota(feature: AIQuotaFeature): Promise<
       'lesson_generation': 'lesson_generation', // Lesson generation has its own quota pool
       'grading_assistance': 'grading_assistance', // Grading assistance has its own quota pool  
       'homework_help': 'homework_help', // Homework help has its own quota pool
+      'transcription': 'transcription', // Voice transcription quota (chunks per month)
     }
     
     const quotaType = quotaMapping[feature]

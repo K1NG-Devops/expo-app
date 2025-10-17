@@ -470,6 +470,19 @@ export function createWebRTCSession(): WebRTCSession {
           }
         }
 
+        // Native: commit audio buffer before closing
+        try {
+          if (dc && (dc as any).readyState === 'open') {
+            try {
+              (dc as any).send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
+              await wait(150);
+              console.log('[realtimeProvider] ✅ Sent input_audio_buffer.commit (native)');
+            } catch (e) {
+              console.warn('[realtimeProvider] ⚠️ Failed to send commit on native:', e);
+            }
+          }
+        } catch {}
+        
         // Close data channel / peer connection (native)
         try { dc?.close?.(); } catch {}
         try { pc?.close?.(); } catch {}

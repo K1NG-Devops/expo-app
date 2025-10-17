@@ -45,6 +45,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   const [ready, setReady] = useState(false);
   const [streamingEnabled, setStreamingEnabled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const abortSpeechRef = useRef(false); // Flag to abort ongoing speech
   
   // Debug logging on state changes
   useEffect(() => {
@@ -102,21 +103,23 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       // Even short words should interrupt (improved sensitivity)
       if (speaking && partial.length >= 2) {
         console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
-        try {
-          // Stop current speech (both device TTS and audio manager)
-          setSpeaking(false);
-          dashInstance?.stopSpeaking?.(); // Stop expo-speech device TTS
-          
-          // Also stop audio manager if playing Edge Function TTS
-          import('@/lib/voice/audio').then(({ audioManager }) => {
-            audioManager.stop().catch(e => console.warn('[DashVoiceMode] Audio stop error:', e));
-          }).catch(() => {});
-          
-          // Provide haptic feedback for interruption
-          try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-        } catch (e) {
-          console.warn('[DashVoiceMode] Failed to stop speech:', e);
-        }
+        
+        // Immediately set speaking to false to prevent race conditions
+        setSpeaking(false);
+        
+        // Stop speech asynchronously (properly awaited)
+        (async () => {
+          try {
+            // Stop all TTS (both device TTS and audio manager)
+            await dashInstance?.stopSpeaking?.();
+            console.log('[DashVoiceMode] ✅ Speech stopped successfully');
+            
+            // Provide haptic feedback for interruption
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+          } catch (e) {
+            console.warn('[DashVoiceMode] Failed to stop speech:', e);
+          }
+        })();
       }
     },
     onFinalTranscript: async (t) => {
@@ -182,19 +185,31 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       
       // Speak response
       if (responseText) {
+        // Reset abort flag before starting new speech
+        abortSpeechRef.current = false;
         setSpeaking(true);
-        await speakText(responseText);
-        setSpeaking(false);
         
-        // Reset for next user input
-        processedRef.current = false;
-        setUserTranscript('');
-        console.log('[DashVoiceMode] ✅ Ready for next input');
+        await speakText(responseText);
+        
+        // Only reset if speech wasn't aborted
+        if (!abortSpeechRef.current) {
+          setSpeaking(false);
+          
+          // Reset for next user input
+          processedRef.current = false;
+          setUserTranscript('');
+          console.log('[DashVoiceMode] ✅ Ready for next input');
+        } else {
+          console.log('[DashVoiceMode] ⚠️ Speech was aborted, not resetting state');
+        }
       }
     } catch (error) {
       console.error('[DashVoiceMode] Error processing message:', error);
-      setSpeaking(false);
-      processedRef.current = false;
+      // Only reset if not aborted (aborted speech should maintain state)
+      if (!abortSpeechRef.current) {
+        setSpeaking(false);
+        processedRef.current = false;
+      }
     }
   };
 
@@ -202,6 +217,12 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   const speakText = async (text: string) => {
     if (!dashInstance) {
       console.error('[DashVoiceMode] ❌ Cannot speak: no dashInstance');
+      return;
+    }
+    
+    // Check if speech was aborted before starting
+    if (abortSpeechRef.current) {
+      console.log('[DashVoiceMode] ⚠️ Speech aborted before starting');
       return;
     }
     
@@ -221,10 +242,29 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       
       console.log('[DashVoiceMode] 🎵 Calling dashInstance.speakResponse...');
       await dashInstance.speakResponse(dummyMessage, {
-        onStart: () => console.log('[DashVoiceMode] ✅ TTS started successfully'),
-        onDone: () => console.log('[DashVoiceMode] ✅ TTS completed successfully'),
+        onStart: () => {
+          // Check abort flag even after TTS starts
+          if (abortSpeechRef.current) {
+            console.log('[DashVoiceMode] ⚠️ Speech aborted during playback');
+            dashInstance.stopSpeaking();
+            return;
+          }
+          console.log('[DashVoiceMode] ✅ TTS started successfully');
+        },
+        onDone: () => {
+          if (!abortSpeechRef.current) {
+            console.log('[DashVoiceMode] ✅ TTS completed successfully');
+          }
+        },
         onError: (err) => console.error('[DashVoiceMode] ❌ TTS error:', err),
       });
+      
+      // Final check after TTS completes
+      if (abortSpeechRef.current) {
+        console.log('[DashVoiceMode] ⚠️ Speech was aborted');
+        return;
+      }
+      
       console.log('[DashVoiceMode] 🎵 TTS call completed');
     } catch (error) {
       console.error('[DashVoiceMode] ❌ TTS Edge Function failed:', error);
@@ -462,7 +502,35 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           />
         </Animated.View>
 
-        {/* Mute toggle button */}
+        {/* Stop button (left side) */}
+        {speaking && (
+          <TouchableOpacity
+            onPress={async () => {
+              try { 
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
+              } catch {}
+              console.log('[DashVoiceMode] 🛑 User pressed stop button - aborting speech');
+              
+              // Set abort flag to prevent speech from continuing
+              abortSpeechRef.current = true;
+              setSpeaking(false);
+              
+              // Stop all TTS playback
+              await dashInstance?.stopSpeaking?.();
+              
+              // Reset state for next input
+              processedRef.current = false;
+              setUserTranscript('');
+              setAiResponse('');
+              console.log('[DashVoiceMode] ✅ Ready for next input after stop');
+            }}
+            style={[styles.stopButton, { backgroundColor: '#E53935' }]}
+          >
+            <Ionicons name="stop" size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
+        
+        {/* Mute toggle button (right side) */}
         {isListening && (
           <TouchableOpacity
             onPress={() => {
@@ -580,6 +648,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -8,
     right: (ORB_SIZE * 0.125),
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff55',
+  },
+  stopButton: {
+    position: 'absolute',
+    bottom: -8,
+    left: (ORB_SIZE * 0.125),
     width: 36,
     height: 36,
     borderRadius: 18,

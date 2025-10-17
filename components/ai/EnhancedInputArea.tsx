@@ -337,15 +337,36 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
               }}
             >
               <TouchableOpacity
-                onPress={() => {
-                  // Toggle recording: tap to start, tap again to stop and send
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  if (voiceState === 'idle' || voiceState === 'error') {
-                    // Start recording
-                    onVoiceStart?.();
-                  } else if (voiceState === 'listening' || voiceState === 'prewarm') {
-                    // Stop and send
-                    onVoiceEnd?.();
+                onPress={async () => {
+                  try {
+                    // Toggle recording: tap to start, tap again to stop and send
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    console.log('[EnhancedInputArea] Mic button pressed. Current voiceState:', voiceState);
+                    
+                    if (voiceState === 'idle' || voiceState === 'error') {
+                      // Start recording
+                      console.log('[EnhancedInputArea] Starting voice recording...');
+                      if (onVoiceStart) {
+                        await onVoiceStart();
+                        console.log('[EnhancedInputArea] ✅ Voice recording started');
+                      } else {
+                        console.error('[EnhancedInputArea] ❌ onVoiceStart is not defined');
+                      }
+                    } else if (voiceState === 'listening' || voiceState === 'prewarm') {
+                      // Stop and send
+                      console.log('[EnhancedInputArea] Stopping voice recording...');
+                      if (onVoiceEnd) {
+                        await onVoiceEnd();
+                        console.log('[EnhancedInputArea] ✅ Voice recording stopped');
+                      } else {
+                        console.error('[EnhancedInputArea] ❌ onVoiceEnd is not defined');
+                      }
+                    } else {
+                      console.warn('[EnhancedInputArea] ⚠️ Unexpected voiceState:', voiceState);
+                    }
+                  } catch (error) {
+                    console.error('[EnhancedInputArea] ❌ Mic button error:', error);
+                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
                   }
                 }}
                 activeOpacity={0.7}

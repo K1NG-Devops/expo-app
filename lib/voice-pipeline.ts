@@ -25,8 +25,7 @@ import * as FileSystem from 'expo-file-system';
 import { logger } from './logger';
 import { mark, measure, timeAsync } from './perf';
 import { track } from './analytics';
-import { createWebRTCSession, type WebRTCSession } from './voice/webrtcProvider';
-import { getRealtimeToken } from './voice/realtimeToken';
+import { createClaudeVoiceSession, type ClaudeVoiceSession } from './voice/claudeProvider';
 
 // ============================================================================
 // Types & Interfaces
@@ -103,7 +102,7 @@ const DEFAULT_CONFIG: VoiceRecordingConfig = {
 // ============================================================================
 
 export class VoicePipeline {
-  private webrtcSession: WebRTCSession | null = null;
+  private voiceSession: ClaudeVoiceSession | null = null;
   private config: VoiceRecordingConfig;
   private state: RecordingState = 'idle';
   private startTime: number = 0;
@@ -120,13 +119,13 @@ export class VoicePipeline {
   
   /**
    * Pre-warm the streaming voice system
-   * WebRTC handles permissions internally, no expo-av setup needed
+   * Claude + Deepgram handles permissions internally
    */
   public async preWarm(): Promise<void> {
     const { duration } = await timeAsync('voice_pipeline_prewarm', async () => {
       try {
-        // WebRTC streaming will handle audio setup when session starts
-        logger.debug('🚀 Voice pipeline pre-warmed (streaming-only)');
+        // Claude + Deepgram streaming will handle audio setup when session starts
+        logger.debug('🚀 Voice pipeline pre-warmed (Claude + Deepgram streaming)');
       } catch (error) {
         logger.warn('Voice pipeline pre-warm failed', error);
       }
@@ -157,63 +156,58 @@ export class VoicePipeline {
         mark('recording_init');
         this.setState('initializing');
         
-        // Always use streaming (no expo-av fallback)
-        const shouldUseStreaming = this.config.enableLiveTranscription !== false && 
-                                  (this.config.transport === 'webrtc' || this.config.transport === 'auto');
+        // Always use Claude + Deepgram streaming
+        const shouldUseStreaming = this.config.enableLiveTranscription !== false;
         
         if (shouldUseStreaming) {
-          logger.info('🎤 Starting WebRTC streaming session...');
+          logger.info('🎤 Starting Claude + Deepgram streaming session...');
           
-          // Fetch realtime token from Edge Function
-          const tokenData = await getRealtimeToken();
-          if (!tokenData) {
-            logger.error('Failed to get realtime token - cannot start recording');
-            this.setState('error');
-            return false;
-          }
-            // Create and start WebRTC session
-            this.webrtcSession = createWebRTCSession();
-            
-            const started = await this.webrtcSession.start({
-              token: tokenData.token,
-              url: tokenData.url,
-              onPartialTranscript: (text) => {
-                if (onTranscription) {
-                  onTranscription({
-                    text,
-                    timestamp: Date.now(),
-                    confidence: 0.8,
-                    isFinal: false,
-                  });
-                }
-                // Accumulate for final result
-                this.accumulatedTranscription += text;
-              },
-              onFinalTranscript: (text) => {
-                if (onTranscription) {
-                  onTranscription({
-                    text,
-                    timestamp: Date.now(),
-                    confidence: 0.95,
-                    isFinal: true,
-                  });
-                }
-                // Add final chunk with space
-                this.accumulatedTranscription += text + ' ';
-              },
-            });
-            
+          // Create and start Claude voice session
+          this.voiceSession = createClaudeVoiceSession();
+          
+          const started = await this.voiceSession.start({
+            language: 'en', // Default to English, can be made configurable
+            onPartialTranscript: (text) => {
+              if (onTranscription) {
+                onTranscription({
+                  text,
+                  timestamp: Date.now(),
+                  confidence: 0.8,
+                  isFinal: false,
+                });
+              }
+              // Accumulate for final result
+              this.accumulatedTranscription += text;
+            },
+            onFinalTranscript: (text) => {
+              if (onTranscription) {
+                onTranscription({
+                  text,
+                  timestamp: Date.now(),
+                  confidence: 0.95,
+                  isFinal: true,
+                });
+              }
+              // Add final chunk with space
+              this.accumulatedTranscription += text + ' ';
+            },
+            onAssistantToken: (token) => {
+              logger.debug('Assistant token:', token);
+            },
+            systemPrompt: 'You are Dash, a helpful AI assistant. Keep responses concise for voice (2-3 sentences).',
+          });
+          
           if (started) {
             this.startTime = Date.now();
             this.audioLevelSamples = [];
             this.silenceStartTime = 0;
             this.setState('recording');
             measure('recording_init');
-            logger.info('🎤 WebRTC streaming recording started');
+            logger.info('🎤 Claude + Deepgram streaming recording started');
             return true;
           } else {
-            logger.error('WebRTC session failed to start');
-            this.webrtcSession = null;
+            logger.error('Claude voice session failed to start');
+            this.voiceSession = null;
             this.setState('error');
             return false;
           }
@@ -265,14 +259,14 @@ export class VoicePipeline {
     try {
       const duration = this.getDuration();
       
-      // Handle WebRTC streaming session (streaming-only)
-      if (!this.webrtcSession) {
+      // Handle Claude + Deepgram streaming session
+      if (!this.voiceSession) {
         throw new Error('No active recording session');
       }
       
-      logger.info('🎤 Stopping WebRTC streaming session...');
-      await this.webrtcSession.stop();
-      this.webrtcSession = null;
+      logger.info('🎤 Stopping Claude + Deepgram streaming session...');
+      await this.voiceSession.stop();
+      this.voiceSession = null;
       this.setState('idle');
       
       // Track streaming metrics
@@ -308,11 +302,11 @@ export class VoicePipeline {
       logger.error('Failed to stop recording', error);
       this.setState('error');
       // Clean up on error
-      if (this.webrtcSession) {
+      if (this.voiceSession) {
         try {
-          await this.webrtcSession.stop();
+          await this.voiceSession.stop();
         } catch {}
-        this.webrtcSession = null;
+        this.voiceSession = null;
       }
       return null;
     }
@@ -340,15 +334,15 @@ export class VoicePipeline {
   public async cancelRecording(): Promise<void> {
     this.stopMonitoring();
     
-    // Clean up WebRTC session if active
-    if (this.webrtcSession) {
+    // Clean up voice session if active
+    if (this.voiceSession) {
       try {
-        logger.debug('🎤 Cancelling WebRTC streaming session...');
-        await this.webrtcSession.stop();
+        logger.debug('🎤 Cancelling voice streaming session...');
+        await this.voiceSession.stop();
       } catch (error) {
-        logger.error('Failed to stop WebRTC session during cancel', error);
+        logger.error('Failed to stop voice session during cancel', error);
       } finally {
-        this.webrtcSession = null;
+        this.voiceSession = null;
       }
     }
     

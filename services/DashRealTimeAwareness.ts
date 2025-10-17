@@ -111,21 +111,28 @@ export class DashRealTimeAwareness {
     let userName = 'there'; // Fallback
     
     try {
-      // Try profile first
-      if ((profile as any).display_name) {
-        userName = (profile as any).display_name;
+      // Try profile first (use only first name)
+      if ((profile as any).first_name) {
+        userName = (profile as any).first_name;
+      } else if ((profile as any).display_name) {
+        // Extract first name from display name
+        userName = (profile as any).display_name.trim().split(/\s+/)[0];
       } else if (profile.email) {
         // Try to get from auth metadata
         const { data } = await assertSupabase().auth.getUser();
-        if (data?.user?.user_metadata?.name) {
-          userName = data.user.user_metadata.name;
+        if (data?.user?.user_metadata?.first_name) {
+          userName = data.user.user_metadata.first_name;
+        } else if (data?.user?.user_metadata?.name) {
+          // Extract first name from name
+          userName = data.user.user_metadata.name.trim().split(/\s+/)[0];
         } else if (data?.user?.user_metadata?.full_name) {
-          userName = data.user.user_metadata.full_name;
+          // Extract first name from full name
+          userName = data.user.user_metadata.full_name.trim().split(/\s+/)[0];
         } else {
           // Use email prefix as last resort
           userName = profile.email.split('@')[0].replace(/[._-]/g, ' ');
-          // Capitalize first letters
-          userName = userName.replace(/\b\w/g, l => l.toUpperCase());
+          // Capitalize first letters and take first word
+          userName = userName.replace(/\b\w/g, l => l.toUpperCase()).trim().split(/\s+/)[0];
         }
       }
     } catch (error) {
