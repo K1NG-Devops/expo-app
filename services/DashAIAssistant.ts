@@ -2827,6 +2827,13 @@ private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
     console.log(`[Dash] Calling Azure TTS Edge Function for ${language}`);
     
     try {
+      // Check abort flag before making network call
+      if (this.isSpeechAborted) {
+        console.log('[Dash] ⚠️ Speech aborted before Azure TTS network call');
+        callbacks?.onStopped?.();
+        return;
+      }
+
       const supabase = assertSupabase();
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -2863,15 +2870,34 @@ private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
       
       console.log(`[Dash] ✅ Azure TTS audio URL received (cached: ${data.cache_hit || false})`);
       
+      // Check abort flag before playing
+      if (this.isSpeechAborted) {
+        console.log('[Dash] ⚠️ Speech aborted before Azure audio playback');
+        callbacks?.onStopped?.();
+        return;
+      }
+      
       // Play the audio using audio manager
       callbacks?.onStart?.();
       
       // Use audioManager.play() with status callback
       await audioManager.play(audioUrl, (playbackState) => {
+        // Check abort flag during playback
+        if (this.isSpeechAborted) {
+          console.log('[Dash] ⚠️ Speech aborted during Azure playback');
+          audioManager.stop();
+          callbacks?.onStopped?.();
+          return;
+        }
+
         if (!playbackState.isPlaying && playbackState.position === 0 && !playbackState.error) {
           // Playback finished
           console.log('[Dash] Azure TTS playback finished');
-          callbacks?.onDone?.();
+          if (!this.isSpeechAborted) {
+            callbacks?.onDone?.();
+          } else {
+            callbacks?.onStopped?.();
+          }
         } else if (playbackState.error) {
           console.error('[Dash] Azure TTS playback error:', playbackState.error);
           callbacks?.onError?.(new Error(playbackState.error));
@@ -2899,7 +2925,17 @@ public async speakResponse(message: DashMessage, callbacks?: {
       return;
     }
 
+    // Reset abort flag at the start of new speech
+    this.isSpeechAborted = false;
+
     try {
+      // Check abort flag before starting
+      if (this.isSpeechAborted) {
+        console.log('[Dash] ⚠️ Speech aborted before starting');
+        callbacks?.onStopped?.();
+        return;
+      }
+
       // Intelligently normalize the text before speaking
       const normalizedText = this.normalizeTextForSpeech(message.content);
 
@@ -2926,6 +2962,13 @@ public async speakResponse(message: DashMessage, callbacks?: {
 
       console.log(`[Dash] Speaking in language: ${language}`);
 
+      // Check abort flag before Azure TTS
+      if (this.isSpeechAborted) {
+        console.log('[Dash] ⚠️ Speech aborted before Azure TTS');
+        callbacks?.onStopped?.();
+        return;
+      }
+
       // SA languages should use Azure TTS (via Edge Function) for authentic voices
       const saLanguages = ['af', 'zu', 'xh', 'nso'];
       const useAzureTTS = saLanguages.includes(language);
@@ -2934,6 +2977,12 @@ public async speakResponse(message: DashMessage, callbacks?: {
         console.log(`[Dash] 🇿🇦 Using Azure TTS for ${language}`);
         try {
           await this.speakWithAzureTTS(normalizedText, language, callbacks);
+          
+          // Check abort flag after Azure TTS completes
+          if (this.isSpeechAborted) {
+            console.log('[Dash] ⚠️ Speech was aborted during Azure TTS');
+            callbacks?.onStopped?.();
+          }
           return; // Success - exit early
         } catch (azureError) {
           console.error('[Dash] Azure TTS failed, falling back to device TTS:', azureError);
@@ -2981,15 +3030,37 @@ public async speakResponse(message: DashMessage, callbacks?: {
       }
 
       return new Promise<void>((resolve, reject) => {
+        // Check abort flag before device TTS
+        if (this.isSpeechAborted) {
+          console.log('[Dash] ⚠️ Speech aborted before device TTS');
+          callbacks?.onStopped?.();
+          resolve();
+          return;
+        }
+
         const speechOptions: any = {
           language: voiceSettings.language,
           pitch: adjustedPitch,
           rate: adjustedRate,
           onStart: () => {
+            // Check abort flag even after TTS starts
+            if (this.isSpeechAborted) {
+              console.log('[Dash] ⚠️ Speech aborted during device TTS start');
+              if (Speech && typeof Speech.stop === 'function') {
+                Speech.stop();
+              }
+              callbacks?.onStopped?.();
+              resolve();
+              return;
+            }
             callbacks?.onStart?.();
           },
           onDone: () => {
-            callbacks?.onDone?.();
+            if (!this.isSpeechAborted) {
+              callbacks?.onDone?.();
+            } else {
+              callbacks?.onStopped?.();
+            }
             resolve();
           },
           onStopped: () => {
@@ -3065,14 +3136,20 @@ public async speakResponse(message: DashMessage, callbacks?: {
    */
   public async stopSpeaking(): Promise<void> {
     try {
+      // Set global abort flag to prevent any ongoing/queued speech
+      this.isSpeechAborted = true;
+      console.log('[Dash] 🛑 Speech abort flag set');
+      
       // Stop device TTS (expo-speech)
       if (Speech && typeof Speech.stop === 'function') {
         await Speech.stop();
+        console.log('[Dash] ✅ Device TTS stopped');
       }
       
       // Stop audio manager (Azure TTS playback)
       const { audioManager } = await import('@/lib/voice/audio');
       await audioManager.stop();
+      console.log('[Dash] ✅ Audio manager stopped');
       
       console.log('[Dash] ✅ Stopped all speech playback');
     } catch (error) {
@@ -5336,6 +5413,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   // Track last API call time for rate limit prevention
   private lastAPICallTime: number = 0;
   private readonly MIN_API_CALL_INTERVAL = 300; // Faster interactions: 300ms between calls
+  private isSpeechAborted: boolean = false; // Global flag to abort speech
 
   /**
    * Call AI service with enhanced context and retry logic
