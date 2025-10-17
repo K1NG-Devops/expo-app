@@ -24,6 +24,7 @@ import DashRealTimeAwareness from './DashRealTimeAwareness';
 import { DashAgenticIntegration } from './DashAgenticIntegration';
 import { DashMemoryManager } from './modules/DashMemoryManager';
 import { DashVoiceController } from './modules/DashVoiceController';
+import { DashMessageHandler } from './modules/DashMessageHandler';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -605,6 +606,7 @@ export class DashAIAssistant {
   // Modular components (Phase 4 refactoring)
   private memoryManager: DashMemoryManager;
   private voiceController: DashVoiceController;
+  private messageHandler: DashMessageHandler;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -640,6 +642,7 @@ export class DashAIAssistant {
     // Initialize modular components
     this.memoryManager = new DashMemoryManager();
     this.voiceController = new DashVoiceController();
+    this.messageHandler = new DashMessageHandler();
   }
 
   public static getInstance(): DashAIAssistant {
