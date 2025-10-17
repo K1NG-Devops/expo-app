@@ -25,6 +25,7 @@ import { DashAgenticIntegration } from './DashAgenticIntegration';
 import { DashMemoryManager } from './modules/DashMemoryManager';
 import { DashVoiceController } from './modules/DashVoiceController';
 import { DashMessageHandler } from './modules/DashMessageHandler';
+import { DashContextBuilder } from './modules/DashContextBuilder';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -607,6 +608,7 @@ export class DashAIAssistant {
   private memoryManager: DashMemoryManager;
   private voiceController: DashVoiceController;
   private messageHandler: DashMessageHandler;
+  private contextBuilder: DashContextBuilder;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -639,10 +641,11 @@ export class DashAIAssistant {
   private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
   private constructor() {
-    // Initialize modular components
+    // Initialize modular components with dependencies
     this.memoryManager = new DashMemoryManager();
     this.voiceController = new DashVoiceController();
     this.messageHandler = new DashMessageHandler();
+    this.contextBuilder = new DashContextBuilder(this.memoryManager);
   }
 
   public static getInstance(): DashAIAssistant {
@@ -668,10 +671,15 @@ export class DashAIAssistant {
       
       // Load persistent data (delegated to modules)
       await this.memoryManager.loadMemory();
-      await this.loadPersonality();
+      await this.contextBuilder.loadPersonality();
+      await this.contextBuilder.loadUserProfile();
       
       // Load user context
-      await this.loadUserContext();
+      await this.contextBuilder.loadUserContext();
+      
+      // Sync personality reference for backward compatibility
+      this.personality = this.contextBuilder.getPersonality();
+      this.userProfile = this.contextBuilder.getUserProfile();
       
       // Initialize agentic services
       const session = await getCurrentSession();
@@ -3808,87 +3816,12 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   // Memory operations now delegated to DashMemoryManager
 
   /**
-   * Load user context for personalization
-   */
-  private async loadUserContext(): Promise<void> {
-    try {
-      const profile = await getCurrentProfile();
-      if (profile) {
-        // Update personality based on user role
-        this.personality = {
-          ...this.personality,
-          greeting: this.getPersonalizedGreeting(profile.role),
-          expertise_areas: this.getExpertiseAreasForRole(profile.role)
-        };
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load user context:', error);
-    }
-  }
-
-  /**
-   * Get personalized greeting based on user role
-   */
-  private getPersonalizedGreeting(role: string): string {
-    switch (role?.toLowerCase()) {
-      case 'teacher':
-        return "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?";
-      case 'principal':
-        return "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?";
-      case 'parent':
-        return "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?";
-      default:
-        return DEFAULT_PERSONALITY.greeting;
-    }
-  }
-
-  /**
-   * Get expertise areas based on user role
-   */
-  private getExpertiseAreasForRole(role: string): string[] {
-    const baseAreas = ['education', 'student support', 'educational technology'];
-    
-    switch (role?.toLowerCase()) {
-      case 'teacher':
-        return [...baseAreas, 'lesson planning', 'classroom management', 'student assessment', 'curriculum development'];
-      case 'principal':
-        return [...baseAreas, 'school administration', 'staff management', 'policy development', 'school analytics'];
-      case 'parent':
-        return [...baseAreas, 'homework help', 'parent-teacher communication', 'student progress tracking'];
-      default:
-        return DEFAULT_PERSONALITY.expertise_areas;
-    }
-  }
-
-  /**
-   * Load personality settings
-   */
-  private async loadPersonality(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const personalityData = await storage.getItem(DashAIAssistant.PERSONALITY_KEY);
-      
-      if (personalityData) {
-        const savedPersonality = JSON.parse(personalityData);
-        this.personality = { ...DEFAULT_PERSONALITY, ...savedPersonality };
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load personality:', error);
-    }
-  }
-
-  /**
-   * Save personality settings
+   * Save personality settings (delegated to contextBuilder)
    */
   public async savePersonality(personality: Partial<DashPersonality>): Promise<void> {
-    try {
-      this.personality = { ...this.personality, ...personality };
-      
-      const storage = SecureStore || AsyncStorage;
-      await storage.setItem(DashAIAssistant.PERSONALITY_KEY, JSON.stringify(this.personality));
-    } catch (error) {
-      console.error('[Dash] Failed to save personality:', error);
-    }
+    await this.contextBuilder.savePersonality(personality);
+    // Sync local reference for backward compatibility
+    this.personality = this.contextBuilder.getPersonality();
   }
 
   /**
@@ -4324,74 +4257,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
 
   // ==================== ENHANCED AGENTIC METHODS ====================
 
-  /**
-   * Load user profile
-   */
-  private async loadUserProfile(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const profileData = await storage.getItem(DashAIAssistant.USER_PROFILE_KEY);
-      
-      if (profileData) {
-        this.userProfile = JSON.parse(profileData);
-        console.log(`[Dash] Loaded user profile for ${this.userProfile?.role || 'unknown'}`);
-      } else {
-        // Create basic profile from current user
-        const currentProfile = await getCurrentProfile();
-        if (currentProfile) {
-          this.userProfile = {
-            userId: currentProfile.id,
-            role: currentProfile.role as any,
-            name: (currentProfile as any).first_name || 'User',
-            preferences: {
-              communication_style: 'friendly',
-              notification_frequency: 'daily_digest',
-              task_management_style: 'summary',
-              ai_autonomy_level: 'medium'
-            },
-            context: {
-              organization_id: currentProfile.organization_id || undefined
-            },
-            goals: {
-              short_term: [],
-              long_term: [],
-              completed: []
-            },
-            interaction_patterns: {
-              most_active_times: [],
-              preferred_task_types: [],
-              common_requests: [],
-              success_metrics: {}
-            },
-            memory_preferences: {
-              remember_personal_details: true,
-              remember_work_patterns: true,
-              remember_preferences: true,
-              auto_suggest_tasks: true,
-              proactive_reminders: true
-            }
-          };
-          await this.saveUserProfile();
-        }
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load user profile:', error);
-    }
-  }
-
-  /**
-   * Save user profile
-   */
-  private async saveUserProfile(): Promise<void> {
-    if (!this.userProfile) return;
-    
-    try {
-      const storage = SecureStore || AsyncStorage;
-      await storage.setItem(DashAIAssistant.USER_PROFILE_KEY, JSON.stringify(this.userProfile));
-    } catch (error) {
-      console.error('[Dash] Failed to save user profile:', error);
-    }
-  }
+  // User profile methods delegated to contextBuilder (Phase 4.7)
 
   /**
    * Start proactive behaviors
@@ -5580,10 +5446,10 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Get user profile
+   * Get user profile (delegated to contextBuilder)
    */
   public getUserProfile(): DashUserProfile | null {
-    return this.userProfile;
+    return this.contextBuilder.getUserProfile();
   }
   
   /**
@@ -5681,17 +5547,12 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Update user preferences
+   * Update user preferences (delegated to contextBuilder)
    */
   public async updateUserPreferences(preferences: Partial<DashUserProfile['preferences']>): Promise<void> {
-    if (!this.userProfile) return;
-    
-    this.userProfile.preferences = {
-      ...this.userProfile.preferences,
-      ...preferences
-    };
-    
-    await this.saveUserProfile();
+    await this.contextBuilder.updateUserPreferences(preferences);
+    // Sync local reference for backward compatibility
+    this.userProfile = this.contextBuilder.getUserProfile();
   }
 
   /**
@@ -5743,6 +5604,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       this.memoryManager?.dispose();
       this.voiceController?.dispose();
       this.messageHandler?.dispose();
+      this.contextBuilder?.dispose();
     } catch (e) {
       console.warn('[Dash] Module disposal error (non-fatal):', e);
     }
