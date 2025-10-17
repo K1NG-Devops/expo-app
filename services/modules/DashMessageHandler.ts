@@ -255,7 +255,7 @@ export class DashMessageHandler {
       .replace(/([.!?])\s*([A-Z])/g, '$1 $2')
       .replace(/,\s*/g, ', ')
       .replace(/\s+/g, ' ')
-      .replace(/^[,.]\ s*/, '')
+      .replace(/^[,.]\s*/, '')
       .trim();
   }
   

@@ -5738,8 +5738,16 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       this.proactiveTimer = null;
     }
     
-    // Clear all Maps and state (delegated to modules)
-    this.memoryManager.clearAllState();
+    // Dispose modular components (Phase 4 refactoring)
+    try {
+      this.memoryManager?.dispose();
+      this.voiceController?.dispose();
+      this.messageHandler?.dispose();
+    } catch (e) {
+      console.warn('[Dash] Module disposal error (non-fatal):', e);
+    }
+    
+    // Clear remaining state
     this.activeTasks.clear();
     this.activeReminders.clear();
     this.pendingInsights.clear();
