@@ -166,18 +166,18 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     }
   };
 
-  // Pulse animation
+  // Enhanced pulse animation - smoother, more organic for Society 5.0
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnimation, {
-          toValue: 1.08,
-          duration: 2000,
+          toValue: 1.12,
+          duration: 1800,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnimation, {
           toValue: 1,
-          duration: 2000,
+          duration: 1800,
           useNativeDriver: true,
         }),
       ])
@@ -210,12 +210,17 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
      
   }, [recordingState.isRecording]);
 
-  // Play click sound for tactile feedback
+  // Play futuristic sound for tactile feedback - Society 5.0 ready
   const playClickSound = async () => {
     try {
       const { sound } = await Audio.Sound.createAsync(
         require('@/assets/sounds/notification.wav'),
-        { shouldPlay: true, volume: 0.3 }
+        { 
+          shouldPlay: true, 
+          volume: 0.4,
+          rate: 1.2, // Slightly faster for futuristic feel
+          pitchCorrectionQuality: Audio.PitchCorrectionQuality.High
+        }
       );
       // Unload after playing to prevent memory leak
       sound.setOnPlaybackStatusUpdate((status) => {
@@ -530,10 +535,11 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    // Enhanced Society 5.0 shadows for depth
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   tooltip: {
     position: 'absolute',

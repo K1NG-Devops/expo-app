@@ -24,18 +24,20 @@ import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-interface SimpleVoiceModalProps {
+interface VoiceRecordingModalProps {
   visible: boolean;
   onClose: () => void;
   dashInstance?: DashAIAssistant;
+  vc?: any; // Voice controller for compatibility
 }
 
 type RecordingState = 'idle' | 'recording' | 'processing' | 'error';
 
-export const SimpleVoiceModal: React.FC<SimpleVoiceModalProps> = ({
+export const VoiceRecordingModal: React.FC<VoiceRecordingModalProps> = ({
   visible,
   onClose,
   dashInstance,
+  vc, // Voice controller parameter (optional)
 }) => {
   const { theme, isDark } = useTheme();
   const [state, setState] = useState<RecordingState>('idle');
@@ -433,4 +435,5 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SimpleVoiceModal;
+// Also export as default for flexibility
+export default VoiceRecordingModal;
