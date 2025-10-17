@@ -39,7 +39,7 @@ import { useVoiceController } from '@/hooks/useVoiceController';
 import { useOnDeviceVoice } from '@/hooks/useOnDeviceVoice';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 import { toast } from '@/components/ui/ToastProvider';
-import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
+import { SimpleVoiceModal } from '@/components/ai/SimpleVoiceModal';
 import { MessageBubbleModern } from '@/components/ai/MessageBubbleModern';
 import { StreamingIndicator } from '@/components/ai/StreamingIndicator';
 import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
@@ -1757,17 +1757,12 @@ return (
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
       
-      {/* WhatsApp-style Voice Recording Modal (controller-driven) */}
-      {dashInstance && isInitialized && (
-        <VoiceRecordingModal
-          vc={vc}
-          visible={showVoiceRecorderModal}
-          onClose={() => {
-            try { vc.cancel(); } catch { /* Intentional: non-fatal */ }
-            setShowVoiceRecorderModal(false);
-          }}
-        />
-      )}
+      {/* Simple Voice Recording Modal */}
+      <SimpleVoiceModal
+        visible={showVoiceRecorderModal}
+        onClose={() => setShowVoiceRecorderModal(false)}
+        dashInstance={dashInstance}
+      />
 
       {/* Elegant ChatGPT-style Voice Mode */}
       <DashVoiceMode
