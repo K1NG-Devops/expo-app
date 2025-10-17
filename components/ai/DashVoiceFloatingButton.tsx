@@ -211,25 +211,12 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   }, [recordingState.isRecording]);
 
   // Play futuristic sound for tactile feedback - Society 5.0 ready
-  const playClickSound = async () => {
+  const playClickSound = async (soundType: 'awaken' | 'pulse' = 'awaken') => {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('@/assets/sounds/notification.wav'),
-        { 
-          shouldPlay: true, 
-          volume: 0.4,
-          rate: 1.2, // Slightly faster for futuristic feel
-          pitchCorrectionQuality: Audio.PitchCorrectionQuality.High
-        }
-      );
-      // Unload after playing to prevent memory leak
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
+      const { playOrbSound } = await import('@/lib/audio/soundManager');
+      await playOrbSound(soundType);
     } catch (e) {
-      console.log('[FAB] Click sound failed:', e);
+      console.log('[FAB] Sound failed:', e);
     }
   };
 
@@ -275,7 +262,7 @@ const handleLongPress = async () => {
     try {
       setIsLoading(true);
       // Play distinct sound for long-press
-      playClickSound();
+      playClickSound('pulse');
       // Heavy haptic with error logging
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch((e) => {
         console.log('[FAB] Long-press haptic failed:', e);

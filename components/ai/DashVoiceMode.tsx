@@ -20,6 +20,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { toast } from '@/components/ui/ToastProvider';
+import { HolographicOrb } from '@/components/ui/HolographicOrb';
+import { playOrbSound, stopOrbSound } from '@/lib/audio/soundManager';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.5;
@@ -162,6 +164,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       processedRef.current = true;
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
       
+      // Play thinking sound
+      playOrbSound('thinking', { loop: true }).catch(() => {});
+      
       // Send message to AI
       console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
       const response = await dashInstance.sendMessage(transcript);
@@ -178,6 +183,10 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       
       const responseText = response.content || '';
       setAiResponse(responseText);
+      
+      // Stop thinking sound, play response sound
+      stopOrbSound('thinking').catch(() => {});
+      playOrbSound('response').catch(() => {});
       
       // Notify parent component BEFORE speaking (so UI updates immediately)
       console.log('[DashVoiceMode] Calling onMessageSent callback');
@@ -470,37 +479,17 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
-      {/* Orb Container */}
+      {/* Society 5.0 Holographic Orb */}
       <View style={styles.orbContainer}>
-        {/* Glow */}
-        <Animated.View
-          style={[
-            styles.orbGlow,
-            {
-              backgroundColor: glowColor,
-              transform: [{ scale: pulseAnim.interpolate({ inputRange: [1, 1.15], outputRange: [1, 1.3] }) }],
-            },
-          ]}
+        <HolographicOrb
+          size={ORB_SIZE}
+          isListening={isListening && !speaking}
+          isSpeaking={speaking}
+          isThinking={!ready || (realtime.status === 'connecting')}
+          audioLevel={0}  // TODO: Wire up actual audio level from realtime.audioLevel
         />
         
-        {/* Main Orb */}
-        <Animated.View
-          style={[
-            styles.orb,
-            {
-              transform: [{ scale: pulseAnim }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={[orbColor, orbColor + 'CC', orbColor + '99']}
-            style={styles.orbGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          />
-        </Animated.View>
-        
-        {/* Status Icon */}
+        {/* Status Icon Overlay */}
         <Animated.View style={[styles.statusIcon, { opacity: fadeAnim }]}>
           <Ionicons
             name={speaking ? 'volume-high' : isListening ? (realtime.muted ? 'mic-off' : 'mic') : 'hourglass'}
