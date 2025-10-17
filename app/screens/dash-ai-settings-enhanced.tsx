@@ -134,7 +134,7 @@ export default function DashAISettingsEnhancedScreen() {
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [dashAI]);
 
   useEffect(() => {

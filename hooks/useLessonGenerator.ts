@@ -43,14 +43,14 @@ export function useLessonGenerator() {
       if (error) throw error;
 
       if (data && (data as any).provider_error) {
-        try { toast.warn('AI provider error – used safe fallback'); } catch {}
+        try { toast.warn('AI provider error – used safe fallback'); } catch { /* Intentional: non-fatal */ }
       }
 
       const lessonText: string = (data && data.content) || '';
       setResult({ text: lessonText, __fallbackUsed: !!(data && (data as any).provider_error) });
 
       // Track usage client-side (best-effort) in addition to server logs
-      incrementUsage('lesson_generation', 1).catch(() => {});
+      incrementUsage('lesson_generation', 1).catch(() => { /* Intentional: error handled */ });
       logUsageEvent({
         feature: 'lesson_generation',
         model: String(payload.model),
@@ -58,7 +58,7 @@ export function useLessonGenerator() {
         tokensOut: (data && data.usage?.output_tokens) || 0,
         estCostCents: (data && data.cost) || 0,
         timestamp: new Date().toISOString(),
-      }).catch(() => {});
+      }).catch(() => { /* Intentional: error handled */ });
 
       track('edudash.ai.lesson_generated', {
         subject: opts.subject,
@@ -107,8 +107,8 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           __savedToDatabase: saveResult?.success || false,
           __lessonId: saveResult?.lessonId || null
         });
-        incrementUsage('lesson_generation', 1).catch(() => {});
-        logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
+        incrementUsage('lesson_generation', 1).catch(() => { /* Intentional: error handled */ });
+        logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => { /* Intentional: error handled */ });
         track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown', savedToDatabase: saveResult?.success });
         return lessonText;
       } catch (fallbackErr) {

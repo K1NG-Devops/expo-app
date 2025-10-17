@@ -179,7 +179,7 @@ export default function PrincipalSeatManagementScreen() {
       setTeacherEmail('');
       // Also refresh from server to stay in sync
       await loadTeachers();
-      try { await refresh(); } catch {}
+      try { await refresh(); } catch { /* Intentional: non-fatal */ }
     } catch (error: any) {
       setError(error?.message || 'Failed to assign seat');
     } finally {
@@ -277,7 +277,7 @@ export default function PrincipalSeatManagementScreen() {
                   if (error) throw error;
                   // Optimistically set subscription id returned by RPC (enables bulk-assign immediately)
                   if (data) {
-                    try { setSubscriptionId(String(data)); } catch {}
+                    try { setSubscriptionId(String(data)); } catch { /* Intentional: non-fatal */ }
                   }
                   setSuccess('Free trial started. You can now assign seats.');
                   await loadSubscription();
@@ -463,10 +463,10 @@ export default function PrincipalSeatManagementScreen() {
                             await assignSeat(subscriptionId, t.id);
                             // Optimistically update before reload
                             setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, hasSeat: true } : x));
-                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch {}
+                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch { /* Intentional: non-fatal */ }
                             setSuccess(`Seat assigned to ${t.email}`);
                             await loadTeachers();
-                            try { await refresh(); } catch {}
+                            try { await refresh(); } catch { /* Intentional: non-fatal */ }
                           } catch (error: any) {
                             setError(error?.message || `Failed to assign seat to ${t.email}`);
                           } finally {

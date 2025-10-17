@@ -44,7 +44,7 @@ export default function ApplicationReviewScreen() {
 
   useEffect(() => {
     loadApplication();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [applicationId]);
 
 

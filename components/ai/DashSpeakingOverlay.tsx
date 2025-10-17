@@ -79,7 +79,7 @@ export function DashSpeakingOverlay({ isSpeaking, onStopSpeaking }: DashSpeaking
       try {
         const dash = DashAIAssistant.getInstance();
         // Call any internal stop method if exists
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       
       onStopSpeaking?.();
     } catch (error) {

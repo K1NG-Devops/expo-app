@@ -99,6 +99,19 @@ export function useTenantInfo(): {
         }
       }
 
+      // Fallback: try organizations if no preschool found
+      if (!schoolName) {
+        const { data: orgData, error: orgError } = await assertSupabase()
+          .from('organizations')
+          .select('name')
+          .eq('id', schoolId)
+          .single();
+
+        if (!orgError && orgData) {
+          schoolName = orgData.name;
+        }
+      }
+
       // Get user permissions/capabilities
       const permissions = profile?.capabilities || [];
 

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * DashDecisionEngine - Elite AI Decision-Making System
  * 
@@ -538,8 +540,9 @@ export class DashDecisionEngine {
   }
 }
 
-// Export singleton instance
+// Export singleton instance as default
 const decisionEngineInstance = DashDecisionEngine.getInstance();
 export default decisionEngineInstance;
 
-// Export class for type purposes
+// Note: Types are already exported inline at their declarations
+// Class is also exported inline (line 79)

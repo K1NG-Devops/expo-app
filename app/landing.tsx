@@ -124,7 +124,7 @@ setMessage(e?.message || t('common.unexpected_error', { defaultValue: 'Something
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [query.token_hash, query.type, query.flow, query.code, query.invitationCode]);
 
   if (!isWeb) {

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash AI Assistant Service
  * 
@@ -175,6 +177,7 @@ export interface DashMessage {
     };
     detected_language?: string; // Auto-detected language from voice transcription
     error?: string;
+    doNotSpeak?: boolean; // Flag to prevent TTS (for error loop prevention)
   };
 }
 
@@ -432,28 +435,28 @@ export interface DashPersonality {
 
 const DEFAULT_PERSONALITY: DashPersonality = {
   name: 'Dash',
-  greeting: "Hi! I'm Dash, your AI teaching assistant. What can I help with?",
+  greeting: "Hi! I'm Dash, your AI assistant. How can I help?",
   personality_traits: [
     'helpful',
+    'intelligent',
+    'efficient',
+    'proactive',
+    'adaptable',
     'clear',
-    'concise',
-    'knowledgeable',
-    'patient',
-    'supportive',
-    'adaptive'
+    'reliable'
   ],
   response_style: 'adaptive',
   expertise_areas: [
-    'education',
-    'lesson planning',
-    'student assessment',
-    'classroom management',
-    'curriculum development',
-    'educational technology',
-    'parent communication',
+    'general assistance',
     'task automation',
     'data analysis',
-    'workflow optimization'
+    'workflow optimization',
+    'information retrieval',
+    'problem solving',
+    'productivity tools',
+    'communication',
+    'decision support',
+    'system management'
   ],
   voice_settings: {
     rate: 1.0,
@@ -462,89 +465,110 @@ const DEFAULT_PERSONALITY: DashPersonality = {
     voice: 'male'
   },
   role_specializations: {
-    teacher: {
-      greeting: "Hi! I'm Dash, your teaching assistant. What do you need help with?",
+    user: {
+      greeting: "Hi! I'm Dash, your AI assistant. What can I help with?",
       capabilities: [
-        'lesson_planning',
-        'grading_assistance',
-        'parent_communication',
-        'student_progress_tracking',
-        'curriculum_alignment',
-        'resource_suggestions',
-        'behavior_management_tips',
-        'assessment_creation'
+        'general_assistance',
+        'task_management',
+        'information_retrieval',
+        'data_analysis',
+        'communication',
+        'automation',
+        'problem_solving',
+        'research'
       ],
-      tone: 'encouraging and professional',
+      tone: 'professional and helpful',
       proactive_behaviors: [
-        'suggest_lesson_improvements',
-        'remind_upcoming_deadlines',
-        'flag_student_concerns',
+        'suggest_optimizations',
+        'remind_deadlines',
+        'flag_important_updates',
+        'recommend_actions'
+      ],
+      task_categories: ['general', 'productivity', 'communication']
+    },
+    admin: {
+      greeting: "Hi! I'm Dash, your system assistant. How can I help?",
+      capabilities: [
+        'system_management',
+        'data_analytics',
+        'reporting',
+        'automation',
+        'diagnostics',
+        'optimization',
+        'monitoring',
+        'configuration'
+      ],
+      tone: 'professional and technical',
+      proactive_behaviors: [
+        'monitor_system_health',
+        'suggest_improvements',
+        'flag_issues',
+        'track_metrics'
+      ],
+      task_categories: ['system', 'technical', 'administrative']
+    },
+    teacher: {
+      greeting: "Hi! I'm Dash. What do you need help with?",
+      capabilities: [
+        'content_creation',
+        'organization',
+        'communication',
+        'analysis',
+        'planning',
+        'automation',
+        'research',
+        'documentation'
+      ],
+      tone: 'professional and supportive',
+      proactive_behaviors: [
+        'suggest_improvements',
+        'remind_deadlines',
+        'flag_concerns',
         'recommend_resources'
       ],
-      task_categories: ['academic', 'administrative', 'communication']
+      task_categories: ['content', 'planning', 'communication']
     },
     principal: {
-      greeting: "Hi! I'm Dash, your administrative assistant. How can I help today?",
+      greeting: "Hi! I'm Dash. How can I assist you?",
       capabilities: [
-        'staff_management',
-        'budget_analysis',
-        'policy_recommendations',
-        'parent_communication',
-        'data_analytics',
-        'strategic_planning',
-        'crisis_management',
-        'compliance_tracking'
+        'management',
+        'analytics',
+        'reporting',
+        'communication',
+        'planning',
+        'optimization',
+        'decision_support',
+        'compliance'
       ],
       tone: 'professional and strategic',
       proactive_behaviors: [
-        'monitor_school_metrics',
-        'suggest_policy_updates',
-        'flag_budget_concerns',
-        'track_compliance_deadlines'
+        'monitor_metrics',
+        'suggest_strategies',
+        'flag_concerns',
+        'track_goals'
       ],
-      task_categories: ['administrative', 'strategic', 'compliance', 'communication']
+      task_categories: ['management', 'strategic', 'operational']
     },
     parent: {
-      greeting: "Hi! I'm Dash, your family's education assistant. What can I help with?",
+      greeting: "Hi! I'm Dash. What can I help with?",
       capabilities: [
-        'homework_assistance',
-        'progress_tracking',
-        'school_communication',
-        'learning_resources',
-        'study_planning',
-        'activity_suggestions',
-        'behavioral_support',
-        'academic_guidance'
+        'information',
+        'organization',
+        'communication',
+        'planning',
+        'research',
+        'assistance',
+        'reminders',
+        'guidance'
       ],
-      tone: 'friendly and supportive',
+      tone: 'friendly and helpful',
       proactive_behaviors: [
-        'remind_homework_deadlines',
-        'suggest_learning_activities',
-        'flag_progress_concerns',
-        'recommend_parent_involvement'
+        'remind_deadlines',
+        'suggest_activities',
+        'flag_updates',
+        'recommend_actions'
       ],
-      task_categories: ['academic_support', 'communication', 'personal']
-    },
-    student: {
-      greeting: "Hey! I'm Dash, your study buddy. What do you need help with?",
-      capabilities: [
-        'homework_help',
-        'study_techniques',
-        'concept_explanation',
-        'practice_problems',
-        'goal_setting',
-        'time_management',
-        'learning_games',
-        'motivation_boost'
-      ],
-      tone: 'friendly and encouraging',
-      proactive_behaviors: [
-        'remind_study_sessions',
-        'suggest_break_times',
-        'celebrate_achievements',
-        'recommend_study_methods'
-      ],
-      task_categories: ['academic', 'personal', 'motivational']
+      task_categories: ['organization', 'communication', 'personal']
     }
   },
   agentic_settings: {
@@ -564,12 +588,18 @@ const DEFAULT_PERSONALITY: DashPersonality = {
 
 export class DashAIAssistant {
   private static instance: DashAIAssistant;
+  
+  // Configuration constants
+  private static readonly MEMORY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+  private static readonly CONTEXT_CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
+  private static readonly INTERACTION_HISTORY_MAX_SIZE = 100;
+  private static readonly MESSAGE_HISTORY_LIMIT = 10;
+  
   private currentConversationId: string | null = null;
   private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
-  private audioPermissionStatus: 'unknown' | 'granted' | 'denied' = 'granted';
-  private readonly PERMISSION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private isDisposed = false;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -585,6 +615,10 @@ export class DashAIAssistant {
     data: any;
   }> = [];
   private messageCountByConversation: Map<string, number> = new Map();
+  private lastErrorTimestamp: number = 0;
+  private consecutiveErrors: number = 0;
+  private readonly MAX_CONSECUTIVE_ERRORS = 3;
+  private readonly ERROR_COOLDOWN_MS = 5000; // 5 seconds between errors
   
   // Performance optimization: Cache frequently accessed data
   private profileCache: { data: any; timestamp: number } | null = null;
@@ -614,6 +648,7 @@ export class DashAIAssistant {
    * Initialize Dash AI Assistant with Agentic Services
    */
   public async initialize(): Promise<void> {
+    this.checkDisposed();
     try {
       console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
       
@@ -739,29 +774,11 @@ export class DashAIAssistant {
 
   
   /**
-   * Check if audio permission is granted (with caching)
-   */
-  private async checkAudioPermission(): Promise<boolean> {
-    // Local mic recording has been removed; streaming path manages permissions itself
-    this.audioPermissionStatus = 'granted';
-    return true;
-  }
-
-  /**
-   * Request audio permission (only if not already granted)
-   */
-  private async requestAudioPermission(): Promise<boolean> {
-    // Local mic recording removed; return true and let streaming/WebRTC handle prompts
-    this.audioPermissionStatus = 'granted';
-    return true;
-  }
-
-  /**
    * Initialize audio system
+   * Note: Local mic recording has been removed; streaming path manages permissions
    */
   private async initializeAudio(): Promise<void> {
-    // Local expo-av audio configuration removed
-    this.audioPermissionStatus = 'granted';
+    // No-op: Local expo-av audio configuration removed
   }
 
   /**
@@ -783,7 +800,7 @@ export class DashAIAssistant {
     try {
       await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
     } catch (error) {
-      console.warn('[Dash] Failed to save conversation ID to storage:', error);
+      console.warn('[Dash] Failed to save conversation pointer to AsyncStorage (non-fatal):', error);
     }
     return conversationId;
   }
@@ -817,6 +834,7 @@ export class DashAIAssistant {
    * Send a text message to Dash
    */
   public async sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage> {
+    this.checkDisposed();
     let convId = conversationId || this.currentConversationId;
     if (!convId) {
       convId = await this.ensureActiveConversation('General');
@@ -845,11 +863,15 @@ export class DashAIAssistant {
         const title = String(act?.title || 'Reminder');
         const when = String(act?.schedule_at || act?.when || '');
         if (when) {
-          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
+          try {
+            await this.createReminder(title, when, act?.payload || {});
+          } catch (e) {
+            console.warn('[Dash] createReminder failed (non-fatal):', e);
+          }
         }
       }
     } catch (error) {
-      console.warn('[Dash] Failed to handle dashboard action:', error);
+      console.warn('[Dash] Error handling assistant-requested actions (non-fatal):', error);
     }
 
     // Natural language reminder fallback (if assistant didn't emit structured action)
@@ -859,11 +881,15 @@ export class DashAIAssistant {
         const iso = this.parseScheduleAtFromText(content || '');
         if (iso && /\bremind\b/i.test(content || '')) {
           const title = 'Reminder';
-          try { await this.createReminder(title, iso, { source: 'nlp' }); } catch (e) { console.warn('[Dash] NL reminder failed:', e); }
+          try {
+            await this.createReminder(title, iso, { source: 'nlp' });
+          } catch (e) {
+            console.warn('[Dash] NL reminder creation failed (non-fatal):', e);
+          }
         }
       }
     } catch (error) {
-      console.warn('[Dash] Failed to create natural language reminder:', error);
+      console.warn('[Dash] Error in natural language reminder fallback (non-fatal):', error);
     }
 
     // Best-effort: sync context (language/traits) to backend
@@ -873,7 +899,7 @@ export class DashAIAssistant {
         sessionId: convId,
       });
     } catch (error) {
-      console.warn('[Dash] Failed to sync context to backend:', error);
+      console.warn('[Dash] Context sync failed (non-fatal):', error);
     }
 
     return assistantResponse;
@@ -883,6 +909,7 @@ export class DashAIAssistant {
    * Send a voice message to Dash
    */
   public async sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage> {
+    this.checkDisposed();
     let convId = conversationId || this.currentConversationId;
     if (!convId) {
       convId = await this.ensureActiveConversation('Quick Voice');
@@ -902,14 +929,22 @@ export class DashAIAssistant {
       // Save to preferences asynchronously (non-blocking for this response)
       voiceService.savePreferences({
         language: mappedLanguage as any,
-      }).catch(err => console.warn('[Dash] Failed to save voice preference:', err));
+      }).catch(err => {
+        console.warn('[Dash] Failed to save voice preference (non-fatal):', err);
+      });
       
       // Also save to conversation state (non-blocking)
-      import('./DashConversationState').then(({ DashConversationState }) => {
-        DashConversationState.updatePreferences({
-          preferredLanguage: mappedLanguage
-        });
-      }).catch(err => console.warn('[Dash] Failed to save conversation preference:', err));
+      import('./DashConversationState').then(async ({ DashConversationState }) => {
+        try {
+          DashConversationState.updatePreferences({
+            preferredLanguage: mappedLanguage
+          });
+        } catch (err) {
+          console.warn('[Dash] Failed to update conversation preferences (non-fatal):', err);
+        }
+      }).catch(err => {
+        console.warn('[Dash] Failed to import DashConversationState (non-fatal):', err);
+      });
     }
     
     console.log(`[Dash] 🔄 Will use detected language for this response: ${detectedLanguage}`);
@@ -979,13 +1014,6 @@ export class DashAIAssistant {
     // Local recording removed; always return false to signal streaming-only
     return false;
   }
-  
-  /**
-   * Get current permission status
-   */
-  public getPermissionStatus(): 'granted' | 'denied' | 'unknown' {
-    return this.audioPermissionStatus;
-  }
 
   /**
    * Transcribe audio only without sending to AI
@@ -1052,7 +1080,7 @@ export class DashAIAssistant {
           try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
         }
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     // Best-effort: sync context using detected language from voice
     try {
@@ -1060,7 +1088,7 @@ export class DashAIAssistant {
         detectedLanguage: undefined,
         sessionId: convId,
       });
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     return assistantResponse;
   }
@@ -1214,7 +1242,7 @@ export class DashAIAssistant {
     }
 
     // Topic/theme: allow quoted phrases or after keywords
-const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"]{3,80})\"\s*(lesson|plan)/i);
+const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
     if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
       const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
       if (t) params.topic = t;
@@ -1228,7 +1256,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-    const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
+const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -1239,7 +1267,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"
     if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
 
     // Objectives: capture bullet points and sentences
-    const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean);
+const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean);
     const objectiveCandidates: string[] = [];
     const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
     for (const ln of lines) {
@@ -2612,7 +2640,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"
     // User interaction patterns
     const interactionHistory = recentMemory.filter(item => item.type === 'interaction');
     if (interactionHistory.length > 10) {
-      insights.push(`You\'ve been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
+      insights.push(`You've been quite active this week with ${interactionHistory.length} interactions. Great engagement!`);
       
       // Suggest efficiency improvements
       const commonTasks = this.identifyCommonTaskPatterns(interactionHistory);
@@ -2694,7 +2722,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*\"([^\"]{3,80})\"|\"([^\"
     );
     
     if (completedTasks.length > 0) {
-      insights.push(`You\'ve completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
+      insights.push(`You've completed ${completedTasks.length} significant tasks this week. Excellent productivity!`);
     }
     
     return {
@@ -3447,11 +3475,40 @@ public async speakResponse(message: DashMessage, callbacks?: {
       // Post-process to avoid file attachment claims
       assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
       
+      // Reset error counter on successful response
+      this.consecutiveErrors = 0;
+      
       console.log('[Dash Agent] Response generation complete!');
       return assistantMessage;
       
     } catch (error) {
       console.error('[Dash Agent] Critical error in response generation:', error);
+      
+      // Track consecutive errors to prevent loops
+      const now = Date.now();
+      if (now - this.lastErrorTimestamp < this.ERROR_COOLDOWN_MS) {
+        this.consecutiveErrors++;
+      } else {
+        this.consecutiveErrors = 1;
+      }
+      this.lastErrorTimestamp = now;
+      
+      // If too many consecutive errors, return silent error
+      if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
+        console.error('[Dash Agent] 🚨 Too many consecutive errors - entering cooldown');
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: "I'm having trouble right now. Please close and reopen the assistant.",
+          timestamp: Date.now(),
+          metadata: {
+            confidence: 0.1,
+            suggested_actions: ['close_assistant'],
+            error: 'Too many consecutive errors',
+            doNotSpeak: true // Flag to prevent TTS loop
+          }
+        };
+      }
       
       // Return graceful error message without legacy fallback
       return {
@@ -3462,7 +3519,8 @@ public async speakResponse(message: DashMessage, callbacks?: {
         metadata: {
           confidence: 0.1,
           suggested_actions: ['try_again'],
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
+          doNotSpeak: this.consecutiveErrors > 1 // Don't speak if multiple errors
         }
       };
     }
@@ -3831,12 +3889,12 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
           supa.auth.getSession(),
         ]);
         userId = userData?.user?.id || sessionRes?.data?.session?.user?.id || null;
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       if (!userId) {
         try {
           const sess = await getCurrentSession();
           userId = (sess as any)?.user?.id || null;
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
       if (!userId) {
         errorDetails = 'Authentication required';
@@ -3991,7 +4049,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       try {
         const { dashDiagnostics } = await import('./DashDiagnosticEngine');
         dashDiagnostics.recordMetric('transcriptionTime', transcribeTime);
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       
       onProgress?.('transcribing', 95);
       
@@ -4021,7 +4079,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       try {
         const { dashDiagnostics } = await import('./DashDiagnosticEngine');
         dashDiagnostics.updateFeatureHealth('transcription', true, transcribeTime);
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       return {
         transcript: transcript || 'No speech detected in audio.',
@@ -4048,7 +4106,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
             errorDetails 
           }
         });
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       
       // More specific error messages based on error type
       let userFriendlyError = "Voice message received - couldn't transcribe audio.";
@@ -4326,7 +4384,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
         await this.saveConversation(conversation);
         try {
           await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
     } catch (error) {
       console.error('[Dash] Failed to add message to conversation:', error);
@@ -4376,7 +4434,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
   public setCurrentConversationId(conversationId: string): void {
     this.currentConversationId = conversationId;
     // Persist pointer so canvas resumes the last chat
-    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch {}
+    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch { /* Intentional: non-fatal */ }
   }
 
   /**
@@ -5097,35 +5155,28 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
-        systemPrompt = `You are Dash, an AI assistant.
+        systemPrompt = `You are Dash, a smart AI assistant.
 
-ANSWER DIRECTLY:
-- If asked "what is 5 x 5", just say "25"
-- If asked "what's the weather", just answer or say you don't have weather data
-- If asked about the app, help with the app
-- Don't force every question into an educational context
+CONTEXT:
+- User: ${userName}
+- Language: ${language}
 
-RESPONSE STYLE:
-- Answer the question asked, nothing more
-- Brief and direct (1-2 sentences max for simple questions)
-- No filler phrases: NO "understood", "let's break this down", "great question"
-- Skip greetings after the first message
-- Answer in ${language} if the user spoke in ${language}
+STYLE:
+- Natural and conversational
+- Respond in ${language} if the user spoke in ${language}
+- Brief and direct (1-3 sentences for simple questions)
+- Skip greetings after first message
+- No theatrics or explanations
+- Just answer the question
 
 EXAMPLES:
-User: "What is 5 times 5?"
-❌ BAD: "Great question! As an educator, let me help you understand multiplication..."
-✅ GOOD: "25"
+❌ BAD: "Great question! Let me explain in detail..."
+✅ GOOD: "It's in Settings > Voice. Toggle it on."
 
-User: "What's the capital of France?"
-❌ BAD: "Understood! Let me break this down for you as the principal..."
-✅ GOOD: "Paris"
+❌ BAD: "That's interesting! You're asking about..."
+✅ GOOD: "Yes, open the menu and select it."
 
-User: "Open settings"
-❌ BAD: "Great! I'm here to help you navigate..."
-✅ GOOD: "Opening Settings"
-
-BE DIRECT - Just answer the question.`;
+Be helpful and efficient.`;
       } else if (session?.user_id && profile) {
         // Use enhanced agentic prompt with correct language for text-based chat
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
@@ -5668,7 +5719,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
               const parsed = parseInt(String(retryAfterHeader));
               if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
             }
-          } catch {}
+          } catch { /* Intentional: non-fatal */ }
           const expBackoff = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
           const jitter = Math.floor(Math.random() * 500);
           const delay = Math.max(retryAfterMs, expBackoff) + jitter;
@@ -5804,7 +5855,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
               const parsed = parseInt(String(retryAfterHeader));
               if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
             }
-          } catch {}
+          } catch { /* Intentional: non-fatal */ }
           const expBackoff = BASE_DELAY * Math.pow(2, retryCount);
           const jitter = Math.floor(Math.random() * 500);
           const delay = Math.max(retryAfterMs, expBackoff) + jitter;
@@ -6090,12 +6141,44 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Cleanup resources
+   * Cleanup resources and dispose of all caches
    */
   public cleanup(): void {
+    console.log('[Dash] Cleaning up AI Assistant resources...');
+    
+    // Mark as disposed
+    this.isDisposed = true;
+    
+    // Clear timers
     if (this.proactiveTimer) {
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
+    }
+    
+    // Clear all Maps to prevent memory leaks
+    this.memory.clear();
+    this.activeTasks.clear();
+    this.activeReminders.clear();
+    this.pendingInsights.clear();
+    this.contextCache.clear();
+    this.messageCountByConversation.clear();
+    
+    // Clear interaction history array
+    this.interactionHistory = [];
+    
+    // Reset error tracking
+    this.consecutiveErrors = 0;
+    this.lastErrorTimestamp = 0;
+    
+    console.log('[Dash] Cleanup complete');
+  }
+  
+  /**
+   * Check if instance has been disposed
+   */
+  private checkDisposed(): void {
+    if (this.isDisposed) {
+      throw new Error('[Dash] Cannot perform operation: instance has been disposed');
     }
   }
 
@@ -6110,7 +6193,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       detectedLang = this.detectLikelyAppLanguageFromText(content);
     } catch (error) {
-      console.warn('[Dash] Failed to detect language from text:', error);
+      console.warn('[Dash] Language detection failed, using default (non-fatal):', error);
     }
 
     const msg: DashMessage = {

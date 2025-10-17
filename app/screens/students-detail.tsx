@@ -68,15 +68,15 @@ interface FilterOptions {
 }
 
 export default function StudentsDetailScreen() {
-  const { t } = useTranslation(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const { t } = useTranslation();  
   const { user, profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showStudentModal, setShowStudentModal] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [showStudentModal, setShowStudentModal] = useState(false);  
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);  
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
@@ -328,7 +328,7 @@ const { data: studentsData, error: studentsError } = await assertSupabase()
     return profile?.role === 'principal_admin';
   };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const canEditStudent = (_student: Student): boolean => {
     const userRole = profile?.role || 'parent';
     if (userRole === 'principal_admin') return true;

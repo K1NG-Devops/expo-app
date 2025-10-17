@@ -127,7 +127,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   // Load saved position on mount
   useEffect(() => {
     loadSavedPosition();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const loadSavedPosition = async () => {
@@ -191,7 +191,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     );
     pulse.start();
     return () => pulse.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   // Voice recording animation
@@ -214,7 +214,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     } else {
       voiceAnimation.setValue(0);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [recordingState.isRecording]);
 
   // Play click sound for tactile feedback
@@ -239,7 +239,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const ensureConversation = async (): Promise<string | null> => {
     try {
       const dash = DashAIAssistant.getInstance();
-      try { await dash.initialize(); } catch {}
+      try { await dash.initialize(); } catch { /* Intentional: non-fatal */ }
       const current = dash.getCurrentConversationId();
       if (!current) {
         const id = await dash.startNewConversation('Quick Voice');
@@ -340,7 +340,7 @@ const handleLongPress = async () => {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch((e) => {
           console.log('[FAB] Double-tap haptic failed:', e);
         }); 
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       setShowQuickVoice(false);
       // Ensure dash is initialized before toggling voice mode
       if (!showVoiceMode) {
@@ -545,7 +545,7 @@ const handlePressOut = () => {
           vc={vc}
           visible={showQuickVoice}
           onClose={() => {
-            try { vc.cancel(); } catch {}
+            try { vc.cancel(); } catch { /* Intentional: non-fatal */ }
             setShowQuickVoice(false);
           }}
         />

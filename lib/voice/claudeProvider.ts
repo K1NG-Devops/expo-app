@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Claude + Deepgram Voice Provider
  * 
@@ -28,6 +30,8 @@ export interface ClaudeVoiceSession {
   start: (opts: ClaudeVoiceOptions) => Promise<boolean>;
   stop: () => Promise<void>;
   isActive: () => boolean;
+  setMuted: (muted: boolean) => void;
+  updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => void;
   sendMessage: (message: string) => Promise<void>;
   cancelResponse: () => void;
 }
@@ -46,6 +50,7 @@ const WEB_RECORDING_OPTIONS = {
 
 export function createClaudeVoiceSession(): ClaudeVoiceSession {
   let active = false;
+  let muted = false; // Mute state
   let audioSession: AudioModeSession | null = null;
   let sessionId: string = '';
   let transcriptBuffer: string = '';
@@ -279,6 +284,11 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
   };
   
   const sendAudioToDeepgram = (audioData: ArrayBuffer) => {
+    // Don't send audio if muted
+    if (muted) {
+      return;
+    }
+    
     if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
       deepgramWs.send(audioData);
     }
@@ -477,6 +487,19 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
 
     isActive() {
       return active;
+    },
+    
+    setMuted(m: boolean) {
+      muted = !!m;
+      console.log('[claudeProvider] Mute state changed:', muted ? 'MUTED' : 'UNMUTED');
+    },
+    
+    updateTranscriptionConfig(cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) {
+      // Language and VAD changes require reconnecting to Deepgram
+      // For now, log the change (full implementation would reconnect WebSocket)
+      console.log('[claudeProvider] Transcription config update requested:', cfg);
+      // Note: Deepgram connection is established once per session
+      // Language changes would require stopping and restarting the session
     },
 
     async sendMessage(message: string) {

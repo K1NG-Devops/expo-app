@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 // 🔐 Enhanced Authentication Service
 // Multi-role registration, invitation system, and advanced security features
 

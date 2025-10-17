@@ -100,7 +100,7 @@ export default function ClassTeacherManagementScreen() {
             .maybeSingle();
           schoolId = schoolId || (prof as any)?.preschool_id || null;
           orgId = orgId || (prof as any)?.organization_id || null;
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
       if (!schoolId) {
         try {
@@ -110,7 +110,7 @@ export default function ClassTeacherManagementScreen() {
             .eq('auth_user_id', user.id)
             .maybeSingle();
           schoolId = (userRow as any)?.preschool_id || null;
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }
 
       if (!schoolId && !orgId) {

@@ -110,7 +110,7 @@ export class PrincipalHubService {
           const present = att.filter((a: any) => String(a.status).toLowerCase() === 'present').length;
           attendanceRate = Math.round((present / att.length) * 100);
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Monthly revenue from transactions; fallback to estimate if none
       let monthlyRevenue = 0;
@@ -127,7 +127,7 @@ export class PrincipalHubService {
           .gte('created_at', monthStart)
           .lt('created_at', nextMonthStart);
         monthlyRevenue = (tx || []).reduce((sum: number, t: any) => sum + (Number(t.amount) || 0), 0);
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
       if (!monthlyRevenue) {
         monthlyRevenue = Math.round((studentsResult.count || 0) * 1200);
       }
@@ -147,7 +147,7 @@ export class PrincipalHubService {
           .lt('start_time', twoWeeks)
           .limit(50);
         upcomingEvents = (ev || []).length;
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       return {
         totalStudents: studentsResult.count || 0,

@@ -36,7 +36,7 @@ export function createAzureSpeechSession(): AzureSpeechSession {
         // Dynamic import to avoid bundling when unused
         try {
           // Prefer default import name
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
+           
           sdk = (await import('microsoft-cognitiveservices-speech-sdk')) as any;
         } catch (e) {
           console.error('[azureProvider] SDK not available:', e);
@@ -88,13 +88,13 @@ export function createAzureSpeechSession(): AzureSpeechSession {
 
         // Apply mute state (disable mic track) — simplest approach is to stop recognition
         if (muted) {
-          try { recognizer.stopContinuousRecognitionAsync(() => {}, () => {}); active = false; } catch {}
+          try { recognizer.stopContinuousRecognitionAsync(() => {}, () => {}); active = false; } catch { /* Intentional: non-fatal */ }
         }
 
         return true;
       } catch (e) {
         console.error('[azureProvider] start failed:', e);
-        try { recognizer?.close?.(); } catch {}
+        try { recognizer?.close?.(); } catch { /* Intentional: non-fatal */ }
         recognizer = null; active = false;
         return false;
       }
@@ -112,7 +112,7 @@ export function createAzureSpeechSession(): AzureSpeechSession {
           } catch { active = false; resolve(); }
         });
       } finally {
-        try { recognizer.close?.(); } catch {}
+        try { recognizer.close?.(); } catch { /* Intentional: non-fatal */ }
         recognizer = null; closed = true; active = false;
       }
     },
@@ -125,7 +125,7 @@ export function createAzureSpeechSession(): AzureSpeechSession {
         if (!recognizer) return;
         if (muted) recognizer.stopContinuousRecognitionAsync(() => { active = false; }, () => { active = false; });
         else recognizer.startContinuousRecognitionAsync(() => { active = true; }, () => {});
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     },
 
     updateTranscriptionConfig(cfg: { language?: string }) {
@@ -148,7 +148,7 @@ export function createAzureSpeechSession(): AzureSpeechSession {
         // Restart with new language by stopping and starting
         this.setMuted(true);
         this.setMuted(false);
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     },
   };
 }

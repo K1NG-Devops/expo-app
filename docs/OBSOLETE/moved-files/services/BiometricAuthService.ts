@@ -77,7 +77,7 @@ export class BiometricAuthService {
       if (!canonical && (legacy === "1" || legacy === "0")) {
         const value = legacy === "1" ? "true" : "false";
         await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, value);
-        await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => {});
+        await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => { /* Intentional: error handled */ });
       }
     } catch (e) {
       warn("BiometricAuthService.init migration skipped:", e);
@@ -444,7 +444,7 @@ export class BiometricAuthService {
         // Update last used timestamp
         await this.updateLastUsed();
         // Record unlock time for grace period logic
-        try { await this.setLastUnlockedAt(Date.now()); } catch {}
+        try { await this.setLastUnlockedAt(Date.now()); } catch { /* Intentional: non-fatal */ }
 
         return {
           success: true,
@@ -482,7 +482,7 @@ export class BiometricAuthService {
         if (legacy === "1" || legacy === "0") {
           const canonical = legacy === "1" ? "true" : "false";
           await SecureStore.setItemAsync(BIOMETRIC_STORAGE_KEY, canonical);
-          await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => {});
+          await SecureStore.deleteItemAsync(LEGACY_BIOMETRIC_STORAGE_KEY).catch(() => { /* Intentional: error handled */ });
           enabled = canonical;
         }
       }
@@ -604,14 +604,14 @@ export class BiometricAuthService {
     try {
       // Remove from both SecureStore and AsyncStorage
       await Promise.all([
-        SecureStore.deleteItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(BIOMETRIC_USER_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync("biometric_security_state").catch(() => {}),
-        SecureStore.deleteItemAsync(BIOMETRIC_LOCK_SECRET_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(LAST_UNLOCKED_AT_KEY).catch(() => {}),
-        SecureStore.deleteItemAsync(LAST_USER_ID_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(BIOMETRIC_STORAGE_KEY).catch(() => { /* Intentional: error handled */ }),
+        SecureStore.deleteItemAsync(BIOMETRIC_USER_KEY).catch(() => { /* Intentional: error handled */ }),
+        SecureStore.deleteItemAsync("biometric_security_state").catch(() => { /* Intentional: error handled */ }),
+        SecureStore.deleteItemAsync(BIOMETRIC_LOCK_SECRET_KEY).catch(() => { /* Intentional: error handled */ }),
+        SecureStore.deleteItemAsync(LAST_UNLOCKED_AT_KEY).catch(() => { /* Intentional: error handled */ }),
+        SecureStore.deleteItemAsync(LAST_USER_ID_KEY).catch(() => { /* Intentional: error handled */ }),
         // Also remove stored refresh token used for session restoration
-        SecureStore.deleteItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY).catch(() => {}),
+        SecureStore.deleteItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY).catch(() => { /* Intentional: error handled */ }),
         AsyncStorage.removeItem(BIOMETRIC_STORAGE_KEY),
         AsyncStorage.removeItem(BIOMETRIC_USER_KEY),
         AsyncStorage.removeItem(BIOMETRIC_REFRESH_TOKEN_KEY),

@@ -30,8 +30,8 @@ export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: bo
   } catch (navError) {
     console.error('[authActions] Navigation failed:', navError);
     // Try fallback routes
-    try { router.replace('/(auth)/sign-in'); } catch {}
-    try { router.replace('/sign-in'); } catch {}
+    try { router.replace('/(auth)/sign-in'); } catch { /* Intentional: non-fatal */ }
+    try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
   }
   
   // Reset flag immediately

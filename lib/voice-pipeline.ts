@@ -305,7 +305,7 @@ export class VoicePipeline {
       if (this.voiceSession) {
         try {
           await this.voiceSession.stop();
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
         this.voiceSession = null;
       }
       return null;

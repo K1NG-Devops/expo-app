@@ -109,7 +109,7 @@ export default function SignIn() {
           await AsyncStorage.removeItem('rememberMe');
           await AsyncStorage.removeItem('savedEmail');
           const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          try { await SecureStore.deleteItemAsync(sanitizedKey); } catch {}
+          try { await SecureStore.deleteItemAsync(sanitizedKey); } catch { /* Intentional: non-fatal */ }
         }
       } catch (credErr) {
         console.warn('Remember me save failed:', credErr);

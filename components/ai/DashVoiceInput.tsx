@@ -89,7 +89,7 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
 
     return () => {
       if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+        Voice.destroy().then(Voice.removeAllListeners).catch(() => { /* Intentional: error handled */ });
       }
     };
   }, []);

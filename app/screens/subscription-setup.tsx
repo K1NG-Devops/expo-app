@@ -84,7 +84,7 @@ export default function SubscriptionSetupScreen() {
           .maybeSingle();
         return (data as any)?.preschool_id ?? null;
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return null;
   };
 
@@ -300,7 +300,7 @@ export default function SubscriptionSetupScreen() {
             .from('preschools')
             .update({ subscription_tier: plan.tier as any })
             .eq('id', schoolId);
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
 
         track('subscription_created', {
           plan_id: plan.tier,

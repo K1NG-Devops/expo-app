@@ -32,7 +32,7 @@ export default function DashWakeWordListener() {
       try {
         const value = await AsyncStorage.getItem('@dash_ai_in_app_wake_word');
         if (mounted) setEnabled(value === 'true');
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     };
 
     loadToggle();
@@ -41,31 +41,31 @@ export default function DashWakeWordListener() {
       appStateRef.current = next;
       if (next === 'active') {
         await loadToggle();
-        if (enabled) startListening().catch(() => {});
+        if (enabled) startListening().catch(() => { /* Intentional: error handled */ });
       } else {
-        stopListening().catch(() => {});
+        stopListening().catch(() => { /* Intentional: error handled */ });
       }
     });
 
     // Start if already active and enabled
     if (appStateRef.current === 'active' && enabled) {
-      startListening().catch(() => {});
+      startListening().catch(() => { /* Intentional: error handled */ });
     }
 
     return () => {
       mounted = false;
       sub.remove();
-      stopListening().catch(() => {});
-      release().catch(() => {});
+      stopListening().catch(() => { /* Intentional: error handled */ });
+      release().catch(() => { /* Intentional: error handled */ });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   useEffect(() => {
     // React to settings changes
     if (appStateRef.current === 'active') {
-      if (enabled) startListening().catch(() => {});
-      else stopListening().catch(() => {});
+      if (enabled) startListening().catch(() => { /* Intentional: error handled */ });
+      else stopListening().catch(() => { /* Intentional: error handled */ });
     }
   }, [enabled]);
 
@@ -114,7 +114,7 @@ export default function DashWakeWordListener() {
         try {
           // Navigate to Dash Assistant when wake word is detected
           router.push('/screens/dash-assistant');
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       });
       isListeningRef.current = true;
       console.log('[DashWakeWord] Listening (in app)');
@@ -130,14 +130,14 @@ export default function DashWakeWordListener() {
       await Porcupine.stop();
       isListeningRef.current = false;
       console.log('[DashWakeWord] Stopped listening');
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   };
 
   const release = async () => {
     try {
       if (audioEngineRef.current?.stop) await audioEngineRef.current.stop();
       if (porcupineRef.current?.release) await porcupineRef.current.release();
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   };
 
   return null; // Invisible background helper

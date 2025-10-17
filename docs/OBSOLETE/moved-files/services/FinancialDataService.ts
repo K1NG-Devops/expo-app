@@ -138,7 +138,7 @@ let monthlyExpenses = expenseTransactions?.reduce((sum, t) => sum + Math.abs(t.a
           .lt('created_at', nextMonthStart);
         const otherExp = (otherExpTx || []).reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount) || 0), 0);
         monthlyExpenses += otherExp;
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Get student count
       const { count: studentCount } = await assertSupabase()
@@ -226,7 +226,7 @@ try {
     .gte('created_at', monthStart)
     .lt('created_at', nextMonthStart);
   otherExp = (monthOther || []).reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
-} catch {}
+} catch { /* Intentional: non-fatal */ }
 const expenses = petty + otherExp;
 
         trendData.push({
@@ -405,7 +405,7 @@ try {
     // Note: revenue/expense queries above also scope conditionally
     ;
   otherExp = (monthOther || []).reduce((s: number, t: any) => s + Math.abs(Number(t.amount) || 0), 0);
-} catch {}
+} catch { /* Intentional: non-fatal */ }
 const expenses = petty + otherExp;
         
         revenueMonthly.push(revenue);
@@ -614,7 +614,7 @@ const expenses = petty + otherExp;
             });
           }
         });
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Sort by date (newest first)
       transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

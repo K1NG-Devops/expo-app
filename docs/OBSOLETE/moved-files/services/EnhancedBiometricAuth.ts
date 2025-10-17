@@ -141,7 +141,7 @@ export class EnhancedBiometricAuth {
       } else if (AsyncStorage) {
         return await AsyncStorage.getItem(BIOMETRIC_ACTIVE_USER_ID_KEY);
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return null;
   }
 
@@ -152,7 +152,7 @@ export class EnhancedBiometricAuth {
       } else if (AsyncStorage) {
         await AsyncStorage.setItem(BIOMETRIC_ACTIVE_USER_ID_KEY, userId);
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }
 
   private static makeRefreshKey(userId: string): string {
@@ -166,7 +166,7 @@ export class EnhancedBiometricAuth {
       } else if (AsyncStorage) {
         await AsyncStorage.setItem(this.makeRefreshKey(userId), token);
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }
 
   private static async getRefreshTokenForUser(userId: string): Promise<string | null> {
@@ -176,7 +176,7 @@ export class EnhancedBiometricAuth {
       } else if (AsyncStorage) {
         return await AsyncStorage.getItem(this.makeRefreshKey(userId));
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return null;
   }
 
@@ -187,7 +187,7 @@ export class EnhancedBiometricAuth {
       } else if (AsyncStorage) {
         await AsyncStorage.removeItem(this.makeRefreshKey(userId));
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }
 
   /**
@@ -337,11 +337,11 @@ export class EnhancedBiometricAuth {
         }
         await storage.removeItem(BIOMETRIC_SESSIONS_KEY);
         if (SecureStore) {
-          await SecureStore.deleteItemAsync(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => {});
+          await SecureStore.deleteItemAsync(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => { /* Intentional: error handled */ });
         } else if (AsyncStorage) {
-          await AsyncStorage.removeItem(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => {});
+          await AsyncStorage.removeItem(BIOMETRIC_ACTIVE_USER_ID_KEY).catch(() => { /* Intentional: error handled */ });
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Also remove global stored biometric refresh token
       try {
@@ -444,7 +444,7 @@ export class EnhancedBiometricAuth {
                 biometricRefresh = SecureStore 
                   ? await SecureStore.getItemAsync(BIOMETRIC_REFRESH_TOKEN_KEY)
                   : await AsyncStorage.getItem(BIOMETRIC_REFRESH_TOKEN_KEY);
-              } catch {}
+              } catch { /* Intentional: non-fatal */ }
               if (biometricRefresh) {
                 const { data: refreshed3, error: refreshErr3 } = await assertSupabase().auth.refreshSession({
                   refresh_token: biometricRefresh,
@@ -532,7 +532,7 @@ export class EnhancedBiometricAuth {
             accountsMap[s.userId] = { userId: s.userId, email: s.email, lastUsed: s.lastUsed, expiresAt: s.expiresAt };
           }
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       const accounts = Object.values(accountsMap);
       // Sort by lastUsed desc

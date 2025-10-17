@@ -36,6 +36,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceController } from '@/hooks/useVoiceController';
+import { useOnDeviceVoice } from '@/hooks/useOnDeviceVoice';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 import { toast } from '@/components/ui/ToastProvider';
 import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
@@ -169,7 +170,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           if (enterToSendSetting !== null) {
             setEnterToSend(enterToSendSetting === 'true');
           }
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
 
         // Send initial message if provided
         if (initialMessage && initialMessage.trim()) {
@@ -243,10 +244,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       if (messages && messages.length > 0) {
         const idx = messages.length - 1;
         setTimeout(() => {
-          try { flatListRef.current?.scrollToIndex({ index: idx, animated: false }); } catch {}
+          try { flatListRef.current?.scrollToIndex({ index: idx, animated: false }); } catch { /* Intentional: non-fatal */ }
         }, 0);
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }, [messages.length]);
 
 
@@ -340,7 +341,7 @@ const attachmentsToUpload = attachmentsOverride ?? selectedAttachments;
 
 // Guard with user-visible feedback instead of silent return
 if (!dashInstance) {
-  try { Alert.alert('Dash is starting', 'Please wait a moment and try again.'); } catch {}
+  try { Alert.alert('Dash is starting', 'Please wait a moment and try again.'); } catch { /* Intentional: non-fatal */ }
   return;
 }
 if (!text && attachmentsToUpload.length === 0) {
@@ -348,7 +349,7 @@ if (!text && attachmentsToUpload.length === 0) {
   return;
 }
 if (isLoading) {
-  try { Alert.alert('Please wait', 'Dash is still processing your previous message.'); } catch {}
+  try { Alert.alert('Please wait', 'Dash is still processing your previous message.'); } catch { /* Intentional: non-fatal */ }
   return;
 }
 
@@ -450,13 +451,13 @@ for (const attachment of attachmentsToUpload) {
             )
           }, 200)
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Auto-speak response if enabled
       setTimeout(() => {
         try {
           if (autoSpeak) speakResponse(response);
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
       }, 500);
 
     } catch (error) {
@@ -1020,9 +1021,9 @@ return (
           setMessages(updatedConv.messages);
           setConversation(updatedConv);
         }
-      } catch {}
-      try { setShowVoiceSending(false); } catch {}
-      setTimeout(() => { try { if (autoSpeak) speakResponse(response); } catch {} }, 400);
+      } catch { /* Intentional: non-fatal */ }
+      try { setShowVoiceSending(false); } catch { /* Intentional: non-fatal */ }
+      setTimeout(() => { try { if (autoSpeak) speakResponse(response); } catch { /* Intentional: non-fatal */ } }, 400);
     }
   });
   
@@ -1038,7 +1039,7 @@ return (
         if (isVoiceRecording) {
           setIsVoiceRecording(false);
         }
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     }
   }, [showVoiceMode, showVoiceRecorderModal]);
   
@@ -1059,7 +1060,7 @@ return (
       setVoiceTimerMs(0);
     }
     if (vc.state === 'idle' || vc.state === 'error') {
-      try { setShowVoiceSending(false); } catch {}
+      try { setShowVoiceSending(false); } catch { /* Intentional: non-fatal */ }
     }
   }, [vc.state]);
 
@@ -1071,18 +1072,18 @@ return (
           'Voice input unavailable',
           'We could not start voice input. If this persists, check microphone permission in system settings and try again.'
         );
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
     }
   }, [vc.state]);
 
   // Realtime streaming enabled if env true OR user preference '@dash_streaming_enabled' is 'true'
   const [streamingPrefEnabled, setStreamingPrefEnabled] = React.useState(false);
-  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch {} })(); }, []);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPrefEnabled(v === 'true'); } catch { /* Intentional: non-fatal */ } })(); }, []);
   const streamingEnabled = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true' || streamingPrefEnabled;
   
   // Voice Dock controller + auto speak preference
   const [autoSpeak, setAutoSpeak] = React.useState(true);
-  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch {} })(); }, []);
+  React.useEffect(() => { (async () => { try { const AS = (await import('@react-native-async-storage/async-storage')).default; const v = await AS.getItem('@voice_auto_speak'); if (v !== null) setAutoSpeak(v === 'true'); } catch { /* Intentional: non-fatal */ } })(); }, []);
 
   // Waveform animation for non-streaming sending placeholder
   const [waveVals] = useState([
@@ -1159,7 +1160,7 @@ return (
         streamSpokenRef.current = true;
         speakResponse({ id: `streamed_${Date.now()}`, type: 'assistant', content: streamAssistant, timestamp: Date.now() } as any);
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
   }, [isStreaming, streamingEnabled, streamAssistant, autoSpeak]);
 
   // Finalize streamed user/assistant content into conversation when streaming ends
@@ -1251,7 +1252,7 @@ return (
               onPress={() => {
                 try {
                   toast.info(`Realtime: ${isStreaming ? 'Connected' : 'Idle'}`);
-                } catch {}
+                } catch { /* Intentional: non-fatal */ }
               }}
               style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}
             >
@@ -1445,7 +1446,7 @@ return (
               setTimeout(() => {
                 try {
                   flatListRef.current?.scrollToEnd({ animated: false });
-                } catch {}
+                } catch { /* Intentional: non-fatal */ }
               }, 200);
             }}
             ListFooterComponent={(
@@ -1542,7 +1543,7 @@ return (
             setInputText('');
             setSelectedAttachments([]);
             await sendMessage(text, atts || []);
-          } catch {}
+          } catch { /* Intentional: non-fatal */ }
         }}
         onAttachmentsChange={(atts) => setSelectedAttachments(atts)}
         voiceState={vc.state}
@@ -1641,7 +1642,7 @@ return (
             
             if (showVoiceRecorderModal) {
               // Close modal and ensure any active recording is stopped
-              try { dashInstance?.stopRecording?.(); } catch {}
+              try { dashInstance?.stopRecording?.(); } catch { /* Intentional: non-fatal */ }
               setShowVoiceRecorderModal(false);
               return;
             }
@@ -1730,7 +1731,7 @@ return (
           vc={vc}
           visible={showVoiceRecorderModal}
           onClose={() => {
-            try { vc.cancel(); } catch {}
+            try { vc.cancel(); } catch { /* Intentional: non-fatal */ }
             setShowVoiceRecorderModal(false);
           }}
         />

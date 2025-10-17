@@ -53,20 +53,20 @@ export async function getVoicePrefs(): Promise<VoicePreference | null> {
   // Try server first
   const prefs = await voiceService.getPreferences();
   if (prefs) {
-    try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(prefs)); } catch {}
+    try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(prefs)); } catch { /* Intentional: cache write failure is non-fatal */ }
     return prefs;
   }
   // Fallback to cache
   try {
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* Intentional: cache read failure is non-fatal */ }
   return null;
 }
 
 export async function setVoicePrefs(update: Partial<VoicePreference>): Promise<VoicePreference> {
   const merged = await voiceService.savePreferences(update);
-  try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch {}
+  try { await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(merged)); } catch { /* Intentional: cache write failure is non-fatal */ }
   return merged;
 }
 
@@ -74,14 +74,14 @@ export async function getVoiceChatPrefs(): Promise<VoiceChatPrefs> {
   try {
     const raw = await AsyncStorage.getItem(VOICE_CHAT_PREFS_KEY);
     if (raw) return { ...DEFAULT_CHAT_PREFS, ...(JSON.parse(raw) as VoiceChatPrefs) };
-  } catch {}
+  } catch { /* Intentional: cache read failure returns defaults */ }
   return DEFAULT_CHAT_PREFS;
 }
 
 export async function setVoiceChatPrefs(prefs: Partial<VoiceChatPrefs>): Promise<void> {
   const current = await getVoiceChatPrefs();
   const next = { ...current, ...prefs };
-  try { await AsyncStorage.setItem(VOICE_CHAT_PREFS_KEY, JSON.stringify(next)); } catch {}
+  try { await AsyncStorage.setItem(VOICE_CHAT_PREFS_KEY, JSON.stringify(next)); } catch { /* Intentional: cache write failure is non-fatal */ }
 }
 
 export function getPersonality() {
@@ -131,7 +131,7 @@ export async function initAndMigrate(): Promise<void> {
         speaking_rate = Number(parsed?.speechSpeed) || undefined;
         volume = Number(parsed?.speechVolume) || undefined;
       }
-    } catch {}
+    } catch { /* Intentional: legacy backup read failure is non-fatal */ }
 
     // If we still have nothing, peek at personality in storage via DashAIAssistant
     try {
@@ -142,7 +142,7 @@ export async function initAndMigrate(): Promise<void> {
         speaking_rate = speaking_rate ?? p.voice_settings.rate;
         pitch = pitch ?? p.voice_settings.pitch;
       }
-    } catch {}
+    } catch { /* Intentional: personality read failure is non-fatal */ }
 
     // Resolve a default voice_id for the language
     const gender = 'female';

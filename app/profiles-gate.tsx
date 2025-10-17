@@ -138,7 +138,7 @@ export default function ProfilesGateScreen() {
           } else {
             console.log('Successfully updated user metadata with role:', selectedRole);
           }
-        } catch {}
+        } catch { /* Intentional: non-fatal */ }
 
       } catch (metadataError) {
         console.error('Error updating user metadata:', metadataError);

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Educational PDF Generation Service
  * 

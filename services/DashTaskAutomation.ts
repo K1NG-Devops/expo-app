@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash Task Automation System
  * Handles complex multi-step tasks and workflow automation

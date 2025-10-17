@@ -198,8 +198,8 @@ if (url && anon) {
     } else if (event === 'SIGNED_OUT') {
       logger.info('User signed out');
       // Clear any stale session data
-      storage.removeItem('edudash_user_session').catch(() => {});
-      storage.removeItem('edudash_user_profile').catch(() => {});
+      storage.removeItem('edudash_user_session').catch(() => { /* Intentional: error handled */ });
+      storage.removeItem('edudash_user_profile').catch(() => { /* Intentional: error handled */ });
     }
   });
   

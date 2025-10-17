@@ -104,7 +104,7 @@ export async function getConversationSnapshot(
     try {
       const key = CONVERSATION_CACHE_KEY(userId, conversationId);
       await AsyncStorage.removeItem(key);
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
     return null;
   }
 }

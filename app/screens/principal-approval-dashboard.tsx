@@ -100,7 +100,7 @@ export default function PrincipalApprovalDashboard() {
 
   useEffect(() => {
     loadApprovalData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user?.id]);
 
   const onRefresh = async () => {

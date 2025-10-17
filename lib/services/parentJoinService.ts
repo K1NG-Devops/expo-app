@@ -86,7 +86,7 @@ export class ParentJoinService {
           await assertSupabase().from('students').update({ guardian_id: req.parent_auth_id }).eq('id', studentId);
         }
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     // Mark request approved
     const { error } = await assertSupabase()
