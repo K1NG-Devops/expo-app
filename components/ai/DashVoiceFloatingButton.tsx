@@ -43,6 +43,7 @@ import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
+import { ChatGPTVoiceMode } from '@/components/ai/ChatGPTVoiceMode';
 import { useTranslation } from 'react-i18next';
 
 
@@ -88,6 +89,7 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
+  const [showChatGPTVoice, setShowChatGPTVoice] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -310,8 +312,8 @@ const handleLongPress = async () => {
       }
       
       await ensureConversation();
-      // Open elegant full-screen voice mode
-      setShowVoiceMode(true);
+      // Open ChatGPT-style voice mode
+      setShowChatGPTVoice(true);
       setIsLoading(false);
     } catch (e) {
       console.error('[DashVoiceFAB] Long press failed:', e);
@@ -497,10 +499,18 @@ const handlePressOut = () => {
       </Animated.View>
       )}
 
-      {/* Elegant ChatGPT-style Voice Mode */}
+      {/* Original Voice Mode */}
       <DashVoiceMode
         visible={showVoiceMode}
         onClose={() => setShowVoiceMode(false)}
+        dashInstance={dash}
+        onMessageSent={() => { /* no-op */ }}
+      />
+      
+      {/* ChatGPT-Style Voice Mode */}
+      <ChatGPTVoiceMode
+        visible={showChatGPTVoice}
+        onClose={() => setShowChatGPTVoice(false)}
         dashInstance={dash}
         onMessageSent={() => { /* no-op */ }}
       />

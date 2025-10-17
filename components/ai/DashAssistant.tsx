@@ -46,6 +46,7 @@ import { EnhancedInputArea } from '@/components/ai/EnhancedInputArea';
 import { DashVoiceInput } from '@/components/ai/DashVoiceInput';
 import { VoiceRecordingBar } from '@/components/ai/VoiceRecordingBar';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
+import { ChatGPTVoiceMode } from '@/components/ai/ChatGPTVoiceMode';
 import { assertSupabase } from '@/lib/supabase';
 import { useTranslation } from 'react-i18next';
 import * as FileSystem from 'expo-file-system';
@@ -86,6 +87,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [voiceInputMode, setVoiceInputMode] = useState<'note' | 'live'>('note'); // 'note' = recording modal, 'live' = real-time ASR
   const [showVoiceModeMenu, setShowVoiceModeMenu] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false); // Elegant full-screen voice mode
+  const [showChatGPTVoice, setShowChatGPTVoice] = useState(false); // ChatGPT-style voice mode
   const [voiceModeLang, setVoiceModeLang] = useState<string | undefined>(undefined);
   const [liveVoiceText, setLiveVoiceText] = useState('');
   const [isVoiceRecording, setIsVoiceRecording] = useState(false); // WhatsApp-style inline recording
