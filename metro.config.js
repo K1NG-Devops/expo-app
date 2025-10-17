@@ -49,6 +49,8 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 // Enable inline requires for faster startup
 config.transformer = {
   ...(config.transformer || {}),
+  // OPTIMIZATION: Reduce concurrent workers to save memory during bundling
+  maxWorkers: process.env.METRO_MAX_WORKERS ? parseInt(process.env.METRO_MAX_WORKERS, 10) : 2,
   getTransformOptions: async () => ({
     transform: {
       experimentalImportSupport: false,

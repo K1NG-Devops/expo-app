@@ -9,7 +9,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAssistant } from '@/components/ai/DashAssistant';
+import DashAssistant from '@/components/ai/DashAssistant';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 

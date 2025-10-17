@@ -694,15 +694,18 @@ export class DashAIAssistant {
           language: 'en'
         });
         
-        // Initialize Semantic Memory Engine for contextual learning
-        try {
-          const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
-          const semanticMemory = SemanticMemoryEngine.getInstance();
-          await semanticMemory.initialize();
-          console.log('[Dash] Semantic memory initialized');
-        } catch (error) {
-          console.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
-        }
+        // Initialize Semantic Memory Engine for contextual learning (deferred to avoid heap issues)
+        // Note: Semantic memory will be lazy-loaded on first use to prevent bundler memory issues
+        setTimeout(async () => {
+          try {
+            const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
+            const semanticMemory = SemanticMemoryEngine.getInstance();
+            await semanticMemory.initialize();
+            console.log('[Dash] Semantic memory initialized (deferred)');
+          } catch (error) {
+            console.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
+          }
+        }, 2000); // Defer by 2 seconds to avoid initial bundler heap pressure
         
         console.log('[Dash] Agentic services initialized');
       }
@@ -3412,9 +3415,9 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       if (/\b(finance|financial|fees|payments|outstanding|revenue|insight)\b/i.test(userInput)) {
         try {
           const prof = await getCurrentProfile();
-          const schoolId = (prof as any)?.preschool_id || (prof as any)?.organization_id;
-          if (schoolId) {
-            const insights = await AIInsightsService.generateInsightsForSchool(schoolId);
+          const organizationId = (prof as any)?.organization_id || (prof as any)?.preschool_id;
+          if (organizationId) {
+            const insights = await AIInsightsService.generateInsightsForSchool(organizationId);
             if (insights && insights.length) {
               const bullets = insights.slice(0, 5).map(i => `• [${i.priority}] ${i.title} — ${i.description}`).join('\n');
               aiResponse.content = `${aiResponse.content || ''}\n\nFinancial insights:\n${bullets}`.trim();
@@ -4096,7 +4099,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,preschool_id,organization_id')
+        .select('id,organization_id,preschool_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4135,7 +4138,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const result = await LessonGeneratorService.saveGeneratedLesson({
         lesson,
         teacherId: profile.id,
-        preschoolId: profile.preschool_id || profile.organization_id || '',
+        preschoolId: profile.organization_id || profile.preschool_id || '',
         ageGroupId: 'dash-generated',
         categoryId,
         template: { 
@@ -4182,7 +4185,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,preschool_id,organization_id')
+        .select('id,organization_id,preschool_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4204,7 +4207,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         subject: resourceParams.subject || null,
         grade_level: resourceParams.gradeLevel || null,
         created_by: profile.id,
-        organization_id: profile.preschool_id || profile.organization_id || null,
+        organization_id: profile.organization_id || profile.preschool_id || null,
         is_ai_generated: true,
         metadata: {
           dash_type: resourceParams.type,
@@ -5470,18 +5473,16 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         return metaTier as 'free' | 'starter' | 'premium' | 'enterprise';
       }
       
-      // Get school/org ID
-      let schoolId = (user?.user_metadata as any)?.preschool_id;
-      let orgId = (user?.user_metadata as any)?.organization_id;
+      // Get organization ID (prioritize organization_id over legacy preschool_id)
+      let orgId = (user?.user_metadata as any)?.organization_id || (user?.user_metadata as any)?.preschool_id;
       
-      if (!schoolId || !orgId) {
+      if (!orgId) {
         const { data: userRow } = await supabase
           .from('users')
-          .select('preschool_id, organization_id')
+          .select('organization_id, preschool_id')
           .eq('auth_user_id', user.id)
           .maybeSingle();
-        schoolId = schoolId || userRow?.preschool_id;
-        orgId = orgId || userRow?.organization_id;
+        orgId = userRow?.organization_id || userRow?.preschool_id;
       }
       
       // Check organization tier
@@ -5499,12 +5500,12 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         }
       }
       
-      // Check school subscription
-      if (schoolId) {
+      // Check subscriptions table (legacy support)
+      if (orgId) {
         const { data: sub } = await supabase
           .from('subscriptions')
           .select('plan_id')
-          .eq('school_id', schoolId)
+          .eq('school_id', orgId)
           .in('status', ['active', 'trialing'])
           .maybeSingle();
         
@@ -5523,11 +5524,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           }
         }
         
-        // Fallback to school default tier
+        // Fallback to preschools table (legacy support)
         const { data: school } = await supabase
           .from('preschools')
           .select('subscription_tier')
-          .eq('id', schoolId)
+          .eq('id', orgId)
           .maybeSingle();
         
         if (school?.subscription_tier) {

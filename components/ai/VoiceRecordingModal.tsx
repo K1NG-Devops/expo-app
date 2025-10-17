@@ -1,369 +1,436 @@
 /**
- * VoiceRecordingModal Component - Simplified & Clean
+ * Simple Voice Recording Modal
  * 
- * A simple, reliable voice recording interface with:
- * - Clean state management
- * - Reliable send/cancel actions
- * - No freezing or double-tap issues
+ * A clean, minimal voice recording interface that avoids the complexity
+ * and potential freeze issues of the previous implementations.
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
+  Modal,
   TouchableOpacity,
+  StyleSheet,
   Animated,
   Dimensions,
   Platform,
-  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { VoiceController } from '@/hooks/useVoiceController';
-import { useTranslation } from 'react-i18next';
+import { DashAIAssistant } from '@/services/DashAIAssistant';
+import * as Haptics from 'expo-haptics';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
-function formatTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-}
-
-interface VoiceRecordingModalProps {
-  vc: VoiceController;
+interface SimpleVoiceModalProps {
   visible: boolean;
   onClose: () => void;
+  dashInstance?: DashAIAssistant;
 }
 
-export function VoiceRecordingModal({ vc, visible, onClose }: VoiceRecordingModalProps) {
-  const { theme, isDark } = useTheme();
-  const { t } = useTranslation();
-  
-  // Simple local state
-  const [isSending, setIsSending] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  
-  // Waveform animation
-  const waveformBars = useRef(
-    Array(40).fill(0).map(() => new Animated.Value(0.3))
-  ).current;
+type RecordingState = 'idle' | 'recording' | 'processing' | 'error';
 
-  const isRecording = vc.state === 'listening';
-  const isProcessing = vc.state === 'transcribing' || vc.state === 'thinking';
+export const SimpleVoiceModal: React.FC<SimpleVoiceModalProps> = ({
+  visible,
+  onClose,
+  dashInstance,
+}) => {
+  const { theme, isDark } = useTheme();
+  const [state, setState] = useState<RecordingState>('idle');
+  const [duration, setDuration] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isRecordingRef = useRef(false);
+
+  // Clean up on unmount or when modal closes
+  useEffect(() => {
+    if (!visible) {
+      cleanup();
+    }
+    return cleanup;
+  }, [visible]);
+
+  const cleanup = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (isRecordingRef.current && dashInstance) {
+      dashInstance.stopRecording().catch(() => {});
+      isRecordingRef.current = false;
+    }
+    setState('idle');
+    setDuration(0);
+    setErrorMessage('');
+    pulseAnim.setValue(1);
+  };
 
   // Pulse animation for recording indicator
   useEffect(() => {
-    if (isRecording) {
-      Animated.loop(
+    if (state === 'recording') {
+      const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
             toValue: 1.3,
-            duration: 600,
+            duration: 800,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1,
-            duration: 600,
+            duration: 800,
             useNativeDriver: true,
           }),
         ])
-      ).start();
+      );
+      pulse.start();
+      return () => pulse.stop();
     } else {
       pulseAnim.setValue(1);
     }
-  }, [isRecording]);
+  }, [state]);
 
-  // Waveform animation
+  // Timer for recording duration
   useEffect(() => {
-    if (isRecording) {
-      const animations = waveformBars.map((bar, index) =>
-        Animated.loop(
-          Animated.sequence([
-            Animated.delay(index * 30),
-            Animated.timing(bar, {
-              toValue: Math.random() * 0.7 + 0.3,
-              duration: 300 + Math.random() * 200,
-              useNativeDriver: false,
-            }),
-            Animated.timing(bar, {
-              toValue: 0.2,
-              duration: 300 + Math.random() * 200,
-              useNativeDriver: false,
-            }),
-          ])
-        )
-      );
-      Animated.parallel(animations).start();
-      
-      return () => {
-        waveformBars.forEach(bar => bar.stopAnimation());
-      };
+    if (state === 'recording') {
+      timerRef.current = setInterval(() => {
+        setDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
-  }, [isRecording]);
-
-  // Auto-start recording when modal opens
-  useEffect(() => {
-    const startRecording = async () => {
-      if (visible && vc.state === 'idle') {
-        try {
-          console.log('[VoiceRecordingModal] Auto-starting recording');
-          await vc.startPress();
-        } catch (e) {
-          console.error('[VoiceRecordingModal] Failed to start recording:', e);
-        }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
-    
-    startRecording();
-  }, [visible]);
+  }, [state]);
 
-  const handleCancel = async () => {
-    if (isSending) return; // Prevent double-tap
-    
+  const startRecording = async () => {
+    if (!dashInstance) {
+      setErrorMessage('AI Assistant not available');
+      setState('error');
+      return;
+    }
+
     try {
-      console.log('[VoiceRecordingModal] Canceling recording');
-      await vc.cancel();
-      onClose();
-    } catch (e) {
-      console.error('[VoiceRecordingModal] Cancel error:', e);
-      onClose(); // Close anyway
+      setState('recording');
+      setDuration(0);
+      setErrorMessage('');
+      
+      await dashInstance.preWarmRecorder();
+      await dashInstance.startRecording();
+      isRecordingRef.current = true;
+      
+      // Haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      setErrorMessage('Failed to start recording');
+      setState('error');
+      isRecordingRef.current = false;
     }
   };
 
-  const handleSend = async () => {
-    if (isSending) return; // Prevent double-tap
-    
-    try {
-      console.log('[VoiceRecordingModal] Sending recording');
-      setIsSending(true);
-      
-      // Send the recording
-      await vc.release();
-      
-      // Wait a tiny bit to ensure state updates
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Close modal
-      console.log('[VoiceRecordingModal] Recording sent successfully');
+  const stopAndSend = async () => {
+    if (!dashInstance || !isRecordingRef.current) {
       onClose();
-    } catch (e) {
-      console.error('[VoiceRecordingModal] Send error:', e);
-      onClose(); // Close anyway to prevent freezing
-    } finally {
-      setIsSending(false);
+      return;
+    }
+
+    try {
+      setState('processing');
+      isRecordingRef.current = false;
+      
+      const audioUri = await dashInstance.stopRecording();
+      
+      // Simple transcription without complex progress tracking
+      const result = await dashInstance.transcribeOnly(audioUri);
+      
+      if (result.error) {
+        setErrorMessage(result.transcript || 'Transcription failed');
+        setState('error');
+        return;
+      }
+
+      // Send the message
+      await dashInstance.sendMessage(result.transcript || 'Voice message', []);
+      
+      // Success - close modal
+      cleanup();
+      onClose();
+      
+      // Success haptic
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (error) {
+      console.error('Failed to process recording:', error);
+      setErrorMessage('Failed to process recording');
+      setState('error');
     }
   };
 
-  if (!visible) return null;
+  const cancelRecording = async () => {
+    if (isRecordingRef.current && dashInstance) {
+      try {
+        await dashInstance.stopRecording();
+      } catch (error) {
+        console.error('Failed to stop recording:', error);
+      }
+    }
+    cleanup();
+    onClose();
+  };
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const renderContent = () => {
+    switch (state) {
+      case 'idle':
+        return (
+          <View style={styles.contentContainer}>
+            <View style={[styles.micContainer, { backgroundColor: theme.primary }]}>
+              <Ionicons name="mic" size={32} color="white" />
+            </View>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Voice Message
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Tap the microphone to start recording
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+              onPress={startRecording}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="mic" size={20} color="white" />
+              <Text style={styles.buttonText}>Start Recording</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      case 'recording':
+        return (
+          <View style={styles.contentContainer}>
+            <Animated.View
+              style={[
+                styles.recordingIndicator,
+                { backgroundColor: theme.error, transform: [{ scale: pulseAnim }] }
+              ]}
+            >
+              <Ionicons name="mic" size={32} color="white" />
+            </Animated.View>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Recording...
+            </Text>
+            <Text style={[styles.timer, { color: theme.textSecondary }]}>
+              {formatTime(duration)}
+            </Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { backgroundColor: theme.error }]}
+                onPress={cancelRecording}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="close" size={20} color="white" />
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+                onPress={stopAndSend}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="send" size={20} color="white" />
+                <Text style={styles.buttonText}>Send</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+
+      case 'processing':
+        return (
+          <View style={styles.contentContainer}>
+            <View style={[styles.micContainer, { backgroundColor: theme.primary }]}>
+              <Ionicons name="cloud-upload" size={32} color="white" />
+            </View>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Processing...
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              Transcribing your voice message
+            </Text>
+          </View>
+        );
+
+      case 'error':
+        return (
+          <View style={styles.contentContainer}>
+            <View style={[styles.micContainer, { backgroundColor: theme.error }]}>
+              <Ionicons name="alert-circle" size={32} color="white" />
+            </View>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Error
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+              {errorMessage || 'Something went wrong'}
+            </Text>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { backgroundColor: theme.textSecondary }]}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setState('idle');
+                  setErrorMessage('');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>Try Again</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
-    <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.6)' }]}>
-      <View style={[styles.container, { backgroundColor: theme.surface }]}>
-        
-        {/* Header with status */}
-        <View style={styles.header}>
-          {isProcessing ? (
-            <View style={styles.statusContainer}>
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text style={[styles.statusText, { color: theme.text }]}>
-                {vc.state === 'transcribing' 
-                  ? t('voice.recording.transcribing', { defaultValue: 'Transcribing...' })
-                  : t('voice.recording.thinking', { defaultValue: 'Thinking...' })
-                }
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.timerContainer}>
-              <Animated.View
-                style={[
-                  styles.recordingDot,
-                  {
-                    backgroundColor: theme.error,
-                    transform: [{ scale: pulseAnim }],
-                  },
-                ]}
-              />
-              <Text style={[styles.timerText, { color: theme.text }]}>
-                {formatTime(vc.timerMs)}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Waveform */}
-        <View style={styles.waveformContainer}>
-          {waveformBars.map((bar, index) => (
-            <Animated.View
-              key={index}
-              style={[
-                styles.waveformBar,
-                {
-                  backgroundColor: theme.primary,
-                  height: bar.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [8, 64],
-                  }),
-                },
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Hint text */}
-        <Text style={[styles.hintText, { color: theme.textSecondary }]}>
-          {isRecording 
-            ? t('voice.recording.tap_send', { defaultValue: 'Tap send when done' })
-            : isProcessing
-            ? t('voice.recording.processing', { defaultValue: 'Processing your recording...' })
-            : t('voice.recording.ready', { defaultValue: 'Ready to record' })
-          }
-        </Text>
-
-        {/* Action buttons */}
-        <View style={styles.actions}>
-          {/* Cancel button */}
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={[styles.overlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.6)' }]}>
+        <View style={[styles.modal, { backgroundColor: theme.surface }]}>
+          {/* Close button */}
           <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: theme.error }]}
-            onPress={handleCancel}
-            disabled={isSending}
+            style={styles.closeButton}
+            onPress={onClose}
             activeOpacity={0.7}
           >
-            <Ionicons name="close" size={24} color="#fff" />
-            <Text style={styles.cancelText}>
-              {t('voice.controls.cancel', { defaultValue: 'Cancel' })}
-            </Text>
+            <Ionicons name="close" size={24} color={theme.textSecondary} />
           </TouchableOpacity>
 
-          {/* Send button */}
-          <TouchableOpacity
-            style={[
-              styles.sendButton, 
-              { 
-                backgroundColor: isSending || isProcessing ? theme.textSecondary : theme.primary,
-                opacity: isSending || isProcessing ? 0.6 : 1
-              }
-            ]}
-            onPress={handleSend}
-            disabled={isSending || isProcessing || vc.state === 'idle'}
-            activeOpacity={0.7}
-          >
-            {isSending ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Ionicons name="send" size={28} color="#fff" />
-            )}
-          </TouchableOpacity>
+          {renderContent()}
         </View>
       </View>
-    </View>
+    </Modal>
   );
-}
+};
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'flex-end',
-    zIndex: 9999,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
   },
-  container: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 32,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
-    paddingHorizontal: 24,
-    minHeight: 340,
+  modal: {
+    width: Math.min(screenWidth - 40, 400),
+    borderRadius: 20,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowRadius: 16,
     elevation: 16,
   },
-  header: {
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1,
+  },
+  contentContainer: {
+    alignItems: 'center',
+    paddingTop: 20,
+  },
+  micContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  recordingIndicator: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  timer: {
+    fontSize: 24,
+    fontWeight: '300',
+    fontVariant: ['tabular-nums'],
     marginBottom: 24,
   },
-  statusContainer: {
+  buttonRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  statusText: {
-    fontSize: 18,
+  primaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+    minWidth: 120,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+    minWidth: 120,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
     fontWeight: '600',
   },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  recordingDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-  },
-  timerText: {
-    fontSize: 42,
-    fontWeight: '800',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: 2,
-  },
-  waveformContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 90,
-    gap: 4,
-    marginVertical: 32,
-  },
-  waveformBar: {
-    width: 3.5,
-    borderRadius: 2,
-    minHeight: 10,
-  },
-  hintText: {
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-  },
-  cancelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 28,
-    minWidth: 130,
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  cancelText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  sendButton: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 8,
-  },
 });
+
+export default SimpleVoiceModal;

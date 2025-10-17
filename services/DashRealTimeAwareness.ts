@@ -29,6 +29,12 @@ export interface DashAwareness {
     recentScreens: string[];
   };
   data: {
+    memberCount?: number;      // Generic: students, employees, athletes, etc.
+    groupCount?: number;       // Generic: classes, teams, departments, etc.
+    leaderCount?: number;      // Generic: teachers, coaches, managers, etc.
+    organizationId?: string;
+    organizationType?: string;
+    // Legacy support
     studentCount?: number;
     classCount?: number;
     teacherCount?: number;
@@ -231,7 +237,7 @@ export class DashRealTimeAwareness {
   }
   
   /**
-   * Get real data counts from database
+   * Get real data counts from database (organization-agnostic)
    */
   private async getDataContext(profile: UserProfile | null): Promise<DashAwareness['data']> {
     if (!profile) {
@@ -239,37 +245,54 @@ export class DashRealTimeAwareness {
     }
     
     try {
-      const preschoolId = (profile as any).preschool_id;
-      if (!preschoolId) {
+      // Prioritize organization_id over legacy preschool_id
+      const organizationId = (profile as any).organization_id || (profile as any).preschool_id;
+      if (!organizationId) {
         return {};
       }
       
       const supabase = assertSupabase();
       
-      // Get actual student count
-      const { count: studentCount } = await supabase
+      // Get organization type to determine terminology
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('type')
+        .eq('id', organizationId)
+        .maybeSingle();
+      
+      const orgType = org?.type || 'preschool';
+      
+      // Get member count (students, employees, athletes, etc.)
+      const { count: memberCount } = await supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId);
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`);
       
-      // Get class count  
-      const { count: classCount } = await supabase
+      // Get group count (classes, teams, departments, etc.)
+      const { count: groupCount } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId);
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`);
       
-      // Get teacher count
-      const { count: teacherCount } = await supabase
+      // Get leader count (teachers, coaches, managers, etc.)
+      const { count: leaderCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId)
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`)
         .eq('role', 'teacher');
       
       return {
-        studentCount: studentCount ?? undefined,
-        classCount: classCount ?? undefined,
-        teacherCount: teacherCount ?? undefined,
-        preschoolId
+        // Generic counts
+        memberCount: memberCount ?? undefined,
+        groupCount: groupCount ?? undefined,
+        leaderCount: leaderCount ?? undefined,
+        organizationId,
+        organizationType: orgType,
+        // Legacy support (for backward compatibility)
+        studentCount: memberCount ?? undefined,
+        classCount: groupCount ?? undefined,
+        teacherCount: leaderCount ?? undefined,
+        preschoolId: (profile as any).preschool_id
       };
     } catch (error) {
       console.error('[DashAwareness] Failed to get data context:', error);
@@ -362,9 +385,10 @@ USER IDENTITY:
 - ${conversation.isNewConversation ? 'NEW conversation' : 'ONGOING - DO NOT GREET AGAIN'}
 
 REAL DATA (from database):
-${awareness.data.studentCount !== undefined ? `- Students: ${awareness.data.studentCount}` : '- Students: Not loaded yet'}
-${awareness.data.classCount !== undefined ? `- Classes: ${awareness.data.classCount}` : ''}
-${awareness.data.teacherCount !== undefined ? `- Teachers: ${awareness.data.teacherCount}` : ''}
+${awareness.data.memberCount !== undefined ? `- Members: ${awareness.data.memberCount}` : '- Members: Not loaded yet'}
+${awareness.data.groupCount !== undefined ? `- Groups: ${awareness.data.groupCount}` : ''}
+${awareness.data.leaderCount !== undefined ? `- Leaders: ${awareness.data.leaderCount}` : ''}
+${awareness.data.organizationType ? `- Organization Type: ${awareness.data.organizationType}` : ''}
 
 CRITICAL: Use ONLY the real data above. NEVER make up student counts or other statistics.
 

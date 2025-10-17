@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import type { DashMemoryManager } from './DashMemoryManager';
 import { getCurrentProfile } from '@/lib/sessionManager';
+import { getDynamicGreeting, getRoleCapabilities, getTerminology } from '@/lib/organization';
 
 // Dynamic SecureStore import for cross-platform compatibility
 let SecureStore: any = null;
@@ -277,18 +278,22 @@ export class DashContextBuilder {
   constructor(private memoryManager: DashMemoryManager) {}
   
   /**
-   * Load user context for personalization
+   * Load user context for personalization (organization-aware)
    */
   public async loadUserContext(): Promise<void> {
     this.checkDisposed();
     try {
       const profile = await getCurrentProfile();
       if (profile) {
-        // Update personality based on user role
+        // Get organization type from profile
+        const orgType = (profile as any).organization_type || 'preschool';
+        const userName = (profile as any).first_name || (profile as any).display_name;
+        
+        // Update personality based on organization and role
         this.personality = {
           ...this.personality,
-          greeting: this.getPersonalizedGreeting(profile.role),
-          expertise_areas: this.getExpertiseAreasForRole(profile.role)
+          greeting: this.getPersonalizedGreeting(profile.role, orgType, userName),
+          expertise_areas: this.getExpertiseAreasForRole(profile.role, orgType)
         };
       }
     } catch (error) {
@@ -297,34 +302,79 @@ export class DashContextBuilder {
   }
   
   /**
-   * Get personalized greeting based on user role
+   * Get personalized greeting based on organization type and role
+   * Uses dynamic organization configuration system
    */
-  private getPersonalizedGreeting(role: string): string {
+  private getPersonalizedGreeting(role: string, organizationType: string = 'preschool', userName?: string): string {
+    try {
+      // Get dynamic greeting from organization config
+      const dynamicGreeting = getDynamicGreeting(organizationType, role, userName);
+      if (dynamicGreeting) {
+        return dynamicGreeting;
+      }
+    } catch (error) {
+      console.warn('[DashContextBuilder] Failed to get dynamic greeting, using fallback:', error);
+    }
+    
+    // Fallback to default greetings
     switch (role?.toLowerCase()) {
       case 'teacher':
-        return "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?";
+      case 'professor':
+      case 'instructor':
+      case 'coach':
+      case 'trainer':
+        return "Hello! I'm Dash, your AI assistant. Ready to create amazing experiences together?";
       case 'principal':
-        return "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?";
+      case 'dean':
+      case 'director':
+      case 'manager':
+        return "Good day! I'm Dash, your AI assistant. How can I help you lead today?";
       case 'parent':
-        return "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?";
+      case 'guardian':
+        return "Hi there! I'm Dash, here to support your journey. How can I assist you today?";
       default:
         return DEFAULT_PERSONALITY.greeting;
     }
   }
   
   /**
-   * Get expertise areas based on user role
+   * Get expertise areas based on organization type and role
+   * Uses dynamic organization configuration system
    */
-  private getExpertiseAreasForRole(role: string): string[] {
-    const baseAreas = ['education', 'student support', 'educational technology'];
+  private getExpertiseAreasForRole(role: string, organizationType: string = 'preschool'): string[] {
+    try {
+      // Get role capabilities from organization config
+      const capabilities = getRoleCapabilities(organizationType, role);
+      if (capabilities.length > 0) {
+        // Get terminology for organization type
+        const terminology = getTerminology(organizationType);
+        
+        // Build expertise areas using organization terminology
+        const baseAreas = [terminology.organization, `${terminology.member} support`];
+        return [...baseAreas, ...capabilities];
+      }
+    } catch (error) {
+      console.warn('[DashContextBuilder] Failed to get dynamic expertise areas, using fallback:', error);
+    }
+    
+    // Fallback to default areas
+    const baseAreas = ['organization support', 'member support'];
     
     switch (role?.toLowerCase()) {
       case 'teacher':
-        return [...baseAreas, 'lesson planning', 'classroom management', 'student assessment', 'curriculum development'];
+      case 'professor':
+      case 'instructor':
+      case 'coach':
+      case 'trainer':
+        return [...baseAreas, 'planning', 'assessment', 'content creation'];
       case 'principal':
-        return [...baseAreas, 'school administration', 'staff management', 'policy development', 'school analytics'];
+      case 'dean':
+      case 'director':
+      case 'manager':
+        return [...baseAreas, 'administration', 'staff management', 'analytics'];
       case 'parent':
-        return [...baseAreas, 'homework help', 'parent-teacher communication', 'student progress tracking'];
+      case 'guardian':
+        return [...baseAreas, 'progress tracking', 'communication'];
       default:
         return DEFAULT_PERSONALITY.expertise_areas;
     }

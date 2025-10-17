@@ -62,7 +62,9 @@ export class SemanticMemoryEngine {
   private readonly LOW_IMPORTANCE_THRESHOLD = 3;
   
   // Performance settings
-  private readonly VECTOR_DIMENSIONS = 1536; // OpenAI ada-002 dimensions
+  // OPTIMIZATION: Reduced from 1536 to 384 to prevent memory issues during bundling
+  // In production, use actual embedding API which handles this server-side
+  private readonly VECTOR_DIMENSIONS = 384; // Reduced for development (was 1536)
   private readonly DEFAULT_SIMILARITY_THRESHOLD = 0.7;
   private readonly MAX_SEARCH_RESULTS = 10;
 

@@ -43,6 +43,9 @@ export interface ContextData {
   educational_context?: {
     current_subject?: string;
     grade_level?: string;
+    activity_phase?: 'planning' | 'execution' | 'assessment' | 'review';
+    members_present?: boolean;  // Generic: students, employees, athletes, etc.
+    // Legacy support
     lesson_phase?: 'planning' | 'teaching' | 'assessment' | 'review';
     students_present?: boolean;
   };
@@ -108,12 +111,12 @@ export class DashContextAnalyzer {
       /update.*parent/i,
       /inform.*parent/i
     ]],
-    ['student_progress', [
-      /student.*progress/i,
-      /track.*student/i,
-      /student.*performance/i,
+    ['member_progress', [  // Generic: student, employee, athlete progress
+      /(student|member|employee|athlete).*progress/i,
+      /track.*(student|member|employee|athlete)/i,
+      /(student|member|employee|athlete).*performance/i,
       /how.*doing/i,
-      /student.*report/i
+      /(student|member|employee|athlete).*report/i
     ]],
     ['homework_help', [
       /help.*homework/i,
@@ -365,9 +368,15 @@ export class DashContextAnalyzer {
       parameters.time = timeMatch[1];
     }
     
-    const studentMatch = input.match(/student(?:s)?\s+([A-Za-z\s,]+)/i);
-    if (studentMatch) {
-      parameters.students = studentMatch[1].split(',').map(s => s.trim());
+    // Generic member matching (students, employees, athletes, etc.)
+    const memberMatch = input.match(/(student|member|employee|athlete)(?:s)?\s+([A-Za-z\s,]+)/i);
+    if (memberMatch) {
+      parameters.members = memberMatch[2].split(',').map(s => s.trim());
+      parameters.memberType = memberMatch[1];  // Track what type of member
+      // Legacy support
+      if (memberMatch[1].toLowerCase() === 'student') {
+        parameters.students = parameters.members;
+      }
     }
     
     return parameters;
@@ -430,20 +439,18 @@ export class DashContextAnalyzer {
     const opportunities: ProactiveOpportunity[] = [];
     
     try {
-      // Role-based opportunities
-      switch (context.user_state.role) {
-        case 'teacher':
-          opportunities.push(...await this.findTeacherOpportunities(intent, context));
-          break;
-        case 'principal':
-          opportunities.push(...await this.findPrincipalOpportunities(intent, context));
-          break;
-        case 'parent':
-          opportunities.push(...await this.findParentOpportunities(intent, context));
-          break;
-        case 'student':
-          opportunities.push(...await this.findStudentOpportunities(intent, context));
-          break;
+      // Role-based opportunities (supports dynamic organization roles)
+      const role = context.user_state.role;
+      
+      // Map to opportunity finder based on role type
+      if (['teacher', 'professor', 'instructor', 'coach', 'trainer'].includes(role)) {
+        opportunities.push(...await this.findEducatorOpportunities(intent, context));
+      } else if (['principal', 'dean', 'director', 'manager', 'admin'].includes(role)) {
+        opportunities.push(...await this.findLeaderOpportunities(intent, context));
+      } else if (['parent', 'guardian'].includes(role)) {
+        opportunities.push(...await this.findParentOpportunities(intent, context));
+      } else if (['student', 'employee', 'athlete', 'member'].includes(role)) {
+        opportunities.push(...await this.findMemberOpportunities(intent, context));
       }
 
       // Time-based opportunities
@@ -463,9 +470,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for teachers
+   * Find opportunities for educators (teachers, professors, coaches, trainers)
    */
-  private async findTeacherOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findEducatorOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // If creating lessons, suggest curriculum alignment
@@ -506,9 +513,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for principals
+   * Find opportunities for organization leaders (principals, deans, directors, managers)
    */
-  private async findPrincipalOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findLeaderOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // Morning briefing opportunity
@@ -558,9 +565,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for students
+   * Find opportunities for members (students, employees, athletes, etc.)
    */
-  private async findStudentOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findMemberOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // Study break reminder
@@ -937,30 +944,37 @@ export class DashContextAnalyzer {
     const { time_context, user_state, educational_context, recent_actions } = context;
     const role = user_state.role;
 
-    // Time-based predictions for teachers
-    if (role === 'teacher' && time_context.day_of_week === 'Monday' && time_context.hour < 10) {
+    // Time-based predictions for educators (teachers, professors, coaches, trainers)
+    const isEducator = ['teacher', 'professor', 'instructor', 'coach', 'trainer'].includes(role);
+    
+    if (isEducator && time_context.day_of_week === 'Monday' && time_context.hour < 10) {
       predictions.push({
-        need: 'weekly_lesson_planning',
+        need: 'weekly_activity_planning',
         confidence: 0.75,
-        reasoning: 'Monday morning is typically when teachers plan the week ahead'
+        reasoning: 'Monday morning is typically when educators plan the week ahead'
       });
     }
 
-    if (role === 'teacher' && time_context.day_of_week === 'Friday' && time_context.hour > 14) {
+    if (isEducator && time_context.day_of_week === 'Friday' && time_context.hour > 14) {
       predictions.push({
-        need: 'grade_pending_assignments',
+        need: 'review_pending_assessments',
         confidence: 0.7,
-        reasoning: 'Friday afternoon is common time for wrapping up grading before the weekend'
+        reasoning: 'Friday afternoon is common time for wrapping up assessments before the weekend'
       });
     }
 
     // Pattern-based predictions
-    const recentTopics = recent_actions.filter(a => a.includes('lesson') || a.includes('plan'));
-    if (recentTopics.length > 2 && educational_context?.lesson_phase === 'planning') {
+    const recentTopics = recent_actions.filter(a => 
+      a.includes('lesson') || a.includes('plan') || a.includes('activity')
+    );
+    const isPlanningPhase = educational_context?.activity_phase === 'planning' || 
+                           educational_context?.lesson_phase === 'planning';
+    
+    if (recentTopics.length > 2 && isPlanningPhase) {
       predictions.push({
-        need: 'create_similar_lesson',
+        need: 'create_similar_activity',
         confidence: 0.65,
-        reasoning: 'Recent activity shows focus on lesson planning, likely to continue'
+        reasoning: 'Recent activity shows focus on planning, likely to continue'
       });
     }
 
@@ -975,15 +989,17 @@ export class DashContextAnalyzer {
 
     // Conversation pattern predictions
     const userMessages = conversationHistory.filter(m => m.role === 'user').slice(-5);
-    const hasGradingQueries = userMessages.some(m => 
-      m.content.toLowerCase().includes('grade') || m.content.toLowerCase().includes('mark')
-    );
+    const hasAssessmentQueries = userMessages.some(m => {
+      const content = m.content.toLowerCase();
+      return content.includes('grade') || content.includes('mark') || 
+             content.includes('assess') || content.includes('evaluate');
+    });
     
-    if (hasGradingQueries && role === 'teacher') {
+    if (hasAssessmentQueries && isEducator) {
       predictions.push({
-        need: 'grading_assistance',
+        need: 'assessment_assistance',
         confidence: 0.8,
-        reasoning: 'Recent conversation indicates grading workflow in progress'
+        reasoning: 'Recent conversation indicates assessment workflow in progress'
       });
     }
 
