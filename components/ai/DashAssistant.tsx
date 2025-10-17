@@ -1379,10 +1379,9 @@ return (
                     return;
                   }
                   
-                  // Use voice mode orb (OpenAI Realtime) for supported languages
-                  console.log(`[DashAssistant] 🌐 Language '${lang}' supports OpenAI Realtime - opening voice mode`);
-                  setVoiceModeLang(lang);
-                  setShowVoiceMode(true);
+                  // Use ChatGPT-style voice mode for supported languages
+                  console.log(`[DashAssistant] 🌐 Language '${lang}' supports realtime voice - opening ChatGPT voice mode`);
+                  setShowChatGPTVoice(true);
                 }
               } catch (e) {
                 console.error('[DashAssistant] Failed to determine voice mode:', e);
@@ -1766,7 +1765,7 @@ return (
         dashInstance={dashInstance}
       />
 
-      {/* Elegant ChatGPT-style Voice Mode */}
+      {/* Original Voice Mode */}
       <DashVoiceMode
         visible={showVoiceMode}
         onClose={() => {
@@ -1808,6 +1807,51 @@ return (
               }
             } catch (e) {
               console.error('[DashAssistant] Failed to update messages from voice mode:', e);
+            }
+          })();
+        }}
+      />
+      
+      {/* ChatGPT-Style Voice Mode */}
+      <ChatGPTVoiceMode
+        visible={showChatGPTVoice}
+        onClose={() => {
+          console.log('[DashAssistant] Closing ChatGPTVoiceMode');
+          setShowChatGPTVoice(false);
+        }}
+        dashInstance={dashInstance}
+        onMessageSent={(msg) => {
+          // Update messages when voice mode sends a message
+          (async () => {
+            try {
+              console.log('[DashAssistant] ChatGPT voice mode message received, updating UI');
+              const convId = dashInstance?.getCurrentConversationId();
+              if (convId) {
+                // Add a small delay to ensure AsyncStorage has finished writing
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const updatedConv = await dashInstance?.getConversation(convId);
+                if (updatedConv) {
+                  console.log('[DashAssistant] Fetched updated conversation:', updatedConv.messages.length, 'messages');
+                  setMessages([...updatedConv.messages]); // Force new array reference for React update
+                  setConversation({ ...updatedConv });
+                  
+                  // Scroll to bottom after state update
+                  setTimeout(() => {
+                    try {
+                      flatListRef.current?.scrollToEnd({ animated: true });
+                    } catch (e) {
+                      console.warn('[DashAssistant] Scroll failed:', e);
+                    }
+                  }, 150);
+                } else {
+                  console.warn('[DashAssistant] No conversation found with ID:', convId);
+                }
+              } else {
+                console.warn('[DashAssistant] No current conversation ID');
+              }
+            } catch (e) {
+              console.error('[DashAssistant] Failed to update messages from ChatGPT voice mode:', e);
             }
           })();
         }}
