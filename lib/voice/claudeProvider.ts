@@ -404,22 +404,24 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
           mediaRecorder.start(100); // Send audio every 100ms for real-time feel
           console.log('[claudeProvider] ✅ Web recording started (streaming to Deepgram)');
         } else {
-          // Native mobile - use Picovoice Voice Processor for real-time audio streaming
-          console.log('[claudeProvider] 🎤 Starting native audio with Picovoice Voice Processor...');
+          // Native mobile - try Picovoice Voice Processor first, fallback to react-native-webrtc
+          console.log('[claudeProvider] 🎤 Starting native audio...');
           
+          // Try Picovoice first (optimal - gives raw PCM frames)
+          let picovoiceSuccess = false;
           try {
-            // Try to import Picovoice VoiceProcessor with proper null checking
+            console.log('[claudeProvider] 🔍 Attempting Picovoice Voice Processor...');
             let VoiceProcessorModule: any = null;
             try {
               VoiceProcessorModule = await import('@picovoice/react-native-voice-processor');
             } catch (importErr) {
-              console.error('[claudeProvider] ❌ Failed to import VoiceProcessor module:', importErr);
-              throw new Error('VoiceProcessor module not available - ensure @picovoice/react-native-voice-processor is properly installed and linked');
+              console.warn('[claudeProvider] ⚠️ Picovoice module not available:', importErr);
+              throw new Error('VoiceProcessor module not installed');
             }
             
             // Validate the imported module
             if (!VoiceProcessorModule || !VoiceProcessorModule.VoiceProcessor) {
-              console.error('[claudeProvider] ❌ VoiceProcessor module is null or invalid');
+              console.warn('[claudeProvider] ⚠️ VoiceProcessor not found in module');
               throw new Error('VoiceProcessor not available in imported module');
             }
             
@@ -427,14 +429,14 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
             
             // Validate VoiceProcessor class exists
             if (!VoiceProcessor || typeof VoiceProcessor !== 'function') {
-              console.error('[claudeProvider] ❌ VoiceProcessor is not a valid class');
+              console.warn('[claudeProvider] ⚠️ VoiceProcessor is not a valid class');
               throw new Error('VoiceProcessor class is not available');
             }
             
             // Get singleton instance with null check
             const voiceProcessor = VoiceProcessor.instance;
             if (!voiceProcessor) {
-              console.error('[claudeProvider] ❌ VoiceProcessor.instance is null');
+              console.warn('[claudeProvider] ⚠️ VoiceProcessor.instance is null');
               throw new Error('VoiceProcessor instance not available');
             }
             
@@ -443,7 +445,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
                 typeof voiceProcessor.stop !== 'function' ||
                 typeof voiceProcessor.addFrameListener !== 'function' ||
                 typeof voiceProcessor.removeFrameListener !== 'function') {
-              console.error('[claudeProvider] ❌ VoiceProcessor missing required methods');
+              console.warn('[claudeProvider] ⚠️ VoiceProcessor missing required methods');
               throw new Error('VoiceProcessor does not have required methods');
             }
             
@@ -500,15 +502,75 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
               active: true
             };
             
-            console.log('[claudeProvider] ✅ Native Deepgram streaming ready!');
+            console.log('[claudeProvider] ✅ Picovoice native audio ready!');
+            picovoiceSuccess = true;
             
-          } catch (err) {
-            console.error('[claudeProvider] ❌ Picovoice setup failed:', err);
-            console.error('[claudeProvider] 💡 Error details:', err instanceof Error ? err.message : String(err));
-            console.warn('[claudeProvider] 💡 Voice input will not be available on this device');
-            // Don't throw - allow the app to continue without voice input
-            // The UI should show a fallback message
-            return false;
+          } catch (picoErr) {
+            console.warn('[claudeProvider] ⚠️ Picovoice setup failed, trying react-native-webrtc fallback...');
+            console.warn('[claudeProvider] 💡 Picovoice error:', picoErr instanceof Error ? picoErr.message : String(picoErr));
+          }
+          
+          // Fallback to react-native-webrtc if Picovoice failed
+          if (!picovoiceSuccess) {
+            try {
+              console.log('[claudeProvider] 🔁 Attempting react-native-webrtc fallback...');
+              const { mediaDevices } = await import('react-native-webrtc');
+              
+              if (!mediaDevices || !mediaDevices.getUserMedia) {
+                throw new Error('react-native-webrtc mediaDevices not available');
+              }
+              
+              // Get microphone stream
+              localStream = await mediaDevices.getUserMedia({
+                audio: {
+                  channelCount: 1,
+                  sampleRate: 16000, // Deepgram requires 16kHz for linear16
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                },
+                video: false,
+              });
+              
+              console.log('[claudeProvider] ✅ Got audio stream from react-native-webrtc');
+              
+              // Create audio context for processing
+              // Note: React Native doesn't have AudioContext, so we'll send the raw stream data
+              // This uses MediaRecorder approach (similar to web)
+              const MediaRecorder = (global as any).MediaRecorder;
+              if (!MediaRecorder) {
+                throw new Error('MediaRecorder not available in React Native environment');
+              }
+              
+              mediaRecorder = new MediaRecorder(localStream, {
+                mimeType: 'audio/webm;codecs=opus', // WebM with Opus codec
+                audioBitsPerSecond: 16000 * 16 * 1, // 16kHz * 16-bit * 1 channel
+              });
+              
+              mediaRecorder.ondataavailable = async (event: any) => {
+                if (event.data && event.data.size > 0) {
+                  // Convert audio to ArrayBuffer and send to Deepgram
+                  const arrayBuffer = await event.data.arrayBuffer();
+                  sendAudioToDeepgram(arrayBuffer);
+                  
+                  // Log occasionally
+                  if (Math.random() < 0.05) {
+                    console.log('[claudeProvider] 📡 Streaming audio via WebRTC:', event.data.size, 'bytes');
+                  }
+                }
+              };
+              
+              // Start recording with frequent chunks for real-time streaming
+              mediaRecorder.start(100); // Send audio every 100ms
+              console.log('[claudeProvider] ✅ react-native-webrtc fallback active (MediaRecorder streaming to Deepgram)');
+              
+            } catch (webrtcErr) {
+              console.error('[claudeProvider] ❌ react-native-webrtc fallback failed:', webrtcErr);
+              console.error('[claudeProvider] 💡 Error details:', webrtcErr instanceof Error ? webrtcErr.message : String(webrtcErr));
+              console.error('[claudeProvider] ❌ All native audio methods failed');
+              console.warn('[claudeProvider] 💡 Voice input will not be available on this device');
+              console.warn('[claudeProvider] 💡 Please ensure dependencies are installed: npm install or yarn install');
+              return false;
+            }
           }
         }
 
