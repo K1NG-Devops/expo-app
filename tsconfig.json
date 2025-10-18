@@ -23,7 +23,6 @@
     "check-*.js",
     "test-*.js",
     "create-*.sql",
-    "screens/**/*",
     "lib/api/**/*",
     "lib/api/__tests__/**/*",
     "tests/**/*",
