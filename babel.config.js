@@ -17,7 +17,16 @@ module.exports = function (api) {
   api.cache(true);
   
   return {
-    presets: ['babel-preset-expo'],
+    presets: [
+      [
+        'babel-preset-expo',
+        {
+          // Ensure classes are transformed properly for Hermes
+          jsxRuntime: 'automatic',
+          lazyImports: true,
+        }
+      ]
+    ],
     plugins: [
       [
         'module-resolver',
