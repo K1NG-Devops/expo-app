@@ -102,7 +102,6 @@ export default function WorksheetViewer() {
         }
       }
       
-      {
       // Create a demo worksheet based on parameters
       const worksheetType = (params.type as string) || 'math';
       const ageGroup = (params.ageGroup as string) || '5-6 years';

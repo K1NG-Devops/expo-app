@@ -31,7 +31,12 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
+  try {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  } catch (error) {
+    // New Architecture no-op; ignore
+    console.debug('[ThemeLanguageSettings] LayoutAnimation not available in New Architecture');
+  }
 }
 
 export function ThemeLanguageSettings() {
