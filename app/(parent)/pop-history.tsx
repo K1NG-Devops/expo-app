@@ -1,1 +1,3 @@
-export { default } from '../screens/parent-pop-history';
+import POPHistoryScreen from '../screens/parent-pop-history';
+
+export default POPHistoryScreen;
