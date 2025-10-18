@@ -70,7 +70,8 @@
             "./assets/sounds/notification.wav"
           ]
         }
-      ]
+      ],
+      "./plugins/withAndroidManifestFix.js"
     ],
     "experiments": {
       "typedRoutes": false
