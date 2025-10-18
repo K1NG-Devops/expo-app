@@ -148,26 +148,15 @@ android {
 }
 
 configurations.all {
-    // Exclude all old Android Support libraries to prevent conflicts with AndroidX
     exclude group: 'com.android.support', module: 'support-compat'
     exclude group: 'com.android.support', module: 'support-v4'
     exclude group: 'com.android.support', module: 'animated-vector-drawable'
     exclude group: 'com.android.support', module: 'support-vector-drawable'
     exclude group: 'com.android.support', module: 'versionedparcelable'
-    exclude group: 'com.android.support', module: 'support-annotations'
-    exclude group: 'com.android.support', module: 'support-core-utils'
-    exclude group: 'com.android.support', module: 'support-core-ui'
-    exclude group: 'com.android.support', module: 'support-fragment'
-    exclude group: 'com.android.support', module: 'appcompat-v7'
     
     resolutionStrategy {
-        // Force AndroidX versions to ensure consistency
         force 'androidx.core:core:1.13.1'
         force 'androidx.versionedparcelable:versionedparcelable:1.2.0'
-        force 'androidx.lifecycle:lifecycle-runtime:2.8.7'
-        force 'androidx.lifecycle:lifecycle-viewmodel:2.8.7'
-        force 'androidx.appcompat:appcompat:1.7.0'
-        force 'androidx.fragment:fragment:1.8.5'
     }
 }
 
