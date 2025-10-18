@@ -22,7 +22,14 @@ import { initAndMigrate, setVoicePrefs, normalizeLanguageCode, resolveDefaultVoi
 
 export default function DashAISettingsEnhancedScreen() {
   const { theme } = useTheme();
-  const [dashAI] = useState(() => DashAIAssistant.getInstance());
+  const [dashAI] = useState(() => {
+    try {
+      return DashAIAssistant.getInstance();
+    } catch (error) {
+      console.error('[DashAISettingsEnhanced] Failed to get DashAI instance:', error);
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -103,6 +110,12 @@ export default function DashAISettingsEnhancedScreen() {
   const initializeDashAI = useCallback(async () => {
     try {
       setLoading(true);
+      if (!dashAI) {
+        console.error('[DashAISettingsEnhanced] DashAI instance is null');
+        Alert.alert('Error', 'Failed to initialize Dash AI. Please restart the app.');
+        setLoading(false);
+        return;
+      }
       await dashAI.initialize();
       // One-time migrate legacy keys into SSOT (no-op after first run)
       try { await initAndMigrate(); } catch (e) { if (__DEV__) console.warn('[Dash Settings] migration warn', e); }

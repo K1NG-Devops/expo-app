@@ -48,6 +48,7 @@ import { useWhatsAppConnection } from "@/hooks/useWhatsAppConnection";
 import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
 import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
 import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
+import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import Feedback from '@/lib/feedback';
 
@@ -1584,6 +1585,9 @@ export const TeacherDashboard: React.FC = () => {
           Alert.alert('WhatsApp Connected!', 'You can now receive school updates via WhatsApp.');
         }}
       />
+
+      {/* AI Assistant Floating Button */}
+      <DashVoiceFloatingButton />
     </>
   );
 };
