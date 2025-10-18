@@ -6,12 +6,17 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { getActiveOrganizationId, extractOrganizationId } from './compat';
+import type { OrganizationType } from './types';
 
 export type ServerTenantContext = {
-  schoolId: string;
+  organizationId: string;
+  organizationType?: OrganizationType;
   userId: string;
   role: string;
   capabilities?: string[];
+  /** @deprecated Use organizationId instead */
+  schoolId: string;
 };
 
 /**
@@ -33,9 +38,9 @@ export async function getTenantContext(): Promise<ServerTenantContext | null> {
       .from('profiles')
       .select(`
         preschool_id,
+        organization_id,
         role,
-        capabilities,
-        preschools!inner(id, name)
+        capabilities
       `)
       .eq('id', user.id)
       .single();
@@ -45,17 +50,35 @@ export async function getTenantContext(): Promise<ServerTenantContext | null> {
       return null;
     }
 
-    const schoolId = profile.preschool_id;
-    if (!schoolId) {
-      console.warn('User has no school assigned');
+    const organizationId = extractOrganizationId(profile);
+    if (!organizationId) {
+      console.warn('User has no organization assigned');
       return null;
     }
 
+    // Try to get organization type
+    let organizationType: OrganizationType | undefined;
+    const { data: orgData } = await assertSupabase()
+      .from('organizations')
+      .select('type')
+      .eq('id', organizationId)
+      .single();
+    
+    if (orgData) {
+      organizationType = orgData.type as OrganizationType;
+    } else {
+      // Fallback: assume preschool for legacy data
+      organizationType = 'preschool';
+    }
+
     return {
-      schoolId,
+      organizationId,
+      organizationType,
       userId: user.id,
       role: profile.role,
       capabilities: profile.capabilities || [],
+      // Legacy compatibility
+      schoolId: organizationId,
     };
   } catch (error) {
     console.error('Error getting tenant context:', error);
@@ -64,9 +87,9 @@ export async function getTenantContext(): Promise<ServerTenantContext | null> {
 }
 
 /**
- * Validate school access for current user
+ * Validate organization access for current user
  */
-export async function validateSchoolAccess(schoolId: string): Promise<boolean> {
+export async function validateOrganizationAccess(organizationId: string): Promise<boolean> {
   try {
     const context = await getTenantContext();
     
@@ -74,94 +97,126 @@ export async function validateSchoolAccess(schoolId: string): Promise<boolean> {
       return false;
     }
 
-    // Super admins can access any school
+    // Super admins can access any organization
     if (context.role === 'super_admin') {
       return true;
     }
 
-    // Check if user belongs to this school
-    if (context.schoolId === schoolId) {
+    // Check if user belongs to this organization
+    if (context.organizationId === organizationId) {
       return true;
     }
 
-    // Check for cross-school membership (future feature)
+    // Check for cross-organization membership
     const { data: membership } = await assertSupabase()
-      .from('user_school_memberships')
-      .select('school_id')
+      .from('user_organization_memberships')
+      .select('organization_id')
       .eq('user_id', context.userId)
-      .eq('school_id', schoolId)
+      .eq('organization_id', organizationId)
       .eq('status', 'active')
       .single();
 
-    return !!membership;
+    if (membership) return true;
+
+    // Fallback: check legacy school memberships
+    const { data: legacyMembership } = await assertSupabase()
+      .from('user_school_memberships')
+      .select('school_id')
+      .eq('user_id', context.userId)
+      .eq('school_id', organizationId)
+      .eq('status', 'active')
+      .single();
+
+    return !!legacyMembership;
   } catch (error) {
-    console.error('Error validating school access:', error);
+    console.error('Error validating organization access:', error);
     return false;
   }
 }
 
 /**
- * Get school context with validation
+ * @deprecated Use validateOrganizationAccess instead
+ */
+export async function validateSchoolAccess(schoolId: string): Promise<boolean> {
+  return validateOrganizationAccess(schoolId);
+}
+
+/**
+ * Get organization context with validation
  * Throws error if user doesn't have access
  */
-export async function requireSchoolAccess(schoolId: string): Promise<ServerTenantContext> {
+export async function requireOrganizationAccess(organizationId: string): Promise<ServerTenantContext> {
   const context = await getTenantContext();
   
   if (!context) {
     throw new Error('User not authenticated');
   }
 
-  const hasAccess = await validateSchoolAccess(schoolId);
+  const hasAccess = await validateOrganizationAccess(organizationId);
   
   if (!hasAccess) {
     // Log security event
-    track('security.unauthorized_school_access', {
+    track('security.unauthorized_organization_access', {
       user_id: context.userId,
-      requested_school_id: schoolId,
-      user_school_id: context.schoolId,
+      requested_organization_id: organizationId,
+      user_organization_id: context.organizationId,
       role: context.role,
     });
     
-    throw new Error('Access denied to requested school');
+    throw new Error('Access denied to requested organization');
   }
 
   return {
     ...context,
-    schoolId, // Use the requested school ID
+    organizationId, // Use the requested organization ID
+    schoolId: organizationId, // Legacy compatibility
   };
+}
+
+/**
+ * @deprecated Use requireOrganizationAccess instead
+ */
+export async function requireSchoolAccess(schoolId: string): Promise<ServerTenantContext> {
+  return requireOrganizationAccess(schoolId);
 }
 
 /**
  * Create tenant-scoped Supabase query builder
  */
-export function createTenantQuery(tableName: string, schoolId: string) {
+export function createTenantQuery(tableName: string, organizationId: string, preferLegacy: boolean = true) {
+  // For backward compatibility, default to preschool_id unless table is migrated
+  const fieldName = preferLegacy ? 'preschool_id' : 'organization_id';
+  
   return assertSupabase()
     .from(tableName)
     .select('*')
-    .eq('preschool_id', schoolId) as any;
+    .eq(fieldName, organizationId) as any;
 }
 
 /**
  * Create tenant-scoped query with RLS enforcement
- * This adds the school_id filter and relies on RLS for additional security
+ * This adds the organization_id/preschool_id filter and relies on RLS for additional security
  */
 export class TenantQueryBuilder {
-  private schoolId: string;
+  private organizationId: string;
   private context: ServerTenantContext;
 
   constructor(context: ServerTenantContext) {
-    this.schoolId = context.schoolId;
+    this.organizationId = context.organizationId;
     this.context = context;
   }
 
   /**
    * Create base query for any table with tenant scoping
+   * Uses preschool_id by default for backward compatibility
    */
-  table(tableName: string) {
+  table(tableName: string, preferLegacy: boolean = true) {
+    const fieldName = preferLegacy ? 'preschool_id' : 'organization_id';
+    
     return assertSupabase()
       .from(tableName)
       .select('*')
-      .eq('preschool_id', this.schoolId) as any;
+      .eq(fieldName, this.organizationId) as any;
   }
 
   /**
@@ -223,10 +278,12 @@ export class TenantQueryBuilder {
   /**
    * Insert with automatic tenant scoping
    */
-  async insert(tableName: string, data: any) {
+  async insert(tableName: string, data: any, preferLegacy: boolean = true) {
+    const fieldName = preferLegacy ? 'preschool_id' : 'organization_id';
+    
     const insertData = {
       ...data,
-      preschool_id: this.schoolId,
+      [fieldName]: this.organizationId,
       created_by: data.created_by || this.context.userId,
     };
 
@@ -238,22 +295,26 @@ export class TenantQueryBuilder {
   /**
    * Update with tenant validation
    */
-  async update(tableName: string, data: any, filters: Record<string, any>) {
+  async update(tableName: string, data: any, filters: Record<string, any>, preferLegacy: boolean = true) {
+    const fieldName = preferLegacy ? 'preschool_id' : 'organization_id';
+    
     return assertSupabase()
       .from(tableName)
       .update(data)
-      .eq('preschool_id', this.schoolId)
+      .eq(fieldName, this.organizationId)
       .match(filters);
   }
 
   /**
    * Delete with tenant validation
    */
-  async delete(tableName: string, filters: Record<string, any>) {
+  async delete(tableName: string, filters: Record<string, any>, preferLegacy: boolean = true) {
+    const fieldName = preferLegacy ? 'preschool_id' : 'organization_id';
+    
     return assertSupabase()
       .from(tableName)
       .delete()
-      .eq('preschool_id', this.schoolId)
+      .eq(fieldName, this.organizationId)
       .match(filters);
   }
 }
@@ -261,27 +322,28 @@ export class TenantQueryBuilder {
 /**
  * Create tenant query builder with context
  */
-export async function createTenantQueryBuilder(schoolId?: string): Promise<TenantQueryBuilder> {
+export async function createTenantQueryBuilder(organizationId?: string): Promise<TenantQueryBuilder> {
   const context = await getTenantContext();
   
   if (!context) {
     throw new Error('User not authenticated');
   }
 
-  // Use provided school ID or user's default school
-  const targetSchoolId = schoolId || context.schoolId;
+  // Use provided organization ID or user's default organization
+  const targetOrgId = organizationId || context.organizationId;
   
-  // Validate access if different from user's default school
-  if (schoolId && schoolId !== context.schoolId) {
-    const hasAccess = await validateSchoolAccess(schoolId);
+  // Validate access if different from user's default organization
+  if (organizationId && organizationId !== context.organizationId) {
+    const hasAccess = await validateOrganizationAccess(organizationId);
     if (!hasAccess) {
-      throw new Error('Access denied to requested school');
+      throw new Error('Access denied to requested organization');
     }
   }
 
   return new TenantQueryBuilder({
     ...context,
-    schoolId: targetSchoolId,
+    organizationId: targetOrgId,
+    schoolId: targetOrgId, // Legacy compatibility
   });
 }
 
@@ -290,11 +352,11 @@ export async function createTenantQueryBuilder(schoolId?: string): Promise<Tenan
  * Provides consistent error handling and logging
  */
 export async function withTenantContext<T>(
-  schoolId: string,
+  organizationId: string,
   fn: (context: ServerTenantContext, queryBuilder: TenantQueryBuilder) => Promise<T>
 ): Promise<T> {
   try {
-    const context = await requireSchoolAccess(schoolId);
+    const context = await requireOrganizationAccess(organizationId);
     const queryBuilder = new TenantQueryBuilder(context);
     
     return await fn(context, queryBuilder);
@@ -306,7 +368,7 @@ export async function withTenantContext<T>(
     if (context) {
       track('tenant.operation_error', {
         user_id: context.userId,
-        school_id: schoolId,
+        organization_id: organizationId,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
     }

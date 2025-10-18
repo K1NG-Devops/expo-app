@@ -7,32 +7,37 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { getActiveOrganizationId, extractOrganizationId } from './compat';
+import type { OrganizationType } from './types';
 
 export type TenantInfo = {
-  schoolId: string;
-  schoolName?: string;
+  organizationId: string;
+  organizationName?: string;
+  organizationType?: OrganizationType;
   role: string;
   permissions: string[];
+  /** @deprecated Use organizationId instead */
+  schoolId: string;
+  /** @deprecated Use organizationName instead */
+  schoolName?: string;
 };
 
 /**
+ * Hook to get current active organization ID for the authenticated user
+ * Returns null if no organization is assigned or user is not authenticated
+ */
+export function useActiveOrganizationId(): string | null {
+  const { user, profile } = useAuth();
+  return getActiveOrganizationId(profile || user?.user_metadata);
+}
+
+/**
+ * @deprecated Use useActiveOrganizationId instead
  * Hook to get current active school ID for the authenticated user
  * Returns null if no school is assigned or user is not authenticated
  */
 export function useActiveSchoolId(): string | null {
-  const { user, profile } = useAuth();
-  
-  // First try to get from enhanced profile (most reliable)
-  if (profile?.organization_id) {
-    return profile.organization_id;
-  }
-  
-  // Fallback to user metadata (for backwards compatibility)
-  if (user?.user_metadata?.preschool_id) {
-    return user.user_metadata.preschool_id;
-  }
-  
-  return null;
+  return useActiveOrganizationId();
 }
 
 /**
@@ -59,16 +64,17 @@ export function useTenantInfo(): {
       setLoading(true);
       setError(null);
 
-      // Try to get from profile first
-      let schoolId = profile?.organization_id;
-      let schoolName = profile?.organization_name;
+      // Get organization ID from profile (primary source)
+      let organizationId = getActiveOrganizationId(profile);
+      let organizationName = profile?.organization_name;
+      let organizationType: OrganizationType | undefined = (profile as any)?.organization_type;
       const role = profile?.role || 'unknown';
 
       // If not in profile, query profiles table
-      if (!schoolId) {
+      if (!organizationId) {
         const { data: userProfile, error: userError } = await assertSupabase()
           .from('profiles')
-          .select('preschool_id, role')
+          .select('preschool_id, organization_id, role')
           .eq('id', user.id)
           .single();
 
@@ -76,39 +82,40 @@ export function useTenantInfo(): {
           throw new Error(`Failed to fetch user profile: ${userError.message}`);
         }
 
-        schoolId = userProfile?.preschool_id;
+        organizationId = extractOrganizationId(userProfile);
       }
 
-      // If still no school ID, user might not be assigned to a school
-      if (!schoolId) {
+      // If still no organization ID, user might not be assigned to an organization
+      if (!organizationId) {
         setTenantInfo(null);
-        track('tenant.no_school_assigned', { user_id: user.id, role });
+        track('tenant.no_organization_assigned', { user_id: user.id, role });
         return;
       }
 
-      // Get school details if we don't have them
-      if (!schoolName) {
-        const { data: schoolData, error: schoolError } = await assertSupabase()
-          .from('preschools')
-          .select('name')
-          .eq('id', schoolId)
-          .single();
-
-        if (!schoolError && schoolData) {
-          schoolName = schoolData.name;
-        }
-      }
-
-      // Fallback: try organizations if no preschool found
-      if (!schoolName) {
+      // Get organization details if we don't have them
+      if (!organizationName || !organizationType) {
+        // Try organizations table first (new standard)
         const { data: orgData, error: orgError } = await assertSupabase()
           .from('organizations')
-          .select('name')
-          .eq('id', schoolId)
+          .select('name, type')
+          .eq('id', organizationId)
           .single();
 
         if (!orgError && orgData) {
-          schoolName = orgData.name;
+          organizationName = orgData.name;
+          organizationType = orgData.type as OrganizationType;
+        } else {
+          // Fallback: try preschools table (legacy)
+          const { data: schoolData, error: schoolError } = await assertSupabase()
+            .from('preschools')
+            .select('name')
+            .eq('id', organizationId)
+            .single();
+
+          if (!schoolError && schoolData) {
+            organizationName = schoolData.name;
+            organizationType = 'preschool'; // Default type for legacy preschools
+          }
         }
       }
 
@@ -116,17 +123,22 @@ export function useTenantInfo(): {
       const permissions = profile?.capabilities || [];
 
       const info: TenantInfo = {
-        schoolId,
-        schoolName,
+        organizationId,
+        organizationName,
+        organizationType,
         role,
         permissions,
+        // Legacy compatibility
+        schoolId: organizationId,
+        schoolName: organizationName,
       };
 
       setTenantInfo(info);
       
       track('tenant.context_loaded', {
         user_id: user.id,
-        school_id: schoolId,
+        organization_id: organizationId,
+        organization_type: organizationType,
         role,
         permissions_count: permissions.length,
       });
@@ -158,66 +170,93 @@ export function useTenantInfo(): {
 }
 
 /**
- * Validate that current user has access to a specific school
+ * Validate that current user has access to a specific organization
  */
-export function useValidateSchoolAccess() {
+export function useValidateOrganizationAccess() {
   const { user, profile } = useAuth();
   
-  return useCallback(async (schoolId: string): Promise<boolean> => {
-    if (!user || !schoolId) return false;
+  return useCallback(async (organizationId: string): Promise<boolean> => {
+    if (!user || !organizationId) return false;
     
-    // Super admins can access any school
+    // Super admins can access any organization
     if (profile?.role === 'super_admin') return true;
     
-    // Check if user belongs to this school
-    const userSchoolId = profile?.organization_id;
-    if (userSchoolId === schoolId) return true;
+    // Check if user belongs to this organization
+    const userOrgId = getActiveOrganizationId(profile);
+    if (userOrgId === organizationId) return true;
     
-    // Additional check for cross-school access (e.g., district admin)
+    // Additional check for cross-organization access (e.g., district admin)
     try {
       const { data, error } = await assertSupabase()
-        .from('user_school_memberships')
-        .select('school_id')
+        .from('user_organization_memberships')
+        .select('organization_id')
         .eq('user_id', user.id)
-        .eq('school_id', schoolId)
+        .eq('organization_id', organizationId)
         .eq('status', 'active')
         .single();
         
       return !error && !!data;
     } catch {
-      return false;
+      // Fallback: try legacy school memberships table
+      try {
+        const { data, error } = await assertSupabase()
+          .from('user_school_memberships')
+          .select('school_id')
+          .eq('user_id', user.id)
+          .eq('school_id', organizationId)
+          .eq('status', 'active')
+          .single();
+          
+        return !error && !!data;
+      } catch {
+        return false;
+      }
     }
   }, [user, profile]);
 }
 
 /**
- * Ensure query is properly tenant-scoped
- * Throws error if schoolId is missing for non-super-admin users
+ * @deprecated Use useValidateOrganizationAccess instead
  */
-export function ensureTenantScope(schoolId: string | null, userRole?: string): string {
-  if (userRole === 'super_admin') {
-    // Super admins can operate without tenant scope in some cases
-    if (!schoolId) {
-      throw new Error('School ID required even for super admin operations');
-    }
-  }
-  
-  if (!schoolId) {
-    throw new Error('School ID is required for this operation');
-  }
-  
-  return schoolId;
+export function useValidateSchoolAccess() {
+  return useValidateOrganizationAccess();
 }
 
 /**
- * Get current school ID or throw error if not available
+ * Ensure query is properly tenant-scoped
+ * Throws error if organizationId is missing for non-super-admin users
  */
-export function requireSchoolId(profile: any): string {
-  const schoolId = profile?.organization_id;
-  
-  if (!schoolId) {
-    throw new Error('No school assigned to current user');
+export function ensureTenantScope(organizationId: string | null, userRole?: string): string {
+  if (userRole === 'super_admin') {
+    // Super admins can operate without tenant scope in some cases
+    if (!organizationId) {
+      throw new Error('Organization ID required even for super admin operations');
+    }
   }
   
-  return schoolId;
+  if (!organizationId) {
+    throw new Error('Organization ID is required for this operation');
+  }
+  
+  return organizationId;
+}
+
+/**
+ * Get current organization ID or throw error if not available
+ */
+export function requireOrganizationId(profile: any): string {
+  const organizationId = getActiveOrganizationId(profile);
+  
+  if (!organizationId) {
+    throw new Error('No organization assigned to current user');
+  }
+  
+  return organizationId;
+}
+
+/**
+ * @deprecated Use requireOrganizationId instead
+ */
+export function requireSchoolId(profile: any): string {
+  return requireOrganizationId(profile);
 }

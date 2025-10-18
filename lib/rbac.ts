@@ -12,6 +12,7 @@ import { shouldAllowFallback, trackFallbackUsage } from '@/lib/security-config';
 import { getCurrentSession } from '@/lib/sessionManager';
 import type { UserProfile } from './sessionManager';
 import { log, warn, debug, error as logError } from '@/lib/debug';
+import { OrganizationRolesService } from '@/lib/services/OrganizationRolesService';
 
 // Core role definitions with hierarchy (higher number = more permissions)
 export const ROLES = {
@@ -358,18 +359,38 @@ export interface EnhancedUserProfile extends UserProfile {
 
 /**
  * Get comprehensive user capabilities based on role, organization, and subscription
+ * Now supports dynamic organization-specific roles
  */
 export async function getUserCapabilities(
   role: string,
   planTier?: string,
-  seatStatus?: string
+  seatStatus?: string,
+  organizationId?: string
 ): Promise<Capability[]> {
   const normalizedRole = (normalizeRole(role) || 'parent') as Role;
   const capabilities = new Set<Capability>();
   
-  // Add role-based capabilities
+  // Add role-based capabilities from static definitions
   if (normalizedRole && ROLE_CAPABILITIES[normalizedRole]) {
     ROLE_CAPABILITIES[normalizedRole].forEach(cap => capabilities.add(cap));
+  }
+
+  // Try to merge with dynamic organization-specific role capabilities
+  if (organizationId && role) {
+    try {
+      const dynamicCaps = await OrganizationRolesService.getRoleCapabilities(
+        organizationId,
+        role
+      );
+      
+      // Merge dynamic capabilities with static ones
+      dynamicCaps.forEach(cap => capabilities.add(cap));
+      
+      debug(`Merged ${dynamicCaps.length} dynamic capabilities for role ${role}`);
+    } catch (error) {
+      // Log but don't fail - fall back to static capabilities
+      debug('Failed to fetch dynamic role capabilities:', error);
+    }
   }
 
   // Determine if seat is effectively active (case-insensitive, with common synonyms)
@@ -893,11 +914,12 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       }
     }
 
-    // Get capabilities based on role
+    // Get capabilities based on role (now with organization-specific support)
     const capabilities = await getUserCapabilities(
       profile.role,
       org?.subscription_tier || org?.plan_tier || 'free',
-      orgMember?.seat_status
+      orgMember?.seat_status,
+      resolvedOrgId || undefined
     );
 
     // Create base profile from database data

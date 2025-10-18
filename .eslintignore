@@ -1,0 +1,36 @@
+# Build outputs and generated files
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/
+
+# Development and debugging artifacts
+debug/
+temp/
+archive/
+artifacts/
+tools/
+
+# Test artifacts
+tests/temp/
+tests/artifacts/
+
+# SQL files
+sql/
+
+# Documentation
+docs/
+
+# Scripts that may have intentional patterns
+scripts/
+
+# Config files
+*.config.js
+metro.config.js
+babel.config.js
+
+# Type definitions
+*.d.ts
+expo-env.d.ts
