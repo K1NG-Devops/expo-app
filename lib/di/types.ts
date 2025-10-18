@@ -13,10 +13,14 @@ export const TOKENS = {
   lessons: Symbol.for('LessonsService') as Token<LessonsService>,
   sms: Symbol.for('SMSService') as Token<SMSService>,
   googleCalendar: Symbol.for('GoogleCalendarService') as Token<GoogleCalendarService>,
-  dashTaskAutomation: Symbol.for('DashTaskAutomation') as Token<DashTaskAutomation>,
+  dashTaskAutomation: Symbol.for('DashTaskAutomation') as Token<IDashTaskAutomation>,
   dashDecisionEngine: Symbol.for('DashDecisionEngine') as Token<DashDecisionEngine>,
   dashNavigation: Symbol.for('DashNavigation') as Token<DashNavigation>,
   dashWebSearch: Symbol.for('DashWebSearch') as Token<DashWebSearch>,
+  semanticMemory: Symbol.for('SemanticMemory') as Token<SemanticMemoryType>,
+  dashProactive: Symbol.for('DashProactive') as Token<DashProactive>,
+  dashDiagnostic: Symbol.for('DashDiagnostic') as Token<DashDiagnostic>,
+  dashAI: Symbol.for('DashAI') as Token<DashAI>,
 };
 
 // Minimal interfaces to start wiring gradually
@@ -94,10 +98,9 @@ export interface GoogleCalendarService {
   dispose(): void;
 }
 
-export interface DashTaskAutomation {
+export interface IDashTaskAutomation {
   createTask(templateId?: string, customParams?: any, userRole?: string): Promise<any>;
-  executeTask(taskId: string, userInput?: any): Promise<void>;
-  getActiveTask(): any | undefined;
+  executeTaskStep(taskId: string, stepId: string, userInput?: any): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }>;
   getTaskTemplates(userRole?: string): any[];
   getTask(taskId: string): any | undefined;
   getActiveTasks(): any[];
@@ -124,5 +127,52 @@ export interface DashNavigation {
 
 export interface DashWebSearch {
   search(query: string, options?: any): Promise<any>;
+  dispose(): void;
+}
+
+export interface SemanticMemoryType {
+  initialize(): Promise<void>;
+  storeMemory(content: string, type: any, importance?: number, metadata?: Record<string, any>): Promise<any>;
+  searchMemories(query: any): Promise<any[]>;
+  dispose(): void;
+}
+
+export interface DashProactive {
+  checkForSuggestions(userRole: string, context: any): Promise<any[]>;
+  dismissSuggestion(suggestionId: string): void;
+  getStats(): { totalRules: number; activeRules: number; triggeredToday: number; dismissedToday: number };
+  dispose(): void;
+}
+
+export interface DashDiagnostic {
+  getDiagnostics(): Promise<any>;
+  runFullDiagnostics(): Promise<any>;
+  getDiagnosticSummary(): Promise<string>;
+  autoFixIssues(issueIds?: string[]): Promise<{ fixed: string[]; failed: string[] }>;
+  updateFeatureHealth(feature: string, success: boolean, responseTime?: number): void;
+  logError(error: any): void;
+  recordMetric(name: string, value: number): void;
+  dispose(): void;
+}
+
+export interface DashAI {
+  initialize(): Promise<void>;
+  sendMessage(content: string, attachments?: any[], conversationId?: string): Promise<any>;
+  sendVoiceMessage(audioUri: string, conversationId?: string): Promise<any>;
+  startNewConversation(title?: string): Promise<string>;
+  getAllConversations(): Promise<any[]>;
+  getConversation(conversationId: string): Promise<any | null>;
+  deleteConversation(conversationId: string): Promise<void>;
+  getCurrentConversationId(): string | null;
+  setCurrentConversationId(conversationId: string): void;
+  getAllMemoryItems(): any[];
+  getMemory?(): any;
+  clearMemory?(): void;
+  getPersonality?(): any;
+  savePersonality?(personality: any): Promise<void>;
+  preWarmRecorder?(): Promise<void>;
+  clearCache(): void;
+  speakResponse(message: any, callbacks?: any): Promise<void>;
+  stopSpeaking(): Promise<void>;
   dispose(): void;
 }

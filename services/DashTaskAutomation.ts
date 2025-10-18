@@ -23,10 +23,10 @@ export interface TaskTemplate {
  */
 export interface IDashTaskAutomation {
   createTask(templateId?: string, customParams?: Partial<DashTask>, userRole?: string): Promise<any>;
-  executeTask(taskId: string, userInput?: any): Promise<void>;
-  getActiveTask(): DashTask | undefined;
+  executeTaskStep(taskId: string, stepId: string, userInput?: any): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }>;
   getTaskTemplates(userRole?: string): TaskTemplate[];
   getTask(taskId: string): DashTask | undefined;
+  getActiveTask(): DashTask | undefined;
   getActiveTasks(): DashTask[];
   cancelTask(taskId: string): { success: boolean; error?: string };
   dispose(): void;
@@ -520,6 +520,13 @@ export class DashTaskAutomation implements IDashTaskAutomation {
   }
 
   /**
+   * Get the current active task (first non-completed task)
+   */
+  public getActiveTask(): DashTask | undefined {
+    return Array.from(this.activeTasks.values()).find(t => t.status !== 'completed' && t.status !== 'failed');
+  }
+
+  /**
    * Get active tasks
    */
   public getActiveTasks(): DashTask[] {
@@ -592,5 +599,12 @@ export const DashTaskAutomationInstance = (() => {
     return new DashTaskAutomation();
   }
 })();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashTaskAutomation {
+  export function getInstance() {
+    return DashTaskAutomationInstance;
+  }
+}
 
 export default DashTaskAutomationInstance;

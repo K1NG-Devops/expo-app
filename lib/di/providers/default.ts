@@ -41,6 +41,10 @@ import { DashTaskAutomation } from '../../../services/DashTaskAutomation';
 import { DashDecisionEngine } from '../../../services/DashDecisionEngine';
 import { DashNavigationHandler } from '../../../services/DashNavigationHandler';
 import { DashWebSearchService } from '../../../services/DashWebSearchService';
+import { SemanticMemoryEngine } from '../../../services/SemanticMemoryEngine';
+import { DashProactiveEngine } from '../../../services/DashProactiveEngine';
+import { DashDiagnosticEngine } from '../../../services/DashDiagnosticEngine';
+import { DashAIAssistant } from '../../../services/DashAIAssistant';
 
 container
   .registerFactory(TOKENS.organization, () => new OrganizationServiceImpl(), { singleton: true })
@@ -56,6 +60,10 @@ container
   .registerFactory(TOKENS.dashTaskAutomation, () => new DashTaskAutomation(), { singleton: true })
   .registerFactory(TOKENS.dashDecisionEngine, () => new DashDecisionEngine(), { singleton: true })
   .registerFactory(TOKENS.dashNavigation, () => new DashNavigationHandler(), { singleton: true })
-  .registerFactory(TOKENS.dashWebSearch, () => new DashWebSearchService(), { singleton: true });
+  .registerFactory(TOKENS.dashWebSearch, () => new DashWebSearchService(), { singleton: true })
+  .registerFactory(TOKENS.semanticMemory, () => new SemanticMemoryEngine(), { singleton: true })
+  .registerFactory(TOKENS.dashProactive, () => new DashProactiveEngine(), { singleton: true })
+  .registerFactory(TOKENS.dashDiagnostic, () => new DashDiagnosticEngine(), { singleton: true })
+  .registerFactory(TOKENS.dashAI, () => new DashAIAssistant(), { singleton: true });
 
 export { container, TOKENS };

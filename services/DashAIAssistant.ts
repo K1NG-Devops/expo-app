@@ -590,8 +590,32 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   }
 };
 
-export class DashAIAssistant {
-  private static instance: DashAIAssistant;
+/**
+ * Interface for DashAIAssistant - main AI assistant service
+ */
+export interface IDashAIAssistant {
+  initialize(): Promise<void>;
+  sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage>;
+  sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage>;
+  startNewConversation(title?: string): Promise<string>;
+  getAllConversations(): Promise<DashConversation[]>;
+  getConversation(conversationId: string): Promise<DashConversation | null>;
+  deleteConversation(conversationId: string): Promise<void>;
+  getCurrentConversationId(): string | null;
+  setCurrentConversationId(conversationId: string): void;
+  getAllMemoryItems(): DashMemoryItem[];
+  getMemory(): DashMemoryItem[];
+  clearMemory(): Promise<void>;
+  getPersonality(): DashPersonality;
+  savePersonality(personality: Partial<DashPersonality>): Promise<void>;
+  preWarmRecorder(): Promise<void>;
+  clearCache(): void;
+  speakResponse(message: DashMessage, callbacks?: any): Promise<void>;
+  stopSpeaking(): Promise<void>;
+  dispose(): void;
+}
+
+export class DashAIAssistant implements IDashAIAssistant {
   
   // Configuration constants
   private static readonly MEMORY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -640,23 +664,12 @@ export class DashAIAssistant {
   private static readonly INSIGHTS_KEY = 'dash_pending_insights';
   private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
-  private constructor() {
+  constructor() {
     // Initialize modular components with dependencies
     this.memoryManager = new DashMemoryManager();
     this.voiceController = new DashVoiceController();
     this.messageHandler = new DashMessageHandler();
     this.contextBuilder = new DashContextBuilder(this.memoryManager);
-  }
-
-  public static getInstance(): DashAIAssistant {
-    if (!DashAIAssistant.instance) {
-      DashAIAssistant.instance = new DashAIAssistant();
-    } else if (DashAIAssistant.instance.isDisposed) {
-      // Create new instance if previous one was disposed
-      console.log('[Dash] Creating new instance after disposal');
-      DashAIAssistant.instance = new DashAIAssistant();
-    }
-    return DashAIAssistant.instance;
   }
 
   /**
@@ -5691,4 +5704,23 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 }
 
-export default DashAIAssistant;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashAIAssistantInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashAI);
+  } catch {
+    // Fallback during initialization
+    return new DashAIAssistant();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashAIAssistant {
+  export function getInstance() {
+    return DashAIAssistantInstance;
+  }
+}
+
+export default DashAIAssistantInstance;
