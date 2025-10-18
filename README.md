@@ -151,6 +151,15 @@ edudashpro/
 
 ## Development
 
+### Developer Resources
+
+**📚 [Developer Cheatsheet](docs/guides/DEVELOPER_CHEATSHEET.md)** - Essential guide covering:
+- TypeScript basics and common patterns
+- Common build errors and their fixes (including the `__extends` Hermes error)
+- Configuration best practices
+- Cache clearing procedures
+- Debugging tips and quick commands
+
 ### Code Quality
 
 ```bash
@@ -218,6 +227,54 @@ eas build --platform ios --profile production
 ```
 
 See `docs/deployment/` for comprehensive build and deployment guides.
+
+## Troubleshooting
+
+### Common Issues
+
+#### Build Errors
+
+If you encounter build errors, especially `TypeError: Cannot read property '__extends' of undefined`:
+
+1. **Quick Fix**: Clear cache and restart
+   ```bash
+   npm run start:clear
+   ```
+
+2. **Deep Clean**: If issues persist
+   ```bash
+   rm -rf node_modules .expo
+   npm install
+   npx expo start --clear
+   ```
+
+3. **See the [Developer Cheatsheet](docs/guides/DEVELOPER_CHEATSHEET.md)** for detailed troubleshooting steps
+
+#### Metro Bundler Issues
+
+```bash
+# Clear watchman (if installed)
+watchman watch-del-all
+
+# Clear metro cache
+rm -rf $TMPDIR/metro-*
+rm -rf $TMPDIR/haste-map-*
+
+# Restart with clean cache
+npx expo start --clear
+```
+
+#### TypeScript Errors
+
+```bash
+# Check types without building
+npm run typecheck
+
+# See detailed error messages
+npx tsc --noEmit
+```
+
+**For comprehensive troubleshooting, see [Developer Cheatsheet](docs/guides/DEVELOPER_CHEATSHEET.md)**
 
 ## Documentation
 

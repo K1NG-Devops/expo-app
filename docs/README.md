@@ -65,6 +65,10 @@ Reference: status summaries and fixes (archived in `docs/OBSOLETE/status/FIXES_A
 
 See project root README for detailed setup and scripts.
 
+**Developer Resources:**
+- [Developer Cheatsheet](guides/DEVELOPER_CHEATSHEET.md) - TypeScript, common errors, and quick fixes
+- [UI Terminology Migration](guides/UI_TERMINOLOGY_MIGRATION.md) - UI component naming conventions
+
 ---
 
 ## Governance Essentials
@@ -84,6 +88,12 @@ See project root README for detailed setup and scripts.
 ---
 
 ## Change Log
+
+- 2025-10-18
+  - Fixed critical Hermes `__extends` error caused by TypeScript `importHelpers` configuration
+  - Created comprehensive Developer Cheatsheet covering TypeScript basics, common errors, and fixes
+  - Documented cache clearing procedures and debugging tips for developers
+  - Updated tsconfig.json to remove problematic `importHelpers` option
 
 - 2025-10-14
   - Voice system live (tts-proxy, preferences/cache tables, storage bucket)
