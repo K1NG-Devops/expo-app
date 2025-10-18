@@ -21,6 +21,11 @@ export const TOKENS = {
   dashProactive: Symbol.for('DashProactive') as Token<DashProactive>,
   dashDiagnostic: Symbol.for('DashDiagnostic') as Token<DashDiagnostic>,
   dashAI: Symbol.for('DashAI') as Token<DashAI>,
+  dashWhatsApp: Symbol.for('DashWhatsApp') as Token<DashWhatsApp>,
+  dashContextAnalyzer: Symbol.for('DashContextAnalyzer') as Token<IDashContextAnalyzer>,
+  dashRealTimeAwareness: Symbol.for('DashRealTimeAwareness') as Token<IDashRealTimeAwareness>,
+  dashAgenticEngine: Symbol.for('DashAgenticEngine') as Token<IDashAgenticEngine>,
+  agentOrchestrator: Symbol.for('AgentOrchestrator') as Token<IAgentOrchestrator>,
 };
 
 // Minimal interfaces to start wiring gradually
@@ -157,6 +162,9 @@ export interface DashDiagnostic {
 
 export interface DashAI {
   initialize(): Promise<void>;
+  dispose(): void;
+  cleanup(): void;
+  clearCache(): void;
   sendMessage(content: string, attachments?: any[], conversationId?: string): Promise<any>;
   sendVoiceMessage(audioUri: string, conversationId?: string): Promise<any>;
   startNewConversation(title?: string): Promise<string>;
@@ -166,13 +174,30 @@ export interface DashAI {
   getCurrentConversationId(): string | null;
   setCurrentConversationId(conversationId: string): void;
   getAllMemoryItems(): any[];
-  getMemory?(): any;
-  clearMemory?(): void;
-  getPersonality?(): any;
-  savePersonality?(personality: any): Promise<void>;
-  preWarmRecorder?(): Promise<void>;
-  clearCache(): void;
+  getMemory(): any;
+  clearMemory(): Promise<void>;
+  getPersonality(): any;
+  savePersonality(personality: any): Promise<void>;
+  preWarmRecorder(): Promise<void>;
   speakResponse(message: any, callbacks?: any): Promise<void>;
   stopSpeaking(): Promise<void>;
-  dispose(): void;
+  navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }>;
+  getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] };
+  openLessonGeneratorFromContext(userInput: string, aiResponse: string): void;
+  generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }>;
+  saveLessonToDatabase(lessonContent: string, lessonParams: any): Promise<{ success: boolean; lessonId?: string; error?: string }>;
+  createAutomatedTask(templateId: string, customParams?: any): Promise<{ success: boolean; task?: any; error?: string }>;
+  getActiveTasks(): any[];
+  openTeacherMessageComposer(subject?: string, body?: string): void;
+  exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }>;
 }
+
+// Note: Full interfaces are defined in service files
+// These are minimal stubs for DI container typing
+export type IAgentOrchestrator = any;
+export type IDashContextAnalyzer = any;
+export type IDashRealTimeAwareness = any;
+export type IDashAgenticEngine = any;
+
+// Note: Full interface defined in DashWhatsAppIntegration.ts
+export type DashWhatsApp = any;

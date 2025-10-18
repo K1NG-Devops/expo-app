@@ -26,6 +26,7 @@ import { DashMemoryManager } from './modules/DashMemoryManager';
 import { DashVoiceController } from './modules/DashVoiceController';
 import { DashMessageHandler } from './modules/DashMessageHandler';
 import { DashContextBuilder } from './modules/DashContextBuilder';
+import responseCache from './modules/DashResponseCache';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -594,25 +595,54 @@ const DEFAULT_PERSONALITY: DashPersonality = {
  * Interface for DashAIAssistant - main AI assistant service
  */
 export interface IDashAIAssistant {
+  // Core initialization
   initialize(): Promise<void>;
+  dispose(): void;
+  cleanup(): void;
+  clearCache(): void;
+  
+  // Messaging
   sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage>;
   sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage>;
+  
+  // Conversations
   startNewConversation(title?: string): Promise<string>;
   getAllConversations(): Promise<DashConversation[]>;
   getConversation(conversationId: string): Promise<DashConversation | null>;
   deleteConversation(conversationId: string): Promise<void>;
   getCurrentConversationId(): string | null;
   setCurrentConversationId(conversationId: string): void;
+  
+  // Memory & Personality
   getAllMemoryItems(): DashMemoryItem[];
   getMemory(): DashMemoryItem[];
   clearMemory(): Promise<void>;
   getPersonality(): DashPersonality;
   savePersonality(personality: Partial<DashPersonality>): Promise<void>;
+  
+  // Voice
   preWarmRecorder(): Promise<void>;
-  clearCache(): void;
   speakResponse(message: DashMessage, callbacks?: any): Promise<void>;
   stopSpeaking(): Promise<void>;
-  dispose(): void;
+  
+  // Navigation & Context
+  navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }>;
+  getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] };
+  
+  // Content Generation
+  openLessonGeneratorFromContext(userInput: string, aiResponse: string): void;
+  generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }>;
+  saveLessonToDatabase(lessonContent: string, lessonParams: any): Promise<{ success: boolean; lessonId?: string; error?: string }>;
+  
+  // Tasks & Automation
+  createAutomatedTask(templateId: string, customParams?: any): Promise<{ success: boolean; task?: DashTask; error?: string }>;
+  getActiveTasks(): DashTask[];
+  
+  // Communication
+  openTeacherMessageComposer(subject?: string, body?: string): void;
+  
+  // Export
+  exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }>;
 }
 
 export class DashAIAssistant implements IDashAIAssistant {
@@ -641,6 +671,7 @@ export class DashAIAssistant implements IDashAIAssistant {
   private activeReminders: Map<string, DashReminder> = new Map();
   private pendingInsights: Map<string, DashInsight> = new Map();
   private proactiveTimer: ReturnType<typeof setTimeout> | null = null;
+  private cacheCleanupTimer: ReturnType<typeof setInterval> | null = null;
   private lastErrorTimestamp: number = 0;
   private consecutiveErrors: number = 0;
   private readonly MAX_CONSECUTIVE_ERRORS = 3;
@@ -651,6 +682,9 @@ export class DashAIAssistant implements IDashAIAssistant {
   private sessionCache: { data: any; timestamp: number } | null = null;
   private readonly CACHE_TTL = 60000; // 1 minute
   private dependenciesPreloaded = false;
+  
+  // ✅ OPTIMIZATION: Response cache for instant replies to common queries
+  private responseCache = responseCache;
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
@@ -732,6 +766,9 @@ export class DashAIAssistant implements IDashAIAssistant {
         console.log('[Dash] Agentic services initialized');
       }
       
+      // ✅ OPTIMIZATION: Start periodic cache cleanup (every 5 minutes)
+      this.startCacheCleanup();
+      
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
       console.error('[Dash] Failed to initialize AI Assistant:', error);
@@ -811,7 +848,32 @@ export class DashAIAssistant implements IDashAIAssistant {
   public clearCache(): void {
     this.profileCache = null;
     this.sessionCache = null;
-    console.log('[Dash] 🧽 Cache cleared');
+    this.responseCache.clearCache();
+    console.log('[Dash] 🧹 All caches cleared');
+  }
+  
+  /**
+   * ✅ OPTIMIZATION: Get response cache metrics
+   */
+  public getCacheMetrics(): any {
+    return this.responseCache.getMetrics();
+  }
+  
+  /**
+   * ✅ OPTIMIZATION: Start periodic cache cleanup
+   */
+  private startCacheCleanup(): void {
+    // Clean up expired cache entries every 5 minutes
+    this.cacheCleanupTimer = setInterval(() => {
+      try {
+        this.responseCache.cleanup();
+        console.log('[Dash] 🗑️  Periodic cache cleanup complete');
+      } catch (error) {
+        console.warn('[Dash] Cache cleanup failed:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    console.log('[Dash] ✅ Cache cleanup timer started (5min interval)');
   }
 
   
@@ -3056,8 +3118,8 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       // Lightweight intent guard for common conversational openers
       const inputLC = String(userInput || '').trim().toLowerCase();
       if (inputLC.includes('can you hear me')) {
-        const profile = await getCurrentProfile();
-        const displayName = (profile as any)?.first_name || 'there';
+        const hearMeProfile = await getCurrentProfile();
+        const displayName = (hearMeProfile as any)?.first_name || 'there';
         const content = `Yes, I can hear you clearly, ${displayName}. How can I help you today?`;
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -3068,19 +3130,39 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
         };
       }
       
+      // ✅ OPTIMIZATION: Check response cache for instant platform-aware replies (<100ms)
+      // Uses actual EduDash features, not generic responses
+      const profile = await this.getCachedProfile();
+      const userRole = (profile as any)?.role || 'parent';
+      const cachedResponse = this.responseCache.getCachedResponse(userInput, {
+        role: userRole,
+        language: detectedLanguage,
+      });
+      
+      if (cachedResponse) {
+        console.log('[Dash] ⚡ INSTANT RESPONSE from cache (<100ms)');
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: cachedResponse,
+          timestamp: Date.now(),
+          metadata: { 
+            confidence: 0.95,
+          }
+        };
+      }
+      
       // ✅ OPTIMIZATION: Fast path for simple queries (math, greetings, facts)
       // Bypasses 3-5s agentic processing for <500ms responses
       if (this.isSimpleQuery(userInput)) {
         console.log('[Dash Agent] 🚀 Fast path activated for simple query');
-        const profile = await this.getCachedProfile(); // Use cached profile
         return this.generateSimpleResponse(userInput, profile);
       }
       
       // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      // ✅ OPTIMIZATION: Use cached profile to save 1-2s
-      const profile = await this.getCachedProfile();
+      // Profile already loaded above for cache check - reuse it
       
       // Build full context for agentic analysis
       const fullContext = {
@@ -3105,7 +3187,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
       const proactiveEngineModule = await import('./DashProactiveEngine');
       const proactiveEngine = proactiveEngineModule.default; // Use default export (already an instance)
-      const userRole = profile?.role || 'parent';
+      // Use userRole from above cache check
       const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
         autonomyLevel: this.autonomyLevel,
         currentScreen: fullContext.currentContext?.screen_name,
@@ -5611,6 +5693,10 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     if (this.proactiveTimer) {
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
+    }
+    if (this.cacheCleanupTimer) {
+      clearInterval(this.cacheCleanupTimer);
+      this.cacheCleanupTimer = null;
     }
     
     // Dispose modular components (Phase 4 refactoring)

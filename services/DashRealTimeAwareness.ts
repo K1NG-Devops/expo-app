@@ -53,20 +53,24 @@ export interface DashAwareness {
   };
 }
 
-export class DashRealTimeAwareness {
-  private static instance: DashRealTimeAwareness;
+/**
+ * Interface for DashRealTimeAwareness
+ */
+export interface IDashRealTimeAwareness {
+  getAwareness(conversationId: string): Promise<DashAwareness>;
+  openScreen(route: string, params?: Record<string, any>): Promise<void>;
+  generateContextualGreeting(awareness: DashAwareness): string;
+  buildAwareSystemPrompt(awareness: DashAwareness): string;
+  shouldAutoExecute(intent: string, awareness: DashAwareness): boolean;
+  dispose(): void;
+}
+
+export class DashRealTimeAwareness implements IDashRealTimeAwareness {
   private awareness: DashAwareness | null = null;
   private conversationStarted = new Map<string, Date>();
   private screenHistory: string[] = [];
   
-  private constructor() {}
-  
-  public static getInstance(): DashRealTimeAwareness {
-    if (!DashRealTimeAwareness.instance) {
-      DashRealTimeAwareness.instance = new DashRealTimeAwareness();
-    }
-    return DashRealTimeAwareness.instance;
-  }
+  constructor() {}
   
   /**
    * Get complete awareness context for Dash
@@ -436,6 +440,34 @@ ADDITIONAL FEATURES:
       intent.toLowerCase().includes(keyword)
     );
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.conversationStarted.clear();
+    this.screenHistory = [];
+    this.awareness = null;
+  }
 }
 
-export default DashRealTimeAwareness.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashRealTimeAwarenessInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashRealTimeAwareness);
+  } catch {
+    // Fallback during initialization
+    return new DashRealTimeAwareness();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashRealTimeAwareness {
+  export function getInstance() {
+    return DashRealTimeAwarenessInstance;
+  }
+}
+
+export default DashRealTimeAwarenessInstance;

@@ -70,8 +70,22 @@ export interface ProactiveOpportunity {
   context_requirements: string[];
 }
 
-export class DashContextAnalyzer {
-  private static instance: DashContextAnalyzer;
+/**
+ * Interface for DashContextAnalyzer
+ */
+export interface IDashContextAnalyzer {
+  analyzeUserInput(input: string, conversationHistory: Array<{ role: string; content: string }>, currentContext?: ContextData): Promise<{ intent: UserIntent; context: ContextData; opportunities: ProactiveOpportunity[]; insights: DashInsight[] }>;
+  persistContextSnapshot(context: ContextData): Promise<void>;
+  loadLastContextSnapshot(): Promise<ContextData | null>;
+  estimateEmotionalState(input: string, conversationHistory: Array<{ role: string; content: string }>): { mood: string; confidence: number; trend: 'stable' | 'improving' | 'declining' };
+  computeStressLevel(input: string, conversationHistory: Array<{ role: string; content: string }>, recentErrors?: string[]): 'low' | 'medium' | 'high';
+  blendContexts(current: ContextData, historical: ContextData | null): ContextData;
+  getPredictedNextNeeds(context: ContextData, conversationHistory: Array<{ role: string; content: string }>): Array<{ need: string; confidence: number; reasoning: string }>;
+  calculateEngagementScore(conversationHistory: Array<{ role: string; content: string }>, timeWindowMs?: number): { level: 'low' | 'medium' | 'high'; score: number };
+  dispose(): void;
+}
+
+export class DashContextAnalyzer implements IDashContextAnalyzer {
   
   // ===== PHASE 1.4: AGENTIC ENHANCEMENTS =====
   private lastSnapshotTime: number = 0;
@@ -170,11 +184,8 @@ export class DashContextAnalyzer {
     confusion: [/confused/i, /don't understand/i, /unclear/i, /help/i, /lost/i]
   };
 
-  public static getInstance(): DashContextAnalyzer {
-    if (!DashContextAnalyzer.instance) {
-      DashContextAnalyzer.instance = new DashContextAnalyzer();
-    }
-    return DashContextAnalyzer.instance;
+  constructor() {
+    // Constructor is now public for DI
   }
 
   /**
@@ -1037,4 +1048,33 @@ export class DashContextAnalyzer {
 
     return { level, score };
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.emotionalHistory = [];
+    this.errorHistory = [];
+  }
 }
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashContextAnalyzerInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashContextAnalyzer);
+  } catch {
+    // Fallback during initialization
+    return new DashContextAnalyzer();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashContextAnalyzer {
+  export function getInstance() {
+    return DashContextAnalyzerInstance;
+  }
+}
+
+export default DashContextAnalyzerInstance;

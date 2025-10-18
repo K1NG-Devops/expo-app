@@ -45,6 +45,11 @@ import { SemanticMemoryEngine } from '../../../services/SemanticMemoryEngine';
 import { DashProactiveEngine } from '../../../services/DashProactiveEngine';
 import { DashDiagnosticEngine } from '../../../services/DashDiagnosticEngine';
 import { DashAIAssistant } from '../../../services/DashAIAssistant';
+import { DashWhatsAppIntegration } from '../../../services/DashWhatsAppIntegration';
+import { DashContextAnalyzer } from '../../../services/DashContextAnalyzer';
+import { DashRealTimeAwareness } from '../../../services/DashRealTimeAwareness';
+import { DashAgenticEngine } from '../../../services/DashAgenticEngine';
+import { AgentOrchestratorClass } from '../../../services/AgentOrchestrator';
 
 container
   .registerFactory(TOKENS.organization, () => new OrganizationServiceImpl(), { singleton: true })
@@ -64,6 +69,11 @@ container
   .registerFactory(TOKENS.semanticMemory, () => new SemanticMemoryEngine(), { singleton: true })
   .registerFactory(TOKENS.dashProactive, () => new DashProactiveEngine(), { singleton: true })
   .registerFactory(TOKENS.dashDiagnostic, () => new DashDiagnosticEngine(), { singleton: true })
-  .registerFactory(TOKENS.dashAI, () => new DashAIAssistant(), { singleton: true });
+  .registerFactory(TOKENS.dashAI, () => new DashAIAssistant(), { singleton: true })
+  .registerFactory(TOKENS.dashWhatsApp, () => new DashWhatsAppIntegration(), { singleton: true })
+  .registerFactory(TOKENS.dashContextAnalyzer, () => new DashContextAnalyzer(), { singleton: true })
+  .registerFactory(TOKENS.dashRealTimeAwareness, () => new DashRealTimeAwareness(), { singleton: true })
+  .registerFactory(TOKENS.dashAgenticEngine, () => new DashAgenticEngine(), { singleton: true })
+  .registerFactory(TOKENS.agentOrchestrator, () => new AgentOrchestratorClass(), { singleton: true });
 
 export { container, TOKENS };
