@@ -4796,20 +4796,26 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
+        const conversationStatus = awareness?.conversation?.isNewConversation ? 'FIRST message' : `ONGOING (message ${awareness?.conversation?.messageCount || 1})`;
+        
         systemPrompt = `You are Dash. Ultra-concise AI assistant.
 
 🚨 VOICE MODE: EXTREME BREVITY REQUIRED 🚨
 
+CONVERSATION STATUS: ${conversationStatus}
+${awareness?.conversation?.isNewConversation ? '' : '⚠️ DO NOT GREET - This is an ongoing conversation!'}
+
 RULES:
 1. ONE sentence responses ONLY (max 10-15 words)
-2. NO greetings, NO pleasantries, NO filler
-3. Answer ONLY what was asked - nothing more
-4. NO asterisks, NO narration, NO stage directions
-5. NO explanations unless explicitly requested
+2. NO greetings unless this is the FIRST message
+3. NO pleasantries, NO filler, NO "How can I help?"
+4. Answer ONLY what was asked - nothing more
+5. NO asterisks, NO narration, NO stage directions
+6. NO explanations unless explicitly requested
 
 EXAMPLES:
-❌ "Hello! How can I help you today?"
-✅ "Hi."
+❌ "Hello! How can I help you today?" (Never say this in ongoing conversation!)
+✅ "Hi." (Only on FIRST message)
 
 ❌ "Great question! The gesture feature works by..."
 ✅ "Long press the mic button."
@@ -4837,8 +4843,9 @@ Respond in ${language} if they spoke ${language}.`;
         systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
       }
       
-      // Generate contextual greeting if needed (only for new conversations)
-      const greeting = DashRealTimeAwareness.generateContextualGreeting(awareness);
+      // Generate contextual greeting if needed (only for new conversations and NOT in voice mode)
+      // Voice mode should NEVER have greetings - the user is already talking to us
+      const greeting = isVoiceMode ? '' : DashRealTimeAwareness.generateContextualGreeting(awareness);
       
       // Pre-parse navigation commands to reduce latency (open immediately when obvious)
       const contentLower = content.toLowerCase();

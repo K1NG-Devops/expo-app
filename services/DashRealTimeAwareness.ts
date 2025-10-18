@@ -68,6 +68,7 @@ export interface IDashRealTimeAwareness {
 export class DashRealTimeAwareness implements IDashRealTimeAwareness {
   private awareness: DashAwareness | null = null;
   private conversationStarted = new Map<string, Date>();
+  private conversationMessageCount = new Map<string, number>(); // Track message count per conversation
   private screenHistory: string[] = [];
   
   constructor() {}
@@ -308,17 +309,32 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
    * Track conversation context
    */
   private getConversationContext(conversationId: string): DashAwareness['conversation'] {
-    const startTime = this.conversationStarted.get(conversationId);
-    const isNew = !startTime || (Date.now() - startTime.getTime() > 30 * 60 * 1000); // 30 min gap = new
+    const lastInteraction = this.conversationStarted.get(conversationId);
     
-    if (isNew || !startTime) {
-      this.conversationStarted.set(conversationId, new Date());
+    // Consider a conversation "new" if:
+    // 1. No previous interaction exists, OR
+    // 2. Last interaction was more than 30 minutes ago
+    const timeSinceLastMessage = lastInteraction ? Date.now() - lastInteraction.getTime() : Infinity;
+    const isNew = !lastInteraction || timeSinceLastMessage > 30 * 60 * 1000; // 30 min gap = new
+    
+    // Reset message count if new conversation
+    if (isNew) {
+      this.conversationMessageCount.set(conversationId, 1);
+    } else {
+      // Increment message count for ongoing conversation
+      const currentCount = this.conversationMessageCount.get(conversationId) || 1;
+      this.conversationMessageCount.set(conversationId, currentCount + 1);
     }
     
+    // Update last interaction time for this conversation
+    this.conversationStarted.set(conversationId, new Date());
+    
+    const messageCount = this.conversationMessageCount.get(conversationId) || 1;
+    
     return {
-      messageCount: 0, // Would be tracked properly
+      messageCount: messageCount,
       isNewConversation: isNew,
-      lastInteraction: startTime,
+      lastInteraction: lastInteraction,
       topics: [] // Would track discussed topics
     };
   }
@@ -442,10 +458,28 @@ ADDITIONAL FEATURES:
   }
 
   /**
+   * Clean up old conversation tracking (prevent memory leaks)
+   * Call this periodically to remove stale conversation data
+   */
+  private cleanupOldConversations(): void {
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000);
+    
+    // Remove conversations older than 1 hour
+    for (const [conversationId, lastTime] of this.conversationStarted.entries()) {
+      if (lastTime.getTime() < oneHourAgo) {
+        this.conversationStarted.delete(conversationId);
+        this.conversationMessageCount.delete(conversationId);
+      }
+    }
+  }
+
+  /**
    * Dispose method for cleanup
    */
   public dispose(): void {
     this.conversationStarted.clear();
+    this.conversationMessageCount.clear();
     this.screenHistory = [];
     this.awareness = null;
   }
