@@ -27,6 +27,7 @@ import { DashVoiceController } from './modules/DashVoiceController';
 import { DashMessageHandler } from './modules/DashMessageHandler';
 import { DashContextBuilder } from './modules/DashContextBuilder';
 import responseCache from './modules/DashResponseCache';
+import { logger } from '@/lib/logger';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -35,7 +36,7 @@ try {
     SecureStore = require('expo-secure-store');
   }
 } catch (e) {
-  console.debug('SecureStore import failed (web or unsupported platform)', e);
+  logger.debug('SecureStore import failed (web or unsupported platform)', e);
 }
 
 // ============================================
@@ -712,12 +713,12 @@ export class DashAIAssistant implements IDashAIAssistant {
   public async initialize(): Promise<void> {
     // Allow re-initialization after disposal (fixes Fast Refresh issues)
     if (this.isDisposed) {
-      console.log('[Dash] Re-initializing after disposal...');
+      logger.info('[Dash] Re-initializing after disposal...');
       this.isDisposed = false;
     }
     
     try {
-      console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
+      logger.info('[Dash] Initializing AI Assistant with agentic capabilities...');
       
       // ✅ OPTIMIZATION: Preload dependencies early
       await this.preloadDependencies();
@@ -757,21 +758,21 @@ export class DashAIAssistant implements IDashAIAssistant {
             const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
             const semanticMemory = SemanticMemoryEngine.getInstance();
             await semanticMemory.initialize();
-            console.log('[Dash] Semantic memory initialized (deferred)');
+            logger.debug('[Dash] Semantic memory initialized (deferred)');
           } catch (error) {
-            console.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
+            logger.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
           }
         }, 2000); // Defer by 2 seconds to avoid initial bundler heap pressure
         
-        console.log('[Dash] Agentic services initialized');
+        logger.debug('[Dash] Agentic services initialized');
       }
       
       // ✅ OPTIMIZATION: Start periodic cache cleanup (every 5 minutes)
       this.startCacheCleanup();
       
-      console.log('[Dash] AI Assistant initialized successfully');
+      logger.info('[Dash] AI Assistant initialized successfully');
     } catch (error) {
-      console.error('[Dash] Failed to initialize AI Assistant:', error);
+      logger.error('[Dash] Failed to initialize AI Assistant:', error);
       throw error;
     }
   }
@@ -791,7 +792,7 @@ export class DashAIAssistant implements IDashAIAssistant {
     if (this.dependenciesPreloaded) return;
     
     const startTime = Date.now();
-    console.log('[Dash] 🚀 Preloading dependencies...');
+    logger.debug('[Dash] 🚀 Preloading dependencies...');
     
     try {
       // Preload all agentic engine imports
@@ -806,9 +807,9 @@ export class DashAIAssistant implements IDashAIAssistant {
       
       this.dependenciesPreloaded = true;
       const duration = Date.now() - startTime;
-      console.log(`[Dash] ✅ Dependencies preloaded in ${duration}ms`);
+      logger.debug(`[Dash] ✅ Dependencies preloaded in ${duration}ms`);
     } catch (error) {
-      console.warn('[Dash] ⚠️ Failed to preload dependencies (non-critical):', error);
+      logger.warn('[Dash] ⚠️ Failed to preload dependencies (non-critical):', error);
     }
   }
 
@@ -818,7 +819,7 @@ export class DashAIAssistant implements IDashAIAssistant {
   private async getCachedProfile(): Promise<any> {
     const now = Date.now();
     if (this.profileCache && (now - this.profileCache.timestamp) < this.CACHE_TTL) {
-      console.log('[Dash] 📦 Using cached profile');
+      logger.debug('[Dash] 📦 Using cached profile');
       return this.profileCache.data;
     }
     
@@ -833,7 +834,7 @@ export class DashAIAssistant implements IDashAIAssistant {
   private async getCachedSession(): Promise<any> {
     const now = Date.now();
     if (this.sessionCache && (now - this.sessionCache.timestamp) < this.CACHE_TTL) {
-      console.log('[Dash] 📦 Using cached session');
+      logger.debug('[Dash] 📦 Using cached session');
       return this.sessionCache.data;
     }
     
@@ -849,7 +850,7 @@ export class DashAIAssistant implements IDashAIAssistant {
     this.profileCache = null;
     this.sessionCache = null;
     this.responseCache.clearCache();
-    console.log('[Dash] 🧹 All caches cleared');
+    logger.debug('[Dash] 🧹 All caches cleared');
   }
   
   /**
@@ -867,13 +868,13 @@ export class DashAIAssistant implements IDashAIAssistant {
     this.cacheCleanupTimer = setInterval(() => {
       try {
         this.responseCache.cleanup();
-        console.log('[Dash] 🗑️  Periodic cache cleanup complete');
+        logger.debug('[Dash] 🗑️  Periodic cache cleanup complete');
       } catch (error) {
-        console.warn('[Dash] Cache cleanup failed:', error);
+        logger.warn('[Dash] Cache cleanup failed:', error);
       }
     }, 5 * 60 * 1000); // 5 minutes
     
-    console.log('[Dash] ✅ Cache cleanup timer started (5min interval)');
+    logger.debug('[Dash] ✅ Cache cleanup timer started (5min interval)');
   }
 
   
@@ -904,7 +905,7 @@ export class DashAIAssistant implements IDashAIAssistant {
     try {
       await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
     } catch (error) {
-      console.warn('[Dash] Failed to save conversation pointer to AsyncStorage (non-fatal):', error);
+      logger.warn('[Dash] Failed to save conversation pointer to AsyncStorage (non-fatal):', error);
     }
     return conversationId;
   }
@@ -927,7 +928,7 @@ export class DashAIAssistant implements IDashAIAssistant {
         }
       }
     } catch (e) {
-      console.warn('[Dash] Failed to restore conversation pointer, creating new one:', e);
+      logger.warn('[Dash] Failed to restore conversation pointer, creating new one:', e);
     }
     // Create a new conversation as a fallback
     const newId = await this.startNewConversation(defaultTitle || 'Quick Voice');
@@ -970,12 +971,12 @@ export class DashAIAssistant implements IDashAIAssistant {
           try {
             await this.createReminder(title, when, act?.payload || {});
           } catch (e) {
-            console.warn('[Dash] createReminder failed (non-fatal):', e);
+            logger.warn('[Dash] createReminder failed (non-fatal):', e);
           }
         }
       }
     } catch (error) {
-      console.warn('[Dash] Error handling assistant-requested actions (non-fatal):', error);
+      logger.warn('[Dash] Error handling assistant-requested actions (non-fatal):', error);
     }
 
     // Natural language reminder fallback (if assistant didn't emit structured action)
@@ -988,12 +989,12 @@ export class DashAIAssistant implements IDashAIAssistant {
           try {
             await this.createReminder(title, iso, { source: 'nlp' });
           } catch (e) {
-            console.warn('[Dash] NL reminder creation failed (non-fatal):', e);
+            logger.warn('[Dash] NL reminder creation failed (non-fatal):', e);
           }
         }
       }
     } catch (error) {
-      console.warn('[Dash] Error in natural language reminder fallback (non-fatal):', error);
+      logger.warn('[Dash] Error in natural language reminder fallback (non-fatal):', error);
     }
 
     // Best-effort: sync context (language/traits) to backend
@@ -1003,7 +1004,7 @@ export class DashAIAssistant implements IDashAIAssistant {
         sessionId: convId,
       });
     } catch (error) {
-      console.warn('[Dash] Context sync failed (non-fatal):', error);
+      logger.warn('[Dash] Context sync failed (non-fatal):', error);
     }
 
     return assistantResponse;
@@ -1028,13 +1029,13 @@ export class DashAIAssistant implements IDashAIAssistant {
     if (tr.language) {
       const mappedLanguage = this.messageHandler.mapLanguageCode(tr.language);
       detectedLanguage = mappedLanguage;
-      console.log(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
+      logger.info(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
       
       // Save to preferences asynchronously (non-blocking for this response)
       voiceService.savePreferences({
         language: mappedLanguage as any,
       }).catch(err => {
-        console.warn('[Dash] Failed to save voice preference (non-fatal):', err);
+        logger.warn('[Dash] Failed to save voice preference (non-fatal):', err);
       });
       
       // Also save to conversation state (non-blocking)
@@ -1044,14 +1045,14 @@ export class DashAIAssistant implements IDashAIAssistant {
             preferredLanguage: mappedLanguage
           });
         } catch (err) {
-          console.warn('[Dash] Failed to update conversation preferences (non-fatal):', err);
+          logger.warn('[Dash] Failed to update conversation preferences (non-fatal):', err);
         }
       }).catch(err => {
-        console.warn('[Dash] Failed to import DashConversationState (non-fatal):', err);
+        logger.warn('[Dash] Failed to import DashConversationState (non-fatal):', err);
       });
     }
     
-    console.log(`[Dash] 🔄 Will use detected language for this response: ${detectedLanguage}`);
+    logger.info(`[Dash] 🔄 Will use detected language for this response: ${detectedLanguage}`);
     
     // Duration is provided by transcription when available; otherwise 0
     const duration = (tr as any).duration || 0;
@@ -1181,7 +1182,7 @@ export class DashAIAssistant implements IDashAIAssistant {
         const title = String(act?.title || 'Reminder');
         const when = String(act?.schedule_at || act?.when || '');
         if (when) {
-          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { console.warn('[Dash] createReminder failed:', e); }
+          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { logger.warn('[Dash] createReminder failed:', e); }
         }
       }
     } catch { /* Intentional: non-fatal */ }
@@ -1268,7 +1269,7 @@ export class DashAIAssistant implements IDashAIAssistant {
       } as any);
     } catch (e) {
       // non-fatal
-      console.warn('[Dash] Context sync failed:', e);
+      logger.warn('[Dash] Context sync failed:', e);
     }
   }
 
@@ -1392,7 +1393,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     // and press Generate in the UI.
     // if (paramCount >= 2) params.autogenerate = 'true';
 
-    console.log('[Dash] Extracted lesson parameters (enhanced):', params);
+    logger.debug('[Dash] Extracted lesson parameters (enhanced):', params);
     return params;
   }
 
@@ -1405,7 +1406,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       const query = new URLSearchParams(params as any).toString();
       router.push({ pathname: '/screens/ai-lesson-generator', params });
     } catch (e) {
-      console.warn('[Dash] Failed to open Lesson Generator from context:', e);
+      logger.warn('[Dash] Failed to open Lesson Generator from context:', e);
     }
   }
   
@@ -1505,7 +1506,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       params.autoGenerate = 'true';
     }
     
-    console.log('[Dash] Extracted worksheet parameters:', params);
+    logger.debug('[Dash] Extracted worksheet parameters:', params);
     return params;
   }
   
@@ -2014,7 +2015,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    */
   public async generateLessonDirectly(params: Record<string, any>): Promise<{ success: boolean; lessonId?: string; title?: string; features?: string[]; error?: string }> {
     try {
-      console.log('[Dash] Generating lesson directly:', params);
+      logger.debug('[Dash] Generating lesson directly:', params);
       
       // Import EducationalPDFService dynamically
       const { EducationalPDFService } = await import('../lib/services/EducationalPDFService');
@@ -2076,7 +2077,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       };
       
     } catch (error) {
-      console.error('[Dash] Direct lesson generation failed:', error);
+      logger.error('[Dash] Direct lesson generation failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Lesson generation failed'
@@ -2089,7 +2090,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    */
   public async generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }> {
     try {
-      console.log('[Dash] Auto-generating worksheet with params:', params);
+      logger.debug('[Dash] Auto-generating worksheet with params:', params);
       
       // Create worksheet generation service instance
       const worksheetService = new WorksheetService();
@@ -2133,7 +2134,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       };
       
     } catch (error) {
-      console.error('[Dash] Failed to auto-generate worksheet:', error);
+      logger.error('[Dash] Failed to auto-generate worksheet:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to generate worksheet'
@@ -2146,7 +2147,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    */
   public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Dash] Navigating to screen:', route, params);
+      logger.debug('[Dash] Navigating to screen:', route, params);
       
       // Map common screen names to actual routes
       const routeMap: Record<string, string> = {
@@ -2184,11 +2185,11 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       }
       
       // Log successful navigation
-      console.log(`[Dash] Successfully navigated to: ${actualRoute}`);
+      logger.debug(`[Dash] Successfully navigated to: ${actualRoute}`);
       return { success: true };
       
     } catch (error) {
-      console.error('[Dash] Navigation failed:', error);
+      logger.error('[Dash] Navigation failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Navigation failed'
@@ -2206,7 +2207,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       if (body) params.prefillMessage = body;
       router.push({ pathname: '/screens/teacher-messages', params } as any);
     } catch (e) {
-      console.warn('[Dash] Failed to open Teacher Messages:', e);
+      logger.warn('[Dash] Failed to open Teacher Messages:', e);
     }
   }
 
@@ -2561,12 +2562,12 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
           expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
         });
         
-        console.log('[Dash] Created automated task:', result.task.title);
+        logger.debug('[Dash] Created automated task:', result.task.title);
       }
       
       return result;
     } catch (error) {
-      console.error('[Dash] Failed to create automated task:', error);
+      logger.error('[Dash] Failed to create automated task:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Task creation failed'
@@ -2602,7 +2603,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       
       return result;
     } catch (error) {
-      console.error('[Dash] Task step execution failed:', error);
+      logger.error('[Dash] Task step execution failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Step execution failed'
@@ -2969,11 +2970,11 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
         expires_at: params.triggerTime + (24 * 60 * 60 * 1000) // Expire 24 hours after trigger
       });
       
-      console.log('[Dash] Scheduled smart reminder:', reminder.title);
+      logger.debug('[Dash] Scheduled smart reminder:', reminder.title);
       return { success: true, reminderId: reminder.id };
       
     } catch (error) {
-      console.error('[Dash] Failed to schedule reminder:', error);
+      logger.error('[Dash] Failed to schedule reminder:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Reminder scheduling failed'
@@ -3108,11 +3109,11 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
 
   private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
     try {
-      console.log('[Dash Agent] Processing message with agentic engines...');
+      logger.info('[Dash Agent] Processing message with agentic engines...');
       if (detectedLanguage) {
-        console.log(`[Dash Agent] ✅ Using detected language: ${detectedLanguage}`);
+        logger.debug(`[Dash Agent] ✅ Using detected language: ${detectedLanguage}`);
       } else {
-        console.log('[Dash Agent] ⚠️  No detected language provided, will use fallback chain');
+        logger.debug('[Dash Agent] ⚠️  No detected language provided, will use fallback chain');
       }
       
       // Lightweight intent guard for common conversational openers
@@ -3140,7 +3141,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       });
       
       if (cachedResponse) {
-        console.log('[Dash] ⚡ INSTANT RESPONSE from cache (<100ms)');
+        logger.debug('[Dash] ⚡ INSTANT RESPONSE from cache (<100ms)');
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           type: 'assistant',
@@ -3155,7 +3156,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       // ✅ OPTIMIZATION: Fast path for simple queries (math, greetings, facts)
       // Bypasses 3-5s agentic processing for <500ms responses
       if (this.isSimpleQuery(userInput)) {
-        console.log('[Dash Agent] 🚀 Fast path activated for simple query');
+        logger.debug('[Dash Agent] 🚀 Fast path activated for simple query');
         return this.generateSimpleResponse(userInput, profile);
       }
       
@@ -3176,15 +3177,15 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       };
 
       // PHASE 1: CONTEXT ANALYSIS - Understand user intent and context
-      console.log('[Dash Agent] Phase 1: Analyzing context...');
+      logger.debug('[Dash Agent] Phase 1: Analyzing context...');
       const { DashContextAnalyzer } = await import('./DashContextAnalyzer');
       const analyzer = DashContextAnalyzer.getInstance();
       const convHistory = recentMessages.map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.content }));
       const analysis = await analyzer.analyzeUserInput(userInput, convHistory, fullContext.currentContext);
-      console.log('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
+      logger.debug('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
       
       // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
-      console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
+      logger.debug('[Dash Agent] Phase 2: Identifying proactive opportunities...');
       const proactiveEngineModule = await import('./DashProactiveEngine');
       const proactiveEngine = proactiveEngineModule.default; // Use default export (already an instance)
       // Use userRole from above cache check
@@ -3197,10 +3198,10 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
           dayOfWeek: new Date().getDay()
         }
       });
-      console.log('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
+      logger.debug('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
       
       // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
-      console.log('[Dash Agent] Phase 3: Generating enhanced response...');
+      logger.debug('[Dash Agent] Phase 3: Generating enhanced response...');
       const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments, detectedLanguage);
       
       // ✅ OPTIMIZATION: PHASE 4 & 5 - Run proactive operations in background (non-blocking)
@@ -3209,24 +3210,24 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
         // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
         opportunities.length > 0 
           ? this.handleProactiveOpportunities(opportunities, assistantMessage)
-              .then(() => console.log('[Dash Agent] ✅ Phase 4 complete (background)'))
-              .catch(err => console.warn('[Dash Agent] Phase 4 failed (non-critical):', err))
+              .then(() => logger.debug('[Dash Agent] ✅ Phase 4 complete (background)'))
+              .catch(err => logger.warn('[Dash Agent] Phase 4 failed (non-critical):', err))
           : Promise.resolve(),
         
         // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
         analysis.intent && analysis.intent.primary_intent
           ? this.handleActionIntent(analysis.intent, assistantMessage)
-              .then(() => console.log('[Dash Agent] ✅ Phase 5 complete (background)'))
-              .catch(err => console.warn('[Dash Agent] Phase 5 failed (non-critical):', err))
+              .then(() => logger.debug('[Dash Agent] ✅ Phase 5 complete (background)'))
+              .catch(err => logger.warn('[Dash Agent] Phase 5 failed (non-critical):', err))
           : Promise.resolve(),
         
         // Update enhanced memory with analysis context
         this.updateEnhancedMemory(userInput, assistantMessage, analysis)
-          .then(() => console.log('[Dash Agent] ✅ Memory updated (background)'))
-          .catch(err => console.warn('[Dash Agent] Memory update failed (non-critical):', err))
+          .then(() => logger.debug('[Dash Agent] ✅ Memory updated (background)'))
+          .catch(err => logger.warn('[Dash Agent] Memory update failed (non-critical):', err))
       ]);
       
-      console.log('[Dash Agent] 💨 Background operations queued (phases 4-5 + memory)');
+      logger.debug('[Dash Agent] 💨 Background operations queued (phases 4-5 + memory)');
       // Note: we're not awaiting the Promise.all above, so these run in the background
       
       // Post-process to avoid file attachment claims
@@ -3235,11 +3236,11 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       // Reset error counter on successful response
       this.consecutiveErrors = 0;
       
-      console.log('[Dash Agent] Response generation complete!');
+      logger.debug('[Dash Agent] Response generation complete!');
       return assistantMessage;
       
     } catch (error) {
-      console.error('[Dash Agent] Critical error in response generation:', error);
+      logger.error('[Dash Agent] Critical error in response generation:', error);
       
       // Track consecutive errors to prevent loops
       const now = Date.now();
@@ -3252,7 +3253,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       
       // If too many consecutive errors, return silent error
       if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
-        console.error('[Dash Agent] 🚨 Too many consecutive errors - entering cooldown');
+        logger.error('[Dash Agent] 🚨 Too many consecutive errors - entering cooldown');
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           type: 'assistant',
@@ -3301,6 +3302,123 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     }
   }
   
+  /**
+   * Call AI service WITH tool support for agentic capabilities
+   */
+  private async callAIServiceWithTools(params: {
+    messages: any[];
+    tools?: any[];
+    system?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<{
+    content: string;
+    tool_calls?: Array<{
+      id: string;
+      name: string;
+      input: any;
+    }>;
+    stop_reason?: string;
+    usage?: any;
+  }> {
+    try {
+      const supabase = assertSupabase();
+      
+      const body: any = {
+        action: 'chat',
+        messages: params.messages,
+        system: params.system,
+        temperature: params.temperature || 0.7,
+        maxTokens: params.maxTokens || 4000,
+        model: 'claude-3-5-sonnet-20241022'
+      };
+      
+      // Add tools if provided
+      if (params.tools && params.tools.length > 0) {
+        body.tools = params.tools;
+        body.tool_choice = { type: 'auto' };
+        logger.debug(`[Dash Agent] 🛠️  ${params.tools.length} tools available to AI`);
+      }
+      
+      const { data, error } = await supabase.functions.invoke('ai-gateway', { body });
+      
+      if (error) {
+        logger.error('[Dash Agent] AI Gateway error:', error);
+        throw error;
+      }
+      
+      // Extract text content from raw_content blocks
+      let textContent = '';
+      if (data.raw_content && Array.isArray(data.raw_content)) {
+        textContent = data.raw_content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n');
+      } else {
+        textContent = data.content || '';
+      }
+      
+      return {
+        content: textContent,
+        tool_calls: data.tool_calls,
+        stop_reason: data.stop_reason,
+        usage: data.usage
+      };
+    } catch (error) {
+      logger.error('[Dash Agent] callAIServiceWithTools failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute tools and continue conversation
+   */
+  private async executeTools(
+    toolCalls: Array<{ id: string; name: string; input: any }>,
+    conversationId: string
+  ): Promise<Array<{ tool_use_id: string; type: string; content: string; is_error?: boolean }>> {
+    const { ToolRegistry } = await import('./modules/DashToolRegistry');
+    const results = [];
+    
+    for (const toolCall of toolCalls) {
+      logger.info(`[Dash Agent] 🔧 Executing tool: ${toolCall.name}`);
+      
+      try {
+        const result = await ToolRegistry.execute(
+          toolCall.name,
+          toolCall.input,
+          {
+            conversationId,
+            userProfile: this.userProfile,
+            getCurrentContext: () => this.getCurrentContext()
+          }
+        );
+        
+        results.push({
+          tool_use_id: toolCall.id,
+          type: 'tool_result',
+          content: JSON.stringify(result),
+          is_error: !result.success
+        });
+        
+        logger.info(`[Dash Agent] ${result.success ? '✅' : '❌'} Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`);
+      } catch (error) {
+        logger.error(`[Dash Agent] Tool ${toolCall.name} error:`, error);
+        results.push({
+          tool_use_id: toolCall.id,
+          type: 'tool_result',
+          content: JSON.stringify({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }),
+          is_error: true
+        });
+      }
+    }
+    
+    return results;
+  }
+
   /**
    * Call AI service to generate response (legacy - used by generateResponse)
    */
@@ -3470,7 +3588,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
               };
             }
           } catch (error) {
-            console.warn('[Dash] Direct lesson generation failed, falling back to generator screen:', error);
+            logger.warn('[Dash] Direct lesson generation failed, falling back to generator screen:', error);
           }
         }
         
@@ -3521,7 +3639,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
             }
           }
         } catch (e) {
-          console.warn('[Dash] Financial insights generation failed', e);
+          logger.warn('[Dash] Financial insights generation failed', e);
         }
         dashboard_action = { type: 'open_screen' as const, route: '/screens/financial-dashboard' };
         suggested_actions.push('view_financial_dashboard');
@@ -3579,7 +3697,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
               };
             }
           } catch (error) {
-            console.warn('[Dash] Direct worksheet generation failed, falling back to demo screen:', error);
+            logger.warn('[Dash] Direct worksheet generation failed, falling back to demo screen:', error);
           }
         }
         
@@ -3613,7 +3731,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       };
       
     } catch (error) {
-      console.error('[Dash] Legacy AI service call failed:', error);
+      logger.error('[Dash] Legacy AI service call failed:', error);
       return {
         content: "I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, or dashboard navigation, I'm ready to assist. What would you like to work on together?",
         confidence: 0.7,
@@ -3640,7 +3758,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     let errorDetails: string | undefined;
     
     try {
-      console.log('[Dash] Transcribing audio:', audioUri);
+      logger.debug('[Dash] Transcribing audio:', audioUri);
       onProgress?.('validating', 0);
 
       // Language hint derived from personality voice settings
@@ -3835,7 +3953,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         
         // Retry logic for transient failures
         if (retryCount < 2 && (fnError.message?.includes('timeout') || fnError.message?.includes('network'))) {
-          console.log(`[Dash] Retrying transcription (attempt ${retryCount + 1}/2)...`);
+          logger.debug(`[Dash] Retrying transcription (attempt ${retryCount + 1}/2)...`);
           await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
           return this.transcribeAudio(audioUri, onProgress, retryCount + 1);
         }
@@ -3847,7 +3965,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const provider = (data as any)?.provider;
       
       if (!transcript || transcript.trim().length === 0) {
-        console.warn('[Dash] Transcription returned empty result');
+        logger.warn('[Dash] Transcription returned empty result');
       }
       
       onProgress?.('complete', 100);
@@ -3866,7 +3984,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         contentType,
       };
     } catch (error) {
-      console.error('[Dash] Transcription failed:', error);
+      logger.error('[Dash] Transcription failed:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       
       // Update feature health on failure
@@ -3933,7 +4051,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const conversationData = await AsyncStorage.getItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
       return conversationData ? JSON.parse(conversationData) : null;
     } catch (error) {
-      console.error('[Dash] Failed to get conversation:', error);
+      logger.error('[Dash] Failed to get conversation:', error);
       return null;
     }
   }
@@ -3956,13 +4074,13 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
             if (typeof parsed.updated_at !== 'number') parsed.updated_at = parsed.created_at;
             conversations.push(parsed as DashConversation);
           } catch (e) {
-            console.warn('[Dash] Skipping invalid conversation entry for key:', key, e);
+            logger.warn('[Dash] Skipping invalid conversation entry for key:', key, e);
           }
         }
       }
       return conversations.sort((a, b) => b.updated_at - a.updated_at);
     } catch (error) {
-      console.error('[Dash] Failed to get conversations:', error);
+      logger.error('[Dash] Failed to get conversations:', error);
       return [];
     }
   }
@@ -3977,7 +4095,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         JSON.stringify(conversation)
       );
     } catch (error) {
-      console.error('[Dash] Failed to save conversation:', error);
+      logger.error('[Dash] Failed to save conversation:', error);
     }
   }
 
@@ -3996,7 +4114,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         } catch { /* Intentional: non-fatal */ }
       }
     } catch (error) {
-      console.error('[Dash] Failed to add message to conversation:', error);
+      logger.error('[Dash] Failed to add message to conversation:', error);
     }
   }
 
@@ -4008,7 +4126,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const allKeys = await AsyncStorage.getAllKeys();
       return allKeys.filter((k: string) => k.startsWith(`${DashAIAssistant.CONVERSATIONS_KEY}_`));
     } catch (error) {
-      console.error('[Dash] Failed to list conversation keys:', error);
+      logger.error('[Dash] Failed to list conversation keys:', error);
       return [];
     }
   }
@@ -4026,7 +4144,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         this.currentConversationId = null;
       }
     } catch (error) {
-      console.error('[Dash] Failed to delete conversation:', error);
+      logger.error('[Dash] Failed to delete conversation:', error);
     }
   }
 
@@ -4089,7 +4207,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         timestamp: parsed.timestamp
       };
     } catch (error) {
-      console.error('[Dash] Failed to get onboarding status:', error);
+      logger.error('[Dash] Failed to get onboarding status:', error);
       return { completed: false };
     }
   }
@@ -4103,7 +4221,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const status = await this.getOnboardingStatus();
       return status.completed === true;
     } catch (error) {
-      console.error('[Dash] Failed to check onboarding completion:', error);
+      logger.error('[Dash] Failed to check onboarding completion:', error);
       return false;
     }
   }
@@ -4119,9 +4237,9 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         timestamp: Date.now()
       });
       await AsyncStorage.setItem(DashAIAssistant.ONBOARDING_KEY, payload);
-      console.log('[Dash] Onboarding marked as complete');
+      logger.debug('[Dash] Onboarding marked as complete');
     } catch (error) {
-      console.error('[Dash] Failed to mark onboarding complete:', error);
+      logger.error('[Dash] Failed to mark onboarding complete:', error);
       throw error;
     }
   }
@@ -4133,9 +4251,9 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   public async resetOnboarding(): Promise<void> {
     try {
       await AsyncStorage.removeItem(DashAIAssistant.ONBOARDING_KEY);
-      console.log('[Dash] Onboarding status reset');
+      logger.debug('[Dash] Onboarding status reset');
     } catch (error) {
-      console.error('[Dash] Failed to reset onboarding:', error);
+      logger.error('[Dash] Failed to reset onboarding:', error);
       throw error;
     }
   }
@@ -4170,7 +4288,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
 
       return exportText;
     } catch (error) {
-      console.error('[Dash] Failed to export conversation:', error);
+      logger.error('[Dash] Failed to export conversation:', error);
       throw error;
     }
   }
@@ -4189,7 +4307,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     }
   ): Promise<{ success: boolean; lessonId?: string; error?: string }> {
     try {
-      console.log('[Dash] Saving lesson to database...');
+      logger.debug('[Dash] Saving lesson to database...');
       
       // Get current user and profile
       const { data: auth } = await assertSupabase().auth.getUser();
@@ -4246,14 +4364,14 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       });
 
       if (result.success) {
-        console.log('[Dash] Lesson saved successfully:', result.lessonId);
+        logger.debug('[Dash] Lesson saved successfully:', result.lessonId);
       } else {
-        console.error('[Dash] Failed to save lesson:', result.error);
+        logger.error('[Dash] Failed to save lesson:', result.error);
       }
 
       return result;
     } catch (error: any) {
-      console.error('[Dash] Error saving lesson to database:', error);
+      logger.error('[Dash] Error saving lesson to database:', error);
       return {
         success: false,
         error: error?.message || 'Failed to save lesson'
@@ -4275,7 +4393,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     }
   ): Promise<{ success: boolean; resourceId?: string; error?: string }> {
     try {
-      console.log('[Dash] Saving study resource to database...');
+      logger.debug('[Dash] Saving study resource to database...');
       
       // Get current user and profile
       const { data: auth } = await assertSupabase().auth.getUser();
@@ -4321,7 +4439,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         .single();
 
       if (error) {
-        console.warn('[Dash] Resources table not available or insert failed:', error);
+        logger.warn('[Dash] Resources table not available or insert failed:', error);
         // Could save to a different table or just keep in conversations
         return { 
           success: false, 
@@ -4329,10 +4447,10 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         };
       }
 
-      console.log('[Dash] Study resource saved successfully:', data.id);
+      logger.debug('[Dash] Study resource saved successfully:', data.id);
       return { success: true, resourceId: data.id };
     } catch (error: any) {
-      console.error('[Dash] Error saving study resource:', error);
+      logger.error('[Dash] Error saving study resource:', error);
       return {
         success: false,
         error: error?.message || 'Failed to save study resource'
@@ -4350,7 +4468,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const agenticEngine = DashAgenticEngine.getInstance();
       return agenticEngine.getActiveReminders();
     } catch (error) {
-      console.error('[Dash] Failed to get active reminders:', error);
+      logger.error('[Dash] Failed to get active reminders:', error);
       return [];
     }
   }
@@ -4371,7 +4489,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       await this.executeProactiveBehaviors();
     }, 10 * 60 * 1000) as any; // Run every 10 minutes
 
-    console.log('[Dash] Started proactive behaviors');
+    logger.debug('[Dash] Started proactive behaviors');
   }
 
   /**
@@ -4391,7 +4509,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         await this.executeProactiveBehavior(behavior, context);
       }
     } catch (error) {
-      console.error('[Dash] Error in proactive behaviors:', error);
+      logger.error('[Dash] Error in proactive behaviors:', error);
     }
   }
 
@@ -4402,25 +4520,25 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     switch (behavior) {
       case 'suggest_lesson_improvements':
         if (context.time_context?.is_work_hours && this.userProfile?.role === 'teacher') {
-          console.log('[Dash] Proactive: Analyzing lessons for improvement suggestions');
+          logger.debug('[Dash] Proactive: Analyzing lessons for improvement suggestions');
         }
         break;
         
       case 'remind_upcoming_deadlines':
         if (this.userProfile?.role === 'teacher' || this.userProfile?.role === 'principal') {
-          console.log('[Dash] Proactive: Checking for upcoming deadlines');
+          logger.debug('[Dash] Proactive: Checking for upcoming deadlines');
         }
         break;
         
       case 'flag_student_concerns':
         if (this.userProfile?.role === 'teacher') {
-          console.log('[Dash] Proactive: Monitoring for student concerns');
+          logger.debug('[Dash] Proactive: Monitoring for student concerns');
         }
         break;
         
       case 'monitor_school_metrics':
         if (this.userProfile?.role === 'principal') {
-          console.log('[Dash] Proactive: Monitoring school performance metrics');
+          logger.debug('[Dash] Proactive: Monitoring school performance metrics');
         }
         break;
     }
@@ -4460,7 +4578,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       }
       };
     } catch (error) {
-      console.error('[Dash] Failed to get current context:', error);
+      logger.error('[Dash] Failed to get current context:', error);
       return {};
     }
   }
@@ -4486,7 +4604,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       if (error) throw error;
       return data || { results: [], error: 'No results returned' };
     } catch (error) {
-      console.error('[Dash] Web search error:', error);
+      logger.error('[Dash] Web search error:', error);
       return {
         query,
         results: [],
@@ -4526,7 +4644,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         summary: result.summary || 'Unable to verify this claim with available sources.'
       };
     } catch (error) {
-      console.error('[Dash] Fact check error:', error);
+      logger.error('[Dash] Fact check error:', error);
       return {
         statement,
         sources: [],
@@ -4640,7 +4758,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
             languageSource = 'saved-prefs';
           }
         } catch (err) {
-          console.warn('[Dash] Failed to get voice preferences:', err);
+          logger.warn('[Dash] Failed to get voice preferences:', err);
         }
       }
       
@@ -4663,11 +4781,11 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         languageSource = 'default-fallback';
       }
       
-      console.log(`[Dash] 🌍 Building AI prompt | Language: ${language} | Source: ${languageSource}`);
+      logger.debug(`[Dash] 🌍 Building AI prompt | Language: ${language} | Source: ${languageSource}`);
       
       // CRITICAL: Inject language explicitly into agentic context
       if (!detectedLanguage && language !== 'en') {
-        console.log(`[Dash] ⚠️  Language from ${languageSource}, not from voice detection - AI may not respond naturally`);
+        logger.debug(`[Dash] ⚠️  Language from ${languageSource}, not from voice detection - AI may not respond naturally`);
       }
       
       // Determine if this is a voice interaction (from orb/voice mode)
@@ -4679,20 +4797,26 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
+        const conversationStatus = awareness?.conversation?.isNewConversation ? 'FIRST message' : `ONGOING (message ${awareness?.conversation?.messageCount || 1})`;
+        
         systemPrompt = `You are Dash. Ultra-concise AI assistant.
 
 🚨 VOICE MODE: EXTREME BREVITY REQUIRED 🚨
 
+CONVERSATION STATUS: ${conversationStatus}
+${awareness?.conversation?.isNewConversation ? '' : '⚠️ DO NOT GREET - This is an ongoing conversation!'}
+
 RULES:
 1. ONE sentence responses ONLY (max 10-15 words)
-2. NO greetings, NO pleasantries, NO filler
-3. Answer ONLY what was asked - nothing more
-4. NO asterisks, NO narration, NO stage directions
-5. NO explanations unless explicitly requested
+2. NO greetings unless this is the FIRST message
+3. NO pleasantries, NO filler, NO "How can I help?"
+4. Answer ONLY what was asked - nothing more
+5. NO asterisks, NO narration, NO stage directions
+6. NO explanations unless explicitly requested
 
 EXAMPLES:
-❌ "Hello! How can I help you today?"
-✅ "Hi."
+❌ "Hello! How can I help you today?" (Never say this in ongoing conversation!)
+✅ "Hi." (Only on FIRST message)
 
 ❌ "Great question! The gesture feature works by..."
 ✅ "Long press the mic button."
@@ -4720,8 +4844,9 @@ Respond in ${language} if they spoke ${language}.`;
         systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
       }
       
-      // Generate contextual greeting if needed (only for new conversations)
-      const greeting = DashRealTimeAwareness.generateContextualGreeting(awareness);
+      // Generate contextual greeting if needed (only for new conversations and NOT in voice mode)
+      // Voice mode should NEVER have greetings - the user is already talking to us
+      const greeting = isVoiceMode ? '' : DashRealTimeAwareness.generateContextualGreeting(awareness);
       
       // Pre-parse navigation commands to reduce latency (open immediately when obvious)
       const contentLower = content.toLowerCase();
@@ -4745,7 +4870,7 @@ Respond in ${language} if they spoke ${language}.`;
           preOpened = true;
         }
       } catch (e) {
-        console.warn('[Dash] Pre-open navigation failed:', e);
+        logger.warn('[Dash] Pre-open navigation failed:', e);
       }
       
       // Add intent understanding to context
@@ -4768,22 +4893,100 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       
       const hasImages = images && images.length > 0;
       
-      // Call AI service with enhanced context
-      // Use ai-proxy if images present (supports vision), otherwise use ai-gateway
-      const aiResponse = hasImages 
-        ? await this.callAIServiceWithVision({
-            prompt: content,
-            context: enhancedPrompt,
-            images: images,
-            conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
-          })
-        : await this.callAIService({
+      // 🛠️  NEW: Get available tools for agentic capabilities
+      let aiResponse: any;
+      let toolsUsed: string[] = [];
+      
+      if (!hasImages) { // Tool calling doesn't work with vision API yet
+        try {
+          const { ToolRegistry } = await import('./modules/DashToolRegistry');
+          const toolSpecs = ToolRegistry.getToolSpecs();
+          
+          // Get conversation history for context
+          const conversation = await this.getConversation(conversationId);
+          const messages = conversation?.messages.slice(-10).map(m => ({
+            role: m.type === 'user' ? 'user' : 'assistant',
+            content: m.content
+          })) || [];
+          
+          // Add current user message
+          messages.push({ role: 'user', content });
+          
+          logger.info(`[Dash Agent] 🤖 Calling AI with ${toolSpecs.length} tools available`);
+          
+          // Call AI with tools
+          const response = await this.callAIServiceWithTools({
+            messages,
+            tools: toolSpecs,
+            system: enhancedPrompt,
+            temperature: isVoiceMode ? 0.5 : 0.7,
+            maxTokens: isVoiceMode ? 500 : 4000
+          });
+          
+          // Check if tools were called
+          if (response.tool_calls && response.tool_calls.length > 0) {
+            logger.info(`[Dash Agent] 🔧 ${response.tool_calls.length} tool(s) called:`, response.tool_calls.map(t => t.name).join(', '));
+            
+            // Execute tools
+            const toolResults = await this.executeTools(response.tool_calls, conversationId);
+            toolsUsed = response.tool_calls.map(t => t.name);
+            
+            // Add assistant's tool use to messages
+            messages.push({
+              role: 'assistant',
+              content: response.content
+            });
+            
+            // Add tool results
+            messages.push({
+              role: 'user',
+              content: toolResults
+            });
+            
+            // Get final response with tool results
+            logger.debug('[Dash Agent] 🔄 Getting final response with tool results...');
+            const finalResponse = await this.callAIServiceWithTools({
+              messages,
+              tools: toolSpecs, // Keep tools available for potential follow-up
+              system: enhancedPrompt,
+              temperature: isVoiceMode ? 0.5 : 0.7,
+              maxTokens: isVoiceMode ? 500 : 4000
+            });
+            
+            aiResponse = {
+              content: finalResponse.content,
+              usage: finalResponse.usage
+            };
+            
+            logger.info('[Dash Agent] ✅ Tool execution complete');
+          } else {
+            // No tools called, use direct response
+            aiResponse = {
+              content: response.content,
+              usage: response.usage
+            };
+            logger.debug('[Dash Agent] 📝 Direct response (no tools used)');
+          }
+        } catch (error) {
+          logger.error('[Dash Agent] Tool calling failed, falling back to standard response:', error);
+          // Fallback to standard AI call if tool calling fails
+          aiResponse = await this.callAIService({
             action: 'homework_help',
             question: content,
             context: enhancedPrompt,
             gradeLevel: 'General',
             conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
           });
+        }
+      } else {
+        // Vision API call (no tools support yet)
+        aiResponse = await this.callAIServiceWithVision({
+          prompt: content,
+          context: enhancedPrompt,
+          images: images,
+          conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
+        });
+      }
 
       // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
       let dashboardAction = this.generateDashboardAction(analysis.intent);
@@ -4867,7 +5070,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           const summary = await dashDiagnostics.getDiagnosticSummary();
           aiResponse.content = `I've run a complete diagnostic check:\n\n${summary}\n\nWould you like me to automatically fix any issues I can resolve?`;
         } catch (error) {
-          console.error('[Dash] Diagnostic run failed:', error);
+          logger.error('[Dash] Diagnostic run failed:', error);
           aiResponse.content = "I encountered an error while running diagnostics. The diagnostic system itself may need attention.";
         }
       }
@@ -4895,7 +5098,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             aiResponse.content = response;
           }
         } catch (error) {
-          console.error('[Dash] Auto-fix failed:', error);
+          logger.error('[Dash] Auto-fix failed:', error);
           aiResponse.content = "I encountered an error while trying to fix the issues. You may need to restart the app manually.";
         }
       }
@@ -4938,7 +5141,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             }
           }
         } catch (error) {
-          console.error('[Dash] Web search failed:', error);
+          logger.error('[Dash] Web search failed:', error);
           aiResponse.content = "I'm unable to search the web at the moment. Please check your internet connection and try again.";
         }
       }
@@ -4976,7 +5179,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             }
           }
         } catch (error) {
-          console.error('[Dash] Fact check failed:', error);
+          logger.error('[Dash] Fact check failed:', error);
           aiResponse.content = "I couldn't perform the fact-check at this time. Please try again later.";
         }
       }
@@ -4993,7 +5196,8 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           confidence: analysis.intent?.confidence || 0.5,
           suggested_actions: this.generateSuggestedActions(analysis.intent, awareness.user.role),
           user_intent: analysis.intent,
-          dashboard_action: dashboardAction
+          dashboard_action: dashboardAction,
+          tools_used: toolsUsed.length > 0 ? toolsUsed : undefined // Add tool usage tracking
         }
       };
 
@@ -5003,11 +5207,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         intent: analysis.intent?.primary_intent,
         featureUsed: dashboardAction?.route,
         action: dashboardAction
-      }).catch(err => console.warn('[Dash] Telemetry tracking failed:', err));
+      }).catch(err => logger.warn('[Dash] Telemetry tracking failed:', err));
 
       return assistantMessage;
     } catch (error) {
-      console.error('[Dash] Enhanced response generation failed:', error);
+      logger.error('[Dash] Enhanced response generation failed:', error);
       // Fallback to basic response
       return this.generateResponse(content, conversationId);
     }
@@ -5054,7 +5258,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         response.metadata.suggested_actions = opportunities.slice(0, 3).map(op => op.title);
       }
     } catch (error) {
-      console.error('[Dash] Failed to handle proactive opportunities:', error);
+      logger.error('[Dash] Failed to handle proactive opportunities:', error);
     }
   }
 
@@ -5110,7 +5314,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         );
       }
     } catch (error) {
-      console.error('[Dash] Failed to handle action intent:', error);
+      logger.error('[Dash] Failed to handle action intent:', error);
     }
   }
 
@@ -5155,7 +5359,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         });
       }
     } catch (error) {
-      console.error('[Dash] Failed to update enhanced memory:', error);
+      logger.error('[Dash] Failed to update enhanced memory:', error);
     }
   }
 
@@ -5180,7 +5384,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     const timeSinceLastCall = now - this.lastAPICallTime;
     if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
       const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
-      console.log(`[Dash] Debouncing API call. Waiting ${waitTime}ms...`);
+      logger.debug(`[Dash] Debouncing API call. Waiting ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     this.lastAPICallTime = Date.now();
@@ -5194,11 +5398,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         const userTier = await this.getUserTier();
         if (userTier === 'free') {
           selectedModel = 'claude-3-haiku-20240307';
-          console.log('[Dash] Using Haiku for free tier');
+          logger.debug('[Dash] Using Haiku for free tier');
         } else {
           // Paid tiers (starter, premium, pro, enterprise) get Sonnet
           selectedModel = 'claude-3-5-sonnet-20241022';
-          console.log(`[Dash] Using Sonnet 3.5 for ${userTier} tier`);
+          logger.debug(`[Dash] Using Sonnet 3.5 for ${userTier} tier`);
         }
       }
       
@@ -5218,7 +5422,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         const status = (error as any).context?.status || (error as any).status;
         
         // Log detailed error information
-        console.error('[Dash] AI Gateway Error:', {
+        logger.error('[Dash] AI Gateway Error:', {
           message: error.message,
           status,
           statusText: (error as any).statusText,
@@ -5241,7 +5445,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           const expBackoff = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
           const jitter = Math.floor(Math.random() * 500);
           const delay = Math.max(retryAfterMs, expBackoff) + jitter;
-          console.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          logger.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.callAIService(params, retryCount + 1);
         }
@@ -5249,7 +5453,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         // Handle server errors (500, 502, 503, 504) with retry
         if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
           const delay = BASE_DELAY * (retryCount + 1); // 1s, 2s, 3s
-          console.warn(`[Dash] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          logger.warn(`[Dash] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.callAIService(params, retryCount + 1);
@@ -5263,7 +5467,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       const status = error?.context?.status || error?.status;
       
       // Enhanced error logging
-      console.error('[Dash] AI service call failed:', {
+      logger.error('[Dash] AI service call failed:', {
         name: error?.name,
         message: error?.message,
         status,
@@ -5319,7 +5523,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     const timeSinceLastCall = now - this.lastAPICallTime;
     if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
       const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
-      console.log(`[Dash Vision] Debouncing API call. Waiting ${waitTime}ms...`);
+      logger.debug(`[Dash Vision] Debouncing API call. Waiting ${waitTime}ms...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
     this.lastAPICallTime = Date.now();
@@ -5342,7 +5546,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         }
       };
       
-      console.log(`[Dash Vision] Calling ai-proxy with ${params.images?.length || 0} images`);
+      logger.debug(`[Dash Vision] Calling ai-proxy with ${params.images?.length || 0} images`);
       
       // Queue the AI request to prevent rate limiting
       const { data, error } = await aiRequestQueue.enqueue(() => 
@@ -5355,7 +5559,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         const status = (error as any).context?.status || (error as any).status;
         
         // Log detailed error information
-        console.error('[Dash Vision] AI Proxy Error:', {
+        logger.error('[Dash Vision] AI Proxy Error:', {
           message: error.message,
           status,
           statusText: (error as any).statusText,
@@ -5377,7 +5581,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           const expBackoff = BASE_DELAY * Math.pow(2, retryCount);
           const jitter = Math.floor(Math.random() * 500);
           const delay = Math.max(retryAfterMs, expBackoff) + jitter;
-          console.warn(`[Dash Vision] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          logger.warn(`[Dash Vision] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.callAIServiceWithVision(params, retryCount + 1);
         }
@@ -5385,7 +5589,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         // Handle server errors with retry
         if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
           const delay = BASE_DELAY * (retryCount + 1);
-          console.warn(`[Dash Vision] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
+          logger.warn(`[Dash Vision] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return this.callAIServiceWithVision(params, retryCount + 1);
         }
@@ -5412,7 +5616,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       const status = error?.context?.status || error?.status;
       
       // Enhanced error logging
-      console.error('[Dash Vision] AI service call failed:', {
+      logger.error('[Dash Vision] AI service call failed:', {
         name: error?.name,
         message: error?.message,
         status,
@@ -5637,7 +5841,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       // Default to free
       return 'free';
     } catch (error) {
-      console.error('[Dash] Failed to determine user tier:', error);
+      logger.error('[Dash] Failed to determine user tier:', error);
       return 'free'; // Safe fallback
     }
   }
@@ -5677,7 +5881,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
    * ```
    */
   public cleanup(): void {
-    console.log('[Dash] Cleaning up AI Assistant resources...');
+    logger.debug('[Dash] Cleaning up AI Assistant resources...');
     
     // Mark as disposed
     this.isDisposed = true;
@@ -5686,7 +5890,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       this.stopSpeaking();
     } catch (e) {
-      console.warn('[Dash] Failed to stop speech during cleanup (non-fatal):', e);
+      logger.warn('[Dash] Failed to stop speech during cleanup (non-fatal):', e);
     }
     
     // Clear timers
@@ -5706,7 +5910,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       this.messageHandler?.dispose();
       this.contextBuilder?.dispose();
     } catch (e) {
-      console.warn('[Dash] Module disposal error (non-fatal):', e);
+      logger.warn('[Dash] Module disposal error (non-fatal):', e);
     }
     
     // Clear remaining state
@@ -5721,7 +5925,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     this.consecutiveErrors = 0;
     this.lastErrorTimestamp = 0;
     
-    console.log('[Dash] Cleanup complete - instance disposed');
+    logger.debug('[Dash] Cleanup complete - instance disposed');
   }
   
   /**
@@ -5759,7 +5963,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       detectedLang = this.messageHandler.detectLanguageFromText(content);
     } catch (error) {
-      console.warn('[Dash] Language detection failed, using default (non-fatal):', error);
+      logger.warn('[Dash] Language detection failed, using default (non-fatal):', error);
     }
 
     const msg: DashMessage = {

@@ -119,6 +119,13 @@ function encodeSSE(data: any) {
 async function callClaudeMessages(apiKey: string, payload: Record<string, any>, stream = false) {
   const url = "https://api.anthropic.com/v1/messages";
   const body = { ...payload, stream };
+  
+  // Add tool support if tools are provided
+  if (payload.tools && Array.isArray(payload.tools) && payload.tools.length > 0) {
+    body.tools = payload.tools;
+    body.tool_choice = payload.tool_choice || { type: "auto" };
+  }
+  
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -548,7 +555,7 @@ serve(async (req: Request) => {
   }
 
   // Non-streaming handlers
-  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance") {
+  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance" || action === "chat") {
     if (!apiKey) {
       // Fallback mock if no key
       let content = "";
@@ -556,7 +563,7 @@ serve(async (req: Request) => {
         content = `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`;
       } else if (action === "homework_help") {
         content = `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding, not just final answer.`;
-      } else if (action === "general_assistance") {
+      } else if (action === "general_assistance" || action === "chat") {
         content = `I'm here to help with your educational needs. Whether it's lesson planning, student management, or administrative tasks, let me know what you'd like to work on.`;
       } else {
         content = `Automated feedback: solid effort. Suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
@@ -564,18 +571,26 @@ serve(async (req: Request) => {
       return json({ content, usage: { input_tokens: 200, output_tokens: 600 }, cost: 0 });
     }
 
-    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
+    const kind = (action === "chat" ? "general_assistance" : action) as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
     const messages = buildMessagesFromInputs(kind, body);
-    const system = toSystemPrompt(kind);
+    const system = body.system || toSystemPrompt(kind);
     const model = modelToUse; // Use tier-enforced model
 
-    const res = await callClaudeMessages(apiKey, {
+    const claudeParams: Record<string, any> = {
       model,
       system,
-      max_tokens: 1500,
-      temperature: 0.6,
+      max_tokens: body.maxTokens || body.max_tokens || 1500,
+      temperature: body.temperature || 0.6,
       messages,
-    }, false);
+    };
+    
+    // Add tool support if provided
+    if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
+      claudeParams.tools = body.tools;
+      claudeParams.tool_choice = body.tool_choice || { type: "auto" };
+    }
+
+    const res = await callClaudeMessages(apiKey, claudeParams, false);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
@@ -591,11 +606,34 @@ serve(async (req: Request) => {
 
     const data = await res.json();
     const content = extractTextFromClaudeMessage(data);
+    
+    // Extract tool calls from response if present
+    const toolCalls = [];
+    if (data.content && Array.isArray(data.content)) {
+      for (const block of data.content) {
+        if (block.type === 'tool_use') {
+          toolCalls.push({
+            id: block.id,
+            name: block.name,
+            input: block.input
+          });
+        }
+      }
+    }
+    
     try {
       const usage = (data && (data.usage || null)) || null;
       await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: content, inputTokens: usage?.input_tokens ?? null, outputTokens: usage?.output_tokens ?? null, totalCost: null, status: 'success' });
     } catch { /* Intentional: non-fatal */ }
-    return json({ content, usage: data.usage || null, cost: null });
+    
+    return json({ 
+      content, 
+      usage: data.usage || null, 
+      cost: null,
+      stop_reason: data.stop_reason,
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      raw_content: data.content // Include full content array for debugging
+    });
   }
 
   return json({ error: "Unknown action" }, { status: 400 });
