@@ -1,16 +1,64 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
+import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
+
+// Inner component with access to AuthContext
+function LayoutContent() {
+  const pathname = usePathname();
+  const { loading: authLoading } = useAuth();
+  const [showFAB, setShowFAB] = useState(false);
+  
+  const isAuthRoute = typeof pathname === 'string' && (
+    pathname.startsWith('/(auth)') ||
+    pathname === '/sign-in' ||
+    pathname === '/(auth)/sign-in' ||
+    pathname === '/landing' ||
+    pathname === '/' ||
+    pathname.includes('auth-callback')
+  );
+  
+  // Show FAB after auth loads and brief delay
+  useEffect(() => {
+    if (!authLoading && !isAuthRoute) {
+      const timer = setTimeout(() => setShowFAB(true), 800);
+      return () => clearTimeout(timer);
+    } else {
+      setShowFAB(false);
+    }
+  }, [authLoading, isAuthRoute]);
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      {Platform.OS !== 'web' && <DashWakeWordListener />}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          presentation: 'card',
+          animationTypeForReplace: 'push',
+        }}
+      >
+        {/* Let Expo Router auto-discover screens */}
+      </Stack>
+      
+      {/* FAB (Floating Action Button) */}
+      {showFAB && !isAuthRoute && (
+        <DashVoiceFloatingButton showWelcomeMessage={true} />
+      )}
+    </View>
+  );
+}
 
 export default function RootLayout() {
   // Hide development navigation header on web
@@ -250,19 +298,7 @@ export default function RootLayout() {
               <DashboardPreferencesProvider>
                 <UpdatesProvider>
                   <ToastProvider>
-                    <View style={styles.container}>
-                      <StatusBar style="dark" />
-                      <DashWakeWordListener />
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          presentation: 'card',
-                          animationTypeForReplace: 'push',
-                        }}
-                      >
-                        {/* Let Expo Router auto-discover screens */}
-                      </Stack>
-                    </View>
+                    <LayoutContent />
                   </ToastProvider>
                 </UpdatesProvider>
               </DashboardPreferencesProvider>

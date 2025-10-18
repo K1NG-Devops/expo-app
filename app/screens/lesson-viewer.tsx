@@ -18,7 +18,6 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
@@ -65,8 +64,15 @@ export default function LessonViewer() {
 
       let dash;
       try {
-        dash = DashAIAssistant.getInstance();
-        await dash.initialize();
+        // Dynamic import to avoid circular dependency
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = module.DashAIAssistant || module.default;
+        if (DashClass && DashClass.getInstance) {
+          dash = DashClass.getInstance();
+          await dash.initialize();
+        } else {
+          dash = null;
+        }
       } catch (error) {
         console.error('[LessonViewer] Failed to get DashAI instance:', error);
         // Continue with fallback lesson data

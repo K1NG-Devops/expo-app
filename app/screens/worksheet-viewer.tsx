@@ -19,7 +19,6 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import * as Sharing from 'expo-sharing';
 
@@ -76,7 +75,7 @@ export default function WorksheetViewer() {
 
       let dash;
       try {
-        dash = DashAIAssistant.getInstance();
+        const module = await import("@/services/DashAIAssistant"); const DashClass = module.DashAIAssistant || module.default; dash = DashClass?.getInstance?.() || null;
         await dash.initialize();
       } catch (error) {
         console.error('[WorksheetViewer] Failed to get DashAI instance:', error);

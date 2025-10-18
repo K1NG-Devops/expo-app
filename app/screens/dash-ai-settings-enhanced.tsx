@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -24,12 +23,30 @@ export default function DashAISettingsEnhancedScreen() {
   const { theme } = useTheme();
   const [dashAI] = useState(() => {
     try {
-      return DashAIAssistant.getInstance();
+      // Dynamic import to avoid circular dependency
+      // Note: This returns null initially, will be set async
+      return null;
     } catch (error) {
-      console.error('[DashAISettingsEnhanced] Failed to get DashAI instance:', error);
+      console.error('[DashAISettingsEnhancedScreen] Failed to get DashAI instance:', error);
       return null;
     }
   });
+  
+  // Lazy load DashAI instance
+  const [dashAIInstance, setDashAIInstance] = useState<any>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = module.DashAIAssistant || module.default;
+        if (DashClass && DashClass.getInstance) {
+          setDashAIInstance(DashClass.getInstance());
+        }
+      } catch (error) {
+        console.error('[DashAISettingsEnhancedScreen] Failed to load DashAI:', error);
+      }
+    })();
+  }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -110,19 +127,19 @@ export default function DashAISettingsEnhancedScreen() {
   const initializeDashAI = useCallback(async () => {
     try {
       setLoading(true);
-      if (!dashAI) {
+      if (!dashAIInstance) {
         console.error('[DashAISettingsEnhanced] DashAI instance is null');
         Alert.alert('Error', 'Failed to initialize Dash AI. Please restart the app.');
         setLoading(false);
         return;
       }
-      await dashAI.initialize();
+      await dashAIInstance.initialize();
       // One-time migrate legacy keys into SSOT (no-op after first run)
       try { await initAndMigrate(); } catch (e) { if (__DEV__) console.warn('[Dash Settings] migration warn', e); }
       
       // Load current settings from DashAI service
-      const personality = dashAI.getPersonality();
-      const memory = dashAI.getMemory();
+      const personality = dashAIInstance.getPersonality();
+      const memory = dashAIInstance.getMemory();
       
       const loadedSettings = {
         // Start from current state to preserve unspecified settings
@@ -148,7 +165,7 @@ export default function DashAISettingsEnhancedScreen() {
       setLoading(false);
     }
    
-  }, [dashAI]);
+  }, [dashAIInstance]);
 
   useEffect(() => {
     initializeDashAI();
@@ -197,7 +214,7 @@ export default function DashAISettingsEnhancedScreen() {
         teaching_style: settings.teachingStyle
       };
       
-      await dashAI.savePersonality(dashPersonality);
+      await dashAIInstance.savePersonality(dashPersonality);
 
       // Persist voice prefs to SSOT (Supabase voice_preferences)
       try {
@@ -259,7 +276,7 @@ export default function DashAISettingsEnhancedScreen() {
           volume: settings.voiceVolume
         },
       };
-      await dashAI.savePersonality(dashPersonality);
+      await dashAIInstance.savePersonality(dashPersonality);
       
       console.log('[Test Voice] Settings applied. Language:', langNorm, 'Voice:', voice_id);
       
@@ -311,7 +328,7 @@ export default function DashAISettingsEnhancedScreen() {
         timestamp: Date.now(),
       };
       
-      await dashAI.speakResponse(msg as any);
+      await dashAIInstance.speakResponse(msg as any);
       
       // Show success with language info
       const langNames: Record<string, string> = {
