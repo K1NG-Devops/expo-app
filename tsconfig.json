@@ -11,7 +11,14 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "target": "esnext",
+    "module": "esnext",
+    "lib": ["esnext"],
+    "moduleResolution": "node",
+    "noEmit": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true
   },
   "exclude": [
     "scripts/**/*",
