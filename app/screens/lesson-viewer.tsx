@@ -63,18 +63,35 @@ export default function LessonViewer() {
         return;
       }
 
-      const dash = DashAIAssistant.getInstance();
-      await dash.initialize();
+      let dash;
+      try {
+        dash = DashAIAssistant.getInstance();
+        await dash.initialize();
+      } catch (error) {
+        console.error('[LessonViewer] Failed to get DashAI instance:', error);
+        // Continue with fallback lesson data
+        dash = null;
+      }
 
       // Try to get lesson from Dash memory
-      const memoryItems = await dash.getAllMemoryItems();
-      const lessonMemory = memoryItems.find(item => 
-        item.key === `generated_lesson_${params.lessonId}`
-      );
+      if (dash) {
+        try {
+          const memoryItems = await dash.getAllMemoryItems();
+          const lessonMemory = memoryItems.find(item => 
+            item.key === `generated_lesson_${params.lessonId}`
+          );
 
-      if (lessonMemory && lessonMemory.value) {
-        setLesson(lessonMemory.value as LessonPlan);
-      } else {
+          if (lessonMemory && lessonMemory.value) {
+            setLesson(lessonMemory.value as LessonPlan);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('[LessonViewer] Failed to load from memory:', error);
+        }
+      }
+      
+      {
         // Fallback: create a demo lesson
         setLesson({
           id: params.lessonId as string,

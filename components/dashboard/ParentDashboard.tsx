@@ -29,6 +29,7 @@ import { RoleBasedHeader } from '../RoleBasedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUnreadMessageCount } from '@/hooks/useParentMessaging';
 import { usePOPStats } from '@/hooks/usePOPUploads';
+import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
 // import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
 
 // WhatsApp integration
@@ -2147,6 +2148,9 @@ case 'homework':
       
       {/* WhatsApp Modal */}
       <WhatsAppOptInModal visible={showWhatsAppModal} onClose={() => setShowWhatsAppModal(false)} />
+      
+      {/* AI Assistant Floating Button */}
+      <DashVoiceFloatingButton />
     </View>
   );
 }
