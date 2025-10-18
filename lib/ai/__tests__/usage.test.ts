@@ -31,6 +31,7 @@ describe('getCombinedUsage (server-authoritative)', () => {
       lesson_generation: 10,
       grading_assistance: 5,
       homework_help: 2,
+      transcription: 0,
     }
 
     // Mock the edge function response to return server counts
@@ -49,6 +50,6 @@ describe('getCombinedUsage (server-authoritative)', () => {
 
     const result = await usage.getCombinedUsage()
 
-    expect(result).toEqual({ lesson_generation: 0, grading_assistance: 0, homework_help: 0 })
+    expect(result).toEqual({ lesson_generation: 0, grading_assistance: 0, homework_help: 0, transcription: 0 })
   })
 })

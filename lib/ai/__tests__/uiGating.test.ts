@@ -13,25 +13,27 @@ describe('uiGating', () => {
       expect(canAttach(t, ['pdf']).ok).toBe(false);
     });
 
-    it('allows search for basic/premium tiers', () => {
-      expect(canSearchHistory('basic' as Tier)).toBe(true);
-      expect(canSearchHistory('premium' as Tier)).toBe(true);
+    it('allows search for starter/premium tiers', () => {
+      expect(canSearchHistory('starter')).toBe(true);
+      expect(canSearchHistory('premium')).toBe(true);
     });
 
-    it('allows images only with premium and above', () => {
-      expect(canAttach('basic' as Tier, ['image']).ok).toBe(false);
-      expect(canAttach('premium' as Tier, ['image']).ok).toBe(true);
+    it('allows images only with starter and above', () => {
+      expect(canAttach('free', ['image']).ok).toBe(false);
+      expect(canAttach('starter', ['image']).ok).toBe(true);
+      expect(canAttach('premium', ['image']).ok).toBe(true);
     });
 
-    it('allows documents only with premium and above', () => {
-      expect(canAttach('basic' as Tier, ['pdf']).ok).toBe(false);
-      expect(canAttach('premium' as Tier, ['pdf']).ok).toBe(true);
+    it('allows documents only with starter and above', () => {
+      expect(canAttach('free', ['pdf']).ok).toBe(false);
+      expect(canAttach('starter', ['pdf']).ok).toBe(true);
+      expect(canAttach('premium', ['pdf']).ok).toBe(true);
     });
 
     it('handles mixed attachments', () => {
-      const res = canAttach('premium' as Tier, ['image', 'pdf']);
+      const res = canAttach('premium', ['image', 'pdf']);
       expect(res.ok).toBe(true);
-      const res2 = canAttach('basic' as Tier, ['image', 'pdf']);
+      const res2 = canAttach('free', ['image', 'pdf']);
       expect(res2.ok).toBe(false);
       expect(res2.missing).toEqual(expect.arrayContaining(['multimodal.vision', 'multimodal.documents']));
     });

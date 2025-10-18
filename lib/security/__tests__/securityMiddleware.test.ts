@@ -86,7 +86,7 @@ describe('Security Middleware', () => {
 
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.response).toBeInstanceOf(Response);
+        expect((result as { valid: false; response: Response }).response).toBeInstanceOf(Response);
       }
     });
 
