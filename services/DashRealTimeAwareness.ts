@@ -12,6 +12,7 @@
 import { router } from 'expo-router';
 import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
 import { assertSupabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 export interface DashAwareness {
   user: {
@@ -147,7 +148,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         }
       }
     } catch (error) {
-      console.error('[DashAwareness] Failed to get user name:', error);
+      logger.error('[DashAwareness] Failed to get user name:', error);
     }
     
     return {
@@ -300,7 +301,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         preschoolId: (profile as any).preschool_id
       };
     } catch (error) {
-      console.error('[DashAwareness] Failed to get data context:', error);
+      logger.error('[DashAwareness] Failed to get data context:', error);
       return {};
     }
   }
@@ -343,7 +344,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
    * ACTUALLY open a screen right now
    */
   public async openScreen(route: string, params?: Record<string, any>): Promise<void> {
-    console.log(`[DashAwareness] Opening screen: ${route}`, params);
+    logger.debug(`[DashAwareness] Opening screen: ${route}`, params);
     
     try {
       // Track navigation
@@ -358,9 +359,9 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         params: params || {}
       });
       
-      console.log(`[DashAwareness] Successfully opened: ${route}`);
+      logger.debug(`[DashAwareness] Successfully opened: ${route}`);
     } catch (error) {
-      console.error(`[DashAwareness] Failed to open screen ${route}:`, error);
+      logger.error(`[DashAwareness] Failed to open screen ${route}:`, error);
       throw error;
     }
   }

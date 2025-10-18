@@ -9,6 +9,7 @@ import { DashAIAssistant } from '../DashAIAssistant';
 import { DashTaskAutomation } from '../DashTaskAutomation';
 import { WorksheetService } from '../WorksheetService';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
+import { logger } from '@/lib/logger';
 
 export interface AgentTool {
   name: string;
@@ -29,7 +30,7 @@ export class DashToolRegistry {
   // Register a new tool
   register(tool: AgentTool): void {
     this.tools.set(tool.name, tool);
-    console.log(`[DashToolRegistry] Registered tool: ${tool.name}`);
+    logger.debug(`[DashToolRegistry] Registered tool: ${tool.name}`);
   }
 
   // Get tool specifications for LLM
@@ -65,7 +66,7 @@ export class DashToolRegistry {
       const result = await tool.execute(args, context);
       return { success: true, result };
     } catch (error) {
-      console.error(`[DashToolRegistry] Tool ${toolName} failed:`, error);
+      logger.error(`[DashToolRegistry] Tool ${toolName} failed:`, error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
