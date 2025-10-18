@@ -4,12 +4,13 @@
     "slug": "edudashpro",
     "owner": "edudashpro",
     "version": "1.0.2",
-    "runtimeVersion": "1.0.2",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/branding/png/icon-1024.png",
     "userInterfaceStyle": "light",
     "scheme": "edudashpro",
-    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*",
       "locales/**/*.json"
@@ -25,8 +26,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/branding/png/icon-1024.png",
+        "backgroundColor": "#33C3D4"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.edudashpro",
@@ -48,14 +49,17 @@
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "expo-updates",
       "sentry-expo",
-      "expo-audio",
       [
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "androidManifestApplicationMetaData": {
+            "com.google.android.gms.ads.APPLICATION_ID": "ca-app-pub-3940256099942544~3347511713"
+          }
         }
       ],
       "expo-localization",
@@ -86,12 +90,12 @@
       "silentLaunch": true
     },
     "web": {
-      "favicon": "./assets/favicon.png",
+      "favicon": "./assets/branding/png/icon-192.png",
       "name": "EduDash Pro - AI-Powered Educational Platform",
       "shortName": "EduDash Pro",
       "lang": "en",
       "scope": "/",
-      "themeColor": "#00f5ff",
+      "themeColor": "#33C3D4",
       "backgroundColor": "#0a0a0f",
       "description": "Revolutionary AI-powered educational platform for preschools. Trusted by educators worldwide for next-generation learning experiences with Society 5.0 technology.",
       "keywords": [
@@ -110,8 +114,7 @@
       "viewport": "width=device-width, initial-scale=1, shrink-to-fit=no",
       "startUrl": "/",
       "display": "standalone",
-      "orientation": "any",
-      "bundler": "metro"
+      "orientation": "any"
     },
     "extra": {
       "router": {},
