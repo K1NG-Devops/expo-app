@@ -91,6 +91,29 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
 
   const processedRef = useRef(false);
 
+  // Check voice availability on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const { checkVoiceAvailability, getVoiceErrorMessage } = await import('@/lib/voice/voiceAvailability');
+        const availability = await checkVoiceAvailability();
+        
+        if (!availability.picovoiceAvailable && !availability.webAudioAvailable) {
+          console.warn('[DashVoiceMode] ⚠️ Voice features not available');
+          console.warn('[DashVoiceMode] 📋 Details:', availability.errorDetails);
+          if (availability.recommendedAction) {
+            console.warn('[DashVoiceMode] 💡 Solution:', availability.recommendedAction);
+          }
+          setErrorMessage(getVoiceErrorMessage(availability));
+        } else {
+          console.log('[DashVoiceMode] ✅ Voice features available!');
+        }
+      } catch (err) {
+        console.error('[DashVoiceMode] Failed to check voice availability:', err);
+      }
+    })();
+  }, []);
+
   const realtime = useRealtimeVoice({
     enabled: streamingEnabled,
     language: activeLang,

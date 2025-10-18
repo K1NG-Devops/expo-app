@@ -412,15 +412,34 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
             let VoiceProcessorModule: any = null;
             try {
               VoiceProcessorModule = await import('@picovoice/react-native-voice-processor');
-            } catch (importErr) {
-              console.error('[claudeProvider] ❌ Failed to import VoiceProcessor module:', importErr);
-              throw new Error('VoiceProcessor module not available - ensure @picovoice/react-native-voice-processor is properly installed and linked');
+            } catch (importErr: any) {
+              const errMsg = importErr?.message || String(importErr);
+              console.error('[claudeProvider] ❌ Failed to import VoiceProcessor module');
+              console.error('[claudeProvider] 📋 Error:', errMsg);
+              
+              // Provide specific guidance based on error type
+              if (errMsg.includes('Native module cannot be null') || errMsg.includes('null is not an object')) {
+                console.error('[claudeProvider] 💡 SOLUTION: Native module not linked properly.');
+                console.error('[claudeProvider] 💡 Run these commands:');
+                console.error('[claudeProvider] 💡   1. npx expo prebuild --clean');
+                console.error('[claudeProvider] 💡   2. npx expo run:android  (or run:ios)');
+              } else if (errMsg.includes('Cannot find module')) {
+                console.error('[claudeProvider] 💡 SOLUTION: Dependencies not installed.');
+                console.error('[claudeProvider] 💡 Run: npm install --legacy-peer-deps');
+              } else {
+                console.error('[claudeProvider] 💡 SOLUTION: Rebuild the dev client to include native modules.');
+                console.error('[claudeProvider] 💡 Run: npx expo run:android (or run:ios)');
+              }
+              
+              throw new Error(`VoiceProcessor unavailable: ${errMsg}`);
             }
             
             // Validate the imported module
             if (!VoiceProcessorModule || !VoiceProcessorModule.VoiceProcessor) {
               console.error('[claudeProvider] ❌ VoiceProcessor module is null or invalid');
-              throw new Error('VoiceProcessor not available in imported module');
+              console.error('[claudeProvider] 💡 Module loaded but VoiceProcessor class not found');
+              console.error('[claudeProvider] 💡 This usually means the native module needs to be rebuilt');
+              throw new Error('VoiceProcessor class not found in module');
             }
             
             const { VoiceProcessor } = VoiceProcessorModule;
@@ -428,23 +447,29 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
             // Validate VoiceProcessor class exists
             if (!VoiceProcessor || typeof VoiceProcessor !== 'function') {
               console.error('[claudeProvider] ❌ VoiceProcessor is not a valid class');
-              throw new Error('VoiceProcessor class is not available');
+              console.error('[claudeProvider] 💡 Got type:', typeof VoiceProcessor);
+              throw new Error('VoiceProcessor is not a constructor function');
             }
             
             // Get singleton instance with null check
             const voiceProcessor = VoiceProcessor.instance;
             if (!voiceProcessor) {
               console.error('[claudeProvider] ❌ VoiceProcessor.instance is null');
-              throw new Error('VoiceProcessor instance not available');
+              console.error('[claudeProvider] 💡 This means the native module is not properly initialized');
+              console.error('[claudeProvider] 💡 SOLUTION: Rebuild the app with native modules:');
+              console.error('[claudeProvider] 💡   npx expo prebuild --clean');
+              console.error('[claudeProvider] 💡   npx expo run:android (or run:ios)');
+              throw new Error('VoiceProcessor instance is null - native module not initialized');
             }
             
             // Validate required methods exist
-            if (typeof voiceProcessor.start !== 'function' || 
-                typeof voiceProcessor.stop !== 'function' ||
-                typeof voiceProcessor.addFrameListener !== 'function' ||
-                typeof voiceProcessor.removeFrameListener !== 'function') {
-              console.error('[claudeProvider] ❌ VoiceProcessor missing required methods');
-              throw new Error('VoiceProcessor does not have required methods');
+            const requiredMethods = ['start', 'stop', 'addFrameListener', 'removeFrameListener'];
+            const missingMethods = requiredMethods.filter(method => typeof voiceProcessor[method] !== 'function');
+            
+            if (missingMethods.length > 0) {
+              console.error('[claudeProvider] ❌ VoiceProcessor missing required methods:', missingMethods);
+              console.error('[claudeProvider] 💡 Available methods:', Object.keys(voiceProcessor).filter(k => typeof voiceProcessor[k] === 'function'));
+              throw new Error(`VoiceProcessor missing methods: ${missingMethods.join(', ')}`);
             }
             
             // Start audio capture at 16kHz (Deepgram requirement)
