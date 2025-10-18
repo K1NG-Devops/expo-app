@@ -1,14 +1,16 @@
 /**
  * Announcement Service
  * Uses existing 'announcements' table from database schema
+ * Phase 6: Updated to support organization-first API
  */
 
 import { assertSupabase } from '@/lib/supabase';
 import { AnnouncementData } from '@/components/modals/AnnouncementModal';
+import { createOrganizationFilter } from '@/lib/tenant/compat';
 
 export interface DatabaseAnnouncement {
   id: string;
-  preschool_id: string;
+  preschool_id: string; // Legacy field, maps to organization_id
   title: string;
   content: string;
   author_id: string;
@@ -24,9 +26,12 @@ export interface DatabaseAnnouncement {
 export class AnnouncementService {
   /**
    * Create a new announcement using existing database table
+   * @param organizationId - Organization/school identifier
+   * @param authorId - User ID of the announcement creator
+   * @param announcementData - Announcement content and settings
    */
   static async createAnnouncement(
-    preschoolId: string,
+    organizationId: string,
     authorId: string,
     announcementData: AnnouncementData
   ): Promise<{ success: boolean; data?: DatabaseAnnouncement; error?: string }> {
@@ -35,7 +40,7 @@ export class AnnouncementService {
 
       // Map the announcement data to database format
       const dbAnnouncement = {
-        preschool_id: preschoolId,
+        preschool_id: organizationId, // Database still uses preschool_id field
         author_id: authorId,
         title: announcementData.title,
         content: announcementData.message,
@@ -71,17 +76,21 @@ export class AnnouncementService {
   }
 
   /**
-   * Get announcements for a preschool
+   * Get announcements for an organization
+   * @param organizationId - Organization/school identifier
+   * @param limit - Maximum number of announcements to return
    */
   static async getAnnouncements(
-    preschoolId: string,
+    organizationId: string,
     limit: number = 10
   ): Promise<{ success: boolean; data?: DatabaseAnnouncement[]; error?: string }> {
     try {
+      const filter = createOrganizationFilter(organizationId, 'announcements');
+      
       const { data, error } = await assertSupabase()
         .from('announcements')
         .select('*')
-        .eq('preschool_id', preschoolId)
+        .match(filter)
         .eq('is_published', true)
         .order('published_at', { ascending: false })
         .limit(limit);
@@ -103,18 +112,21 @@ export class AnnouncementService {
 
   /**
    * Get recent announcements count for dashboard
+   * @param organizationId - Organization/school identifier
+   * @param daysBack - Number of days to look back
    */
   static async getAnnouncementsCount(
-    preschoolId: string,
+    organizationId: string,
     daysBack: number = 7
   ): Promise<number> {
     try {
       const dateThreshold = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
+      const filter = createOrganizationFilter(organizationId, 'announcements');
       
       const { count, error } = await assertSupabase()
         .from('announcements')
         .select('id', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId)
+        .match(filter)
         .eq('is_published', true)
         .gte('published_at', dateThreshold);
 
