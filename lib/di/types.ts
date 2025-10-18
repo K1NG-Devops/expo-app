@@ -8,6 +8,8 @@ export const TOKENS = {
   organization: Symbol.for('OrganizationService') as Token<OrganizationService>,
   ai: Symbol.for('AIService') as Token<AIService>,
   features: Symbol.for('FeatureFlagService') as Token<FeatureFlagService>,
+  eventBus: Symbol.for('EventBus') as Token<EventBus>,
+  memory: Symbol.for('MemoryService') as Token<MemoryService>,
 };
 
 // Minimal interfaces to start wiring gradually
@@ -36,4 +38,20 @@ export interface AIService {
 
 export interface FeatureFlagService {
   isEnabled(flag: string): boolean;
+}
+
+export interface EventBus {
+  subscribe(event: string, handler: (data: any) => void | Promise<void>): () => void;
+  publish(event: string, data?: any): Promise<void>;
+  dispose(): void;
+}
+
+export interface MemoryService {
+  initialize(): Promise<void>;
+  upsertMemory(input: any): Promise<any | null>;
+  retrieveRelevant(query: string, topK?: number, minSimilarity?: number): Promise<any[]>;
+  snapshotContext(context: any): Promise<void>;
+  recordAccess(memoryId: string): Promise<void>;
+  getCachedMemories(): any[];
+  dispose(): void;
 }

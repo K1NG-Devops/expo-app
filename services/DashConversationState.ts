@@ -247,6 +247,13 @@ export class DashConversationState {
     context += `- Don't repeat information unnecessarily\n`;
     context += `- Reference previous context when relevant\n`;
     context += `- Use a friendly, helpful tone (Dash is male AI assistant)\n`;
+    context += `\n**CRITICAL RESPONSE STYLE:**\n`;
+    context += `- Be CONCISE and DIRECT - give specific answers, not generic explanations\n`;
+    context += `- Use your EduDash platform knowledge to give CONTEXTUAL responses\n`;
+    context += `- If asked about features/screens, tell users exactly what they can do and how\n`;
+    context += `- NO generic responses like "I can help with many things" - be SPECIFIC\n`;
+    context += `- NO unnecessary preambles like "Let me explain..." or "Here's what I know..."\n`;
+    context += `- Get straight to the point with helpful, actionable information\n`;
 
     return context;
   }
@@ -261,7 +268,8 @@ export class DashConversationState {
     let context = '\n## LANGUAGE & RESPONSE MODE\n\n';
     
     context += `**Response Language:** ${this.getLanguageName(lang)} (${lang})\n`;
-    context += `**CRITICAL:** If user speaks ${this.getLanguageName(lang)}, respond NATURALLY in ${this.getLanguageName(lang)}. Do NOT explain what they said. Do NOT translate. Just respond naturally.\n\n`;
+    context += `**CRITICAL:** If user speaks ${this.getLanguageName(lang)}, respond NATURALLY in ${this.getLanguageName(lang)}. Do NOT explain what they said. Do NOT translate. Just respond naturally.\n`;
+    context += `**RESPONSE STYLE:** Be CONCISE and SPECIFIC. Use your EduDash platform knowledge. NO generic responses. Give direct, actionable answers.\n\n`;
 
     // Language-specific natural response examples
     switch (lang) {

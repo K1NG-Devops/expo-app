@@ -32,12 +32,16 @@ class FeatureFlagServiceImpl implements FeatureFlagService {
 import { StorageAdapter } from '../adapters/storage';
 import { AuthAdapter } from '../adapters/auth';
 import { AIProxyAdapter } from '../adapters/ai';
+import { EventBusService } from '../../../services/EventBus';
+import { MemoryServiceClass } from '../../../services/MemoryService';
 
 container
   .registerFactory(TOKENS.organization, () => new OrganizationServiceImpl(), { singleton: true })
   .registerFactory(TOKENS.features, () => new FeatureFlagServiceImpl(), { singleton: true })
   .registerFactory(TOKENS.storage, () => new StorageAdapter(), { singleton: true })
   .registerFactory(TOKENS.auth, () => new AuthAdapter(), { singleton: true })
-  .registerFactory(TOKENS.ai, () => new AIProxyAdapter(), { singleton: true });
+  .registerFactory(TOKENS.ai, () => new AIProxyAdapter(), { singleton: true })
+  .registerFactory(TOKENS.eventBus, () => new EventBusService(), { singleton: true })
+  .registerFactory(TOKENS.memory, () => new MemoryServiceClass(), { singleton: true });
 
 export { container, TOKENS };

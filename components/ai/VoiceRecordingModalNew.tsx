@@ -3,7 +3,7 @@
  * 
  * Features:
  * - HolographicOrb visual with real-time audio waveform
- * - Streaming voice recognition (no obsolete local recording)
+ * - Native on-device speech recognition (@react-native-voice/voice)
  * - Ultra-concise AI responses
  * - Smooth animations and haptic feedback
  */
@@ -17,11 +17,18 @@ import {
   StyleSheet,
   Dimensions,
   Animated,
+  Alert,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
-import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import Voice, {
+  SpeechResultsEvent,
+  SpeechErrorEvent,
+} from '@react-native-voice/voice';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,6 +61,54 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const processedRef = useRef(false);
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  // Initialize Voice module
+  useEffect(() => {
+    if (!Voice) {
+      console.warn('[VoiceModal] Voice module not available');
+      setIsAvailable(false);
+      return;
+    }
+
+    Voice.onSpeechStart = () => {
+      console.log('[VoiceModal] Speech started');
+    };
+
+    Voice.onSpeechEnd = () => {
+      console.log('[VoiceModal] Speech ended');
+    };
+
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      console.log('[VoiceModal] Speech results:', e.value);
+      if (e.value && e.value.length > 0) {
+        const text = e.value[0];
+        setTranscript(text);
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+      }
+    };
+
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      console.log('[VoiceModal] Partial results:', e.value);
+      if (e.value && e.value.length > 0) {
+        setTranscript(e.value[0]);
+      }
+    };
+
+    Voice.onSpeechError = (e: SpeechErrorEvent) => {
+      console.error('[VoiceModal] Speech error:', e.error);
+      if (e.error?.message && !e.error.message.includes('No match')) {
+        setErrorMsg(e.error.message);
+        setState('error');
+      }
+    };
+
+    return () => {
+      if (Voice) {
+        Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
+      }
+    };
+  }, []);
 
   // Fade in/out animation
   useEffect(() => {
@@ -70,19 +125,22 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       processedRef.current = false;
     } else {
       fadeAnim.setValue(0);
+      // Stop any active recording when closing
+      if (Voice && state === 'listening') {
+        Voice.stop().catch(() => {});
+      }
     }
   }, [visible]);
 
   // Auto-start listening when modal opens
   useEffect(() => {
-    if (visible && state === 'idle') {
-      const timer = setTimeout(() => {
-        setState('listening');
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    if (visible && state === 'idle' && isAvailable) {
+      const timer = setTimeout(async () => {
+        await startListening();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [visible, state]);
+  }, [visible, state, isAvailable]);
 
   const handleTranscript = useCallback(async (text: string) => {
     if (!dashInstance || processedRef.current) return;
@@ -128,34 +186,80 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
     }
   }, [dashInstance, onMessageSent, onClose]);
 
-  // Streaming voice recognition
-  const realtime = useRealtimeVoice({
-    enabled: state === 'listening',
-    language,
-    transcriptionModel: 'whisper-1',
-    vadSilenceMs: 700,
-    onPartialTranscript: (t) => {
-      const partial = String(t || '').trim();
-      setTranscript(partial);
-    },
-    onFinalTranscript: async (t) => {
-      const final = String(t || '').trim();
-      console.log('[VoiceModal] Final transcript:', final);
-      setTranscript(final);
-      if (final && !processedRef.current) {
-        await handleTranscript(final);
-      }
-    },
-    onStatusChange: (status) => {
-      console.log('[VoiceModal] Status:', status);
-    },
-  });
+  const startListening = async () => {
+    if (!isAvailable) {
+      Alert.alert(
+        'Not Available',
+        'Speech recognition is not available on this device.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
 
-  const handleClose = () => {
+    try {
+      setState('listening');
+      await Voice.start(language);
+      console.log('[VoiceModal] Started listening with language:', language);
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    } catch (e: any) {
+      console.error('[VoiceModal] Error starting:', e);
+      Alert.alert(
+        'Error',
+        'Failed to start speech recognition. Please check your microphone permissions.',
+        [{ text: 'OK' }]
+      );
+      setState('error');
+    }
+  };
+
+  const stopListening = async () => {
+    try {
+      await Voice.stop();
+      console.log('[VoiceModal] Stopped listening');
+    } catch (e: any) {
+      console.error('[VoiceModal] Error stopping:', e);
+    }
+  };
+
+  const restartRecording = async () => {
+    try {
+      await Voice.cancel();
+      setTranscript('');
+      setErrorMsg('');
+      processedRef.current = false;
+      await startListening();
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+    } catch (e) {
+      console.error('[VoiceModal] Restart error:', e);
+    }
+  };
+
+  const handleSend = async () => {
+    if (!transcript.trim() || processedRef.current) return;
+    
+    try {
+      // Stop listening first
+      await stopListening();
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      setState('thinking');
+      await handleTranscript(transcript);
+    } catch (e) {
+      console.error('[VoiceModal] Manual send error:', e);
+    }
+  };
+
+  const handleClose = async () => {
     if (state === 'thinking' || state === 'speaking') {
       // Don't close while processing
       return;
     }
+    
+    // Stop listening if active
+    if (state === 'listening') {
+      await stopListening();
+    }
+    
     setState('idle');
     onClose();
   };
@@ -197,19 +301,23 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       animationType="none"
       onRequestClose={handleClose}
     >
-      <Animated.View 
-        style={[
-          styles.overlay,
-          { opacity: fadeAnim }
-        ]}
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <LinearGradient
-          colors={isDark 
-            ? ['rgba(10,10,20,0.95)', 'rgba(20,10,40,0.98)']
-            : ['rgba(240,240,255,0.95)', 'rgba(220,230,255,0.98)']
-          }
-          style={StyleSheet.absoluteFill}
-        />
+        <Animated.View 
+          style={[
+            styles.overlay,
+            { opacity: fadeAnim }
+          ]}
+        >
+          <LinearGradient
+            colors={isDark 
+              ? ['rgba(10,10,20,0.95)', 'rgba(20,10,40,0.98)']
+              : ['rgba(240,240,255,0.95)', 'rgba(220,230,255,0.98)']
+            }
+            style={StyleSheet.absoluteFill}
+          />
 
         {/* Close button */}
         <TouchableOpacity
@@ -235,46 +343,80 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
             />
           </View>
 
-          {/* Status text */}
+          {/* Status text or editable transcript */}
           <View style={styles.textContainer}>
-            <Text 
-              style={[
-                styles.statusText,
-                { color: theme.text }
-              ]}
-              numberOfLines={3}
-              ellipsizeMode="tail"
-            >
-              {getStateText()}
-            </Text>
+            {state === 'listening' && transcript ? (
+              <TextInput
+                style={[
+                  styles.transcriptInput,
+                  { 
+                    color: theme.text,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+                    borderColor: theme.border,
+                  }
+                ]}
+                value={transcript}
+                onChangeText={setTranscript}
+                multiline
+                placeholder="Your speech will appear here..."
+                placeholderTextColor={theme.textSecondary}
+                autoCorrect
+                autoCapitalize="sentences"
+              />
+            ) : (
+              <Text 
+                style={[
+                  styles.statusText,
+                  { color: theme.text }
+                ]}
+                numberOfLines={3}
+                ellipsizeMode="tail"
+              >
+                {getStateText()}
+              </Text>
+            )}
           </View>
 
           {/* Manual trigger button (only in idle state) */}
           {state === 'idle' && (
             <TouchableOpacity
               style={[styles.micButton, { backgroundColor: theme.primary }]}
-              onPress={() => {
-                setState('listening');
-                try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-              }}
+              onPress={startListening}
               activeOpacity={0.8}
             >
               <Ionicons name="mic" size={28} color="#fff" />
             </TouchableOpacity>
           )}
 
-          {/* Cancel button during listening */}
+          {/* Action buttons during listening */}
           {state === 'listening' && (
-            <TouchableOpacity
-              style={[styles.cancelButton, { backgroundColor: theme.error }]}
-              onPress={handleClose}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              {/* Send button (appears when there's transcript) */}
+              {transcript.trim().length > 0 && (
+                <TouchableOpacity
+                  style={[styles.sendButton, { backgroundColor: theme.primary }]}
+                  onPress={handleSend}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="send" size={20} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.sendButtonText}>Send</Text>
+                </TouchableOpacity>
+              )}
+              
+              {/* Restart button */}
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: theme.warning || theme.error }]}
+                onPress={restartRecording}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={styles.cancelButtonText}>Start Over</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </Animated.View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -324,6 +466,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 26,
   },
+  transcriptInput: {
+    width: '100%',
+    minHeight: 80,
+    maxHeight: 200,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'left',
+  },
   micButton: {
     width: 64,
     height: 64,
@@ -337,11 +491,36 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  cancelButton: {
-    paddingHorizontal: 32,
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 20,
+  },
+  sendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 24,
-    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
   },
   cancelButtonText: {
     color: '#fff',

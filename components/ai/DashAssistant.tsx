@@ -1110,7 +1110,20 @@ return (
     if (base.startsWith('en')) return 'en';
     return 'en';
   };
+  
+  // Map to full locale codes for native speech recognition
+  const mapLangToLocale = (l?: string) => {
+    const base = String(l || '').toLowerCase();
+    if (base.startsWith('af')) return 'af-ZA';
+    if (base.startsWith('zu')) return 'zu-ZA';
+    if (base.startsWith('xh')) return 'xh-ZA';
+    if (base.startsWith('nso') || base.startsWith('st') || base.startsWith('so')) return 'nso-ZA';
+    if (base.startsWith('en')) return 'en-ZA';
+    return 'en-ZA';
+  };
+  
   const activeLang = mapLang(i18n?.language);
+  const activeLangLocale = mapLangToLocale(i18n?.language);
 
   const realtime = useRealtimeVoice({
     enabled: streamingEnabled,
@@ -1558,7 +1571,7 @@ return (
             setShowVoiceRecorderModal(false);
           }}
           dashInstance={dashInstance}
-          language={activeLang}
+          language={activeLangLocale}
         />
       )}
 
