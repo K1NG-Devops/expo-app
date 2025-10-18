@@ -1,53 +1,16 @@
-import 'react-native-gesture-handler';
-import 'react-native-get-random-values';
-import React, { useEffect, useState } from 'react';
-import { Platform, LogBox } from 'react-native';
-import { Stack, usePathname } from 'expo-router';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Stack } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
-import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
-import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
-import ToastProvider from '@/components/ui/ToastProvider';
-import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
-
-// Initialize performance monitoring and global error handling first
-import { initPerformanceMonitoring } from '@/lib/perf';
-import { installGlobalErrorHandler } from '@/lib/global-errors';
-import { initMonitoring } from '@/lib/monitoring';
-
-// Suppress non-critical dev warnings
-if (__DEV__) {
-  LogBox.ignoreLogs([
-    'Looks like you have configured linking in multiple places',
-    'ReactImageView: Image source "null" doesn\'t exist',
-  ]);
-}
-
-// Initialize critical systems (guarded to avoid double init in dev / fast refresh)
-const __globalAny: any = (global as any);
-if (!__globalAny.__EDUDASH_BOOTSTRAPPED__) {
-  initPerformanceMonitoring();
-  installGlobalErrorHandler();
-  initMonitoring();
-  __globalAny.__EDUDASH_BOOTSTRAPPED__ = true;
-}
-
-// Initialize lazy loading for ultra-fast navigation
-import { ChunkPreloader } from '@/lib/lazy-loading';
-try {
-  ChunkPreloader.preloadCriticalChunks();
-} catch {
-  // Non-critical; ignore in environments where preloader isn't available
-}
-
-// Initialize i18n BEFORE any components render
-import '@/lib/i18n';
-import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Add polyfill for web environments
 if (Platform.OS === 'web') {
@@ -56,7 +19,7 @@ if (Platform.OS === 'web') {
     try {
       const EventEmitter = require('eventemitter3');
       (global as any).DeviceEventEmitter = new EventEmitter();
-    } catch {
+    } catch (error) {
       // Fallback if eventemitter3 is not available
       console.warn('EventEmitter3 not available, using basic polyfill');
       (global as any).DeviceEventEmitter = {
@@ -68,74 +31,9 @@ if (Platform.OS === 'web') {
   }
 }
 
-// Inner component that has access to AuthContext
-function LayoutContent() {
-  const pathname = usePathname();
-  const { loading: authLoading } = useAuth();
-  const [showFAB, setShowFAB] = useState(false);
-  
-  const isAuthRoute = typeof pathname === 'string' && (
-    pathname.startsWith('/(auth)') ||
-    pathname === '/sign-in' ||
-    pathname === '/(auth)/sign-in' ||
-    pathname.includes('auth-callback')
-  );
-  
-  // Show FAB after auth is loaded and a brief delay for dashboard to render
-  useEffect(() => {
-    if (!authLoading) {
-      const timer = setTimeout(() => {
-        setShowFAB(true);
-      }, 800); // 800ms delay after auth loads
-      
-      return () => clearTimeout(timer);
-    }
-  }, [authLoading]);
+export default function RootLayout() {
   // Hide development navigation header on web
   useEffect(() => {
-    // Track OTA/app launch (non-blocking)
-    try {
-      const { trackAppLaunch } = require('@/lib/otaObservability');
-      trackAppLaunch();
-    } catch {
-      // Optional telemetry; ignore failures to avoid impacting UX
-    }
-
-    // Pre-warm audio recorder on mobile for faster FAB voice interaction
-    if (Platform.OS !== 'web') {
-      try {
-        // Initialize SoundManager for UI sounds (once per app launch)
-        import('@/lib/audio/soundManager').then(({ SoundManager }) => {
-          SoundManager.initialize().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] SoundManager init failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-
-        // Initialize audio manager early
-        import('@/lib/voice/audio').then(({ audioManager }) => {
-          audioManager.initialize().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] Audio manager pre-warm failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-
-        // Pre-warm Dash AI recorder
-        import('@/services/DashAIAssistant').then(({ DashAIAssistant }) => {
-          const dash = DashAIAssistant.getInstance();
-          dash.preWarmRecorder().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] Dash recorder pre-warm failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-      } catch (e) {
-        // Non-critical; ignore
-      }
-    }
-
     if (Platform.OS === 'web') {
       const style = document.createElement('style');
       style.textContent = `
@@ -206,24 +104,12 @@ function LayoutContent() {
           height: 0 !important;
         }
         
-        /* Force full height and width for main content */
-        html, body {
-          width: 100vw !important;
-          max-width: 100vw !important;
-          height: 100vh !important;
-          min-height: 100vh !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow-x: hidden !important;
-        }
+        /* Force full height for main content */
         #root,
         .expo-root,
         .expo-app-container {
-          width: 100vw !important;
-          max-width: 100vw !important;
           height: 100vh !important;
           min-height: 100vh !important;
-          overflow-x: hidden !important;
         }
       `;
       document.head.appendChild(style);
@@ -262,57 +148,40 @@ function LayoutContent() {
   }, []);
 
   return (
-    <>
-      {/* Global themed status bar for consistent visibility across screens */}
-      <ThemedStatusBar />
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            presentation: 'card',
-            animationTypeForReplace: 'push',
-          }}
-        >
-          {/* Let Expo Router auto-discover screens */}
-        </Stack>
-        
-        {/* OTA Update Banner */}
-        <GlobalUpdateBanner />
-        
-        {/* Voice-Enabled Dash Floating Button (Global Access) */}
-        {showFAB && (!isAuthRoute && 
-          !(pathname || '').includes('dash-assistant') && 
-          !(pathname || '').toLowerCase().includes('landing') &&
-          pathname !== '/landing' &&
-          pathname !== 'landing') && (
-          <DashVoiceFloatingButton showWelcomeMessage={true} />
-        )}
-        
-        {/* Platform-specific components */}
-        {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
-      </GestureHandlerRootView>
-    </>
+    <QueryProvider>
+      <AuthProvider>
+        <ThemeProvider>
+          <DashboardPreferencesProvider>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  presentation: 'card',
+                  animationTypeForReplace: 'push',
+                }}
+              >
+                {/* Let Expo Router auto-discover screens */}
+              </Stack>
+            </GestureHandlerRootView>
+            
+            {/* Platform-specific components */}
+            {Platform.OS !== 'web' && (() => {
+              try {
+                return <DashWakeWordListener />;
+              } catch {
+                return null;
+              }
+            })()}
+          </DashboardPreferencesProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </QueryProvider>
   );
 }
 
-// Root layout wrapper with providers
-export default function RootLayout() {
-  return (
-    <ErrorBoundary>
-      <QueryProvider>
-        <AuthProvider>
-          <UpdatesProvider>
-            <ThemeProvider>
-              <ToastProvider>
-                <DashboardPreferencesProvider>
-                  <LayoutContent />
-                </DashboardPreferencesProvider>
-              </ToastProvider>
-            </ThemeProvider>
-          </UpdatesProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </ErrorBoundary>
-  );
-}
-
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+});

@@ -300,7 +300,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
               const ratio = present / windowAtt.length; // 0..1
               progressScore = Math.max(60, Math.min(100, Math.round(60 + ratio * 40)));
             }
-          } catch { /* Intentional: non-fatal */ }
+          } catch {}
 
           try {
             // Homework pending: assignments for class not yet submitted by this child
@@ -457,7 +457,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   // Handle active child change and persist
   useEffect(() => {
     if (activeChildId) {
-      AsyncStorage.setItem('@edudash_active_child_id', activeChildId).catch(() => { /* Intentional: error handled */ });
+      AsyncStorage.setItem('@edudash_active_child_id', activeChildId).catch(() => {});
       // Reload metrics for the newly selected child
       if (activeChildId && childrenCards.find(c => c.id === activeChildId)) {
         loadUrgentMetrics(activeChildId);
@@ -531,7 +531,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             ? status as 'present' | 'absent' | 'late' 
             : 'unknown';
         }
-      } catch { /* Intentional: non-fatal */ }
+      } catch {}
       
       // 5. Get upcoming events count
       let upcomingEvents = 0;
@@ -545,7 +545,7 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
             .lte('start_time', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
           
           upcomingEvents = count || 0;
-        } catch { /* Intentional: non-fatal */ }
+        } catch {}
       }
       
       setUrgentMetrics({
@@ -1278,7 +1278,6 @@ case 'homework':
       padding: 16,
       flexDirection: 'row',
       alignItems: 'center',
-      borderLeftWidth: 4,
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
@@ -1588,7 +1587,7 @@ case 'homework':
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={theme.primary}
+            tintColor="#00f5ff"
           />
         }
       >
@@ -1611,9 +1610,9 @@ case 'homework':
               <Text style={styles.welcomeSubtitle}>
                 {(() => {
                   const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
-if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Managing ${active.firstName} ${active.lastName}` });
+                  if (active) return `Managing ${active.firstName} ${active.lastName}`;
                   if (children.length > 0) return t('dashboard.managingChildrenPlural', { count: children.length });
-                  return t('dashboard.welcome_generic', { defaultValue: 'Welcome to EduDash Pro' });
+                  return 'Welcome to EduDash Pro';
                 })()}
               </Text>
             </View>
@@ -1631,7 +1630,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                       require('react-native').Vibration.vibrate(15);
                     }
                   }
-                } catch { /* Intentional: non-fatal */ }
+                } catch {}
               }}
             >
               <Ionicons 
@@ -1690,17 +1689,17 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                 
                 <View style={styles.childStats}>
                   <View style={styles.statItem}>
-<Text style={styles.statLabel}>{t('parent.attendanceToday')}</Text>
+                    <Text style={styles.statLabel}>Attendance</Text>
                     <Text style={[styles.childStatValue, { color: theme.success }]}>{child.progressScore}%</Text>
                   </View>
                   <View style={styles.statItem}>
-<Text style={styles.statLabel}>{t('parent.pendingHomework')}</Text>
+                    <Text style={styles.statLabel}>Pending Homework</Text>
                     <Text style={[styles.childStatValue, child.homeworkPending > 0 ? { color: theme.warning } : { color: theme.success }]}>
                       {child.homeworkPending}
                     </Text>
                   </View>
                   <View style={styles.statItem}>
-<Text style={styles.statLabel}>{t('parent.upcomingEvents')}</Text>
+                    <Text style={styles.statLabel}>Upcoming Events</Text>
                     <Text style={[styles.childStatValue, { color: theme.primary }]}>{child.upcomingEvents}</Text>
                   </View>
                 </View>
@@ -1711,7 +1710,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                     onPress={() => console.log('View attendance for', child.id)}
                   >
                     <Ionicons name="calendar" size={16} color={theme.primary} />
-<Text style={[styles.actionText, { color: theme.primary }]}>{t('parent.attendanceToday')}</Text>
+                    <Text style={[styles.actionText, { color: theme.primary }]}>Attendance</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
@@ -1719,7 +1718,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                     onPress={() => console.log('View homework for', child.id)}
                   >
                     <Ionicons name="book" size={16} color={theme.success} />
-<Text style={[styles.actionText, { color: theme.success }]}>{t('parent.pendingHomework')}</Text>
+                    <Text style={[styles.actionText, { color: theme.success }]}>Homework</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
@@ -1727,13 +1726,13 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                     onPress={() => handleQuickMessage(child)}
                   >
                     <Ionicons name="chatbubble" size={16} color={theme.accent} />
-<Text style={[styles.actionText, { color: theme.accent }]}>{t('parent.messages')}</Text>
+                    <Text style={[styles.actionText, { color: theme.accent }]}>Message</Text>
                   </TouchableOpacity>
                 </View>
                 
                 <View style={styles.lastActivityContainer}>
-<Text style={styles.lastActivityText}>
-                    {t('common.last_activity', { defaultValue: 'Last activity:' })} {child.lastActivity.toLocaleDateString()}
+                  <Text style={styles.lastActivityText}>
+                    Last activity: {child.lastActivity.toLocaleDateString()}
                   </Text>
                 </View>
               </View>
@@ -1773,9 +1772,9 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                   <Ionicons name="mail" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{unreadMessageCount}</Text>
-<Text style={styles.metricLabel}>{t('parent.newMessages')}</Text>
+                <Text style={styles.metricLabel}>New Messages</Text>
                 <Text style={[styles.metricStatus, { color: unreadMessageCount > 0 ? theme.warning : theme.textSecondary }]}>
-{unreadMessageCount > 0 ? t('trends.needs_attention') : t('notifications.all_read', { defaultValue: 'all read' })}
+                  {unreadMessageCount > 0 ? 'needs attention' : 'all read'}
                 </Text>
               </TouchableOpacity>
 
@@ -1787,8 +1786,8 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                   <Ionicons name="checkmark-circle" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{popStats?.proof_of_payment?.approved || 0}</Text>
-<Text style={styles.metricLabel}>{t('parent.approvedPayments', { defaultValue: 'Approved Payments' })}</Text>
-<Text style={[styles.metricStatus, { color: theme.success }]}>{t('common.verified', { defaultValue: 'verified' })}</Text>
+                <Text style={styles.metricLabel}>Approved Payments</Text>
+                <Text style={[styles.metricStatus, { color: theme.success }]}>verified</Text>
               </TouchableOpacity>
             </View>
 
@@ -1802,8 +1801,8 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
                   <Ionicons name="time" size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>{popStats?.proof_of_payment?.pending || 0}</Text>
-<Text style={styles.metricLabel}>{t('parent.pendingPayments', { defaultValue: 'Pending Payments' })}</Text>
-<Text style={[styles.metricStatus, { color: theme.warning }]}>{t('common.review_needed', { defaultValue: 'review needed' })}</Text>
+                <Text style={styles.metricLabel}>Pending Payments</Text>
+                <Text style={[styles.metricStatus, { color: theme.warning }]}>review needed</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -1981,7 +1980,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
           
           <View style={styles.toolsGrid}>
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.primary + '10', borderLeftColor: theme.primary, shadowColor: theme.primary }]}
+              style={[styles.toolCard, { backgroundColor: theme.primary + '10' }]}
               onPress={() => router.push('/screens/parent-messages')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.primary }]}>
@@ -1995,7 +1994,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.success + '10', borderLeftColor: theme.success, shadowColor: theme.success }]}
+              style={[styles.toolCard, { backgroundColor: theme.success + '10' }]}
               onPress={() => router.push('/screens/parent-announcements')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.success }]}>
@@ -2009,7 +2008,7 @@ if (active) return t('dashboard.managingChildren', { count: 1, defaultValue: `Ma
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.toolCard, { backgroundColor: theme.warning + '10', borderLeftColor: theme.warning, shadowColor: theme.warning }]}
+              style={[styles.toolCard, { backgroundColor: theme.warning + '10' }]}
               onPress={() => router.push('/screens/parent-meetings')}
             >
               <View style={[styles.toolIcon, { backgroundColor: theme.warning }]}>

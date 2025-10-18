@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 /**
  * Dash AI Assistant Service
  * 
@@ -7,8 +5,8 @@
  * and deep integration with EduDash Pro services.
  */
 
+import { Audio } from 'expo-av';
 import * as Speech from 'expo-speech';
-import { voiceService } from '@/lib/voice/client';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { assertSupabase } from '@/lib/supabase';
@@ -17,17 +15,9 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { AIInsightsService } from '@/services/aiInsightsService';
-import { WorksheetService } from './WorksheetService';
-import { DashTaskAutomation } from './DashTaskAutomation';
-import { base64ToUint8Array } from '@/lib/utils/base64';
-import DashRealTimeAwareness from './DashRealTimeAwareness';
-import { DashAgenticIntegration } from './DashAgenticIntegration';
-import { DashMemoryManager } from './modules/DashMemoryManager';
-import { DashVoiceController } from './modules/DashVoiceController';
-import { DashMessageHandler } from './modules/DashMessageHandler';
-import { DashContextBuilder } from './modules/DashContextBuilder';
-import responseCache from './modules/DashResponseCache';
-import { logger } from '@/lib/logger';
+// Note: DashTaskAutomation would be implemented in the future
+// import { DashTaskAutomation } from './DashTaskAutomation';
+import DashNavigationHandler from './DashNavigationHandler';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -36,98 +26,7 @@ try {
     SecureStore = require('expo-secure-store');
   }
 } catch (e) {
-  logger.debug('SecureStore import failed (web or unsupported platform)', e);
-}
-
-// ============================================
-// AGENTIC PRIMITIVES (Phase 1.3)
-// ============================================
-
-/** Autonomy level for AI agent behavior */
-export type AutonomyLevel = 'observer' | 'assistant' | 'partner' | 'autonomous';
-
-/** Risk level for action execution */
-export type RiskLevel = 'low' | 'medium' | 'high';
-
-/** Retry strategy for failed actions */
-export type RetryStrategy = 'immediate' | 'exponential_backoff' | 'linear_backoff' | 'scheduled';
-
-/** Decision record for traceability */
-export interface DecisionRecord {
-  id: string;
-  action: DashAction;
-  risk: RiskLevel;
-  confidence: number; // 0-1
-  rationale: string;
-  requiresApproval: boolean;
-  createdAt: number;
-  context: Record<string, any>;
-  memoryReferences?: string[]; // IDs of memories that influenced this decision
-}
-
-/** Execution history entry */
-export interface ExecutionHistoryEntry {
-  id: string;
-  taskId: string;
-  stepId: string;
-  action: DashAction;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'retrying';
-  startedAt: number;
-  finishedAt?: number;
-  result?: any;
-  error?: string;
-  retryCount: number;
-  decision?: DecisionRecord;
-  metrics: {
-    duration?: number;
-    resourcesUsed?: Record<string, any>;
-    confidence?: number;
-  };
-}
-
-/** Priority queue item for task scheduling */
-export interface QueueItem {
-  id: string;
-  taskId: string;
-  stepId?: string;
-  action: DashAction;
-  priority: number; // Higher number = higher priority
-  deadline?: number;
-  createdAt: number;
-  attemptCount: number;
-  dependencies?: string[]; // IDs of tasks that must complete first
-}
-
-/** Retry configuration for task steps */
-export interface RetryConfig {
-  max: number;
-  strategy: RetryStrategy;
-  delayMs: number;
-  backoffMultiplier?: number; // For exponential backoff
-  maxDelayMs?: number; // Cap for exponential backoff
-}
-
-export type DashAttachmentKind =
-  | 'image'
-  | 'pdf'
-  | 'document'
-  | 'spreadsheet'
-  | 'presentation'
-  | 'audio'
-  | 'other';
-
-export interface DashAttachment {
-  id: string;
-  name: string;
-  mimeType: string;
-  size: number;
-  bucket: string;
-  storagePath: string;
-  kind: DashAttachmentKind;
-  status: 'pending' | 'uploading' | 'uploaded' | 'failed';
-  previewUri?: string;
-  uploadProgress?: number;
-  meta?: Record<string, any>;
+  console.debug('SecureStore import failed (web or unsupported platform)', e);
 }
 
 export interface DashMessage {
@@ -135,7 +34,6 @@ export interface DashMessage {
   type: 'user' | 'assistant' | 'system' | 'task_result';
   content: string;
   timestamp: number;
-  attachments?: DashAttachment[];  // Image and file attachments
   voiceNote?: {
     audioUri: string;
     duration: number;
@@ -146,6 +44,8 @@ export interface DashMessage {
     language?: string;
     provider?: string;
   };
+  attachments?: DashAttachment[];
+  citations?: DashCitation[];
   metadata?: {
     context?: string;
     confidence?: number;
@@ -157,13 +57,15 @@ export interface DashMessage {
       url?: string;
     }>;
     dashboard_action?: {
-      type: 'switch_layout' | 'open_screen' | 'execute_task' | 'create_reminder' | 'send_notification';
+      type: 'switch_layout' | 'open_screen' | 'execute_task' | 'create_reminder' | 'send_notification' | 'export_pdf';
       layout?: 'classic' | 'enhanced';
       route?: string;
       params?: any;
       taskId?: string;
       task?: DashTask;
       reminder?: DashReminder;
+      title?: string;    // For PDF export
+      content?: string;  // For PDF export
     };
     emotions?: {
       sentiment: 'positive' | 'negative' | 'neutral';
@@ -181,10 +83,6 @@ export interface DashMessage {
       progress: number;
       next_steps: string[];
     };
-    detected_language?: string; // Auto-detected language from voice transcription
-    tools_used?: string[]; // Track which tools were used in generating this response
-    error?: string;
-    doNotSpeak?: boolean; // Flag to prevent TTS (for error loop prevention)
   };
 }
 
@@ -237,20 +135,6 @@ export interface DashTaskStep {
     criteria: string[];
   };
   actions?: DashAction[];
-  
-  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
-  /** Conditional expression for step execution (safe evaluation) */
-  condition?: string;
-  /** Step ID to execute on success */
-  onSuccessNext?: string;
-  /** Step ID to execute on failure */
-  onFailureNext?: string;
-  /** Retry configuration for this step */
-  retry?: RetryConfig;
-  /** Parallel execution group ID - steps with same ID run concurrently */
-  parallelGroupId?: string;
-  /** Maximum concurrent execution within parallel group */
-  maxConcurrency?: number;
 }
 
 export interface DashAction {
@@ -292,7 +176,7 @@ export interface DashConversation {
 
 export interface DashMemoryItem {
   id: string;
-  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight' | 'episodic' | 'working' | 'semantic';
+  type: 'preference' | 'fact' | 'context' | 'skill' | 'goal' | 'interaction' | 'relationship' | 'pattern' | 'insight';
   key: string;
   value: any;
   confidence: number;
@@ -309,16 +193,6 @@ export interface DashMemoryItem {
   emotional_weight?: number; // How emotionally significant this memory is
   retrieval_frequency?: number; // How often this memory is accessed
   tags?: string[];
-  
-  // ===== AGENTIC EXTENSIONS (Phase 1.3) =====
-  /** Importance score 1-10 for memory consolidation and pruning */
-  importance?: number;
-  /** Computed recency score for retrieval ranking */
-  recency_score?: number;
-  /** Access count for frequency tracking */
-  accessed_count?: number;
-  /** Vector embedding for semantic similarity (matches DB schema) */
-  text_embedding?: number[];
 }
 
 export interface DashUserProfile {
@@ -409,6 +283,70 @@ export interface DashInsight {
   };
 }
 
+/**
+ * File attachment types for document upload and analysis
+ */
+export type DashAttachmentKind =
+  | 'document'
+  | 'image'
+  | 'pdf'
+  | 'spreadsheet'
+  | 'presentation'
+  | 'audio'
+  | 'other';
+
+export type DashAttachmentStatus =
+  | 'pending'
+  | 'uploading'
+  | 'uploaded'
+  | 'processing'
+  | 'ready'
+  | 'failed';
+
+/**
+ * File attachment interface
+ */
+export interface DashAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  bucket: string;
+  storagePath: string;
+  kind: DashAttachmentKind;
+  status: DashAttachmentStatus;
+  previewUri?: string;
+  pageCount?: number;
+  textBytes?: number;
+  sha256?: string;
+  meta?: Record<string, any>;
+  uploadProgress?: number; // 0-100
+}
+
+/**
+ * Citation reference for RAG responses
+ */
+export interface DashCitation {
+  attachmentId: string;
+  title?: string;
+  page?: number;
+  snippet?: string;
+  score?: number;
+}
+
+/**
+ * Attachment analysis results
+ */
+export interface DashAttachmentAnalysis {
+  attachmentId: string;
+  summary?: string;
+  keywords?: string[];
+  entities?: string[];
+  readingTimeMinutes?: number;
+  pageMap?: Array<{ page: number; tokens: number }>;
+  error?: string;
+}
+
 export interface DashPersonality {
   name: string;
   greeting: string;
@@ -442,140 +380,120 @@ export interface DashPersonality {
 
 const DEFAULT_PERSONALITY: DashPersonality = {
   name: 'Dash',
-  greeting: "Hello I am Dash. How can I assist you today?",
+  greeting: "Hi! I'm Dash, your AI teaching assistant. How can I help you today?",
   personality_traits: [
     'helpful',
-    'intelligent',
-    'efficient',
+    'encouraging',
+    'knowledgeable',
+    'patient',
+    'creative',
+    'supportive',
     'proactive',
-    'adaptable',
-    'clear',
-    'reliable'
+    'adaptive',
+    'insightful'
   ],
   response_style: 'adaptive',
   expertise_areas: [
-    'general assistance',
+    'education',
+    'lesson planning',
+    'student assessment',
+    'classroom management',
+    'curriculum development',
+    'educational technology',
+    'parent communication',
     'task automation',
     'data analysis',
-    'workflow optimization',
-    'information retrieval',
-    'problem solving',
-    'productivity tools',
-    'communication',
-    'decision support',
-    'system management'
+    'workflow optimization'
   ],
   voice_settings: {
-    rate: 1.0,
+    rate: 0.8,
     pitch: 1.0,
-    language: 'en-ZA',
-    voice: 'male'
+    language: 'en-US'
   },
   role_specializations: {
-    user: {
-      greeting: "Hello I am Dash. How can I assist you today?",
-      capabilities: [
-        'general_assistance',
-        'task_management',
-        'information_retrieval',
-        'data_analysis',
-        'communication',
-        'automation',
-        'problem_solving',
-        'research'
-      ],
-      tone: 'professional and helpful',
-      proactive_behaviors: [
-        'suggest_optimizations',
-        'remind_deadlines',
-        'flag_important_updates',
-        'recommend_actions'
-      ],
-      task_categories: ['general', 'productivity', 'communication']
-    },
-    admin: {
-      greeting: "Hello I am Dash. How can I assist you today?",
-      capabilities: [
-        'system_management',
-        'data_analytics',
-        'reporting',
-        'automation',
-        'diagnostics',
-        'optimization',
-        'monitoring',
-        'configuration'
-      ],
-      tone: 'professional and technical',
-      proactive_behaviors: [
-        'monitor_system_health',
-        'suggest_improvements',
-        'flag_issues',
-        'track_metrics'
-      ],
-      task_categories: ['system', 'technical', 'administrative']
-    },
     teacher: {
-      greeting: "Hello I am Dash. How can I assist you today?",
+      greeting: "Hello! I'm Dash, your teaching assistant. Ready to help with lesson planning, grading, and classroom management!",
       capabilities: [
-        'content_creation',
-        'organization',
-        'communication',
-        'analysis',
-        'planning',
-        'automation',
-        'research',
-        'documentation'
+        'lesson_planning',
+        'grading_assistance',
+        'parent_communication',
+        'student_progress_tracking',
+        'curriculum_alignment',
+        'resource_suggestions',
+        'behavior_management_tips',
+        'assessment_creation'
       ],
-      tone: 'professional and supportive',
+      tone: 'encouraging and professional',
       proactive_behaviors: [
-        'suggest_improvements',
-        'remind_deadlines',
-        'flag_concerns',
+        'suggest_lesson_improvements',
+        'remind_upcoming_deadlines',
+        'flag_student_concerns',
         'recommend_resources'
       ],
-      task_categories: ['content', 'planning', 'communication']
+      task_categories: ['academic', 'administrative', 'communication']
     },
     principal: {
-      greeting: "Hello I am Dash. How can I assist you today?",
+      greeting: "Good morning! I'm Dash, your administrative assistant. Here to help with school management, staff coordination, and strategic planning.",
       capabilities: [
-        'management',
-        'analytics',
-        'reporting',
-        'communication',
-        'planning',
-        'optimization',
-        'decision_support',
-        'compliance'
+        'staff_management',
+        'budget_analysis',
+        'policy_recommendations',
+        'parent_communication',
+        'data_analytics',
+        'strategic_planning',
+        'crisis_management',
+        'compliance_tracking'
       ],
       tone: 'professional and strategic',
       proactive_behaviors: [
-        'monitor_metrics',
-        'suggest_strategies',
-        'flag_concerns',
-        'track_goals'
+        'monitor_school_metrics',
+        'suggest_policy_updates',
+        'flag_budget_concerns',
+        'track_compliance_deadlines'
       ],
-      task_categories: ['management', 'strategic', 'operational']
+      task_categories: ['administrative', 'strategic', 'compliance', 'communication']
     },
     parent: {
-      greeting: "Hello I am Dash. How can I assist you today?",
+      greeting: "Hi there! I'm Dash, your family's education assistant. I'm here to help with homework, track progress, and keep you connected with school.",
       capabilities: [
-        'information',
-        'organization',
-        'communication',
-        'planning',
-        'research',
-        'assistance',
-        'reminders',
-        'guidance'
+        'homework_assistance',
+        'progress_tracking',
+        'school_communication',
+        'learning_resources',
+        'study_planning',
+        'activity_suggestions',
+        'behavioral_support',
+        'academic_guidance'
       ],
-      tone: 'friendly and helpful',
+      tone: 'friendly and supportive',
       proactive_behaviors: [
-        'remind_deadlines',
-        'suggest_activities',
-        'flag_updates',
-        'recommend_actions'
+        'remind_homework_deadlines',
+        'suggest_learning_activities',
+        'flag_progress_concerns',
+        'recommend_parent_involvement'
       ],
-      task_categories: ['organization', 'communication', 'personal']
+      task_categories: ['academic_support', 'communication', 'personal']
+    },
+    student: {
+      greeting: "Hey! I'm Dash, your study buddy. Ready to help with homework, learning, and making school awesome!",
+      capabilities: [
+        'homework_help',
+        'study_techniques',
+        'concept_explanation',
+        'practice_problems',
+        'goal_setting',
+        'time_management',
+        'learning_games',
+        'motivation_boost'
+      ],
+      tone: 'friendly and encouraging',
+      proactive_behaviors: [
+        'remind_study_sessions',
+        'suggest_break_times',
+        'celebrate_achievements',
+        'recommend_study_methods'
+      ],
+      task_categories: ['academic', 'personal', 'motivational']
     }
   },
   agentic_settings: {
@@ -593,102 +511,27 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   }
 };
 
-/**
- * Interface for DashAIAssistant - main AI assistant service
- */
-export interface IDashAIAssistant {
-  // Core initialization
-  initialize(): Promise<void>;
-  dispose(): void;
-  cleanup(): void;
-  clearCache(): void;
-  
-  // Messaging
-  sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage>;
-  sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage>;
-  
-  // Conversations
-  startNewConversation(title?: string): Promise<string>;
-  getAllConversations(): Promise<DashConversation[]>;
-  getConversation(conversationId: string): Promise<DashConversation | null>;
-  deleteConversation(conversationId: string): Promise<void>;
-  getCurrentConversationId(): string | null;
-  setCurrentConversationId(conversationId: string): void;
-  
-  // Memory & Personality
-  getAllMemoryItems(): DashMemoryItem[];
-  getMemory(): DashMemoryItem[];
-  clearMemory(): Promise<void>;
-  getPersonality(): DashPersonality;
-  savePersonality(personality: Partial<DashPersonality>): Promise<void>;
-  
-  // Voice
-  preWarmRecorder(): Promise<void>;
-  speakResponse(message: DashMessage, callbacks?: any): Promise<void>;
-  stopSpeaking(): Promise<void>;
-  
-  // Navigation & Context
-  navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }>;
-  getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] };
-  
-  // Content Generation
-  openLessonGeneratorFromContext(userInput: string, aiResponse: string): void;
-  generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }>;
-  saveLessonToDatabase(lessonContent: string, lessonParams: any): Promise<{ success: boolean; lessonId?: string; error?: string }>;
-  
-  // Tasks & Automation
-  createAutomatedTask(templateId: string, customParams?: any): Promise<{ success: boolean; task?: DashTask; error?: string }>;
-  getActiveTasks(): DashTask[];
-  
-  // Communication
-  openTeacherMessageComposer(subject?: string, body?: string): void;
-  
-  // Export
-  exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }>;
-}
-
-export class DashAIAssistant implements IDashAIAssistant {
-  // Static getInstance method for singleton pattern
-  static getInstance: () => DashAIAssistant;
-  
-  // Configuration constants
-  private static readonly MEMORY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-  private static readonly CONTEXT_CACHE_MAX_AGE = 5 * 60 * 1000; // 5 minutes
-  private static readonly INTERACTION_HISTORY_MAX_SIZE = 100;
-  private static readonly MESSAGE_HISTORY_LIMIT = 10;
-  
+export class DashAIAssistant {
+  private static instance: DashAIAssistant;
   private currentConversationId: string | null = null;
+  private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
-  private isDisposed = false;
-  
-  // Modular components (Phase 4 refactoring)
-  private memoryManager: DashMemoryManager;
-  private voiceController: DashVoiceController;
-  private messageHandler: DashMessageHandler;
-  private contextBuilder: DashContextBuilder;
+  private recordingObject: Audio.Recording | null = null;
+  private soundObject: Audio.Sound | null = null;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
-  private autonomyLevel: AutonomyLevel = 'assistant';
   private activeTasks: Map<string, DashTask> = new Map();
   private activeReminders: Map<string, DashReminder> = new Map();
   private pendingInsights: Map<string, DashInsight> = new Map();
-  private proactiveTimer: ReturnType<typeof setTimeout> | null = null;
-  private cacheCleanupTimer: ReturnType<typeof setInterval> | null = null;
-  private lastErrorTimestamp: number = 0;
-  private consecutiveErrors: number = 0;
-  private readonly MAX_CONSECUTIVE_ERRORS = 3;
-  private readonly ERROR_COOLDOWN_MS = 5000; // 5 seconds between errors
-  
-  // ✅ OPTIMIZATION: Cache for profile and session queries (1-minute TTL)
-  private profileCache: { data: any; timestamp: number } | null = null;
-  private sessionCache: { data: any; timestamp: number } | null = null;
-  private readonly CACHE_TTL = 60000; // 1 minute
-  private dependenciesPreloaded = false;
-  
-  // ✅ OPTIMIZATION: Response cache for instant replies to common queries
-  private responseCache = responseCache;
+  private proactiveTimer: NodeJS.Timeout | null = null;
+  private contextCache: Map<string, any> = new Map();
+  private interactionHistory: Array<{
+    timestamp: number;
+    type: string;
+    data: any;
+  }> = [];
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
@@ -700,193 +543,65 @@ export class DashAIAssistant implements IDashAIAssistant {
   private static readonly TASKS_KEY = 'dash_active_tasks';
   private static readonly REMINDERS_KEY = 'dash_active_reminders';
   private static readonly INSIGHTS_KEY = 'dash_pending_insights';
-  private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
-  constructor() {
-    // Initialize modular components with dependencies
-    this.memoryManager = new DashMemoryManager();
-    this.voiceController = new DashVoiceController();
-    this.messageHandler = new DashMessageHandler();
-    this.contextBuilder = new DashContextBuilder(this.memoryManager);
+  public static getInstance(): DashAIAssistant {
+    if (!DashAIAssistant.instance) {
+      DashAIAssistant.instance = new DashAIAssistant();
+    }
+    return DashAIAssistant.instance;
   }
 
   /**
-   * Initialize Dash AI Assistant with Agentic Services
+   * Initialize Dash AI Assistant
    */
   public async initialize(): Promise<void> {
-    // Allow re-initialization after disposal (fixes Fast Refresh issues)
-    if (this.isDisposed) {
-      logger.info('[Dash] Re-initializing after disposal...');
-      this.isDisposed = false;
-    }
-    
     try {
-      logger.info('[Dash] Initializing AI Assistant with agentic capabilities...');
-      
-      // ✅ OPTIMIZATION: Preload dependencies early
-      await this.preloadDependencies();
+      console.log('[Dash] Initializing AI Assistant...');
       
       // Initialize audio
       await this.initializeAudio();
       
-      // Load persistent data (delegated to modules)
-      await this.memoryManager.loadMemory();
-      await this.contextBuilder.loadPersonality();
-      await this.contextBuilder.loadUserProfile();
+      // Load persistent data
+      await this.loadMemory();
+      await this.loadPersonality();
       
       // Load user context
-      await this.contextBuilder.loadUserContext();
+      await this.loadUserContext();
       
-      // Sync personality reference for backward compatibility
-      this.personality = this.contextBuilder.getPersonality();
-      this.userProfile = this.contextBuilder.getUserProfile();
-      
-      // Initialize agentic services
-      const session = await getCurrentSession();
-      const profile = await getCurrentProfile();
-      
-      if (session?.user_id && profile) {
-        await DashAgenticIntegration.initialize({
-          userId: session.user_id,
-          profile,
-          tier: 'starter',
-          role: (profile as any).role || 'teacher',
-          language: 'en'
-        });
-        
-        // Initialize Semantic Memory Engine for contextual learning (deferred to avoid heap issues)
-        // Note: Semantic memory will be lazy-loaded on first use to prevent bundler memory issues
-        setTimeout(async () => {
-          try {
-            const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
-            const semanticMemory = SemanticMemoryEngine.getInstance();
-            await semanticMemory.initialize();
-            logger.debug('[Dash] Semantic memory initialized (deferred)');
-          } catch (error) {
-            logger.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
-          }
-        }, 2000); // Defer by 2 seconds to avoid initial bundler heap pressure
-        
-        logger.debug('[Dash] Agentic services initialized');
-      }
-      
-      // ✅ OPTIMIZATION: Start periodic cache cleanup (every 5 minutes)
-      this.startCacheCleanup();
-      
-      logger.info('[Dash] AI Assistant initialized successfully');
+      console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
-      logger.error('[Dash] Failed to initialize AI Assistant:', error);
+      console.error('[Dash] Failed to initialize AI Assistant:', error);
       throw error;
     }
   }
 
   /**
-   * Return all memory items currently in memory cache
-   */
-  public getAllMemoryItems(): DashMemoryItem[] {
-    return this.memoryManager.getAllMemoryItems();
-  }
-
-  /**
-   * ✅ OPTIMIZATION: Preload dependencies at startup
-   * Loads all dynamic imports once to avoid 3s delay per message
-   */
-  private async preloadDependencies(): Promise<void> {
-    if (this.dependenciesPreloaded) return;
-    
-    const startTime = Date.now();
-    logger.debug('[Dash] 🚀 Preloading dependencies...');
-    
-    try {
-      // Preload all agentic engine imports
-      await Promise.all([
-        import('./DashContextAnalyzer'),
-        import('./DashProactiveEngine'),
-        import('./DashAgenticIntegration'),
-        import('./DashRealTimeAwareness'),
-        import('./DashTaskAutomation'),
-        import('./DashConversationState'),
-      ]);
-      
-      this.dependenciesPreloaded = true;
-      const duration = Date.now() - startTime;
-      logger.debug(`[Dash] ✅ Dependencies preloaded in ${duration}ms`);
-    } catch (error) {
-      logger.warn('[Dash] ⚠️ Failed to preload dependencies (non-critical):', error);
-    }
-  }
-
-  /**
-   * ✅ OPTIMIZATION: Get cached profile (1-minute TTL)
-   */
-  private async getCachedProfile(): Promise<any> {
-    const now = Date.now();
-    if (this.profileCache && (now - this.profileCache.timestamp) < this.CACHE_TTL) {
-      logger.debug('[Dash] 📦 Using cached profile');
-      return this.profileCache.data;
-    }
-    
-    const profile = await getCurrentProfile();
-    this.profileCache = { data: profile, timestamp: now };
-    return profile;
-  }
-
-  /**
-   * ✅ OPTIMIZATION: Get cached session (1-minute TTL)
-   */
-  private async getCachedSession(): Promise<any> {
-    const now = Date.now();
-    if (this.sessionCache && (now - this.sessionCache.timestamp) < this.CACHE_TTL) {
-      logger.debug('[Dash] 📦 Using cached session');
-      return this.sessionCache.data;
-    }
-    
-    const session = await getCurrentSession();
-    this.sessionCache = { data: session, timestamp: now };
-    return session;
-  }
-
-  /**
-   * ✅ OPTIMIZATION: Clear caches (call on logout or profile updates)
-   */
-  public clearCache(): void {
-    this.profileCache = null;
-    this.sessionCache = null;
-    this.responseCache.clearCache();
-    logger.debug('[Dash] 🧹 All caches cleared');
-  }
-  
-  /**
-   * ✅ OPTIMIZATION: Get response cache metrics
-   */
-  public getCacheMetrics(): any {
-    return this.responseCache.getMetrics();
-  }
-  
-  /**
-   * ✅ OPTIMIZATION: Start periodic cache cleanup
-   */
-  private startCacheCleanup(): void {
-    // Clean up expired cache entries every 5 minutes
-    this.cacheCleanupTimer = setInterval(() => {
-      try {
-        this.responseCache.cleanup();
-        logger.debug('[Dash] 🗑️  Periodic cache cleanup complete');
-      } catch (error) {
-        logger.warn('[Dash] Cache cleanup failed:', error);
-      }
-    }, 5 * 60 * 1000); // 5 minutes
-    
-    logger.debug('[Dash] ✅ Cache cleanup timer started (5min interval)');
-  }
-
-  
-  /**
    * Initialize audio system
-   * Note: Local mic recording has been removed; streaming path manages permissions
    */
   private async initializeAudio(): Promise<void> {
-    // No-op: Local expo-av audio configuration removed
+    try {
+      // On web, expo-av audio mode options are not applicable; skip configuration
+      if (Platform.OS === 'web') {
+        console.debug('[Dash] Skipping audio mode configuration on web');
+        return;
+      }
+
+      await Audio.requestPermissionsAsync();
+
+      if (Platform.OS === 'ios') {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+      } else if (Platform.OS === 'android') {
+        await Audio.setAudioModeAsync({
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        } as any);
+      }
+    } catch (error) {
+      console.error('[Dash] Audio initialization failed:', error);
+    }
   }
 
   /**
@@ -907,45 +622,17 @@ export class DashAIAssistant implements IDashAIAssistant {
     await this.saveConversation(conversation);
     try {
       await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-    } catch (error) {
-      logger.warn('[Dash] Failed to save conversation pointer to AsyncStorage (non-fatal):', error);
-    }
+    } catch {}
     return conversationId;
-  }
-
-  /**
-   * Ensure there's an active conversation (restore from storage or create)
-   */
-  public async ensureActiveConversation(defaultTitle?: string): Promise<string> {
-    try {
-      if (this.currentConversationId) {
-        return this.currentConversationId;
-      }
-      // Try to restore from persisted pointer
-      const savedId = await AsyncStorage.getItem(DashAIAssistant.CURRENT_CONVERSATION_KEY);
-      if (savedId) {
-        const existing = await this.getConversation(savedId);
-        if (existing) {
-          this.currentConversationId = savedId;
-          return savedId;
-        }
-      }
-    } catch (e) {
-      logger.warn('[Dash] Failed to restore conversation pointer, creating new one:', e);
-    }
-    // Create a new conversation as a fallback
-    const newId = await this.startNewConversation(defaultTitle || 'Quick Voice');
-    return newId;
   }
 
   /**
    * Send a text message to Dash
    */
-  public async sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage> {
-    this.checkDisposed();
-    let convId = conversationId || this.currentConversationId;
+  public async sendMessage(content: string, conversationId?: string, attachments?: DashAttachment[]): Promise<DashMessage> {
+    const convId = conversationId || this.currentConversationId;
     if (!convId) {
-      convId = await this.ensureActiveConversation('General');
+      throw new Error('No active conversation');
     }
 
     // Create user message
@@ -954,61 +641,15 @@ export class DashAIAssistant implements IDashAIAssistant {
       type: 'user',
       content,
       timestamp: Date.now(),
-      attachments: attachments || undefined, // Include attachments if present
+      attachments
     };
 
     // Add to conversation
     await this.addMessageToConversation(convId, userMessage);
 
-    // Generate AI response (pass attachments for vision support)
+    // Generate AI response (pass attachments for context)
     const assistantResponse = await this.generateResponse(content, convId, attachments);
     await this.addMessageToConversation(convId, assistantResponse);
-
-    // Handle assistant-requested actions
-    try {
-      const act = assistantResponse?.metadata?.dashboard_action as any;
-      if (act?.type === 'create_reminder') {
-        const title = String(act?.title || 'Reminder');
-        const when = String(act?.schedule_at || act?.when || '');
-        if (when) {
-          try {
-            await this.createReminder(title, when, act?.payload || {});
-          } catch (e) {
-            logger.warn('[Dash] createReminder failed (non-fatal):', e);
-          }
-        }
-      }
-    } catch (error) {
-      logger.warn('[Dash] Error handling assistant-requested actions (non-fatal):', error);
-    }
-
-    // Natural language reminder fallback (if assistant didn't emit structured action)
-    try {
-      const act = assistantResponse?.metadata?.dashboard_action as any;
-      if (!(act?.type === 'create_reminder')) {
-        const iso = this.parseScheduleAtFromText(content || '');
-        if (iso && /\bremind\b/i.test(content || '')) {
-          const title = 'Reminder';
-          try {
-            await this.createReminder(title, iso, { source: 'nlp' });
-          } catch (e) {
-            logger.warn('[Dash] NL reminder creation failed (non-fatal):', e);
-          }
-        }
-      }
-    } catch (error) {
-      logger.warn('[Dash] Error in natural language reminder fallback (non-fatal):', error);
-    }
-
-    // Best-effort: sync context (language/traits) to backend
-    try {
-      await this.syncContextAfterTurn({
-        detectedLanguage: assistantResponse?.metadata?.detected_language as any,
-        sessionId: convId,
-      });
-    } catch (error) {
-      logger.warn('[Dash] Context sync failed (non-fatal):', error);
-    }
 
     return assistantResponse;
   }
@@ -1017,48 +658,20 @@ export class DashAIAssistant implements IDashAIAssistant {
    * Send a voice message to Dash
    */
   public async sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage> {
-    this.checkDisposed();
-    let convId = conversationId || this.currentConversationId;
+    const convId = conversationId || this.currentConversationId;
     if (!convId) {
-      convId = await this.ensureActiveConversation('Quick Voice');
+      throw new Error('No active conversation');
     }
 
     // Transcribe audio
     const tr = await this.transcribeAudio(audioUri);
     const transcript = tr.transcript;
     
-    // Auto-detect language from transcription
-    let detectedLanguage = 'en'; // Default to English
-    if (tr.language) {
-      const mappedLanguage = this.messageHandler.mapLanguageCode(tr.language);
-      detectedLanguage = mappedLanguage;
-      logger.info(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
-      
-      // Save to preferences asynchronously (non-blocking for this response)
-      voiceService.savePreferences({
-        language: mappedLanguage as any,
-      }).catch(err => {
-        logger.warn('[Dash] Failed to save voice preference (non-fatal):', err);
-      });
-      
-      // Also save to conversation state (non-blocking)
-      import('./DashConversationState').then(async ({ DashConversationState }) => {
-        try {
-          DashConversationState.updatePreferences({
-            preferredLanguage: mappedLanguage
-          });
-        } catch (err) {
-          logger.warn('[Dash] Failed to update conversation preferences (non-fatal):', err);
-        }
-      }).catch(err => {
-        logger.warn('[Dash] Failed to import DashConversationState (non-fatal):', err);
-      });
-    }
-    
-    logger.info(`[Dash] 🔄 Will use detected language for this response: ${detectedLanguage}`);
-    
-    // Duration is provided by transcription when available; otherwise 0
-    const duration = (tr as any).duration || 0;
+    // Get audio duration
+    const { sound } = await Audio.Sound.createAsync({ uri: audioUri });
+    const status = await sound.getStatusAsync();
+    const duration = status.isLoaded ? status.durationMillis || 0 : 0;
+    await sound.unloadAsync();
 
     // Create user message with voice note
     const userMessage: DashMessage = {
@@ -1075,99 +688,6 @@ export class DashAIAssistant implements IDashAIAssistant {
         contentType: tr.contentType,
         language: tr.language,
         provider: tr.provider
-      },
-      metadata: {
-        detected_language: tr.language, // Store for TTS use
-      }
-    };
-
-    // Add to conversation
-    await this.addMessageToConversation(convId, userMessage);
-
-    // Generate AI response with detected language context
-    const assistantResponse = await this.generateResponseWithLanguage(transcript, convId, detectedLanguage);
-    await this.addMessageToConversation(convId, assistantResponse);
-
-    return assistantResponse;
-  }
-
-  /**
-   * Start voice recording
-   */
-  public async startRecording(): Promise<void> {
-    // Local recording removed (expo-av). Use streaming controller instead.
-    throw new Error('Local mic recording is disabled. Use streaming voice input.');
-  }
-
-  /**
-   * Stop voice recording and return audio URI
-   */
-  public async stopRecording(): Promise<string> {
-    // Local recording removed
-    throw new Error('Local mic recording is disabled.');
-  }
-
-  /**
-   * Pre-warm the recorder for faster start times
-   */
-  public async preWarmRecorder(): Promise<void> {
-    // No-op
-    return Promise.resolve();
-  }
-  
-  /**
-   * Check if recording is currently possible (has permissions)
-   */
-  public async canRecord(): Promise<boolean> {
-    // Local recording removed; always return false to signal streaming-only
-    return false;
-  }
-
-  /**
-   * Transcribe audio only without sending to AI
-   */
-  public async transcribeOnly(
-    audioUri: string,
-    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void
-  ): Promise<{
-    transcript: string;
-    duration?: number;
-    storagePath?: string;
-    contentType?: string;
-    language?: string;
-    provider?: string;
-    error?: string;
-  }> {
-    return this.transcribeAudio(audioUri, onProgress);
-  }
-
-  /**
-   * Send a pre-prepared voice message (already transcribed)
-   */
-  public async sendPreparedVoiceMessage(
-    audioUri: string,
-    transcript: string,
-    duration: number,
-    conversationId?: string
-  ): Promise<DashMessage> {
-    let convId = conversationId || this.currentConversationId;
-    if (!convId) {
-      convId = await this.ensureActiveConversation('Quick Voice');
-    }
-
-    // Create user message with voice note
-    const userMessage: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'user',
-      content: transcript,
-      timestamp: Date.now(),
-      voiceNote: {
-        audioUri,
-        duration,
-        transcript,
-        contentType: 'audio/m4a',
-        language: 'en-ZA',
-        provider: 'local'
       }
     };
 
@@ -1178,114 +698,154 @@ export class DashAIAssistant implements IDashAIAssistant {
     const assistantResponse = await this.generateResponse(transcript, convId);
     await this.addMessageToConversation(convId, assistantResponse);
 
-    // Handle assistant-requested actions
-    try {
-      const act = assistantResponse?.metadata?.dashboard_action as any;
-      if (act?.type === 'create_reminder') {
-        const title = String(act?.title || 'Reminder');
-        const when = String(act?.schedule_at || act?.when || '');
-        if (when) {
-          try { await this.createReminder(title, when, act?.payload || {}); } catch (e) { logger.warn('[Dash] createReminder failed:', e); }
-        }
-      }
-    } catch { /* Intentional: non-fatal */ }
-
-    // Best-effort: sync context using detected language from voice
-    try {
-      await this.syncContextAfterTurn({
-        detectedLanguage: undefined,
-        sessionId: convId,
-      });
-    } catch { /* Intentional: non-fatal */ }
-
     return assistantResponse;
   }
 
   /**
-   * Parse simple time expressions from user text (today/tomorrow at HH:MM, in X minutes/hours/days)
+   * Start voice recording
    */
-  private parseScheduleAtFromText(text: string): string | null {
+  public async startRecording(): Promise<void> {
+    if (this.isRecording) {
+      console.warn('[Dash] Already recording, ignoring start request');
+      throw new Error('Recording already in progress');
+    }
+
+    // Clean up any existing recording object
+    if (this.recordingObject) {
+      console.log('[Dash] Cleaning up existing recording object');
+      try {
+        await this.recordingObject.stopAndUnloadAsync();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.recordingObject = null;
+    }
+
     try {
-      const now = new Date();
-      const t = (text || '').toLowerCase();
+      // Web compatibility checks for recording support and secure context
+      if (Platform.OS === 'web') {
+        try {
+          const w: any = typeof window !== 'undefined' ? window : null;
+          const nav: any = typeof navigator !== 'undefined' ? navigator : null;
 
-      // in X minutes/hours/days
-      const inMatch = t.match(/\bremind\b.*?\bin\s+(\d+)\s+(minute|minutes|hour|hours|day|days)\b/);
-      if (inMatch) {
-        const qty = parseInt(inMatch[1], 10);
-        const unit = inMatch[2];
-        const d = new Date(now);
-        if (unit.startsWith('minute')) d.setMinutes(d.getMinutes() + qty);
-        else if (unit.startsWith('hour')) d.setHours(d.getHours() + qty);
-        else d.setDate(d.getDate() + qty);
-        return d.toISOString();
+          const isSecure = w && (w.isSecureContext || w.location?.protocol === 'https:' || w.location?.hostname === 'localhost' || w.location?.hostname === '127.0.0.1');
+          if (!isSecure) {
+            throw new Error('Microphone requires a secure context (HTTPS or localhost).');
+          }
+
+          if (!nav?.mediaDevices?.getUserMedia) {
+            throw new Error('Your browser does not support microphone capture (mediaDevices.getUserMedia missing). Please use Chrome or Edge.');
+          }
+
+          if (w?.MediaRecorder && typeof (w as any).MediaRecorder.isTypeSupported === 'function') {
+            const preferred = 'audio/webm';
+            if (!(w as any).MediaRecorder.isTypeSupported(preferred)) {
+              console.warn(`[Dash] ${preferred} not fully supported; the browser may record using a different container/codec.`);
+            }
+          } else {
+            console.warn('[Dash] MediaRecorder is not available; recording may not work in this browser (e.g., Safari).');
+          }
+        } catch (compatErr) {
+          console.error('[Dash] Web recording compatibility error:', compatErr);
+          throw compatErr;
+        }
       }
 
-      // tomorrow at HH[:MM]
-      let m = t.match(/\btomorrow\b.*?\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
-      if (m) {
-        const h = parseInt(m[1], 10);
-        const min = m[2] ? parseInt(m[2], 10) : 0;
-        const d = new Date(now);
-        d.setDate(d.getDate() + 1);
-        d.setHours(h, min, 0, 0);
-        return d.toISOString();
-      }
+      console.log('[Dash] Starting recording...');
+      this.recordingObject = new Audio.Recording();
 
-      // today at HH[:MM]
-      m = t.match(/\btoday\b.*?\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
-      if (m) {
-        const h = parseInt(m[1], 10);
-        const min = m[2] ? parseInt(m[2], 10) : 0;
-        const d = new Date(now);
-        d.setHours(h, min, 0, 0);
-        if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
-        return d.toISOString();
-      }
-
-      // at HH[:MM] (assume today or next day if passed)
-      m = t.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\b/);
-      if (m && /\bremind\b/.test(t)) {
-        const h = parseInt(m[1], 10);
-        const min = m[2] ? parseInt(m[2], 10) : 0;
-        const d = new Date(now);
-        d.setHours(h, min, 0, 0);
-        if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
-        return d.toISOString();
-      }
-      return null;
-    } catch { return null; }
-  }
-
-  /**
-   * Sync per-user context to backend edge function (best-effort)
-   */
-  private async syncContextAfterTurn(args: { detectedLanguage?: string; sessionId?: string }) {
-    try {
-      const supa = assertSupabase();
-      await supa.functions.invoke('dash-context-sync', {
-        body: {
-          detected_language: args.detectedLanguage || null,
-          traits: {},
-          session_id: args.sessionId || null,
+      // Use the Expo AV recording API: prepareToRecordAsync + startAsync
+      await this.recordingObject.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+          audioEncoder: Audio.AndroidAudioEncoder.AAC,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
         },
-      } as any);
-    } catch (e) {
-      // non-fatal
-      logger.warn('[Dash] Context sync failed:', e);
+        ios: {
+          extension: '.m4a',
+          outputFormat: Audio.IOSOutputFormat.MPEG4AAC,
+          audioQuality: Audio.IOSAudioQuality.MAX,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+      } as Audio.RecordingOptions);
+
+      await this.recordingObject.startAsync();
+      this.isRecording = true;
+      console.log('[Dash] Recording started');
+    } catch (error) {
+      // Reset state on error
+      this.isRecording = false;
+      this.recordingObject = null;
+      console.error('[Dash] Failed to start recording:', error);
+      throw error;
     }
   }
 
   /**
-   * Create a scheduled reminder via edge function
+   * Stop voice recording and return audio URI
    */
-  public async createReminder(title: string, scheduleAtISO: string, payload?: Record<string, any>): Promise<{ success: boolean; id?: string }> {
-    const supa = assertSupabase();
-    const { data, error } = await supa.functions.invoke('dash-reminders-create', {
-      body: { title, schedule_at: scheduleAtISO, payload: payload || {} },
-    } as any);
-    if (error) throw error as any;
-    return (data as any) || { success: true };
+  public async stopRecording(): Promise<string> {
+    if (!this.isRecording) {
+      console.warn('[Dash] Not recording, cannot stop');
+      throw new Error('No recording in progress');
+    }
+
+    if (!this.recordingObject) {
+      console.warn('[Dash] No recording object found');
+      // Reset state and throw error
+      this.isRecording = false;
+      throw new Error('Recording object not found');
+    }
+
+    try {
+      console.log('[Dash] Stopping recording...');
+      await this.recordingObject.stopAndUnloadAsync();
+      const recordingUri = this.recordingObject.getURI();
+      
+      // Clean up state
+      this.recordingObject = null;
+      this.isRecording = false;
+      
+      // Validate that we got a valid URI
+      if (!recordingUri) {
+        throw new Error('Recording URI is null or empty');
+      }
+      
+      console.log('[Dash] Recording stopped successfully:', recordingUri);
+      
+      // Additional validation: check if file exists on native platforms
+      if (Platform.OS !== 'web') {
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(recordingUri);
+          if (!fileInfo.exists) {
+            throw new Error('Recorded audio file does not exist');
+          }
+          if (fileInfo.size && fileInfo.size < 1024) {
+            throw new Error(`Recorded audio file too small: ${fileInfo.size} bytes`);
+          }
+          console.log('[Dash] Audio file validated:', fileInfo.size, 'bytes');
+        } catch (fileError) {
+          console.error('[Dash] Audio file validation failed:', fileError);
+          throw new Error(`Audio file validation failed: ${fileError}`);
+        }
+      }
+      
+      return recordingUri;
+    } catch (error) {
+      // Always clean up state on error
+      this.recordingObject = null;
+      this.isRecording = false;
+      console.error('[Dash] Failed to stop recording:', error);
+      throw error;
+    }
   }
 
   /**
@@ -1350,7 +910,7 @@ export class DashAIAssistant implements IDashAIAssistant {
     }
 
     // Topic/theme: allow quoted phrases or after keywords
-const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
+    const topicQuoted = fullTextRaw.match(/topic\s*[:?-]?\s*"([^"]{3,80})"|"([^"]{3,80})"\s*(lesson|plan)/i);
     if (topicQuoted && (topicQuoted[1] || topicQuoted[2])) {
       const t = (topicQuoted[1] || topicQuoted[2] || '').trim();
       if (t) params.topic = t;
@@ -1364,7 +924,7 @@ const topicQuoted = fullTextRaw.match(/topic\s*[:-]?\s*"([^"]{3,80})"|"([^"]{3,8
 
     // Duration: handle "one and a half hours", "half an hour", "90-minute"
     let durationMins: number | null = null;
-const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
+    const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
     const hourMatch = fullText.match(/(\d(?:\.\d)?)\s*(?:hour|hr)s?/i);
     const ninetyLike = /\b(90\s*minute|one\s+and\s+a\s+half\s+hours?)\b/i.test(fullTextRaw);
     const halfHour = /\b(half\s+an\s+hour|30\s*minutes?)\b/i.test(fullTextRaw);
@@ -1375,7 +935,7 @@ const numMatch = fullText.match(/(\d{1,3})\s*-?\s*(?:minute|min)s?\b/i);
     if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
 
     // Objectives: capture bullet points and sentences
-const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean);
+    const lines = fullTextRaw.split(/\n|;|•|\-/).map(s => s.trim()).filter(Boolean);
     const objectiveCandidates: string[] = [];
     const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
     for (const ln of lines) {
@@ -1396,7 +956,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     // and press Generate in the UI.
     // if (paramCount >= 2) params.autogenerate = 'true';
 
-    logger.debug('[Dash] Extracted lesson parameters (enhanced):', params);
+    console.log('[Dash] Extracted lesson parameters (enhanced):', params);
     return params;
   }
 
@@ -1409,7 +969,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       const query = new URLSearchParams(params as any).toString();
       router.push({ pathname: '/screens/ai-lesson-generator', params });
     } catch (e) {
-      logger.warn('[Dash] Failed to open Lesson Generator from context:', e);
+      console.warn('[Dash] Failed to open Lesson Generator from context:', e);
     }
   }
   
@@ -1509,8 +1069,549 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       params.autoGenerate = 'true';
     }
     
-    logger.debug('[Dash] Extracted worksheet parameters:', params);
+    console.log('[Dash] Extracted worksheet parameters:', params);
     return params;
+  }
+  
+  /**
+   * Extract a suitable title for PDF export from user input and AI response
+   */
+  private extractContentTitle(userInput: string, responseContent: string): string {
+    const fullText = `${userInput} ${responseContent}`.toLowerCase();
+    
+    // Try to detect subject and type
+    let subject = '';
+    let type = '';
+    
+    // Extract subject
+    if (fullText.includes('math')) subject = 'Math';
+    else if (fullText.includes('science')) subject = 'Science';
+    else if (fullText.includes('english') || fullText.includes('literacy')) subject = 'Literacy';
+    else if (fullText.includes('reading')) subject = 'Reading';
+    else if (fullText.includes('writing')) subject = 'Writing';
+    
+    // Extract content type
+    if (fullText.includes('test')) type = 'Test';
+    else if (fullText.includes('quiz')) type = 'Quiz';
+    else if (fullText.includes('worksheet')) type = 'Worksheet';
+    else if (fullText.includes('practice')) type = 'Practice';
+    else if (fullText.includes('exercise')) type = 'Exercise';
+    else if (fullText.includes('assessment')) type = 'Assessment';
+    
+    // Build title
+    if (subject && type) {
+      return `${subject} ${type}`;
+    } else if (subject) {
+      return `${subject} Learning Material`;
+    } else if (type) {
+      return `Educational ${type}`;
+    }
+    
+    return 'Educational Content';
+  }
+  
+  /**
+   * Detect if user is requesting a PDF about an educational topic
+   */
+  private detectEducationalPDFRequest(input: string): {
+    topic: string;
+    audience: string;
+    type: string;
+    keywords: string[];
+  } | null {
+    const inputLower = input.toLowerCase();
+    
+    // Check for PDF/guide generation intent with educational topics
+    const pdfKeywords = ['generate', 'create', 'make', 'explain', 'pdf', 'document', 'guide', 'teach'];
+    const hasPDFIntent = pdfKeywords.some(keyword => inputLower.includes(keyword));
+    
+    // Check if it's about an educational topic (not just a worksheet/test)
+    const hasEducationalTopic = /\b(about|on|explaining|teach.+about|guide.+to)\s+\w+/i.test(input);
+    
+    if (!hasPDFIntent || !hasEducationalTopic) return null;
+    
+    // Extract the actual topic
+    const topic = this.extractTopic(input);
+    if (!topic || topic === 'General Education') return null;
+    
+    // Determine audience
+    let audience = 'students';
+    if (/preschool|kids|children|young learners|toddlers/i.test(input)) audience = 'preschool';
+    else if (/teacher|educator/i.test(input)) audience = 'teachers';
+    else if (/parent|family/i.test(input)) audience = 'parents';
+    
+    // Extract additional keywords for context
+    const keywords = this.extractKeywords(input);
+    
+    return {
+      topic,
+      audience,
+      type: 'educational_guide',
+      keywords
+    };
+  }
+  
+  /**
+   * Extract topic from user input using multiple patterns
+   */
+  private extractTopic(input: string): string {
+    const inputLower = input.toLowerCase();
+    
+    // Pattern 1: "PDF on [topic]" or "guide about [topic]"
+    const pattern1 = /(?:pdf|guide|document|explain|teach|tell|show)(?:\s+me)?(?:\s+on|\s+about|\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+with|\?|$)/i;
+    const match1 = input.match(pattern1);
+    if (match1 && match1[1]) {
+      const topic = match1[1].trim();
+      // Filter out common filler words
+      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
+      if (filtered.length > 2 && filtered.length < 50) {
+        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
+      }
+    }
+    
+    // Pattern 2: "explain [topic]" or "teach about [topic]"
+    const pattern2 = /(?:explain|teach|tell|show)(?:\s+me)?(?:\s+about)?(?:\s+how to)?\s+([a-zA-Z\s]{3,50})(?:\s+for|\s+to|\s+\?|$)/i;
+    const match2 = input.match(pattern2);
+    if (match2 && match2[1]) {
+      const topic = match2[1].trim();
+      const filtered = topic.replace(/\b(how to|the|a|an|is|are|was|were)\b/gi, '').trim();
+      if (filtered.length > 2 && filtered.length < 50) {
+        return filtered.charAt(0).toUpperCase() + filtered.slice(1);
+      }
+    }
+    
+    // Pattern 3: Look for quoted topics
+    const pattern3 = /["']([^"']{3,50})["']/;
+    const match3 = input.match(pattern3);
+    if (match3 && match3[1]) {
+      return match3[1].trim();
+    }
+    
+    // Pattern 4: Common educational subjects
+    const subjects = [
+      'robotics', 'mathematics', 'science', 'history', 'geography',
+      'biology', 'chemistry', 'physics', 'literature', 'art', 'music',
+      'photosynthesis', 'dinosaurs', 'planets', 'animals', 'plants',
+      'weather', 'insects', 'ocean', 'space', 'coding', 'programming',
+      'solar system', 'water cycle', 'food chain', 'human body',
+      'recycling', 'electricity', 'magnetism', 'sound', 'light',
+      'fractions', 'multiplication', 'division', 'shapes', 'colors'
+    ];
+    
+    for (const subject of subjects) {
+      if (inputLower.includes(subject)) {
+        return subject.charAt(0).toUpperCase() + subject.slice(1);
+      }
+    }
+    
+    return 'General Education';
+  }
+  
+  /**
+   * Extract contextual keywords to help AI generate better content
+   */
+  private extractKeywords(input: string): string[] {
+    const keywords: string[] = [];
+    const inputLower = input.toLowerCase();
+    
+    // Age-related keywords
+    if (/preschool|toddler|3-5/i.test(input)) keywords.push('preschool-level');
+    if (/elementary|primary|6-12/i.test(input)) keywords.push('elementary-level');
+    
+    // Content style keywords
+    if (/fun|entertaining|engaging/i.test(input)) keywords.push('fun', 'engaging');
+    if (/simple|easy|basic/i.test(input)) keywords.push('simplified', 'basic');
+    if (/detailed|comprehensive|thorough/i.test(input)) keywords.push('detailed', 'thorough');
+    if (/activity|activities|hands-on/i.test(input)) keywords.push('hands-on', 'activities');
+    if (/visual|pictures|illustrations/i.test(input)) keywords.push('visual', 'illustrated');
+    if (/interactive|practical/i.test(input)) keywords.push('interactive', 'practical');
+    
+    // Language/curriculum
+    if (/caps|south african/i.test(input)) keywords.push('CAPS-aligned', 'South African');
+    if (/afrikaans/i.test(input)) keywords.push('bilingual', 'Afrikaans');
+    if (/isiZulu|zulu/i.test(input)) keywords.push('isiZulu');
+    
+    return keywords;
+  }
+  
+  /**
+   * Generate educational content for any topic using AI
+   */
+  private async generateEducationalContent(request: {
+    topic: string;
+    audience: string;
+    type: string;
+    keywords: string[];
+  }): Promise<string> {
+    
+    // Build AI prompt for educational content
+    const aiPrompt = this.buildEducationalContentPrompt(request);
+    
+    try {
+      console.log('[Dash] Generating educational content for:', request.topic);
+      
+      // Call AI service
+      const response = await assertSupabase().functions.invoke('ai-proxy', {
+        body: {
+          model: 'claude-3-5-sonnet-20241022',
+          messages: [{
+            role: 'user',
+            content: aiPrompt
+          }],
+          temperature: 0.7,
+          max_tokens: 4000
+        }
+      });
+      
+      if (response.data?.content) {
+        console.log('[Dash] AI content generated successfully');
+        return response.data.content;
+      } else if (response.error) {
+        console.error('[Dash] AI service error:', response.error);
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to generate educational content:', error);
+    }
+    
+    // Fallback to template-based content
+    console.log('[Dash] Using fallback content template');
+    return this.generateFallbackContent(request.topic, request.audience);
+  }
+  
+  /**
+   * Build AI prompt for educational content generation
+   */
+  private buildEducationalContentPrompt(request: {
+    topic: string;
+    audience: string;
+    keywords: string[];
+  }): string {
+    const { topic, audience, keywords } = request;
+    
+    // Adjust complexity based on audience
+    let complexity = '';
+    let ageGroup = '';
+    
+    switch (audience) {
+      case 'preschool':
+        complexity = 'very simple, child-friendly language with lots of examples and analogies';
+        ageGroup = '3-6 year olds';
+        break;
+      case 'students':
+        complexity = 'clear and engaging language appropriate for elementary students';
+        ageGroup = '7-12 year olds';
+        break;
+      case 'teachers':
+        complexity = 'professional and comprehensive with teaching strategies';
+        ageGroup = 'educators';
+        break;
+      case 'parents':
+        complexity = 'accessible and practical with tips for home learning';
+        ageGroup = 'parents and caregivers';
+        break;
+      default:
+        complexity = 'clear and informative';
+        ageGroup = 'general learners';
+    }
+    
+    // Additional context from keywords
+    const contextualHints = keywords.length > 0 
+      ? `\n\nAdditional requirements: ${keywords.join(', ')}`
+      : '';
+    
+    return `Create a comprehensive educational guide about "${topic}" for ${ageGroup}.
+
+**Target Audience:** ${audience} (${ageGroup})
+**Language Complexity:** ${complexity}${contextualHints}
+
+**Required Sections:**
+
+## Introduction
+Provide 2-3 paragraphs explaining:
+- What is ${topic}?
+- Why is it important?
+- Real-world relevance and applications
+
+## Main Concepts
+Break down 3-5 key concepts or ideas:
+- Use clear headings for each concept
+- Include age-appropriate explanations
+- Use analogies and everyday examples
+- Make connections to things learners already know
+
+## Fun Facts
+Include 3-5 interesting and memorable facts about ${topic} that will engage learners.
+
+## Hands-On Activities
+Provide 2-3 age-appropriate activities:
+- Clear step-by-step instructions
+- List of materials needed
+- Learning objectives for each activity
+- Safety notes if applicable
+
+## Key Vocabulary
+Define 5-10 important terms related to ${topic}:
+- Use simple definitions
+- Provide usage examples
+- Connect to concepts explained earlier
+
+## Discussion Questions
+Include 3-5 thought-provoking questions to:
+- Encourage critical thinking
+- Promote further exploration
+- Connect to learners' experiences
+
+${audience === 'teachers' ? `## Teaching Tips
+Provide practical strategies for teaching ${topic} effectively in the classroom.` : ''}
+
+${audience === 'parents' ? `## Learning at Home
+Suggest ways parents can reinforce ${topic} learning at home with everyday activities.` : ''}
+
+**Format Guidelines:**
+- Use markdown formatting (## for headers, ** for bold, - for lists)
+- Keep paragraphs short and focused
+- Use emojis sparingly for visual appeal
+- Make content engaging and educational
+- Ensure age-appropriate language throughout
+
+**Tone:** ${audience === 'preschool' ? 'Fun, encouraging, and very simple' : audience === 'teachers' ? 'Professional and instructional' : 'Friendly and informative'}`;
+  }
+  
+  /**
+   * Generate fallback content when AI is unavailable
+   */
+  private generateFallbackContent(topic: string, audience: string): string {
+    return `## Understanding ${topic}
+
+### Introduction
+${topic} is an important subject that helps us understand the world around us. This guide will introduce you to the key concepts and provide practical activities to deepen your learning.
+
+### What You'll Learn
+- The fundamentals of ${topic}
+- Real-world applications and examples
+- Hands-on activities to practice what you've learned
+- Key vocabulary and concepts
+
+### Getting Started
+${audience === 'preschool' ? 
+  `This guide is designed for young learners. Parents and teachers can use these simple activities to introduce ${topic} in a fun and engaging way.` :
+  audience === 'teachers' ?
+  `This resource provides teaching strategies and classroom activities for introducing ${topic} to your students.` :
+  `Explore ${topic} through clear explanations, examples, and activities suitable for all ages.`
+}
+
+### Key Concepts
+1. **Foundation** - Understanding the basic principles
+2. **Application** - How ${topic} relates to everyday life
+3. **Exploration** - Activities to deepen understanding
+
+### Activities
+**Activity 1: Observation**
+Observe examples of ${topic} in your environment. Take notes or draw pictures of what you find.
+
+**Activity 2: Discussion**
+Talk about ${topic} with friends or family. Share what you've learned and ask questions.
+
+**Activity 3: Practice**
+Create something related to ${topic}. This could be a drawing, model, or experiment.
+
+### Further Learning
+Continue exploring ${topic} through books, videos, and hands-on experiences. The more you engage with the subject, the better you'll understand it!
+
+---
+*This guide was created to support learning about ${topic}. For more detailed information, consult educational resources or speak with a teacher.*`;
+  }
+  
+  /**
+   * Format educational content as beautiful HTML for PDF export
+   */
+  private formatEducationalHTML(content: string, topic: string): string {
+    // Convert markdown to HTML
+    const htmlContent = this.convertMarkdownToHTML(content);
+    
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Understanding ${topic}</title>
+    <style>
+        @page {
+            margin: 2cm;
+            size: A4;
+        }
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(to bottom, #e3f2fd 0%, #ffffff 100%);
+        }
+        h1 {
+            color: #1565c0;
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 10px;
+            border-bottom: 4px solid #42a5f5;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #0277bd;
+            font-size: 28px;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            border-left: 6px solid #4fc3f7;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #01579b;
+            font-size: 22px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        p {
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .intro-box {
+            background-color: #fff3e0;
+            border: 3px solid #ff9800;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 25px 0;
+        }
+        .fun-fact {
+            background-color: #e8f5e9;
+            border-left: 5px solid #4caf50;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .fun-fact strong {
+            color: #2e7d32;
+            font-size: 18px;
+        }
+        .activity-box {
+            background-color: #f3e5f5;
+            border: 2px dashed #9c27b0;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .activity-box h3 {
+            color: #7b1fa2;
+            margin-top: 0;
+        }
+        .vocab-box {
+            background-color: #e1f5fe;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+        .vocab-box h4 {
+            color: #0277bd;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        ul {
+            font-size: 16px;
+            line-height: 1.8;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #ccc;
+            color: #666;
+            font-size: 14px;
+        }
+        strong {
+            color: #0277bd;
+        }
+    </style>
+</head>
+<body>
+    <h1>📚 Understanding ${topic}</h1>
+    <div style="text-align: center; color: #666; font-size: 18px; margin-bottom: 30px; font-style: italic;">
+        A Comprehensive Educational Guide
+    </div>
+    
+    ${htmlContent}
+    
+    <div class="footer">
+        <p>Created by Dash AI • EduDash Pro</p>
+        <p>© ${new Date().getFullYear()} | For Educational Use</p>
+    </div>
+</body>
+</html>`;
+  }
+  
+  /**
+   * Convert markdown-style text to HTML with proper styling
+   */
+  private convertMarkdownToHTML(markdown: string): string {
+    let html = markdown;
+    
+    // Convert ## headers to h2
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    
+    // Convert ### headers to h3
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    
+    // Convert #### headers to h4
+    html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+    
+    // Convert **bold** to <strong>
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert *italic* to <em>
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // Wrap fun facts in styled boxes
+    html = html.replace(/🎉 Fun Fact:([^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="fun-fact"><strong>🎉 Fun Fact:</strong>$1</div>');
+    
+    // Wrap activities in styled boxes
+    html = html.replace(/(#+\s*Activity \d+:[^\n]+(?:\n(?!\n|##)[^\n]+)*)/gi, '<div class="activity-box">$1</div>');
+    
+    // Wrap vocabulary items
+    html = html.replace(/\*\*([^*:]+):\*\* ([^\n]+)/g, '<div class="vocab-box"><h4>$1</h4><p>$2</p></div>');
+    
+    // Convert bullet lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => `<ul>${match}</ul>`);
+    
+    // Convert numbered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, match => {
+      if (!match.includes('<ul>')) {
+        return `<ol>${match}</ol>`;
+      }
+      return match;
+    });
+    
+    // Convert paragraphs (text not already in tags)
+    html = html.replace(/^(?!<[hduol]|<div|<li)(.+)$/gm, '<p>$1</p>');
+    
+    // Clean up extra paragraph tags
+    html = html.replace(/<p><\/p>/g, '');
+    html = html.replace(/<p>(<[hduol])/g, '$1');
+    html = html.replace(/(<\/[hduol]l?>)<\/p>/g, '$1');
+    html = html.replace(/<p>(<div)/g, '$1');
+    html = html.replace(/(<\/div>)<\/p>/g, '$1');
+    
+    // Wrap introduction sections in intro-box
+    html = html.replace(/(<h2>Introduction<\/h2>\s*(?:<p>.*?<\/p>\s*)+)/i, '<div class="intro-box">$1</div>');
+    
+    return html;
   }
   
   /**
@@ -1520,20 +1621,10 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   private normalizeTextForSpeech(text: string): string {
     let normalized = text;
     
-    // CRITICAL: Remove action text in asterisks like "*opens browser*" or "*typing*"
-    normalized = normalized.replace(/\*[^*]+\*/g, '');
+    // Remove markdown formatting FIRST (before other transformations)
+    normalized = this.removeMarkdownFormatting(normalized);
     
-    // CRITICAL: Remove standalone timestamps at the beginning of messages
-    // Patterns like "2:30 PM" or "14:30" or "2:30" at start of text
-    normalized = normalized.replace(/^\s*\d{1,2}:\d{2}\s*(?:AM|PM)?\s*[-–—]?\s*/i, '');
-    
-    // Remove markdown formatting that shouldn't be spoken
-    normalized = normalized.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // Links [text](url) -> text
-    normalized = normalized.replace(/\*\*([^*]+)\*\*/g, '$1'); // Bold **text** -> text
-    normalized = normalized.replace(/\*([^*]+)\*/g, '$1'); // Italic *text* -> text (after actions removed)
-    normalized = normalized.replace(/`([^`]+)`/g, '$1'); // Code `text` -> text
-    
-    // Handle bullet points and list formatting FIRST (before other transformations)
+    // Handle bullet points and list formatting
     normalized = this.normalizeBulletPoints(normalized);
     
     // Handle numbers intelligently
@@ -1558,107 +1649,36 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '') // Surrogate pairs (emojis)
       // Remove extra whitespace
       .replace(/\s+/g, ' ')
-      .replace(/([.!?])\s*$/, '$1') // Ensure proper ending punctuation
       .trim();
-    
-    // Final cleanup for speech synthesis
-    normalized = this.finalizeForSpeech(normalized);
     
     return normalized;
   }
   
   /**
-   * Normalize educational and contextual content for better speech
+   * Remove markdown formatting for speech
    */
-  private normalizeEducationalContent(text: string): string {
+  private removeMarkdownFormatting(text: string): string {
     return text
-      // Fix common educational terms
-      .replace(/\bK-12\b/g, 'K through twelve')
-      .replace(/\bPre-K\b/g, 'Pre kindergarten')
-      .replace(/\bGrade ([0-9]+)\b/g, 'Grade $1')
-      .replace(/\bYear ([0-9]+)\b/g, 'Year $1')
-      .replace(/\bPhD\b/g, 'P H D')
-      .replace(/\bBA\b/g, 'B A')
-      .replace(/\bMA\b/g, 'M A')
-      .replace(/\bBSc\b/g, 'B S C')
-      .replace(/\bMSc\b/g, 'M S C')
-      // Fix age ranges
-      .replace(/(\d+)-(\d+)\s*years?/g, '$1 to $2 years old')
-      .replace(/(\d+)-(\d+)\s*months?/g, '$1 to $2 months old')
-      // Fix curriculum terms
-      .replace(/\bSTEM\b/g, 'S T E M')
-      .replace(/\bSTEAM\b/g, 'S T E A M')
-      .replace(/\bIEP\b/g, 'I E P')
-      .replace(/\b504\s*plan\b/g, 'five oh four plan')
-      // Fix assessment terms
-      .replace(/\bGPA\b/g, 'G P A')
-      .replace(/\bSAT\b/g, 'S A T')
-      .replace(/\bACT\b/g, 'A C T')
-      // Fix common educational abbreviations
-      .replace(/\bELL\b/g, 'E L L')
-      .replace(/\bESL\b/g, 'E S L')
-      .replace(/\bADHD\b/g, 'A D H D')
-      .replace(/\bASD\b/g, 'A S D')
-      // Fix technology terms
-      .replace(/\bLMS\b/g, 'L M S')
-      .replace(/\bVR\b/g, 'V R')
-      .replace(/\bAR\b/g, 'A R')
-      .replace(/\bAI\b/g, 'A I')
-      // Fix common measurement units
-      .replace(/\bcm\b/g, 'centimeters')
-      .replace(/\bmm\b/g, 'millimeters')
-      .replace(/\bkg\b/g, 'kilograms')
-      .replace(/\bg\b/g, 'grams')
-      .replace(/\bml\b/g, 'milliliters')
-      .replace(/\bl\b/g, 'liters');
-  }
-  
-  /**
-   * Normalize punctuation for natural speech flow
-   */
-  private normalizePunctuation(text: string): string {
-    return text
-      // Handle lists and bullets
-      .replace(/^[•·▪▫◦‣⁃]\s*/gm, '') // Remove bullet points
-      .replace(/^\d+\.\s*/gm, '') // Remove numbered list markers
-      .replace(/^[a-zA-Z]\.\s*/gm, '') // Remove lettered list markers
-      // Handle parenthetical expressions
-      .replace(/\(([^)]+)\)/g, ', $1,')
-      // Handle dashes and em-dashes
-      .replace(/\s*[-–—]\s*/g, ', ')
-      // Handle quotation marks
-      .replace(/["""''`]/g, '')
-      // Handle colons in context
-      .replace(/(\w):\s*([A-Z])/g, '$1. $2') // Convert colons to periods when followed by capital letter
-      .replace(/(\w):\s*([a-z])/g, '$1, $2') // Convert colons to commas when followed by lowercase
-      // Handle semicolons
-      .replace(/;/g, ',')
-      // Handle multiple periods
-      .replace(/\.{2,}/g, '.')
-      // Handle exclamation and question combinations
-      .replace(/[!?]{2,}/g, '!')
-      // Ensure proper spacing around punctuation
-      .replace(/\s*([.!?])\s*/g, '$1 ')
-      .replace(/\s*,\s*/g, ', ')
-      // Clean up multiple spaces
-      .replace(/\s+/g, ' ');
-  }
-  
-  /**
-   * Final cleanup and optimization for speech synthesis
-   */
-  private finalizeForSpeech(text: string): string {
-    return text
-      // Ensure sentences end properly
-      .replace(/([^.!?])$/, '$1.')
-      // Handle abbreviations at sentence end
-      .replace(/\b(Mr|Mrs|Dr|Prof|St|Ave|Rd)\.$/, '$1')
-      // Add natural pauses
-      .replace(/([.!?])\s*([A-Z])/g, '$1 $2') // Pause between sentences
-      .replace(/,\s*/g, ', ') // Brief pause for commas
-      // Fix any remaining issues
-      .replace(/\s+/g, ' ')
-      .replace(/^[,.]\s*/, '') // Remove leading punctuation
+      // Remove bold/italic markers (**, *, __, _)
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** -> bold
+      .replace(/\*([^*]+)\*/g, '$1')      // *italic* -> italic
+      .replace(/__([^_]+)__/g, '$1')      // __bold__ -> bold
+      .replace(/_([^_]+)_/g, '$1')        // _italic_ -> italic
+      // Remove answer blanks (_____ or ____)
+      .replace(/_{3,}/g, 'blank')         // _____ -> blank
+      // Remove code blocks
+      .replace(/```[\s\S]*?```/g, '')     // Remove code blocks
+      .replace(/`([^`]+)`/g, '$1')        // `code` -> code
+      // Remove strikethrough
+      .replace(/~~([^~]+)~~/g, '$1')      // ~~strike~~ -> strike
+      // Remove headers (# ## ###)
+      .replace(/^#{1,6}\s+/gm, '')        // # Header -> Header
+      // Remove horizontal rules
+      .replace(/^[-*_]{3,}$/gm, '')       // --- -> (removed)
+      // Remove blockquotes
+      .replace(/^>\s+/gm, '')             // > quote -> quote
+      // Remove link formatting but keep text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')  // [text](url) -> text
       .trim();
   }
   
@@ -1667,10 +1687,6 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    */
   private normalizeNumbers(text: string): string {
     return text
-      // PRIORITY 1: Handle South African currency (R500, R843.03) BEFORE other number patterns
-      .replace(/\bR\s*(\d{1,3}(?:,\d{3})*)(?:\.(\d{2}))?\b/g, (match, whole, cents) => {
-        return this.formatSouthAfricanCurrency(whole.replace(/,/g, ''), cents);
-      })
       // Handle large numbers with separators (e.g., 1,000 -> one thousand)
       .replace(/\b(\d{1,3}(?:,\d{3})+)\b/g, (match) => {
         const number = parseInt(match.replace(/,/g, ''));
@@ -1733,8 +1749,8 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       .replace(/\n[\s]*(\d+)[.)\s]+/g, '\n') // Remove numbered bullets after newlines
       // Handle dashes in educational content (not math contexts)
       .replace(/([a-zA-Z])\s*-\s*([A-Z][a-z])/g, '$1, $2') // "Students - They will" -> "Students, They will"
-      // Handle dash separators in numeric ranges (preserve)
-      .replace(/([0-9])\s*-\s*([0-9])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
+      // Handle dash separators in descriptions
+      .replace(/([a-z])\s*-\s*([a-z])/g, '$1 to $2') // "5-6 years" -> "5 to 6 years"
       // Clean up extra spaces and newlines
       .replace(/\n\s*\n/g, '. ') // Double newlines become sentence breaks
       .replace(/\n/g, '. ') // Single newlines become sentence breaks
@@ -1743,8 +1759,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
-   * Normalize special formatting like underscores, hyphens, and camelCase
-   * IMPROVED: Better handling of compound words with hyphens
+   * Normalize special formatting like underscores and camelCase
    */
   private normalizeSpecialFormatting(text: string): string {
     return text
@@ -1752,23 +1767,8 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       .replace(/([a-zA-Z]+)_([a-zA-Z]+)/g, '$1 $2')
       // Handle camelCase (firstName -> first name)
       .replace(/([a-z])([A-Z])/g, '$1 $2')
-      // IMPROVED: Handle kebab-case/hyphenated words PROPERLY
-      // This catches "step-by-step", "user-friendly", etc.
-      .replace(/\b([a-zA-Z]+)-([a-zA-Z]+)\b/g, (match, word1, word2) => {
-        // Special cases: keep common compound words natural
-        const compoundWords = [
-          'well-known', 'up-to-date', 'state-of-the-art', 'real-time',
-          'high-quality', 'low-cost', 'long-term', 'short-term',
-          'user-friendly', 'self-service', 'full-time', 'part-time'
-        ];
-        const lowercase = match.toLowerCase();
-        if (compoundWords.includes(lowercase)) {
-          // For TTS, just remove the hyphen to make it flow naturally
-          return `${word1} ${word2}`;
-        }
-        // For patterns like "step-by-step", we'll handle them recursively
-        return `${word1} ${word2}`;
-      })
+      // Handle kebab-case (first-name -> first name)
+      .replace(/([a-zA-Z]+)-([a-zA-Z]+)/g, '$1 $2')
       // Handle file extensions (.pdf -> dot P D F)
       .replace(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|jpg|png|gif)\b/gi, (match, ext) => {
         return ` dot ${ext.toUpperCase().split('').join(' ')}`;
@@ -1980,123 +1980,21 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     const denWords = this.numberToOrdinal(denominator);
     return `${numWords} ${denWords}${numerator > 1 ? 's' : ''}`;
   }
-
-  /**
-   * Format South African currency for natural speech
-   * Examples:
-   * - R500 -> "five hundred rand"
-   * - R843.03 -> "eight hundred and forty three rand and three cents"
-   * - R1,250.50 -> "one thousand two hundred and fifty rand and fifty cents"
-   */
-  private formatSouthAfricanCurrency(whole: string, cents?: string): string {
-    const wholeAmount = parseInt(whole);
-    let result = '';
-    
-    // Format the rand amount
-    if (wholeAmount === 0) {
-      result = 'zero rand';
-    } else if (wholeAmount === 1) {
-      result = 'one rand';
-    } else {
-      result = this.numberToWords(wholeAmount) + ' rand';
-    }
-    
-    // Add cents if present and non-zero
-    if (cents && cents !== '00') {
-      const centsAmount = parseInt(cents);
-      if (centsAmount > 0) {
-        const centsWords = this.numberToWords(centsAmount);
-        result += ` and ${centsWords} cent${centsAmount === 1 ? '' : 's'}`;
-      }
-    }
-    
-    return result;
-  }
-  
-  /**
-   * Generate lesson directly for voice commands using enhanced PDF service
-   */
-  public async generateLessonDirectly(params: Record<string, any>): Promise<{ success: boolean; lessonId?: string; title?: string; features?: string[]; error?: string }> {
-    try {
-      logger.debug('[Dash] Generating lesson directly:', params);
-      
-      // Import EducationalPDFService dynamically
-      const { EducationalPDFService } = await import('../lib/services/EducationalPDFService');
-      const pdfService = EducationalPDFService;
-      
-      // Map Dash parameters to PDF service parameters
-      const lessonConfig = {
-        subject: params.subject || 'General Education',
-        grade: params.grade || params.ageGroup || 'Preschool',
-        duration: params.duration || '45 minutes',
-        objectives: params.objectives?.split(';').map((obj: string) => obj.trim()) || [
-          'Engage students in interactive learning',
-          'Develop critical thinking skills',
-          'Apply knowledge through practical activities'
-        ],
-        activities: params.activities?.split(';').map((act: string) => act.trim()) || undefined,
-        resources: params.resources?.split(';').map((res: string) => res.trim()) || undefined,
-        assessments: params.assessments?.split(';').map((assess: string) => assess.trim()) || undefined,
-        differentiation: params.differentiation || 'Multiple learning styles supported',
-        extensions: params.extensions?.split(';').map((ext: string) => ext.trim()) || undefined
-      };
-      
-      // Generate lesson plan using PDF service
-      await pdfService.generateLessonPDF(lessonConfig);
-      
-      // Since generateLessonPDF returns void, we'll create a synthetic lesson result
-      const lessonId = `lesson_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const lessonTitle = `${lessonConfig.subject} Lesson - ${lessonConfig.grade}`;
-      
-      // Store lesson data in memory for retrieval
-      await this.addMemoryItem({
-        type: 'context',
-        key: `generated_lesson_${lessonId}`,
-        value: {
-          id: lessonId,
-          title: lessonTitle,
-          subject: lessonConfig.subject,
-          grade: lessonConfig.grade,
-          duration: lessonConfig.duration,
-          objectives: lessonConfig.objectives,
-          createdBy: 'DashAI',
-          createdAt: new Date().toISOString()
-        },
-        confidence: 1.0,
-        expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
-      });
-      
-      return {
-        success: true,
-        lessonId,
-        title: lessonTitle,
-        features: [
-          'Learning objectives',
-          'Interactive activities',
-          'Assessment rubrics',
-          'Differentiation strategies',
-          'Resource recommendations'
-        ]
-      };
-      
-    } catch (error) {
-      logger.error('[Dash] Direct lesson generation failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Lesson generation failed'
-      };
-    }
-  }
   
   /**
    * Generate worksheet directly for voice commands
    */
   public async generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }> {
     try {
-      logger.debug('[Dash] Auto-generating worksheet with params:', params);
+      console.log('[Dash] Generating worksheet automatically:', params);
       
-      // Create worksheet generation service instance
-      const worksheetService = new WorksheetService();
+      // Note: WorksheetService would be implemented in the future
+      // For now, return a mock implementation
+      const worksheetService = {
+        generateMathWorksheet: async (params: any) => ({ title: 'Math Worksheet', content: 'Generated math worksheet' }),
+        generateReadingWorksheet: async (params: any) => ({ title: 'Reading Worksheet', content: 'Generated reading worksheet' }),
+        generateActivityWorksheet: async (params: any) => ({ title: 'Activity Worksheet', content: 'Generated activity worksheet' })
+      };
       
       // Generate worksheet based on type
       let worksheetData;
@@ -2137,62 +2035,39 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       };
       
     } catch (error) {
-      logger.error('[Dash] Failed to auto-generate worksheet:', error);
+      console.error('[Dash] Worksheet generation failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to generate worksheet'
+        error: error instanceof Error ? error.message : 'Worksheet generation failed'
       };
     }
   }
   
   /**
-   * Navigate to a specific screen programmatically with intelligent route mapping
+   * Navigate to a specific screen using DashNavigationHandler
    */
   public async navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }> {
     try {
-      logger.debug('[Dash] Navigating to screen:', route, params);
+      const navHandler = DashNavigationHandler.getInstance();
       
-      // Map common screen names to actual routes
-      const routeMap: Record<string, string> = {
-        'dashboard': '/',
-        'home': '/',
-        'students': '/screens/student-management',
-        // Map generic "lessons" to hub; AI generator is a separate intent
-        'lessons': '/screens/lessons-hub',
-        'ai-lesson': '/screens/ai-lesson-generator',
-        'worksheets': '/screens/worksheet-demo',
-        'assignments': '/screens/assign-homework',
-        // Map reports to teacher-reports screen
-        'reports': '/screens/teacher-reports',
-        'settings': '/screens/dash-ai-settings',
-        // Chat -> Dash Assistant
-        'chat': '/screens/dash-assistant',
-        // Fallbacks for common nouns to existing screens
-        'profile': '/screens/account',
-        // Not implemented screens are mapped to closest existing destinations
-        'calendar': '/screens/teacher-reports',
-        'gradebook': '/screens/teacher-reports',
-        // Parent messaging
-        'parents': '/screens/parent-messages',
-        'curriculum': '/screens/lessons-categories'
-      };
+      // Try navigation via voice command first (supports natural language)
+      const result = await navHandler.navigateByVoice(route);
       
-      // Resolve the actual route
-      const actualRoute = routeMap[route.toLowerCase().replace(/^\//, '')] || route;
-      
-      // Navigate to the specified route
-      if (params && Object.keys(params).length > 0) {
-        router.push({ pathname: actualRoute, params } as any);
-      } else {
-        router.push(actualRoute);
+      if (result.success) {
+        console.log(`[Dash] Successfully navigated to: ${result.screen}`);
+        return { success: true };
       }
       
-      // Log successful navigation
-      logger.debug(`[Dash] Successfully navigated to: ${actualRoute}`);
-      return { success: true };
+      // If voice command fails, try direct screen key
+      const directResult = await navHandler.navigateToScreen(route, params);
+      
+      return {
+        success: directResult.success,
+        error: directResult.error
+      };
       
     } catch (error) {
-      logger.error('[Dash] Navigation failed:', error);
+      console.error('[Dash] Navigation failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Navigation failed'
@@ -2210,16 +2085,25 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       if (body) params.prefillMessage = body;
       router.push({ pathname: '/screens/teacher-messages', params } as any);
     } catch (e) {
-      logger.warn('[Dash] Failed to open Teacher Messages:', e);
+      console.warn('[Dash] Failed to open Teacher Messages:', e);
     }
   }
 
   /**
    * Export provided text as a PDF via EducationalPDFService
    */
-  public async exportTextAsPDF(title: string, content: string): Promise<{ success: boolean; error?: string }> {
+  public async exportTextAsPDF(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; error?: string }> {
     try {
-      await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '');
+      // Check if content is HTML (contains HTML tags)
+      const isHTML = content.includes('<html') || content.includes('<!DOCTYPE');
+      
+      if (isHTML) {
+        // Use HTML PDF generation for rich content
+        await EducationalPDFService.generateHTMLPDF(title || 'Dash Export', content || '', opts);
+      } else {
+        // Use text PDF generation for plain text
+        await EducationalPDFService.generateTextPDF(title || 'Dash Export', content || '', opts);
+      }
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
@@ -2227,11 +2111,12 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
 
   /**
-   * Export text as a PDF and return a downloadable URI and filename
+   * Export text as PDF and return a downloadable URI (web: data URI; native: file URI)
+   * Useful for showing a "Download PDF" action in the chat UI.
    */
-  public async exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
+  public async exportTextAsPDFForDownload(title: string, content: string, opts?: { paperSize?: 'A4' | 'Letter'; orientation?: 'portrait' | 'landscape' }): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }> {
     try {
-      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '');
+      const { uri, filename } = await EducationalPDFService.generateTextPDFUri(title || 'Dash Export', content || '', opts);
       return { success: true, uri, filename };
     } catch (error: any) {
       return { success: false, error: error?.message || 'PDF export failed' };
@@ -2545,32 +2430,38 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     customParams?: any
   ): Promise<{ success: boolean; task?: DashTask; error?: string }> {
     try {
-      const taskAutomation = DashTaskAutomation.getInstance();
+      // const taskAutomation = DashTaskAutomation.getInstance();
       const userRole = this.userProfile?.role || 'teacher';
       
-      const result = await taskAutomation.createTask(templateId, customParams, userRole);
+      // TODO: Implement task automation system
+      const result = { success: false, task: undefined, error: 'Task automation not implemented yet' };
       
-      if (result.success && result.task) {
-        // Add task progress to memory for future reference
-        await this.addMemoryItem({
-          type: 'context',
-          key: `active_task_${result.task.id}`,
-          value: {
-            taskId: result.task.id,
-            title: result.task.title,
-            status: result.task.status,
-            createdAt: result.task.createdAt
-          },
-          confidence: 1.0,
-          expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
-        });
-        
-        logger.debug('[Dash] Created automated task:', result.task.title);
-      }
+      // TODO: Implement task automation system
+      console.log('[Dash] Task automation not yet implemented - requested template:', templateId);
+      
+      // if (result.success && result.task) {
+      //   // Add task progress to memory for future reference
+      //   await this.addMemoryItem({
+      //     type: 'context',
+      //     key: `active_task_${result.task.id}`,
+      //     value: {
+      //       taskId: result.task.id,
+      //       title: result.task.title,
+      //       status: result.task.status,
+      //       createdAt: result.task.createdAt
+      //     },
+      //     confidence: 1.0,
+      //     expires_at: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      //   });
+      //   
+      //   console.log('[Dash] Created automated task:', result.task.title);
+      // } else {
+      //   console.log('[Dash] Task creation failed:', result.error);
+      // }
       
       return result;
     } catch (error) {
-      logger.error('[Dash] Failed to create automated task:', error);
+      console.error('[Dash] Failed to create automated task:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Task creation failed'
@@ -2587,8 +2478,8 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     userInput?: any
   ): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }> {
     try {
-      const taskAutomation = DashTaskAutomation.getInstance();
-      const result = await taskAutomation.executeTaskStep(taskId, stepId, userInput);
+      // TODO: Implement task automation system
+      const result = { success: false, error: 'Task automation not implemented yet' };
       
       // Update memory with task progress
       if (result.success) {
@@ -2598,7 +2489,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
           value: {
             stepId,
             completedAt: Date.now(),
-            result: result.result
+            result: 'Task completed'
           },
           confidence: 1.0
         });
@@ -2606,7 +2497,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
       
       return result;
     } catch (error) {
-      logger.error('[Dash] Task step execution failed:', error);
+      console.error('[Dash] Task step execution failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Step execution failed'
@@ -2618,17 +2509,17 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    * Get user's active tasks for context
    */
   public getActiveTasks(): DashTask[] {
-    const taskAutomation = DashTaskAutomation.getInstance();
-    return taskAutomation.getActiveTasks();
+    // TODO: Implement task automation system
+    return [];
   }
   
   /**
    * Get available task templates for user's role
    */
   public getAvailableTaskTemplates() {
-    const taskAutomation = DashTaskAutomation.getInstance();
+    // TODO: Implement task automation system
     const userRole = this.userProfile?.role || 'teacher';
-    return taskAutomation.getTaskTemplates(userRole);
+    return [];
   }
   
   /**
@@ -2662,7 +2553,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     }
     
     // Memory-based suggestions (check recent activities)
-    const recentMemory = this.memoryManager.getAllMemoryItems()
+    const recentMemory = Array.from(this.memory.values())
       .filter(item => item.created_at > Date.now() - (24 * 60 * 60 * 1000)) // Last 24 hours
       .sort((a, b) => b.created_at - a.created_at)
       .slice(0, 5);
@@ -2700,7 +2591,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     const hour = currentTime.getHours();
     
     // Analyze user patterns from memory
-    const recentMemory = this.memoryManager.getAllMemoryItems()
+    const recentMemory = Array.from(this.memory.values())
       .filter(item => item.created_at > Date.now() - (7 * 24 * 60 * 60 * 1000))
       .sort((a, b) => b.created_at - a.created_at);
     
@@ -2973,11 +2864,11 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
         expires_at: params.triggerTime + (24 * 60 * 60 * 1000) // Expire 24 hours after trigger
       });
       
-      logger.debug('[Dash] Scheduled smart reminder:', reminder.title);
+      console.log('[Dash] Scheduled smart reminder:', reminder.title);
       return { success: true, reminderId: reminder.id };
       
     } catch (error) {
-      logger.error('[Dash] Failed to schedule reminder:', error);
+      console.error('[Dash] Failed to schedule reminder:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Reminder scheduling failed'
@@ -2986,18 +2877,14 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
-   * Legacy method for backward compatibility (delegated to messageHandler)
+   * Legacy method for backward compatibility
    */
   private cleanTextForSpeech(text: string): string {
-    return this.messageHandler.normalizeTextForSpeech(text);
+    return this.normalizeTextForSpeech(text);
   }
-  
-  // mapLanguageCode and speakWithAzureTTS now handled by messageHandler and voiceController
 
   /**
-   * Play Dash's response with voice synthesis (delegated to voiceController)
-   * Uses Azure TTS for SA languages (af, zu, xh, nso) via Edge Function
-   * Falls back to device TTS for other languages or if Azure fails
+   * Play Dash's response with voice synthesis
    */
   public async speakResponse(message: DashMessage, callbacks?: {
     onStart?: () => void;
@@ -3005,283 +2892,159 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     onStopped?: () => void;
     onError?: (error: any) => void;
   }): Promise<void> {
-    // Cast voice settings for compatibility
-    const voiceSettings = {
-      ...this.personality.voice_settings,
-      voice: (this.personality.voice_settings.voice === 'female' ? 'female' : 'male') as 'male' | 'female'
-    };
-    return this.voiceController.speakResponse(
-      message,
-      voiceSettings,
-      callbacks
-    );
+    if (message.type !== 'assistant') {
+      return;
+    }
+
+    try {
+      const voiceSettings = this.personality.voice_settings;
+      
+      // Intelligently normalize the text before speaking
+      const normalizedText = this.normalizeTextForSpeech(message.content);
+      
+      // Only speak if there's actual text content after normalization
+      if (normalizedText.length === 0) {
+        console.log('[Dash] No speakable content after normalization');
+        callbacks?.onError?.('No speakable content after normalization');
+        return;
+      }
+      
+      console.log('[Dash] About to start speaking:', normalizedText.substring(0, 100) + '...');
+      
+      return new Promise<void>((resolve, reject) => {
+        Speech.speak(normalizedText, {
+          language: voiceSettings.language,
+          pitch: voiceSettings.pitch,
+          rate: voiceSettings.rate,
+          voice: voiceSettings.voice,
+          onStart: () => {
+            console.log('[Dash] Started speaking');
+            callbacks?.onStart?.();
+          },
+          onDone: () => {
+            console.log('[Dash] Finished speaking');
+            callbacks?.onDone?.();
+            resolve();
+          },
+          onStopped: () => {
+            console.log('[Dash] Speech stopped');
+            callbacks?.onStopped?.();
+            resolve();
+          },
+          onError: (error: any) => {
+            console.error('[Dash] Speech error:', error);
+            callbacks?.onError?.(error);
+            reject(error);
+          },
+        });
+      });
+    } catch (error) {
+      console.error('[Dash] Failed to speak response:', error);
+      callbacks?.onError?.(error);
+      throw error;
+    }
   }
 
-  // detectLikelyAppLanguageFromText now handled by messageHandler
-
   /**
-   * Stop current speech (delegated to voiceController)
+   * Stop current speech
    */
   public async stopSpeaking(): Promise<void> {
-    return this.voiceController.stopSpeaking();
-  }
-
-  /**
-   * Generate AI response based on user input and context (AGENTIC VERSION)
-   * This method activates all agentic engines for intelligent, proactive responses
-   */
-  /**
-   * ✅ OPTIMIZATION: Check if query is simple (math, fact, greeting)
-   * DISABLED FOR VOICE MODE - Only catch EXACT single-word greetings
-   * All other queries go through full AI processing
-   */
-  private isSimpleQuery(input: string): boolean {
-    const inputLC = input.trim().toLowerCase();
-    
-    // ONLY match exact single-word greetings (nothing else!)
-    // This ensures real AI processing for all actual questions
-    if (/^(hi|hello|hey|hallo|sawubona)$/i.test(inputLC)) return true;
-    
-    // Everything else goes through full AI processing
-    return false;
-  }
-  
-  /**
-   * ✅ OPTIMIZATION: Generate simple responses without agentic processing
-   * For greetings, math, and basic facts - bypasses 3-5s processing pipeline
-   */
-  private async generateSimpleResponse(input: string, profile?: any): Promise<DashMessage> {
-    const inputLC = input.trim().toLowerCase();
-    const displayName = profile?.first_name || 'there';
-    let content = '';
-    
-    // Math calculations
-    const mathMatch = input.match(/(\d+)\s*([+\-*/×÷])\s*(\d+)/);
-    if (mathMatch) {
-      const num1 = parseFloat(mathMatch[1]);
-      const num2 = parseFloat(mathMatch[3]);
-      const op = mathMatch[2];
-      let result = 0;
-      
-      switch (op) {
-        case '+': result = num1 + num2; break;
-        case '-': result = num1 - num2; break;
-        case '*': case '×': result = num1 * num2; break;
-        case '/': case '÷': result = num2 !== 0 ? num1 / num2 : NaN; break;
-      }
-      
-      content = isNaN(result) ? 'Cannot divide by zero.' : `${num1} ${op} ${num2} = ${result}`;
-    }
-    // Greetings
-    else if (/^(hi|hello|hey)$/i.test(inputLC)) {
-      content = `Hello ${displayName}! How can I help you today?`;
-    }
-    else if (/^hallo$/i.test(inputLC)) {
-      content = `Hallo ${displayName}! Hoe kan ek jou vandag help?`;
-    }
-    else if (/^sawubona$/i.test(inputLC)) {
-      content = `Sawubona ${displayName}! Ngingakusiza kanjani namuhla?`;
-    }
-    // Status questions
-    else if (/^how are you/i.test(inputLC)) {
-      content = "I'm doing well, thank you! Ready to assist you.";
-    }
-    else if (/^what's up|^wassup/i.test(inputLC)) {
-      content = 'All good here! How can I help you?';
-    }
-    // Default simple response
-    else {
-      content = "I'm here to help! What would you like to know?";
-    }
-    
-    return {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'assistant',
-      content,
-      timestamp: Date.now(),
-      metadata: { confidence: 0.95 }
-    };
-  }
-  
-  /**
-   * Generate response with explicit language context from voice detection
-   */
-  private async generateResponseWithLanguage(userInput: string, conversationId: string, detectedLanguage?: string): Promise<DashMessage> {
-    return this.generateResponse(userInput, conversationId, undefined, detectedLanguage);
-  }
-
-  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
     try {
-      logger.info('[Dash Agent] Processing message with agentic engines...');
-      if (detectedLanguage) {
-        logger.debug(`[Dash Agent] ✅ Using detected language: ${detectedLanguage}`);
-      } else {
-        logger.debug('[Dash Agent] ⚠️  No detected language provided, will use fallback chain');
-      }
+      await Speech.stop();
+    } catch (error) {
+      console.error('[Dash] Failed to stop speaking:', error);
+    }
+  }
+
+  /**
+   * Generate AI response based on user input
+   */
+  private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[]): Promise<DashMessage> {
+    try {
+      // FIRST: Check if this is a request for educational PDF generation
+      const educationalPDFRequest = this.detectEducationalPDFRequest(userInput);
       
-      // Lightweight intent guard for common conversational openers
-      const inputLC = String(userInput || '').trim().toLowerCase();
-      if (inputLC.includes('can you hear me')) {
-        const hearMeProfile = await getCurrentProfile();
-        const displayName = (hearMeProfile as any)?.first_name || 'there';
-        const content = `Yes, I can hear you clearly, ${displayName}. How can I help you today?`;
+      if (educationalPDFRequest) {
+        console.log('[Dash] Educational PDF request detected:', educationalPDFRequest);
+        
+        // Generate educational content using AI
+        const educationalContent = await this.generateEducationalContent(educationalPDFRequest);
+        
+        // Format content as HTML for PDF
+        const htmlContent = this.formatEducationalHTML(educationalContent, educationalPDFRequest.topic);
+        
+        // Return response with PDF export action
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           type: 'assistant',
-          content,
+          content: `I've created a comprehensive guide about ${educationalPDFRequest.topic} for ${educationalPDFRequest.audience}! 📚\n\nThis guide includes:\n- Clear introduction and explanations\n- Key concepts and main ideas\n- Fun facts to engage learners\n- Hands-on activities\n- Important vocabulary\n- Discussion questions\n\nClick the button below to download your PDF guide!`,
           timestamp: Date.now(),
-          metadata: { confidence: 0.99 }
-        };
-      }
-      
-      // ✅ OPTIMIZATION: Check response cache for instant platform-aware replies (<100ms)
-      // Uses actual EduDash features, not generic responses
-      const profile = await this.getCachedProfile();
-      const userRole = (profile as any)?.role || 'parent';
-      const cachedResponse = this.responseCache.getCachedResponse(userInput, {
-        role: userRole,
-        language: detectedLanguage,
-      });
-      
-      if (cachedResponse) {
-        logger.debug('[Dash] ⚡ INSTANT RESPONSE from cache (<100ms)');
-        return {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'assistant',
-          content: cachedResponse,
-          timestamp: Date.now(),
-          metadata: { 
+          metadata: {
             confidence: 0.95,
+            suggested_actions: ['download_pdf', 'create_another'],
+            dashboard_action: {
+              type: 'export_pdf',
+              title: `Understanding ${educationalPDFRequest.topic}`,
+              content: htmlContent
+            }
           }
         };
       }
       
-      // ✅ OPTIMIZATION: Fast path for simple queries (math, greetings, facts)
-      // Bypasses 3-5s agentic processing for <500ms responses
-      if (this.isSimpleQuery(userInput)) {
-        logger.debug('[Dash Agent] 🚀 Fast path activated for simple query');
-        return this.generateSimpleResponse(userInput, profile);
-      }
-      
-      // Get conversation history and user context
+      // Get conversation history for context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      // Profile already loaded above for cache check - reuse it
       
-      // Build full context for agentic analysis
-      const fullContext = {
+      // Get user context
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
+      
+      // Build context for AI
+      const context = {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
-        memory: this.memoryManager.getAllMemoryItems(),
+        memory: Array.from(this.memory.values()),
         personality: this.personality,
         timestamp: new Date().toISOString(),
-        currentContext: await this.getCurrentContext(),
+        attachments  // Add attachments to context
       };
 
-      // PHASE 1: CONTEXT ANALYSIS - Understand user intent and context
-      logger.debug('[Dash Agent] Phase 1: Analyzing context...');
-      const { DashContextAnalyzer } = await import('./DashContextAnalyzer');
-      const analyzer = DashContextAnalyzer.getInstance();
-      const convHistory = recentMessages.map(m => ({ role: m.type === 'user' ? 'user' : 'assistant', content: m.content }));
-      const analysis = await analyzer.analyzeUserInput(userInput, convHistory, fullContext.currentContext);
-      logger.debug('[Dash Agent] Context analysis complete. Intent:', analysis.intent?.primary_intent);
+      // Call your AI service (integrate with existing AI lesson generator or create new endpoint)
+      const response = await this.callAIServiceLegacy(context);
       
-      // PHASE 2: PROACTIVE OPPORTUNITIES - Identify automation & assistance opportunities
-      logger.debug('[Dash Agent] Phase 2: Identifying proactive opportunities...');
-      const proactiveEngineModule = await import('./DashProactiveEngine');
-      const proactiveEngine = proactiveEngineModule.default; // Use default export (already an instance)
-      // Use userRole from above cache check
-      const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
-        autonomyLevel: this.autonomyLevel,
-        currentScreen: fullContext.currentContext?.screen_name,
-        recentActivity: fullContext.currentContext?.recent_actions,
-        timeContext: {
-          hour: new Date().getHours(),
-          dayOfWeek: new Date().getDay()
+      // Update memory based on interaction
+      await this.updateMemory(userInput, response);
+      
+      // Create assistant message
+      const assistantMessage: DashMessage = {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: response.content,
+        timestamp: Date.now(),
+        metadata: {
+          confidence: response.confidence || 0.9,
+          suggested_actions: response.suggested_actions || [],
+          references: response.references || [],
+          dashboard_action: response.dashboard_action
         }
-      });
-      logger.debug('[Dash Agent] Found', opportunities.length, 'proactive opportunities');
-      
-      // PHASE 3: GENERATE ENHANCED RESPONSE - Use all context for intelligent response
-      logger.debug('[Dash Agent] Phase 3: Generating enhanced response...');
-      const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments, detectedLanguage);
-      
-      // ✅ OPTIMIZATION: PHASE 4 & 5 - Run proactive operations in background (non-blocking)
-      // Don't await - let them complete asynchronously to return response faster
-      Promise.all([
-        // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
-        opportunities.length > 0 
-          ? this.handleProactiveOpportunities(opportunities, assistantMessage)
-              .then(() => logger.debug('[Dash Agent] ✅ Phase 4 complete (background)'))
-              .catch(err => logger.warn('[Dash Agent] Phase 4 failed (non-critical):', err))
-          : Promise.resolve(),
-        
-        // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
-        analysis.intent && analysis.intent.primary_intent
-          ? this.handleActionIntent(analysis.intent, assistantMessage)
-              .then(() => logger.debug('[Dash Agent] ✅ Phase 5 complete (background)'))
-              .catch(err => logger.warn('[Dash Agent] Phase 5 failed (non-critical):', err))
-          : Promise.resolve(),
-        
-        // Update enhanced memory with analysis context
-        this.updateEnhancedMemory(userInput, assistantMessage, analysis)
-          .then(() => logger.debug('[Dash Agent] ✅ Memory updated (background)'))
-          .catch(err => logger.warn('[Dash Agent] Memory update failed (non-critical):', err))
-      ]);
-      
-      logger.debug('[Dash Agent] 💨 Background operations queued (phases 4-5 + memory)');
-      // Note: we're not awaiting the Promise.all above, so these run in the background
-      
-      // Post-process to avoid file attachment claims
+      };
+
+      // Post-process assistant message to avoid implying non-existent attachments (e.g., PDFs)
       assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
-      
-      // Reset error counter on successful response
-      this.consecutiveErrors = 0;
-      
-      logger.debug('[Dash Agent] Response generation complete!');
       return assistantMessage;
-      
     } catch (error) {
-      logger.error('[Dash Agent] Critical error in response generation:', error);
+      console.error('[Dash] Failed to generate response:', error);
       
-      // Track consecutive errors to prevent loops
-      const now = Date.now();
-      if (now - this.lastErrorTimestamp < this.ERROR_COOLDOWN_MS) {
-        this.consecutiveErrors++;
-      } else {
-        this.consecutiveErrors = 1;
-      }
-      this.lastErrorTimestamp = now;
-      
-      // If too many consecutive errors, return silent error
-      if (this.consecutiveErrors >= this.MAX_CONSECUTIVE_ERRORS) {
-        logger.error('[Dash Agent] 🚨 Too many consecutive errors - entering cooldown');
-        return {
-          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          type: 'assistant',
-          content: "I'm having trouble right now. Please close and reopen the assistant.",
-          timestamp: Date.now(),
-          metadata: {
-            confidence: 0.1,
-            suggested_actions: ['close_assistant'],
-            error: 'Too many consecutive errors',
-            doNotSpeak: true // Flag to prevent TTS loop
-          }
-        };
-      }
-      
-      // Return graceful error message without legacy fallback
+      // Fallback response
       return {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
-        content: "I'm experiencing a temporary issue. Please try again in a moment.",
+        content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
         timestamp: Date.now(),
         metadata: {
           confidence: 0.1,
-          suggested_actions: ['try_again'],
-          error: error instanceof Error ? error.message : 'Unknown error',
-          doNotSpeak: this.consecutiveErrors > 1 // Don't speak if multiple errors
+          suggested_actions: ['try_again', 'contact_support']
         }
       };
     }
@@ -3306,123 +3069,6 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
-   * Call AI service WITH tool support for agentic capabilities
-   */
-  private async callAIServiceWithTools(params: {
-    messages: any[];
-    tools?: any[];
-    system?: string;
-    temperature?: number;
-    maxTokens?: number;
-  }): Promise<{
-    content: string;
-    tool_calls?: Array<{
-      id: string;
-      name: string;
-      input: any;
-    }>;
-    stop_reason?: string;
-    usage?: any;
-  }> {
-    try {
-      const supabase = assertSupabase();
-      
-      const body: any = {
-        action: 'chat',
-        messages: params.messages,
-        system: params.system,
-        temperature: params.temperature || 0.7,
-        maxTokens: params.maxTokens || 4000,
-        model: 'claude-3-5-sonnet-20241022'
-      };
-      
-      // Add tools if provided
-      if (params.tools && params.tools.length > 0) {
-        body.tools = params.tools;
-        body.tool_choice = { type: 'auto' };
-        logger.debug(`[Dash Agent] 🛠️  ${params.tools.length} tools available to AI`);
-      }
-      
-      const { data, error } = await supabase.functions.invoke('ai-gateway', { body });
-      
-      if (error) {
-        logger.error('[Dash Agent] AI Gateway error:', error);
-        throw error;
-      }
-      
-      // Extract text content from raw_content blocks
-      let textContent = '';
-      if (data.raw_content && Array.isArray(data.raw_content)) {
-        textContent = data.raw_content
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('\n');
-      } else {
-        textContent = data.content || '';
-      }
-      
-      return {
-        content: textContent,
-        tool_calls: data.tool_calls,
-        stop_reason: data.stop_reason,
-        usage: data.usage
-      };
-    } catch (error) {
-      logger.error('[Dash Agent] callAIServiceWithTools failed:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Execute tools and continue conversation
-   */
-  private async executeTools(
-    toolCalls: Array<{ id: string; name: string; input: any }>,
-    conversationId: string
-  ): Promise<Array<{ tool_use_id: string; type: string; content: string; is_error?: boolean }>> {
-    const { ToolRegistry } = await import('./modules/DashToolRegistry');
-    const results = [];
-    
-    for (const toolCall of toolCalls) {
-      logger.info(`[Dash Agent] 🔧 Executing tool: ${toolCall.name}`);
-      
-      try {
-        const result = await ToolRegistry.execute(
-          toolCall.name,
-          toolCall.input,
-          {
-            conversationId,
-            userProfile: this.userProfile,
-            getCurrentContext: () => this.getCurrentContext()
-          }
-        );
-        
-        results.push({
-          tool_use_id: toolCall.id,
-          type: 'tool_result',
-          content: JSON.stringify(result),
-          is_error: !result.success
-        });
-        
-        logger.info(`[Dash Agent] ${result.success ? '✅' : '❌'} Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`);
-      } catch (error) {
-        logger.error(`[Dash Agent] Tool ${toolCall.name} error:`, error);
-        results.push({
-          tool_use_id: toolCall.id,
-          type: 'tool_result',
-          content: JSON.stringify({
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          }),
-          is_error: true
-        });
-      }
-    }
-    
-    return results;
-  }
-
-  /**
    * Call AI service to generate response (legacy - used by generateResponse)
    */
   private async callAIServiceLegacy(context: any): Promise<{
@@ -3437,75 +3083,56 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     dashboard_action?:
       | { type: 'switch_layout'; layout: 'classic' | 'enhanced' }
       | { type: 'open_screen'; route: string; params?: Record<string, string> }
-      | { type: 'execute_task'; task: DashTask };
+      | { type: 'execute_task'; task: DashTask }
+      | { type: 'create_reminder'; reminder: DashReminder }
+      | { type: 'send_notification'; title: string; message: string }
+      | { type: 'export_pdf'; title: string; content: string };
   }> {
     try {
       // Use the enhanced AI service instead of hardcoded responses
       const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
       const capabilities = roleSpec?.capabilities || [];
       
-      let systemPrompt = `You are Dash, an AI assistant for EduDash Pro.
+      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
 
-🚨 CRITICAL: NO NARRATION ALLOWED 🚨
-You are a TEXT-BASED assistant. You CANNOT and MUST NOT:
-- Use asterisks or stage directions: NO "*clears throat*", "*speaks*", "*opens*", "*points*"
-- Use action verbs in first person: NO "Let me open", "I'll check", "I'm looking"
-- Roleplay or act out scenarios
-- Describe your tone or demeanor
-- Use emojis in narration
+CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
 
-MULTILINGUAL CONVERSATION RULES:
-🌍 RESPOND IN THE USER'S LANGUAGE NATURALLY
-- If user speaks Afrikaans → respond in Afrikaans naturally
-- If user speaks Zulu → respond in Zulu naturally
-- If user speaks English → respond in English naturally
-- DO NOT explain what the user said or translate their words
-- DO NOT teach language unless explicitly asked
-- Just have a normal conversation in their language
+RESPONSE GUIDELINES:
+- Be concise, practical, and directly helpful
+- Provide specific, actionable advice
+- Reference educational best practices when relevant  
+- Use a warm but professional tone
+- Keep responses focused and avoid unnecessary elaboration
+- When suggesting actions, be specific about next steps
 
-EXAMPLES:
-❌ BAD: "'Hallo' is the Afrikaans word for 'Hello'. It's a friendly way to greet..."
-✅ GOOD: "Hallo! Hoe kan ek jou vandag help?" (if they spoke Afrikaans)
+EDUCATIONAL CONTENT GENERATION:
+- When users request tests, worksheets, practice materials, or exercises, GENERATE the actual content directly
+- Include clear questions, answer options, instructions, and structure appropriate for preschool/early childhood education
+- For math: use age-appropriate counting, shapes, basic addition/subtraction problems
+- For science: use simple observation questions, categorization, nature/weather/animal topics
+- For literacy: use letter recognition, phonics, simple words, story comprehension
+- IMPORTANT: Format content with numbered questions (1., 2., 3., etc.) so it can be easily exported
+- After generating content, ALWAYS end with: "I've prepared this content for you. You'll see a prompt to download it as a PDF."
+- Use markdown formatting for structure (**, ##) but keep content clear and printable
 
-❌ BAD: "You asked 'How are you' in Zulu. That's very nice! Let me explain..."
-✅ GOOD: "Ngiyaphila, ngiyabonga! Wena unjani?" (if they spoke Zulu)
-
-RESPONSE FORMAT:
-- Answer in 1-3 sentences for simple questions
-- Match the user's language naturally - don't explain it
-- State facts only - if you don't know, say "I don't have that information"
-- Skip greetings after the first message
-- Don't repeat the user's name excessively
-
-EXAMPLES OF GOOD RESPONSES:
-❌ BAD: "*clears throat* Okay, Precious, let's take a look at the gestures..."
-✅ GOOD: "The gesture feature requires a long press on the mic button, then slide up to lock or left to cancel."
-
-❌ BAD: "First, let's address the gestures not working properly. To fix this, the development team will need to..."
-✅ GOOD: "Long press the mic button for 500ms to activate gesture mode. Slide up 80px to lock, or left 100px to cancel."
-
-❌ BAD: "Good evening! Hello Principal Precious! *smiles warmly* I'm here to help..."
-✅ GOOD: "The chat bubbles should have rounded corners. If they appear sharp, the app might need to be restarted."
-
-TECHNICAL FACTS - Voice & TTS:
-- Voice packs are managed by device OS (Android/iOS), NOT by this app
-- Android: Update "Google Text-to-Speech Engine" from Play Store
-- iOS: Settings > Accessibility > Spoken Content > Voices
-- South African languages (Zulu, Xhosa, Afrikaans) have limited TTS support
-- App cannot download or install voice packs
-
-RESPONSE STYLE:
-- Natural, conversational tone (like talking to a colleague)
-- Skip greetings after the first message
-- Answer the question directly without preamble
-- Use simple language, avoid jargon unless necessary
-- BE CONVERSATIONAL, NOT EDUCATIONAL (unless teaching is requested)`;
+SPECIAL DASHBOARD ACTIONS:
+- If user asks about dashboard layouts, include dashboard_action in response
+- For lesson planning requests, suggest opening the lesson generator
+- For assessment tasks, recommend relevant tools
+- When generating educational content (tests, worksheets, exercises), mention PDF export availability`;
 
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
 
-CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
+ROLE-SPECIFIC CONTEXT:
+- You are helping a ${this.userProfile.role}
+- Communication tone: ${roleSpec.tone}  
+- Your specialized capabilities: ${capabilities.join(', ')}`;
       }
+
+      systemPrompt += `
+
+RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant actions the user can take.`;
 
       // Call AI service using general_assistance action with messages array
       const messages = [];
@@ -3522,14 +3149,23 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         }
       }
       
-      // Add current user input
-      messages.push({ role: 'user', content: context.userInput });
+      // Add current user input with attachments if present
+      const contextAttachments = context.attachments;
+      if (contextAttachments && contextAttachments.length > 0) {
+        // Process attachments for AI
+        const attachmentContext = await this.processAttachmentsForAI(contextAttachments);
+        const userMessageWithAttachments = `${context.userInput}\n\n${attachmentContext}`;
+        messages.push({ role: 'user', content: userMessageWithAttachments });
+      } else {
+        messages.push({ role: 'user', content: context.userInput });
+      }
       
       const aiResponse = await this.callAIService({
         action: 'general_assistance',
         messages: messages,
         context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
-        gradeLevel: 'General'
+        gradeLevel: 'General',
+        attachments: contextAttachments  // Pass attachments to AI service
       });
 
       // Parse AI response and add contextual actions and dashboard behaviors
@@ -3550,12 +3186,12 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         }
       }
 
-      // Add lesson planning actions - enhanced with direct generation
+      // Add lesson planning actions
       if (userInput.includes('lesson') || userInput.includes('plan') || userInput.includes('curriculum')) {
         const params: Record<string, string> = this.extractLessonParameters(userInput, aiResponse?.content || '');
         
         // Add tier-appropriate model selection
-        const userTier = await this.getUserTier();
+        const userTier = this.getUserTier();
         switch (userTier) {
           case 'starter':
           case 'premium':
@@ -3568,34 +3204,6 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
             break;
         }
         
-        // Check if this is a direct generation request
-        if (userInput.includes('generate') || userInput.includes('create') || params.autogenerate === 'true') {
-          // Direct lesson generation via enhanced PDF service
-          try {
-            const lessonResult = await this.generateLessonDirectly(params);
-            if (lessonResult.success) {
-              dashboard_action = { type: 'open_screen' as const, route: '/screens/lesson-viewer', params: { lessonId: lessonResult.lessonId || '', ...params } };
-              suggested_actions.push('download_lesson_pdf', 'edit_lesson', 'share_lesson', 'create_worksheet');
-              
-              // Update the AI response to reflect successful generation
-              return {
-                content: `I've generated your lesson plan! ${lessonResult.title} is ready for ${params.grade || 'your students'}. The lesson includes ${lessonResult.features?.join(', ') || 'comprehensive activities and assessments'}.`,
-                confidence: 0.95,
-                suggested_actions,
-                references: [{
-                  type: 'lesson' as const,
-                  id: lessonResult.lessonId || 'unknown-lesson',
-                  title: lessonResult.title || 'Generated Lesson'
-                }],
-                dashboard_action
-              };
-            }
-          } catch (error) {
-            logger.warn('[Dash] Direct lesson generation failed, falling back to generator screen:', error);
-          }
-        }
-        
-        // Fallback to lesson generator screen
         dashboard_action = { type: 'open_screen' as const, route: '/screens/ai-lesson-generator', params };
         suggested_actions.push('create_lesson', 'view_lesson_templates', 'curriculum_alignment');
       }
@@ -3633,80 +3241,93 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       if (/\b(finance|financial|fees|payments|outstanding|revenue|insight)\b/i.test(userInput)) {
         try {
           const prof = await getCurrentProfile();
-          const organizationId = (prof as any)?.organization_id || (prof as any)?.preschool_id;
-          if (organizationId) {
-            const insights = await AIInsightsService.generateInsightsForSchool(organizationId);
+          const schoolId = (prof as any)?.preschool_id || (prof as any)?.organization_id;
+          if (schoolId) {
+            const insights = await AIInsightsService.generateInsightsForSchool(schoolId);
             if (insights && insights.length) {
               const bullets = insights.slice(0, 5).map(i => `• [${i.priority}] ${i.title} — ${i.description}`).join('\n');
               aiResponse.content = `${aiResponse.content || ''}\n\nFinancial insights:\n${bullets}`.trim();
             }
           }
         } catch (e) {
-          logger.warn('[Dash] Financial insights generation failed', e);
+          console.warn('[Dash] Financial insights generation failed', e);
         }
         dashboard_action = { type: 'open_screen' as const, route: '/screens/financial-dashboard' };
         suggested_actions.push('view_financial_dashboard');
       }
       
-      // PDF export intent
-      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput)) {
-        dashboard_action = { type: 'export_pdf' as any, title: 'Dash Export', content: aiResponse?.content || context.userInput } as any;
+      // PDF export intent - trigger on explicit request OR when educational content is generated
+      const responseContent = aiResponse?.content || '';
+      const hasEducationalKeywords = /\b(test|worksheet|practice|exercise|quiz|assessment|activity)\b/i.test(userInput);
+      const hasNumberedItems = /\d+\.|question\s*\d+|problem\s*\d+/i.test(responseContent);
+      const hasMinimalContent = responseContent.length > 100; // Lowered threshold
+      const hasGeneratedContent = hasEducationalKeywords && hasNumberedItems && hasMinimalContent;
+      
+      // Debug logging
+      console.log('[Dash] PDF Export Check:', {
+        userInput: userInput.substring(0, 50),
+        responseLength: responseContent.length,
+        hasEducationalKeywords,
+        hasNumberedItems,
+        hasMinimalContent,
+        hasGeneratedContent
+      });
+      
+      if (/\b(pdf|export\s+pdf|download\s+pdf|create\s+pdf)\b/i.test(userInput) || hasGeneratedContent) {
+        const title = this.extractContentTitle(userInput, responseContent) || 'Dash Export';
+        dashboard_action = { type: 'export_pdf' as const, title, content: responseContent || context.userInput };
         suggested_actions.push('export_pdf');
+        console.log('[Dash] PDF Export action set:', { title, contentLength: responseContent.length });
       }
       
-      // Add worksheet generation actions with improved voice command handling
+      // Add worksheet generation actions with voice command handling
       if (userInput.includes('worksheet') || userInput.includes('activity') || userInput.includes('practice') || userInput.includes('exercise')) {
         const worksheetParams = this.extractWorksheetParameters(userInput, aiResponse?.content || '');
         
         // Check if this is a direct generation command (voice)
         if (userInput.includes('generate') || userInput.includes('create') || userInput.includes('make') || worksheetParams.autoGenerate === 'true') {
-          // For voice commands, generate directly and show results
-          try {
-            const worksheetResult = await this.generateWorksheetAutomatically(worksheetParams);
-            if (worksheetResult.success && worksheetResult.worksheetData) {
-              const worksheetId = `worksheet_${Date.now()}`;
-              
-              // Store worksheet data for retrieval
-              await this.addMemoryItem({
-                type: 'context',
-                key: `generated_worksheet_${worksheetId}`,
-                value: worksheetResult.worksheetData,
-                confidence: 1.0,
-                expires_at: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
-              });
-              
-              dashboard_action = { 
-                type: 'open_screen' as const, 
-                route: '/screens/worksheet-viewer', 
-                params: { worksheetId, ...worksheetParams }
-              };
-              
-              suggested_actions.push('download_pdf', 'print_worksheet', 'create_more', 'customize_worksheet');
-              
-              // Update AI response to reflect successful generation
-              const worksheetType = worksheetResult.worksheetData.type || 'learning';
-              const problemCount = worksheetResult.worksheetData.problems?.length || worksheetResult.worksheetData.activities?.length || 'several';
-              
-              return {
-                content: `Perfect! I've created your ${worksheetType} worksheet with ${problemCount} ${worksheetType === 'math' ? 'problems' : 'activities'} for ${worksheetParams.ageGroup || 'your students'}. The worksheet is ${worksheetParams.difficulty || 'appropriately'} leveled and ready to use.`,
-                confidence: 0.95,
-                suggested_actions,
-                references: [{
-                  type: 'resource' as const,
-                  id: worksheetId,
-                  title: worksheetResult.worksheetData.title || 'Generated Worksheet'
-                }],
-                dashboard_action
-              };
+          // For voice commands, try to generate directly
+          dashboard_action = { 
+            type: 'execute_task' as const, 
+            task: {
+              id: `worksheet_${Date.now()}`,
+              title: 'Generate Worksheet',
+              description: 'Creating educational worksheet based on voice command',
+              type: 'one_time' as const,
+              status: 'pending' as const,
+              priority: 'medium' as const,
+              assignedTo: 'dash',
+              createdBy: 'dash',
+              createdAt: Date.now(),
+              steps: [{
+                id: 'generate',
+                title: 'Generate worksheet content',
+                description: 'Create worksheet based on parameters',
+                type: 'automated' as const,
+                status: 'pending' as const,
+                actions: [{
+                  id: 'worksheet_gen',
+                  type: 'api_call' as const,
+                  parameters: worksheetParams
+                }]
+              }],
+              context: {
+                conversationId: this.currentConversationId || '',
+                userRole: this.userProfile?.role || 'teacher',
+                relatedEntities: []
+              },
+              progress: {
+                currentStep: 0,
+                completedSteps: []
+              }
             }
-          } catch (error) {
-            logger.warn('[Dash] Direct worksheet generation failed, falling back to demo screen:', error);
-          }
+          };
+          suggested_actions.push('view_worksheet', 'download_pdf', 'customize_more');
+        } else {
+          // For regular commands, open the worksheet demo screen
+          dashboard_action = { type: 'open_screen' as const, route: '/screens/worksheet-demo', params: worksheetParams };
+          suggested_actions.push('generate_worksheet', 'customize_worksheet', 'download_pdf');
         }
-        
-        // Fallback to worksheet demo screen with better parameter passing
-        dashboard_action = { type: 'open_screen' as const, route: '/screens/worksheet-demo', params: worksheetParams };
-        suggested_actions.push('generate_worksheet', 'customize_worksheet', 'download_pdf');
       }
 
       // Add contextual suggested actions based on user input
@@ -3734,7 +3355,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       };
       
     } catch (error) {
-      logger.error('[Dash] Legacy AI service call failed:', error);
+      console.error('[Dash] Legacy AI service call failed:', error);
       return {
         content: "I'm here to support your educational journey! Whether you need help with lesson planning, student assessment, parent communication, or dashboard navigation, I'm ready to assist. What would you like to work on together?",
         confidence: 0.7,
@@ -3748,21 +3369,12 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
    * Transcribe audio by uploading to Supabase Storage and invoking Edge Function.
    * - Web: uses blob: URI fetch
    * - Native: uses file:// fetch
-   * - Includes automatic retry on failure
-   * - Tracks feature health for diagnostics
    */
-  private async transcribeAudio(
-    audioUri: string,
-    onProgress?: (phase: 'validating' | 'uploading' | 'transcribing' | 'complete', progress: number) => void,
-    retryCount: number = 0
-  ): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string; error?: string }> {
+  private async transcribeAudio(audioUri: string): Promise<{ transcript: string; storagePath?: string; language?: string; provider?: string; contentType?: string }> {
     let storagePath: string | undefined;
     let contentType: string | undefined;
-    let errorDetails: string | undefined;
-    
     try {
-      logger.debug('[Dash] Transcribing audio:', audioUri);
-      onProgress?.('validating', 0);
+      console.log('[Dash] Transcribing audio:', audioUri);
 
       // Language hint derived from personality voice settings
       const voiceLang = this.personality?.voice_settings?.language || 'en-ZA';
@@ -3771,278 +3383,378 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         return map[voiceLang] || voiceLang.slice(0, 2).toLowerCase();
       })();
 
-      // Validate audio file exists and has content
-      onProgress?.('validating', 10);
-      if (!audioUri || audioUri.trim().length === 0) {
-        errorDetails = 'No audio file provided';
-        throw new Error('No audio file provided');
-      }
-
-      // Determine user ID if available (never use anonymous, it breaks RLS)
-      let userId: string | null = null;
+      // Determine user ID if available
+      let userId = 'anonymous';
+      let userEmail = 'unknown';
       try {
-        const supa = assertSupabase();
-        const [{ data: userData }, sessionRes] = await Promise.all([
-          supa.auth.getUser(),
-          supa.auth.getSession(),
-        ]);
-        userId = userData?.user?.id || sessionRes?.data?.session?.user?.id || null;
-      } catch { /* Intentional: non-fatal */ }
-      if (!userId) {
-        try {
-          const sess = await getCurrentSession();
-          userId = (sess as any)?.user?.id || null;
-        } catch { /* Intentional: non-fatal */ }
+        const { data: auth } = await assertSupabase().auth.getUser();
+        userId = auth?.user?.id || 'anonymous';
+        userEmail = auth?.user?.email || 'unknown';
+        console.log('[Dash] Uploading as user:', userId, userEmail);
+      } catch (authError) {
+        console.error('[Dash] Auth error for upload:', authError);
       }
-      if (!userId) {
-        errorDetails = 'Authentication required';
-        throw new Error('You must be signed in to send voice messages.');
-      }
-      
-      onProgress?.('validating', 20);
 
-      // Prepare upload body for web vs native
-      let uploadBody: any;
-      let ext: string;
-      let uriLower = (audioUri || '').toLowerCase();
-
-      onProgress?.('uploading', 30);
+      // Load audio file content using FileSystem for React Native or fetch for web
+      let blob: Blob;
       
       if (Platform.OS === 'web') {
-        // Web: fetch blob from blob:/http(s): URI
+        // Web: use fetch for blob: URLs
         const res = await fetch(audioUri);
         if (!res.ok) {
-          errorDetails = `Failed to load audio file: HTTP ${res.status}`;
           throw new Error(`Failed to load recorded audio: ${res.status}`);
         }
-        const blob = await res.blob();
-        
-        // Validate file size (max 25MB)
-        if (blob.size > 25 * 1024 * 1024) {
-          errorDetails = 'Audio file too large (max 25MB)';
-          throw new Error('Audio file is too large. Maximum size is 25MB.');
-        }
-        if (blob.size < 100) {
-          errorDetails = 'Audio file too small or empty';
-          throw new Error('Audio file appears to be empty.');
-        }
-        
-        contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
-          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
-          : uriLower.endsWith('.wav') ? 'audio/wav'
-          : uriLower.endsWith('.ogg') ? 'audio/ogg'
-          : uriLower.endsWith('.webm') ? 'audio/webm'
-          : 'application/octet-stream');
-        try {
-          // Prefer File when available for better filename propagation
-          // @ts-ignore
-          uploadBody = typeof File !== 'undefined' ? new File([blob], 'recording', { type: contentType }) : blob;
-        } catch {
-          uploadBody = blob;
-        }
+        blob = await res.blob();
       } else {
-        // Native (Android/iOS): read file as base64 and convert to Uint8Array (fetch(file://) is unreliable)
-        // Use robust conversion that doesn't rely on atob/Buffer
-        const base64Data = await FileSystem.readAsStringAsync(audioUri, { encoding: FileSystem.EncodingType.Base64 });
-        
-        // Validate file size
-        const estimatedSize = (base64Data.length * 3) / 4; // Rough byte size from base64
-        if (estimatedSize > 25 * 1024 * 1024) {
-          errorDetails = 'Audio file too large (max 25MB)';
-          throw new Error('Audio file is too large. Maximum size is 25MB.');
+        // React Native: validate file exists and get size info
+        try {
+          const fileInfo = await FileSystem.getInfoAsync(audioUri);
+          if (!fileInfo.exists) {
+            throw new Error('Audio file does not exist');
+          }
+          
+          console.log('[Dash] Audio file info:', fileInfo.size, 'bytes');
+          
+          // For React Native, we'll use the file URI directly with Supabase upload
+          // Create a fake blob object for the upload logic
+          blob = {
+            size: fileInfo.size || 0,
+            type: contentType || 'audio/mp4'
+          } as any;
+          
+        } catch (fsError) {
+          console.error('[Dash] FileSystem validation failed:', fsError);
+          throw new Error(`Failed to validate audio file: ${fsError}`);
         }
-        if (estimatedSize < 100) {
-          errorDetails = 'Audio file too small or empty';
-          throw new Error('Audio file appears to be empty.');
-        }
-        
-        const uint8Array = base64ToUint8Array(base64Data);
-        uploadBody = uint8Array;
-        contentType = uriLower.endsWith('.m4a') ? 'audio/mp4'
-          : uriLower.endsWith('.mp3') ? 'audio/mpeg'
-          : uriLower.endsWith('.wav') ? 'audio/wav'
-          : uriLower.endsWith('.ogg') ? 'audio/ogg'
-          : 'application/octet-stream';
       }
       
-      onProgress?.('uploading', 40);
+      // Validate blob content
+      if (!blob || blob.size === 0) {
+        throw new Error('Audio file is empty or invalid');
+      }
+      
+      // Check minimum file size (should be at least a few KB for valid audio)
+      if (blob.size < 1024) {
+        console.warn('[Dash] Audio file very small:', blob.size, 'bytes');
+        throw new Error(`Audio file too small: ${blob.size} bytes`);
+      }
+      
+      console.log('[Dash] Audio file loaded successfully:', blob.size, 'bytes');
 
-      // Infer extension and filename
-      ext = contentType?.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
-        : contentType?.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
-        : contentType?.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
-        : contentType?.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
-        : contentType?.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
+      // Infer content type and extension
+      const uriLower = (audioUri || '').toLowerCase();
+      contentType = blob.type || (uriLower.endsWith('.m4a') ? 'audio/mp4'
+        : uriLower.endsWith('.mp3') ? 'audio/mpeg'
+        : uriLower.endsWith('.wav') ? 'audio/wav'
+        : uriLower.endsWith('.ogg') ? 'audio/ogg'
+        : uriLower.endsWith('.webm') ? 'audio/webm'
+        : 'application/octet-stream');
+      const ext = contentType.includes('mp4') || uriLower.endsWith('.m4a') ? 'm4a'
+        : contentType.includes('mpeg') || uriLower.endsWith('.mp3') ? 'mp3'
+        : contentType.includes('wav') || uriLower.endsWith('.wav') ? 'wav'
+        : contentType.includes('ogg') || uriLower.endsWith('.ogg') ? 'ogg'
+        : contentType.includes('webm') || uriLower.endsWith('.webm') ? 'webm'
         : 'bin';
       const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-      // Use a simple flat path structure (Supabase Storage may have nesting limits)
-      storagePath = `${userId}/${fileName}`;
+      // Choose a platform-specific prefix for easier tracing
+      const prefix = Platform.OS === 'web' ? 'web' : Platform.OS;
+      storagePath = `${prefix}/${userId}/${fileName}`;
 
       // Upload to Supabase Storage (voice-notes bucket)
-      onProgress?.('uploading', 50);
-      const { error: uploadError } = await assertSupabase()
-        .storage
-        .from('voice-notes')
-        .upload(storagePath, uploadBody, { contentType, upsert: false });
-      if (uploadError) {
-        errorDetails = `Storage upload failed: ${uploadError.message}`;
-        throw new Error(`Upload failed: ${uploadError.message}`);
+      let uploadResult;
+      
+      if (Platform.OS === 'web') {
+        // Web: use blob/file approach
+        let body: any;
+        try {
+          // @ts-ignore: File may not exist in some environments
+          const maybeFile = typeof File !== 'undefined' ? new File([blob], fileName, { type: contentType }) : null;
+          body = maybeFile || blob;
+        } catch {
+          body = blob;
+        }
+        
+        uploadResult = await assertSupabase()
+          .storage
+          .from('voice-notes')
+          .upload(storagePath, body, { contentType, upsert: true });
+      } else {
+        // React Native: read file as base64 and upload as Uint8Array
+        try {
+          const base64Data = await FileSystem.readAsStringAsync(audioUri, {
+            encoding: FileSystem.EncodingType.Base64
+          });
+          
+          // Convert base64 to Uint8Array for upload
+          const binaryString = atob(base64Data);
+          const uint8Array = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            uint8Array[i] = binaryString.charCodeAt(i);
+          }
+          
+          console.log('[Dash] Uploading audio as Uint8Array:', uint8Array.length, 'bytes');
+          console.log('[Dash] Upload path:', storagePath);
+          
+          // Use the authenticated Supabase client
+          const supabase = assertSupabase();
+          uploadResult = await supabase
+            .storage
+            .from('voice-notes')
+            .upload(storagePath, uint8Array, { 
+              contentType: contentType || 'audio/mp4', 
+              upsert: true 
+            });
+            
+          console.log('[Dash] Upload result:', uploadResult);
+            
+        } catch (uploadError) {
+          console.error('[Dash] Uint8Array upload failed, trying FormData approach:', uploadError);
+          
+          // Fallback: try with FormData approach (React Native compatible)
+          const formData = new FormData();
+          formData.append('file', {
+            uri: audioUri,
+            type: contentType || 'audio/mp4',
+            name: fileName
+          } as any);
+          
+          uploadResult = await assertSupabase()
+            .storage
+            .from('voice-notes')
+            .upload(storagePath, formData, { 
+              contentType: contentType || 'audio/mp4', 
+              upsert: true 
+            });
+        }
       }
       
-      onProgress?.('uploading', 70);
+      const { error: uploadError } = uploadResult;
+      if (uploadError) {
+        console.error('[Dash] Upload failed:', uploadError.message);
+        
+        // If it's an RLS policy error, try to continue without upload
+        if (uploadError.message.includes('row-level security policy')) {
+          console.warn('[Dash] RLS policy prevents upload, attempting transcription without storage');
+          
+          // Return mock transcription for now - in production you'd need to set up proper RLS policies
+          return {
+            transcript: 'Voice message received successfully. (Upload blocked by database policy - please contact admin to configure voice-notes bucket permissions)',
+            language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en'
+          };
+        }
+        
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
 
-      // Track start time for performance metrics
-      const transcribeStart = Date.now();
-      
-      // Invoke the transcription function with simulated progress
-      onProgress?.('transcribing', 75);
-      
-      // Create a promise for the Edge Function call
-      const transcriptionPromise = assertSupabase()
+      // Invoke the transcription function
+      const { data, error: fnError } = await assertSupabase()
         .functions
         .invoke('transcribe-audio', {
           body: { storage_path: storagePath, language }
         });
-      
-      // Simulate progress while waiting (75% -> 90% over max 30 seconds)
-      let progressInterval: ReturnType<typeof setInterval> | null = null;
-      let currentProgress = 75;
-      const startSimulation = Date.now();
-      const maxWaitMs = 30000; // 30 seconds timeout
-      
-      progressInterval = setInterval(() => {
-        const elapsed = Date.now() - startSimulation;
-        if (currentProgress < 90) {
-          // Increment progress slowly (75% -> 90% over 30 seconds)
-          currentProgress = Math.min(90, 75 + Math.floor((elapsed / maxWaitMs) * 15));
-          onProgress?.('transcribing', currentProgress);
-        }
-      }, 500); // Update every 500ms
-      
-      // Wait for transcription with timeout
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Transcription timeout after 30 seconds')), maxWaitMs);
-      });
-      
-      let data: any;
-      let fnError: any;
-      
-      try {
-        const result = await Promise.race([transcriptionPromise, timeoutPromise]);
-        data = (result as any).data;
-        fnError = (result as any).error;
-      } catch (error: any) {
-        fnError = error;
-      } finally {
-        // Clear progress simulation
-        if (progressInterval) {
-          clearInterval(progressInterval);
-        }
-      }
-      
-      const transcribeTime = Date.now() - transcribeStart;
-      
-      // Update diagnostic metrics
-      try {
-        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
-        dashDiagnostics.recordMetric('transcriptionTime', transcribeTime);
-      } catch { /* Intentional: non-fatal */ }
-      
-      onProgress?.('transcribing', 95);
-      
       if (fnError) {
-        errorDetails = `Transcription service error: ${fnError.message || String(fnError)}`;
-        
-        // Retry logic for transient failures
-        if (retryCount < 2 && (fnError.message?.includes('timeout') || fnError.message?.includes('network'))) {
-          logger.debug(`[Dash] Retrying transcription (attempt ${retryCount + 1}/2)...`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Exponential backoff
-          return this.transcribeAudio(audioUri, onProgress, retryCount + 1);
-        }
-        
         throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
       }
 
       const transcript = (data as any)?.transcript || '';
       const provider = (data as any)?.provider;
-      
-      if (!transcript || transcript.trim().length === 0) {
-        logger.warn('[Dash] Transcription returned empty result');
-      }
-      
-      onProgress?.('complete', 100);
-
-      // Update feature health on success
-      try {
-        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
-        dashDiagnostics.updateFeatureHealth('transcription', true, transcribeTime);
-      } catch { /* Intentional: non-fatal */ }
 
       return {
-        transcript: transcript || 'No speech detected in audio.',
+        transcript: transcript || 'Transcription returned empty result.',
         storagePath,
         language,
         provider,
         contentType,
       };
     } catch (error) {
-      logger.error('[Dash] Transcription failed:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      
-      // Update feature health on failure
-      try {
-        const { dashDiagnostics } = await import('./DashDiagnosticEngine');
-        dashDiagnostics.updateFeatureHealth('transcription', false);
-        dashDiagnostics.logError({
-          type: 'TranscriptionError',
-          message: errorMessage,
-          context: { 
-            feature: 'transcription',
-            audioUri,
-            retryCount,
-            errorDetails 
-          }
-        });
-      } catch { /* Intentional: non-fatal */ }
-      
-      // More specific error messages based on error type
-      let userFriendlyError = "Voice message received - couldn't transcribe audio.";
-      if (errorDetails) {
-        if (errorDetails.includes('Authentication')) {
-          userFriendlyError = 'Please sign in to send voice messages.';
-        } else if (errorDetails.includes('too large')) {
-          userFriendlyError = 'Audio file is too large. Please record a shorter message.';
-        } else if (errorDetails.includes('too small') || errorDetails.includes('empty')) {
-          userFriendlyError = 'No audio detected. Please try recording again.';
-        } else if (errorDetails.includes('Storage upload')) {
-          userFriendlyError = 'Failed to upload audio. Please check your connection and try again.';
-        } else if (errorDetails.includes('Transcription service')) {
-          userFriendlyError = 'Transcription service is temporarily unavailable. Please try again later.';
-        } else {
-          userFriendlyError = `Transcription failed: ${errorDetails}`;
-        }
-      }
-      
+      console.error('[Dash] Transcription failed:', error);
       return {
-        transcript: userFriendlyError,
+        transcript: "Voice message received - couldn't transcribe audio.",
         storagePath,
         language: this.personality?.voice_settings?.language?.slice(0,2).toLowerCase() || 'en',
         contentType,
-        error: errorDetails || errorMessage,
       };
     }
   }
 
-  // Memory operations now delegated to DashMemoryManager
+  /**
+   * Load persistent memory from storage
+   */
+  private async loadMemory(): Promise<void> {
+    try {
+      const storage = SecureStore || AsyncStorage;
+      const memoryData = await storage.getItem(DashAIAssistant.MEMORY_KEY);
+      
+      if (memoryData) {
+        const memoryArray: DashMemoryItem[] = JSON.parse(memoryData);
+        this.memory = new Map(memoryArray.map(item => [item.key, item]));
+        
+        // Clean expired items
+        this.cleanExpiredMemory();
+        
+        console.log(`[Dash] Loaded ${this.memory.size} memory items`);
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to load memory:', error);
+    }
+  }
 
   /**
-   * Save personality settings (delegated to contextBuilder)
+   * Save memory to persistent storage
+   */
+  private async saveMemory(): Promise<void> {
+    try {
+      const storage = SecureStore || AsyncStorage;
+      const memoryArray = Array.from(this.memory.values());
+      await storage.setItem(DashAIAssistant.MEMORY_KEY, JSON.stringify(memoryArray));
+    } catch (error) {
+      console.error('[Dash] Failed to save memory:', error);
+    }
+  }
+
+  /**
+   * Update memory based on interaction
+   */
+  private async updateMemory(userInput: string, response: any): Promise<void> {
+    try {
+      // Extract key information to remember
+      const timestamp = Date.now();
+      
+      // Remember user preferences
+      if (userInput.includes('prefer') || userInput.includes('like')) {
+        const memoryItem: DashMemoryItem = {
+          id: `pref_${timestamp}`,
+          type: 'preference',
+          key: `user_preference_${timestamp}`,
+          value: userInput,
+          confidence: 0.8,
+          created_at: timestamp,
+          updated_at: timestamp,
+          expires_at: timestamp + (30 * 24 * 60 * 60 * 1000) // 30 days
+        };
+        this.memory.set(memoryItem.key, memoryItem);
+      }
+      
+      // Remember context for future conversations
+      const contextItem: DashMemoryItem = {
+        id: `ctx_${timestamp}`,
+        type: 'context',
+        key: `conversation_context_${timestamp}`,
+        value: {
+          input: userInput,
+          response: response.content,
+          timestamp
+        },
+        confidence: 0.6,
+        created_at: timestamp,
+        updated_at: timestamp,
+        expires_at: timestamp + (7 * 24 * 60 * 60 * 1000) // 7 days
+      };
+      this.memory.set(contextItem.key, contextItem);
+      
+      await this.saveMemory();
+    } catch (error) {
+      console.error('[Dash] Failed to update memory:', error);
+    }
+  }
+
+  /**
+   * Clean expired memory items
+   */
+  private cleanExpiredMemory(): void {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+    this.memory.forEach((item, key) => {
+      if (item.expires_at && item.expires_at < now) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => this.memory.delete(key));
+  }
+
+  /**
+   * Load user context for personalization
+   */
+  private async loadUserContext(): Promise<void> {
+    try {
+      const profile = await getCurrentProfile();
+      if (profile) {
+        // Update personality based on user role
+        this.personality = {
+          ...this.personality,
+          greeting: this.getPersonalizedGreeting(profile.role),
+          expertise_areas: this.getExpertiseAreasForRole(profile.role)
+        };
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to load user context:', error);
+    }
+  }
+
+  /**
+   * Get personalized greeting based on user role
+   */
+  private getPersonalizedGreeting(role: string): string {
+    switch (role?.toLowerCase()) {
+      case 'teacher':
+        return "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?";
+      case 'principal':
+        return "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?";
+      case 'parent':
+        return "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?";
+      default:
+        return DEFAULT_PERSONALITY.greeting;
+    }
+  }
+
+  /**
+   * Get expertise areas based on user role
+   */
+  private getExpertiseAreasForRole(role: string): string[] {
+    const baseAreas = ['education', 'student support', 'educational technology'];
+    
+    switch (role?.toLowerCase()) {
+      case 'teacher':
+        return [...baseAreas, 'lesson planning', 'classroom management', 'student assessment', 'curriculum development'];
+      case 'principal':
+        return [...baseAreas, 'school administration', 'staff management', 'policy development', 'school analytics'];
+      case 'parent':
+        return [...baseAreas, 'homework help', 'parent-teacher communication', 'student progress tracking'];
+      default:
+        return DEFAULT_PERSONALITY.expertise_areas;
+    }
+  }
+
+  /**
+   * Load personality settings
+   */
+  private async loadPersonality(): Promise<void> {
+    try {
+      const storage = SecureStore || AsyncStorage;
+      const personalityData = await storage.getItem(DashAIAssistant.PERSONALITY_KEY);
+      
+      if (personalityData) {
+        const savedPersonality = JSON.parse(personalityData);
+        this.personality = { ...DEFAULT_PERSONALITY, ...savedPersonality };
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to load personality:', error);
+    }
+  }
+
+  /**
+   * Save personality settings
    */
   public async savePersonality(personality: Partial<DashPersonality>): Promise<void> {
-    await this.contextBuilder.savePersonality(personality);
-    // Sync local reference for backward compatibility
-    this.personality = this.contextBuilder.getPersonality();
+    try {
+      this.personality = { ...this.personality, ...personality };
+      
+      const storage = SecureStore || AsyncStorage;
+      await storage.setItem(DashAIAssistant.PERSONALITY_KEY, JSON.stringify(this.personality));
+    } catch (error) {
+      console.error('[Dash] Failed to save personality:', error);
+    }
   }
 
   /**
@@ -4054,7 +3766,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const conversationData = await AsyncStorage.getItem(`${DashAIAssistant.CONVERSATIONS_KEY}_${conversationId}`);
       return conversationData ? JSON.parse(conversationData) : null;
     } catch (error) {
-      logger.error('[Dash] Failed to get conversation:', error);
+      console.error('[Dash] Failed to get conversation:', error);
       return null;
     }
   }
@@ -4077,13 +3789,13 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
             if (typeof parsed.updated_at !== 'number') parsed.updated_at = parsed.created_at;
             conversations.push(parsed as DashConversation);
           } catch (e) {
-            logger.warn('[Dash] Skipping invalid conversation entry for key:', key, e);
+            console.warn('[Dash] Skipping invalid conversation entry for key:', key, e);
           }
         }
       }
       return conversations.sort((a, b) => b.updated_at - a.updated_at);
     } catch (error) {
-      logger.error('[Dash] Failed to get conversations:', error);
+      console.error('[Dash] Failed to get conversations:', error);
       return [];
     }
   }
@@ -4098,7 +3810,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         JSON.stringify(conversation)
       );
     } catch (error) {
-      logger.error('[Dash] Failed to save conversation:', error);
+      console.error('[Dash] Failed to save conversation:', error);
     }
   }
 
@@ -4114,10 +3826,10 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         await this.saveConversation(conversation);
         try {
           await AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId);
-        } catch { /* Intentional: non-fatal */ }
+        } catch {}
       }
     } catch (error) {
-      logger.error('[Dash] Failed to add message to conversation:', error);
+      console.error('[Dash] Failed to add message to conversation:', error);
     }
   }
 
@@ -4129,7 +3841,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const allKeys = await AsyncStorage.getAllKeys();
       return allKeys.filter((k: string) => k.startsWith(`${DashAIAssistant.CONVERSATIONS_KEY}_`));
     } catch (error) {
-      logger.error('[Dash] Failed to list conversation keys:', error);
+      console.error('[Dash] Failed to list conversation keys:', error);
       return [];
     }
   }
@@ -4147,7 +3859,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         this.currentConversationId = null;
       }
     } catch (error) {
-      logger.error('[Dash] Failed to delete conversation:', error);
+      console.error('[Dash] Failed to delete conversation:', error);
     }
   }
 
@@ -4164,14 +3876,14 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   public setCurrentConversationId(conversationId: string): void {
     this.currentConversationId = conversationId;
     // Persist pointer so canvas resumes the last chat
-    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch { /* Intentional: non-fatal */ }
+    try { AsyncStorage.setItem(DashAIAssistant.CURRENT_CONVERSATION_KEY, conversationId); } catch {}
   }
 
   /**
    * Check if currently recording
    */
   public isCurrentlyRecording(): boolean {
-    return false;
+    return this.isRecording;
   }
 
   /**
@@ -4182,90 +3894,41 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
   }
 
   /**
-   * Get memory items (delegated to memoryManager)
+   * Get memory items
    */
   public getMemory(): DashMemoryItem[] {
-    return this.memoryManager.getAllMemoryItems();
+    return Array.from(this.memory.values());
   }
 
   /**
-   * Clear all memory (delegated to memoryManager)
+   * Clear all memory
    */
   public async clearMemory(): Promise<void> {
-    await this.memoryManager.clearMemory();
+    try {
+      this.memory.clear();
+      await this.saveMemory();
+    } catch (error) {
+      console.error('[Dash] Failed to clear memory:', error);
+    }
   }
 
   /**
-   * Get onboarding status
-   * @returns Object with completion status and optional timestamp
+   * Add memory item
    */
-  public async getOnboardingStatus(): Promise<{ completed: boolean; timestamp?: number }> {
+  public async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
     try {
-      const raw = await AsyncStorage.getItem(DashAIAssistant.ONBOARDING_KEY);
-      if (!raw) return { completed: false };
-      
-      const parsed = JSON.parse(raw);
-      return {
-        completed: !!parsed.completed,
-        timestamp: parsed.timestamp
+      const memoryItem: DashMemoryItem = {
+        ...item,
+        id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        created_at: Date.now(),
+        updated_at: Date.now()
       };
+      
+      this.memory.set(memoryItem.key, memoryItem);
+      await this.saveMemory();
     } catch (error) {
-      logger.error('[Dash] Failed to get onboarding status:', error);
-      return { completed: false };
+      console.error('[Dash] Failed to add memory item:', error);
     }
-  }
-
-  /**
-   * Check if onboarding has been completed
-   * @returns true if user has completed the Dash AI onboarding wizard
-   */
-  public async hasCompletedOnboarding(): Promise<boolean> {
-    try {
-      const status = await this.getOnboardingStatus();
-      return status.completed === true;
-    } catch (error) {
-      logger.error('[Dash] Failed to check onboarding completion:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Mark onboarding as complete
-   * Called after user successfully completes the setup wizard
-   */
-  public async markOnboardingComplete(): Promise<void> {
-    try {
-      const payload = JSON.stringify({
-        completed: true,
-        timestamp: Date.now()
-      });
-      await AsyncStorage.setItem(DashAIAssistant.ONBOARDING_KEY, payload);
-      logger.debug('[Dash] Onboarding marked as complete');
-    } catch (error) {
-      logger.error('[Dash] Failed to mark onboarding complete:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Reset onboarding status
-   * Allows user to go through the setup wizard again
-   */
-  public async resetOnboarding(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(DashAIAssistant.ONBOARDING_KEY);
-      logger.debug('[Dash] Onboarding status reset');
-    } catch (error) {
-      logger.error('[Dash] Failed to reset onboarding:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Add memory item (delegated to memoryManager)
-   */
-  private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
-    await this.memoryManager.addMemoryItem(item);
   }
 
   /**
@@ -4291,7 +3954,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
 
       return exportText;
     } catch (error) {
-      logger.error('[Dash] Failed to export conversation:', error);
+      console.error('[Dash] Failed to export conversation:', error);
       throw error;
     }
   }
@@ -4310,14 +3973,14 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     }
   ): Promise<{ success: boolean; lessonId?: string; error?: string }> {
     try {
-      logger.debug('[Dash] Saving lesson to database...');
+      console.log('[Dash] Saving lesson to database...');
       
       // Get current user and profile
       const { data: auth } = await assertSupabase().auth.getUser();
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,organization_id,preschool_id')
+        .select('id,preschool_id,organization_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4356,7 +4019,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const result = await LessonGeneratorService.saveGeneratedLesson({
         lesson,
         teacherId: profile.id,
-        preschoolId: profile.organization_id || profile.preschool_id || '',
+        preschoolId: profile.preschool_id || profile.organization_id || '',
         ageGroupId: 'dash-generated',
         categoryId,
         template: { 
@@ -4367,14 +4030,14 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       });
 
       if (result.success) {
-        logger.debug('[Dash] Lesson saved successfully:', result.lessonId);
+        console.log('[Dash] Lesson saved successfully:', result.lessonId);
       } else {
-        logger.error('[Dash] Failed to save lesson:', result.error);
+        console.error('[Dash] Failed to save lesson:', result.error);
       }
 
       return result;
     } catch (error: any) {
-      logger.error('[Dash] Error saving lesson to database:', error);
+      console.error('[Dash] Error saving lesson to database:', error);
       return {
         success: false,
         error: error?.message || 'Failed to save lesson'
@@ -4396,14 +4059,14 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     }
   ): Promise<{ success: boolean; resourceId?: string; error?: string }> {
     try {
-      logger.debug('[Dash] Saving study resource to database...');
+      console.log('[Dash] Saving study resource to database...');
       
       // Get current user and profile
       const { data: auth } = await assertSupabase().auth.getUser();
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,organization_id,preschool_id')
+        .select('id,preschool_id,organization_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4425,7 +4088,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         subject: resourceParams.subject || null,
         grade_level: resourceParams.gradeLevel || null,
         created_by: profile.id,
-        organization_id: profile.organization_id || profile.preschool_id || null,
+        organization_id: profile.preschool_id || profile.organization_id || null,
         is_ai_generated: true,
         metadata: {
           dash_type: resourceParams.type,
@@ -4442,7 +4105,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         .single();
 
       if (error) {
-        logger.warn('[Dash] Resources table not available or insert failed:', error);
+        console.warn('[Dash] Resources table not available or insert failed:', error);
         // Could save to a different table or just keep in conversations
         return { 
           success: false, 
@@ -4450,10 +4113,10 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         };
       }
 
-      logger.debug('[Dash] Study resource saved successfully:', data.id);
+      console.log('[Dash] Study resource saved successfully:', data.id);
       return { success: true, resourceId: data.id };
     } catch (error: any) {
-      logger.error('[Dash] Error saving study resource:', error);
+      console.error('[Dash] Error saving study resource:', error);
       return {
         success: false,
         error: error?.message || 'Failed to save study resource'
@@ -4471,14 +4134,81 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       const agenticEngine = DashAgenticEngine.getInstance();
       return agenticEngine.getActiveReminders();
     } catch (error) {
-      logger.error('[Dash] Failed to get active reminders:', error);
+      console.error('[Dash] Failed to get active reminders:', error);
       return [];
     }
   }
 
   // ==================== ENHANCED AGENTIC METHODS ====================
 
-  // User profile methods delegated to contextBuilder (Phase 4.7)
+  /**
+   * Load user profile
+   */
+  private async loadUserProfile(): Promise<void> {
+    try {
+      const storage = SecureStore || AsyncStorage;
+      const profileData = await storage.getItem(DashAIAssistant.USER_PROFILE_KEY);
+      
+      if (profileData) {
+        this.userProfile = JSON.parse(profileData);
+        console.log(`[Dash] Loaded user profile for ${this.userProfile?.role || 'unknown'}`);
+      } else {
+        // Create basic profile from current user
+        const currentProfile = await getCurrentProfile();
+        if (currentProfile) {
+          this.userProfile = {
+            userId: currentProfile.id,
+            role: currentProfile.role as any,
+            name: (currentProfile as any).full_name || 'User',
+            preferences: {
+              communication_style: 'friendly',
+              notification_frequency: 'daily_digest',
+              task_management_style: 'summary',
+              ai_autonomy_level: 'medium'
+            },
+            context: {
+              organization_id: currentProfile.organization_id || undefined
+            },
+            goals: {
+              short_term: [],
+              long_term: [],
+              completed: []
+            },
+            interaction_patterns: {
+              most_active_times: [],
+              preferred_task_types: [],
+              common_requests: [],
+              success_metrics: {}
+            },
+            memory_preferences: {
+              remember_personal_details: true,
+              remember_work_patterns: true,
+              remember_preferences: true,
+              auto_suggest_tasks: true,
+              proactive_reminders: true
+            }
+          };
+          await this.saveUserProfile();
+        }
+      }
+    } catch (error) {
+      console.error('[Dash] Failed to load user profile:', error);
+    }
+  }
+
+  /**
+   * Save user profile
+   */
+  private async saveUserProfile(): Promise<void> {
+    if (!this.userProfile) return;
+    
+    try {
+      const storage = SecureStore || AsyncStorage;
+      await storage.setItem(DashAIAssistant.USER_PROFILE_KEY, JSON.stringify(this.userProfile));
+    } catch (error) {
+      console.error('[Dash] Failed to save user profile:', error);
+    }
+  }
 
   /**
    * Start proactive behaviors
@@ -4492,7 +4222,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
       await this.executeProactiveBehaviors();
     }, 10 * 60 * 1000) as any; // Run every 10 minutes
 
-    logger.debug('[Dash] Started proactive behaviors');
+    console.log('[Dash] Started proactive behaviors');
   }
 
   /**
@@ -4512,7 +4242,7 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         await this.executeProactiveBehavior(behavior, context);
       }
     } catch (error) {
-      logger.error('[Dash] Error in proactive behaviors:', error);
+      console.error('[Dash] Error in proactive behaviors:', error);
     }
   }
 
@@ -4523,32 +4253,32 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
     switch (behavior) {
       case 'suggest_lesson_improvements':
         if (context.time_context?.is_work_hours && this.userProfile?.role === 'teacher') {
-          logger.debug('[Dash] Proactive: Analyzing lessons for improvement suggestions');
+          console.log('[Dash] Proactive: Analyzing lessons for improvement suggestions');
         }
         break;
         
       case 'remind_upcoming_deadlines':
         if (this.userProfile?.role === 'teacher' || this.userProfile?.role === 'principal') {
-          logger.debug('[Dash] Proactive: Checking for upcoming deadlines');
+          console.log('[Dash] Proactive: Checking for upcoming deadlines');
         }
         break;
         
       case 'flag_student_concerns':
         if (this.userProfile?.role === 'teacher') {
-          logger.debug('[Dash] Proactive: Monitoring for student concerns');
+          console.log('[Dash] Proactive: Monitoring for student concerns');
         }
         break;
         
       case 'monitor_school_metrics':
         if (this.userProfile?.role === 'principal') {
-          logger.debug('[Dash] Proactive: Monitoring school performance metrics');
+          console.log('[Dash] Proactive: Monitoring school performance metrics');
         }
         break;
     }
   }
 
   /**
-   * Get current context with REAL app structure
+   * Get current context
    */
   private async getCurrentContext(): Promise<any> {
     try {
@@ -4562,659 +4292,94 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
           is_work_hours: now.getHours() >= 8 && now.getHours() <= 17
         },
         user_state: {
-          role: profile?.role || 'unknown',
-          organization_id: profile?.organization_id
+          role: profile?.role || 'unknown'
         },
-      app_context: {
-        app_name: 'EduDash Pro',
-        platform: 'mobile',
-        navigation_type: 'stack', // STACK navigation, not tabs!
-        available_screens: this.getAvailableScreensForRole(profile?.role),
-        current_features: [
-          'voice_interaction',
-          'ai_assistance',
-          'student_management',
-          'class_analytics',
-          'attendance_tracking',
-          'parent_communication'
-        ]
-      }
+        app_context: {
+          active_features: []
+        }
       };
     } catch (error) {
-      logger.error('[Dash] Failed to get current context:', error);
+      console.error('[Dash] Failed to get current context:', error);
       return {};
-    }
-  }
-  
-  /**
-   * Perform web search using the Edge Function
-   */
-  private async performWebSearch(
-    query: string,
-    options: any = {}
-  ): Promise<any> {
-    try {
-      const { data, error } = await assertSupabase()
-        .functions
-        .invoke('web-search', {
-          body: {
-            query,
-            options,
-            searchType: 'general'
-          }
-        });
-      
-      if (error) throw error;
-      return data || { results: [], error: 'No results returned' };
-    } catch (error) {
-      logger.error('[Dash] Web search error:', error);
-      return {
-        query,
-        results: [],
-        error: error instanceof Error ? error.message : 'Search failed'
-      };
-    }
-  }
-  
-  /**
-   * Perform fact check using web search
-   */
-  private async performFactCheck(
-    statement: string
-  ): Promise<any> {
-    try {
-      const { data, error } = await assertSupabase()
-        .functions
-        .invoke('web-search', {
-          body: {
-            query: statement,
-            searchType: 'factCheck',
-            options: {
-              maxResults: 10,
-              safeSearch: true
-            }
-          }
-        });
-      
-      if (error) throw error;
-      
-      // Process fact check results
-      const result = data || {};
-      return {
-        statement,
-        sources: result.factCheckResults || result.results || [],
-        confidence: result.confidence || 0.5,
-        summary: result.summary || 'Unable to verify this claim with available sources.'
-      };
-    } catch (error) {
-      logger.error('[Dash] Fact check error:', error);
-      return {
-        statement,
-        sources: [],
-        confidence: 0,
-        summary: 'Fact check service unavailable',
-        error: error instanceof Error ? error.message : 'Fact check failed'
-      };
-    }
-  }
-  
-  /**
-   * Get screen opening confirmation message
-   */
-  private getScreenOpeningConfirmation(route: string): string {
-    const screenNames: Record<string, string> = {
-      '/screens/ai-lesson-generator': 'Opening the AI Lesson Generator...',
-      '/screens/financial-dashboard': 'Taking you to the Financial Dashboard...',
-      '/screens/teacher-messages': 'Opening Messages...',
-      '/screens/worksheet-demo': 'Opening the Worksheet Generator...',
-      '/screens/student-management': 'Taking you to Student Management...',
-      '/screens/lessons-hub': 'Opening the Lessons Hub...',
-      '/screens/dash-assistant': 'Opening Dash Assistant...',
-      '/screens/teacher-reports': 'Opening Reports...',
-      '/screens/principal-announcement': 'Opening Announcements...',
-      '/screens/super-admin-announcements': 'Opening Platform Announcements...'
-    };
-    
-    return screenNames[route] || 'Opening the requested screen...';
-  }
-  
-  /**
-   * Get available screens based on user role
-   */
-  private getAvailableScreensForRole(role?: string): any {
-    const commonScreens = {
-      navigation: 'Stack navigation - use back button or swipe to go back',
-      home: 'Dashboard with quick stats and actions',
-      messages: 'Communication center',
-      settings: 'App settings and preferences',
-      profile: 'User profile management'
-    };
-    
-    switch (role) {
-      case 'principal':
-        return {
-          ...commonScreens,
-          dashboard: 'Principal Hub - school overview, metrics, applications',
-          teachers: 'Teacher management',
-          students: 'Student roster',
-          classes: 'Class management',
-          reports: 'School reports and analytics',
-          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
-        };
-      
-      case 'teacher':
-        return {
-          ...commonScreens,
-          dashboard: 'Teacher dashboard with class overview',
-          classes: 'My classes',
-          students: 'My students',
-          assignments: 'Assignment management',
-          attendance: 'Attendance tracking',
-          gradebook: 'Grading and assessment',
-          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
-        };
-      
-      case 'parent':
-        return {
-          ...commonScreens,
-          dashboard: 'Parent dashboard with child overview',
-          children: 'My children',
-          calendar: 'School calendar and events',
-          homework: 'Homework tracking',
-          progress: 'Child progress reports',
-          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
-        };
-      
-      default:
-        return {
-          ...commonScreens,
-          note: 'Navigation: Stack-based screens. Swipe or tap back button to go back.'
-        };
     }
   }
 
   /**
    * Generate enhanced response with role-based intelligence
    */
-  private async generateEnhancedResponse(content: string, conversationId: string, analysis: any, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
+  private async generateEnhancedResponse(content: string, conversationId: string, analysis: any): Promise<DashMessage> {
     try {
-      // Get REAL awareness context
-      const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
+      // Get role-specific greeting and capabilities
+      const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
+      const capabilities = roleSpec?.capabilities || [];
       
-      // Track message count for this conversation
-      this.memoryManager.incrementMessageCount(conversationId);
-      awareness.conversation.messageCount = this.memoryManager.getMessageCount(conversationId);
-      
-      // Build enhanced system prompt with all agentic context
-      const session = await getCurrentSession();
-      const profile = await getCurrentProfile();
-      
-      // Determine language with priority: voice detection > saved prefs > text heuristic > default EN
-      let language = detectedLanguage;
-      let languageSource = 'detected-voice';
-      
-      if (!language) {
-        try {
-          const prefs = await voiceService.getPreferences();
-          if (prefs?.language) {
-            language = prefs.language;
-            languageSource = 'saved-prefs';
-          }
-        } catch (err) {
-          logger.warn('[Dash] Failed to get voice preferences:', err);
-        }
-      }
-      
-      if (!language) {
-        const { DashConversationState } = await import('./DashConversationState');
-        const convLang = DashConversationState.getPreferences()?.preferredLanguage;
-        if (convLang) {
-          language = convLang;
-          languageSource = 'conversation-state';
-        }
-      }
-      
-      if (!language) {
-        language = this.messageHandler.detectLanguageFromText(content);
-        languageSource = 'text-heuristic';
-      }
-      
-      if (!language) {
-        language = 'en';
-        languageSource = 'default-fallback';
-      }
-      
-      logger.debug(`[Dash] 🌍 Building AI prompt | Language: ${language} | Source: ${languageSource}`);
-      
-      // CRITICAL: Inject language explicitly into agentic context
-      if (!detectedLanguage && language !== 'en') {
-        logger.debug(`[Dash] ⚠️  Language from ${languageSource}, not from voice detection - AI may not respond naturally`);
-      }
-      
-      // Determine if this is a voice interaction (from orb/voice mode)
-      const isVoiceMode = languageSource === 'detected-voice' || detectedLanguage !== undefined;
-      
-      let systemPrompt: string;
-      if (isVoiceMode) {
-        // STREAMLINED CONVERSATIONAL PROMPT FOR VOICE
-        const userName = awareness?.user?.name || 'there';
-        const userRole = (profile as any)?.role || 'user';
-        
-        const conversationStatus = awareness?.conversation?.isNewConversation ? 'FIRST message' : `ONGOING (message ${awareness?.conversation?.messageCount || 1})`;
-        
-        systemPrompt = `You are Dash. Ultra-concise AI assistant.
+      // Enhance the prompt with role context and capabilities
+      let systemPrompt = `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. You are part of EduDash Pro, an advanced educational platform.
 
-🚨 VOICE MODE: EXTREME BREVITY REQUIRED 🚨
+CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
 
-CONVERSATION STATUS: ${conversationStatus}
-${awareness?.conversation?.isNewConversation ? '' : '⚠️ DO NOT GREET - This is an ongoing conversation!'}
-
-RULES:
-1. ONE sentence responses ONLY (max 10-15 words)
-2. NO greetings unless this is the FIRST message
-3. NO pleasantries, NO filler, NO "How can I help?"
-4. Answer ONLY what was asked - nothing more
-5. NO asterisks, NO narration, NO stage directions
-6. NO explanations unless explicitly requested
-
-EXAMPLES:
-❌ "Hello! How can I help you today?" (Never say this in ongoing conversation!)
-✅ "Hi." (Only on FIRST message)
-
-❌ "Great question! The gesture feature works by..."
-✅ "Long press the mic button."
-
-❌ "Let me explain how the voice settings work. You can find them in..."
-✅ "Settings > Voice."
-
-❌ "I'd be happy to help! The petty cash screen shows..."
-✅ "Open petty cash screen."
-
-User: ${userName} | Language: ${language}
-Respond in ${language} if they spoke ${language}.`;
-      } else if (session?.user_id && profile) {
-        // Use enhanced agentic prompt with correct language for text-based chat
-        systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
-          userId: session.user_id,
-          profile,
-          tier: 'starter',
-          role: (profile as any).role || 'teacher',
-          currentScreen: awareness?.app?.currentScreen,
-          language: language
-        });
-      } else {
-        // Fallback to basic prompt
-        systemPrompt = DashRealTimeAwareness.buildAwareSystemPrompt(awareness);
-      }
+RESPONSE GUIDELINES:
+- Be concise, practical, and directly helpful
+- Provide specific, actionable advice
+- Reference educational best practices when relevant
+- Use a warm but professional tone
+- Keep responses focused and avoid unnecessary elaboration
+- When suggesting actions, be specific about next steps`;
       
-      // Generate contextual greeting if needed (only for new conversations and NOT in voice mode)
-      // Voice mode should NEVER have greetings - the user is already talking to us
-      const greeting = isVoiceMode ? '' : DashRealTimeAwareness.generateContextualGreeting(awareness);
-      
-      // Pre-parse navigation commands to reduce latency (open immediately when obvious)
-      const contentLower = content.toLowerCase();
-      let preDashboardAction: { type: 'open_screen'; route: string; params?: Record<string, any> } | null = null;
-      if (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book')) {
-        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
-          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
-        } else {
-          preDashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
-        }
+      if (roleSpec && this.userProfile?.role) {
+        systemPrompt += `
+
+ROLE-SPECIFIC CONTEXT:
+- You are helping a ${this.userProfile.role}
+- Communication tone: ${roleSpec.tone}
+- Your specialized capabilities: ${capabilities.join(', ')}
+- Role-specific greeting: ${roleSpec.greeting}`;
       }
-      // Financial quick open
-      if (!preDashboardAction && (contentLower.includes('financial dashboard') || contentLower.includes('open finance'))) {
-        preDashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
+
+      // Add context awareness
+      if (analysis.context) {
+        systemPrompt += `
+
+CURRENT CONTEXT: ${JSON.stringify(analysis.context, null, 2)}`;
       }
-      
-      let preOpened = false;
-      try {
-        if (preDashboardAction && DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness)) {
-          await DashRealTimeAwareness.openScreen(preDashboardAction.route, preDashboardAction.params);
-          preOpened = true;
-        }
-      } catch (e) {
-        logger.warn('[Dash] Pre-open navigation failed:', e);
-      }
-      
-      // Add intent understanding to context
-      let enhancedPrompt = systemPrompt;
+
+      // Add intent understanding
       if (analysis.intent) {
-        enhancedPrompt += `
+        systemPrompt += `
 
 USER INTENT: ${analysis.intent.primary_intent} (confidence: ${analysis.intent.confidence})
 ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.intent.secondary_intents.join(', ')}` : ''}`;
       }
 
-      // Extract images from attachments for vision API
-      const images = attachments
-        ?.filter(att => att.kind === 'image' && att.status === 'uploaded')
-        ?.map(att => ({
-          data: att.meta?.base64,
-          media_type: att.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
-        }))
-        ?.filter(img => img.data); // Only include if base64 exists
-      
-      const hasImages = images && images.length > 0;
-      
-      // 🛠️  NEW: Get available tools for agentic capabilities
-      let aiResponse: any;
-      let toolsUsed: string[] = [];
-      
-      if (!hasImages) { // Tool calling doesn't work with vision API yet
-        try {
-          const { ToolRegistry } = await import('./modules/DashToolRegistry');
-          const toolSpecs = ToolRegistry.getToolSpecs();
-          
-          // Get conversation history for context
-          const conversation = await this.getConversation(conversationId);
-          const messages = conversation?.messages.slice(-10).map(m => ({
-            role: m.type === 'user' ? 'user' : 'assistant',
-            content: m.content
-          })) || [];
-          
-          // Add current user message
-          messages.push({ role: 'user', content });
-          
-          logger.info(`[Dash Agent] 🤖 Calling AI with ${toolSpecs.length} tools available`);
-          
-          // Call AI with tools
-          const response = await this.callAIServiceWithTools({
-            messages,
-            tools: toolSpecs,
-            system: enhancedPrompt,
-            temperature: isVoiceMode ? 0.5 : 0.7,
-            maxTokens: isVoiceMode ? 500 : 4000
-          });
-          
-          // Check if tools were called
-          if (response.tool_calls && response.tool_calls.length > 0) {
-            logger.info(`[Dash Agent] 🔧 ${response.tool_calls.length} tool(s) called:`, response.tool_calls.map(t => t.name).join(', '));
-            
-            // Execute tools
-            const toolResults = await this.executeTools(response.tool_calls, conversationId);
-            toolsUsed = response.tool_calls.map(t => t.name);
-            
-            // Add assistant's tool use to messages
-            messages.push({
-              role: 'assistant',
-              content: response.content
-            });
-            
-            // Add tool results
-            messages.push({
-              role: 'user',
-              content: JSON.stringify(toolResults)
-            });
-            
-            // Get final response with tool results
-            logger.debug('[Dash Agent] 🔄 Getting final response with tool results...');
-            const finalResponse = await this.callAIServiceWithTools({
-              messages,
-              tools: toolSpecs, // Keep tools available for potential follow-up
-              system: enhancedPrompt,
-              temperature: isVoiceMode ? 0.5 : 0.7,
-              maxTokens: isVoiceMode ? 500 : 4000
-            });
-            
-            aiResponse = {
-              content: finalResponse.content,
-              usage: finalResponse.usage
-            };
-            
-            logger.info('[Dash Agent] ✅ Tool execution complete');
-          } else {
-            // No tools called, use direct response
-            aiResponse = {
-              content: response.content,
-              usage: response.usage
-            };
-            logger.debug('[Dash Agent] 📝 Direct response (no tools used)');
-          }
-        } catch (error) {
-          logger.error('[Dash Agent] Tool calling failed, falling back to standard response:', error);
-          // Fallback to standard AI call if tool calling fails
-          aiResponse = await this.callAIService({
-            action: 'homework_help',
-            question: content,
-            context: enhancedPrompt,
-            gradeLevel: 'General',
-            conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
-          });
-        }
-      } else {
-        // Vision API call (no tools support yet)
-        aiResponse = await this.callAIServiceWithVision({
-          prompt: content,
-          context: enhancedPrompt,
-          images: images,
-          conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
-        });
-      }
+      systemPrompt += `
 
-      // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
-      let dashboardAction = this.generateDashboardAction(analysis.intent);
-      // contentLower already defined above
-      
-      // Check if we should auto-execute based on intent
-      const shouldAutoOpen = DashRealTimeAwareness.shouldAutoExecute(contentLower, awareness);
-      
-      // Financial dashboard keywords
-      if (!dashboardAction && (contentLower.includes('financial') || contentLower.includes('finance') || 
-          contentLower.includes('fees') || contentLower.includes('payments') || contentLower.includes('revenue'))) {
-        dashboardAction = { type: 'open_screen', route: '/screens/financial-dashboard' };
-      }
-      // Petty cash keywords
-      if (!dashboardAction && (contentLower.includes('petty cash') || contentLower.includes('cashbook') || contentLower.includes('cash book'))) {
-        if (contentLower.includes('reconcile') || contentLower.includes('reconciliation')) {
-          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash-reconcile' };
-        } else {
-          dashboardAction = { type: 'open_screen', route: '/screens/petty-cash' };
-        }
-      }
-      
-      // Lesson generator keywords
-      if (!dashboardAction && (contentLower.includes('lesson') || contentLower.includes('plan') || 
-          contentLower.includes('curriculum'))) {
-        const params: Record<string, string> = this.extractLessonParameters(content, aiResponse.content || '');
-        dashboardAction = { type: 'open_screen', route: '/screens/ai-lesson-generator', params };
-      }
-      
-      // Messaging keywords
-      if (!dashboardAction && (contentLower.includes('message') || contentLower.includes('notify') || 
-          contentLower.includes('contact')) && (contentLower.includes('parent') || contentLower.includes('teacher'))) {
-        dashboardAction = { type: 'open_screen', route: '/screens/teacher-messages' };
-      }
-      
-      // Worksheet keywords
-      if (!dashboardAction && (contentLower.includes('worksheet') || contentLower.includes('activity') || 
-          contentLower.includes('practice') || contentLower.includes('exercise'))) {
-        const worksheetParams = this.extractWorksheetParameters(content, aiResponse.content || '');
-        dashboardAction = { type: 'open_screen', route: '/screens/worksheet-demo', params: worksheetParams };
-      }
-      
-      // Diagnostic keywords - self-awareness and repair
-      if (!dashboardAction && (contentLower.includes('diagnostic') || contentLower.includes('health check') || 
-          contentLower.includes('app status') || contentLower.includes('system health') || 
-          contentLower.includes('check app') || contentLower.includes('app issues'))) {
-        dashboardAction = { type: 'run_diagnostics' } as any;
-      }
-      // Fix/repair keywords
-      if (!dashboardAction && (contentLower.includes('fix app') || contentLower.includes('repair') || 
-          contentLower.includes('fix issues') || contentLower.includes('auto fix') || 
-          contentLower.includes('resolve issues'))) {
-        dashboardAction = { type: 'auto_fix' } as any;
-      }
-      
-      // Web search keywords
-      if (!dashboardAction && (contentLower.includes('search for') || contentLower.includes('search the web') || 
-          contentLower.includes('look up') || contentLower.includes('find information') || 
-          contentLower.includes('search online') || contentLower.includes('google'))) {
-        dashboardAction = { type: 'web_search' } as any;
-      }
-      // Fact check keywords
-      if (!dashboardAction && (contentLower.includes('fact check') || contentLower.includes('verify') || 
-          contentLower.includes('is it true') || contentLower.includes('check if'))) {
-        dashboardAction = { type: 'fact_check' } as any;
-      }
-      
-      // If screen action is detected and should auto-execute, open it immediately
-      if (dashboardAction && dashboardAction.type === 'open_screen' && shouldAutoOpen && !preOpened) {
-        // Actually open the screen right now - NO CONFIRMATION to avoid duplicate screens
-        await DashRealTimeAwareness.openScreen(dashboardAction.route, dashboardAction.params);
-        
-        // Don't add confirmation message - just let the screen open smoothly
-        // The user will see the screen open and understand what happened
-      }
-      
-      // Handle diagnostic actions
-      if (dashboardAction && dashboardAction.type === 'run_diagnostics') {
-        try {
-          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
-          const summary = await dashDiagnostics.getDiagnosticSummary();
-          aiResponse.content = `I've run a complete diagnostic check:\n\n${summary}\n\nWould you like me to automatically fix any issues I can resolve?`;
-        } catch (error) {
-          logger.error('[Dash] Diagnostic run failed:', error);
-          aiResponse.content = "I encountered an error while running diagnostics. The diagnostic system itself may need attention.";
-        }
-      }
-      
-      // Handle auto-fix actions
-      if (dashboardAction && dashboardAction.type === 'auto_fix') {
-        try {
-          const { dashDiagnostics } = await import('./DashDiagnosticEngine');
-          const diagnostics = await dashDiagnostics.runFullDiagnostics();
-          
-          if (diagnostics.issues.length === 0) {
-            aiResponse.content = "Great news! I didn't find any issues that need fixing. The app is running smoothly.";
-          } else {
-            const { fixed, failed } = await dashDiagnostics.autoFixIssues();
-            
-            let response = "I've attempted to fix the detected issues:\n\n";
-            if (fixed.length > 0) {
-              response += `✅ **Fixed:**\n${fixed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
-            }
-            if (failed.length > 0) {
-              response += `❌ **Could not fix:**\n${failed.map(id => `- ${diagnostics.issues.find(i => i.id === id)?.description}`).join('\n')}\n\n`;
-            }
-            response += "The app should be working better now. Let me know if you need further assistance!";
-            
-            aiResponse.content = response;
-          }
-        } catch (error) {
-          logger.error('[Dash] Auto-fix failed:', error);
-          aiResponse.content = "I encountered an error while trying to fix the issues. You may need to restart the app manually.";
-        }
-      }
-      
-      // Handle web search actions
-      if (dashboardAction && dashboardAction.type === 'web_search') {
-        try {
-          // Extract search query from user content
-          let searchQuery = content
-            .replace(/search for|search the web for|look up|find information about|search online for|google/gi, '')
-            .trim();
-          
-          if (!searchQuery) {
-            aiResponse.content = "What would you like me to search for? Please provide a topic or question.";
-          } else {
-            aiResponse.content = `Searching the web for: "${searchQuery}"...\n\n`;
-            
-            // Perform web search via Edge Function
-            const searchResult = await this.performWebSearch(searchQuery, {
-              maxResults: 5,
-              safeSearch: true
-            });
-            
-            if (searchResult.error) {
-              aiResponse.content += `I encountered an issue while searching: ${searchResult.error}\n\nPlease try again later.`;
-            } else if (searchResult.results.length === 0) {
-              aiResponse.content += "I couldn't find any relevant results for your search. Try rephrasing your query.";
-            } else {
-              aiResponse.content += `Here's what I found:\n\n`;
-              searchResult.results.forEach((result, index) => {
-                aiResponse.content += `**${index + 1}. ${result.title}**\n`;
-                aiResponse.content += `${result.snippet}\n`;
-                aiResponse.content += `Source: ${result.source} - [${result.url}](${result.url})\n\n`;
-              });
-              
-              // Add educational context if relevant
-              if (awareness.user.role === 'teacher' || awareness.user.role === 'principal') {
-                aiResponse.content += "\n💡 **Tip**: I can also search specifically for educational resources. Just ask me to 'find educational resources about [topic]'.";
-              }
-            }
-          }
-        } catch (error) {
-          logger.error('[Dash] Web search failed:', error);
-          aiResponse.content = "I'm unable to search the web at the moment. Please check your internet connection and try again.";
-        }
-      }
-      
-      // Handle fact check actions
-      if (dashboardAction && dashboardAction.type === 'fact_check') {
-        try {
-          // Extract statement to fact-check
-          let statement = content
-            .replace(/fact check|verify|is it true that|check if/gi, '')
-            .trim();
-          
-          if (!statement) {
-            aiResponse.content = "What statement would you like me to fact-check? Please provide the claim or information you want verified.";
-          } else {
-            aiResponse.content = `Fact-checking: "${statement}"...\n\n`;
-            
-            // Perform fact check via web search
-            const factCheckResult = await this.performFactCheck(statement);
-            
-            if (factCheckResult.error) {
-              aiResponse.content += `I couldn't complete the fact-check: ${factCheckResult.error}`;
-            } else {
-              aiResponse.content += `**Confidence Level**: ${Math.round(factCheckResult.confidence * 100)}%\n\n`;
-              aiResponse.content += `**Summary**: ${factCheckResult.summary}\n\n`;
-              
-              if (factCheckResult.sources.length > 0) {
-                aiResponse.content += `**Sources**:\n`;
-                factCheckResult.sources.forEach((source, index) => {
-                  aiResponse.content += `${index + 1}. ${source.title} - [${source.url}](${source.url})\n`;
-                });
-              }
-              
-              aiResponse.content += "\n⚠️ **Note**: Always verify information from multiple reputable sources.";
-            }
-          }
-        } catch (error) {
-          logger.error('[Dash] Fact check failed:', error);
-          aiResponse.content = "I couldn't perform the fact-check at this time. Please try again later.";
-        }
-      }
-      
-      // Prepend greeting if new conversation
-      const finalContent = greeting ? `${greeting}${aiResponse.content}` : (aiResponse.content || 'I apologize, but I encountered an issue processing your request.');
-      
+IMPORTANT: Always provide specific, contextual responses that directly address the user's needs. Avoid generic educational advice unless specifically requested.`;
+
+      // Call AI service with enhanced context using homework_help action
+      const aiResponse = await this.callAIService({
+        action: 'homework_help',
+        question: content,
+        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
+        gradeLevel: 'General',
+        conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
+      });
+
       const assistantMessage: DashMessage = {
         id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         type: 'assistant',
-        content: finalContent,
+        content: aiResponse.content || 'I apologize, but I encountered an issue processing your request.',
         timestamp: Date.now(),
         metadata: {
           confidence: analysis.intent?.confidence || 0.5,
-          suggested_actions: this.generateSuggestedActions(analysis.intent, awareness.user.role),
+          suggested_actions: this.generateSuggestedActions(analysis.intent, capabilities),
           user_intent: analysis.intent,
-          dashboard_action: dashboardAction,
-          tools_used: toolsUsed.length > 0 ? toolsUsed : undefined // Add tool usage tracking
+          dashboard_action: this.generateDashboardAction(analysis.intent)
         }
       };
 
-      // Track response with agentic integration
-      const responseTime = Date.now() - assistantMessage.timestamp + 100; // Approximate
-      await DashAgenticIntegration.handlePostResponse(true, responseTime, {
-        intent: analysis.intent?.primary_intent,
-        featureUsed: dashboardAction?.route,
-        action: dashboardAction
-      }).catch(err => logger.warn('[Dash] Telemetry tracking failed:', err));
-
       return assistantMessage;
     } catch (error) {
-      logger.error('[Dash] Enhanced response generation failed:', error);
+      console.error('[Dash] Enhanced response generation failed:', error);
       // Fallback to basic response
       return this.generateResponse(content, conversationId);
     }
@@ -5261,7 +4426,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         response.metadata.suggested_actions = opportunities.slice(0, 3).map(op => op.title);
       }
     } catch (error) {
-      logger.error('[Dash] Failed to handle proactive opportunities:', error);
+      console.error('[Dash] Failed to handle proactive opportunities:', error);
     }
   }
 
@@ -5317,7 +4482,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         );
       }
     } catch (error) {
-      logger.error('[Dash] Failed to handle action intent:', error);
+      console.error('[Dash] Failed to handle action intent:', error);
     }
   }
 
@@ -5328,8 +4493,8 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       const timestamp = Date.now();
       
-      // Add intent memory
-      await this.memoryManager.addMemoryItem({
+      const intentMemory: DashMemoryItem = {
+        id: `intent_${timestamp}`,
         type: 'pattern',
         key: `user_intent_${analysis.intent.primary_intent}`,
         value: {
@@ -5339,14 +4504,18 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           timestamp: timestamp
         },
         confidence: analysis.intent.confidence,
+        created_at: timestamp,
+        updated_at: timestamp,
         expires_at: timestamp + (90 * 24 * 60 * 60 * 1000),
         reinforcement_count: 1,
         tags: ['intent', 'pattern', analysis.intent.category]
-      });
+      };
+      
+      this.memory.set(intentMemory.key, intentMemory);
       
       if (response.metadata?.confidence && response.metadata.confidence > 0.7) {
-        // Add success memory
-        await this.memoryManager.addMemoryItem({
+        const successMemory: DashMemoryItem = {
+          id: `success_${timestamp}`,
           type: 'interaction',
           key: `successful_interaction_${timestamp}`,
           value: {
@@ -5356,331 +4525,104 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             confidence: response.metadata.confidence
           },
           confidence: response.metadata.confidence,
+          created_at: timestamp,
+          updated_at: timestamp,
           expires_at: timestamp + (30 * 24 * 60 * 60 * 1000),
           emotional_weight: 1.0,
           tags: ['success', 'interaction']
-        });
+        };
+        
+        this.memory.set(successMemory.key, successMemory);
       }
+      
+      await this.saveMemory();
     } catch (error) {
-      logger.error('[Dash] Failed to update enhanced memory:', error);
+      console.error('[Dash] Failed to update enhanced memory:', error);
     }
   }
 
-  // Track last API call time for rate limit prevention
-  private lastAPICallTime: number = 0;
-  private readonly MIN_API_CALL_INTERVAL = 300; // Faster interactions: 300ms between calls
-  private isSpeechAborted: boolean = false; // Global flag to abort speech
+  /**
+   * Process attachments for AI context
+   */
+  private async processAttachmentsForAI(attachments: DashAttachment[]): Promise<string> {
+    const parts: string[] = [];
+    
+    for (const attachment of attachments) {
+      if (attachment.kind === 'image') {
+        // Images can be shown to Claude with vision
+        parts.push(`[Image attached: ${attachment.name} (${this.formatFileSize(attachment.size)})]`);
+      } else if (attachment.kind === 'pdf') {
+        parts.push(`[PDF document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
+      } else if (attachment.kind === 'document') {
+        parts.push(`[Document attached: ${attachment.name} (${this.formatFileSize(attachment.size)}) - Document content will be extracted and analyzed]`);
+      } else {
+        parts.push(`[File attached: ${attachment.name}, Type: ${attachment.mimeType}, Size: ${this.formatFileSize(attachment.size)}]`);
+      }
+    }
+    
+    return `\n\n📎 Attachments (${attachments.length}):\n${parts.join('\n')}`;
+  }
+  
+  /**
+   * Format file size for display
+   */
+  private formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
 
   /**
-   * Call AI service with enhanced context and retry logic
-   * Now uses request queue to prevent rate limiting
+   * Call AI service with enhanced context
    */
-  private async callAIService(params: any, retryCount = 0): Promise<any> {
-    const MAX_RETRIES = 3;
-    const BASE_DELAY = 1000; // 1 second
-    
-    // Import AI request queue
-    const { aiRequestQueue } = await import('@/lib/ai-gateway/request-queue');
-    
-    // Debounce: Prevent rapid-fire API calls
-    const now = Date.now();
-    const timeSinceLastCall = now - this.lastAPICallTime;
-    if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
-      const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
-      logger.debug(`[Dash] Debouncing API call. Waiting ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    this.lastAPICallTime = Date.now();
-    
+  private async callAIService(params: any): Promise<any> {
     try {
       const supabase = assertSupabase();
       
-      // Tier-based model selection - Sonnet for paid tiers, Haiku for free
-      let selectedModel = params.model;
-      if (!selectedModel) {
-        const userTier = await this.getUserTier();
-        if (userTier === 'free') {
-          selectedModel = 'claude-3-haiku-20240307';
-          logger.debug('[Dash] Using Haiku for free tier');
-        } else {
-          // Paid tiers (starter, premium, pro, enterprise) get Sonnet
-          selectedModel = 'claude-3-5-sonnet-20241022';
-          logger.debug(`[Dash] Using Sonnet 3.5 for ${userTier} tier`);
-        }
-      }
-      
+      // Include model from environment variables if not specified
       const requestBody = {
         ...params,
-        model: selectedModel
+        model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
       };
       
-      // Queue the AI request to prevent rate limiting
-      const { data, error } = await aiRequestQueue.enqueue(() => 
-        supabase.functions.invoke('ai-gateway', {
-          body: requestBody
-        })
-      );
-      
-      if (error) {
-        const status = (error as any).context?.status || (error as any).status;
-        
-        // Log detailed error information
-        logger.error('[Dash] AI Gateway Error:', {
-          message: error.message,
-          status,
-          statusText: (error as any).statusText,
-          retryCount,
-          context: (error as any).context,
-          details: error
-        });
-        
-        // Handle rate limiting (429) with exponential backoff
-        if (status === 429 && retryCount < MAX_RETRIES) {
-          // Respect Retry-After if provided; otherwise exponential backoff with jitter
-          let retryAfterMs = 0;
-          try {
-            const retryAfterHeader = (error as any)?.context?.headers?.map?.['retry-after'] || (error as any)?.context?.headers?.['retry-after'];
-            if (retryAfterHeader) {
-              const parsed = parseInt(String(retryAfterHeader));
-              if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
-            }
-          } catch { /* Intentional: non-fatal */ }
-          const expBackoff = BASE_DELAY * Math.pow(2, retryCount); // 1s, 2s, 4s
-          const jitter = Math.floor(Math.random() * 500);
-          const delay = Math.max(retryAfterMs, expBackoff) + jitter;
-          logger.warn(`[Dash] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.callAIService(params, retryCount + 1);
+      // If attachments with images are present, add them for vision analysis
+      if (params.attachments && Array.isArray(params.attachments)) {
+        const imageAttachments = params.attachments.filter((a: DashAttachment) => a.kind === 'image');
+        if (imageAttachments.length > 0) {
+          requestBody.images = imageAttachments.map((img: DashAttachment) => ({
+            name: img.name,
+            url: img.previewUri,
+            mimeType: img.mimeType
+          }));
         }
-        
-        // Handle server errors (500, 502, 503, 504) with retry
-        if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
-          const delay = BASE_DELAY * (retryCount + 1); // 1s, 2s, 3s
-          logger.warn(`[Dash] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.callAIService(params, retryCount + 1);
-        }
-        
-        throw error;
       }
       
-      return data;
-    } catch (error: any) {
-      const status = error?.context?.status || error?.status;
-      
-      // Enhanced error logging
-      logger.error('[Dash] AI service call failed:', {
-        name: error?.name,
-        message: error?.message,
-        status,
-        statusCode: error?.statusCode,
-        retryCount,
-        context: error?.context,
-        stack: error?.stack?.split('\n').slice(0, 3).join('\n'),
-        requestParams: {
-          messages: params.messages?.length || 0,
-          hasSystemPrompt: !!params.system,
-          model: params.model
-        }
+      const { data, error } = await supabase.functions.invoke('ai-gateway', {
+        body: requestBody
       });
       
-      // User-friendly error messages based on status
-      let userMessage = 'I apologize, but I encountered an issue. Please try again.';
-      
-      if (status === 429) {
-        userMessage = "I'm currently experiencing high demand. Please wait a moment and try again.";
-      } else if ([500, 502, 503, 504].includes(status)) {
-        userMessage = 'The AI service is temporarily unavailable. Please try again in a moment.';
-      } else if (status === 401 || status === 403) {
-        userMessage = 'Authentication issue detected. Please try signing out and back in.';
-      }
-      
-      return { 
-        content: userMessage,
-        error: true,
-        errorDetails: error?.message || 'Unknown error',
-        errorStatus: status
-      };
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('[Dash] AI service call failed:', error);
+      return { content: 'I apologize, but I encountered an issue. Please try again.' };
     }
   }
 
   /**
-   * Call AI service with vision support (uses ai-proxy Edge Function)
-   * For messages with image attachments
+   * Generate suggested actions based on intent and capabilities
    */
-  private async callAIServiceWithVision(params: {
-    prompt: string;
-    context?: string;
-    images?: Array<{ data: string; media_type: string }>;
-    conversationHistory?: any[];
-  }, retryCount = 0): Promise<any> {
-    const MAX_RETRIES = 3;
-    const BASE_DELAY = 1000;
-    
-    // Import AI request queue
-    const { aiRequestQueue } = await import('@/lib/ai-gateway/request-queue');
-    
-    // Debounce: Prevent rapid-fire API calls
-    const now = Date.now();
-    const timeSinceLastCall = now - this.lastAPICallTime;
-    if (timeSinceLastCall < this.MIN_API_CALL_INTERVAL && retryCount === 0) {
-      const waitTime = this.MIN_API_CALL_INTERVAL - timeSinceLastCall;
-      logger.debug(`[Dash Vision] Debouncing API call. Waiting ${waitTime}ms...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-    this.lastAPICallTime = Date.now();
-    
-    try {
-      const supabase = assertSupabase();
-      
-      // Format request for ai-proxy Edge Function
-      const requestBody = {
-        scope: this.userProfile?.role || 'teacher',
-        service_type: 'homework_help',
-        payload: {
-          prompt: params.prompt,
-          context: params.context,
-          images: params.images, // Base64 images array
-        },
-        metadata: {
-          has_images: params.images && params.images.length > 0,
-          image_count: params.images?.length || 0,
-        }
-      };
-      
-      logger.debug(`[Dash Vision] Calling ai-proxy with ${params.images?.length || 0} images`);
-      
-      // Queue the AI request to prevent rate limiting
-      const { data, error } = await aiRequestQueue.enqueue(() => 
-        supabase.functions.invoke('ai-proxy', {
-          body: requestBody
-        })
-      );
-      
-      if (error) {
-        const status = (error as any).context?.status || (error as any).status;
-        
-        // Log detailed error information
-        logger.error('[Dash Vision] AI Proxy Error:', {
-          message: error.message,
-          status,
-          statusText: (error as any).statusText,
-          retryCount,
-          context: (error as any).context,
-          details: error
-        });
-        
-        // Handle rate limiting (429) with exponential backoff
-        if (status === 429 && retryCount < MAX_RETRIES) {
-          let retryAfterMs = 0;
-          try {
-            const retryAfterHeader = (error as any)?.context?.headers?.map?.['retry-after'] || (error as any)?.context?.headers?.['retry-after'];
-            if (retryAfterHeader) {
-              const parsed = parseInt(String(retryAfterHeader));
-              if (!isNaN(parsed)) retryAfterMs = parsed * 1000;
-            }
-          } catch { /* Intentional: non-fatal */ }
-          const expBackoff = BASE_DELAY * Math.pow(2, retryCount);
-          const jitter = Math.floor(Math.random() * 500);
-          const delay = Math.max(retryAfterMs, expBackoff) + jitter;
-          logger.warn(`[Dash Vision] Rate limited (429). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.callAIServiceWithVision(params, retryCount + 1);
-        }
-        
-        // Handle server errors with retry
-        if ([500, 502, 503, 504].includes(status) && retryCount < MAX_RETRIES) {
-          const delay = BASE_DELAY * (retryCount + 1);
-          logger.warn(`[Dash Vision] Server error (${status}). Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.callAIServiceWithVision(params, retryCount + 1);
-        }
-        
-        throw error;
-      }
-      
-      // Handle successful response from ai-proxy
-      if (data?.success && data?.content) {
-        return {
-          content: data.content,
-          usage: data.usage,
-          model: data.usage?.model || 'claude-3-5-sonnet-20241022'
-        };
-      }
-      
-      // Handle unsuccessful response
-      if (!data?.success && data?.error) {
-        throw new Error(data.error.message || 'AI Proxy returned error');
-      }
-      
-      return data;
-    } catch (error: any) {
-      const status = error?.context?.status || error?.status;
-      
-      // Enhanced error logging
-      logger.error('[Dash Vision] AI service call failed:', {
-        name: error?.name,
-        message: error?.message,
-        status,
-        statusCode: error?.statusCode,
-        retryCount,
-        context: error?.context,
-        imageCount: params.images?.length || 0
-      });
-      
-      // User-friendly error messages
-      let userMessage = 'I apologize, but I encountered an issue analyzing the image. Please try again.';
-      
-      if (status === 429) {
-        userMessage = "I'm currently experiencing high demand. Please wait a moment and try again.";
-      } else if ([500, 502, 503, 504].includes(status)) {
-        userMessage = 'The AI vision service is temporarily unavailable. Please try again in a moment.';
-      } else if (status === 401 || status === 403) {
-        userMessage = 'Authentication issue detected. Please try signing out and back in.';
-      } else if (error?.message?.includes('Vision features require')) {
-        userMessage = 'Vision features require Basic subscription (R299) or higher. Please upgrade to use image analysis.';
-      }
-      
-      return { 
-        content: userMessage,
-        error: true,
-        errorDetails: error?.message || 'Unknown error',
-        errorStatus: status
-      };
-    }
-  }
-
-  /**
-   * Generate suggested actions based on intent and user role
-   */
-  private generateSuggestedActions(intent: any, userRole: string): string[] {
+  private generateSuggestedActions(intent: any, capabilities: string[]): string[] {
     const actions: string[] = [];
-    
-    // Role-based action suggestions
-    const roleCapabilities: Record<string, string[]> = {
-      'principal': ['lesson_planning', 'teacher_management', 'financial_oversight', 'communication'],
-      'teacher': ['lesson_planning', 'grading_assistance', 'student_management', 'parent_communication'],
-      'parent': ['homework_help', 'progress_tracking', 'communication']
-    };
-    
-    const capabilities = roleCapabilities[userRole] || [];
     
     if (intent?.primary_intent === 'create_lesson' && capabilities.includes('lesson_planning')) {
       actions.push('Create detailed lesson plan', 'Align with curriculum', 'Generate assessment rubric');
     } else if (intent?.primary_intent === 'grade_assignment' && capabilities.includes('grading_assistance')) {
       actions.push('Auto-grade assignments', 'Generate feedback', 'Track student progress');
-    } else if (intent?.primary_intent === 'parent_communication' && capabilities.includes('parent_communication')) {
+    } else if (intent?.primary_intent === 'parent_communication') {
       actions.push('Draft parent email', 'Schedule meeting', 'Share progress report');
-    } else {
-      // Default actions based on role
-      if (userRole === 'teacher') {
-        actions.push('Create lesson', 'View students', 'Check assignments');
-      } else if (userRole === 'principal') {
-        actions.push('View analytics', 'Manage teachers', 'Financial overview');
-      } else if (userRole === 'parent') {
-        actions.push('View children', 'Check homework', 'Message teacher');
-      }
     }
     
     return actions;
@@ -5751,267 +4693,45 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Get user profile (delegated to contextBuilder)
+   * Get user profile
    */
   public getUserProfile(): DashUserProfile | null {
-    return this.contextBuilder.getUserProfile();
+    return this.userProfile;
   }
   
   /**
    * Get user's subscription tier for model selection
-   * Queries database to determine actual subscription level
    */
-  private async getUserTier(): Promise<'free' | 'starter' | 'premium' | 'enterprise'> {
-    try {
-      const supabase = assertSupabase();
-      const { data: userRes } = await supabase.auth.getUser();
-      if (!userRes?.user) return 'free';
-      
-      const user = userRes.user;
-      
-      // Check user metadata first (fastest)
-      const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
-      if (metaTier && ['free', 'starter', 'premium', 'enterprise'].includes(metaTier)) {
-        return metaTier as 'free' | 'starter' | 'premium' | 'enterprise';
-      }
-      
-      // Get organization ID (prioritize organization_id over legacy preschool_id)
-      let orgId = (user?.user_metadata as any)?.organization_id || (user?.user_metadata as any)?.preschool_id;
-      
-      if (!orgId) {
-        const { data: userRow } = await supabase
-          .from('users')
-          .select('organization_id, preschool_id')
-          .eq('auth_user_id', user.id)
-          .maybeSingle();
-        orgId = userRow?.organization_id || userRow?.preschool_id;
-      }
-      
-      // Check organization tier
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('plan_tier')
-          .eq('id', orgId)
-          .maybeSingle();
-        if (org?.plan_tier) {
-          const tierStr = String(org.plan_tier).toLowerCase();
-          if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
-            return tierStr as 'starter' | 'premium' | 'enterprise';
-          }
-        }
-      }
-      
-      // Check subscriptions table (legacy support)
-      if (orgId) {
-        const { data: sub } = await supabase
-          .from('subscriptions')
-          .select('plan_id')
-          .eq('school_id', orgId)
-          .in('status', ['active', 'trialing'])
-          .maybeSingle();
-        
-        if (sub?.plan_id) {
-          const { data: plan } = await supabase
-            .from('subscription_plans')
-            .select('tier')
-            .eq('id', sub.plan_id)
-            .maybeSingle();
-          
-          if (plan?.tier) {
-            const tierStr = String(plan.tier).toLowerCase();
-            if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
-              return tierStr as 'starter' | 'premium' | 'enterprise';
-            }
-          }
-        }
-        
-        // Fallback to preschools table (legacy support)
-        const { data: school } = await supabase
-          .from('preschools')
-          .select('subscription_tier')
-          .eq('id', orgId)
-          .maybeSingle();
-        
-        if (school?.subscription_tier) {
-          const tierStr = String(school.subscription_tier).toLowerCase();
-          if (['starter', 'premium', 'enterprise'].includes(tierStr)) {
-            return tierStr as 'starter' | 'premium' | 'enterprise';
-          }
-        }
-      }
-      
-      // Default to free
-      return 'free';
-    } catch (error) {
-      logger.error('[Dash] Failed to determine user tier:', error);
-      return 'free'; // Safe fallback
-    }
+  private getUserTier(): 'free' | 'starter' | 'premium' | 'enterprise' {
+    // For now, return 'starter' as default since we don't have subscription info in DashAIAssistant
+    // This should be updated to check actual subscription status when available
+    // TODO: Integrate with subscription context or session data
+    return 'starter';
   }
 
   /**
-   * Update user preferences (delegated to contextBuilder)
+   * Update user preferences
    */
   public async updateUserPreferences(preferences: Partial<DashUserProfile['preferences']>): Promise<void> {
-    await this.contextBuilder.updateUserPreferences(preferences);
-    // Sync local reference for backward compatibility
-    this.userProfile = this.contextBuilder.getUserProfile();
+    if (!this.userProfile) return;
+    
+    this.userProfile.preferences = {
+      ...this.userProfile.preferences,
+      ...preferences
+    };
+    
+    await this.saveUserProfile();
   }
 
   /**
-   * Cleanup resources and dispose of all caches
-   * 
-   * Implements the dispose pattern for safe resource cleanup.
-   * Call this when the DashAIAssistant instance is no longer needed,
-   * such as when a component unmounts or the app is closing.
-   * 
-   * @remarks
-   * After calling cleanup/dispose, any further operations on this instance
-   * will throw an error. A new instance must be created via getInstance().
-   * 
-   * Cleans up:
-   * - Active timers and intervals
-   * - All Maps (memory, tasks, reminders, insights, context, message counts)
-   * - Interaction history arrays
-   * - Error tracking state
-   * - Active speech/TTS (stops any ongoing speech playback)
-   * 
-   * @example
-   * ```typescript
-   * const dash = DashAIAssistant.getInstance();
-   * // ... use dash ...
-   * dash.dispose(); // Clean up when done
-   * ```
+   * Cleanup resources
    */
   public cleanup(): void {
-    logger.debug('[Dash] Cleaning up AI Assistant resources...');
-    
-    // Mark as disposed
-    this.isDisposed = true;
-    
-    // Stop any active speech immediately
-    try {
-      this.stopSpeaking();
-    } catch (e) {
-      logger.warn('[Dash] Failed to stop speech during cleanup (non-fatal):', e);
-    }
-    
-    // Clear timers
     if (this.proactiveTimer) {
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
     }
-    if (this.cacheCleanupTimer) {
-      clearInterval(this.cacheCleanupTimer);
-      this.cacheCleanupTimer = null;
-    }
-    
-    // Dispose modular components (Phase 4 refactoring)
-    try {
-      this.memoryManager?.dispose();
-      this.voiceController?.dispose();
-      this.messageHandler?.dispose();
-      this.contextBuilder?.dispose();
-    } catch (e) {
-      logger.warn('[Dash] Module disposal error (non-fatal):', e);
-    }
-    
-    // Clear remaining state
-    this.activeTasks.clear();
-    this.activeReminders.clear();
-    this.pendingInsights.clear();
-    
-    // Reset conversation pointer
-    this.currentConversationId = null;
-    
-    // Reset error tracking
-    this.consecutiveErrors = 0;
-    this.lastErrorTimestamp = 0;
-    
-    logger.debug('[Dash] Cleanup complete - instance disposed');
-  }
-  
-  /**
-   * Dispose of the DashAIAssistant instance and free all resources.
-   * 
-   * This is an alias for cleanup() that follows the standard dispose pattern.
-   * 
-   * @remarks
-   * After calling dispose, the instance is marked as disposed and cannot be used.
-   * Any subsequent method calls will throw an error.
-   * 
-   * @see cleanup
-   */
-  public dispose(): void {
-    this.cleanup();
-  }
-  
-  /**
-   * Check if instance has been disposed
-   */
-  private checkDisposed(): void {
-    if (this.isDisposed) {
-      throw new Error('[Dash] Cannot perform operation: instance has been disposed');
-    }
-  }
-
-  /**
-   * Append a user message to the current conversation (or specified conversation)
-   */
-  public async appendUserMessage(content: string, conversationId?: string): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
-
-    // Heuristic language detection for typed/streamed text to inform TTS of the next assistant reply
-    let detectedLang: 'en' | 'af' | 'zu' | 'xh' | 'nso' = 'en';
-    try {
-      detectedLang = this.messageHandler.detectLanguageFromText(content);
-    } catch (error) {
-      logger.warn('[Dash] Language detection failed, using default (non-fatal):', error);
-    }
-
-    const msg: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'user',
-      content: content,
-      timestamp: Date.now(),
-      metadata: { detected_language: detectedLang },
-    };
-    await this.addMessageToConversation(convId, msg);
-    return msg;
-  }
-
-  /**
-   * Append an assistant message to the current conversation (or specified conversation)
-   */
-  public async appendAssistantMessage(content: string, conversationId?: string, metadata?: DashMessage['metadata']): Promise<DashMessage> {
-    const convId = conversationId || this.currentConversationId || await this.startNewConversation('Chat with Dash');
-    const msg: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'assistant',
-      content: content,
-      timestamp: Date.now(),
-      ...(metadata ? { metadata } : {}),
-    } as DashMessage;
-    await this.addMessageToConversation(convId, msg);
-    return msg;
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashAIAssistantInstance: DashAIAssistant = (() => {
-  try {
-    return container.resolve(TOKENS.dashAI) as DashAIAssistant;
-  } catch {
-    // Fallback during initialization
-    return new DashAIAssistant();
-  }
-})();
-
-// Add static getInstance method to class
-DashAIAssistant.getInstance = function() {
-  return DashAIAssistantInstance;
-};
-
-export default DashAIAssistantInstance;
+export default DashAIAssistant;

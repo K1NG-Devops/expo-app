@@ -25,6 +25,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "@/constants/Colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useAds } from "@/contexts/AdsContext";
@@ -48,6 +49,7 @@ import WhatsAppOptInModal from "@/components/whatsapp/WhatsAppOptInModal";
 import AdBannerWithUpgrade from "@/components/ui/AdBannerWithUpgrade";
 import { useTeacherHasSeat } from "@/lib/hooks/useSeatLimits";
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
+import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
 import Feedback from '@/lib/feedback';
 
 const { width, height } = Dimensions.get("window");
@@ -165,7 +167,7 @@ export const TeacherDashboard: React.FC = () => {
         },
         all_caps_count: caps?.length || 0,
       });
-    } catch { /* Intentional: non-fatal */ }
+    } catch {}
   }, [user?.id, seatStatus, teacherHasSeat, hasActiveSeat, planTier, (profile as any)?.capabilities]);
 
   // Use the custom data hook
@@ -317,21 +319,21 @@ export const TeacherDashboard: React.FC = () => {
             count: dashboardData.totalClasses,
           }),
           icon: "people-outline",
-          color: theme.primary,
+          color: "#4F46E5",
         },
         {
           title: t("metrics.pending_grading"),
           value: dashboardData.pendingGrading,
           subtitle: t("metrics.assignments_to_review"),
           icon: "document-text-outline",
-          color: theme.errorDark || theme.error,
+          color: "#DC2626",
         },
         {
           title: t("metrics.lessons_today"),
           value: dashboardData.upcomingLessons,
           subtitle: t("metrics.scheduled_classes"),
           icon: "book-outline",
-          color: theme.successDark || theme.success,
+          color: "#059669",
         },
       ]
     : [];
@@ -348,7 +350,7 @@ export const TeacherDashboard: React.FC = () => {
       title: "AI Lesson Generator",
       subtitle: "Create engaging lessons with AI",
       icon: "bulb",
-      color: theme.primary,
+      color: "#4F46E5",
       onPress: () => {
         if (!hasActiveSeat && (!aiLessonEnabled || !canCreateAssignments)) {
           Alert.alert(
@@ -378,7 +380,7 @@ export const TeacherDashboard: React.FC = () => {
       title: "Grade Homework",
       subtitle: "Auto-grade assignments with AI",
       icon: "checkmark-circle",
-      color: theme.successDark || theme.success,
+      color: "#059669",
       onPress: () => {
         if (!hasActiveSeat && (!aiGradingEnabled || !canGradeAssignments)) {
           Alert.alert(
@@ -408,7 +410,7 @@ export const TeacherDashboard: React.FC = () => {
       title: "Homework Helper",
       subtitle: "Child-safe, step-by-step guidance",
       icon: "help-circle",
-      color: theme.infoDark || theme.info,
+      color: "#2563EB",
       onPress: () => {
         if (!aiHelperEnabled) {
           Alert.alert(
@@ -426,7 +428,7 @@ export const TeacherDashboard: React.FC = () => {
       title: "Progress Analysis",
       subtitle: "AI-powered student insights",
       icon: "analytics",
-      color: theme.accentDark || theme.accent,
+      color: "#7C3AED",
       onPress: () => {
         if (!hasActiveSeat && !canViewAnalytics) {
           Alert.alert(
@@ -448,7 +450,7 @@ export const TeacherDashboard: React.FC = () => {
       id: "take-attendance",
       title: "Take Attendance",
       icon: "checkmark-done",
-      color: theme.successDark || theme.success,
+      color: "#059669",
       onPress: () => {
         router.push("/screens/attendance");
       },
@@ -458,7 +460,7 @@ export const TeacherDashboard: React.FC = () => {
       id: "lessons-hub",
       title: "Lessons Hub",
       icon: "library-outline",
-      color: theme.primary,
+      color: "#4F46E5",
       onPress: async () => {
         await maybeShowInterstitial('teacher_dashboard_lessons_hub');
         router.push("/screens/lessons-hub");
@@ -469,7 +471,7 @@ export const TeacherDashboard: React.FC = () => {
       id: "saved-lessons",
       title: "Saved Lessons",
       icon: "library",
-      color: theme.accent || theme.primary,
+      color: "#EC4899",
       onPress: async () => {
         await maybeShowInterstitial('teacher_dashboard_saved_lessons');
         router.push("/screens/lessons-hub");
@@ -480,7 +482,7 @@ export const TeacherDashboard: React.FC = () => {
       id: "message-parents",
       title: "Message Parents",
       icon: "chatbubbles",
-      color: theme.accentDark || theme.accent,
+      color: "#7C3AED",
       onPress: async () => {
         await maybeShowInterstitial('teacher_dashboard_message_parents');
         router.push("/screens/teacher-messages");
@@ -491,7 +493,7 @@ export const TeacherDashboard: React.FC = () => {
       id: "view-reports",
       title: "View Reports",
       icon: "document-text",
-      color: theme.errorDark || theme.error,
+      color: "#DC2626",
       onPress: async () => {
         await maybeShowInterstitial('teacher_dashboard_view_reports');
         router.push("/screens/teacher-reports");
@@ -525,7 +527,7 @@ export const TeacherDashboard: React.FC = () => {
   const renderMetricCard = (metric: TeacherMetric) => (
     <View
       key={metric.title}
-      style={[styles.metricCard, { borderLeftColor: metric.color, shadowColor: metric.color }]}
+      style={[styles.metricCard, { borderLeftColor: metric.color }]}
     >
       <View style={styles.metricHeader}>
         <Ionicons name={metric.icon as any} size={24} color={metric.color} />
@@ -682,7 +684,7 @@ export const TeacherDashboard: React.FC = () => {
         key={tool.id}
         style={[
           styles.aiToolCard,
-          { backgroundColor: tool.color + "10", opacity: isActuallyEnabled ? 1 : 0.5, borderLeftColor: tool.color, shadowColor: tool.color },
+          { backgroundColor: tool.color + "10", opacity: isActuallyEnabled ? 1 : 0.5 },
         ]}
         onPress={handlePress}
         disabled={!isActuallyEnabled}
@@ -715,7 +717,7 @@ export const TeacherDashboard: React.FC = () => {
                 router.push('/screens/subscription-upgrade-post?reason=ai_progress');
               }}
             >
-              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>{t('common.upgrade', { defaultValue: 'Upgrade' })}</Text>
+              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12 }}>Upgrade</Text>
             </TouchableOpacity>
           )}
           {/* Rewarded ad offer for disabled premium AI tools */}
@@ -760,20 +762,20 @@ export const TeacherDashboard: React.FC = () => {
   const seatPendingBanner = (
     <View
       style={{
-        backgroundColor: theme.warning + '20',
-        borderColor: theme.warning,
+        backgroundColor: "#FEF3C7",
+        borderColor: "#FCD34D",
         borderWidth: 1,
         padding: 10,
         borderRadius: 10,
         marginBottom: 12,
       }}
     >
-      <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>
+      <Text style={{ color: "#92400E", fontWeight: "700" }}>
         {seatStatus === "pending"
           ? "Access Restricted - Seat Pending"
           : "Access Restricted - No Active Seat"}
       </Text>
-      <Text style={{ color: theme.warningDark || theme.warning }}>
+      <Text style={{ color: "#92400E" }}>
         {seatStatus === "pending"
           ? "Your teacher seat is pending approval. Ask your administrator to assign a seat."
           : "Your teacher account needs an active seat to access all features. Request a seat from your administrator."}
@@ -781,29 +783,29 @@ export const TeacherDashboard: React.FC = () => {
       <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
         <TouchableOpacity
           style={{
-            backgroundColor: theme.warning + '30',
+            backgroundColor: "#FDE68A",
             paddingHorizontal: 10,
             paddingVertical: 6,
             borderRadius: 8,
           }}
           onPress={() => router.push("/screens/account")}
         >
-          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>{t('navigation.account', { defaultValue: 'Account' })}</Text>
+          <Text style={{ color: "#92400E", fontWeight: "700" }}>Account</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{
-            backgroundColor: theme.warning + '30',
+            backgroundColor: "#FDE68A",
             paddingHorizontal: 10,
             paddingVertical: 6,
             borderRadius: 8,
           }}
           onPress={() => refresh()}
         >
-          <Text style={{ color: theme.warningDark || theme.warning, fontWeight: "700" }}>{t('common.refresh', { defaultValue: 'Refresh' })}</Text>
+          <Text style={{ color: "#92400E", fontWeight: "700" }}>Refresh</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={{
-            backgroundColor: theme.warning + '30',
+            backgroundColor: "#FDE68A",
             paddingHorizontal: 10,
             paddingVertical: 6,
             borderRadius: 8,
@@ -956,7 +958,7 @@ export const TeacherDashboard: React.FC = () => {
           onPress={() => {
             const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
             setLayout(newLayout);
-            try { Feedback.vibrate(15); } catch { /* Intentional: non-fatal */ }
+            try { Feedback.vibrate(15); } catch {}
           }}
           accessibilityLabel={`Switch to ${preferences.layout === 'classic' ? 'enhanced' : 'classic'} layout`}
           accessibilityHint="Toggles between classic and enhanced dashboard layouts"
@@ -1047,7 +1049,7 @@ export const TeacherDashboard: React.FC = () => {
                           require('react-native').Vibration.vibrate(15);
                         }
                       }
-                    } catch { /* Intentional: non-fatal */ }
+                    } catch {}
                   }}
                 >
                   <Ionicons 
@@ -1133,13 +1135,13 @@ export const TeacherDashboard: React.FC = () => {
           </Text>
           {(aiLessonEnabled || aiHelperEnabled || aiGradingEnabled) ? (
             <Text
-              style={{ color: theme.textSecondary, marginBottom: 8 }}
+              style={{ color: Colors.light.tabIconDefault, marginBottom: 8 }}
             >
               {t("dashboard.ai_tools_enabled")}
             </Text>
           ) : (
             <Text
-              style={{ color: theme.textSecondary, marginBottom: 8 }}
+              style={{ color: Colors.light.tabIconDefault, marginBottom: 8 }}
             >
               {t("dashboard.ai_tools_disabled")}
             </Text>
@@ -1155,11 +1157,11 @@ export const TeacherDashboard: React.FC = () => {
             <Ionicons
               name="information-circle-outline"
               size={16}
-              color={theme.textSecondary}
+              color={Colors.light.tabIconDefault}
             />
             <Text
               style={{
-                color: theme.textSecondary,
+                color: Colors.light.tabIconDefault,
                 marginLeft: 6,
                 flex: 1,
               }}
@@ -1225,7 +1227,7 @@ export const TeacherDashboard: React.FC = () => {
                 <Ionicons
                   name="close"
                   size={16}
-                  color={theme.textSecondary}
+                  color={Colors.light.tabIconDefault}
                 />
               </TouchableOpacity>
             </View>
@@ -1303,10 +1305,10 @@ export const TeacherDashboard: React.FC = () => {
                       {
                         backgroundColor:
                           event.type === "meeting"
-                            ? theme.primary
+                            ? "#4F46E5"
                             : event.type === "activity"
-                              ? (theme.successDark || theme.success)
-                              : (theme.errorDark || theme.error),
+                              ? "#059669"
+                              : "#DC2626",
                       },
                     ]}
                   >
@@ -1584,7 +1586,11 @@ export const TeacherDashboard: React.FC = () => {
         }}
       />
 
-      {/* Dash AI Floating Button removed - global voice FAB used */}
+      {/* Dash AI Floating Button */}
+      <DashFloatingButton
+        position="bottom-right"
+        onPress={() => router.push('/screens/dash-assistant')}
+      />
     </>
   );
 };
@@ -1789,7 +1795,6 @@ const getStyles = (theme: any, isDark: boolean) =>
       padding: 16,
       borderRadius: 12,
       backgroundColor: theme.cardBackground,
-      borderLeftWidth: 4,
     },
     aiToolIcon: {
       width: 48,
