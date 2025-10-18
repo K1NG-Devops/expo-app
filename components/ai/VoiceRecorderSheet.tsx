@@ -58,7 +58,7 @@ export const ChatGPTVoiceMode: React.FC<ChatGPTVoiceModeProps> = ({
   const [conversationActive, setConversationActive] = useState(false);
   const processingRef = useRef(false);
   const interruptedRef = useRef(false);
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Animations
   const orbPulse = useRef(new Animated.Value(1)).current;

@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRealtimeVoice } from './useRealtimeVoice';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
 import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -98,7 +98,7 @@ export function useChatGPTVoice(options: UseChatGPTVoiceOptions): ChatGPTVoiceCo
   const interruptedRef = useRef(false);
   const voiceStartTimeRef = useRef<number>(0);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const activityTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activityTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Language mapping
   const mapLanguage = useCallback((lang?: string) => {

@@ -5793,9 +5793,9 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
 // Backward compatibility: Export singleton instance
 // TODO: Remove once all call sites migrated to DI
 import { container, TOKENS } from '../lib/di/providers/default';
-export const DashAIAssistantInstance = (() => {
+export const DashAIAssistantInstance: DashAIAssistant = (() => {
   try {
-    return container.resolve(TOKENS.dashAI);
+    return container.resolve(TOKENS.dashAI) as DashAIAssistant;
   } catch {
     // Fallback during initialization
     return new DashAIAssistant();
@@ -5804,7 +5804,7 @@ export const DashAIAssistantInstance = (() => {
 
 // Back-compat static accessor for legacy call sites
 export namespace DashAIAssistant {
-  export function getInstance() {
+  export function getInstance(): DashAIAssistant {
     return DashAIAssistantInstance;
   }
 }
