@@ -123,7 +123,7 @@ async function testAIStreamingResponse() {
         }
         
         chunkCount++;
-        const chunk = decoder.decode(value);
+        decoder.decode(value);
         process.stdout.write('.');
       }
       

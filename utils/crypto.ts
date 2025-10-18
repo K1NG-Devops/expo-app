@@ -32,7 +32,7 @@ export async function getRandomBytes(length: number = 32): Promise<Uint8Array> {
         const randomBytes = await ExpoCrypto.getRandomBytesAsync(length);
         return new Uint8Array(randomBytes);
       }
-    } catch (cryptoError) {
+    } catch {
       logger.debug('expo-crypto not available');
     }
     
@@ -146,7 +146,7 @@ export function getCryptoInfo(): {
   try {
     const ExpoCrypto = require('expo-crypto');
     hasExpoCrypto = !!ExpoCrypto?.getRandomBytesAsync;
-  } catch (e) {
+  } catch {
     hasExpoCrypto = false;
   }
   

@@ -91,6 +91,9 @@ export interface IDashWhatsAppIntegration {
 }
 
 export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashWhatsAppIntegration;
+  
   private dashInstance: IDashAIAssistant | null = null;
   private activeOnboardingFlows: Map<string, WhatsAppOnboardingFlow> = new Map();
 
@@ -951,11 +954,9 @@ export const DashWhatsAppIntegrationInstance = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashWhatsAppIntegration {
-  export function getInstance() {
-    return DashWhatsAppIntegrationInstance;
-  }
-}
+// Add static getInstance method to class
+DashWhatsAppIntegration.getInstance = function() {
+  return DashWhatsAppIntegrationInstance;
+};
 
 export default DashWhatsAppIntegrationInstance;
