@@ -65,46 +65,72 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
 
   // Initialize Voice module
   useEffect(() => {
-    if (!Voice) {
-      console.warn('[VoiceModal] Voice module not available');
-      setIsAvailable(false);
-      return;
-    }
+    const initializeVoice = async () => {
+      if (!Voice || typeof Voice.isAvailable !== 'function') {
+        console.warn('[VoiceModal] Voice module not available');
+        setIsAvailable(false);
+        return;
+      }
 
-    Voice.onSpeechStart = () => {
-      console.log('[VoiceModal] Speech started');
-    };
+      try {
+        // Check if speech recognition is available on this device
+        const available = await Voice.isAvailable();
+        if (available !== 1) {
+          console.warn('[VoiceModal] Speech recognition not available on this device');
+          setIsAvailable(false);
+          return;
+        }
 
-    Voice.onSpeechEnd = () => {
-      console.log('[VoiceModal] Speech ended');
-    };
+        console.log('[VoiceModal] ✅ Voice module initialized and available');
+        setIsAvailable(true);
 
-    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-      console.log('[VoiceModal] Speech results:', e.value);
-      if (e.value && e.value.length > 0) {
-        const text = e.value[0];
-        setTranscript(text);
-        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+        Voice.onSpeechStart = () => {
+          console.log('[VoiceModal] Speech started');
+        };
+
+        Voice.onSpeechEnd = () => {
+          console.log('[VoiceModal] Speech ended');
+        };
+
+        Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+          console.log('[VoiceModal] Speech results:', e.value);
+          if (e.value && e.value.length > 0) {
+            const text = e.value[0];
+            setTranscript(text);
+            try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+          }
+        };
+
+        Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+          console.log('[VoiceModal] Partial results:', e.value);
+          if (e.value && e.value.length > 0) {
+            setTranscript(e.value[0]);
+          }
+        };
+
+        Voice.onSpeechError = (e: SpeechErrorEvent) => {
+          console.error('[VoiceModal] Speech error:', e.error);
+          const errorMsg = e.error?.message || 'Speech recognition error';
+          
+          // Ignore "No match" errors (user stopped before saying anything)
+          if (errorMsg.includes('No match') || errorMsg.includes('7/No match')) {
+            console.log('[VoiceModal] No speech detected, ignoring error');
+            return;
+          }
+
+          setErrorMsg(errorMsg);
+          setState('error');
+        };
+      } catch (error) {
+        console.error('[VoiceModal] Voice initialization error:', error);
+        setIsAvailable(false);
       }
     };
 
-    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
-      console.log('[VoiceModal] Partial results:', e.value);
-      if (e.value && e.value.length > 0) {
-        setTranscript(e.value[0]);
-      }
-    };
-
-    Voice.onSpeechError = (e: SpeechErrorEvent) => {
-      console.error('[VoiceModal] Speech error:', e.error);
-      if (e.error?.message && !e.error.message.includes('No match')) {
-        setErrorMsg(e.error.message);
-        setState('error');
-      }
-    };
+    initializeVoice();
 
     return () => {
-      if (Voice) {
+      if (Voice && typeof Voice.destroy === 'function') {
         Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
       }
     };
@@ -196,23 +222,42 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       return;
     }
 
+    if (!Voice || typeof Voice.start !== 'function') {
+      console.error('[VoiceModal] Voice module not properly initialized');
+      setErrorMsg('Voice module not available');
+      setState('error');
+      return;
+    }
+
     try {
+      // Stop any existing recognition first
+      try {
+        await Voice.stop();
+      } catch { /* Ignore errors from stopping non-active session */ }
+
       setState('listening');
       await Voice.start(language);
       console.log('[VoiceModal] Started listening with language:', language);
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     } catch (e: any) {
       console.error('[VoiceModal] Error starting:', e);
+      const errorMsg = e?.message || 'Failed to start speech recognition';
+      setErrorMsg(errorMsg);
+      setState('error');
       Alert.alert(
         'Error',
         'Failed to start speech recognition. Please check your microphone permissions.',
         [{ text: 'OK' }]
       );
-      setState('error');
     }
   };
 
   const stopListening = async () => {
+    if (!Voice || typeof Voice.stop !== 'function') {
+      console.warn('[VoiceModal] Voice.stop not available');
+      return;
+    }
+
     try {
       await Voice.stop();
       console.log('[VoiceModal] Stopped listening');
@@ -222,15 +267,28 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   };
 
   const restartRecording = async () => {
+    if (!Voice || typeof Voice.cancel !== 'function') {
+      console.warn('[VoiceModal] Voice.cancel not available');
+      return;
+    }
+
     try {
       await Voice.cancel();
       setTranscript('');
       setErrorMsg('');
+      setState('idle');
       processedRef.current = false;
-      await startListening();
+      
+      // Wait a bit before restarting to ensure cleanup
+      setTimeout(async () => {
+        await startListening();
+      }, 100);
+      
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     } catch (e) {
       console.error('[VoiceModal] Restart error:', e);
+      setErrorMsg('Failed to restart recording');
+      setState('error');
     }
   };
 
@@ -335,6 +393,16 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
 
         {/* Main content */}
         <View style={styles.content}>
+          {/* Voice Not Available Warning */}
+          {!isAvailable && (
+            <View style={[styles.warningContainer, { backgroundColor: theme.error + '20', borderColor: theme.error }]}>
+              <Ionicons name="warning" size={24} color={theme.error} />
+              <Text style={[styles.warningText, { color: theme.error }]}>
+                Voice recognition is not available on this device
+              </Text>
+            </View>
+          )}
+
           {/* Holographic Orb */}
           <View style={styles.orbContainer}>
             <HolographicOrb
@@ -378,13 +446,29 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
           </View>
 
           {/* Manual trigger button (only in idle state) */}
-          {state === 'idle' && (
+          {state === 'idle' && isAvailable && (
             <TouchableOpacity
               style={[styles.micButton, { backgroundColor: theme.primary }]}
               onPress={startListening}
               activeOpacity={0.8}
             >
               <Ionicons name="mic" size={28} color="#fff" />
+            </TouchableOpacity>
+          )}
+
+          {/* Error state action button */}
+          {state === 'error' && (
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: theme.primary }]}
+              onPress={() => {
+                setState('idle');
+                setErrorMsg('');
+                setTranscript('');
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.retryButtonText}>Try Again</Text>
             </TouchableOpacity>
           )}
 
@@ -523,6 +607,41 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   cancelButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  warningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 20,
+    maxWidth: '90%',
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  retryButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
