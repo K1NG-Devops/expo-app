@@ -26,13 +26,13 @@ interface TTSRequest {
   format?: 'mp3' | 'ogg' | 'wav';
 }
 
-interface TTSResponse {
-  audioUrl: string;
-  provider: 'azure' | 'google' | 'device';
-  language: string;
-  cacheHit: boolean;
-  fallback?: 'device';
-}
+// interface TTSResponse {
+//   audioUrl: string;
+//   provider: 'azure' | 'google' | 'device';
+//   language: string;
+//   cacheHit: boolean;
+//   fallback?: 'device';
+// }
 
 // Language mapping
 const LANG_MAP: Record<string, string> = {
@@ -363,7 +363,7 @@ serve(async (req) => {
 
     // Parse request (handle both param names for compatibility)
     const request: TTSRequest = await req.json();
-    const { text, lang, language, voiceId, voice_id, style, rate, pitch, speaking_rate, format } = request;
+    const { text, lang, language, voiceId, voice_id, style, rate, pitch, speaking_rate } = request;
 
     // Use language param name OR lang param name
     const effectiveLang = language || lang;

@@ -33,6 +33,9 @@ export interface IDashTaskAutomation {
 }
 
 export class DashTaskAutomation implements IDashTaskAutomation {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashTaskAutomation;
+  
   private activeTasks: Map<string, DashTask> = new Map();
   private taskTemplates: Map<string, TaskTemplate> = new Map();
   private automationRules: Map<string, any> = new Map();
@@ -599,11 +602,10 @@ export function getDashTaskAutomationInstance(): DashTaskAutomation {
   return _defaultInstance;
 }
 
-// Back-compat static accessor for legacy call sites
-export namespace DashTaskAutomation {
-  export function getInstance() {
-    return getDashTaskAutomationInstance();
-  }
-}
+// Add static getInstance method to class
+const DashTaskAutomationInstance = getDashTaskAutomationInstance();
+DashTaskAutomation.getInstance = function() {
+  return DashTaskAutomationInstance;
+};
 
-export default getDashTaskAutomationInstance();
+export default DashTaskAutomationInstance;

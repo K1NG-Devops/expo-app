@@ -67,6 +67,9 @@ export interface IDashRealTimeAwareness {
 }
 
 export class DashRealTimeAwareness implements IDashRealTimeAwareness {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashRealTimeAwareness;
+  
   private awareness: DashAwareness | null = null;
   private conversationStarted = new Map<string, Date>();
   private conversationMessageCount = new Map<string, number>(); // Track message count per conversation
@@ -498,11 +501,9 @@ export const DashRealTimeAwarenessInstance = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashRealTimeAwareness {
-  export function getInstance() {
-    return DashRealTimeAwarenessInstance;
-  }
-}
+// Add static getInstance method to class
+DashRealTimeAwareness.getInstance = function() {
+  return DashRealTimeAwarenessInstance;
+};
 
 export default DashRealTimeAwarenessInstance;

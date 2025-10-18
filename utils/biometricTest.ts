@@ -5,7 +5,7 @@
  */
 
 import { BiometricAuthService } from '@/services/BiometricAuthService';
-import { getBiometricInfo } from '@/lib/biometrics';
+// import { getBiometricInfo } from '@/lib/biometrics';
 
 export interface BiometricTestResult {
   capabilities: {

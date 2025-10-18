@@ -182,6 +182,7 @@ export interface DashMessage {
       next_steps: string[];
     };
     detected_language?: string; // Auto-detected language from voice transcription
+    tools_used?: string[]; // Track which tools were used in generating this response
     error?: string;
     doNotSpeak?: boolean; // Flag to prevent TTS (for error loop prevention)
   };
@@ -647,6 +648,8 @@ export interface IDashAIAssistant {
 }
 
 export class DashAIAssistant implements IDashAIAssistant {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashAIAssistant;
   
   // Configuration constants
   private static readonly MEMORY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -4940,7 +4943,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             // Add tool results
             messages.push({
               role: 'user',
-              content: toolResults
+              content: JSON.stringify(toolResults)
             });
             
             // Get final response with tool results
@@ -6006,11 +6009,9 @@ export const DashAIAssistantInstance: DashAIAssistant = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashAIAssistant {
-  export function getInstance(): DashAIAssistant {
-    return DashAIAssistantInstance;
-  }
-}
+// Add static getInstance method to class
+DashAIAssistant.getInstance = function() {
+  return DashAIAssistantInstance;
+};
 
 export default DashAIAssistantInstance;

@@ -522,12 +522,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
               
               // Get microphone stream
               localStream = await mediaDevices.getUserMedia({
-                audio: {
-                  channelCount: 1,
-                  sampleRate: 16000, // Deepgram requires 16kHz for linear16
-                  echoCancellation: true,
-                  noiseSuppression: true,
-                },
+                audio: true,
                 video: false,
               });
               

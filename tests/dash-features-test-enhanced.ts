@@ -29,7 +29,7 @@ interface TestResult {
 }
 
 const results: TestResult[] = [];
-let authToken: string | null = null;
+// let authToken: string | null = null;
 
 // Test user credentials (you may need to update these)
 const TEST_USER_EMAIL = process.env.TEST_USER_EMAIL || 'test@example.com';
@@ -181,7 +181,7 @@ async function testAIStreamingResponse() {
         
         chunkCount++;
         totalBytes += value.length;
-        const chunk = decoder.decode(value);
+        decoder.decode(value);
         process.stdout.write('.');
       }
       
@@ -299,7 +299,7 @@ async function testDatabaseTables() {
 
   for (const table of tables) {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from(table)
         .select('*', { count: 'exact', head: true });
 
@@ -481,7 +481,7 @@ function printSummary() {
     console.log(`Average response time: ${avgTime.toFixed(0)}ms`);
     
     console.log('\nOperations by speed:');
-    responseTimes.forEach((r, i) => {
+    responseTimes.forEach((r) => {
       const speed = (r.duration || 0) < 500 ? '🚀' : (r.duration || 0) < 1000 ? '⚡' : '🐢';
       console.log(`  ${speed} ${r.name}: ${r.duration}ms`);
     });

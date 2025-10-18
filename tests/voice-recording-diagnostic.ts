@@ -246,7 +246,7 @@ async function testEdgeFunctions() {
         available.push(funcName);
         console.log(`   ✅ ${funcName}: Available`);
       }
-    } catch (e) {
+    } catch {
       // Exception means function exists but rejected request
       available.push(funcName);
       console.log(`   ✅ ${funcName}: Available (rejected test request)`);

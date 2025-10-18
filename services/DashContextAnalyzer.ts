@@ -86,6 +86,8 @@ export interface IDashContextAnalyzer {
 }
 
 export class DashContextAnalyzer implements IDashContextAnalyzer {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashContextAnalyzer;
   
   // ===== PHASE 1.4: AGENTIC ENHANCEMENTS =====
   private lastSnapshotTime: number = 0;
@@ -1069,11 +1071,10 @@ export function getDashContextAnalyzerInstance(): DashContextAnalyzer {
   return _defaultInstance;
 }
 
-// Back-compat static accessor for legacy call sites
-export namespace DashContextAnalyzer {
-  export function getInstance() {
-    return getDashContextAnalyzerInstance();
-  }
-}
+// Add static getInstance method to class
+const DashContextAnalyzerInstance = getDashContextAnalyzerInstance();
+DashContextAnalyzer.getInstance = function() {
+  return DashContextAnalyzerInstance;
+};
 
-export default getDashContextAnalyzerInstance();
+export default DashContextAnalyzerInstance;
