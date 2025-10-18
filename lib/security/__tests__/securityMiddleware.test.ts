@@ -20,9 +20,9 @@ import { validateRequestBody, ValidationSchemas } from '../validation';
 
 // Mock the config and auth service
 jest.mock('../../config', () => ({
-  AppConfiguration: {
+  getAppConfiguration: jest.fn(() => ({
     environment: 'test',
-  },
+  })),
 }));
 
 jest.mock('../../auth/AuthService', () => ({

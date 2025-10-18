@@ -16,6 +16,26 @@ import {
 } from '../../models/Course';
 import { UserRole } from '../../security/rbac';
 
+// Mock config first to avoid environment variable issues
+jest.mock('../../config', () => ({
+  getAppConfiguration: jest.fn(() => ({
+    environment: 'test',
+  })),
+}));
+
+// Mock security middleware to bypass authentication
+jest.mock('../../security/securityMiddleware', () => ({
+  ...jest.requireActual('../../security/securityMiddleware'),
+  applySecurityMiddleware: jest.fn(async (request) => ({
+    success: true,
+    data: {
+      query: { page: 1, limit: 20 },
+      user: { id: 'user-123' },
+      profile: { role: 'instructor', organization_id: 'org-123' },
+    },
+  })),
+}));
+
 // Mock Supabase
 jest.mock('../../supabase', () => ({
   assertSupabase: jest.fn(() => ({
@@ -106,13 +126,8 @@ describe('Course API Endpoints', () => {
         },
       });
 
-      // This would be handled by the route guard middleware in practice
-      // For testing, we need to mock the user context
-      const mockContext = {
-        data: { query: { page: 1, limit: 20 } },
-        user: { id: 'user-123' },
-        profile: { role: 'instructor', organization_id: 'org-123' },
-      };
+      // Call the listCourses API function (route guard is mocked to provide user context)
+      await listCourses(request);
 
       // Test that the service is called correctly
       expect(mockCourseService.listCourses).toHaveBeenCalledWith(
