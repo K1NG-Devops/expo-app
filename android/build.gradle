@@ -20,6 +20,13 @@ def reactNativeAndroidDir = new File(
   "../android"
 )
 
+// Globally exclude all com.android.support libraries from all subprojects
+subprojects {
+  configurations.all {
+    exclude group: 'com.android.support'
+  }
+}
+
 allprojects {
   repositories {
     maven {
