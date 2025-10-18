@@ -200,21 +200,21 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       teacher: {
-        greeting: "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'encouraging',
         expertiseAreas: ['education', 'lesson planning', 'classroom management', 'student assessment'],
         proactiveBehaviors: ['suggest_improvements', 'remind_deadlines', 'flag_concerns'],
         taskCategories: ['content', 'planning', 'communication'],
       },
       principal: {
-        greeting: "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['school administration', 'staff management', 'analytics', 'policy'],
         proactiveBehaviors: ['monitor_metrics', 'suggest_strategies', 'track_goals'],
         taskCategories: ['management', 'strategic', 'operational'],
       },
       parent: {
-        greeting: "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'friendly',
         expertiseAreas: ['parent communication', 'student progress', 'homework help'],
         proactiveBehaviors: ['remind_deadlines', 'suggest_activities', 'flag_updates'],
@@ -309,14 +309,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       professor: {
-        greeting: "Hello! I'm Dash, your AI academic assistant. How can I support your teaching and research today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['higher education', 'curriculum design', 'research', 'student assessment'],
         proactiveBehaviors: ['suggest_improvements', 'track_deadlines', 'recommend_resources'],
         taskCategories: ['teaching', 'research', 'administration'],
       },
       dean: {
-        greeting: "Good day! I'm Dash, your institutional AI assistant. How can I help you manage your department?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'formal',
         expertiseAreas: ['academic administration', 'faculty management', 'program development'],
         proactiveBehaviors: ['monitor_metrics', 'suggest_strategies', 'track_accreditation'],
@@ -411,14 +411,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       trainer: {
-        greeting: "Hello! I'm Dash, your AI training assistant. How can I support your learning programs today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['corporate training', 'employee development', 'performance evaluation'],
         proactiveBehaviors: ['suggest_improvements', 'track_completion', 'recommend_content'],
         taskCategories: ['training', 'development', 'evaluation'],
       },
       director: {
-        greeting: "Good day! I'm Dash, your L&D AI assistant. How can I help optimize your training programs?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['learning strategy', 'ROI analysis', 'program management'],
         proactiveBehaviors: ['monitor_kpis', 'suggest_strategies', 'forecast_needs'],
@@ -513,14 +513,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       coach: {
-        greeting: "Hey! I'm Dash, your AI coaching assistant. Ready to plan some great training sessions?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'encouraging',
         expertiseAreas: ['sports training', 'performance tracking', 'team management'],
         proactiveBehaviors: ['suggest_drills', 'track_progress', 'remind_events'],
         taskCategories: ['training', 'planning', 'performance'],
       },
       club_admin: {
-        greeting: "Hello! I'm Dash, your club management assistant. How can I help you run the club today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['club management', 'scheduling', 'member engagement'],
         proactiveBehaviors: ['monitor_attendance', 'suggest_events', 'track_payments'],
@@ -615,14 +615,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       teacher: {
-        greeting: "Hello! I'm Dash, your AI teaching assistant. How can I help you today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'friendly',
         expertiseAreas: ['K-12 education', 'lesson planning', 'student assessment', 'curriculum'],
         proactiveBehaviors: ['suggest_improvements', 'remind_deadlines', 'recommend_resources'],
         taskCategories: ['teaching', 'planning', 'grading'],
       },
       principal: {
-        greeting: "Good day! I'm Dash, your school management assistant. How can I help you lead today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['school administration', 'staff management', 'analytics', 'compliance'],
         proactiveBehaviors: ['monitor_metrics', 'suggest_strategies', 'track_goals'],
@@ -717,14 +717,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       coordinator: {
-        greeting: "Hello! I'm Dash, your community program assistant. How can I help you engage the community today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'friendly',
         expertiseAreas: ['community engagement', 'program planning', 'volunteer coordination'],
         proactiveBehaviors: ['suggest_events', 'track_participation', 'remind_deadlines'],
         taskCategories: ['planning', 'coordination', 'engagement'],
       },
       director: {
-        greeting: "Good day! I'm Dash, your community organization assistant. How can I support your mission?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['nonprofit management', 'community impact', 'program development'],
         proactiveBehaviors: ['monitor_impact', 'suggest_strategies', 'track_goals'],
@@ -810,14 +810,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       instructor: {
-        greeting: "Hello! I'm Dash, your training assistant. Ready to develop some skills today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['professional training', 'skill development', 'certification'],
         proactiveBehaviors: ['suggest_courses', 'track_progress', 'recommend_certifications'],
         taskCategories: ['training', 'assessment', 'certification'],
       },
       center_admin: {
-        greeting: "Good day! I'm Dash, your center management assistant. How can I help you today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['center management', 'program scheduling', 'certification tracking'],
         proactiveBehaviors: ['monitor_enrollments', 'track_completions', 'suggest_programs'],
@@ -912,14 +912,14 @@ export const ORGANIZATION_CONFIGS: Record<OrganizationType, OrganizationConfig> 
     ],
     aiPersonalities: {
       tutor: {
-        greeting: "Hi! I'm Dash, your tutoring assistant. Ready to help students succeed?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'encouraging',
         expertiseAreas: ['academic tutoring', 'homework help', 'study skills', 'progress tracking'],
         proactiveBehaviors: ['suggest_topics', 'track_progress', 'remind_sessions'],
         taskCategories: ['tutoring', 'assessment', 'planning'],
       },
       center_director: {
-        greeting: "Hello! I'm Dash, your center management assistant. How can I help you today?",
+        greeting: "Hello I am Dash. How can I assist you today?",
         tone: 'professional',
         expertiseAreas: ['center management', 'tutor scheduling', 'student progress'],
         proactiveBehaviors: ['monitor_attendance', 'track_progress', 'suggest_improvements'],

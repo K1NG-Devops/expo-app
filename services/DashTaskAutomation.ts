@@ -18,18 +18,24 @@ export interface TaskTemplate {
   triggerConditions?: string[];
 }
 
-export class DashTaskAutomation {
-  private static instance: DashTaskAutomation;
+/**
+ * DashTaskAutomation interface for dependency injection
+ */
+export interface IDashTaskAutomation {
+  createTask(templateId?: string, customParams?: Partial<DashTask>, userRole?: string): Promise<any>;
+  executeTask(taskId: string, userInput?: any): Promise<void>;
+  getActiveTask(): DashTask | undefined;
+  getTaskTemplates(userRole?: string): TaskTemplate[];
+  getTask(taskId: string): DashTask | undefined;
+  getActiveTasks(): DashTask[];
+  cancelTask(taskId: string): { success: boolean; error?: string };
+  dispose(): void;
+}
+
+export class DashTaskAutomation implements IDashTaskAutomation {
   private activeTasks: Map<string, DashTask> = new Map();
   private taskTemplates: Map<string, TaskTemplate> = new Map();
   private automationRules: Map<string, any> = new Map();
-
-  static getInstance(): DashTaskAutomation {
-    if (!DashTaskAutomation.instance) {
-      DashTaskAutomation.instance = new DashTaskAutomation();
-    }
-    return DashTaskAutomation.instance;
-  }
 
   constructor() {
     this.initializeTaskTemplates();
@@ -564,4 +570,27 @@ export class DashTaskAutomation {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.activeTasks.clear();
+    this.taskTemplates.clear();
+    this.automationRules.clear();
+  }
 }
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashTaskAutomationInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashTaskAutomation);
+  } catch {
+    // Fallback during initialization
+    return new DashTaskAutomation();
+  }
+})();
+
+export default DashTaskAutomationInstance;

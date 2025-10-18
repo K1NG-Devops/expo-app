@@ -104,6 +104,15 @@ function LayoutContent() {
     // Pre-warm audio recorder on mobile for faster FAB voice interaction
     if (Platform.OS !== 'web') {
       try {
+        // Initialize SoundManager for UI sounds (once per app launch)
+        import('@/lib/audio/soundManager').then(({ SoundManager }) => {
+          SoundManager.initialize().catch((err) => {
+            if (__DEV__) {
+              console.log('[App] SoundManager init failed:', err);
+            }
+          });
+        }).catch(() => { /* Intentional: error handled */ });
+
         // Initialize audio manager early
         import('@/lib/voice/audio').then(({ audioManager }) => {
           audioManager.initialize().catch((err) => {

@@ -32,8 +32,19 @@ export interface ScreenInfo {
   roles?: Array<'teacher' | 'principal' | 'parent' | 'student' | 'admin'>;
 }
 
-export class DashNavigationHandler {
-  private static instance: DashNavigationHandler;
+/**
+ * DashNavigationHandler interface for dependency injection
+ */
+export interface IDashNavigationHandler {
+  navigateByVoice(command: string): Promise<NavigationResult>;
+  navigateToScreen(screenKey: string, params?: Record<string, any>): Promise<NavigationResult>;
+  getCurrentScreen(): string | null;
+  goBack(): NavigationResult;
+  clearHistory(): Promise<void>;
+  dispose(): void;
+}
+
+export class DashNavigationHandler implements IDashNavigationHandler {
   private navigationHistory: Array<{ screen: string; timestamp: number }> = [];
   private maxHistorySize = 50;
 
@@ -266,17 +277,6 @@ export class DashNavigationHandler {
     }
   ];
 
-  private constructor() {
-    this.loadNavigationHistory();
-  }
-
-  public static getInstance(): DashNavigationHandler {
-    if (!DashNavigationHandler.instance) {
-      DashNavigationHandler.instance = new DashNavigationHandler();
-    }
-    return DashNavigationHandler.instance;
-  }
-
   /**
    * Navigate based on voice command
    */
@@ -491,6 +491,25 @@ export class DashNavigationHandler {
     this.navigationHistory = [];
     await AsyncStorage.removeItem('@dash_navigation_history');
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.navigationHistory = [];
+  }
 }
 
-export default DashNavigationHandler;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashNavigationHandlerInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashNavigation);
+  } catch {
+    // Fallback during initialization
+    return new DashNavigationHandler();
+  }
+})();
+
+export default DashNavigationHandlerInstance;

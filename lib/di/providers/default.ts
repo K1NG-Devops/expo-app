@@ -37,6 +37,10 @@ import { MemoryServiceClass } from '../../../services/MemoryService';
 import { LessonsService } from '../../../services/LessonsService';
 import { SMSService } from '../../../services/SMSService';
 import { GoogleCalendarService } from '../../../services/GoogleCalendarService';
+import { DashTaskAutomation } from '../../../services/DashTaskAutomation';
+import { DashDecisionEngine } from '../../../services/DashDecisionEngine';
+import { DashNavigationHandler } from '../../../services/DashNavigationHandler';
+import { DashWebSearchService } from '../../../services/DashWebSearchService';
 
 container
   .registerFactory(TOKENS.organization, () => new OrganizationServiceImpl(), { singleton: true })
@@ -48,6 +52,10 @@ container
   .registerFactory(TOKENS.memory, () => new MemoryServiceClass(), { singleton: true })
   .registerFactory(TOKENS.lessons, () => new LessonsService(), { singleton: true })
   .registerFactory(TOKENS.sms, () => new SMSService(), { singleton: true })
-  .registerFactory(TOKENS.googleCalendar, () => new GoogleCalendarService(), { singleton: true });
+  .registerFactory(TOKENS.googleCalendar, () => new GoogleCalendarService(), { singleton: true })
+  .registerFactory(TOKENS.dashTaskAutomation, () => new DashTaskAutomation(), { singleton: true })
+  .registerFactory(TOKENS.dashDecisionEngine, () => new DashDecisionEngine(), { singleton: true })
+  .registerFactory(TOKENS.dashNavigation, () => new DashNavigationHandler(), { singleton: true })
+  .registerFactory(TOKENS.dashWebSearch, () => new DashWebSearchService(), { singleton: true });
 
 export { container, TOKENS };

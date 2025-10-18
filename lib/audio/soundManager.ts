@@ -264,7 +264,5 @@ export const stopOrbSound = (sound: OrbSound) =>
 export const stopAllOrbSounds = () => 
   SoundManager.stopAll();
 
-// Initialize on import (non-blocking)
-if (Platform.OS !== 'web') {
-  SoundManager.initialize().catch(console.warn);
-}
+// NOTE: Auto-initialization removed to prevent multiple instances
+// Initialize manually in root _layout.tsx once

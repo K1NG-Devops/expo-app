@@ -76,8 +76,18 @@ export interface Decision {
 
 // ===== DECISION ENGINE =====
 
-export class DashDecisionEngine {
-  private static instance: DashDecisionEngine;
+/**
+ * DashDecisionEngine interface for dependency injection
+ */
+export interface IDashDecisionEngine {
+  decide(candidate: ActionCandidate, context: any): Promise<Decision>;
+  getDecisionHistory(): Decision[];
+  getRecentDecisions(limit?: number): Decision[];
+  getDecisionStats(): any;
+  dispose(): void;
+}
+
+export class DashDecisionEngine implements IDashDecisionEngine {
   private decisionHistory: Decision[] = [];
   private readonly MAX_HISTORY = 100;
 
@@ -100,15 +110,6 @@ export class DashDecisionEngine {
     cost: 0.15,
     compliance: 0.1
   };
-
-  private constructor() {}
-
-  public static getInstance(): DashDecisionEngine {
-    if (!DashDecisionEngine.instance) {
-      DashDecisionEngine.instance = new DashDecisionEngine();
-    }
-    return DashDecisionEngine.instance;
-  }
 
   /**
    * Core decision-making method: Evaluate action and determine execution plan
@@ -538,11 +539,32 @@ export class DashDecisionEngine {
       avgConfidence: total > 0 ? totalConfidence / total : 0
     };
   }
+
+  /**
+   * Get decision history
+   */
+  public getDecisionHistory(): Decision[] {
+    return [...this.decisionHistory];
+  }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.decisionHistory = [];
+  }
 }
 
-// Export singleton instance as default
-const decisionEngineInstance = DashDecisionEngine.getInstance();
-export default decisionEngineInstance;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashDecisionEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashDecisionEngine);
+  } catch {
+    // Fallback during initialization
+    return new DashDecisionEngine();
+  }
+})();
 
-// Note: Types are already exported inline at their declarations
-// Class is also exported inline (line 79)
+export default DashDecisionEngineInstance;

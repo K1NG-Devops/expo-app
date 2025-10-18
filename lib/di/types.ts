@@ -13,6 +13,10 @@ export const TOKENS = {
   lessons: Symbol.for('LessonsService') as Token<LessonsService>,
   sms: Symbol.for('SMSService') as Token<SMSService>,
   googleCalendar: Symbol.for('GoogleCalendarService') as Token<GoogleCalendarService>,
+  dashTaskAutomation: Symbol.for('DashTaskAutomation') as Token<DashTaskAutomation>,
+  dashDecisionEngine: Symbol.for('DashDecisionEngine') as Token<DashDecisionEngine>,
+  dashNavigation: Symbol.for('DashNavigation') as Token<DashNavigation>,
+  dashWebSearch: Symbol.for('DashWebSearch') as Token<DashWebSearch>,
 };
 
 // Minimal interfaces to start wiring gradually
@@ -87,5 +91,38 @@ export interface GoogleCalendarService {
   completeOAuthFlow(userId: string, authorizationCode: string, state: string): Promise<{ success: boolean; error?: string }>;
   disconnectAccount(userId: string): Promise<{ success: boolean; error?: string }>;
   isConnected(userId: string): Promise<boolean>;
+  dispose(): void;
+}
+
+export interface DashTaskAutomation {
+  createTask(templateId?: string, customParams?: any, userRole?: string): Promise<any>;
+  executeTask(taskId: string, userInput?: any): Promise<void>;
+  getActiveTask(): any | undefined;
+  getTaskTemplates(userRole?: string): any[];
+  getTask(taskId: string): any | undefined;
+  getActiveTasks(): any[];
+  cancelTask(taskId: string): { success: boolean; error?: string };
+  dispose(): void;
+}
+
+export interface DashDecisionEngine {
+  decide(candidate: any, context: any): Promise<any>;
+  getDecisionHistory(): any[];
+  getRecentDecisions(limit?: number): any[];
+  getDecisionStats(): any;
+  dispose(): void;
+}
+
+export interface DashNavigation {
+  navigateByVoice(command: string): Promise<any>;
+  navigateToScreen(screenKey: string, params?: Record<string, any>): Promise<any>;
+  getCurrentScreen(): string | null;
+  goBack(): any;
+  clearHistory(): Promise<void>;
+  dispose(): void;
+}
+
+export interface DashWebSearch {
+  search(query: string, options?: any): Promise<any>;
   dispose(): void;
 }
