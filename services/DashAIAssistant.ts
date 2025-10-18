@@ -3302,6 +3302,123 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
+   * Call AI service WITH tool support for agentic capabilities
+   */
+  private async callAIServiceWithTools(params: {
+    messages: any[];
+    tools?: any[];
+    system?: string;
+    temperature?: number;
+    maxTokens?: number;
+  }): Promise<{
+    content: string;
+    tool_calls?: Array<{
+      id: string;
+      name: string;
+      input: any;
+    }>;
+    stop_reason?: string;
+    usage?: any;
+  }> {
+    try {
+      const supabase = assertSupabase();
+      
+      const body: any = {
+        action: 'chat',
+        messages: params.messages,
+        system: params.system,
+        temperature: params.temperature || 0.7,
+        maxTokens: params.maxTokens || 4000,
+        model: 'claude-3-5-sonnet-20241022'
+      };
+      
+      // Add tools if provided
+      if (params.tools && params.tools.length > 0) {
+        body.tools = params.tools;
+        body.tool_choice = { type: 'auto' };
+        console.log(`[Dash Agent] 🛠️  ${params.tools.length} tools available to AI`);
+      }
+      
+      const { data, error } = await supabase.functions.invoke('ai-gateway', { body });
+      
+      if (error) {
+        console.error('[Dash Agent] AI Gateway error:', error);
+        throw error;
+      }
+      
+      // Extract text content from raw_content blocks
+      let textContent = '';
+      if (data.raw_content && Array.isArray(data.raw_content)) {
+        textContent = data.raw_content
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n');
+      } else {
+        textContent = data.content || '';
+      }
+      
+      return {
+        content: textContent,
+        tool_calls: data.tool_calls,
+        stop_reason: data.stop_reason,
+        usage: data.usage
+      };
+    } catch (error) {
+      console.error('[Dash Agent] callAIServiceWithTools failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute tools and continue conversation
+   */
+  private async executeTools(
+    toolCalls: Array<{ id: string; name: string; input: any }>,
+    conversationId: string
+  ): Promise<Array<{ tool_use_id: string; type: string; content: string; is_error?: boolean }>> {
+    const { ToolRegistry } = await import('./modules/DashToolRegistry');
+    const results = [];
+    
+    for (const toolCall of toolCalls) {
+      console.log(`[Dash Agent] 🔧 Executing tool: ${toolCall.name}`);
+      
+      try {
+        const result = await ToolRegistry.execute(
+          toolCall.name,
+          toolCall.input,
+          {
+            conversationId,
+            userProfile: this.userProfile,
+            getCurrentContext: () => this.getCurrentContext()
+          }
+        );
+        
+        results.push({
+          tool_use_id: toolCall.id,
+          type: 'tool_result',
+          content: JSON.stringify(result),
+          is_error: !result.success
+        });
+        
+        console.log(`[Dash Agent] ${result.success ? '✅' : '❌'} Tool ${toolCall.name} ${result.success ? 'succeeded' : 'failed'}`);
+      } catch (error) {
+        console.error(`[Dash Agent] Tool ${toolCall.name} error:`, error);
+        results.push({
+          tool_use_id: toolCall.id,
+          type: 'tool_result',
+          content: JSON.stringify({
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          }),
+          is_error: true
+        });
+      }
+    }
+    
+    return results;
+  }
+
+  /**
    * Call AI service to generate response (legacy - used by generateResponse)
    */
   private async callAIServiceLegacy(context: any): Promise<{
@@ -4768,22 +4885,100 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
       
       const hasImages = images && images.length > 0;
       
-      // Call AI service with enhanced context
-      // Use ai-proxy if images present (supports vision), otherwise use ai-gateway
-      const aiResponse = hasImages 
-        ? await this.callAIServiceWithVision({
-            prompt: content,
-            context: enhancedPrompt,
-            images: images,
-            conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
-          })
-        : await this.callAIService({
+      // 🛠️  NEW: Get available tools for agentic capabilities
+      let aiResponse: any;
+      let toolsUsed: string[] = [];
+      
+      if (!hasImages) { // Tool calling doesn't work with vision API yet
+        try {
+          const { ToolRegistry } = await import('./modules/DashToolRegistry');
+          const toolSpecs = ToolRegistry.getToolSpecs();
+          
+          // Get conversation history for context
+          const conversation = await this.getConversation(conversationId);
+          const messages = conversation?.messages.slice(-10).map(m => ({
+            role: m.type === 'user' ? 'user' : 'assistant',
+            content: m.content
+          })) || [];
+          
+          // Add current user message
+          messages.push({ role: 'user', content });
+          
+          console.log(`[Dash Agent] 🤖 Calling AI with ${toolSpecs.length} tools available`);
+          
+          // Call AI with tools
+          const response = await this.callAIServiceWithTools({
+            messages,
+            tools: toolSpecs,
+            system: enhancedPrompt,
+            temperature: isVoiceMode ? 0.5 : 0.7,
+            maxTokens: isVoiceMode ? 500 : 4000
+          });
+          
+          // Check if tools were called
+          if (response.tool_calls && response.tool_calls.length > 0) {
+            console.log(`[Dash Agent] 🔧 ${response.tool_calls.length} tool(s) called:`, response.tool_calls.map(t => t.name).join(', '));
+            
+            // Execute tools
+            const toolResults = await this.executeTools(response.tool_calls, conversationId);
+            toolsUsed = response.tool_calls.map(t => t.name);
+            
+            // Add assistant's tool use to messages
+            messages.push({
+              role: 'assistant',
+              content: response.content
+            });
+            
+            // Add tool results
+            messages.push({
+              role: 'user',
+              content: toolResults
+            });
+            
+            // Get final response with tool results
+            console.log('[Dash Agent] 🔄 Getting final response with tool results...');
+            const finalResponse = await this.callAIServiceWithTools({
+              messages,
+              tools: toolSpecs, // Keep tools available for potential follow-up
+              system: enhancedPrompt,
+              temperature: isVoiceMode ? 0.5 : 0.7,
+              maxTokens: isVoiceMode ? 500 : 4000
+            });
+            
+            aiResponse = {
+              content: finalResponse.content,
+              usage: finalResponse.usage
+            };
+            
+            console.log('[Dash Agent] ✅ Tool execution complete');
+          } else {
+            // No tools called, use direct response
+            aiResponse = {
+              content: response.content,
+              usage: response.usage
+            };
+            console.log('[Dash Agent] 📝 Direct response (no tools used)');
+          }
+        } catch (error) {
+          console.error('[Dash Agent] Tool calling failed, falling back to standard response:', error);
+          // Fallback to standard AI call if tool calling fails
+          aiResponse = await this.callAIService({
             action: 'homework_help',
             question: content,
             context: enhancedPrompt,
             gradeLevel: 'General',
             conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
           });
+        }
+      } else {
+        // Vision API call (no tools support yet)
+        aiResponse = await this.callAIServiceWithVision({
+          prompt: content,
+          context: enhancedPrompt,
+          images: images,
+          conversationHistory: this.currentConversationId ? (await this.getConversation(this.currentConversationId))?.messages || [] : []
+        });
+      }
 
       // AGGRESSIVE SCREEN OPENING: Analyze user input for navigation keywords
       let dashboardAction = this.generateDashboardAction(analysis.intent);
@@ -4993,7 +5188,8 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           confidence: analysis.intent?.confidence || 0.5,
           suggested_actions: this.generateSuggestedActions(analysis.intent, awareness.user.role),
           user_intent: analysis.intent,
-          dashboard_action: dashboardAction
+          dashboard_action: dashboardAction,
+          tools_used: toolsUsed.length > 0 ? toolsUsed : undefined // Add tool usage tracking
         }
       };
 
