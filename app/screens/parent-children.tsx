@@ -243,7 +243,7 @@ export default function ParentChildrenScreen() {
                 <TouchableOpacity
                   key={child.id}
                   style={styles.childCard}
-                  onPress={() => router.push(`/student-detail/${child.id}`)}
+                  onPress={() => router.push(`/screens/student-detail?id=${child.id}` as any)}
                 >
                   <View style={styles.childHeader}>
                     <View style={styles.avatar}>
@@ -270,7 +270,7 @@ export default function ParentChildrenScreen() {
                   <View style={styles.childActions}>
                     <TouchableOpacity 
                       style={styles.actionButton}
-                      onPress={() => router.push(`/attendance/${child.id}`)}
+                      onPress={() => router.push(`/screens/attendance?id=${child.id}` as any)}
                     >
                       <Ionicons name="calendar" size={16} color={theme.primary} />
                       <Text style={styles.actionButtonText}>Attendance</Text>
@@ -278,7 +278,7 @@ export default function ParentChildrenScreen() {
                     
                     <TouchableOpacity 
                       style={styles.actionButton}
-                      onPress={() => router.push(`/homework/${child.id}`)}
+                      onPress={() => console.log('Homework coming soon')}
                     >
                       <Ionicons name="book" size={16} color={theme.primary} />
                       <Text style={styles.actionButtonText}>Homework</Text>
@@ -286,7 +286,7 @@ export default function ParentChildrenScreen() {
                     
                     <TouchableOpacity 
                       style={styles.actionButton}
-                      onPress={() => router.push(`/progress/${child.id}`)}
+                      onPress={() => console.log('Progress report coming soon')}
                     >
                       <Ionicons name="trending-up" size={16} color={theme.primary} />
                       <Text style={styles.actionButtonText}>Progress</Text>
