@@ -8,10 +8,8 @@
  * error conditions, and integration scenarios.
  */
 
-import { AuthService } from '../AuthService';
-
-// Mock Supabase client
-const mockSupabaseClient = {
+// Mock the assertSupabase function before imports
+const mockSupabase = {
   auth: {
     signUp: jest.fn(),
     signInWithPassword: jest.fn(),
@@ -33,30 +31,11 @@ const mockSupabaseClient = {
   })),
 };
 
-// Mock the assertSupabase function
 jest.mock('../../supabase', () => ({
-  assertSupabase: jest.fn(() => ({
-    auth: {
-      signUp: jest.fn(),
-      signInWithPassword: jest.fn(),
-      signOut: jest.fn(),
-      getSession: jest.fn(),
-      onAuthStateChange: jest.fn(),
-      refreshSession: jest.fn(),
-      admin: {
-        createUser: jest.fn(),
-      },
-    },
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(),
-        })),
-      })),
-      insert: jest.fn(),
-    })),
-  })),
+  assertSupabase: jest.fn(() => mockSupabase),
 }));
+
+import { AuthService } from '../AuthService';
 
 // Mock AppConfiguration
 jest.mock('../../config', () => ({
@@ -75,8 +54,8 @@ describe('AuthService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Get the mocked supabase client
-    mockSupabaseClient = assertSupabase();
+    // Get the shared mocked supabase client
+    mockSupabaseClient = mockSupabase;
     
     // Mock successful session response
     mockSupabaseClient.auth.getSession.mockResolvedValue({

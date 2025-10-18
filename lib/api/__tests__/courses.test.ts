@@ -16,6 +16,17 @@ import {
 } from '../../models/Course';
 import { UserRole } from '../../security/rbac';
 
+// Mock Supabase
+jest.mock('../../supabase', () => ({
+  assertSupabase: jest.fn(() => ({
+    from: jest.fn(),
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: () => {} } } })),
+    },
+  })),
+}));
+
 // Mock course service
 const mockCourseService = {
   createCourse: jest.fn(),
@@ -45,30 +56,31 @@ import {
   getCourseRoster,
 } from '../courses';
 
+// Mock course data available to all tests
+const mockCourse: Course = {
+  id: 'course-123',
+  title: 'Introduction to Mathematics',
+  description: 'A comprehensive math course',
+  course_code: 'MATH101',
+  instructor_id: 'instructor-123',
+  organization_id: 'org-123',
+  is_active: true,
+  max_students: 30,
+  join_code: 'ABC12345',
+  join_code_expires_at: '2024-12-31T23:59:59Z',
+  start_date: '2024-01-15',
+  end_date: '2024-05-15',
+  metadata: {},
+  created_at: '2024-01-01T00:00:00Z',
+  updated_at: '2024-01-01T00:00:00Z',
+};
+
 describe('Course API Endpoints', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('Course CRUD Operations', () => {
-    const mockCourse: Course = {
-      id: 'course-123',
-      title: 'Introduction to Mathematics',
-      description: 'A comprehensive math course',
-      course_code: 'MATH101',
-      instructor_id: 'instructor-123',
-      organization_id: 'org-123',
-      is_active: true,
-      max_students: 30,
-      join_code: 'ABC12345',
-      join_code_expires_at: '2024-12-31T23:59:59Z',
-      start_date: '2024-01-15',
-      end_date: '2024-05-15',
-      metadata: {},
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z',
-    };
-
     it('should list courses with proper authorization', async () => {
       const mockResponse = {
         courses: [mockCourse],
@@ -380,9 +392,9 @@ describe('Course API Endpoints', () => {
 
     it('should validate course ownership for instructors', () => {
       // Instructors should only be able to manage their own courses
-      const instructorId = 'instructor-123';
-      const courseInstructorId = 'instructor-123';
-      const otherInstructorId = 'instructor-456';
+      const instructorId: string = 'instructor-123';
+      const courseInstructorId: string = 'instructor-123';
+      const otherInstructorId: string = 'instructor-456';
       
       // Same instructor - should have access
       expect(instructorId === courseInstructorId).toBe(true);

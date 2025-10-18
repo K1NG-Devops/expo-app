@@ -23,18 +23,18 @@ describe('Capability System', () => {
   describe('hasCapability', () => {
     it('should return true for capabilities available in tier', () => {
       expect(hasCapability('free', 'chat.basic')).toBe(true);
-      expect(hasCapability('basic', 'chat.streaming')).toBe(true);
+      expect(hasCapability('starter', 'chat.streaming')).toBe(true);
       expect(hasCapability('premium', 'multimodal.vision')).toBe(true);
     });
 
     it('should return false for capabilities not available in tier', () => {
       expect(hasCapability('free', 'multimodal.vision')).toBe(false);
-      expect(hasCapability('basic', 'agent.autonomous')).toBe(false);
-      expect(hasCapability('starter', 'homework.assign')).toBe(false);
+      expect(hasCapability('starter', 'agent.autonomous')).toBe(false);
+      expect(hasCapability('starter', 'homework.grade.advanced')).toBe(false);
     });
 
     it('should handle all tier levels correctly', () => {
-      const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+      const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
       
       tiers.forEach(tier => {
         expect(hasCapability(tier, 'chat.basic')).toBe(true);
@@ -51,10 +51,10 @@ describe('Capability System', () => {
     });
 
     it('should return more capabilities for higher tiers', () => {
-      const basicCaps = getCapabilities('basic');
+      const starterCaps = getCapabilities('starter');
       const premiumCaps = getCapabilities('premium');
       
-      expect(premiumCaps.length).toBeGreaterThan(basicCaps.length);
+      expect(premiumCaps.length).toBeGreaterThan(starterCaps.length);
     });
 
     it('should return readonly array', () => {
@@ -66,9 +66,9 @@ describe('Capability System', () => {
   describe('getRequiredTier', () => {
     it('should return correct minimum tier for capability', () => {
       expect(getRequiredTier('chat.basic')).toBe('free');
-      expect(getRequiredTier('chat.streaming')).toBe('basic');
-      expect(getRequiredTier('multimodal.vision')).toBe('premium');
-      expect(getRequiredTier('agent.autonomous')).toBe('pro');
+      expect(getRequiredTier('chat.streaming')).toBe('starter');
+      expect(getRequiredTier('multimodal.vision')).toBe('starter');
+      expect(getRequiredTier('agent.autonomous')).toBe('premium');
     });
 
     it('should return lowest tier when capability is in multiple tiers', () => {
@@ -91,11 +91,11 @@ describe('Capability System', () => {
     });
 
     it('should return only new capabilities for higher tiers', () => {
-      const exclusiveBasic = getExclusiveCapabilities('basic');
+      const exclusiveStarter = getExclusiveCapabilities('starter');
       
-      expect(exclusiveBasic).toContain('chat.streaming');
-      expect(exclusiveBasic).toContain('homework.assign');
-      expect(exclusiveBasic).not.toContain('chat.basic'); // From free tier
+      expect(exclusiveStarter).toContain('chat.streaming');
+      expect(exclusiveStarter).toContain('homework.assign');
+      expect(exclusiveStarter).not.toContain('chat.basic'); // From free tier
     });
 
     it('should return capabilities unique to premium', () => {
@@ -109,23 +109,23 @@ describe('Capability System', () => {
 
   describe('compareTiers', () => {
     it('should return 0 for equal tiers', () => {
-      expect(compareTiers('basic', 'basic')).toBe(0);
+      expect(compareTiers('starter', 'starter')).toBe(0);
       expect(compareTiers('premium', 'premium')).toBe(0);
     });
 
     it('should return negative when first tier is lower', () => {
       expect(compareTiers('free', 'premium')).toBeLessThan(0);
-      expect(compareTiers('basic', 'enterprise')).toBeLessThan(0);
+      expect(compareTiers('starter', 'enterprise')).toBeLessThan(0);
     });
 
     it('should return positive when first tier is higher', () => {
-      expect(compareTiers('premium', 'basic')).toBeGreaterThan(0);
+      expect(compareTiers('premium', 'starter')).toBeGreaterThan(0);
       expect(compareTiers('enterprise', 'free')).toBeGreaterThan(0);
     });
 
     it('should maintain transitivity', () => {
-      const result1 = compareTiers('free', 'basic');
-      const result2 = compareTiers('basic', 'premium');
+      const result1 = compareTiers('free', 'starter');
+      const result2 = compareTiers('starter', 'premium');
       const result3 = compareTiers('free', 'premium');
       
       expect(Math.sign(result1)).toBe(Math.sign(result3));
@@ -191,7 +191,7 @@ describe('Capability System', () => {
       }).not.toThrow();
       
       expect(() => {
-        assertCapability('basic', 'chat.streaming');
+        assertCapability('starter', 'chat.streaming');
       }).not.toThrow();
     });
 
@@ -201,7 +201,7 @@ describe('Capability System', () => {
       }).toThrow(FeatureGatedError);
       
       expect(() => {
-        assertCapability('basic', 'agent.autonomous');
+        assertCapability('premium', 'agent.autonomous');
       }).toThrow(FeatureGatedError);
     });
 
@@ -242,7 +242,7 @@ describe('Capability System', () => {
         'multimodal.vision',
       ];
       
-      const result = checkCapabilities('basic', capabilities);
+      const result = checkCapabilities('starter', capabilities);
       
       expect(result['chat.basic']).toBe(true);
       expect(result['chat.streaming']).toBe(true);
@@ -269,7 +269,7 @@ describe('Capability System', () => {
 
   describe('getTierInfo', () => {
     it('should return correct info for all tiers', () => {
-      const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+      const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
       
       tiers.forEach(tier => {
         const info = getTierInfo(tier);
@@ -282,11 +282,11 @@ describe('Capability System', () => {
 
     it('should return ascending order numbers', () => {
       const freeInfo = getTierInfo('free');
-      const basicInfo = getTierInfo('basic');
+      const starterInfo = getTierInfo('starter');
       const premiumInfo = getTierInfo('premium');
       
-      expect(basicInfo.order).toBeGreaterThan(freeInfo.order);
-      expect(premiumInfo.order).toBeGreaterThan(basicInfo.order);
+      expect(starterInfo.order).toBeGreaterThan(freeInfo.order);
+      expect(premiumInfo.order).toBeGreaterThan(starterInfo.order);
     });
 
     it('should have proper display names', () => {
@@ -298,7 +298,7 @@ describe('Capability System', () => {
 
   describe('CAPABILITY_MATRIX', () => {
     it('should have all required tiers', () => {
-      const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+      const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
       
       tiers.forEach(tier => {
         expect(CAPABILITY_MATRIX[tier]).toBeDefined();
@@ -307,7 +307,7 @@ describe('Capability System', () => {
     });
 
     it('should have capabilities in all tiers', () => {
-      const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+      const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
       
       tiers.forEach(tier => {
         expect(CAPABILITY_MATRIX[tier].length).toBeGreaterThan(0);
@@ -315,7 +315,7 @@ describe('Capability System', () => {
     });
 
     it('should have chat.basic in all tiers', () => {
-      const tiers: Tier[] = ['free', 'starter', 'basic', 'premium', 'pro', 'enterprise'];
+      const tiers: Tier[] = ['free', 'starter', 'premium', 'enterprise'];
       
       tiers.forEach(tier => {
         expect(CAPABILITY_MATRIX[tier]).toContain('chat.basic');
@@ -325,9 +325,8 @@ describe('Capability System', () => {
     it('should have premium features only in premium and above', () => {
       expect(CAPABILITY_MATRIX.free).not.toContain('multimodal.vision');
       expect(CAPABILITY_MATRIX.starter).not.toContain('multimodal.vision');
-      expect(CAPABILITY_MATRIX.basic).not.toContain('multimodal.vision');
+      expect(CAPABILITY_MATRIX.starter).toContain('multimodal.vision');
       expect(CAPABILITY_MATRIX.premium).toContain('multimodal.vision');
-      expect(CAPABILITY_MATRIX.pro).toContain('multimodal.vision');
       expect(CAPABILITY_MATRIX.enterprise).toContain('multimodal.vision');
     });
 
@@ -341,7 +340,7 @@ describe('Capability System', () => {
 
   describe('Integration tests', () => {
     it('should handle complete feature gating flow', () => {
-      const userTier: Tier = 'basic';
+      const userTier: Tier = 'starter';
       const requiredCapability: DashCapability = 'multimodal.vision';
       
       // Check if user has capability
@@ -359,7 +358,7 @@ describe('Capability System', () => {
     });
 
     it('should support tier comparison for upgrade flows', () => {
-      const currentTier: Tier = 'basic';
+      const currentTier: Tier = 'starter';
       const targetTier: Tier = 'premium';
       
       const shouldUpgrade = compareTiers(currentTier, targetTier) < 0;
