@@ -12,7 +12,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
     '^react-native$': '<rootDir>/__mocks__/react-native.js',
   },
-  setupFilesAfterEnv: [],
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   collectCoverageFrom: [
     'lib/**/*.{ts,tsx}',
     '!lib/**/*.d.ts',

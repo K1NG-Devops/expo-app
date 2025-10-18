@@ -39,9 +39,9 @@ import { AuthService } from '../AuthService';
 
 // Mock AppConfiguration
 jest.mock('../../config', () => ({
-  AppConfiguration: {
+  getAppConfiguration: jest.fn(() => ({
     environment: 'test',
-  },
+  })),
 }));
 
 // Import after mocking
@@ -111,6 +111,7 @@ describe('AuthService', () => {
         email: credentials.email.toLowerCase(),
         password: credentials.password,
         options: {
+          emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
           data: {
             first_name: credentials.firstName,
             last_name: credentials.lastName,
@@ -253,8 +254,8 @@ describe('AuthService', () => {
         created_at: '2024-01-01T00:00:00Z',
       };
 
-      // Mock admin profile lookup
-      mockSupabaseClient.from.mockReturnValue({
+      // Mock admin profile lookup (first from call)
+      mockSupabaseClient.from.mockReturnValueOnce({
         select: jest.fn(() => ({
           eq: jest.fn(() => ({
             single: jest.fn().mockResolvedValue({ 
@@ -263,6 +264,20 @@ describe('AuthService', () => {
             }),
           })),
         })),
+      })
+      // Mock email existence check (second from call) - return null (email doesn't exist)
+      .mockReturnValueOnce({
+        select: jest.fn(() => ({
+          eq: jest.fn(() => ({
+            single: jest.fn().mockResolvedValue({ 
+              data: null, 
+              error: null 
+            }),
+          })),
+        })),
+      })
+      // Mock profile insert (third from call)
+      .mockReturnValueOnce({
         insert: jest.fn().mockResolvedValue({ error: null }),
       });
 
