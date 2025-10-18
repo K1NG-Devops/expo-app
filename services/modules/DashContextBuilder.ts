@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import type { DashMemoryManager } from './DashMemoryManager';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import { getDynamicGreeting, getRoleCapabilities, getTerminology } from '@/lib/organization';
+import { container, TOKENS } from '@/lib/di/providers/default';
 
 // Dynamic SecureStore import for cross-platform compatibility
 let SecureStore: any = null;
@@ -307,11 +307,9 @@ export class DashContextBuilder {
    */
   private getPersonalizedGreeting(role: string, organizationType: string = 'preschool', userName?: string): string {
     try {
-      // Get dynamic greeting from organization config
-      const dynamicGreeting = getDynamicGreeting(organizationType, role, userName);
-      if (dynamicGreeting) {
-        return dynamicGreeting;
-      }
+      const org = container.resolve(TOKENS.organization);
+      const dynamicGreeting = org.getGreeting(organizationType, role, userName);
+      if (dynamicGreeting) return dynamicGreeting;
     } catch (error) {
       console.warn('[DashContextBuilder] Failed to get dynamic greeting, using fallback:', error);
     }
@@ -343,14 +341,12 @@ export class DashContextBuilder {
    */
   private getExpertiseAreasForRole(role: string, organizationType: string = 'preschool'): string[] {
     try {
-      // Get role capabilities from organization config
-      const capabilities = getRoleCapabilities(organizationType, role);
+      const org = container.resolve(TOKENS.organization);
+      const capabilities = org.getCapabilities(organizationType, role);
       if (capabilities.length > 0) {
-        // Get terminology for organization type
-        const terminology = getTerminology(organizationType);
-        
-        // Build expertise areas using organization terminology
-        const baseAreas = [terminology.organization, `${terminology.member} support`];
+        const orgName = org.mapTerm('organization' as any, organizationType);
+        const memberName = org.mapTerm('member' as any, organizationType);
+        const baseAreas = [orgName, `${memberName} support`];
         return [...baseAreas, ...capabilities];
       }
     } catch (error) {

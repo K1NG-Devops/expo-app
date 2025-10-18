@@ -651,6 +651,10 @@ export class DashAIAssistant {
   public static getInstance(): DashAIAssistant {
     if (!DashAIAssistant.instance) {
       DashAIAssistant.instance = new DashAIAssistant();
+    } else if (DashAIAssistant.instance.isDisposed) {
+      // Create new instance if previous one was disposed
+      console.log('[Dash] Creating new instance after disposal');
+      DashAIAssistant.instance = new DashAIAssistant();
     }
     return DashAIAssistant.instance;
   }
@@ -659,7 +663,12 @@ export class DashAIAssistant {
    * Initialize Dash AI Assistant with Agentic Services
    */
   public async initialize(): Promise<void> {
-    this.checkDisposed();
+    // Allow re-initialization after disposal (fixes Fast Refresh issues)
+    if (this.isDisposed) {
+      console.log('[Dash] Re-initializing after disposal...');
+      this.isDisposed = false;
+    }
+    
     try {
       console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
       
@@ -2944,24 +2953,17 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
    */
   /**
    * ✅ OPTIMIZATION: Check if query is simple (math, fact, greeting)
-   * Simple queries bypass heavy agentic processing for <500ms responses
+   * DISABLED FOR VOICE MODE - Only catch EXACT single-word greetings
+   * All other queries go through full AI processing
    */
   private isSimpleQuery(input: string): boolean {
     const inputLC = input.trim().toLowerCase();
     
-    // Math queries (e.g., "what is 5 + 3")
-    if (/\bwhat\s+is\s+\d+\s*[+\-*/×÷]\s*\d+/i.test(inputLC)) return true;
-    if (/\bcalculate\s+\d+/i.test(inputLC)) return true;
-    
-    // Greetings (very short)
+    // ONLY match exact single-word greetings (nothing else!)
+    // This ensures real AI processing for all actual questions
     if (/^(hi|hello|hey|hallo|sawubona)$/i.test(inputLC)) return true;
     
-    // Status questions (no context needed)
-    if (/^(how are you|what's up|wassup)$/i.test(inputLC)) return true;
-    
-    // Simple facts (very short queries)
-    if (inputLC.length < 20 && /^(what is|who is|when is)/i.test(inputLC)) return true;
-    
+    // Everything else goes through full AI processing
     return false;
   }
   
@@ -4582,34 +4584,32 @@ CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
-        systemPrompt = `You are Dash, a smart AI assistant.
+        systemPrompt = `You are Dash. Ultra-concise AI assistant.
 
-🚨 CRITICAL: NO NARRATION ALLOWED 🚨
-You are TEXT-BASED. You CANNOT and MUST NOT:
-- Use asterisks or stage directions: NO "*clears throat*", "*speaks*", "*opens*", "*points*"
-- Use action verbs in first person: NO "Let me open", "I'll check", "I'm looking"
-- Roleplay or act out scenarios
-- Describe your tone or demeanor
+🚨 VOICE MODE: EXTREME BREVITY REQUIRED 🚨
 
-CONTEXT:
-- User: ${userName}
-- Language: ${language}
-
-STYLE:
-- Brief and direct (1-3 sentences max)
-- Respond in ${language} if user spoke in ${language}
-- Skip greetings after first message
-- State facts only - no theatrics
-- Just answer the question
+RULES:
+1. ONE sentence responses ONLY (max 10-15 words)
+2. NO greetings, NO pleasantries, NO filler
+3. Answer ONLY what was asked - nothing more
+4. NO asterisks, NO narration, NO stage directions
+5. NO explanations unless explicitly requested
 
 EXAMPLES:
-❌ BAD: "*smiles* Great question! Let me explain..."
-✅ GOOD: "It's in Settings > Voice. Toggle it on."
+❌ "Hello! How can I help you today?"
+✅ "Hi."
 
-❌ BAD: "Let me check that for you *opens menu*"
-✅ GOOD: "Open the menu and select it."
+❌ "Great question! The gesture feature works by..."
+✅ "Long press the mic button."
 
-Be helpful and efficient.`;
+❌ "Let me explain how the voice settings work. You can find them in..."
+✅ "Settings > Voice."
+
+❌ "I'd be happy to help! The petty cash screen shows..."
+✅ "Open petty cash screen."
+
+User: ${userName} | Language: ${language}
+Respond in ${language} if they spoke ${language}.`;
       } else if (session?.user_id && profile) {
         // Use enhanced agentic prompt with correct language for text-based chat
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {

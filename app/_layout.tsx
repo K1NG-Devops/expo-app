@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
 import 'react-native-get-random-values';
 import React, { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, LogBox } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryProvider } from '@/lib/query/queryClient';
@@ -19,6 +19,14 @@ import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton
 import { initPerformanceMonitoring } from '@/lib/perf';
 import { installGlobalErrorHandler } from '@/lib/global-errors';
 import { initMonitoring } from '@/lib/monitoring';
+
+// Suppress non-critical dev warnings
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'Looks like you have configured linking in multiple places',
+    'ReactImageView: Image source "null" doesn\'t exist',
+  ]);
+}
 
 // Initialize critical systems (guarded to avoid double init in dev / fast refresh)
 const __globalAny: any = (global as any);

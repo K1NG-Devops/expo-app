@@ -25,8 +25,9 @@ export interface StorageService {
 
 export interface OrganizationService {
   getDisplayName(type: string): string;
-  mapTerm(term: string, type: string): string;
+  mapTerm(term: keyof import('../types/organization').TerminologyMap, type: string): string;
   getGreeting(type: string, role: string, userName?: string): string;
+  getCapabilities(type: string, role: string): string[];
 }
 
 export interface AIService {

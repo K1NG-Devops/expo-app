@@ -164,8 +164,8 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       processedRef.current = true;
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
       
-      // Play thinking sound
-      playOrbSound('thinking', { loop: true }).catch(() => {});
+      // Thinking sound disabled (too intrusive for voice mode)
+      // playOrbSound('thinking', { loop: true }).catch(() => {});
       
       // Send message to AI
       console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
@@ -184,9 +184,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       const responseText = response.content || '';
       setAiResponse(responseText);
       
-      // Stop thinking sound, play response sound
-      stopOrbSound('thinking').catch(() => {});
-      playOrbSound('response').catch(() => {});
+      // Stop thinking sound, play response sound (disabled - using placeholder audio)
+      // stopOrbSound('thinking').catch(() => {});
+      // playOrbSound('response').catch(() => {});
       
       // Notify parent component BEFORE speaking (so UI updates immediately)
       console.log('[DashVoiceMode] Calling onMessageSent callback');
