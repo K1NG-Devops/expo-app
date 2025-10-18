@@ -29,6 +29,12 @@ export interface DashAwareness {
     recentScreens: string[];
   };
   data: {
+    memberCount?: number;      // Generic: students, employees, athletes, etc.
+    groupCount?: number;       // Generic: classes, teams, departments, etc.
+    leaderCount?: number;      // Generic: teachers, coaches, managers, etc.
+    organizationId?: string;
+    organizationType?: string;
+    // Legacy support
     studentCount?: number;
     classCount?: number;
     teacherCount?: number;
@@ -47,20 +53,24 @@ export interface DashAwareness {
   };
 }
 
-export class DashRealTimeAwareness {
-  private static instance: DashRealTimeAwareness;
+/**
+ * Interface for DashRealTimeAwareness
+ */
+export interface IDashRealTimeAwareness {
+  getAwareness(conversationId: string): Promise<DashAwareness>;
+  openScreen(route: string, params?: Record<string, any>): Promise<void>;
+  generateContextualGreeting(awareness: DashAwareness): string;
+  buildAwareSystemPrompt(awareness: DashAwareness): string;
+  shouldAutoExecute(intent: string, awareness: DashAwareness): boolean;
+  dispose(): void;
+}
+
+export class DashRealTimeAwareness implements IDashRealTimeAwareness {
   private awareness: DashAwareness | null = null;
   private conversationStarted = new Map<string, Date>();
   private screenHistory: string[] = [];
   
-  private constructor() {}
-  
-  public static getInstance(): DashRealTimeAwareness {
-    if (!DashRealTimeAwareness.instance) {
-      DashRealTimeAwareness.instance = new DashRealTimeAwareness();
-    }
-    return DashRealTimeAwareness.instance;
-  }
+  constructor() {}
   
   /**
    * Get complete awareness context for Dash
@@ -231,7 +241,7 @@ export class DashRealTimeAwareness {
   }
   
   /**
-   * Get real data counts from database
+   * Get real data counts from database (organization-agnostic)
    */
   private async getDataContext(profile: UserProfile | null): Promise<DashAwareness['data']> {
     if (!profile) {
@@ -239,37 +249,54 @@ export class DashRealTimeAwareness {
     }
     
     try {
-      const preschoolId = (profile as any).preschool_id;
-      if (!preschoolId) {
+      // Prioritize organization_id over legacy preschool_id
+      const organizationId = (profile as any).organization_id || (profile as any).preschool_id;
+      if (!organizationId) {
         return {};
       }
       
       const supabase = assertSupabase();
       
-      // Get actual student count
-      const { count: studentCount } = await supabase
+      // Get organization type to determine terminology
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('type')
+        .eq('id', organizationId)
+        .maybeSingle();
+      
+      const orgType = org?.type || 'preschool';
+      
+      // Get member count (students, employees, athletes, etc.)
+      const { count: memberCount } = await supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId);
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`);
       
-      // Get class count  
-      const { count: classCount } = await supabase
+      // Get group count (classes, teams, departments, etc.)
+      const { count: groupCount } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId);
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`);
       
-      // Get teacher count
-      const { count: teacherCount } = await supabase
+      // Get leader count (teachers, coaches, managers, etc.)
+      const { count: leaderCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('preschool_id', preschoolId)
+        .or(`organization_id.eq.${organizationId},preschool_id.eq.${organizationId}`)
         .eq('role', 'teacher');
       
       return {
-        studentCount: studentCount ?? undefined,
-        classCount: classCount ?? undefined,
-        teacherCount: teacherCount ?? undefined,
-        preschoolId
+        // Generic counts
+        memberCount: memberCount ?? undefined,
+        groupCount: groupCount ?? undefined,
+        leaderCount: leaderCount ?? undefined,
+        organizationId,
+        organizationType: orgType,
+        // Legacy support (for backward compatibility)
+        studentCount: memberCount ?? undefined,
+        classCount: groupCount ?? undefined,
+        teacherCount: leaderCount ?? undefined,
+        preschoolId: (profile as any).preschool_id
       };
     } catch (error) {
       console.error('[DashAwareness] Failed to get data context:', error);
@@ -347,35 +374,55 @@ export class DashRealTimeAwareness {
   public buildAwareSystemPrompt(awareness: DashAwareness): string {
     const { user, app, conversation } = awareness;
     
-    let prompt = `You are Dash, an AI assistant.
+    let prompt = `You are Dash, an AI assistant for EduDash Pro.
 
-🚨 ANSWER DIRECTLY - NO FILLER 🚨
-BANNED PHRASES:
-- "Understood", "Let me break this down", "Great question"
-- "I'm here to help you", "As a [role]", "As the [role]"
-- "*any asterisk actions*"
+🚨 CRITICAL: NO THEATRICAL NARRATION 🚨
+You are a TEXT-BASED assistant. NEVER use:
+- Asterisks or actions: "*clears throat*", "*speaks*", "*opens*", "*points*"
+- First-person action verbs: "Let me open", "I'll check", "I'm looking"
+- Stage directions or roleplaying
+- Repetitive greetings or overusing the user's name
 
-USER CONTEXT (only mention if relevant):
-- Name: ${user.name}
-- ${conversation.isNewConversation ? 'First message' : 'Ongoing chat - NO greeting'}
+USER IDENTITY:
+- Name: ${user.name} (${user.role} at ${user.organization})
+- Current conversation: ${conversation.messageCount} messages
+- ${conversation.isNewConversation ? 'NEW conversation' : 'ONGOING - DO NOT GREET AGAIN'}
 
-RESPONSE RULES:
-- Answer the actual question (if asked "5 x 5", just say "25")
-- For app questions: help with the app
-- For general knowledge: just answer (don't force into app context)
-- Keep it brief (1-2 sentences for simple questions)
-- Skip greetings after first message
+REAL DATA (from database):
+${awareness.data.memberCount !== undefined ? `- Members: ${awareness.data.memberCount}` : '- Members: Not loaded yet'}
+${awareness.data.groupCount !== undefined ? `- Groups: ${awareness.data.groupCount}` : ''}
+${awareness.data.leaderCount !== undefined ? `- Leaders: ${awareness.data.leaderCount}` : ''}
+${awareness.data.organizationType ? `- Organization Type: ${awareness.data.organizationType}` : ''}
 
-DATA (only use if relevant to the question):
-${awareness.data.studentCount !== undefined ? `- Students: ${awareness.data.studentCount}` : ''}
-${awareness.data.classCount !== undefined ? `- Classes: ${awareness.data.classCount}` : ''}
+CRITICAL: Use ONLY the real data above. NEVER make up student counts or other statistics.
 
-CAPABILITIES (only mention if asked):
-- Navigate to screens
-- Run diagnostics
-- Access data
+RESPONSE STYLE:
+- Direct and concise (1-3 sentences for simple questions)
+- Skip greetings after the first message
+- Use natural language without dramatic flair
+- State facts only - never invent data or features
 
-JUST ANSWER THE QUESTION - No preamble, no filler, no role-playing.`;
+YOUR ACTUAL CAPABILITIES:
+- Open screens via app navigation (just say "Opening Financial Dashboard" if executing)
+- Run diagnostics and auto-fix common app issues
+- Access user's actual data (never use mock/placeholder data)
+- Be helpful and decisive
+
+DATA INTEGRITY:
+- Only use ACTUAL data from user's context
+- NEVER invent numbers, balances, or statistics
+- If data unavailable, say "I don't have that data" or offer to open the relevant screen
+- Currency: South African rand (R500, R1,234.50)
+
+NAVIGATION:
+- App uses stack navigation (no tabs/drawers)
+- Available screens: ${app.availableScreens.slice(0, 5).join(', ')}${app.availableScreens.length > 5 ? ', ...' : ''}
+- When user requests a screen, open it and mention briefly ("Opening Financial Dashboard")
+
+ADDITIONAL FEATURES:
+- Can run diagnostics and auto-fix app issues
+- Can access educational resources
+- Proactive assistance when appropriate`;
 
     return prompt;
   }
@@ -393,6 +440,34 @@ JUST ANSWER THE QUESTION - No preamble, no filler, no role-playing.`;
       intent.toLowerCase().includes(keyword)
     );
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.conversationStarted.clear();
+    this.screenHistory = [];
+    this.awareness = null;
+  }
 }
 
-export default DashRealTimeAwareness.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashRealTimeAwarenessInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashRealTimeAwareness);
+  } catch {
+    // Fallback during initialization
+    return new DashRealTimeAwareness();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashRealTimeAwareness {
+  export function getInstance() {
+    return DashRealTimeAwarenessInstance;
+  }
+}
+
+export default DashRealTimeAwarenessInstance;

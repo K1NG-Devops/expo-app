@@ -510,7 +510,7 @@ export default function StudentEnrollment() {
                   }
                   setSuggesting(true);
                   const suggestion = await ClassPlacementService.suggestClassForStudent({
-                    preschoolId,
+                    organizationId: preschoolId,
                     dateOfBirth: studentInfo.dateOfBirth || undefined,
                     gradeLevel: undefined,
                   });

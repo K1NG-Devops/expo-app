@@ -45,21 +45,19 @@ export interface SearchOptions {
   site?: string; // Search within specific site
 }
 
-export class DashWebSearchService {
-  private static instance: DashWebSearchService;
+/**
+ * DashWebSearchService interface for dependency injection
+ */
+export interface IDashWebSearchService {
+  search(query: string, options?: SearchOptions): Promise<WebSearchResponse>;
+  dispose(): void;
+}
+
+export class DashWebSearchService implements IDashWebSearchService {
   private searchHistory: Map<string, WebSearchResponse> = new Map();
   private rateLimitCounter: Map<string, number> = new Map();
   private readonly RATE_LIMIT_PER_HOUR = 100;
   private readonly CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
-  
-  private constructor() {}
-  
-  public static getInstance(): DashWebSearchService {
-    if (!DashWebSearchService.instance) {
-      DashWebSearchService.instance = new DashWebSearchService();
-    }
-    return DashWebSearchService.instance;
-  }
   
   /**
    * Perform a web search using multiple providers
@@ -555,7 +553,26 @@ export class DashWebSearchService {
       .filter(search => search.toLowerCase().includes(partial.toLowerCase()))
       .slice(0, 5);
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.searchHistory.clear();
+    this.rateLimitCounter.clear();
+  }
 }
 
-// Export singleton instance
-export const dashWebSearch = DashWebSearchService.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashWebSearchInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashWebSearch);
+  } catch {
+    // Fallback during initialization
+    return new DashWebSearchService();
+  }
+})();
+
+export default DashWebSearchInstance;

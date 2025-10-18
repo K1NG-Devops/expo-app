@@ -27,8 +27,24 @@ import decisionEngine from './DashDecisionEngine';
 import ProactiveEngine from './DashProactiveEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
 
-export class DashAgenticEngine {
-  private static instance: DashAgenticEngine;
+/**
+ * Interface for DashAgenticEngine
+ */
+export interface IDashAgenticEngine {
+  initialize(): Promise<void>;
+  createTask(title: string, description: string, type: 'one_time' | 'recurring' | 'workflow', userRole: string, steps: any[]): Promise<DashTask>;
+  executeTask(taskId: string): Promise<{ success: boolean; message: string }>;
+  createReminder(title: string, scheduleAt: string | Date, payload?: any): Promise<DashReminder>;
+  getActiveTasks(): DashTask[];
+  getActiveReminders(): DashReminder[];
+  getProactiveSuggestions(): Promise<any[]>;
+  makeDecision(actionCandidate: any, context: { autonomyLevel: AutonomyLevel; userRole: string }): Promise<any>;
+  getEngineStats(): { activeTasks: number; activeReminders: number; decisionStats: any; proactiveStats: any };
+  cleanup(): void;
+  dispose(): void;
+}
+
+export class DashAgenticEngine implements IDashAgenticEngine {
   private activeTasks: Map<string, DashTask> = new Map();
   private activeReminders: Map<string, DashReminder> = new Map();
   private executionQueue: Array<{ taskId: string; action: DashAction; priority: number }> = [];
@@ -40,12 +56,7 @@ export class DashAgenticEngine {
   private static readonly REMINDERS_KEY = 'dash_active_reminders';
   private static readonly EXECUTION_HISTORY_KEY = 'dash_execution_history';
 
-  public static getInstance(): DashAgenticEngine {
-    if (!DashAgenticEngine.instance) {
-      DashAgenticEngine.instance = new DashAgenticEngine();
-    }
-    return DashAgenticEngine.instance;
-  }
+  constructor() {}
 
   /**
    * Initialize the agentic engine
@@ -732,4 +743,35 @@ export class DashAgenticEngine {
       this.proactiveInterval = null;
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.cleanup();
+    this.activeTasks.clear();
+    this.activeReminders.clear();
+    this.executionQueue = [];
+  }
 }
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashAgenticEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashAgenticEngine);
+  } catch {
+    // Fallback during initialization
+    return new DashAgenticEngine();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashAgenticEngine {
+  export function getInstance() {
+    return DashAgenticEngineInstance;
+  }
+}
+
+export default DashAgenticEngineInstance;

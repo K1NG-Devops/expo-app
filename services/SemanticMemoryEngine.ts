@@ -52,9 +52,14 @@ export interface MemoryStats {
 
 // ===== SEMANTIC MEMORY ENGINE =====
 
-export class SemanticMemoryEngine {
-  private static instance: SemanticMemoryEngine;
-  
+export interface ISemanticMemoryEngine {
+  initialize(): Promise<void>;
+  storeMemory(content: string, type: any, importance?: number, metadata?: Record<string, any>): Promise<any>;
+  searchMemories(query: any): Promise<any[]>;
+  dispose(): void;
+}
+
+export class SemanticMemoryEngine implements ISemanticMemoryEngine {
   // Memory consolidation settings
   private readonly CONSOLIDATION_THRESHOLD = 0.85; // Similarity threshold for grouping
   private readonly MIN_MEMORIES_TO_CONSOLIDATE = 3;
@@ -62,18 +67,11 @@ export class SemanticMemoryEngine {
   private readonly LOW_IMPORTANCE_THRESHOLD = 3;
   
   // Performance settings
-  private readonly VECTOR_DIMENSIONS = 1536; // OpenAI ada-002 dimensions
+  // OPTIMIZATION: Reduced from 1536 to 384 to prevent memory issues during bundling
+  // In production, use actual embedding API which handles this server-side
+  private readonly VECTOR_DIMENSIONS = 384; // Reduced for development (was 1536)
   private readonly DEFAULT_SIMILARITY_THRESHOLD = 0.7;
   private readonly MAX_SEARCH_RESULTS = 10;
-
-  private constructor() {}
-
-  public static getInstance(): SemanticMemoryEngine {
-    if (!SemanticMemoryEngine.instance) {
-      SemanticMemoryEngine.instance = new SemanticMemoryEngine();
-    }
-    return SemanticMemoryEngine.instance;
-  }
 
   /**
    * Initialize semantic memory engine (no-op for now)
@@ -535,6 +533,29 @@ export class SemanticMemoryEngine {
       updated_at: new Date(dbMemory.last_accessed).getTime()
     };
   }
+
+  dispose(): void {
+    // Cleanup if needed
+  }
 }
 
-export default SemanticMemoryEngine.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const SemanticMemoryEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.semanticMemory);
+  } catch {
+    // Fallback during initialization
+    return new SemanticMemoryEngine();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace SemanticMemoryEngine {
+  export function getInstance() {
+    return SemanticMemoryEngineInstance;
+  }
+}
+
+export default SemanticMemoryEngineInstance;

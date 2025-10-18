@@ -1,298 +1,737 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, Animated } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useTranslation } from 'react-i18next';
+/**
+ * ChatGPT-Style Interactive Voice Mode
+ * 
+ * Enhanced voice interface that works exactly like ChatGPT's voice feature:
+ * - Continuous conversation with natural turn-taking
+ * - Real-time voice activity detection
+ * - Seamless interruption handling
+ * - Automatic conversation flow
+ * - Enhanced visual feedback
+ */
 
-interface VoiceRecorderSheetProps {
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.4;
+
+interface ChatGPTVoiceModeProps {
   visible: boolean;
   onClose: () => void;
-  dash: DashAIAssistant;
-  onSend: (audioUri: string, transcript: string, duration: number) => Promise<void>;
+  dashInstance: DashAIAssistant | null;
+  onMessageSent?: (message: DashMessage) => void;
 }
 
-export const VoiceRecorderSheet: React.FC<VoiceRecorderSheetProps> = ({ visible, onClose, dash, onSend }) => {
-  const { theme } = useTheme();
-  const { t } = useTranslation();
-  const [phase, setPhase] = useState<'recording' | 'processing' | 'preview' | 'error'>('recording');
-  const [audioUri, setAudioUri] = useState<string | null>(null);
-  const [duration, setDuration] = useState<number>(0);
-  const [transcript, setTranscript] = useState<string>('');
-  const [timer, setTimer] = useState<number>(0);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [progressPhase, setProgressPhase] = useState<string>(t('voice.recording.starting', { defaultValue: 'Preparing...' }));
-  const [progressPercent, setProgressPercent] = useState<number>(0);
-  const pulse = useRef(new Animated.Value(1)).current;
-  const timerRef = useRef<number | null>(null);
+type ConversationState = 'idle' | 'listening' | 'processing' | 'speaking' | 'waiting' | 'error';
 
-  useEffect(() => {
-    if (!visible) {
-      // Reset state when modal closes
-      resetState();
-      return;
+export const ChatGPTVoiceMode: React.FC<ChatGPTVoiceModeProps> = ({
+  visible,
+  onClose,
+  dashInstance,
+  onMessageSent,
+}) => {
+  const { theme, isDark } = useTheme();
+  const { i18n } = useTranslation();
+  
+  // Core conversation state
+  const [conversationState, setConversationState] = useState<ConversationState>('idle');
+  const [userTranscript, setUserTranscript] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Voice activity detection
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false);
+  const [voiceLevel, setVoiceLevel] = useState(0);
+  const [silenceTimer, setSilenceTimer] = useState(0);
+  
+  // Conversation flow control
+  const [autoListenEnabled, setAutoListenEnabled] = useState(true);
+  const [conversationActive, setConversationActive] = useState(false);
+  const processingRef = useRef(false);
+  const interruptedRef = useRef(false);
+  const silenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Animations
+  const orbPulse = useRef(new Animated.Value(1)).current;
+  const orbGlow = useRef(new Animated.Value(0)).current;
+  const waveformAnims = useRef(Array(12).fill(0).map(() => new Animated.Value(0.3))).current;
+  
+  // Language detection
+  const mapLanguage = useCallback((lang?: string) => {
+    const base = String(lang || '').toLowerCase();
+    if (base.startsWith('af')) return 'af';
+    if (base.startsWith('zu')) return 'zu';
+    if (base.startsWith('xh')) return 'xh';
+    if (base.startsWith('nso')) return 'nso';
+    return 'en';
+  }, []);
+  
+  const activeLanguage = mapLanguage(i18n?.language);
+
+  // Enhanced realtime voice with ChatGPT-style features
+  const realtimeVoice = useRealtimeVoice({
+    enabled: true,
+    language: activeLanguage,
+    vadSilenceMs: 800, // More sensitive for natural conversation
+    onPartialTranscript: (text) => {
+      const transcript = String(text || '').trim();
+      setUserTranscript(transcript);
+      
+      // Voice activity detection
+      if (transcript.length > 0) {
+        setIsUserSpeaking(true);
+        setVoiceLevel(Math.min(transcript.length / 10, 1));
+        
+        // Reset silence timer
+        if (silenceTimeoutRef.current) {
+          clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = null;
+        }
+        
+        // Interrupt AI if speaking
+        if (conversationState === 'speaking' && transcript.length >= 3) {
+          handleUserInterruption();
+        }
+      }
+    },
+    onFinalTranscript: async (text) => {
+      const transcript = String(text || '').trim();
+      console.log('[ChatGPTVoice] Final transcript:', transcript);
+      
+      if (!transcript || processingRef.current) return;
+      
+      setUserTranscript(transcript);
+      setIsUserSpeaking(false);
+      setVoiceLevel(0);
+      
+      // Start silence detection for natural turn-taking
+      startSilenceDetection();
+      
+      // Process the message
+      await handleUserMessage(transcript);
+    },
+    onAssistantToken: (token) => {
+      // Real-time AI response streaming (future enhancement)
+      console.log('[ChatGPTVoice] AI token:', token);
+    },
+    onStatusChange: (status) => {
+      console.log('[ChatGPTVoice] Stream status:', status);
+      setIsConnected(status === 'streaming');
+      
+      if (status === 'error') {
+        setConversationState('error');
+        setErrorMessage('Connection lost. Please try again.');
+      }
+    },
+  });
+
+  // Handle user interruption of AI speech
+  const handleUserInterruption = useCallback(async () => {
+    if (conversationState !== 'speaking') return;
+    
+    console.log('[ChatGPTVoice] User interrupted AI speech');
+    interruptedRef.current = true;
+    
+    // Stop AI speech immediately
+    try {
+      await dashInstance?.stopSpeaking();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('Failed to stop AI speech:', error);
     }
     
-    let mounted = true;
-    const start = async () => {
-      try {
-        // Reset state before starting new recording
-        resetState();
+    // Transition to listening state
+    setConversationState('listening');
+    setAiResponse('');
+  }, [conversationState, dashInstance]);
+
+  // Natural silence detection for turn-taking
+  const startSilenceDetection = useCallback(() => {
+    if (silenceTimeoutRef.current) {
+      clearTimeout(silenceTimeoutRef.current);
+    }
+    
+    let silenceCount = 0;
+    const checkSilence = () => {
+      silenceCount++;
+      setSilenceTimer(silenceCount * 100);
+      
+      // After 1.2 seconds of silence, process the message
+      if (silenceCount >= 12) {
+        setIsUserSpeaking(false);
+        setVoiceLevel(0);
+        setSilenceTimer(0);
+        return;
+      }
+      
+      silenceTimeoutRef.current = setTimeout(checkSilence, 100);
+    };
+    
+    silenceTimeoutRef.current = setTimeout(checkSilence, 100);
+  }, []);
+
+  // Process user message and generate AI response
+  const handleUserMessage = useCallback(async (transcript: string) => {
+    if (!dashInstance || processingRef.current) return;
+    
+    try {
+      processingRef.current = true;
+      setConversationState('processing');
+      interruptedRef.current = false;
+      
+      console.log('[ChatGPTVoice] Processing user message:', transcript);
+      
+      // Send message to AI with conversation context
+      const response = await dashInstance.sendMessage(transcript);
+      
+      // Update conversation state
+      setConversationActive(true);
+      onMessageSent?.(response);
+      
+      // Check if response should be spoken
+      const shouldSpeak = !(response.metadata as any)?.doNotSpeak;
+      const responseText = response.content || '';
+      setAiResponse(responseText);
+      
+      if (responseText && shouldSpeak && !interruptedRef.current) {
+        setConversationState('speaking');
+        await speakAIResponse(responseText);
         
-        await dash.preWarmRecorder();
-        await dash.startRecording();
-        setPhase('recording');
-        // Start timer
-        timerRef.current = (setInterval(() => {
-          setTimer((t) => t + 1);
-        }, 1000) as unknown) as number;
-        // Haptic feedback
-        try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
-        // Pulse anim
+        // After speaking, automatically start listening again if enabled
+        if (autoListenEnabled && !interruptedRef.current) {
+          setTimeout(() => {
+            if (conversationState !== 'error' && visible) {
+              setConversationState('listening');
+              setUserTranscript('');
+              setAiResponse('');
+            }
+          }, 500);
+        } else {
+          setConversationState('waiting');
+        }
+      } else {
+        // No speech or interrupted - wait for user
+        setConversationState('waiting');
+      }
+    } catch (error) {
+      console.error('[ChatGPTVoice] Error processing message:', error);
+      setConversationState('error');
+      setErrorMessage('Failed to process message. Please try again.');
+    } finally {
+      processingRef.current = false;
+    }
+  }, [dashInstance, autoListenEnabled, conversationState, visible, onMessageSent]);
+
+  // Speak AI response with enhanced control
+  const speakAIResponse = useCallback(async (text: string) => {
+    if (!dashInstance || interruptedRef.current) return;
+    
+    try {
+      const dummyMessage: DashMessage = {
+        id: `voice_${Date.now()}`,
+        type: 'assistant',
+        content: text,
+        timestamp: Date.now(),
+      };
+      
+      await dashInstance.speakResponse(dummyMessage, {
+        onStart: () => {
+          if (!interruptedRef.current) {
+            console.log('[ChatGPTVoice] AI speech started');
+          }
+        },
+        onDone: () => {
+          if (!interruptedRef.current) {
+            console.log('[ChatGPTVoice] AI speech completed');
+          }
+        },
+        onError: (error) => {
+          console.error('[ChatGPTVoice] AI speech error:', error);
+        },
+      });
+    } catch (error) {
+      console.error('[ChatGPTVoice] Failed to speak AI response:', error);
+    }
+  }, [dashInstance]);
+
+  // Initialize voice session
+  useEffect(() => {
+    if (!visible || !dashInstance) return;
+    
+    const initializeSession = async () => {
+      try {
+        console.log('[ChatGPTVoice] Initializing voice session');
+        setConversationState('idle');
+        setErrorMessage('');
+        processingRef.current = false;
+        interruptedRef.current = false;
+        
+        // Check streaming availability
+        const streamingEnabled = await AsyncStorage.getItem('@dash_streaming_enabled');
+        if (streamingEnabled !== 'true' && !process.env.EXPO_PUBLIC_DASH_STREAMING) {
+          setErrorMessage('Voice streaming not enabled. Please check settings.');
+          setConversationState('error');
+          return;
+        }
+        
+        // Start voice stream
+        const connected = await realtimeVoice.startStream();
+        if (connected) {
+          setConversationState('listening');
+          setIsConnected(true);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          startOrbAnimations();
+        } else {
+          setErrorMessage('Failed to connect. Please try again.');
+          setConversationState('error');
+        }
+      } catch (error) {
+        console.error('[ChatGPTVoice] Initialization error:', error);
+        setErrorMessage('Failed to initialize voice mode.');
+        setConversationState('error');
+      }
+    };
+    
+    initializeSession();
+    
+    return () => {
+      console.log('[ChatGPTVoice] Cleaning up voice session');
+      realtimeVoice.stopStream();
+      stopOrbAnimations();
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+      }
+    };
+  }, [visible, dashInstance]);
+
+  // Orb animations based on conversation state
+  const startOrbAnimations = useCallback(() => {
+    // Main orb pulse
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orbPulse, {
+          toValue: 1.1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(orbPulse, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
+    // Glow effect
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(orbGlow, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+        Animated.timing(orbGlow, {
+          toValue: 0.3,
+          duration: 2000,
+          useNativeDriver: false,
+        }),
+      ])
+    ).start();
+  }, []);
+
+  const stopOrbAnimations = useCallback(() => {
+    orbPulse.stopAnimation();
+    orbGlow.stopAnimation();
+    waveformAnims.forEach(anim => anim.stopAnimation());
+  }, []);
+
+  // Waveform animation for voice activity
+  useEffect(() => {
+    if (isUserSpeaking && conversationState === 'listening') {
+      const animations = waveformAnims.map((anim, index) =>
         Animated.loop(
           Animated.sequence([
-            Animated.timing(pulse, { toValue: 1.2, duration: 800, useNativeDriver: true }),
-            Animated.timing(pulse, { toValue: 1.0, duration: 800, useNativeDriver: true }),
+            Animated.delay(index * 50),
+            Animated.timing(anim, {
+              toValue: 0.8 + Math.random() * 0.4,
+              duration: 200 + Math.random() * 100,
+              useNativeDriver: false,
+            }),
+            Animated.timing(anim, {
+              toValue: 0.2,
+              duration: 200 + Math.random() * 100,
+              useNativeDriver: false,
+            }),
           ])
-        ).start();
-      } catch (e) {
-        console.error('[VoiceRecorderSheet] Failed to start recording', e);
-        onClose();
-      }
-    };
-    start();
-    return () => { 
-      mounted = false;
-      if (timerRef.current) {
-        clearInterval(timerRef.current as unknown as number);
-        timerRef.current = null;
-      }
-      // Stop any ongoing recording when unmounting
-      if (phase === 'recording') {
-        try {
-          dash.stopRecording().catch(() => { /* Intentional: error handled */ });
-        } catch { /* Intentional: non-fatal */ }
-      }
-    };
-  }, [visible]);
-
-  const stop = async () => {
-    try {
-      if (timerRef.current) { clearInterval(timerRef.current as unknown as number); timerRef.current = null; }
-      setPhase('processing');
-      setError(null);
-      setProgressPhase(t('voice.recording.stopping_recording', { defaultValue: 'Stopping recording...' }));
-      setProgressPercent(10);
+        )
+      );
       
-      const uri = await dash.stopRecording();
-      setAudioUri(uri);
-      
-      // Transcribe with progress updates
-      const tr = await dash.transcribeOnly(uri, (stage, percent) => {
-        setProgressPercent(percent);
-        switch (stage) {
-          case 'validating':
-            setProgressPhase(t('voice.recording.validating_audio', { defaultValue: 'Validating audio...' }));
-            break;
-          case 'uploading':
-            setProgressPhase(t('voice.recording.uploading_cloud', { defaultValue: 'Uploading to cloud...' }));
-            break;
-          case 'transcribing':
-            setProgressPhase(t('voice.recording.transcribing_speech', { defaultValue: 'Transcribing speech...' }));
-            break;
-          case 'complete':
-            setProgressPhase(t('voice.recording.done', { defaultValue: 'Done!' }));
-            break;
-        }
+      Animated.parallel(animations).start();
+    } else {
+      waveformAnims.forEach(anim => {
+        anim.stopAnimation();
+        anim.setValue(0.3);
       });
-      
-      setTranscript(tr.transcript || '');
-      setDuration(tr.duration || 0);
-      
-      // Check if transcription failed
-      if (tr.error) {
-        setError(tr.transcript); // User-friendly error message is in transcript
-        setPhase('error');
-      } else {
-        setPhase('preview');
+    }
+  }, [isUserSpeaking, conversationState]);
+
+  // Handle close with cleanup
+  const handleClose = useCallback(async () => {
+    try {
+      await realtimeVoice.stopStream();
+      await dashInstance?.stopSpeaking();
+      stopOrbAnimations();
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
       }
-    } catch (e) {
-      console.error('[VoiceRecorderSheet] Failed to stop/transcribe', e);
-      const errorMsg = e instanceof Error ? e.message : t('voice.recording.failed_process', { defaultValue: 'Failed to process voice recording' });
-      setError(errorMsg);
-      setPhase('error');
-    }
-  };
-
-  const send = async () => {
-    if (!audioUri || sending) return; // Prevent double-send
-    setSending(true);
-    try {
-      await onSend(audioUri, transcript, duration);
-      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* Intentional: non-fatal */ }
-      // Reset state before closing to ensure clean next open
-      resetState();
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error) {
+      console.error('[ChatGPTVoice] Close error:', error);
+    } finally {
       onClose();
-    } catch (e) {
-      console.error('[VoiceRecorderSheet] Send failed', e);
-      const errorMsg = e instanceof Error ? e.message : t('voice.recording.failed_send', { defaultValue: 'Failed to send message' });
-      setError(errorMsg);
-      setPhase('error');
-      setSending(false);
     }
-  };
-  
-  // Helper to reset all state
-  const resetState = () => {
-    setPhase('recording');
-    setAudioUri(null);
-    setTranscript('');
-    setTimer(0);
-    setSending(false);
-    setError(null);
-    setProgressPhase(t('voice.recording.starting', { defaultValue: 'Preparing...' }));
-    setProgressPercent(0);
-    if (timerRef.current) {
-      clearInterval(timerRef.current as unknown as number);
-      timerRef.current = null;
+  }, [realtimeVoice, dashInstance, onClose]);
+
+  // Get orb color based on state
+  const getOrbColor = () => {
+    switch (conversationState) {
+      case 'listening':
+        return isUserSpeaking ? theme.success : theme.primary;
+      case 'processing':
+        return theme.warning || '#FFA500';
+      case 'speaking':
+        return theme.success;
+      case 'error':
+        return theme.error;
+      default:
+        return theme.primary;
     }
   };
 
-  const retry = async () => {
-    resetState();
-    // Restart recording
-    try {
-      await dash.preWarmRecorder();
-      await dash.startRecording();
-      // Start timer
-      timerRef.current = (setInterval(() => {
-        setTimer((t) => t + 1);
-      }, 1000) as unknown) as number;
-      // Haptic feedback
-      try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
-      // Pulse anim
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, { toValue: 1.2, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulse, { toValue: 1.0, duration: 800, useNativeDriver: true }),
-        ])
-      ).start();
-    } catch (e) {
-      console.error('[VoiceRecorderSheet] Failed to retry recording', e);
-      setError(e instanceof Error ? e.message : t('voice.errors.failed_start', { defaultValue: 'Failed to start recording' }));
+  // Get status text
+  const getStatusText = () => {
+    switch (conversationState) {
+      case 'idle':
+        return 'Connecting...';
+      case 'listening':
+        return isUserSpeaking ? 'Listening...' : 'Tap to speak or just start talking';
+      case 'processing':
+        return 'Thinking...';
+      case 'speaking':
+        return 'Speaking...';
+      case 'waiting':
+        return 'Tap to continue or just start talking';
+      case 'error':
+        return errorMessage || 'Something went wrong';
+      default:
+        return 'Ready';
     }
   };
 
-  const mm = String(Math.floor(timer / 60)).padStart(2, '0');
-  const ss = String(timer % 60).padStart(2, '0');
+  if (!visible) return null;
+
+  const orbColor = getOrbColor();
+  const glowColor = orbGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [`${orbColor}20`, `${orbColor}60`],
+  });
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={[styles.overlay, { backgroundColor: theme.modalOverlay }]}>
-        <View style={[styles.sheet, { backgroundColor: theme.elevated }]}
+    <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
+      {/* Main Orb */}
+      <View style={styles.orbContainer}>
+        {/* Glow Effect */}
+        <Animated.View
+          style={[
+            styles.orbGlow,
+            {
+              backgroundColor: glowColor,
+              transform: [{ scale: orbPulse.interpolate({ inputRange: [1, 1.1], outputRange: [1, 1.2] }) }],
+            },
+          ]}
+        />
+        
+        {/* Main Orb */}
+        <Animated.View
+          style={[
+            styles.orb,
+            {
+              transform: [{ scale: orbPulse }],
+            },
+          ]}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.text }]}>
-              {phase === 'recording' ? t('voice.recording.listening', { defaultValue: 'Listening…' }) : phase === 'processing' ? t('voice.recording.transcribing', { defaultValue: 'Transcribing…' }) : t('voice.recording.preview', { defaultValue: 'Preview' })}
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={22} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Content */}
-          {phase === 'recording' && (
-            <View style={styles.center}>
-              <Animated.View style={[styles.micCircle, { backgroundColor: theme.error, transform: [{ scale: pulse }] }]}> 
-                <Ionicons name="mic" size={32} color={theme.onError || '#fff'} />
-              </Animated.View>
-              <Text style={[styles.timer, { color: theme.textSecondary }]}>{mm}:{ss}</Text>
-              <TouchableOpacity style={[styles.bigStop, { backgroundColor: theme.error }]} onPress={stop} accessibilityLabel={t('voice.recording.stop_recording_label', { defaultValue: 'Stop recording' })}>
-                <Ionicons name="stop" size={26} color={theme.onError || '#fff'} />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {phase === 'processing' && (
-            <View style={styles.center}>
-              <Text style={[styles.processingText, { color: theme.text }]}>
-                {progressPhase}
-              </Text>
-              <View style={[styles.progressBar, { backgroundColor: theme.border }]}>
-                <View style={[styles.progressFill, { width: `${progressPercent}%`, backgroundColor: theme.primary }]} />
-              </View>
-              <Text style={[styles.progressPercent, { color: theme.textSecondary }]}>
-                {progressPercent}%
-              </Text>
-            </View>
-          )}
-
-          {phase === 'preview' && (
-            <View style={styles.preview}>
-              <Text style={[styles.previewText, { color: theme.text }]}>{transcript || t('voice.recording.no_speech_detected', { defaultValue: 'No speech detected.' })}</Text>
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
-                  <Ionicons name="trash-outline" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('voice.recording.discard', { defaultValue: 'Discard' })}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.sendBtn]} onPress={send} disabled={sending}>
-                  <Ionicons name="arrow-up" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{sending ? t('voice.recording.sending', { defaultValue: 'Sending…' }) : t('voice.recording.send', { defaultValue: 'Send' })}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          
-          {phase === 'error' && (
-            <View style={styles.preview}>
-              <View style={[styles.errorBox, { backgroundColor: theme.errorLight || '#fee' }]}>
-                <Ionicons name="alert-circle" size={32} color={theme.error} />
-                <Text style={[styles.errorText, { color: theme.error }]}>{error || t('voice.recording.something_wrong', { defaultValue: 'Something went wrong' })}</Text>
-              </View>
-              <View style={styles.actionsRow}>
-                <TouchableOpacity style={[styles.actionBtn, styles.cancelBtn]} onPress={onClose}>
-                  <Ionicons name="close" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('cancel', { defaultValue: 'Cancel' })}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.actionBtn, styles.retryBtn]} onPress={retry}>
-                  <Ionicons name="refresh" size={18} color={theme.onPrimary || '#fff'} />
-                  <Text style={[styles.actionText, { color: theme.onPrimary || '#fff' }]}>{t('voice.recording.try_again', { defaultValue: 'Try Again' })}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          <LinearGradient
+            colors={[orbColor, orbColor + 'CC', orbColor + '99']}
+            style={styles.orbGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          />
+        </Animated.View>
+        
+        {/* Center Icon */}
+        <View style={styles.orbIcon}>
+          <Ionicons
+            name={
+              conversationState === 'listening' && isUserSpeaking
+                ? 'mic'
+                : conversationState === 'speaking'
+                ? 'volume-high'
+                : conversationState === 'processing'
+                ? 'hourglass'
+                : conversationState === 'error'
+                ? 'alert-circle'
+                : 'sparkles'
+            }
+            size={48}
+            color="#fff"
+          />
         </View>
+        
+        {/* Waveform for voice activity */}
+        {isUserSpeaking && conversationState === 'listening' && (
+          <View style={styles.waveform}>
+            {waveformAnims.map((anim, index) => (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.waveformBar,
+                  {
+                    backgroundColor: '#fff',
+                    height: anim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [4, 32],
+                    }),
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        )}
       </View>
-    </Modal>
+
+      {/* Status Text */}
+      <View style={styles.statusContainer}>
+        <Text style={[styles.statusText, { color: conversationState === 'error' ? theme.error : theme.text }]}>
+          {getStatusText()}
+        </Text>
+        
+        {userTranscript && conversationState === 'listening' && (
+          <Text style={[styles.transcriptText, { color: theme.textSecondary }]} numberOfLines={3}>
+            "{userTranscript}"
+          </Text>
+        )}
+        
+        {aiResponse && conversationState === 'speaking' && (
+          <Text style={[styles.responseText, { color: theme.text }]} numberOfLines={4}>
+            {aiResponse}
+          </Text>
+        )}
+      </View>
+
+      {/* Control Buttons */}
+      <View style={styles.controls}>
+        {/* Auto-listen toggle */}
+        <TouchableOpacity
+          style={[
+            styles.controlButton,
+            { backgroundColor: autoListenEnabled ? theme.primary : theme.surface }
+          ]}
+          onPress={() => {
+            setAutoListenEnabled(!autoListenEnabled);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+        >
+          <Ionicons
+            name="repeat"
+            size={20}
+            color={autoListenEnabled ? '#fff' : theme.text}
+          />
+        </TouchableOpacity>
+        
+        {/* Manual talk button */}
+        {(conversationState === 'waiting' || conversationState === 'idle') && (
+          <TouchableOpacity
+            style={[styles.talkButton, { backgroundColor: theme.primary }]}
+            onPress={async () => {
+              if (conversationState === 'waiting') {
+                setConversationState('listening');
+                setUserTranscript('');
+                setAiResponse('');
+              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }}
+          >
+            <Ionicons name="mic" size={24} color="#fff" />
+            <Text style={styles.talkButtonText}>Talk</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Stop button when speaking */}
+        {conversationState === 'speaking' && (
+          <TouchableOpacity
+            style={[styles.stopButton, { backgroundColor: theme.error }]}
+            onPress={handleUserInterruption}
+          >
+            <Ionicons name="stop" size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Close Button */}
+      <TouchableOpacity
+        style={[styles.closeButton, { backgroundColor: theme.surface }]}
+        onPress={handleClose}
+      >
+        <Ionicons name="close" size={24} color={theme.text} />
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, minHeight: 260 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 16, fontWeight: '600' },
-  center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
-  micCircle: { width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' },
-  timer: { marginTop: 12, fontSize: 16 },
-  bigStop: { width: 64, height: 64, borderRadius: 32, marginTop: 18, alignItems: 'center', justifyContent: 'center' },
-  processingText: { fontSize: 15, marginBottom: 16 },
-  progressBar: { width: '100%', height: 6, borderRadius: 3, overflow: 'hidden', marginTop: 8 },
-  progressFill: { height: '100%', borderRadius: 3 },
-  progressPercent: { marginTop: 8, fontSize: 13 },
-  preview: { paddingVertical: 12 },
-  previewText: { fontSize: 16, lineHeight: 24 },
-  errorBox: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 12 },
-  errorText: { fontSize: 15, marginTop: 12, textAlign: 'center', lineHeight: 22 },
-  actionsRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 16 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20 },
-  cancelBtn: { backgroundColor: '#6b7280' },
-  sendBtn: { backgroundColor: '#2563eb' },
-  retryBtn: { backgroundColor: '#ea580c' },
-  actionText: { fontWeight: '600' },
+  container: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 9999,
+  },
+  orbContainer: {
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  orbGlow: {
+    position: 'absolute',
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
+  },
+  orb: {
+    width: ORB_SIZE * 0.8,
+    height: ORB_SIZE * 0.8,
+    borderRadius: (ORB_SIZE * 0.8) / 2,
+    overflow: 'hidden',
+  },
+  orbGradient: {
+    width: '100%',
+    height: '100%',
+  },
+  orbIcon: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  waveform: {
+    position: 'absolute',
+    bottom: -20,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  waveformBar: {
+    width: 3,
+    borderRadius: 2,
+    minHeight: 4,
+  },
+  statusContainer: {
+    marginTop: 40,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+    maxWidth: SCREEN_WIDTH * 0.9,
+  },
+  statusText: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  transcriptText: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  responseText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  controls: {
+    position: 'absolute',
+    bottom: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  controlButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  talkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  talkButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  stopButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 60 : 40,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
 });
 
-export default VoiceRecorderSheet;
+export default ChatGPTVoiceMode;

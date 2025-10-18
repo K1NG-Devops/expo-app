@@ -33,8 +33,15 @@ interface ToolCall {
   arguments: any;
 }
 
-class AgentOrchestratorClass {
-  private static instance: AgentOrchestratorClass;
+/**
+ * Interface for AgentOrchestrator
+ */
+export interface IAgentOrchestrator {
+  run(goal: AgentGoal): Promise<AgentResult>;
+  dispose(): void;
+}
+
+export class AgentOrchestratorClass implements IAgentOrchestrator {
   private isRunning = false;
   private currentRunId?: string;
   
@@ -43,12 +50,7 @@ class AgentOrchestratorClass {
   private readonly DEFAULT_MAX_TOOLS = 5;
   private readonly DEFAULT_TIMEOUT = 20000; // 20 seconds
 
-  static getInstance(): AgentOrchestratorClass {
-    if (!AgentOrchestratorClass.instance) {
-      AgentOrchestratorClass.instance = new AgentOrchestratorClass();
-    }
-    return AgentOrchestratorClass.instance;
-  }
+  constructor() {}
 
   /**
    * Main agent execution loop
@@ -364,6 +366,28 @@ When you've completed the task, provide a clear summary without calling more too
   isAgentRunning(): boolean {
     return this.isRunning;
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.cancelCurrentRun();
+  }
 }
 
-export const AgentOrchestrator = AgentOrchestratorClass.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const AgentOrchestratorInstance = (() => {
+  try {
+    return container.resolve(TOKENS.agentOrchestrator);
+  } catch {
+    // Fallback during initialization
+    return new AgentOrchestratorClass();
+  }
+})();
+
+// Back-compat export for legacy call sites
+export const AgentOrchestrator = AgentOrchestratorInstance;
+
+export default AgentOrchestratorInstance;

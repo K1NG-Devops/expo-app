@@ -10,6 +10,8 @@ web-build/
 expo-env.d.ts
 
 # Native
+android/
+ios/
 .kotlin/
 *.orig.*
 *.jks
@@ -55,6 +57,9 @@ tests/artifacts/
 # SQL development files
 sql/temp/
 sql/debug/
+
+# Local-only Supabase migrations (dev/test seeds)
+supabase/local_migrations/
 
 # Script artifacts and logs
 scripts/logs/

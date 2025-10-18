@@ -167,6 +167,7 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       
       if (!started) {
         console.error('[VoiceController] ❌ Recording failed to start, setting error state');
+        console.error('[VoiceController] Debug info - streamingEnabled:', streamingEnabled, 'realtimeVoice.enabled:', realtimeVoice.enabled);
         setState('error');
         return;
       }

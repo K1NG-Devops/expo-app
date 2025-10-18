@@ -62,8 +62,13 @@ export interface ProactiveRule {
 
 // ===== PROACTIVE ENGINE =====
 
-export class DashProactiveEngine {
-  private static instance: DashProactiveEngine;
+export interface IDashProactiveEngine {
+  checkForSuggestions(userRole: string, context: any): Promise<any[]>;
+  dismissSuggestion(suggestionId: string): void;
+  dispose(): void;
+}
+
+export class DashProactiveEngine implements IDashProactiveEngine {
   private lastTriggerTimes: Map<string, number> = new Map();
   private dailyOccurrences: Map<string, number> = new Map();
   private dismissedSuggestions: Set<string> = new Set();
@@ -146,15 +151,8 @@ export class DashProactiveEngine {
     }
   ];
 
-  private constructor() {
+  constructor() {
     this.resetDailyCounters();
-  }
-
-  public static getInstance(): DashProactiveEngine {
-    if (!DashProactiveEngine.instance) {
-      DashProactiveEngine.instance = new DashProactiveEngine();
-    }
-    return DashProactiveEngine.instance;
   }
 
   /**
@@ -664,6 +662,24 @@ export class DashProactiveEngine {
       dismissedToday: this.dismissedSuggestions.size
     };
   }
+
+  dispose(): void {
+    this.lastTriggerTimes.clear();
+    this.dailyOccurrences.clear();
+    this.dismissedSuggestions.clear();
+  }
 }
 
-export default DashProactiveEngine.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashProactiveEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashProactive);
+  } catch {
+    // Fallback during initialization
+    return new DashProactiveEngine();
+  }
+})();
+
+export default DashProactiveEngineInstance;

@@ -5,16 +5,16 @@
 
 type EventHandler = (data: any) => void | Promise<void>;
 
-class EventBusService {
-  private static instance: EventBusService;
-  private handlers: Map<string, Set<EventHandler>> = new Map();
+/**
+ * EventBus interface for dependency injection
+ */
+export interface IEventBus {
+  subscribe(event: string, handler: EventHandler): () => void;
+  publish(event: string, data?: any): Promise<void>;
+}
 
-  static getInstance(): EventBusService {
-    if (!EventBusService.instance) {
-      EventBusService.instance = new EventBusService();
-    }
-    return EventBusService.instance;
-  }
+class EventBusService implements IEventBus {
+  private handlers: Map<string, Set<EventHandler>> = new Map();
 
   /**
    * Subscribe to an event
@@ -72,7 +72,27 @@ class EventBusService {
     AI_ERROR: 'system:ai_error',
     REMINDER_TRIGGERED: 'reminder:triggered',
   } as const;
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.handlers.clear();
+  }
 }
 
-export const EventBus = EventBusService.getInstance();
+// Export service for DI registration
+export { EventBusService };
 export const Events = EventBusService.Events;
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const EventBus = (() => {
+  try {
+    return container.resolve(TOKENS.eventBus);
+  } catch {
+    // Fallback during initialization
+    return new EventBusService();
+  }
+})();

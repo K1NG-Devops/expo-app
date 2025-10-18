@@ -55,24 +55,25 @@ export interface CalendarSyncStatus {
 }
 
 /**
- * Google Calendar Service - Singleton
+ * GoogleCalendarService interface for dependency injection
  */
-export class GoogleCalendarService {
-  private static instance: GoogleCalendarService;
+export interface IGoogleCalendarService {
+  initiateOAuthFlow(userId: string, preschoolId: string): Promise<string>;
+  completeOAuthFlow(userId: string, authorizationCode: string, state: string): Promise<{ success: boolean; error?: string }>;
+  disconnectAccount(userId: string): Promise<{ success: boolean; error?: string }>;
+  isConnected(userId: string): Promise<boolean>;
+  dispose(): void;
+}
+
+/**
+ * Google Calendar Service
+ */
+export class GoogleCalendarService implements IGoogleCalendarService {
   private readonly GOOGLE_CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3';
   private readonly REQUIRED_SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events',
   ];
-
-  private constructor() {}
-
-  public static getInstance(): GoogleCalendarService {
-    if (!GoogleCalendarService.instance) {
-      GoogleCalendarService.instance = new GoogleCalendarService();
-    }
-    return GoogleCalendarService.instance;
-  }
 
   /**
    * Initialize Google Calendar OAuth flow
@@ -620,6 +621,25 @@ export class GoogleCalendarService {
       console.error('[GoogleCalendar] Failed to log audit event:', error);
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    // Cleanup if needed
+  }
 }
 
-export default GoogleCalendarService;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+const GoogleCalendarServiceInstance = (() => {
+  try {
+    return container.resolve(TOKENS.googleCalendar);
+  } catch {
+    // Fallback during initialization
+    return new GoogleCalendarService();
+  }
+})();
+
+export default GoogleCalendarServiceInstance;

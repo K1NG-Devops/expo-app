@@ -51,7 +51,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const [, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  const lessonsService = LessonsService.getInstance();
+  const lessonsService = LessonsService;
 
   // Define loadData function first to avoid reference before declaration
   const loadData = useCallback(async () => {

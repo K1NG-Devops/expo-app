@@ -28,7 +28,7 @@ export default function LessonDetailScreen() {
   const [progress, setProgress] = useState<LessonProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [isBookmarked, setIsBookmarked] = useState(false);
-  const lessonsService = LessonsService.getInstance();
+  const lessonsService = LessonsService;
 
   useEffect(() => {
     loadLessonData();

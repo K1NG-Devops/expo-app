@@ -63,22 +63,23 @@ export interface SMSCampaignResult {
 }
 
 /**
- * SMS Service - Singleton
+ * SMSService interface for dependency injection
  */
-export class SMSService {
-  private static instance: SMSService;
+export interface ISMSService {
+  sendSMS(message: SMSMessage, options?: { validateOptOut?: boolean }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  sendBulkSMS(options: BulkSMSOptions): Promise<{ success: boolean; result?: SMSCampaignResult; error?: string }>;
+  getDeliveryStatus(messageId: string): Promise<SMSDeliveryStatus | null>;
+  updateDeliveryStatus(twilioPayload: any): Promise<void>;
+  dispose(): void;
+}
+
+/**
+ * SMS Service
+ */
+export class SMSService implements ISMSService {
   private readonly TWILIO_API_BASE = 'https://api.twilio.com/2010-04-01';
   private readonly SMS_SEGMENT_LENGTH = 160; // Characters per segment
   private readonly SMS_COST_PER_SEGMENT = 0.4; // ZAR (approximate)
-
-  private constructor() {}
-
-  public static getInstance(): SMSService {
-    if (!SMSService.instance) {
-      SMSService.instance = new SMSService();
-    }
-    return SMSService.instance;
-  }
 
   /**
    * Get Twilio credentials from environment
@@ -634,6 +635,25 @@ export class SMSService {
       console.error('[SMS] Failed to log audit event:', error);
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    // Cleanup if needed
+  }
 }
 
-export default SMSService;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+const SMSServiceInstance = (() => {
+  try {
+    return container.resolve(TOKENS.sms);
+  } catch {
+    // Fallback during initialization
+    return new SMSService();
+  }
+})();
+
+export default SMSServiceInstance;

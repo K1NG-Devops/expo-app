@@ -24,16 +24,20 @@ import {
   COMMON_LESSON_TAGS,
 } from '@/types/lessons';
 
-export class LessonsService {
-  private static instance: LessonsService;
-  private supabase = assertSupabase();
+/**
+ * LessonsService interface for dependency injection
+ */
+export interface ILessonsService {
+  getCategories(): Promise<LessonCategory[]>;
+  getSkillLevels(): Promise<LessonSkillLevel[]>;
+  getTags(): Promise<LessonTag[]>;
+  searchLessons(query?: string, filters?: LessonSearchFilters, sortBy?: LessonSortOption, page?: number, pageSize?: number): Promise<LessonSearchResult>;
+  getLessonById(lessonId: string): Promise<Lesson | null>;
+  dispose(): void;
+}
 
-  public static getInstance(): LessonsService {
-    if (!LessonsService.instance) {
-      LessonsService.instance = new LessonsService();
-    }
-    return LessonsService.instance;
-  }
+export class LessonsService implements ILessonsService {
+  private supabase = assertSupabase();
 
   /**
    * Get all lesson categories
@@ -840,6 +844,25 @@ export class LessonsService {
       console.error('Error updating lesson rating:', error);
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    // Cleanup if needed (e.g., cancel pending requests)
+  }
 }
 
-export default LessonsService;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+const LessonsServiceInstance = (() => {
+  try {
+    return container.resolve(TOKENS.lessons);
+  } catch {
+    // Fallback during initialization
+    return new LessonsService();
+  }
+})();
+
+export default LessonsServiceInstance;

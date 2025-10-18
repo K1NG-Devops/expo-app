@@ -22,6 +22,11 @@ import { DashTaskAutomation } from './DashTaskAutomation';
 import { base64ToUint8Array } from '@/lib/utils/base64';
 import DashRealTimeAwareness from './DashRealTimeAwareness';
 import { DashAgenticIntegration } from './DashAgenticIntegration';
+import { DashMemoryManager } from './modules/DashMemoryManager';
+import { DashVoiceController } from './modules/DashVoiceController';
+import { DashMessageHandler } from './modules/DashMessageHandler';
+import { DashContextBuilder } from './modules/DashContextBuilder';
+import responseCache from './modules/DashResponseCache';
 
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
@@ -435,7 +440,7 @@ export interface DashPersonality {
 
 const DEFAULT_PERSONALITY: DashPersonality = {
   name: 'Dash',
-  greeting: "Hi! I'm Dash, your AI assistant. How can I help?",
+  greeting: "Hello I am Dash. How can I assist you today?",
   personality_traits: [
     'helpful',
     'intelligent',
@@ -466,7 +471,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   },
   role_specializations: {
     user: {
-      greeting: "Hi! I'm Dash, your AI assistant. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'general_assistance',
         'task_management',
@@ -487,7 +492,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['general', 'productivity', 'communication']
     },
     admin: {
-      greeting: "Hi! I'm Dash, your system assistant. How can I help?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'system_management',
         'data_analytics',
@@ -508,7 +513,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['system', 'technical', 'administrative']
     },
     teacher: {
-      greeting: "Hi! I'm Dash. What do you need help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'content_creation',
         'organization',
@@ -529,7 +534,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['content', 'planning', 'communication']
     },
     principal: {
-      greeting: "Hi! I'm Dash. How can I assist you?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'management',
         'analytics',
@@ -550,7 +555,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['management', 'strategic', 'operational']
     },
     parent: {
-      greeting: "Hi! I'm Dash. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'information',
         'organization',
@@ -586,8 +591,61 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   }
 };
 
-export class DashAIAssistant {
-  private static instance: DashAIAssistant;
+/**
+ * Interface for DashAIAssistant - main AI assistant service
+ */
+export interface IDashAIAssistant {
+  // Core initialization
+  initialize(): Promise<void>;
+  dispose(): void;
+  cleanup(): void;
+  clearCache(): void;
+  
+  // Messaging
+  sendMessage(content: string, attachments?: DashAttachment[], conversationId?: string): Promise<DashMessage>;
+  sendVoiceMessage(audioUri: string, conversationId?: string): Promise<DashMessage>;
+  
+  // Conversations
+  startNewConversation(title?: string): Promise<string>;
+  getAllConversations(): Promise<DashConversation[]>;
+  getConversation(conversationId: string): Promise<DashConversation | null>;
+  deleteConversation(conversationId: string): Promise<void>;
+  getCurrentConversationId(): string | null;
+  setCurrentConversationId(conversationId: string): void;
+  
+  // Memory & Personality
+  getAllMemoryItems(): DashMemoryItem[];
+  getMemory(): DashMemoryItem[];
+  clearMemory(): Promise<void>;
+  getPersonality(): DashPersonality;
+  savePersonality(personality: Partial<DashPersonality>): Promise<void>;
+  
+  // Voice
+  preWarmRecorder(): Promise<void>;
+  speakResponse(message: DashMessage, callbacks?: any): Promise<void>;
+  stopSpeaking(): Promise<void>;
+  
+  // Navigation & Context
+  navigateToScreen(route: string, params?: Record<string, any>): Promise<{ success: boolean; error?: string }>;
+  getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] };
+  
+  // Content Generation
+  openLessonGeneratorFromContext(userInput: string, aiResponse: string): void;
+  generateWorksheetAutomatically(params: Record<string, any>): Promise<{ success: boolean; worksheetData?: any; error?: string }>;
+  saveLessonToDatabase(lessonContent: string, lessonParams: any): Promise<{ success: boolean; lessonId?: string; error?: string }>;
+  
+  // Tasks & Automation
+  createAutomatedTask(templateId: string, customParams?: any): Promise<{ success: boolean; task?: DashTask; error?: string }>;
+  getActiveTasks(): DashTask[];
+  
+  // Communication
+  openTeacherMessageComposer(subject?: string, body?: string): void;
+  
+  // Export
+  exportTextAsPDFForDownload(title: string, content: string): Promise<{ success: boolean; uri?: string; filename?: string; error?: string }>;
+}
+
+export class DashAIAssistant implements IDashAIAssistant {
   
   // Configuration constants
   private static readonly MEMORY_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -596,10 +654,15 @@ export class DashAIAssistant {
   private static readonly MESSAGE_HISTORY_LIMIT = 10;
   
   private currentConversationId: string | null = null;
-  private memory: Map<string, DashMemoryItem> = new Map();
   private personality: DashPersonality = DEFAULT_PERSONALITY;
   private isRecording = false;
   private isDisposed = false;
+  
+  // Modular components (Phase 4 refactoring)
+  private memoryManager: DashMemoryManager;
+  private voiceController: DashVoiceController;
+  private messageHandler: DashMessageHandler;
+  private contextBuilder: DashContextBuilder;
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -608,22 +671,20 @@ export class DashAIAssistant {
   private activeReminders: Map<string, DashReminder> = new Map();
   private pendingInsights: Map<string, DashInsight> = new Map();
   private proactiveTimer: ReturnType<typeof setTimeout> | null = null;
-  private contextCache: Map<string, any> = new Map();
-  private interactionHistory: Array<{
-    timestamp: number;
-    type: string;
-    data: any;
-  }> = [];
-  private messageCountByConversation: Map<string, number> = new Map();
+  private cacheCleanupTimer: ReturnType<typeof setInterval> | null = null;
   private lastErrorTimestamp: number = 0;
   private consecutiveErrors: number = 0;
   private readonly MAX_CONSECUTIVE_ERRORS = 3;
   private readonly ERROR_COOLDOWN_MS = 5000; // 5 seconds between errors
   
-  // Performance optimization: Cache frequently accessed data
+  // ✅ OPTIMIZATION: Cache for profile and session queries (1-minute TTL)
   private profileCache: { data: any; timestamp: number } | null = null;
   private sessionCache: { data: any; timestamp: number } | null = null;
   private readonly CACHE_TTL = 60000; // 1 minute
+  private dependenciesPreloaded = false;
+  
+  // ✅ OPTIMIZATION: Response cache for instant replies to common queries
+  private responseCache = responseCache;
   
   // Storage keys
   private static readonly CONVERSATIONS_KEY = 'dash_conversations';
@@ -637,33 +698,44 @@ export class DashAIAssistant {
   private static readonly INSIGHTS_KEY = 'dash_pending_insights';
   private static readonly ONBOARDING_KEY = '@dash_onboarding_completed';
 
-  public static getInstance(): DashAIAssistant {
-    if (!DashAIAssistant.instance) {
-      DashAIAssistant.instance = new DashAIAssistant();
-    }
-    return DashAIAssistant.instance;
+  constructor() {
+    // Initialize modular components with dependencies
+    this.memoryManager = new DashMemoryManager();
+    this.voiceController = new DashVoiceController();
+    this.messageHandler = new DashMessageHandler();
+    this.contextBuilder = new DashContextBuilder(this.memoryManager);
   }
 
   /**
    * Initialize Dash AI Assistant with Agentic Services
    */
   public async initialize(): Promise<void> {
-    this.checkDisposed();
+    // Allow re-initialization after disposal (fixes Fast Refresh issues)
+    if (this.isDisposed) {
+      console.log('[Dash] Re-initializing after disposal...');
+      this.isDisposed = false;
+    }
+    
     try {
       console.log('[Dash] Initializing AI Assistant with agentic capabilities...');
       
-      // ✅ OPTIMIZATION: Preload all dependencies to avoid per-message import latency
+      // ✅ OPTIMIZATION: Preload dependencies early
       await this.preloadDependencies();
       
       // Initialize audio
       await this.initializeAudio();
       
-      // Load persistent data
-      await this.loadMemory();
-      await this.loadPersonality();
+      // Load persistent data (delegated to modules)
+      await this.memoryManager.loadMemory();
+      await this.contextBuilder.loadPersonality();
+      await this.contextBuilder.loadUserProfile();
       
       // Load user context
-      await this.loadUserContext();
+      await this.contextBuilder.loadUserContext();
+      
+      // Sync personality reference for backward compatibility
+      this.personality = this.contextBuilder.getPersonality();
+      this.userProfile = this.contextBuilder.getUserProfile();
       
       // Initialize agentic services
       const session = await getCurrentSession();
@@ -678,18 +750,24 @@ export class DashAIAssistant {
           language: 'en'
         });
         
-        // Initialize Semantic Memory Engine for contextual learning
-        try {
-          const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
-          const semanticMemory = SemanticMemoryEngine.getInstance();
-          await semanticMemory.initialize();
-          console.log('[Dash] Semantic memory initialized');
-        } catch (error) {
-          console.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
-        }
+        // Initialize Semantic Memory Engine for contextual learning (deferred to avoid heap issues)
+        // Note: Semantic memory will be lazy-loaded on first use to prevent bundler memory issues
+        setTimeout(async () => {
+          try {
+            const { SemanticMemoryEngine } = await import('./SemanticMemoryEngine');
+            const semanticMemory = SemanticMemoryEngine.getInstance();
+            await semanticMemory.initialize();
+            console.log('[Dash] Semantic memory initialized (deferred)');
+          } catch (error) {
+            console.warn('[Dash] Semantic memory initialization failed (non-critical):', error);
+          }
+        }, 2000); // Defer by 2 seconds to avoid initial bundler heap pressure
         
         console.log('[Dash] Agentic services initialized');
       }
+      
+      // ✅ OPTIMIZATION: Start periodic cache cleanup (every 5 minutes)
+      this.startCacheCleanup();
       
       console.log('[Dash] AI Assistant initialized successfully');
     } catch (error) {
@@ -699,37 +777,48 @@ export class DashAIAssistant {
   }
 
   /**
-   * ✅ OPTIMIZATION: Preload all dynamic imports to eliminate per-message latency
-   * Saves ~3 seconds per message!
+   * Return all memory items currently in memory cache
+   */
+  public getAllMemoryItems(): DashMemoryItem[] {
+    return this.memoryManager.getAllMemoryItems();
+  }
+
+  /**
+   * ✅ OPTIMIZATION: Preload dependencies at startup
+   * Loads all dynamic imports once to avoid 3s delay per message
    */
   private async preloadDependencies(): Promise<void> {
+    if (this.dependenciesPreloaded) return;
+    
+    const startTime = Date.now();
+    console.log('[Dash] 🚀 Preloading dependencies...');
+    
     try {
-      console.log('[Dash] ⏱️ Preloading dependencies...');
-      const startTime = Date.now();
-      
-      // Preload all imports in parallel (not per-message!)
+      // Preload all agentic engine imports
       await Promise.all([
         import('./DashContextAnalyzer'),
         import('./DashProactiveEngine'),
+        import('./DashAgenticIntegration'),
+        import('./DashRealTimeAwareness'),
+        import('./DashTaskAutomation'),
         import('./DashConversationState'),
-        import('./DashAgenticEngine'),
-        import('./DashDiagnosticEngine'),
       ]);
       
+      this.dependenciesPreloaded = true;
       const duration = Date.now() - startTime;
       console.log(`[Dash] ✅ Dependencies preloaded in ${duration}ms`);
     } catch (error) {
-      console.warn('[Dash] Failed to preload some dependencies (non-critical):', error);
+      console.warn('[Dash] ⚠️ Failed to preload dependencies (non-critical):', error);
     }
   }
 
   /**
-   * ✅ OPTIMIZATION: Get cached profile to avoid repeated DB queries
-   * Saves ~200ms per message!
+   * ✅ OPTIMIZATION: Get cached profile (1-minute TTL)
    */
   private async getCachedProfile(): Promise<any> {
     const now = Date.now();
     if (this.profileCache && (now - this.profileCache.timestamp) < this.CACHE_TTL) {
+      console.log('[Dash] 📦 Using cached profile');
       return this.profileCache.data;
     }
     
@@ -739,12 +828,12 @@ export class DashAIAssistant {
   }
 
   /**
-   * ✅ OPTIMIZATION: Get cached session to avoid repeated DB queries
-   * Saves ~200ms per message!
+   * ✅ OPTIMIZATION: Get cached session (1-minute TTL)
    */
   private async getCachedSession(): Promise<any> {
     const now = Date.now();
     if (this.sessionCache && (now - this.sessionCache.timestamp) < this.CACHE_TTL) {
+      console.log('[Dash] 📦 Using cached session');
       return this.sessionCache.data;
     }
     
@@ -754,22 +843,37 @@ export class DashAIAssistant {
   }
 
   /**
-   * Clear cache (call on logout or profile update)
+   * ✅ OPTIMIZATION: Clear caches (call on logout or profile updates)
    */
   public clearCache(): void {
     this.profileCache = null;
     this.sessionCache = null;
+    this.responseCache.clearCache();
+    console.log('[Dash] 🧹 All caches cleared');
   }
-
+  
   /**
-   * Return all memory items currently in memory cache
+   * ✅ OPTIMIZATION: Get response cache metrics
    */
-  public getAllMemoryItems(): DashMemoryItem[] {
-    try {
-      return Array.from(this.memory.values());
-    } catch {
-      return [];
-    }
+  public getCacheMetrics(): any {
+    return this.responseCache.getMetrics();
+  }
+  
+  /**
+   * ✅ OPTIMIZATION: Start periodic cache cleanup
+   */
+  private startCacheCleanup(): void {
+    // Clean up expired cache entries every 5 minutes
+    this.cacheCleanupTimer = setInterval(() => {
+      try {
+        this.responseCache.cleanup();
+        console.log('[Dash] 🗑️  Periodic cache cleanup complete');
+      } catch (error) {
+        console.warn('[Dash] Cache cleanup failed:', error);
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    console.log('[Dash] ✅ Cache cleanup timer started (5min interval)');
   }
 
   
@@ -922,7 +1026,7 @@ export class DashAIAssistant {
     // Auto-detect language from transcription
     let detectedLanguage = 'en'; // Default to English
     if (tr.language) {
-      const mappedLanguage = this.mapLanguageCode(tr.language);
+      const mappedLanguage = this.messageHandler.mapLanguageCode(tr.language);
       detectedLanguage = mappedLanguage;
       console.log(`[Dash] 🎤 Auto-detected language from voice: ${tr.language} → ${mappedLanguage}`);
       
@@ -2554,7 +2658,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     }
     
     // Memory-based suggestions (check recent activities)
-    const recentMemory = Array.from(this.memory.values())
+    const recentMemory = this.memoryManager.getAllMemoryItems()
       .filter(item => item.created_at > Date.now() - (24 * 60 * 60 * 1000)) // Last 24 hours
       .sort((a, b) => b.created_at - a.created_at)
       .slice(0, 5);
@@ -2592,7 +2696,7 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
     const hour = currentTime.getHours();
     
     // Analyze user patterns from memory
-    const recentMemory = Array.from(this.memory.values())
+    const recentMemory = this.memoryManager.getAllMemoryItems()
       .filter(item => item.created_at > Date.now() - (7 * 24 * 60 * 60 * 1000))
       .sort((a, b) => b.created_at - a.created_at);
     
@@ -2878,385 +2982,44 @@ const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean)
   }
   
   /**
-   * Legacy method for backward compatibility
+   * Legacy method for backward compatibility (delegated to messageHandler)
    */
   private cleanTextForSpeech(text: string): string {
-    return this.normalizeTextForSpeech(text);
+    return this.messageHandler.normalizeTextForSpeech(text);
   }
   
-  /**
-   * Map Azure language codes to app language codes
-   * Converts transcription language codes (e.g., 'af-ZA') to app format ('af')
-   * Note: Only returns TTS-supported languages (af, zu, xh, nso)
-   */
-private mapLanguageCode(azureCode: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
-    const mapping: Record<string, 'en' | 'af' | 'zu' | 'xh' | 'nso'> = {
-      'en-ZA': 'en',
-      'en-US': 'en',
-      'en': 'en',
-      'af-ZA': 'af',
-      'af': 'af',
-      'zu-ZA': 'zu',
-      'zu': 'zu',
-      'xh-ZA': 'xh',
-      'xh': 'xh',
-      'nso-ZA': 'nso',
-      'nso': 'nso',
-      'st-ZA': 'nso', // Sesotho maps to Sepedi
-      'st': 'nso',
-    };
-    // Default to English if unknown
-    return mapping[azureCode] || 'en';
-  }
+  // mapLanguageCode and speakWithAzureTTS now handled by messageHandler and voiceController
 
   /**
-   * Speak text using Azure TTS via Edge Function
-   * Used for South African languages (af, zu, xh, nso)
-   */
-  private async speakWithAzureTTS(
-    text: string,
-    language: 'af' | 'zu' | 'xh' | 'nso',
-    callbacks?: {
-      onStart?: () => void;
-      onDone?: () => void;
-      onStopped?: () => void;
-      onError?: (error: any) => void;
-    }
-  ): Promise<void> {
-    const { assertSupabase } = await import('@/lib/supabase');
-    const { audioManager } = await import('@/lib/voice/audio');
-    
-    console.log(`[Dash] Calling Azure TTS Edge Function for ${language}`);
-    
-    try {
-      // Check abort flag before making network call
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure TTS network call');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      const supabase = assertSupabase();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session?.access_token) {
-        throw new Error('No auth session for TTS Edge Function');
-      }
-      
-      // Call tts-proxy Edge Function
-      const { data, error } = await supabase.functions.invoke('tts-proxy', {
-        body: {
-          text,
-          language, // Send as 'language' (Edge Function accepts both 'lang' and 'language')
-          style: 'friendly',
-          rate: 0, // Use default rate
-          pitch: 0, // Use default pitch
-        },
-      });
-      
-      if (error) {
-        console.error('[Dash] TTS Edge Function error:', error);
-        throw error;
-      }
-      
-      if (data.fallback === 'device') {
-        // Edge Function says to use device TTS
-        console.log('[Dash] Edge Function returned device fallback');
-        throw new Error('Edge Function returned device fallback');
-      }
-      
-      const audioUrl = data.audio_url;
-      if (!audioUrl) {
-        throw new Error('No audio URL returned from Edge Function');
-      }
-      
-      console.log(`[Dash] ✅ Azure TTS audio URL received (cached: ${data.cache_hit || false})`);
-      
-      // Check abort flag before playing
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure audio playback');
-        callbacks?.onStopped?.();
-        return;
-      }
-      
-      // Play the audio using audio manager
-      callbacks?.onStart?.();
-      
-      // Use audioManager.play() with status callback
-      await audioManager.play(audioUrl, (playbackState) => {
-        // Check abort flag during playback
-        if (this.isSpeechAborted) {
-          console.log('[Dash] ⚠️ Speech aborted during Azure playback');
-          audioManager.stop();
-          callbacks?.onStopped?.();
-          return;
-        }
-
-        if (!playbackState.isPlaying && playbackState.position === 0 && !playbackState.error) {
-          // Playback finished
-          console.log('[Dash] Azure TTS playback finished');
-          if (!this.isSpeechAborted) {
-            callbacks?.onDone?.();
-          } else {
-            callbacks?.onStopped?.();
-          }
-        } else if (playbackState.error) {
-          console.error('[Dash] Azure TTS playback error:', playbackState.error);
-          callbacks?.onError?.(new Error(playbackState.error));
-        }
-      });
-      
-    } catch (error) {
-      console.error('[Dash] speakWithAzureTTS failed:', error);
-      throw error; // Re-throw so speakResponse can fall back to device TTS
-    }
-  }
-
-  /**
-   * Play Dash's response with voice synthesis (Unified pipeline)
+   * Play Dash's response with voice synthesis (delegated to voiceController)
    * Uses Azure TTS for SA languages (af, zu, xh, nso) via Edge Function
    * Falls back to device TTS for other languages or if Azure fails
    */
-public async speakResponse(message: DashMessage, callbacks?: {
+  public async speakResponse(message: DashMessage, callbacks?: {
     onStart?: () => void;
     onDone?: () => void;
     onStopped?: () => void;
     onError?: (error: any) => void;
   }): Promise<void> {
-    if (message.type !== 'assistant') {
-      return;
-    }
-
-    // Reset abort flag at the start of new speech
-    this.isSpeechAborted = false;
-
-    try {
-      // Check abort flag before starting
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before starting');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      // Intelligently normalize the text before speaking
-      const normalizedText = this.normalizeTextForSpeech(message.content);
-
-      if (normalizedText.length === 0) {
-        console.log('[Dash] No speakable content after normalization');
-        callbacks?.onError?.('No speakable content after normalization');
-        return;
-      }
-
-      console.log('[Dash] About to start speaking (unified):', normalizedText.substring(0, 100) + '...');
-
-      // Get user preferences and detect language
-      const prefs = await voiceService.getPreferences().catch(() => null);
-      const vs = this.personality.voice_settings || { rate: 1.0, pitch: 1.0, language: 'en' } as any;
-
-      // Derive language: preference → message metadata → content heuristic → personality default
-      let language = (prefs?.language as any) || undefined;
-      if (!language) {
-        const metaLang = (message.metadata?.detected_language || '').toString();
-        if (metaLang) language = this.mapLanguageCode(metaLang);
-        else language = this.detectLikelyAppLanguageFromText(message.content);
-      }
-      if (!language) language = (vs.language?.toLowerCase()?.slice(0, 2) as any) || 'en';
-
-      console.log(`[Dash] Speaking in language: ${language}`);
-
-      // Check abort flag before Azure TTS
-      if (this.isSpeechAborted) {
-        console.log('[Dash] ⚠️ Speech aborted before Azure TTS');
-        callbacks?.onStopped?.();
-        return;
-      }
-
-      // SA languages should use Azure TTS (via Edge Function) for authentic voices
-      const saLanguages = ['af', 'zu', 'xh', 'nso'];
-      const useAzureTTS = saLanguages.includes(language);
-
-      if (useAzureTTS) {
-        console.log(`[Dash] 🇿🇦 Using Azure TTS for ${language}`);
-        try {
-          await this.speakWithAzureTTS(normalizedText, language, callbacks);
-          
-          // Check abort flag after Azure TTS completes
-          if (this.isSpeechAborted) {
-            console.log('[Dash] ⚠️ Speech was aborted during Azure TTS');
-            callbacks?.onStopped?.();
-          }
-          return; // Success - exit early
-        } catch (azureError) {
-          console.error('[Dash] Azure TTS failed, falling back to device TTS:', azureError);
-          // Fall through to device TTS
-        }
-      }
-
-      // Device TTS via expo-speech (fallback or default for non-SA languages)
-      const voiceSettings = this.personality.voice_settings;
-
-      // Platform-specific fallback voice handling
-      let selectedVoice: string | undefined = undefined;
-      let adjustedPitch = voiceSettings.pitch || 1.0;
-      let adjustedRate = voiceSettings.rate || 1.0;
-      const targetGender = voiceSettings.voice || 'male';
-
-      if (Platform.OS === 'android') {
-        if (targetGender === 'male') {
-          adjustedPitch = Math.max(0.7, adjustedPitch * 0.85);
-        } else {
-          adjustedPitch = Math.min(1.5, adjustedPitch * 1.15);
-        }
-      } else {
-        try {
-          // Check if Speech module is available before using it
-          if (Speech && typeof Speech.getAvailableVoicesAsync === 'function') {
-            const availableVoices = await Speech.getAvailableVoicesAsync();
-            if (availableVoices && availableVoices.length > 0) {
-              const languageCode = voiceSettings.language?.substring(0, 2) || 'en';
-              const matchingVoices = availableVoices.filter(v => v.language?.startsWith(languageCode));
-              if (matchingVoices.length > 0) {
-                if (targetGender === 'male') {
-                  const maleVoice = matchingVoices.find(v => v.name?.toLowerCase().includes('male') || v.name?.toLowerCase().includes('man') || (v as any).gender === 'male');
-                  selectedVoice = maleVoice?.identifier || matchingVoices[0]?.identifier;
-                } else {
-                  const femaleVoice = matchingVoices.find(v => v.name?.toLowerCase().includes('female') || v.name?.toLowerCase().includes('woman') || (v as any).gender === 'female');
-                  selectedVoice = femaleVoice?.identifier || matchingVoices[0]?.identifier;
-                }
-              }
-            }
-          }
-        } catch (e) {
-          console.warn('[Dash] Fallback: could not get available voices, using default:', e);
-        }
-      }
-
-      return new Promise<void>((resolve, reject) => {
-        // Check abort flag before device TTS
-        if (this.isSpeechAborted) {
-          console.log('[Dash] ⚠️ Speech aborted before device TTS');
-          callbacks?.onStopped?.();
-          resolve();
-          return;
-        }
-
-        const speechOptions: any = {
-          language: voiceSettings.language,
-          pitch: adjustedPitch,
-          rate: adjustedRate,
-          onStart: () => {
-            // Check abort flag even after TTS starts
-            if (this.isSpeechAborted) {
-              console.log('[Dash] ⚠️ Speech aborted during device TTS start');
-              if (Speech && typeof Speech.stop === 'function') {
-                Speech.stop();
-              }
-              callbacks?.onStopped?.();
-              resolve();
-              return;
-            }
-            callbacks?.onStart?.();
-          },
-          onDone: () => {
-            if (!this.isSpeechAborted) {
-              callbacks?.onDone?.();
-            } else {
-              callbacks?.onStopped?.();
-            }
-            resolve();
-          },
-          onStopped: () => {
-            callbacks?.onStopped?.();
-            resolve();
-          },
-          onError: (error: any) => {
-            callbacks?.onError?.(error);
-            reject(error);
-          },
-        };
-        if (Platform.OS === 'ios' && selectedVoice) speechOptions.voice = selectedVoice;
-        // Check if Speech module is available
-        if (Speech && typeof Speech.speak === 'function') {
-          Speech.speak(normalizedText, speechOptions);
-        } else {
-          console.warn('[Dash] Speech module not available, skipping device TTS');
-          reject(new Error('Speech module not available'));
-        }
-      });
-    } catch (error) {
-      console.error('[Dash] Failed to speak response:', error);
-      callbacks?.onError?.(error);
-      throw error;
-    }
+    // Cast voice settings for compatibility
+    const voiceSettings = {
+      ...this.personality.voice_settings,
+      voice: (this.personality.voice_settings.voice === 'female' ? 'female' : 'male') as 'male' | 'female'
+    };
+    return this.voiceController.speakResponse(
+      message,
+      voiceSettings,
+      callbacks
+    );
   }
 
-  /**
-   * Robust heuristic language detection for text
-   * Enhanced with case-insensitive matching and language-specific markers
-   */
-  private detectLikelyAppLanguageFromText(text: string): 'en' | 'af' | 'zu' | 'xh' | 'nso' {
-    try {
-      const t = (text || '').toLowerCase();
-      
-      // UNIQUE markers for each language (highest priority)
-      const uniqueMarkers = {
-        // Xhosa-specific words (not in Zulu)
-        xh: /\b(molo|ndiyabulela|uxolo|ewe|hayi|yintoni|ndiza|umntwana)\b/i,
-        // Zulu-specific words (not in Xhosa)
-        zu: /\b(sawubona|ngiyabonga|ngiyaphila|umfundi|siyakusiza|ufunde|yebo|cha|baba|umama)\b/i,
-        // Afrikaans-specific
-        af: /\b(hallo|asseblief|baie|goed|graag|ek|jy|nie|met|van|is|dit)\b/i,
-        // Sepedi-specific
-        nso: /\b(thobela|le\s+kae|ke\s+a\s+leboga|hle|ka\s+kgopelo)\b/i,
-      };
-      
-      // SHARED words (lower priority, used as tiebreakers)
-      const sharedWords = {
-        // "unjani", "kakhulu", "enkosi" are shared between Zulu/Xhosa
-        zuXhShared: /\b(unjani|kakhulu|enkosi)\b/i,
-      };
-      
-      // Check unique markers first (most reliable)
-      if (uniqueMarkers.xh.test(t)) return 'xh';
-      if (uniqueMarkers.zu.test(t)) return 'zu';
-      if (uniqueMarkers.af.test(t)) return 'af';
-      if (uniqueMarkers.nso.test(t)) return 'nso';
-      
-      // If only shared Nguni words detected, default to Zulu (more common)
-      if (sharedWords.zuXhShared.test(t)) return 'zu';
-      
-      // No strong signals → default to English (SA)
-      return 'en';
-    } catch {
-      return 'en';
-    }
-  }
+  // detectLikelyAppLanguageFromText now handled by messageHandler
 
   /**
-   * Stop current speech (device TTS and audio manager)
-   * Also cancels any ongoing AI response generation
+   * Stop current speech (delegated to voiceController)
    */
   public async stopSpeaking(): Promise<void> {
-    try {
-      // Set global abort flag to prevent any ongoing/queued speech
-      this.isSpeechAborted = true;
-      console.log('[Dash] 🛑 Speech abort flag set');
-      
-      // Stop device TTS (expo-speech)
-      if (Speech && typeof Speech.stop === 'function') {
-        await Speech.stop();
-        console.log('[Dash] ✅ Device TTS stopped');
-      }
-      
-      // Stop audio manager (Azure TTS playback)
-      const { audioManager } = await import('@/lib/voice/audio');
-      await audioManager.stop();
-      console.log('[Dash] ✅ Audio manager stopped');
-      
-      console.log('[Dash] ✅ Stopped all speech playback');
-    } catch (error) {
-      console.error('[Dash] Failed to stop speaking:', error);
-    }
+    return this.voiceController.stopSpeaking();
   }
 
   /**
@@ -3264,121 +3027,83 @@ public async speakResponse(message: DashMessage, callbacks?: {
    * This method activates all agentic engines for intelligent, proactive responses
    */
   /**
-   * Generate response with explicit language context from voice detection
-   */
-  private async generateResponseWithLanguage(userInput: string, conversationId: string, detectedLanguage?: string): Promise<DashMessage> {
-    return this.generateResponse(userInput, conversationId, undefined, detectedLanguage);
-  }
-
-  /**
-   * ✅ OPTIMIZATION: Detect simple queries that don't need agentic processing
-   * Saves 5-10 seconds for basic questions!
+   * ✅ OPTIMIZATION: Check if query is simple (math, fact, greeting)
+   * DISABLED FOR VOICE MODE - Only catch EXACT single-word greetings
+   * All other queries go through full AI processing
    */
   private isSimpleQuery(input: string): boolean {
-    const trimmed = input.trim().toLowerCase();
+    const inputLC = input.trim().toLowerCase();
     
-    // Math questions: "what is 5 x 5", "5 times 5", etc.
-    if (/^what('?s| is)\s+\d+\s*[x\*×]\s*\d+/i.test(trimmed)) return true;
-    if (/^\d+\s*[x\*×]\s*\d+/i.test(trimmed)) return true;
-    if (/^what('?s| is)\s+\d+\s*(plus|minus|divided by|times)\s*\d+/i.test(trimmed)) return true;
+    // ONLY match exact single-word greetings (nothing else!)
+    // This ensures real AI processing for all actual questions
+    if (/^(hi|hello|hey|hallo|sawubona)$/i.test(inputLC)) return true;
     
-    // Simple factual questions
-    if (/^what('?s| is) (the )?(capital|weather|time|date)/i.test(trimmed)) return true;
-    if (/^(who|where|when) (is|are|was|were)\s+\w+/i.test(trimmed)) return true;
-    
-    // Simple navigation: "open settings", "show messages"
-    if (/^(open|show|go to)\s+\w+$/i.test(trimmed)) return true;
-    
-    // Simple greetings and confirmations
-    if (/^(hi|hello|hey|yes|no|ok|okay|thanks|thank you)$/i.test(trimmed)) return true;
-    
-    // Single word questions
-    if (trimmed.split(' ').length === 1 && trimmed.length < 15) return true;
-    
+    // Everything else goes through full AI processing
     return false;
   }
-
+  
   /**
-   * ✅ OPTIMIZATION: Generate fast response for simple queries
-   * Bypasses all agentic processing (context analysis, proactive engine, etc.)
-   * Returns in <500ms instead of 5-10 seconds!
+   * ✅ OPTIMIZATION: Generate simple responses without agentic processing
+   * For greetings, math, and basic facts - bypasses 3-5s processing pipeline
    */
-  private async generateSimpleResponse(
-    userInput: string,
-    conversationId: string,
-    detectedLanguage?: string
-  ): Promise<DashMessage> {
-    const trimmed = userInput.trim().toLowerCase();
+  private async generateSimpleResponse(input: string, profile?: any): Promise<DashMessage> {
+    const inputLC = input.trim().toLowerCase();
+    const displayName = profile?.first_name || 'there';
+    let content = '';
     
-    // Handle simple math directly (no AI call needed!)
-    const mathMatch = trimmed.match(/(\d+)\s*[x\*×]\s*(\d+)/);
+    // Math calculations
+    const mathMatch = input.match(/(\d+)\s*([+\-*/×÷])\s*(\d+)/);
     if (mathMatch) {
-      const result = parseInt(mathMatch[1]) * parseInt(mathMatch[2]);
-      console.log(`[Dash] 🧮 Math: ${mathMatch[1]} × ${mathMatch[2]} = ${result}`);
-      return {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: String(result),
-        timestamp: Date.now(),
-        metadata: { confidence: 1.0 }
-      };
-    }
-    
-    // Handle plus/minus/divide
-    const arithMatch = trimmed.match(/(\d+)\s*(plus|minus|divided by|times)\s*(\d+)/i);
-    if (arithMatch) {
-      const a = parseInt(arithMatch[1]);
-      const b = parseInt(arithMatch[3]);
-      const op = arithMatch[2].toLowerCase();
+      const num1 = parseFloat(mathMatch[1]);
+      const num2 = parseFloat(mathMatch[3]);
+      const op = mathMatch[2];
       let result = 0;
-      if (op.includes('plus')) result = a + b;
-      else if (op.includes('minus')) result = a - b;
-      else if (op.includes('divided')) result = Math.floor(a / b);
-      else if (op.includes('times')) result = a * b;
       
-      return {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: String(result),
-        timestamp: Date.now(),
-        metadata: { confidence: 1.0 }
-      };
+      switch (op) {
+        case '+': result = num1 + num2; break;
+        case '-': result = num1 - num2; break;
+        case '*': case '×': result = num1 * num2; break;
+        case '/': case '÷': result = num2 !== 0 ? num1 / num2 : NaN; break;
+      }
+      
+      content = isNaN(result) ? 'Cannot divide by zero.' : `${num1} ${op} ${num2} = ${result}`;
     }
-    
-    // Handle simple navigation
-    const navMatch = trimmed.match(/^(open|show|go to)\s+(\w+)$/i);
-    if (navMatch) {
-      const screen = navMatch[2];
-      return {
-        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'assistant',
-        content: `Opening ${screen}`,
-        timestamp: Date.now(),
-        metadata: {
-          confidence: 0.95,
-          dashboard_action: {
-            type: 'open_screen',
-            route: `/screens/${screen}`
-          }
-        }
-      };
+    // Greetings
+    else if (/^(hi|hello|hey)$/i.test(inputLC)) {
+      content = `Hello ${displayName}! How can I help you today?`;
     }
-    
-    // For other simple queries, use lightweight AI call (minimal context)
-    const response = await this.callAIService({
-      action: 'general_assistance',
-      messages: [{ role: 'user', content: userInput }],
-      context: 'You are Dash. Answer briefly and directly in 1-2 sentences.',
-      gradeLevel: 'General'
-    });
+    else if (/^hallo$/i.test(inputLC)) {
+      content = `Hallo ${displayName}! Hoe kan ek jou vandag help?`;
+    }
+    else if (/^sawubona$/i.test(inputLC)) {
+      content = `Sawubona ${displayName}! Ngingakusiza kanjani namuhla?`;
+    }
+    // Status questions
+    else if (/^how are you/i.test(inputLC)) {
+      content = "I'm doing well, thank you! Ready to assist you.";
+    }
+    else if (/^what's up|^wassup/i.test(inputLC)) {
+      content = 'All good here! How can I help you?';
+    }
+    // Default simple response
+    else {
+      content = "I'm here to help! What would you like to know?";
+    }
     
     return {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       type: 'assistant',
-      content: response.content || 'I can help with that.',
+      content,
       timestamp: Date.now(),
-      metadata: { confidence: 0.8 }
+      metadata: { confidence: 0.95 }
     };
+  }
+  
+  /**
+   * Generate response with explicit language context from voice detection
+   */
+  private async generateResponseWithLanguage(userInput: string, conversationId: string, detectedLanguage?: string): Promise<DashMessage> {
+    return this.generateResponse(userInput, conversationId, undefined, detectedLanguage);
   }
 
   private async generateResponse(userInput: string, conversationId: string, attachments?: DashAttachment[], detectedLanguage?: string): Promise<DashMessage> {
@@ -3390,17 +3115,11 @@ public async speakResponse(message: DashMessage, callbacks?: {
         console.log('[Dash Agent] ⚠️  No detected language provided, will use fallback chain');
       }
       
-      // ✅ OPTIMIZATION: Fast path for simple queries (skip all agentic processing)
-      if (this.isSimpleQuery(userInput)) {
-        console.log('[Dash Agent] 🚀 Fast path: Simple query detected');
-        return await this.generateSimpleResponse(userInput, conversationId, detectedLanguage);
-      }
-      
       // Lightweight intent guard for common conversational openers
       const inputLC = String(userInput || '').trim().toLowerCase();
       if (inputLC.includes('can you hear me')) {
-        const profile = await this.getCachedProfile();
-        const displayName = (profile as any)?.first_name || 'there';
+        const hearMeProfile = await getCurrentProfile();
+        const displayName = (hearMeProfile as any)?.first_name || 'there';
         const content = `Yes, I can hear you clearly, ${displayName}. How can I help you today?`;
         return {
           id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -3411,17 +3130,46 @@ public async speakResponse(message: DashMessage, callbacks?: {
         };
       }
       
-      // Get conversation history and user context (✅ OPTIMIZED: Use cache)
+      // ✅ OPTIMIZATION: Check response cache for instant platform-aware replies (<100ms)
+      // Uses actual EduDash features, not generic responses
+      const profile = await this.getCachedProfile();
+      const userRole = (profile as any)?.role || 'parent';
+      const cachedResponse = this.responseCache.getCachedResponse(userInput, {
+        role: userRole,
+        language: detectedLanguage,
+      });
+      
+      if (cachedResponse) {
+        console.log('[Dash] ⚡ INSTANT RESPONSE from cache (<100ms)');
+        return {
+          id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          type: 'assistant',
+          content: cachedResponse,
+          timestamp: Date.now(),
+          metadata: { 
+            confidence: 0.95,
+          }
+        };
+      }
+      
+      // ✅ OPTIMIZATION: Fast path for simple queries (math, greetings, facts)
+      // Bypasses 3-5s agentic processing for <500ms responses
+      if (this.isSimpleQuery(userInput)) {
+        console.log('[Dash Agent] 🚀 Fast path activated for simple query');
+        return this.generateSimpleResponse(userInput, profile);
+      }
+      
+      // Get conversation history and user context
       const conversation = await this.getConversation(conversationId);
       const recentMessages = conversation?.messages.slice(-5) || [];
-      const profile = await this.getCachedProfile();
+      // Profile already loaded above for cache check - reuse it
       
       // Build full context for agentic analysis
       const fullContext = {
         userInput,
         conversationHistory: recentMessages,
         userProfile: profile,
-        memory: Array.from(this.memory.values()),
+        memory: this.memoryManager.getAllMemoryItems(),
         personality: this.personality,
         timestamp: new Date().toISOString(),
         currentContext: await this.getCurrentContext(),
@@ -3439,7 +3187,7 @@ public async speakResponse(message: DashMessage, callbacks?: {
       console.log('[Dash Agent] Phase 2: Identifying proactive opportunities...');
       const proactiveEngineModule = await import('./DashProactiveEngine');
       const proactiveEngine = proactiveEngineModule.default; // Use default export (already an instance)
-      const userRole = profile?.role || 'parent';
+      // Use userRole from above cache check
       const opportunities = await proactiveEngine.checkForSuggestions(userRole, {
         autonomyLevel: this.autonomyLevel,
         currentScreen: fullContext.currentContext?.screen_name,
@@ -3455,22 +3203,31 @@ public async speakResponse(message: DashMessage, callbacks?: {
       console.log('[Dash Agent] Phase 3: Generating enhanced response...');
       const assistantMessage = await this.generateEnhancedResponse(userInput, conversationId, analysis, attachments, detectedLanguage);
       
-      // ✅ OPTIMIZATION: PHASE 4 & 5 in background (don't block response!)
-      if (opportunities.length > 0) {
-        console.log('[Dash Agent] Phase 4: Handling proactive opportunities (background)...');
-        this.handleProactiveOpportunities(opportunities, assistantMessage)
-          .catch(err => console.warn('[Dash] Proactive opportunities failed:', err));
-      }
+      // ✅ OPTIMIZATION: PHASE 4 & 5 - Run proactive operations in background (non-blocking)
+      // Don't await - let them complete asynchronously to return response faster
+      Promise.all([
+        // PHASE 4: HANDLE PROACTIVE OPPORTUNITIES - Create tasks, reminders, etc.
+        opportunities.length > 0 
+          ? this.handleProactiveOpportunities(opportunities, assistantMessage)
+              .then(() => console.log('[Dash Agent] ✅ Phase 4 complete (background)'))
+              .catch(err => console.warn('[Dash Agent] Phase 4 failed (non-critical):', err))
+          : Promise.resolve(),
+        
+        // PHASE 5: HANDLE ACTION INTENTS - Auto-create tasks for actionable requests
+        analysis.intent && analysis.intent.primary_intent
+          ? this.handleActionIntent(analysis.intent, assistantMessage)
+              .then(() => console.log('[Dash Agent] ✅ Phase 5 complete (background)'))
+              .catch(err => console.warn('[Dash Agent] Phase 5 failed (non-critical):', err))
+          : Promise.resolve(),
+        
+        // Update enhanced memory with analysis context
+        this.updateEnhancedMemory(userInput, assistantMessage, analysis)
+          .then(() => console.log('[Dash Agent] ✅ Memory updated (background)'))
+          .catch(err => console.warn('[Dash Agent] Memory update failed (non-critical):', err))
+      ]);
       
-      if (analysis.intent && analysis.intent.primary_intent) {
-        console.log('[Dash Agent] Phase 5: Handling action intent (background)...');
-        this.handleActionIntent(analysis.intent, assistantMessage)
-          .catch(err => console.warn('[Dash] Action intent handling failed:', err));
-      }
-      
-      // ✅ OPTIMIZATION: Memory update in background (don't block response!)
-      this.updateEnhancedMemory(userInput, assistantMessage, analysis)
-        .catch(err => console.warn('[Dash] Memory update failed:', err));
+      console.log('[Dash Agent] 💨 Background operations queued (phases 4-5 + memory)');
+      // Note: we're not awaiting the Promise.all above, so these run in the background
       
       // Post-process to avoid file attachment claims
       assistantMessage.content = this.ensureNoAttachmentClaims(assistantMessage.content);
@@ -3566,48 +3323,68 @@ public async speakResponse(message: DashMessage, callbacks?: {
       const roleSpec = this.userProfile ? this.personality.role_specializations[this.userProfile.role] : null;
       const capabilities = roleSpec?.capabilities || [];
       
-      let systemPrompt = `You are Dash, an AI assistant.
+      let systemPrompt = `You are Dash, an AI assistant for EduDash Pro.
 
-🚨 ANSWER DIRECTLY - NO FILLER PHRASES 🚨
-BANNED PHRASES (never use these):
-- "Understood", "I understand"
-- "Let me break this down"
-- "Great question"
-- "I'm here to help you"
-- "As a [role]", "As the [role]"
-- "*clears throat*", "*speaks*", or any asterisk actions
+🚨 CRITICAL: NO NARRATION ALLOWED 🚨
+You are a TEXT-BASED assistant. You CANNOT and MUST NOT:
+- Use asterisks or stage directions: NO "*clears throat*", "*speaks*", "*opens*", "*points*"
+- Use action verbs in first person: NO "Let me open", "I'll check", "I'm looking"
+- Roleplay or act out scenarios
+- Describe your tone or demeanor
+- Use emojis in narration
 
-RESPONSE FORMAT:
-- Answer the actual question asked
-- If asked math: just give the answer (e.g., "5 x 5" → "25")
-- If asked facts: just state the fact (e.g., "capital of France" → "Paris")
-- If asked to open screen: just say "Opening [Screen]"
-- Keep it 1-2 sentences for simple questions
-
-MULTILINGUAL:
-- Respond in user's language naturally
-- No explaining what language they used
-- No teaching unless explicitly asked
+MULTILINGUAL CONVERSATION RULES:
+🌍 RESPOND IN THE USER'S LANGUAGE NATURALLY
+- If user speaks Afrikaans → respond in Afrikaans naturally
+- If user speaks Zulu → respond in Zulu naturally
+- If user speaks English → respond in English naturally
+- DO NOT explain what the user said or translate their words
+- DO NOT teach language unless explicitly asked
+- Just have a normal conversation in their language
 
 EXAMPLES:
-❌ BAD: "Understood! As a teacher, let me help you with this multiplication problem..."
-✅ GOOD: "25"
+❌ BAD: "'Hallo' is the Afrikaans word for 'Hello'. It's a friendly way to greet..."
+✅ GOOD: "Hallo! Hoe kan ek jou vandag help?" (if they spoke Afrikaans)
 
-❌ BAD: "Great question! Let me break down this navigation for you..."
-✅ GOOD: "Opening Settings"
+❌ BAD: "You asked 'How are you' in Zulu. That's very nice! Let me explain..."
+✅ GOOD: "Ngiyaphila, ngiyabonga! Wena unjani?" (if they spoke Zulu)
 
-❌ BAD: "I'm here to help you as the principal of the school. Let's address..."
-✅ GOOD: [Just answer the question]
+RESPONSE FORMAT:
+- Answer in 1-3 sentences for simple questions
+- Match the user's language naturally - don't explain it
+- State facts only - if you don't know, say "I don't have that information"
+- Skip greetings after the first message
+- Don't repeat the user's name excessively
 
-TECHNICAL FACTS (only mention if relevant):
-- Voice packs: managed by device OS (Android/iOS)
-- Android TTS: Google Text-to-Speech Engine
-- iOS TTS: Settings > Accessibility > Spoken Content
+EXAMPLES OF GOOD RESPONSES:
+❌ BAD: "*clears throat* Okay, Precious, let's take a look at the gestures..."
+✅ GOOD: "The gesture feature requires a long press on the mic button, then slide up to lock or left to cancel."
 
-JUST ANSWER THE QUESTION - No preamble, no filler.`;
+❌ BAD: "First, let's address the gestures not working properly. To fix this, the development team will need to..."
+✅ GOOD: "Long press the mic button for 500ms to activate gesture mode. Slide up 80px to lock, or left 100px to cancel."
 
-      // Note: Role context available but not forcing it into every response
-      // Only use role context if the question is actually about role-specific tasks
+❌ BAD: "Good evening! Hello Principal Precious! *smiles warmly* I'm here to help..."
+✅ GOOD: "The chat bubbles should have rounded corners. If they appear sharp, the app might need to be restarted."
+
+TECHNICAL FACTS - Voice & TTS:
+- Voice packs are managed by device OS (Android/iOS), NOT by this app
+- Android: Update "Google Text-to-Speech Engine" from Play Store
+- iOS: Settings > Accessibility > Spoken Content > Voices
+- South African languages (Zulu, Xhosa, Afrikaans) have limited TTS support
+- App cannot download or install voice packs
+
+RESPONSE STYLE:
+- Natural, conversational tone (like talking to a colleague)
+- Skip greetings after the first message
+- Answer the question directly without preamble
+- Use simple language, avoid jargon unless necessary
+- BE CONVERSATIONAL, NOT EDUCATIONAL (unless teaching is requested)`;
+
+      if (roleSpec && this.userProfile?.role) {
+        systemPrompt += `
+
+CONTEXT: Helping a ${this.userProfile.role}. Tone: ${roleSpec.tone}.`;
+      }
 
       // Call AI service using general_assistance action with messages array
       const messages = [];
@@ -3630,7 +3407,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       const aiResponse = await this.callAIService({
         action: 'general_assistance',
         messages: messages,
-        context: systemPrompt,
+        context: `User is a ${this.userProfile?.role || 'educator'} seeking assistance. ${systemPrompt}`,
         gradeLevel: 'General'
       });
 
@@ -3735,9 +3512,9 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       if (/\b(finance|financial|fees|payments|outstanding|revenue|insight)\b/i.test(userInput)) {
         try {
           const prof = await getCurrentProfile();
-          const schoolId = (prof as any)?.preschool_id || (prof as any)?.organization_id;
-          if (schoolId) {
-            const insights = await AIInsightsService.generateInsightsForSchool(schoolId);
+          const organizationId = (prof as any)?.organization_id || (prof as any)?.preschool_id;
+          if (organizationId) {
+            const insights = await AIInsightsService.generateInsightsForSchool(organizationId);
             if (insights && insights.length) {
               const bullets = insights.slice(0, 5).map(i => `• [${i.priority}] ${i.title} — ${i.description}`).join('\n');
               aiResponse.content = `${aiResponse.content || ''}\n\nFinancial insights:\n${bullets}`.trim();
@@ -4136,183 +3913,15 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
     }
   }
 
-  /**
-   * Load persistent memory from storage
-   */
-  private async loadMemory(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const memoryData = await storage.getItem(DashAIAssistant.MEMORY_KEY);
-      
-      if (memoryData) {
-        const memoryArray: DashMemoryItem[] = JSON.parse(memoryData);
-        this.memory = new Map(memoryArray.map(item => [item.key, item]));
-        
-        // Clean expired items
-        this.cleanExpiredMemory();
-        
-        console.log(`[Dash] Loaded ${this.memory.size} memory items`);
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load memory:', error);
-    }
-  }
+  // Memory operations now delegated to DashMemoryManager
 
   /**
-   * Save memory to persistent storage
-   */
-  private async saveMemory(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const memoryArray = Array.from(this.memory.values());
-      await storage.setItem(DashAIAssistant.MEMORY_KEY, JSON.stringify(memoryArray));
-    } catch (error) {
-      console.error('[Dash] Failed to save memory:', error);
-    }
-  }
-
-  /**
-   * Update memory based on interaction
-   */
-  private async updateMemory(userInput: string, response: any): Promise<void> {
-    try {
-      // Extract key information to remember
-      const timestamp = Date.now();
-      
-      // Remember user preferences
-      if (userInput.includes('prefer') || userInput.includes('like')) {
-        const memoryItem: DashMemoryItem = {
-          id: `pref_${timestamp}`,
-          type: 'preference',
-          key: `user_preference_${timestamp}`,
-          value: userInput,
-          confidence: 0.8,
-          created_at: timestamp,
-          updated_at: timestamp,
-          expires_at: timestamp + (30 * 24 * 60 * 60 * 1000) // 30 days
-        };
-        this.memory.set(memoryItem.key, memoryItem);
-      }
-      
-      // Remember context for future conversations
-      const contextItem: DashMemoryItem = {
-        id: `ctx_${timestamp}`,
-        type: 'context',
-        key: `conversation_context_${timestamp}`,
-        value: {
-          input: userInput,
-          response: response.content,
-          timestamp
-        },
-        confidence: 0.6,
-        created_at: timestamp,
-        updated_at: timestamp,
-        expires_at: timestamp + (7 * 24 * 60 * 60 * 1000) // 7 days
-      };
-      this.memory.set(contextItem.key, contextItem);
-      
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to update memory:', error);
-    }
-  }
-
-  /**
-   * Clean expired memory items
-   */
-  private cleanExpiredMemory(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-    this.memory.forEach((item, key) => {
-      if (item.expires_at && item.expires_at < now) {
-        keysToDelete.push(key);
-      }
-    });
-    keysToDelete.forEach(key => this.memory.delete(key));
-  }
-
-  /**
-   * Load user context for personalization
-   */
-  private async loadUserContext(): Promise<void> {
-    try {
-      const profile = await this.getCachedProfile();
-      if (profile) {
-        // Update personality based on user role
-        this.personality = {
-          ...this.personality,
-          greeting: this.getPersonalizedGreeting(profile.role),
-          expertise_areas: this.getExpertiseAreasForRole(profile.role)
-        };
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load user context:', error);
-    }
-  }
-
-  /**
-   * Get personalized greeting based on user role
-   */
-  private getPersonalizedGreeting(role: string): string {
-    switch (role?.toLowerCase()) {
-      case 'teacher':
-        return "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?";
-      case 'principal':
-        return "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?";
-      case 'parent':
-        return "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?";
-      default:
-        return DEFAULT_PERSONALITY.greeting;
-    }
-  }
-
-  /**
-   * Get expertise areas based on user role
-   */
-  private getExpertiseAreasForRole(role: string): string[] {
-    const baseAreas = ['education', 'student support', 'educational technology'];
-    
-    switch (role?.toLowerCase()) {
-      case 'teacher':
-        return [...baseAreas, 'lesson planning', 'classroom management', 'student assessment', 'curriculum development'];
-      case 'principal':
-        return [...baseAreas, 'school administration', 'staff management', 'policy development', 'school analytics'];
-      case 'parent':
-        return [...baseAreas, 'homework help', 'parent-teacher communication', 'student progress tracking'];
-      default:
-        return DEFAULT_PERSONALITY.expertise_areas;
-    }
-  }
-
-  /**
-   * Load personality settings
-   */
-  private async loadPersonality(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const personalityData = await storage.getItem(DashAIAssistant.PERSONALITY_KEY);
-      
-      if (personalityData) {
-        const savedPersonality = JSON.parse(personalityData);
-        this.personality = { ...DEFAULT_PERSONALITY, ...savedPersonality };
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load personality:', error);
-    }
-  }
-
-  /**
-   * Save personality settings
+   * Save personality settings (delegated to contextBuilder)
    */
   public async savePersonality(personality: Partial<DashPersonality>): Promise<void> {
-    try {
-      this.personality = { ...this.personality, ...personality };
-      
-      const storage = SecureStore || AsyncStorage;
-      await storage.setItem(DashAIAssistant.PERSONALITY_KEY, JSON.stringify(this.personality));
-    } catch (error) {
-      console.error('[Dash] Failed to save personality:', error);
-    }
+    await this.contextBuilder.savePersonality(personality);
+    // Sync local reference for backward compatibility
+    this.personality = this.contextBuilder.getPersonality();
   }
 
   /**
@@ -4452,22 +4061,17 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
   }
 
   /**
-   * Get memory items
+   * Get memory items (delegated to memoryManager)
    */
   public getMemory(): DashMemoryItem[] {
-    return Array.from(this.memory.values());
+    return this.memoryManager.getAllMemoryItems();
   }
 
   /**
-   * Clear all memory
+   * Clear all memory (delegated to memoryManager)
    */
   public async clearMemory(): Promise<void> {
-    try {
-      this.memory.clear();
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to clear memory:', error);
-    }
+    await this.memoryManager.clearMemory();
   }
 
   /**
@@ -4537,22 +4141,10 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
   }
 
   /**
-   * Add memory item
+   * Add memory item (delegated to memoryManager)
    */
   private async addMemoryItem(item: Omit<DashMemoryItem, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
-    try {
-      const memoryItem: DashMemoryItem = {
-        ...item,
-        id: `memory_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        created_at: Date.now(),
-        updated_at: Date.now()
-      };
-      
-      this.memory.set(memoryItem.key, memoryItem);
-      await this.saveMemory();
-    } catch (error) {
-      console.error('[Dash] Failed to add memory item:', error);
-    }
+    await this.memoryManager.addMemoryItem(item);
   }
 
   /**
@@ -4604,7 +4196,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,preschool_id,organization_id')
+        .select('id,organization_id,preschool_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4643,7 +4235,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       const result = await LessonGeneratorService.saveGeneratedLesson({
         lesson,
         teacherId: profile.id,
-        preschoolId: profile.preschool_id || profile.organization_id || '',
+        preschoolId: profile.organization_id || profile.preschool_id || '',
         ageGroupId: 'dash-generated',
         categoryId,
         template: { 
@@ -4690,7 +4282,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       const authUserId = auth?.user?.id || '';
       const { data: profile } = await assertSupabase()
         .from('users')
-        .select('id,preschool_id,organization_id')
+        .select('id,organization_id,preschool_id')
         .eq('auth_user_id', authUserId)
         .maybeSingle();
         
@@ -4712,7 +4304,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
         subject: resourceParams.subject || null,
         grade_level: resourceParams.gradeLevel || null,
         created_by: profile.id,
-        organization_id: profile.preschool_id || profile.organization_id || null,
+        organization_id: profile.organization_id || profile.preschool_id || null,
         is_ai_generated: true,
         metadata: {
           dash_type: resourceParams.type,
@@ -4765,74 +4357,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
 
   // ==================== ENHANCED AGENTIC METHODS ====================
 
-  /**
-   * Load user profile
-   */
-  private async loadUserProfile(): Promise<void> {
-    try {
-      const storage = SecureStore || AsyncStorage;
-      const profileData = await storage.getItem(DashAIAssistant.USER_PROFILE_KEY);
-      
-      if (profileData) {
-        this.userProfile = JSON.parse(profileData);
-        console.log(`[Dash] Loaded user profile for ${this.userProfile?.role || 'unknown'}`);
-      } else {
-        // Create basic profile from current user
-        const currentProfile = await getCurrentProfile();
-        if (currentProfile) {
-          this.userProfile = {
-            userId: currentProfile.id,
-            role: currentProfile.role as any,
-            name: (currentProfile as any).first_name || 'User',
-            preferences: {
-              communication_style: 'friendly',
-              notification_frequency: 'daily_digest',
-              task_management_style: 'summary',
-              ai_autonomy_level: 'medium'
-            },
-            context: {
-              organization_id: currentProfile.organization_id || undefined
-            },
-            goals: {
-              short_term: [],
-              long_term: [],
-              completed: []
-            },
-            interaction_patterns: {
-              most_active_times: [],
-              preferred_task_types: [],
-              common_requests: [],
-              success_metrics: {}
-            },
-            memory_preferences: {
-              remember_personal_details: true,
-              remember_work_patterns: true,
-              remember_preferences: true,
-              auto_suggest_tasks: true,
-              proactive_reminders: true
-            }
-          };
-          await this.saveUserProfile();
-        }
-      }
-    } catch (error) {
-      console.error('[Dash] Failed to load user profile:', error);
-    }
-  }
-
-  /**
-   * Save user profile
-   */
-  private async saveUserProfile(): Promise<void> {
-    if (!this.userProfile) return;
-    
-    try {
-      const storage = SecureStore || AsyncStorage;
-      await storage.setItem(DashAIAssistant.USER_PROFILE_KEY, JSON.stringify(this.userProfile));
-    } catch (error) {
-      console.error('[Dash] Failed to save user profile:', error);
-    }
-  }
+  // User profile methods delegated to contextBuilder (Phase 4.7)
 
   /**
    * Start proactive behaviors
@@ -4907,7 +4432,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
   private async getCurrentContext(): Promise<any> {
     try {
       const now = new Date();
-      const profile = await this.getCachedProfile();
+      const profile = await getCurrentProfile();
       
       return {
         time_context: {
@@ -5096,13 +4621,12 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       const awareness = await DashRealTimeAwareness.getAwareness(conversationId);
       
       // Track message count for this conversation
-      const currentCount = this.messageCountByConversation.get(conversationId) || 0;
-      this.messageCountByConversation.set(conversationId, currentCount + 1);
-      awareness.conversation.messageCount = currentCount + 1;
+      this.memoryManager.incrementMessageCount(conversationId);
+      awareness.conversation.messageCount = this.memoryManager.getMessageCount(conversationId);
       
-      // Build enhanced system prompt with all agentic context (✅ OPTIMIZED: Use cache)
-      const session = await this.getCachedSession();
-      const profile = await this.getCachedProfile();
+      // Build enhanced system prompt with all agentic context
+      const session = await getCurrentSession();
+      const profile = await getCurrentProfile();
       
       // Determine language with priority: voice detection > saved prefs > text heuristic > default EN
       let language = detectedLanguage;
@@ -5130,7 +4654,7 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
       }
       
       if (!language) {
-        language = this.detectLikelyAppLanguageFromText(content);
+        language = this.messageHandler.detectLanguageFromText(content);
         languageSource = 'text-heuristic';
       }
       
@@ -5155,28 +4679,32 @@ JUST ANSWER THE QUESTION - No preamble, no filler.`;
         const userName = awareness?.user?.name || 'there';
         const userRole = (profile as any)?.role || 'user';
         
-        systemPrompt = `You are Dash, a smart AI assistant.
+        systemPrompt = `You are Dash. Ultra-concise AI assistant.
 
-CONTEXT:
-- User: ${userName}
-- Language: ${language}
+🚨 VOICE MODE: EXTREME BREVITY REQUIRED 🚨
 
-STYLE:
-- Natural and conversational
-- Respond in ${language} if the user spoke in ${language}
-- Brief and direct (1-3 sentences for simple questions)
-- Skip greetings after first message
-- No theatrics or explanations
-- Just answer the question
+RULES:
+1. ONE sentence responses ONLY (max 10-15 words)
+2. NO greetings, NO pleasantries, NO filler
+3. Answer ONLY what was asked - nothing more
+4. NO asterisks, NO narration, NO stage directions
+5. NO explanations unless explicitly requested
 
 EXAMPLES:
-❌ BAD: "Great question! Let me explain in detail..."
-✅ GOOD: "It's in Settings > Voice. Toggle it on."
+❌ "Hello! How can I help you today?"
+✅ "Hi."
 
-❌ BAD: "That's interesting! You're asking about..."
-✅ GOOD: "Yes, open the menu and select it."
+❌ "Great question! The gesture feature works by..."
+✅ "Long press the mic button."
 
-Be helpful and efficient.`;
+❌ "Let me explain how the voice settings work. You can find them in..."
+✅ "Settings > Voice."
+
+❌ "I'd be happy to help! The petty cash screen shows..."
+✅ "Open petty cash screen."
+
+User: ${userName} | Language: ${language}
+Respond in ${language} if they spoke ${language}.`;
       } else if (session?.user_id && profile) {
         // Use enhanced agentic prompt with correct language for text-based chat
         systemPrompt = await DashAgenticIntegration.buildEnhancedSystemPrompt(awareness, {
@@ -5593,8 +5121,8 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     try {
       const timestamp = Date.now();
       
-      const intentMemory: DashMemoryItem = {
-        id: `intent_${timestamp}`,
+      // Add intent memory
+      await this.memoryManager.addMemoryItem({
         type: 'pattern',
         key: `user_intent_${analysis.intent.primary_intent}`,
         value: {
@@ -5604,18 +5132,14 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           timestamp: timestamp
         },
         confidence: analysis.intent.confidence,
-        created_at: timestamp,
-        updated_at: timestamp,
         expires_at: timestamp + (90 * 24 * 60 * 60 * 1000),
         reinforcement_count: 1,
         tags: ['intent', 'pattern', analysis.intent.category]
-      };
-      
-      this.memory.set(intentMemory.key, intentMemory);
+      });
       
       if (response.metadata?.confidence && response.metadata.confidence > 0.7) {
-        const successMemory: DashMemoryItem = {
-          id: `success_${timestamp}`,
+        // Add success memory
+        await this.memoryManager.addMemoryItem({
           type: 'interaction',
           key: `successful_interaction_${timestamp}`,
           value: {
@@ -5625,17 +5149,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
             confidence: response.metadata.confidence
           },
           confidence: response.metadata.confidence,
-          created_at: timestamp,
-          updated_at: timestamp,
           expires_at: timestamp + (30 * 24 * 60 * 60 * 1000),
           emotional_weight: 1.0,
           tags: ['success', 'interaction']
-        };
-        
-        this.memory.set(successMemory.key, successMemory);
+        });
       }
-      
-      await this.saveMemory();
     } catch (error) {
       console.error('[Dash] Failed to update enhanced memory:', error);
     }
@@ -6026,10 +5544,10 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Get user profile
+   * Get user profile (delegated to contextBuilder)
    */
   public getUserProfile(): DashUserProfile | null {
-    return this.userProfile;
+    return this.contextBuilder.getUserProfile();
   }
   
   /**
@@ -6050,18 +5568,16 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         return metaTier as 'free' | 'starter' | 'premium' | 'enterprise';
       }
       
-      // Get school/org ID
-      let schoolId = (user?.user_metadata as any)?.preschool_id;
-      let orgId = (user?.user_metadata as any)?.organization_id;
+      // Get organization ID (prioritize organization_id over legacy preschool_id)
+      let orgId = (user?.user_metadata as any)?.organization_id || (user?.user_metadata as any)?.preschool_id;
       
-      if (!schoolId || !orgId) {
+      if (!orgId) {
         const { data: userRow } = await supabase
           .from('users')
-          .select('preschool_id, organization_id')
+          .select('organization_id, preschool_id')
           .eq('auth_user_id', user.id)
           .maybeSingle();
-        schoolId = schoolId || userRow?.preschool_id;
-        orgId = orgId || userRow?.organization_id;
+        orgId = userRow?.organization_id || userRow?.preschool_id;
       }
       
       // Check organization tier
@@ -6079,12 +5595,12 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
         }
       }
       
-      // Check school subscription
-      if (schoolId) {
+      // Check subscriptions table (legacy support)
+      if (orgId) {
         const { data: sub } = await supabase
           .from('subscriptions')
           .select('plan_id')
-          .eq('school_id', schoolId)
+          .eq('school_id', orgId)
           .in('status', ['active', 'trialing'])
           .maybeSingle();
         
@@ -6103,11 +5619,11 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
           }
         }
         
-        // Fallback to school default tier
+        // Fallback to preschools table (legacy support)
         const { data: school } = await supabase
           .from('preschools')
           .select('subscription_tier')
-          .eq('id', schoolId)
+          .eq('id', orgId)
           .maybeSingle();
         
         if (school?.subscription_tier) {
@@ -6127,21 +5643,38 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 
   /**
-   * Update user preferences
+   * Update user preferences (delegated to contextBuilder)
    */
   public async updateUserPreferences(preferences: Partial<DashUserProfile['preferences']>): Promise<void> {
-    if (!this.userProfile) return;
-    
-    this.userProfile.preferences = {
-      ...this.userProfile.preferences,
-      ...preferences
-    };
-    
-    await this.saveUserProfile();
+    await this.contextBuilder.updateUserPreferences(preferences);
+    // Sync local reference for backward compatibility
+    this.userProfile = this.contextBuilder.getUserProfile();
   }
 
   /**
    * Cleanup resources and dispose of all caches
+   * 
+   * Implements the dispose pattern for safe resource cleanup.
+   * Call this when the DashAIAssistant instance is no longer needed,
+   * such as when a component unmounts or the app is closing.
+   * 
+   * @remarks
+   * After calling cleanup/dispose, any further operations on this instance
+   * will throw an error. A new instance must be created via getInstance().
+   * 
+   * Cleans up:
+   * - Active timers and intervals
+   * - All Maps (memory, tasks, reminders, insights, context, message counts)
+   * - Interaction history arrays
+   * - Error tracking state
+   * - Active speech/TTS (stops any ongoing speech playback)
+   * 
+   * @example
+   * ```typescript
+   * const dash = DashAIAssistant.getInstance();
+   * // ... use dash ...
+   * dash.dispose(); // Clean up when done
+   * ```
    */
   public cleanup(): void {
     console.log('[Dash] Cleaning up AI Assistant resources...');
@@ -6149,28 +5682,61 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     // Mark as disposed
     this.isDisposed = true;
     
+    // Stop any active speech immediately
+    try {
+      this.stopSpeaking();
+    } catch (e) {
+      console.warn('[Dash] Failed to stop speech during cleanup (non-fatal):', e);
+    }
+    
     // Clear timers
     if (this.proactiveTimer) {
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
     }
+    if (this.cacheCleanupTimer) {
+      clearInterval(this.cacheCleanupTimer);
+      this.cacheCleanupTimer = null;
+    }
     
-    // Clear all Maps to prevent memory leaks
-    this.memory.clear();
+    // Dispose modular components (Phase 4 refactoring)
+    try {
+      this.memoryManager?.dispose();
+      this.voiceController?.dispose();
+      this.messageHandler?.dispose();
+      this.contextBuilder?.dispose();
+    } catch (e) {
+      console.warn('[Dash] Module disposal error (non-fatal):', e);
+    }
+    
+    // Clear remaining state
     this.activeTasks.clear();
     this.activeReminders.clear();
     this.pendingInsights.clear();
-    this.contextCache.clear();
-    this.messageCountByConversation.clear();
     
-    // Clear interaction history array
-    this.interactionHistory = [];
+    // Reset conversation pointer
+    this.currentConversationId = null;
     
     // Reset error tracking
     this.consecutiveErrors = 0;
     this.lastErrorTimestamp = 0;
     
-    console.log('[Dash] Cleanup complete');
+    console.log('[Dash] Cleanup complete - instance disposed');
+  }
+  
+  /**
+   * Dispose of the DashAIAssistant instance and free all resources.
+   * 
+   * This is an alias for cleanup() that follows the standard dispose pattern.
+   * 
+   * @remarks
+   * After calling dispose, the instance is marked as disposed and cannot be used.
+   * Any subsequent method calls will throw an error.
+   * 
+   * @see cleanup
+   */
+  public dispose(): void {
+    this.cleanup();
   }
   
   /**
@@ -6191,7 +5757,7 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
     // Heuristic language detection for typed/streamed text to inform TTS of the next assistant reply
     let detectedLang: 'en' | 'af' | 'zu' | 'xh' | 'nso' = 'en';
     try {
-      detectedLang = this.detectLikelyAppLanguageFromText(content);
+      detectedLang = this.messageHandler.detectLanguageFromText(content);
     } catch (error) {
       console.warn('[Dash] Language detection failed, using default (non-fatal):', error);
     }
@@ -6224,4 +5790,23 @@ ${analysis.intent.secondary_intents?.length ? `Secondary intents: ${analysis.int
   }
 }
 
-export default DashAIAssistant;
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashAIAssistantInstance: DashAIAssistant = (() => {
+  try {
+    return container.resolve(TOKENS.dashAI) as DashAIAssistant;
+  } catch {
+    // Fallback during initialization
+    return new DashAIAssistant();
+  }
+})();
+
+// Back-compat static accessor for legacy call sites
+export namespace DashAIAssistant {
+  export function getInstance(): DashAIAssistant {
+    return DashAIAssistantInstance;
+  }
+}
+
+export default DashAIAssistantInstance;

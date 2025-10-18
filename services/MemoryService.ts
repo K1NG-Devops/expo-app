@@ -30,17 +30,22 @@ export interface Memory {
   accessed_count: number;
 }
 
-class MemoryServiceClass {
-  private static instance: MemoryServiceClass;
+/**
+ * MemoryService interface for dependency injection
+ */
+export interface IMemoryService {
+  initialize(): Promise<void>;
+  upsertMemory(input: MemoryInput): Promise<Memory | null>;
+  retrieveRelevant(query: string, topK?: number, minSimilarity?: number): Promise<Memory[]>;
+  snapshotContext(context: any): Promise<void>;
+  recordAccess(memoryId: string): Promise<void>;
+  getCachedMemories(): Memory[];
+  dispose(): void;
+}
+
+class MemoryServiceClass implements IMemoryService {
   private memoryCache: Map<string, Memory> = new Map();
   private readonly CACHE_KEY = '@dash_memory_cache';
-
-  static getInstance(): MemoryServiceClass {
-    if (!MemoryServiceClass.instance) {
-      MemoryServiceClass.instance = new MemoryServiceClass();
-    }
-    return MemoryServiceClass.instance;
-  }
 
   /**
    * Initialize and load cached memories
@@ -251,6 +256,26 @@ class MemoryServiceClass {
   getCachedMemories(): Memory[] {
     return Array.from(this.memoryCache.values());
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.memoryCache.clear();
+  }
 }
 
-export const MemoryService = MemoryServiceClass.getInstance();
+// Export service for DI registration
+export { MemoryServiceClass };
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const MemoryService = (() => {
+  try {
+    return container.resolve(TOKENS.memory);
+  } catch {
+    // Fallback during initialization
+    return new MemoryServiceClass();
+  }
+})();

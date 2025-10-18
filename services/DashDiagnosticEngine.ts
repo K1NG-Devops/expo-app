@@ -99,24 +99,23 @@ export interface DiagnosticIssue {
   canAutoFix: boolean;
 }
 
-export class DashDiagnosticEngine {
-  private static instance: DashDiagnosticEngine;
+export interface IDashDiagnosticEngine {
+  getDiagnostics(): Promise<AppDiagnostics>;
+  logError(error: any): void;
+  recordMetric(name: string, value: number): void;
+  dispose(): void;
+}
+
+export class DashDiagnosticEngine implements IDashDiagnosticEngine {
   private errorLog: DiagnosticError[] = [];
   private performanceMetrics = new Map<string, number[]>();
   private featureHealth = new Map<string, FeatureHealth>();
   private appStartTime = Date.now();
   private crashCount = 0;
   
-  private constructor() {
+  constructor() {
     this.initializeErrorHandling();
     this.initializePerformanceMonitoring();
-  }
-  
-  public static getInstance(): DashDiagnosticEngine {
-    if (!DashDiagnosticEngine.instance) {
-      DashDiagnosticEngine.instance = new DashDiagnosticEngine();
-    }
-    return DashDiagnosticEngine.instance;
   }
   
   /**
@@ -242,6 +241,10 @@ export class DashDiagnosticEngine {
   /**
    * Perform comprehensive app diagnostics
    */
+  public async getDiagnostics(): Promise<AppDiagnostics> {
+    return this.runFullDiagnostics();
+  }
+
   public async runFullDiagnostics(): Promise<AppDiagnostics> {
     const [system, network, app, performance, features] = await Promise.all([
       this.getSystemDiagnostics(),
@@ -737,7 +740,27 @@ export class DashDiagnosticEngine {
     
     return summary;
   }
+
+  dispose(): void {
+    this.errorLog = [];
+    this.performanceMetrics.clear();
+    this.featureHealth.clear();
+  }
 }
 
-// Export singleton instance
-export const dashDiagnostics = DashDiagnosticEngine.getInstance();
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashDiagnosticEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashDiagnostic);
+  } catch {
+    // Fallback during initialization
+    return new DashDiagnosticEngine();
+  }
+})();
+
+// Back-compat named export expected by legacy imports
+export const dashDiagnostics = DashDiagnosticEngineInstance;
+
+export default DashDiagnosticEngineInstance;

@@ -1,5 +1,6 @@
 // ClassPlacementService
 // Suggest and/or assign classes to students automatically based on grade level and load
+// Phase 6: Updated to use organization-first parameters
 
 import { assertSupabase } from '@/lib/supabase';
 
@@ -13,17 +14,19 @@ export interface ClassSuggestion {
 
 export class ClassPlacementService {
   /**
-   * Suggest a class in the given preschool for the provided grade level.
+   * Suggest a class in the given organization for the provided grade level.
    * Picks the class with the fewest currently assigned students.
+   * @param organizationId - Organization/school identifier
+   * @param gradeLevel - Target grade level
    */
-  static async suggestClassForGrade(preschoolId: string, gradeLevel: string): Promise<ClassSuggestion | null> {
+  static async suggestClassForGrade(organizationId: string, gradeLevel: string): Promise<ClassSuggestion | null> {
     const client = assertSupabase();
 
-    // 1) Fetch classes for this preschool/grade
+    // 1) Fetch classes for this organization/grade
     const { data: classes, error: clsErr } = await client
       .from('classes')
       .select('id, name, grade_level')
-      .eq('preschool_id', preschoolId)
+      .eq('preschool_id', organizationId) // Database field still named preschool_id
       .eq('is_active', true)
       .eq('grade_level', gradeLevel);
 
@@ -33,12 +36,12 @@ export class ClassPlacementService {
 
     let classList = classes || [];
 
-    // Fallback: If none match grade level, pick any active classes in the preschool
+    // Fallback: If none match grade level, pick any active classes in the organization
     if (!classList.length) {
       const { data: anyClasses } = await client
         .from('classes')
         .select('id, name, grade_level')
-        .eq('preschool_id', preschoolId)
+        .eq('preschool_id', organizationId) // Database field still named preschool_id
         .eq('is_active', true)
         .limit(10);
       classList = anyClasses || [];
@@ -71,15 +74,18 @@ export class ClassPlacementService {
   }
 
   /**
-   * Suggest a class for a student by DOB (preschool heuristic) or provided grade.
+   * Suggest a class for a student by DOB (age heuristic) or provided grade.
    * If gradeLevel is not provided, a simple DOB->grade heuristic is applied.
+   * @param params.organizationId - Organization/school identifier
+   * @param params.dateOfBirth - Student's date of birth (optional)
+   * @param params.gradeLevel - Target grade level (optional)
    */
   static async suggestClassForStudent(params: {
-    preschoolId: string;
+    organizationId: string;
     dateOfBirth?: string | null;
     gradeLevel?: string | null;
   }): Promise<ClassSuggestion | null> {
-    const { preschoolId, dateOfBirth, gradeLevel } = params;
+    const { organizationId, dateOfBirth, gradeLevel } = params;
 
     let targetGrade = gradeLevel || null;
     if (!targetGrade && dateOfBirth) {
@@ -92,12 +98,12 @@ export class ClassPlacementService {
     }
 
     if (!targetGrade) {
-      // Last resort: any active class in the preschool
+      // Last resort: any active class in the organization
       const client = assertSupabase();
       const { data: anyClasses } = await client
         .from('classes')
         .select('id, name, grade_level')
-        .eq('preschool_id', preschoolId)
+        .eq('preschool_id', organizationId) // Database field still named preschool_id
         .eq('is_active', true)
         .limit(10);
       if (!anyClasses || !anyClasses.length) return null;
@@ -123,18 +129,21 @@ export class ClassPlacementService {
       };
     }
 
-    return this.suggestClassForGrade(preschoolId, targetGrade);
+    return this.suggestClassForGrade(organizationId, targetGrade);
   }
 
   /**
    * Auto-assigns a student to a suggested class (updates students.class_id).
    * Returns the suggestion applied, or null if none could be made.
+   * @param studentId - Student identifier
+   * @param opts.organizationId - Organization/school identifier (optional, will be fetched if missing)
+   * @param opts.gradeLevel - Target grade level (optional)
    */
-  static async autoAssignStudent(studentId: string, opts?: { preschoolId?: string; gradeLevel?: string | null }): Promise<ClassSuggestion | null> {
+  static async autoAssignStudent(studentId: string, opts?: { organizationId?: string; gradeLevel?: string | null }): Promise<ClassSuggestion | null> {
     const client = assertSupabase();
 
-    // Fetch student for preschool/grade context if missing
-    let preschoolId = opts?.preschoolId || null;
+    // Fetch student for organization/grade context if missing
+    let organizationId = opts?.organizationId || null;
     let gradeLevel = opts?.gradeLevel || null;
 
     try {
@@ -144,13 +153,13 @@ export class ClassPlacementService {
         .eq('id', studentId)
         .single();
       if (student) {
-        preschoolId = preschoolId || student.preschool_id;
+        organizationId = organizationId || student.preschool_id; // Database field still named preschool_id
       }
     } catch { /* Intentional: non-fatal */ }
 
-    if (!preschoolId) return null;
+    if (!organizationId) return null;
 
-    const suggestion = await this.suggestClassForStudent({ preschoolId, gradeLevel });
+    const suggestion = await this.suggestClassForStudent({ organizationId, gradeLevel });
     if (!suggestion) return null;
 
     // Apply update

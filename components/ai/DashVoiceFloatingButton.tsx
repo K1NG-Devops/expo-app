@@ -4,23 +4,20 @@
  * @status ACTIVE - Primary FAB component in use
  * @location app/_layout.tsx (currently deployed)
  * 
- * This is the main floating action button with voice recording capabilities.
+ * This is the main floating action button with voice AI capabilities.
  * Features:
- * - Voice recording with tap-and-hold gesture
+ * - Single tap: Opens full Dash Assistant chat interface
+ * - Long press: Opens elegant voice mode (DashVoiceMode) for hands-free interaction
  * - Drag-to-reposition with position persistence
- * - Double-tap to reset position
  * - Smooth animations and haptic feedback
  * - Permission handling for audio recording
  * 
  * Architecture:
- * - Uses PanResponder for gesture handling (no conflicts)
- * - Integrates with DashAIAssistant service
+ * - Uses PanResponder for gesture handling
+ * - Integrates with DashAIAssistant singleton service
+ * - Integrates with DashVoiceMode for full-screen voice UI
  * - Respects theme context
  * - AsyncStorage for position persistence
- * 
- * Related components:
- * - DashFloatingButton: Legacy basic version (deprecated)
- * - DashFloatingButtonEnhanced: Advanced features (not in use, needs fixes)
  */
 
 import React, { useRef, useState, useEffect } from 'react';
@@ -44,9 +41,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
-import { VoiceRecordingModal } from '@/components/ai/VoiceRecordingModal';
 import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
-// import { RealtimeVoiceOverlay } from '@/components/ai/RealtimeVoiceOverlay';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { useTranslation } from 'react-i18next';
 
@@ -92,7 +87,6 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const { t } = useTranslation();
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
-  const [showQuickVoice, setShowQuickVoice] = useState(false);
   const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -105,7 +99,6 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
   const pan = useRef(new Animated.ValueXY()).current;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressActivated = useRef<boolean>(false);
-  const lastTapRef = useRef<number>(0);
   
   // Legacy quick voice hook for permissions and speaking
   const {
@@ -173,18 +166,18 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     }
   };
 
-  // Pulse animation
+  // Enhanced pulse animation - smoother, more organic for Society 5.0
   useEffect(() => {
     const pulse = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnimation, {
-          toValue: 1.08,
-          duration: 2000,
+          toValue: 1.12,
+          duration: 1800,
           useNativeDriver: true,
         }),
         Animated.timing(pulseAnimation, {
           toValue: 1,
-          duration: 2000,
+          duration: 1800,
           useNativeDriver: true,
         }),
       ])
@@ -217,21 +210,13 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
      
   }, [recordingState.isRecording]);
 
-  // Play click sound for tactile feedback
-  const playClickSound = async () => {
+  // Play futuristic sound for tactile feedback - Society 5.0 ready
+  const playClickSound = async (soundType: 'awaken' | 'pulse' = 'awaken') => {
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('@/assets/sounds/notification.wav'),
-        { shouldPlay: true, volume: 0.3 }
-      );
-      // Unload after playing to prevent memory leak
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
+      const { playOrbSound } = await import('@/lib/audio/soundManager');
+      await playOrbSound(soundType);
     } catch (e) {
-      console.log('[FAB] Click sound failed:', e);
+      console.log('[FAB] Sound failed:', e);
     }
   };
 
@@ -277,7 +262,7 @@ const handleLongPress = async () => {
     try {
       setIsLoading(true);
       // Play distinct sound for long-press
-      playClickSound();
+      playClickSound('pulse');
       // Heavy haptic with error logging
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch((e) => {
         console.log('[FAB] Long-press haptic failed:', e);
@@ -318,7 +303,6 @@ const handleLongPress = async () => {
       
       await ensureConversation();
       // Open elegant full-screen voice mode
-      setShowQuickVoice(false);
       setShowVoiceMode(true);
       setIsLoading(false);
     } catch (e) {
@@ -329,36 +313,10 @@ const handleLongPress = async () => {
 
 
   const handlePress = () => {
+    // Ignore if long-press already activated
     if (longPressActivated.current) return;
-    const now = Date.now();
-    const delta = now - (lastTapRef.current || 0);
-    lastTapRef.current = now;
-    if (delta < 300) {
-      // Double tap -> toggle elegant voice mode
-      playClickSound();
-      try { 
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch((e) => {
-          console.log('[FAB] Double-tap haptic failed:', e);
-        }); 
-      } catch { /* Intentional: non-fatal */ }
-      setShowQuickVoice(false);
-      // Ensure dash is initialized before toggling voice mode
-      if (!showVoiceMode) {
-        setIsLoading(true);
-        dash.initialize().then(() => {
-          setShowVoiceMode(true);
-          setIsLoading(false);
-        }).catch(e => {
-          console.error('[DashVoiceFAB] ❌ Failed to initialize:', e);
-          setIsLoading(false);
-        });
-      } else {
-        setShowVoiceMode(false);
-      }
-    } else {
-      // Single tap -> open full Dash assistant
-      handleSingleTap();
-    }
+    // Single tap always opens Dash Assistant chat
+    handleSingleTap();
   };
 
   const handlePressIn = () => {
@@ -484,7 +442,7 @@ const handlePressOut = () => {
   return (
     <>
       {/* Floating Action Button */}
-      {!showQuickVoice && !showVoiceMode && (
+      {!showVoiceMode && (
       <Animated.View
         style={[
           styles.container,
@@ -538,18 +496,6 @@ const handlePressOut = () => {
         dashInstance={dash}
         onMessageSent={() => { /* no-op */ }}
       />
-
-      {/* Modern WhatsApp-style Voice Recording Modal */}
-      {showQuickVoice && (
-        <VoiceRecordingModal
-          vc={vc}
-          visible={showQuickVoice}
-          onClose={() => {
-            try { vc.cancel(); } catch { /* Intentional: non-fatal */ }
-            setShowQuickVoice(false);
-          }}
-        />
-      )}
       
       {/* Global speaking overlay - shows when Dash is speaking */}
       <DashSpeakingOverlay 
@@ -576,10 +522,11 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    // Enhanced Society 5.0 shadows for depth
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
   },
   tooltip: {
     position: 'absolute',

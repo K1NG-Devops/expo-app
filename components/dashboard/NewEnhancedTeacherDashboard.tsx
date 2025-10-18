@@ -31,7 +31,7 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
 
@@ -390,7 +390,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
       </ScrollView>
 
       {/* AI Assistant Floating Button */}
-      <DashFloatingButton />
+      <DashVoiceFloatingButton />
     </View>
   );
 };
