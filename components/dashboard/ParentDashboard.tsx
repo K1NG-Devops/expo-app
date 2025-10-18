@@ -34,6 +34,7 @@ import { usePOPStats } from '@/hooks/usePOPUploads';
 // WhatsApp integration
 // Prefer real hook when available; otherwise gracefully degrade
 import { useWhatsAppConnection as useRealWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+
 const getMockWhatsAppConnection = () => ({
   connectionStatus: { isConnected: false, isLoading: false, error: undefined },
   isLoading: false,

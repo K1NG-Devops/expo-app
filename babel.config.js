@@ -1,20 +1,6 @@
-/**
- * babel.config.js - Minimal Babel Configuration
- * 
- * Using babel-preset-expo which handles all standard transformations.
- * Expo preset automatically handles:
- * - TypeScript
- * - JSX/TSX
- * - Environment variables (EXPO_PUBLIC_*)
- * - Platform-specific code
- * - Production optimizations (minification, console removal)
- * 
- * Only required plugins:
- * - module-resolver: For @ alias (import from '@/...')
- * - react-native-reanimated: Required by reanimated library
- */
 module.exports = function (api) {
   api.cache(true);
+  const isProd = process.env.NODE_ENV === 'production';
   
   return {
     presets: [
@@ -31,11 +17,30 @@ module.exports = function (api) {
       [
         'module-resolver',
         {
-          alias: { '@': './' },
+          // Avoid transforming relative imports inside node_modules (e.g., '.' in react-native-svg)
+          // Only provide explicit aliases we actually use
+          alias: { '@': './', tslib: './node_modules/tslib/tslib.js' },
           extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
         },
       ],
+      [
+        'transform-inline-environment-variables',
+        {
+          include: [
+            'EXPO_PUBLIC_SUPABASE_URL',
+            'EXPO_PUBLIC_SUPABASE_ANON_KEY',
+            'EXPO_PUBLIC_TENANT_SLUG',
+            'EXPO_PUBLIC_ENVIRONMENT',
+            'EXPO_PUBLIC_APP_SCHEME',
+          ],
+        },
+      ],
+      // Remove console statements in production builds (except errors)
+      isProd ? [
+        'transform-remove-console',
+        { exclude: ['error'] }
+      ] : null,
       'react-native-reanimated/plugin',
-    ],
+    ].filter(Boolean),
   };
 };
