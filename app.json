@@ -70,13 +70,6 @@
             "./assets/sounds/notification.wav"
           ]
         }
-      ],
-      [
-        "react-native-webrtc",
-        {
-          "cameraPermission": false,
-          "microphonePermission": "Allow EduDash Pro to access your microphone for voice recording and real-time transcription."
-        }
       ]
     ],
     "experiments": {
