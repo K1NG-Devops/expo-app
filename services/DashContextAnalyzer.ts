@@ -1058,23 +1058,22 @@ export class DashContextAnalyzer implements IDashContextAnalyzer {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashContextAnalyzerInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashContextAnalyzer);
-  } catch {
-    // Fallback during initialization
-    return new DashContextAnalyzer();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashContextAnalyzer | null = null;
+
+export function getDashContextAnalyzerInstance(): DashContextAnalyzer {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashContextAnalyzer();
   }
-})();
+  return _defaultInstance;
+}
 
 // Back-compat static accessor for legacy call sites
 export namespace DashContextAnalyzer {
   export function getInstance() {
-    return DashContextAnalyzerInstance;
+    return getDashContextAnalyzerInstance();
   }
 }
 
-export default DashContextAnalyzerInstance;
+export default getDashContextAnalyzerInstance();
