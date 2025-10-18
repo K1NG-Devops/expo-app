@@ -408,10 +408,44 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
           console.log('[claudeProvider] 🎤 Starting native audio with Picovoice Voice Processor...');
           
           try {
-            const { VoiceProcessor } = await import('@picovoice/react-native-voice-processor');
+            // Try to import Picovoice VoiceProcessor with proper null checking
+            let VoiceProcessorModule: any = null;
+            try {
+              VoiceProcessorModule = await import('@picovoice/react-native-voice-processor');
+            } catch (importErr) {
+              console.error('[claudeProvider] ❌ Failed to import VoiceProcessor module:', importErr);
+              throw new Error('VoiceProcessor module not available - ensure @picovoice/react-native-voice-processor is properly installed and linked');
+            }
             
-            // Get singleton instance
+            // Validate the imported module
+            if (!VoiceProcessorModule || !VoiceProcessorModule.VoiceProcessor) {
+              console.error('[claudeProvider] ❌ VoiceProcessor module is null or invalid');
+              throw new Error('VoiceProcessor not available in imported module');
+            }
+            
+            const { VoiceProcessor } = VoiceProcessorModule;
+            
+            // Validate VoiceProcessor class exists
+            if (!VoiceProcessor || typeof VoiceProcessor !== 'function') {
+              console.error('[claudeProvider] ❌ VoiceProcessor is not a valid class');
+              throw new Error('VoiceProcessor class is not available');
+            }
+            
+            // Get singleton instance with null check
             const voiceProcessor = VoiceProcessor.instance;
+            if (!voiceProcessor) {
+              console.error('[claudeProvider] ❌ VoiceProcessor.instance is null');
+              throw new Error('VoiceProcessor instance not available');
+            }
+            
+            // Validate required methods exist
+            if (typeof voiceProcessor.start !== 'function' || 
+                typeof voiceProcessor.stop !== 'function' ||
+                typeof voiceProcessor.addFrameListener !== 'function' ||
+                typeof voiceProcessor.removeFrameListener !== 'function') {
+              console.error('[claudeProvider] ❌ VoiceProcessor missing required methods');
+              throw new Error('VoiceProcessor does not have required methods');
+            }
             
             // Start audio capture at 16kHz (Deepgram requirement)
             // Frame length: 512 samples (~32ms chunks at 16kHz)
@@ -452,8 +486,12 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
               stop: async () => {
                 console.log('[claudeProvider] 🛑 Stopping VoiceProcessor...');
                 try {
-                  voiceProcessor.removeFrameListener(frameListener);
-                  await voiceProcessor.stop();
+                  if (voiceProcessor && typeof voiceProcessor.removeFrameListener === 'function') {
+                    voiceProcessor.removeFrameListener(frameListener);
+                  }
+                  if (voiceProcessor && typeof voiceProcessor.stop === 'function') {
+                    await voiceProcessor.stop();
+                  }
                   console.log('[claudeProvider] ✅ VoiceProcessor stopped');
                 } catch (e) {
                   console.error('[claudeProvider] ⚠️ VoiceProcessor stop error:', e);
@@ -467,7 +505,10 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
           } catch (err) {
             console.error('[claudeProvider] ❌ Picovoice setup failed:', err);
             console.error('[claudeProvider] 💡 Error details:', err instanceof Error ? err.message : String(err));
-            throw err;
+            console.warn('[claudeProvider] 💡 Voice input will not be available on this device');
+            // Don't throw - allow the app to continue without voice input
+            // The UI should show a fallback message
+            return false;
           }
         }
 

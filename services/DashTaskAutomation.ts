@@ -588,23 +588,22 @@ export class DashTaskAutomation implements IDashTaskAutomation {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashTaskAutomationInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashTaskAutomation);
-  } catch {
-    // Fallback during initialization
-    return new DashTaskAutomation();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashTaskAutomation | null = null;
+
+export function getDashTaskAutomationInstance(): DashTaskAutomation {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashTaskAutomation();
   }
-})();
+  return _defaultInstance;
+}
 
 // Back-compat static accessor for legacy call sites
 export namespace DashTaskAutomation {
   export function getInstance() {
-    return DashTaskAutomationInstance;
+    return getDashTaskAutomationInstance();
   }
 }
 
-export default DashTaskAutomationInstance;
+export default getDashTaskAutomationInstance();
