@@ -439,7 +439,7 @@ export interface DashPersonality {
 
 const DEFAULT_PERSONALITY: DashPersonality = {
   name: 'Dash',
-  greeting: "Hi! I'm Dash, your AI assistant. How can I help?",
+  greeting: "Hello I am Dash. How can I assist you today?",
   personality_traits: [
     'helpful',
     'intelligent',
@@ -470,7 +470,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   },
   role_specializations: {
     user: {
-      greeting: "Hi! I'm Dash, your AI assistant. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'general_assistance',
         'task_management',
@@ -491,7 +491,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['general', 'productivity', 'communication']
     },
     admin: {
-      greeting: "Hi! I'm Dash, your system assistant. How can I help?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'system_management',
         'data_analytics',
@@ -512,7 +512,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['system', 'technical', 'administrative']
     },
     teacher: {
-      greeting: "Hi! I'm Dash. What do you need help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'content_creation',
         'organization',
@@ -533,7 +533,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['content', 'planning', 'communication']
     },
     principal: {
-      greeting: "Hi! I'm Dash. How can I assist you?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'management',
         'analytics',
@@ -554,7 +554,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['management', 'strategic', 'operational']
     },
     parent: {
-      greeting: "Hi! I'm Dash. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'information',
         'organization',

@@ -10,6 +10,9 @@ export const TOKENS = {
   features: Symbol.for('FeatureFlagService') as Token<FeatureFlagService>,
   eventBus: Symbol.for('EventBus') as Token<EventBus>,
   memory: Symbol.for('MemoryService') as Token<MemoryService>,
+  lessons: Symbol.for('LessonsService') as Token<LessonsService>,
+  sms: Symbol.for('SMSService') as Token<SMSService>,
+  googleCalendar: Symbol.for('GoogleCalendarService') as Token<GoogleCalendarService>,
 };
 
 // Minimal interfaces to start wiring gradually
@@ -53,5 +56,36 @@ export interface MemoryService {
   snapshotContext(context: any): Promise<void>;
   recordAccess(memoryId: string): Promise<void>;
   getCachedMemories(): any[];
+  dispose(): void;
+}
+
+export interface LessonsService {
+  getCategories(): Promise<any[]>;
+  getSkillLevels(): Promise<any[]>;
+  getTags(): Promise<any[]>;
+  searchLessons(query?: string, filters?: any, sortBy?: any, page?: number, pageSize?: number): Promise<any>;
+  getLessonById(lessonId: string): Promise<any | null>;
+  getUserLessonProgress(lessonId: string): Promise<any | null>;
+  updateLessonProgress(lessonId: string, updates: any): Promise<any | null>;
+  toggleLessonBookmark(lessonId: string): Promise<boolean>;
+  getFeaturedLessons(limit?: number): Promise<any[]>;
+  getPopularLessons(limit?: number): Promise<any[]>;
+  getTeacherGeneratedLessons(): Promise<any[]>;
+  dispose(): void;
+}
+
+export interface SMSService {
+  sendSMS(message: any, options?: { validateOptOut?: boolean }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  sendBulkSMS(options: any): Promise<{ success: boolean; result?: any; error?: string }>;
+  getDeliveryStatus(messageId: string): Promise<any | null>;
+  updateDeliveryStatus(twilioPayload: any): Promise<void>;
+  dispose(): void;
+}
+
+export interface GoogleCalendarService {
+  initiateOAuthFlow(userId: string, preschoolId: string): Promise<string>;
+  completeOAuthFlow(userId: string, authorizationCode: string, state: string): Promise<{ success: boolean; error?: string }>;
+  disconnectAccount(userId: string): Promise<{ success: boolean; error?: string }>;
+  isConnected(userId: string): Promise<boolean>;
   dispose(): void;
 }

@@ -1,7 +1,7 @@
 # Phase 5 DI - Progress Update
 
 **Date**: 2025-10-18  
-**Status**: 20% Complete (2/18 services converted)  
+**Status**: 28% Complete (5/18 services converted)  
 **Branch**: development
 
 ---
@@ -13,7 +13,7 @@
 - ✅ Defined conversion strategy for 18 singleton services
 - ✅ Created testing strategy with DI mocking examples
 
-### 2. Services Converted (2/18)
+### 2. Services Converted (5/18)
 
 #### ✅ EventBus
 **File**: `services/EventBus.ts`
@@ -61,6 +61,34 @@ export interface IMemoryService {
 // Registered in container
 container.registerFactory(TOKENS.memory, () => new MemoryServiceClass(), { singleton: true });
 ```
+
+#### ✅ LessonsService
+**File**: `services/LessonsService.ts`
+- Extracted `ILessonsService` interface with 13 methods
+- Removed singleton pattern
+- Added `dispose()` method
+- Registered in DI container as singleton
+- Added backward-compatible export
+- **Result**: 0 TypeScript errors, fully functional
+
+#### ✅ SMSService
+**File**: `services/SMSService.ts`
+- Extracted `ISMSService` interface with 5 methods
+- Removed singleton pattern
+- Added `dispose()` method
+- Fixed interface signature to match implementation
+- Registered in DI container as singleton
+- Added backward-compatible export
+- **Result**: 0 TypeScript errors, fully functional
+
+#### ✅ GoogleCalendarService
+**File**: `services/GoogleCalendarService.ts`
+- Extracted `IGoogleCalendarService` interface with 5 methods
+- Removed singleton pattern
+- Added `dispose()` method
+- Registered in DI container as singleton
+- Added backward-compatible export
+- **Result**: 0 TypeScript errors, fully functional
 
 ### 3. DI Infrastructure Updates
 
@@ -209,9 +237,9 @@ describe('Service with MemoryService dependency', () => {
 - [ ] DashNavigationHandler
 - [ ] DashWebSearchService
 - [ ] DashWhatsAppIntegration
-- [ ] GoogleCalendarService
-- [ ] SMSService
-- [ ] LessonsService
+- [x] GoogleCalendarService ✅
+- [x] SMSService ✅
+- [x] LessonsService ✅
 - [ ] DashDiagnosticEngine
 
 ---
@@ -256,13 +284,13 @@ describe('Service with MemoryService dependency', () => {
 Phase 5: Dependency Injection
 ════════════════════════════════════════════════════════════════
 
-Services Converted:  ██░░░░░░░░░░░░░░░░░░░░ 11% (2/18)
+Services Converted:  ██████░░░░░░░░░░░░░░░░░░ 28% (5/18)
 Infrastructure:      ████████████████████████ 100%
 Documentation:       ████████████████████████ 100%
 Testing Strategy:    ████████████████████████ 100%
 Quality Gates:       ████████████████████████ 100%
 
-Overall Phase 5 Progress: 20%
+Overall Phase 5 Progress: 28%
 ```
 
 ---

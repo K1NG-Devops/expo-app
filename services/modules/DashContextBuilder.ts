@@ -131,7 +131,7 @@ export interface DashPersonality {
 
 export const DEFAULT_PERSONALITY: DashPersonality = {
   name: 'Dash',
-  greeting: "Hi! I'm Dash, your AI assistant. How can I help?",
+  greeting: "Hello I am Dash. How can I assist you today?",
   personality_traits: [
     'helpful',
     'intelligent',
@@ -162,7 +162,7 @@ export const DEFAULT_PERSONALITY: DashPersonality = {
   },
   role_specializations: {
     user: {
-      greeting: "Hi! I'm Dash, your AI assistant. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'general_assistance',
         'task_management',
@@ -185,7 +185,7 @@ export const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['general', 'organization', 'communication']
     },
     teacher: {
-      greeting: "Hi! I'm Dash. What do you need help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'content_creation',
         'organization',
@@ -206,7 +206,7 @@ export const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['content', 'planning', 'communication']
     },
     principal: {
-      greeting: "Hi! I'm Dash. How can I assist you?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'management',
         'analytics',
@@ -227,7 +227,7 @@ export const DEFAULT_PERSONALITY: DashPersonality = {
       task_categories: ['management', 'strategic', 'operational']
     },
     parent: {
-      greeting: "Hi! I'm Dash. What can I help with?",
+      greeting: "Hello I am Dash. How can I assist you today?",
       capabilities: [
         'information',
         'organization',
@@ -321,15 +321,15 @@ export class DashContextBuilder {
       case 'instructor':
       case 'coach':
       case 'trainer':
-        return "Hello! I'm Dash, your AI assistant. Ready to create amazing experiences together?";
+        return "Hello I am Dash. How can I assist you today?";
       case 'principal':
       case 'dean':
       case 'director':
       case 'manager':
-        return "Good day! I'm Dash, your AI assistant. How can I help you lead today?";
+        return "Hello I am Dash. How can I assist you today?";
       case 'parent':
       case 'guardian':
-        return "Hi there! I'm Dash, here to support your journey. How can I assist you today?";
+        return "Hello I am Dash. How can I assist you today?";
       default:
         return DEFAULT_PERSONALITY.greeting;
     }

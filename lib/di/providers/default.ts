@@ -34,6 +34,9 @@ import { AuthAdapter } from '../adapters/auth';
 import { AIProxyAdapter } from '../adapters/ai';
 import { EventBusService } from '../../../services/EventBus';
 import { MemoryServiceClass } from '../../../services/MemoryService';
+import { LessonsService } from '../../../services/LessonsService';
+import { SMSService } from '../../../services/SMSService';
+import { GoogleCalendarService } from '../../../services/GoogleCalendarService';
 
 container
   .registerFactory(TOKENS.organization, () => new OrganizationServiceImpl(), { singleton: true })
@@ -42,6 +45,9 @@ container
   .registerFactory(TOKENS.auth, () => new AuthAdapter(), { singleton: true })
   .registerFactory(TOKENS.ai, () => new AIProxyAdapter(), { singleton: true })
   .registerFactory(TOKENS.eventBus, () => new EventBusService(), { singleton: true })
-  .registerFactory(TOKENS.memory, () => new MemoryServiceClass(), { singleton: true });
+  .registerFactory(TOKENS.memory, () => new MemoryServiceClass(), { singleton: true })
+  .registerFactory(TOKENS.lessons, () => new LessonsService(), { singleton: true })
+  .registerFactory(TOKENS.sms, () => new SMSService(), { singleton: true })
+  .registerFactory(TOKENS.googleCalendar, () => new GoogleCalendarService(), { singleton: true });
 
 export { container, TOKENS };
