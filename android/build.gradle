@@ -31,6 +31,21 @@ allprojects {
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
   }
+  
+  configurations.all {
+    resolutionStrategy {
+      // Replace old support libraries with AndroidX equivalents
+      dependencySubstitution {
+        substitute module('com.android.support:support-compat') using module('androidx.core:core:1.13.1')
+        substitute module('com.android.support:versionedparcelable') using module('androidx.versionedparcelable:versionedparcelable:1.2.0')
+        substitute module('com.android.support:support-v4') using module('androidx.legacy:legacy-support-v4:1.0.0')
+      }
+      
+      // Force specific AndroidX versions
+      force 'androidx.core:core:1.13.1'
+      force 'androidx.versionedparcelable:versionedparcelable:1.2.0'
+    }
+  }
 }
 
 apply plugin: "expo-root-project"
