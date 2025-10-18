@@ -35,18 +35,16 @@ export interface OrganizationInfo {
  * Different organization types use different terminology
  */
 export interface TerminologyMap {
-  organization: string;        // e.g., "School", "Company", "Club"
-  organizationPlural: string;   // e.g., "Schools", "Companies", "Clubs"
   member: string;               // e.g., "Student", "Employee", "Member"
-  memberPlural: string;         // e.g., "Students", "Employees", "Members"
-  group: string;                // e.g., "Class", "Department", "Team"
-  groupPlural: string;          // e.g., "Classes", "Departments", "Teams"
+  members: string;              // e.g., "Students", "Employees", "Members"
   instructor: string;           // e.g., "Teacher", "Trainer", "Coach"
-  instructorPlural: string;     // e.g., "Teachers", "Trainers", "Coaches"
-  leader: string;               // e.g., "Principal", "Manager", "Director"
-  leaderPlural: string;         // e.g., "Principals", "Managers", "Directors"
+  instructors: string;          // e.g., "Teachers", "Trainers", "Coaches"
   guardian: string;             // e.g., "Parent", "Guardian", "Sponsor"
-  guardianPlural: string;       // e.g., "Parents", "Guardians", "Sponsors"
+  guardians: string;            // e.g., "Parents", "Guardians", "Sponsors"
+  group: string;                // e.g., "Class", "Department", "Team"
+  groups: string;               // e.g., "Classes", "Departments", "Teams"
+  institution: string;          // e.g., "School", "Company", "Club"
+  level: string;                // e.g., "Grade", "Level", "Year"
 }
 
 /**

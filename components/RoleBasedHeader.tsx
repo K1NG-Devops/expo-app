@@ -16,6 +16,7 @@ import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
 import ProfileImageService from '@/services/ProfileImageService';
 import TierBadge from '@/components/ui/TierBadge';
+import { useRoleLabel } from '@/lib/hooks/useOrganizationTerminology';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -68,6 +69,9 @@ export function RoleBasedHeader({
   const { tier } = useSubscription();
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
+  
+  // Get role labels based on organization type
+  const getRoleLabelFn = useRoleLabel;
 
   // Load avatar URL from user metadata, profiles, or users table
   useEffect(() => {
@@ -172,18 +176,13 @@ export function RoleBasedHeader({
     const routeName = route.name;
     if (routeName.includes('dashboard')) {
       const role = permissions?.enhancedProfile?.role;
-      switch (role) {
-        case 'super_admin':
-          return 'SuperAdmin Dashboard';
-        case 'principal_admin':
-          return 'Principal Hub';
-        case 'teacher':
-          return 'Teacher Dashboard';
-        case 'parent':
-          return 'Parent Dashboard';
-        default:
-          return 'Dashboard';
-      }
+      if (!role) return 'Dashboard';
+      
+      // Use terminology system for role-specific dashboard titles
+      if (role === 'super_admin') return 'SuperAdmin Dashboard';
+      
+      const roleLabel = getRoleLabelFn(role);
+      return `${roleLabel} Dashboard`;
     }
     
     // Convert route name to readable title
