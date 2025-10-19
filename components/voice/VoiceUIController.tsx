@@ -11,7 +11,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { getVoiceCapabilities, isIndigenousSA, type VoiceCapabilities } from '@/lib/voice/capabilities';
 import VoiceRecordingModalNew from '@/components/ai/VoiceRecordingModalNew';
-import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { toast } from '@/components/ui/ToastProvider';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 
@@ -89,20 +88,17 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     
     if (forceMode) {
       mode = forceMode;
-    } else if (capabilities.isIndigenousSA) {
-      // Indigenous SA languages ALWAYS use recording (Azure Speech)
-      mode = 'recording';
-      if (__DEV__) console.log('[VoiceUIController] 🌍 Indigenous language detected - using recording modal');
-    } else if (capabilities.streamingAvailable) {
-      // Non-indigenous + deps + premium = try streaming first
-      mode = 'streaming';
-      streamingAttemptedRef.current = true;
-      if (__DEV__) console.log('[VoiceUIController] 🎙️ Streaming available - opening voice mode');
     } else {
-      // Fallback to recording
+      // ALWAYS use recording modal for mic button interactions
+      // Recording modal uses @react-native-voice/voice for speech recognition
+      // and includes animated HolographicOrb visualization
       mode = 'recording';
       if (__DEV__) {
-        console.log('[VoiceUIController] 📝 Using recording modal. Reasons:', capabilities.streamingReasons);
+        console.log('[VoiceUIController] 📝 Using recording modal with animated orb', {
+          language,
+          isIndigenous: capabilities.isIndigenousSA,
+          streamingAvailable: capabilities.streamingAvailable,
+        });
       }
     }
 
@@ -174,25 +170,14 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     <VoiceUIContext.Provider value={contextValue}>
       {children}
       
-      {/* Recording Modal (animated with orb) */}
-      {state.isOpen && state.mode === 'recording' && (
+      {/* Recording Modal (animated with HolographicOrb) */}
+      {state.isOpen && (
         <VoiceRecordingModalNew
           visible={true}
           onClose={close}
           dashInstance={dashInstance}
           onMessageSent={handleMessageSent}
           language={state.language}
-        />
-      )}
-
-      {/* Streaming Mode (ChatGPT-style orb) */}
-      {state.isOpen && state.mode === 'streaming' && (
-        <DashVoiceMode
-          visible={true}
-          onClose={close}
-          dashInstance={dashInstance}
-          onMessageSent={handleMessageSent}
-          forcedLanguage={state.language}
         />
       )}
     </VoiceUIContext.Provider>

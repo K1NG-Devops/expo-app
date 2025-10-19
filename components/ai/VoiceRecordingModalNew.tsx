@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import Voice, {
   SpeechResultsEvent,
   SpeechErrorEvent,
@@ -42,6 +42,7 @@ interface VoiceRecordingModalNewProps {
   dashInstance: DashAIAssistant | null;
   onMessageSent?: (message: DashMessage) => void;
   language?: string;
+  showStartOver?: boolean; // Default false to match screenshot
 }
 
 type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
@@ -52,6 +53,7 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   dashInstance,
   onMessageSent,
   language = 'en',
+  showStartOver = false, // Hide by default (matches screenshot)
 }) => {
   const { theme, isDark } = useTheme();
   const [state, setState] = useState<VoiceState>('idle');
@@ -487,15 +489,17 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
                 </TouchableOpacity>
               )}
               
-              {/* Restart button */}
-              <TouchableOpacity
-                style={[styles.cancelButton, { backgroundColor: theme.warning || theme.error }]}
-                onPress={restartRecording}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 6 }} />
-                <Text style={styles.cancelButtonText}>Start Over</Text>
-              </TouchableOpacity>
+              {/* Restart button (optional - hidden by default) */}
+              {showStartOver && (
+                <TouchableOpacity
+                  style={[styles.cancelButton, { backgroundColor: theme.warning || theme.error }]}
+                  onPress={restartRecording}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="refresh" size={18} color="#fff" style={{ marginRight: 6 }} />
+                  <Text style={styles.cancelButtonText}>Start Over</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </View>
