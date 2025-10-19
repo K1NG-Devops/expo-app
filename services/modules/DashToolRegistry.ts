@@ -563,6 +563,103 @@ export class DashToolRegistry {
       }
     });
 
+    // Get organization statistics
+    this.register({
+      name: 'get_organization_stats',
+      description: 'Get comprehensive statistics about the organization (student counts, teacher counts, class counts, etc.)',
+      parameters: {
+        type: 'object',
+        properties: {
+          include_inactive: {
+            type: 'boolean',
+            description: 'Include inactive members (default: false)'
+          }
+        }
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          const profile = await (await import('@/lib/sessionManager')).getCurrentProfile();
+          
+          if (!profile) {
+            return { success: false, error: 'User not authenticated' };
+          }
+
+          const orgId = (profile as any).organization_id || (profile as any).preschool_id;
+          
+          if (!orgId) {
+            return { success: false, error: 'No organization found for user' };
+          }
+
+          // Get organization name
+          const { data: org } = await supabase
+            .from('preschools')
+            .select('name, city, province')
+            .eq('id', orgId)
+            .single();
+
+          // Count students
+          let studentsQuery = supabase
+            .from('students')
+            .select('id, status', { count: 'exact', head: true })
+            .eq('preschool_id', orgId);
+          
+          if (!args.include_inactive) {
+            studentsQuery = studentsQuery.eq('status', 'active');
+          }
+          
+          const { count: studentCount } = await studentsQuery;
+
+          // Count teachers
+          const { count: teacherCount } = await supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .eq('preschool_id', orgId)
+            .eq('role', 'teacher');
+
+          // Count classes/classrooms
+          const { count: classCount } = await supabase
+            .from('classrooms')
+            .select('id', { count: 'exact', head: true })
+            .eq('preschool_id', orgId);
+
+          // Get active students by status for more detail
+          const { data: studentsByStatus } = await supabase
+            .from('students')
+            .select('status')
+            .eq('preschool_id', orgId);
+
+          const statusBreakdown = studentsByStatus?.reduce((acc: any, s: any) => {
+            acc[s.status] = (acc[s.status] || 0) + 1;
+            return acc;
+          }, {});
+
+          return {
+            success: true,
+            organization: {
+              id: orgId,
+              name: org?.name || 'Your Organization',
+              location: org ? `${org.city}, ${org.province}` : null
+            },
+            statistics: {
+              total_students: studentCount || 0,
+              active_students: statusBreakdown?.active || 0,
+              total_teachers: teacherCount || 0,
+              total_classes: classCount || 0,
+              student_status_breakdown: statusBreakdown || {}
+            },
+            summary: `${org?.name || 'Your organization'} has ${studentCount || 0} ${args.include_inactive ? 'total' : 'active'} students, ${teacherCount || 0} teachers, and ${classCount || 0} classes.`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
     // Analyze class performance
     this.register({
       name: 'analyze_class_performance',
