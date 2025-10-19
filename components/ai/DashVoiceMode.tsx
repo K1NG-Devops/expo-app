@@ -106,6 +106,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       if (speaking && partial.length >= 2) {
         console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
         
+        // CRITICAL: Set abort flag FIRST to stop ongoing speech
+        abortSpeechRef.current = true;
+        
         // Immediately set speaking to false to prevent race conditions
         setSpeaking(false);
         
@@ -115,6 +118,10 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
             // Stop all TTS (both device TTS and audio manager)
             await dashInstance?.stopSpeaking?.();
             console.log('[DashVoiceMode] ✅ Speech stopped successfully');
+            
+            // Reset state for next input
+            processedRef.current = false;
+            setAiResponse('');
             
             // Provide haptic feedback for interruption
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }

@@ -2973,37 +2973,54 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   }
 
   /**
-   * Stop current speech - stops both device TTS and audio manager
+   * Stop current speech - IMMEDIATELY stops all audio sources
+   * This is a CRITICAL function for interrupt handling
    */
   public async stopSpeaking(): Promise<void> {
     try {
-      console.log('[Dash] 🛑 Stopping all speech playback...');
+      console.log('[Dash] 🛑 IMMEDIATE STOP - Stopping all speech playback...');
       
-      // Stop device TTS (expo-speech)
+      // Execute all stop operations in parallel for immediate effect
+      const stopOperations = [];
+      
+      // Stop device TTS (expo-speech) - HIGHEST PRIORITY
       if (Speech && typeof Speech.stop === 'function') {
-        await Speech.stop();
-        console.log('[Dash] ✅ Device TTS stopped');
+        stopOperations.push(
+          Speech.stop().then(() => console.log('[Dash] ✅ Device TTS stopped'))
+        );
       }
       
       // Stop audio manager (Azure TTS)
-      try {
-        const { audioManager } = await import('@/lib/voice/audio');
-        await audioManager.stop();
-        console.log('[Dash] ✅ Audio manager stopped');
-      } catch (e) {
-        console.warn('[Dash] ⚠️ Audio manager stop warning:', e);
-      }
+      stopOperations.push(
+        (async () => {
+          try {
+            const { audioManager } = await import('@/lib/voice/audio');
+            await audioManager.stop();
+            console.log('[Dash] ✅ Audio manager stopped');
+          } catch (e) {
+            console.warn('[Dash] ⚠️ Audio manager stop warning:', e);
+          }
+        })()
+      );
       
       // Stop voice controller if using Phase 4 architecture
       if (this.voiceController) {
-        await this.voiceController.stopSpeaking();
-        console.log('[Dash] ✅ Voice controller stopped');
+        stopOperations.push(
+          this.voiceController.stopSpeaking().then(() => console.log('[Dash] ✅ Voice controller stopped'))
+        );
       }
+      
+      // Wait for all stop operations to complete (with timeout)
+      await Promise.race([
+        Promise.all(stopOperations),
+        new Promise((resolve) => setTimeout(resolve, 500)) // 500ms timeout
+      ]);
       
       console.log('[Dash] ✅ All speech stopped successfully');
     } catch (error) {
       console.error('[Dash] ❌ Failed to stop speaking:', error);
-      throw error; // Propagate error so callers know stop failed
+      // Don't throw - we want stop to be as robust as possible
+      // Throwing could prevent cleanup in the caller
     }
   }
 
