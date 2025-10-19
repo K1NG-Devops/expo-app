@@ -20,49 +20,49 @@ interface OrgTypeOption {
 
 const ORG_TYPE_OPTIONS: OrgTypeOption[] = [
   {
-    type: 'preschool',
+    type: OrganizationType.PRESCHOOL,
     displayName: 'Preschool / Nursery',
     description: 'Early childhood education for ages 0-6',
     icon: '👶',
   },
   {
-    type: 'k12_school',
+    type: OrganizationType.K12_SCHOOL,
     displayName: 'K-12 School',
     description: 'Primary and secondary education',
     icon: '🎒',
   },
   {
-    type: 'university',
+    type: OrganizationType.UNIVERSITY,
     displayName: 'University / College',
     description: 'Higher education and degree programs',
     icon: '🎓',
   },
   {
-    type: 'corporate',
+    type: OrganizationType.CORPORATE,
     displayName: 'Corporate Training',
     description: 'Employee development and training programs',
     icon: '💼',
   },
   {
-    type: 'sports_club',
+    type: OrganizationType.SPORTS_CLUB,
     displayName: 'Sports Club / Academy',
     description: 'Athletic training and team management',
     icon: '⚽',
   },
   {
-    type: 'community_org',
+    type: OrganizationType.COMMUNITY_ORG,
     displayName: 'Community Organization',
     description: 'NGOs, clubs, and community programs',
     icon: '🤝',
   },
   {
-    type: 'training_center',
+    type: OrganizationType.TRAINING_CENTER,
     displayName: 'Training Center',
     description: 'Skills development and certification programs',
     icon: '📚',
   },
   {
-    type: 'tutoring_center',
+    type: OrganizationType.TUTORING_CENTER,
     displayName: 'Tutoring Center',
     description: 'Private tutoring and academic support',
     icon: '✏️',

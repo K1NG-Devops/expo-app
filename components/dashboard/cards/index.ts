@@ -23,3 +23,6 @@ export const WIDGET_COMPONENTS = {
 } as const;
 
 export type WidgetKey = keyof typeof WIDGET_COMPONENTS;
+
+// Legacy alias for backwards compatibility
+export const DASHBOARD_CARDS = WIDGET_COMPONENTS;

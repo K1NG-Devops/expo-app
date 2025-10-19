@@ -4,8 +4,8 @@ import { FlashList } from '@shopify/flash-list';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgeGroup } from '@/lib/hooks/useAgeGroup';
 import { useFeatureFlags } from '@/lib/hooks/useFeatureFlags';
-import { DashboardRegistry } from './registry/DashboardRegistry';
-import { DASHBOARD_CARDS } from './cards';
+import { getWidgetsForContext, getHubType } from '@/lib/dashboard/DashboardRegistry';
+import { WIDGET_COMPONENTS } from './cards';
 import type { OrganizationType } from '@/lib/types/organization';
 
 interface DashboardRouterProps {
@@ -47,11 +47,14 @@ export function DashboardRouter({
   const applicableWidgets = useMemo(() => {
     if (!profile || !ageData || !featureFlags) return [];
 
-    const widgets = DashboardRegistry.getWidgetsForHub(
-      hubType,
-      effectiveOrgType as OrganizationType,
-      ageData.ageGroup
-    );
+    // Map hub type to role for context
+    const contextRole = profile.role || 'student';
+    
+    const widgets = getWidgetsForContext({
+      role: contextRole,
+      orgType: effectiveOrgType as OrganizationType,
+      ageGroup: ageData.ageGroup
+    });
 
     // Filter by feature flags
     return widgets.filter(widget => {
@@ -93,10 +96,10 @@ export function DashboardRouter({
       <FlashList
         data={applicableWidgets}
         renderItem={({ item }) => {
-          const WidgetComponent = DASHBOARD_CARDS[item.component];
+          const WidgetComponent = WIDGET_COMPONENTS[item.key as keyof typeof WIDGET_COMPONENTS];
           
           if (!WidgetComponent) {
-            console.warn(`Widget component not found: ${item.component}`);
+            console.warn(`Widget component not found: ${item.key}`);
             return null;
           }
 
@@ -106,7 +109,7 @@ export function DashboardRouter({
               {debug && (
                 <View style={styles.debugBadge}>
                   <Text style={styles.debugBadgeText}>
-                    {item.name} | Order: {item.displayOrder} | Feature: {item.featureKey || 'none'}
+                    {item.name} | Order: {item.order} | Feature: {item.featureKey || 'none'}
                   </Text>
                 </View>
               )}
@@ -114,7 +117,7 @@ export function DashboardRouter({
           );
         }}
         estimatedItemSize={200}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.key}
         contentContainerStyle={styles.listContent}
       />
     </View>
