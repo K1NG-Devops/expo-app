@@ -230,6 +230,10 @@ export class DashToolRegistry {
       },
       risk: 'low',
       execute: async (args) => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         dash.openTeacherMessageComposer(args.subject, args.body);
         return { opened: true };
       }
@@ -245,6 +249,10 @@ export class DashToolRegistry {
       },
       risk: 'low',
       execute: async () => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return dash.getCurrentScreenContext();
       }
     });
@@ -259,6 +267,10 @@ export class DashToolRegistry {
       },
       risk: 'low',
       execute: async () => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return dash.getActiveTasks();
       }
     });
@@ -1066,6 +1078,172 @@ export class DashToolRegistry {
           return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
+    // ========================================
+    // CAPS Curriculum Tools (South African CAPS Database)
+    // ========================================
+
+    // Search CAPS curriculum documents
+    this.register({
+      name: 'search_caps_curriculum',
+      description: 'Search South African CAPS curriculum documents by topic, grade, or subject. Use this when teachers ask about curriculum requirements, learning outcomes, or official curriculum guidelines.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search query (topic, learning outcome, concept)'
+          },
+          grade: {
+            type: 'string',
+            description: 'Grade level (e.g., "R-3", "4-6", "7-9", "10-12", or specific like "10")'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name (e.g., Mathematics, English, Physical Sciences, Life Sciences)'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of results (default: 5)'
+          }
+        },
+        required: ['query']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const CAPSService = await import('../DashCAPSKnowledge');
+          const results = await CAPSService.searchCurriculum(args.query, {
+            grade: args.grade,
+            subject: args.subject,
+            limit: args.limit || 5
+          });
+
+          if (results.length === 0) {
+            return {
+              success: true,
+              found: false,
+              message: `No CAPS documents found for "${args.query}"${args.grade ? ` in grade ${args.grade}` : ''}${args.subject ? ` for ${args.subject}` : ''}`
+            };
+          }
+
+          return {
+            success: true,
+            found: true,
+            count: results.length,
+            documents: results.map(r => ({
+              id: r.document.id,
+              title: r.document.title,
+              subject: r.document.subject,
+              grade: r.document.grade,
+              document_type: r.document.document_type,
+              file_url: r.document.file_url,
+              excerpt: r.excerpt || 'Preview not available',
+              relevance: r.relevance_score
+            }))
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to search CAPS curriculum'
+          };
+        }
+      }
+    });
+
+    // Get CAPS documents for specific grade and subject
+    this.register({
+      name: 'get_caps_documents',
+      description: 'Get official CAPS curriculum documents for a specific grade and subject. Returns the official Department of Basic Education curriculum documents.',
+      parameters: {
+        type: 'object',
+        properties: {
+          grade: {
+            type: 'string',
+            description: 'Grade level (e.g., "R-3", "4-6", "7-9", "10-12")'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name (e.g., Mathematics, English HL, Afrikaans, Physical Sciences)'
+          }
+        },
+        required: ['grade', 'subject']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const CAPSService = await import('../DashCAPSKnowledge');
+          const documents = await CAPSService.getDocumentsByGradeAndSubject(
+            args.grade,
+            args.subject
+          );
+
+          if (documents.length === 0) {
+            return {
+              success: true,
+              found: false,
+              message: `No CAPS documents found for ${args.subject} in grade ${args.grade}`
+            };
+          }
+
+          return {
+            success: true,
+            found: true,
+            count: documents.length,
+            documents: documents.map(doc => ({
+              id: doc.id,
+              title: doc.title,
+              subject: doc.subject,
+              grade: doc.grade,
+              document_type: doc.document_type,
+              file_url: doc.file_url,
+              year: doc.year,
+              source: 'Department of Basic Education'
+            }))
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get CAPS documents'
+          };
+        }
+      }
+    });
+
+    // Get available CAPS subjects for a grade
+    this.register({
+      name: 'get_caps_subjects',
+      description: 'Get list of available subjects in the CAPS curriculum database for a specific grade level.',
+      parameters: {
+        type: 'object',
+        properties: {
+          grade: {
+            type: 'string',
+            description: 'Grade level (e.g., "R-3", "4-6", "7-9", "10-12")'
+          }
+        },
+        required: ['grade']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const CAPSService = await import('../DashCAPSKnowledge');
+          const subjects = await CAPSService.getSubjectsByGrade(args.grade);
+
+          return {
+            success: true,
+            grade: args.grade,
+            count: subjects.length,
+            subjects: subjects
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to get subjects'
           };
         }
       }

@@ -3201,6 +3201,15 @@ EDUCATIONAL CONTENT GENERATION:
 - After generating content, ALWAYS end with: "I've prepared this content for you. You'll see a prompt to download it as a PDF."
 - Use markdown formatting for structure (**, ##) but keep content clear and printable
 
+CAPS CURRICULUM INTEGRATION (South African Education):
+- You have access to official South African CAPS (Curriculum and Assessment Policy Statements) documents from the Department of Basic Education
+- When teachers ask about curriculum requirements, learning outcomes, assessment standards, or lesson alignment for grades R-12, use the search_caps_curriculum tool
+- For specific grade and subject queries (e.g., "Grade 10 Mathematics CAPS"), use get_caps_documents to retrieve official DBE materials
+- Always reference CAPS-specific learning outcomes, content areas, and annual teaching plans when planning lessons for SA schools
+- When suggesting assessments, exam preparation, or worksheets, ensure alignment with CAPS standards and official curriculum documents
+- Use CAPS documents to validate topic sequencing, assessment tasks, and curriculum coverage
+- Available CAPS subjects include: Mathematics, English HL, Afrikaans, Physical Sciences, Life Sciences, and various home languages
+
 SPECIAL DASHBOARD ACTIONS:
 - If user asks about dashboard layouts, include dashboard_action in response
 - For lesson planning requests, suggest opening the lesson generator
@@ -4411,7 +4420,12 @@ RESPONSE GUIDELINES:
 - Reference educational best practices when relevant
 - Use a warm but professional tone
 - Keep responses focused and avoid unnecessary elaboration
-- When suggesting actions, be specific about next steps`;
+- When suggesting actions, be specific about next steps
+
+CAPS CURRICULUM ACCESS:
+- You have access to official South African CAPS curriculum documents (Department of Basic Education)
+- For curriculum/lesson queries about grades R-12, use search_caps_curriculum and get_caps_documents tools
+- Always align educational content with CAPS learning outcomes and assessment standards when applicable`;
       
       if (roleSpec && this.userProfile?.role) {
         systemPrompt += `
