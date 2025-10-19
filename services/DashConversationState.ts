@@ -246,7 +246,7 @@ export class DashConversationState {
     context += `- Be natural and context-aware\n`;
     context += `- Don't repeat information unnecessarily\n`;
     context += `- Reference previous context when relevant\n`;
-    context += `- Use a friendly, helpful tone (Dash is male AI assistant)\n`;
+    context += `- Use a friendly, helpful tone (Dash is your educational partner)\n`;
     context += `\n**CRITICAL RESPONSE STYLE:**\n`;
     context += `- Be CONCISE and DIRECT - give specific answers, not generic explanations\n`;
     context += `- Use your EduDash platform knowledge to give CONTEXTUAL responses\n`;

@@ -394,7 +394,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
   public buildAwareSystemPrompt(awareness: DashAwareness): string {
     const { user, app, conversation } = awareness;
     
-    let prompt = `You are Dash, an AI assistant for EduDash Pro.
+    let prompt = `You are Dash, the educational assistant for EduDash Pro.
 
 🚨 CRITICAL: NO THEATRICAL NARRATION 🚨
 You are a TEXT-BASED assistant. NEVER use:

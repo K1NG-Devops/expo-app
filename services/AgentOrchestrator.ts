@@ -277,7 +277,7 @@ export class AgentOrchestratorClass implements IAgentOrchestrator {
         body: {
           action: 'chat',
           messages: [
-            { role: 'system', content: 'You are a helpful AI assistant reflecting on task execution.' },
+            { role: 'system', content: 'You are Dash reflecting on task execution.' },
             { role: 'user', content: reflectionPrompt }
           ],
           model: 'claude-3-haiku',

@@ -49,6 +49,7 @@ export interface DashMessage {
   metadata?: {
     context?: string;
     confidence?: number;
+    detected_language?: string;
     suggested_actions?: string[];
     references?: Array<{
       type: 'lesson' | 'student' | 'assignment' | 'resource' | 'parent' | 'class' | 'task';
@@ -193,6 +194,23 @@ export interface DashMemoryItem {
   emotional_weight?: number; // How emotionally significant this memory is
   retrieval_frequency?: number; // How often this memory is accessed
   tags?: string[];
+  importance?: number; // 0-1 scale for memory prioritization
+  accessed_count?: number; // Track memory retrieval frequency
+}
+
+// Autonomy and Decision Types
+export type AutonomyLevel = 'observer' | 'assistant' | 'partner' | 'autonomous';
+export type RiskLevel = 'low' | 'medium' | 'high';
+
+export interface DecisionRecord {
+  id: string;
+  timestamp: number;
+  action: DashAction;
+  risk: RiskLevel;
+  confidence: number;
+  requiresApproval: boolean;
+  createdAt: number;
+  context: Record<string, any>;
 }
 
 export interface DashUserProfile {
@@ -3525,9 +3543,10 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
         : 'bin';
       const fileName = `dash_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
 
-      // Choose a platform-specific prefix for easier tracing
-      const prefix = Platform.OS === 'web' ? 'web' : Platform.OS;
-      storagePath = `${prefix}/${userId}/${fileName}`;
+      // Storage path for RLS: user_id/filename (RLS policy requires first folder to be user's ID)
+      storagePath = `${userId}/${fileName}`;
+      
+      if (__DEV__) console.log('[Dash] Voice upload path:', storagePath, 'Platform:', Platform.OS);
 
       // Upload to Supabase Storage (voice-notes bucket)
       let uploadResult;
@@ -3766,11 +3785,11 @@ RESPONSE FORMAT: You must respond with practical advice and suggest 2-4 relevant
   private getPersonalizedGreeting(role: string): string {
     switch (role?.toLowerCase()) {
       case 'teacher':
-        return "Hello! I'm Dash, your AI teaching assistant. Ready to create amazing learning experiences together?";
+        return "Hello! I'm Dash, your teaching partner. Ready to create amazing learning experiences together?";
       case 'principal':
-        return "Good day! I'm Dash, your educational AI assistant. How can I help you lead your school to success today?";
+        return "Good day! I'm Dash, here to help you lead your school to success today.";
       case 'parent':
-        return "Hi there! I'm Dash, here to support your child's educational journey. How can I assist you today?";
+        return "Hi there! I'm Dash, here to support your child's educational journey. What can I help with today?";
       default:
         return DEFAULT_PERSONALITY.greeting;
     }
@@ -4883,6 +4902,83 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
     if (this.proactiveTimer) {
       clearInterval(this.proactiveTimer);
       this.proactiveTimer = null;
+    }
+  }
+
+  /**
+   * Dispose and clean up all resources (comprehensive cleanup)
+   */
+  public dispose(): void {
+    console.log('[Dash] Disposing DashAIAssistant instance...');
+    
+    // Stop any ongoing operations
+    this.cleanup();
+    
+    // Clear audio resources
+    if (this.recordingObject) {
+      this.recordingObject.stopAndUnloadAsync().catch(() => {});
+      this.recordingObject = null;
+    }
+    if (this.soundObject) {
+      this.soundObject.unloadAsync().catch(() => {});
+      this.soundObject = null;
+    }
+    
+    // Clear caches and state
+    this.clearCache();
+    this.memory.clear();
+    this.activeTasks.clear();
+    this.activeReminders.clear();
+    this.pendingInsights.clear();
+    this.interactionHistory = [];
+    
+    console.log('[Dash] Disposal complete');
+  }
+
+  /**
+   * Clear context cache
+   */
+  public clearCache(): void {
+    console.log('[Dash] Clearing context cache...');
+    this.contextCache.clear();
+  }
+
+  /**
+   * Get all memory items as array
+   */
+  public getAllMemoryItems(): DashMemoryItem[] {
+    return Array.from(this.memory.values());
+  }
+
+  /**
+   * Pre-warm audio recorder for faster voice input
+   */
+  public async preWarmRecorder(): Promise<void> {
+    try {
+      console.log('[Dash] Pre-warming audio recorder...');
+      
+      // Skip on web platform
+      if (Platform.OS === 'web') {
+        console.debug('[Dash] Skipping recorder pre-warm on web');
+        return;
+      }
+      
+      // Request permissions if not already granted
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.warn('[Dash] Audio permissions not granted');
+        return;
+      }
+      
+      // Create and immediately release a recording to warm up the system
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await recording.stopAndUnloadAsync();
+      
+      console.log('[Dash] Recorder pre-warmed successfully');
+    } catch (error) {
+      console.warn('[Dash] Failed to pre-warm recorder:', error);
+      // Non-critical failure, continue silently
     }
   }
 }

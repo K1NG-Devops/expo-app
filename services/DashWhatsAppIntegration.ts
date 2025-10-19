@@ -393,7 +393,7 @@ export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
     return {
       id: 'dash_introduction',
       type: 'onboarding',
-      content: `Meet Dash! 🤖 Your AI assistant can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
+      content: `Meet Dash! 🤖 I can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
       quick_replies: [
         { id: 'try_dash', title: '🚀 Try Dash Now', action: 'start_dash_conversation' },
         { id: 'dashboard', title: '📊 Open Dashboard', action: 'open_dashboard' },
