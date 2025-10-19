@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { toast } from '@/components/ui/ToastProvider';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
+import { DashResponseCache } from '@/services/DashResponseCache';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.5;
@@ -220,6 +221,39 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     try {
       processedRef.current = true;
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
+      
+      // Check cache first for instant response
+      const cachedResponse = DashResponseCache.get(transcript);
+      if (cachedResponse) {
+        console.log('[DashVoiceMode] ⚡ Using cached response!');
+        
+        // Create response message
+        const response: DashMessage = {
+          id: `cached_${Date.now()}`,
+          type: 'assistant',
+          content: cachedResponse,
+          timestamp: Date.now(),
+          metadata: {
+            detected_language: activeLang,
+          },
+        };
+        
+        setAiResponse(cachedResponse);
+        onMessageSent?.(response);
+        
+        // Speak cached response
+        abortSpeechRef.current = false;
+        setSpeaking(true);
+        await speakText(cachedResponse);
+        
+        if (!abortSpeechRef.current) {
+          setSpeaking(false);
+          processedRef.current = false;
+          setUserTranscript('');
+          setAiResponse('');
+        }
+        return;
+      }
       
       // Send message to AI
       console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
