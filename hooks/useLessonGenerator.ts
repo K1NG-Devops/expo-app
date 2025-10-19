@@ -5,7 +5,6 @@ import { toast } from '@/components/ui/ToastProvider';
 import { track } from '@/lib/analytics';
 import { assertSupabase } from '@/lib/supabase';
 import { incrementUsage, logUsageEvent } from '@/lib/ai/usage';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type LessonGenOptions = {
   topic: string;
@@ -67,10 +66,13 @@ export function useLessonGenerator() {
       });
 
       return lessonText;
-    } catch (e: any) {
+      } catch (e: any) {
       // Fallback: use Dash assistant to generate if edge function fails
       try {
-        const dash = DashAIAssistant.getInstance();
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         if (!dash.getCurrentConversationId()) {
           await dash.startNewConversation('AI Lesson Generator');

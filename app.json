@@ -21,7 +21,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.k1ngdevops.edudashpro"
+      "bundleIdentifier": "com.k1ngdevops.edudashpro",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone so Dash can hear your questions and provide voice responses."
+      }
     },
     "android": {
       "adaptiveIcon": {

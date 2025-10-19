@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { validateUserAccess, routeAfterLogin } from '@/lib/routeAfterLogin';
 import { fetchEnhancedUserProfile, type Role } from '@/lib/rbac';
 import { track } from '@/lib/analytics';
@@ -49,12 +50,29 @@ const ROLES = [
  */
 export default function ProfilesGateScreen() {
   const { user, profile, refreshProfile, loading, signOut } = useAuth();
+  const { isOnboardingComplete } = useOnboarding();
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessValidation, setAccessValidation] = useState<ReturnType<typeof validateUserAccess> | null>(null);
   const navigationInProgressRef = useRef(false);
 
   useEffect(() => {
+    // Check if user needs onboarding (missing DOB, org type, etc.)
+    const checkOnboardingNeeded = async () => {
+      if (!profile || !user) return;
+
+      // Check if user has completed basic onboarding requirements
+      const needsOnboarding = !profile.date_of_birth;
+
+      if (needsOnboarding && !isOnboardingComplete && !navigationInProgressRef.current) {
+        console.log('Profiles-gate: User needs onboarding, redirecting...');
+        navigationInProgressRef.current = true;
+        router.replace('/onboarding');
+        return true;
+      }
+      return false;
+    };
+
     // Special case: If user came from biometric login and has no profile data,
     // they might be an existing user - try to detect their role
     const handleExistingUser = async () => {
@@ -86,14 +104,19 @@ export default function ProfilesGateScreen() {
     };
 
     if (profile) {
-      const validation = validateUserAccess(profile);
-      setAccessValidation(validation);
-      
-      // If user has valid access, route them appropriately
-      if (validation.hasAccess && !navigationInProgressRef.current) {
-        navigationInProgressRef.current = true;
-        routeAfterLogin(user, profile).catch(console.error);
-      }
+      // Check onboarding first
+      checkOnboardingNeeded().then(needsOnboarding => {
+        if (needsOnboarding) return; // Already redirected
+
+        const validation = validateUserAccess(profile);
+        setAccessValidation(validation);
+        
+        // If user has valid access, route them appropriately
+        if (validation.hasAccess && !navigationInProgressRef.current) {
+          navigationInProgressRef.current = true;
+          routeAfterLogin(user, profile).catch(console.error);
+        }
+      });
     } else {
       // Try to handle existing users who may not have proper profile data
       handleExistingUser();

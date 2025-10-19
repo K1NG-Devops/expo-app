@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
@@ -33,6 +33,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useVoiceUI } from '@/components/voice/VoiceUIController';
 import { assertSupabase } from '@/lib/supabase';
 import { 
   pickDocuments, 
@@ -71,6 +72,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
+  const voiceUI = useVoiceUI();
 
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
@@ -81,7 +83,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   useEffect(() => {
     const initializeDash = async () => {
       try {
-        const dash = DashAIAssistant.getInstance();
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: DashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         setDashInstance(dash);
         setIsInitialized(true);
@@ -1089,6 +1094,24 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
 
+          {/* Voice (Orb) - Always Blue */}
+          <TouchableOpacity
+            style={styles.iconButton}
+            accessibilityLabel="Voice Assistant"
+            onPress={async () => {
+              try {
+                const storedLang = await AsyncStorage.getItem('@dash_voice_language');
+                const detectedLang = storedLang ? storedLang.toLowerCase() : 'en';
+                await voiceUI.open({ language: detectedLang, tier });
+              } catch (error) {
+                console.error('[DashAssistant] Voice UI open failed:', error);
+                await voiceUI.open({ language: 'en', tier });
+              }
+            }}
+          >
+            <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color="#007AFF" />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Command Palette"
@@ -1227,15 +1250,23 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 style={[
                   styles.recordButton,
                   { 
-                    backgroundColor: isRecording ? theme.error : theme.accent 
+                    backgroundColor: theme.accent 
                   }
                 ]}
-                onLongPress={startRecording}
-                onPressOut={stopRecording}
+                onPress={async () => {
+                  try {
+                    const storedLang = await AsyncStorage.getItem('@dash_voice_language');
+                    const detectedLang = storedLang ? storedLang.toLowerCase() : 'en';
+                    await voiceUI.open({ language: detectedLang, tier });
+                  } catch (error) {
+                    console.error('[DashAssistant] Voice UI open failed:', error);
+                    await voiceUI.open({ language: 'en', tier });
+                  }
+                }}
                 disabled={isLoading}
               >
                 <Ionicons 
-                  name={isRecording ? "stop" : "mic"} 
+                  name="mic" 
                   size={20} 
                   color={theme.onAccent} 
                 />

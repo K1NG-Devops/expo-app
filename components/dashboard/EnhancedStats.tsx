@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { Ionicons } from '@expo/vector-icons'
 import { useTranslation } from 'react-i18next'
+import { useOrgType } from '@/lib/hooks/useOrganizationTerminology'
 
 interface EnhancedStatProps {
   label: string
@@ -67,19 +68,35 @@ export const EnhancedStatsRow: React.FC<EnhancedStatsRowProps> = ({
   aiLessonsLimit
 }) => {
   const { t } = useTranslation('common')
+  const { isPreschool, isK12, isCorporate, isSportsClub } = useOrgType()
+  
+  // Organization-aware helper label
+  const aiHelperLabel = isCorporate 
+    ? t('quick_actions.ai_learning_assistant', { defaultValue: 'AI Learning Assistant' })
+    : isSportsClub
+    ? t('quick_actions.ai_training_helper', { defaultValue: 'AI Training Helper' })
+    : t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })
+  
+  // Organization-aware lessons label
+  const aiLessonsLabel = isCorporate
+    ? t('quick_actions.ai_training_modules', { defaultValue: 'AI Training Modules' })
+    : isSportsClub
+    ? t('quick_actions.ai_training_sessions', { defaultValue: 'AI Training Sessions' })
+    : t('quick_actions.ai_lessons', { defaultValue: 'AI Lessons' })
+  
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>{t('dashboard.usageLimits', { defaultValue: 'Usage Limits' })}</Text>
       <View style={styles.statsRow}>
         <EnhancedStat
-          label={t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })}
+          label={aiHelperLabel}
           value={aiHelp}
           limit={aiHelpLimit}
           icon="help-circle"
           gradientColors={['#00f5ff', '#0080ff']}
         />
         <EnhancedStat
-          label={t('quick_actions.ai_lessons', { defaultValue: 'AI Lessons' })}
+          label={aiLessonsLabel}
           value={aiLessons}
           limit={aiLessonsLimit}
           icon="school"

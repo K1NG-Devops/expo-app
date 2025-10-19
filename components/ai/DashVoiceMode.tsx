@@ -12,16 +12,15 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
+import { getDefaultVoiceProvider, type VoiceSession } from '@/lib/voice/unifiedProvider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useVoicePreferences } from '@/lib/voice/hooks';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { toast } from '@/components/ui/ToastProvider';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
-import { playOrbSound, stopOrbSound } from '@/lib/audio/soundManager';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.5;
@@ -48,6 +47,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   const [streamingEnabled, setStreamingEnabled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const abortSpeechRef = useRef(false); // Flag to abort ongoing speech
+  const sessionRef = useRef<VoiceSession | null>(null);
   
   // Debug logging on state changes
   useEffect(() => {
@@ -91,73 +91,97 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
 
   const processedRef = useRef(false);
 
-  const realtime = useRealtimeVoice({
-    enabled: streamingEnabled,
-    language: activeLang,
-    transcriptionModel: 'whisper-1', // OpenAI Realtime only supports whisper-1
-    vadSilenceMs: 700, // 700ms of silence triggers end-of-speech detection
-    onPartialTranscript: (t) => {
-      const partial = String(t || '').trim();
-      console.log('[DashVoiceMode] 🎤 Partial transcript:', partial);
-      setUserTranscript(partial);
-      
-      // Interrupt Dash if user starts speaking while Dash is responding
-      // Even short words should interrupt (improved sensitivity)
-      if (speaking && partial.length >= 2) {
-        console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
+  // Initialize voice session when visible
+  useEffect(() => {
+    if (!visible) return;
+    
+    let cancelled = false;
+    
+    (async () => {
+      try {
+        if (__DEV__) console.log('[DashVoiceMode] 🎤 Initializing Claude + Deepgram session...');
         
-        // CRITICAL: Set abort flag FIRST to stop ongoing speech
-        abortSpeechRef.current = true;
+        const provider = await getDefaultVoiceProvider(activeLang);
+        if (cancelled) return;
         
-        // Immediately set speaking to false to prevent race conditions
-        setSpeaking(false);
+        const session = provider.createSession();
+        sessionRef.current = session;
         
-        // Stop speech asynchronously (properly awaited)
-        (async () => {
-          try {
-            // Stop all TTS (both device TTS and audio manager)
-            await dashInstance?.stopSpeaking?.();
-            console.log('[DashVoiceMode] ✅ Speech stopped successfully');
+        const ok = await session.start({
+          language: activeLang,
+          onPartial: (text) => {
+            if (!cancelled) {
+              const partial = String(text || '').trim();
+              console.log('[DashVoiceMode] 🎤 Partial transcript:', partial);
+              setUserTranscript(partial);
+              
+              // Interrupt Dash if user starts speaking while Dash is responding
+              if (speaking && partial.length >= 2) {
+                console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
+                setSpeaking(false);
+                
+                (async () => {
+                  try {
+                    await dashInstance?.stopSpeaking?.();
+                    console.log('[DashVoiceMode] ✅ Speech stopped successfully');
+                    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+                  } catch (e) {
+                    console.warn('[DashVoiceMode] Failed to stop speech:', e);
+                  }
+                })();
+              }
+            }
+          },
+          onFinal: async (text) => {
+            if (cancelled || processedRef.current) return;
             
-            // Reset state for next input
-            processedRef.current = false;
-            setAiResponse('');
+            const transcript = String(text || '').trim();
+            console.log('[DashVoiceMode] ✅ Final transcript received:', transcript);
+            setUserTranscript(transcript);
             
-            // Provide haptic feedback for interruption
-            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }
-          } catch (e) {
-            console.warn('[DashVoiceMode] Failed to stop speech:', e);
-          }
-        })();
+            if (!transcript) {
+              console.warn('[DashVoiceMode] ⚠️ Empty transcript, skipping');
+              return;
+            }
+            
+            await handleTranscript(transcript);
+          },
+        });
+        
+        if (cancelled) return;
+        
+        if (ok) {
+          setStreamingEnabled(true);
+          setReady(true);
+          if (__DEV__) console.log('[DashVoiceMode] ✅ Voice session ready');
+        } else {
+          setErrorMessage('Failed to start voice recognition');
+          if (__DEV__) console.warn('[DashVoiceMode] ⚠️ Voice session failed to start');
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[DashVoiceMode] ❌ Initialization error:', e);
+          setErrorMessage('Voice initialization failed');
+        }
       }
-    },
-    onFinalTranscript: async (t) => {
-      const transcript = String(t || '').trim();
-      console.log('[DashVoiceMode] ✅ Final transcript received:', transcript);
-      console.log('[DashVoiceMode] 🔍 Processing state:', {
-        alreadyProcessed: processedRef.current,
-        isEmpty: !transcript,
-        willProcess: transcript && !processedRef.current
-      });
-      setUserTranscript(transcript);
-      if (!transcript) {
-        console.warn('[DashVoiceMode] ⚠️ Empty transcript, skipping');
-        return;
-      }
-      if (processedRef.current) {
-        console.warn('[DashVoiceMode] ⚠️ Already processed, skipping duplicate');
-        return;
-      }
-      await handleTranscript(transcript);
-    },
-    onAssistantToken: (tok) => {
-      // Real-time assistant token streaming (not used in this mode)
-      console.log('[DashVoiceMode] 🤖 Assistant token (unused):', tok?.substring(0, 20));
-    },
-    onStatusChange: (status) => {
-      console.log('[DashVoiceMode] 📡 Realtime status changed:', status);
-    },
-  });
+    })();
+    
+    return () => {
+      cancelled = true;
+      if (__DEV__) console.log('[DashVoiceMode] 🧹 Cleanup: stopping session...');
+      sessionRef.current?.stop().catch(() => {});
+    };
+  }, [visible, activeLang]);
+
+  // Simple status tracking for UI
+  const isConnected = streamingEnabled && ready;
+  const [muted, setMuted] = useState(false);
+  
+  const toggleMute = () => {
+    const newMuted = !muted;
+    setMuted(newMuted);
+    sessionRef.current?.setMuted?.(newMuted);
+  };
 
   const handleTranscript = async (transcript: string) => {
     if (!dashInstance) {
@@ -170,9 +194,6 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     try {
       processedRef.current = true;
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
-      
-      // Play thinking sound
-      playOrbSound('thinking', { loop: true }).catch(() => {});
       
       // Send message to AI
       console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
@@ -190,10 +211,6 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       
       const responseText = response.content || '';
       setAiResponse(responseText);
-      
-      // Stop thinking sound, play response sound
-      stopOrbSound('thinking').catch(() => {});
-      playOrbSound('response').catch(() => {});
       
       // Notify parent component BEFORE speaking (so UI updates immediately)
       console.log('[DashVoiceMode] Calling onMessageSent callback');
@@ -311,125 +328,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     }
   };
 
-  // Check streaming availability
-  useEffect(() => {
-    (async () => {
-      try {
-        const env = String(process.env.EXPO_PUBLIC_DASH_STREAMING || '').toLowerCase() === 'true';
-        const pref = await AsyncStorage.getItem('@dash_streaming_enabled');
-        const enabled = env || pref === 'true';
-        console.log('[DashVoiceMode] 🔧 Streaming config:', { env, pref, enabled });
-        setStreamingEnabled(enabled);
-      } catch (e) {
-        console.error('[DashVoiceMode] ❌ Failed to check streaming config:', e);
-      }
-    })();
-  }, []);
+  // No streaming setup needed - handled by voice session initialization above
 
-  // Start streaming when visible
-  useEffect(() => {
-    if (!visible) return;
-    
-    console.log('[DashVoiceMode] 🚀 Starting voice mode session');
-    
-    (async () => {
-      setUserTranscript('');
-      setAiResponse('');
-      setReady(false);
-      setErrorMessage('');
-      setRetryCount(0);
-      processedRef.current = false;
-      
-      // CRITICAL: Check if dashInstance is available before starting
-      if (!dashInstance) {
-        console.error('[DashVoiceMode] ❌ Cannot start: dashInstance is null!');
-        setErrorMessage('AI Assistant not initialized. Please wait and try again.');
-        try { toast.error?.('Please wait for AI to initialize'); } catch { /* Intentional: non-fatal */ }
-        setTimeout(() => onClose(), 2500);
-        return;
-      }
-      
-      // Block indigenous SA languages (zu, xh, nso) - they MUST use Azure, not OpenAI Realtime
-      const isIndigenous = ['zu', 'xh', 'nso'].includes(activeLang);
-      if (isIndigenous) {
-        const langName = activeLang === 'zu' ? 'Zulu' : activeLang === 'xh' ? 'Xhosa' : 'Northern Sotho';
-        console.error('[DashVoiceMode] ❌ OpenAI Realtime does NOT support', langName);
-        setErrorMessage(`${langName} uses Azure Speech. Please use the recording button.`);
-        try { toast.error?.(`${langName} not supported in Voice Mode`); } catch { /* Intentional: non-fatal */ }
-        setTimeout(() => onClose(), 2500);
-        return;
-      }
-      
-      if (!streamingEnabled) {
-        console.error('[DashVoiceMode] ❌ Streaming not enabled!');
-        setErrorMessage('Voice streaming is disabled. Check settings.');
-        setTimeout(() => onClose(), 2000);
-        return;
-      }
-      
-      console.log('[DashVoiceMode] 🔌 Attempting to start realtime stream with language:', activeLang);
-      
-      // Save orb language preference to database (async, non-blocking)
-      // This ensures future sessions use the correct language
-      try {
-        const voiceService = (await import('@/lib/voice/client')).voiceService;
-        await voiceService.savePreferences({ language: activeLang as any });
-        console.log('[DashVoiceMode] ✅ Saved language preference:', activeLang);
-      } catch (e) {
-        console.warn('[DashVoiceMode] ⚠️ Failed to save language preference:', e);
-      }
-      
-      setErrorMessage('Connecting...');
-      const ok = await realtime.startStream();
-      console.log('[DashVoiceMode] 📡 Stream start result:', ok);
-      
-      if (ok) {
-        console.log('[DashVoiceMode] ✅ Stream started successfully!');
-        setReady(true);
-        setErrorMessage('');
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
-        // Start animations
-        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-        startPulseAnimation();
-      } else {
-        console.error('[DashVoiceMode] ❌ Failed to start stream!');
-        // Basic retry once
-        setErrorMessage('Connection failed. Retrying...');
-        setTimeout(async () => {
-          const retryOk = await realtime.startStream();
-          if (retryOk) {
-            setReady(true);
-            setErrorMessage('');
-            startPulseAnimation();
-          } else {
-            setErrorMessage('Unable to connect. Please try again later.');
-            setTimeout(() => onClose(), 2500);
-          }
-        }, 1000);
-      }
-    })();
-    
-    return () => {
-      console.log('[DashVoiceMode] 📴 Cleaning up voice mode session');
-      try { realtime.stopStream(); } catch { /* Intentional: non-fatal */ }
-      stopPulseAnimation();
-      setErrorMessage('');
-    };
-  }, [visible, streamingEnabled, activeLang]);
-
-  // If stream ends without explicit final event, use the last transcript
-  useEffect(() => {
-    if (!visible) return;
-    if (realtime.status === 'finished' && !processedRef.current) {
-      const tx = userTranscript.trim();
-      if (tx.length > 0) {
-        console.log('[DashVoiceMode] ⚠️ Using last transcript after finish');
-        handleTranscript(tx);
-      } else {
-        console.warn('[DashVoiceMode] ❗ Finished without transcript');
-      }
-    }
-  }, [realtime.status, userTranscript, visible]);
+  // No stream finish handling needed - voice session handles this automatically
 
   // Enhanced pulse animation for Society 5.0 - smoother, more organic
   const startPulseAnimation = () => {
@@ -454,8 +355,15 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   };
 
   const handleClose = async () => {
-    // Stop streaming
-    try { await realtime.stopStream(); } catch { /* Intentional: non-fatal */ }
+    // Stop voice session
+    if (sessionRef.current) {
+      try {
+        console.log('[DashVoiceMode] 🛑 Stopping voice session');
+        await sessionRef.current.stop();
+      } catch (e) {
+        console.warn('[DashVoiceMode] ⚠️ Error stopping voice session:', e);
+      }
+    }
     
     // Stop TTS playback
     console.log('[DashVoiceMode] 🛑 Stopping TTS on close');
@@ -482,7 +390,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     outputRange: [`${orbColor}00`, `${orbColor}60`],
   });
 
-  const isListening = ready && realtime.status === 'streaming';
+  const isListening = ready && isConnected && !speaking;
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
@@ -492,14 +400,14 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           size={ORB_SIZE}
           isListening={isListening && !speaking}
           isSpeaking={speaking}
-          isThinking={!ready || (realtime.status === 'connecting')}
-          audioLevel={0}  // TODO: Wire up actual audio level from realtime.audioLevel
+          isThinking={!ready || !isConnected}
+          audioLevel={0}  // TODO: Wire up actual audio level from voice session
         />
         
         {/* Status Icon Overlay */}
         <Animated.View style={[styles.statusIcon, { opacity: fadeAnim }]}>
           <Ionicons
-            name={speaking ? 'volume-high' : isListening ? (realtime.muted ? 'mic-off' : 'mic') : 'hourglass'}
+            name={speaking ? 'volume-high' : isListening ? (muted ? 'mic-off' : 'mic') : 'hourglass'}
             size={48}
             color="#fff"
           />
@@ -538,11 +446,11 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           <TouchableOpacity
             onPress={() => {
               try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Intentional: non-fatal */ }
-              realtime.toggleMute();
+              toggleMute();
             }}
-            style={[styles.muteButton, { backgroundColor: realtime.muted ? '#E53935' : '#3C3C3C' }]}
+            style={[styles.muteButton, { backgroundColor: muted ? '#E53935' : '#3C3C3C' }]}
           >
-            <Ionicons name={realtime.muted ? 'mic-off' : 'mic'} size={20} color="#fff" />
+            <Ionicons name={muted ? 'mic-off' : 'mic'} size={20} color="#fff" />
           </TouchableOpacity>
         )}
       </View>
@@ -550,7 +458,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       {/* Status Text */}
       <Animated.View style={[styles.statusContainer, { opacity: fadeAnim }]}>
         <Text style={[styles.statusTitle, { color: errorMessage ? theme.error : theme.text }]}>
-          {errorMessage || (speaking ? '🔊 Dash is speaking...' : isListening ? (realtime.muted ? 'Muted' : 'Listening...') : 'Connecting...')}
+          {errorMessage || (speaking ? '🔊 Dash is speaking...' : isListening ? (muted ? 'Muted' : 'Listening...') : 'Connecting...')}
         </Text>
         
         {!errorMessage && userTranscript && (

@@ -14,7 +14,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, Dimensions, Platfor
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
-import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTranslation } from 'react-i18next';

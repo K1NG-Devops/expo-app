@@ -81,6 +81,19 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
     try {
       setStatusSafe('connecting');
 
+      // Capability preflight gating before any provider attempts
+      try {
+        const { getVoiceCapabilities } = await import('@/lib/voice/capabilities');
+        const caps = await getVoiceCapabilities({ language, tier: subscriptionTier });
+        if (!caps.streamingAvailable) {
+          console.log('[RealtimeVoice] ⚠️ Streaming not available:', caps.streamingReasons);
+          setStatusSafe('error');
+          return false;
+        }
+      } catch (e) {
+        console.warn('[RealtimeVoice] Capability preflight failed (continuing cautiously):', e);
+      }
+
       // Resolve URL + token
       let wsUrl = url;
       let token = ''; let region = '';

@@ -936,7 +936,7 @@ export class DashAIAssistant {
     if (durationMins && durationMins >= 15 && durationMins <= 180) params.duration = String(durationMins);
 
     // Objectives: capture bullet points and sentences
-    const lines = fullTextRaw.split(/\n|;|•|\-/).map(s => s.trim()).filter(Boolean);
+    const lines = fullTextRaw.split(/\n|;|•|-/).map(s => s.trim()).filter(Boolean);
     const objectiveCandidates: string[] = [];
     const objectiveVerbs = /(objective|goal|aim|learn|understand|analyze|evaluate|create|apply|compare|describe|identify)/i;
     for (const ln of lines) {

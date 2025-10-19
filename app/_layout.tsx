@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import 'react-native-get-random-values';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, usePathname } from 'expo-router';
@@ -9,15 +10,57 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { TermsProvider } from '@/contexts/TerminologyContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
+import { VoiceUIProvider, useVoiceUI } from '@/components/voice/VoiceUIController';
+import type { DashAIAssistant } from '@/services/DashAIAssistant';
 
-// Inner component with access to AuthContext
+// Inner component with access to AuthContext and VoiceUI
 function LayoutContent() {
   const pathname = usePathname();
   const { loading: authLoading } = useAuth();
+  const voiceUI = useVoiceUI();
   const [showFAB, setShowFAB] = useState(false);
+  
+  // Enhanced FAB hiding logic (restore preview behavior)
+  const shouldHideFAB = useMemo(() => {
+    if (!pathname || typeof pathname !== 'string') return false;
+    
+    // Auth routes
+    if (pathname.startsWith('/(auth)') ||
+        pathname === '/sign-in' ||
+        pathname === '/(auth)/sign-in' ||
+        pathname.includes('auth-callback')) {
+      return true;
+    }
+    
+    // Landing routes (preview parity)
+    if (pathname === '/' ||
+        pathname === '/landing' ||
+        pathname.startsWith('/landing') ||
+        pathname.includes('welcome') ||
+        pathname.includes('onboarding')) {
+      return true;
+    }
+    
+    // Dash Assistant routes/modal (preview parity)
+    if (pathname.includes('dash-assistant') ||
+        pathname.includes('/screens/dash-assistant') ||
+        pathname.startsWith('/ai/dash') ||
+        pathname.startsWith('/ai/assistant')) {
+      return true;
+    }
+    
+    // Voice UI is open (any modal)
+    if (voiceUI.isOpen) {
+      return true;
+    }
+    
+    return false;
+  }, [pathname, voiceUI.isOpen]);
   
   const isAuthRoute = typeof pathname === 'string' && (
     pathname.startsWith('/(auth)') ||
@@ -53,7 +96,7 @@ function LayoutContent() {
       </Stack>
       
       {/* FAB (Floating Action Button) */}
-      {showFAB && !isAuthRoute && (
+      {showFAB && !shouldHideFAB && (
         <DashVoiceFloatingButton showWelcomeMessage={true} />
       )}
     </View>
@@ -61,6 +104,26 @@ function LayoutContent() {
 }
 
 export default function RootLayout() {
+  const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
+  
+  // Initialize Dash AI Assistant at root level
+  useEffect(() => {
+    (async () => {
+      try {
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: DashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (dash) {
+          await dash.initialize();
+          setDashInstance(dash);
+          if (__DEV__) console.log('[RootLayout] ✅ Dash initialized');
+        }
+      } catch (e) {
+        console.error('[RootLayout] Failed to initialize Dash:', e);
+      }
+    })();
+  }, []);
+  
   // Hide development navigation header on web
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -295,13 +358,19 @@ export default function RootLayout() {
         <QueryProvider>
           <AuthProvider>
             <ThemeProvider>
-              <DashboardPreferencesProvider>
-                <UpdatesProvider>
-                  <ToastProvider>
-                    <LayoutContent />
-                  </ToastProvider>
-                </UpdatesProvider>
-              </DashboardPreferencesProvider>
+              <TermsProvider>
+                <OnboardingProvider>
+                  <DashboardPreferencesProvider>
+                    <UpdatesProvider>
+                      <ToastProvider>
+                        <VoiceUIProvider dashInstance={dashInstance}>
+                          <LayoutContent />
+                        </VoiceUIProvider>
+                      </ToastProvider>
+                    </UpdatesProvider>
+                  </DashboardPreferencesProvider>
+                </OnboardingProvider>
+              </TermsProvider>
             </ThemeProvider>
           </AuthProvider>
         </QueryProvider>

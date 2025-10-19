@@ -1,9 +1,11 @@
 /**
- * Futuristic Voice Recording Modal - Society 5.0 Design
+ * Azure-Powered Voice Recording Modal - Society 5.0 Design
  * 
  * Features:
  * - HolographicOrb visual with real-time audio waveform
- * - Native on-device speech recognition (@react-native-voice/voice)
+ * - Azure Speech SDK for speech recognition (works on web + mobile)
+ * - Future-ready for Expo Speech Recognition
+ * - Unified provider abstraction for easy switching
  * - Ultra-concise AI responses
  * - Smooth animations and haptic feedback
  */
@@ -25,18 +27,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
-import Voice, {
-  SpeechResultsEvent,
-  SpeechErrorEvent,
-} from '@react-native-voice/voice';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getDefaultVoiceProvider, type VoiceSession } from '@/lib/voice/unifiedProvider';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.4;
 
-interface VoiceRecordingModalNewProps {
+interface VoiceRecordingModalAzureProps {
   visible: boolean;
   onClose: () => void;
   dashInstance: DashAIAssistant | null;
@@ -47,7 +46,7 @@ interface VoiceRecordingModalNewProps {
 
 type VoiceState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'error';
 
-export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
+export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> = ({
   visible,
   onClose,
   dashInstance,
@@ -64,108 +63,75 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const processedRef = useRef(false);
   const [isAvailable, setIsAvailable] = useState(true);
+  const sessionRef = useRef<VoiceSession | null>(null);
+  const [providerId, setProviderId] = useState<string>('azure');
 
-  // Initialize Voice module
+  // Initialize voice session when modal opens
   useEffect(() => {
-    const initializeVoice = async () => {
-      // Guard: Check if Voice module is loaded and not null
-      if (!Voice || typeof Voice !== 'object') {
-        // Silent - this is expected when @react-native-voice/voice is not installed
-        // or when running in Expo Go (requires dev build)
-        setIsAvailable(false);
-        setErrorMsg('Voice recognition requires a development build. Not available in Expo Go.');
-        return;
-      }
-
+    if (!visible) return;
+    
+    let cancelled = false;
+    
+    (async () => {
       try {
-        // Try multiple availability check methods for compatibility
-        let available = false;
+        if (__DEV__) console.log('[VoiceModalAzure] 🎙️ Initializing voice session...');
         
-        // Method 1: isAvailable (newer API)
-        if (Voice && typeof Voice.isAvailable === 'function') {
-          try {
-            const result = await Voice.isAvailable();
-            available = result === 1 || result === true;
-          } catch (e) {
-            // Silent - expected if method not supported
-          }
-        }
+        const provider = await getDefaultVoiceProvider(language);
+        if (cancelled) return;
         
-        // Method 2: isSpeechAvailable (older API fallback)
-        if (!available && Voice && typeof (Voice as any).isSpeechAvailable === 'function') {
-          try {
-            const result = await (Voice as any).isSpeechAvailable();
-            available = result === true;
-          } catch (e) {
-            // Silent - expected if method not supported
-          }
-        }
+        setProviderId(provider.id);
+        if (__DEV__) console.log('[VoiceModalAzure] Provider selected:', provider.id);
         
-        // Method 3: Assume available if start method exists (last resort)
-        if (!available && Voice && typeof Voice.start === 'function') {
-          available = true;
-        }
+        const session = provider.createSession();
+        sessionRef.current = session;
         
-        if (!available) {
-          // Silent - just mark as unavailable
-          setIsAvailable(false);
-          return;
-        }
-
-        if (__DEV__) console.log('[VoiceModal] ✅ Voice module initialized and available');
-        setIsAvailable(true);
-
-        Voice.onSpeechStart = () => {
-          console.log('[VoiceModal] Speech started');
-        };
-
-        Voice.onSpeechEnd = () => {
-          console.log('[VoiceModal] Speech ended');
-        };
-
-        Voice.onSpeechResults = (e: SpeechResultsEvent) => {
-          console.log('[VoiceModal] Speech results:', e.value);
-          if (e.value && e.value.length > 0) {
-            const text = e.value[0];
+        const ok = await session.start({
+          language,
+          onPartial: (text) => {
+            if (!cancelled) {
+              setTranscript(text);
+              setState('listening');
+              try { Haptics.selectionAsync(); } catch {}
+            }
+          },
+          onFinal: async (text) => {
+            if (cancelled || processedRef.current) return;
+            
+            processedRef.current = true;
             setTranscript(text);
-            try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-          }
-        };
-
-        Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
-          console.log('[VoiceModal] Partial results:', e.value);
-          if (e.value && e.value.length > 0) {
-            setTranscript(e.value[0]);
-          }
-        };
-
-        Voice.onSpeechError = (e: SpeechErrorEvent) => {
-          console.error('[VoiceModal] Speech error:', e.error);
-          const errorMsg = e.error?.message || 'Speech recognition error';
-          
-          // Ignore "No match" errors (user stopped before saying anything)
-          if (errorMsg.includes('No match') || errorMsg.includes('7/No match')) {
-            console.log('[VoiceModal] No speech detected, ignoring error');
-            return;
-          }
-
-          setErrorMsg(errorMsg);
+            if (__DEV__) console.log('[VoiceModalAzure] ✅ Final transcript:', text);
+            
+            await handleTranscript(text);
+          },
+        });
+        
+        if (cancelled) return;
+        
+        setIsAvailable(ok);
+        if (!ok) {
+          setErrorMsg('Voice recognition unavailable');
           setState('error');
-        };
-      } catch (error) {
-        console.error('[VoiceModal] Voice initialization error:', error);
-        setIsAvailable(false);
+          if (__DEV__) console.warn('[VoiceModalAzure] ⚠️ Voice session failed to start');
+        } else {
+          setState('listening');
+          if (__DEV__) console.log('[VoiceModalAzure] ✅ Voice session ready');
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[VoiceModalAzure] ❌ Initialization error:', e);
+          setIsAvailable(false);
+          setErrorMsg('Voice initialization failed');
+          setState('error');
+        }
       }
-    };
-
-    initializeVoice();
-
+    })();
+    
     return () => {
-      if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().then(Voice.removeAllListeners).catch(() => {});
-      }
+      cancelled = true;
+      if (__DEV__) console.log('[VoiceModalAzure] 🧹 Cleanup: stopping session...');
+      sessionRef.current?.stop().catch(() => {});
     };
-  }, []);
+  }, [visible, language]);
 
   // Fade in/out animation
   useEffect(() => {
@@ -182,33 +148,20 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       processedRef.current = false;
     } else {
       fadeAnim.setValue(0);
-      // Stop any active recording when closing
-      if (Voice && state === 'listening') {
-        Voice.stop().catch(() => {});
-      }
+      // Stop any active session when closing
+      sessionRef.current?.stop().catch(() => {});
     }
   }, [visible]);
-
-  // Auto-start listening when modal opens
-  useEffect(() => {
-    if (visible && state === 'idle' && isAvailable) {
-      const timer = setTimeout(async () => {
-        await startListening();
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [visible, state, isAvailable]);
 
   const handleTranscript = useCallback(async (text: string) => {
     if (!dashInstance || processedRef.current) return;
     
     try {
-      processedRef.current = true;
       setState('thinking');
-      console.log('[VoiceModal] Sending to AI:', text);
+      if (__DEV__) console.log('[VoiceModalAzure] 🤖 Sending to AI:', text);
       
       const aiResponse = await dashInstance.sendMessage(text);
-      console.log('[VoiceModal] Got response:', aiResponse.content);
+      if (__DEV__) console.log('[VoiceModalAzure] ✅ Got response:', aiResponse.id);
       
       setResponse(aiResponse.content);
       setState('speaking');
@@ -220,13 +173,13 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       if (aiResponse.content) {
         await dashInstance.speakResponse(aiResponse, {
           onDone: () => {
-            console.log('[VoiceModal] TTS complete');
+            if (__DEV__) console.log('[VoiceModalAzure] 🔊 TTS complete');
             setState('idle');
             // Auto-close after speaking
             setTimeout(() => onClose(), 500);
           },
           onError: (err) => {
-            console.error('[VoiceModal] TTS error:', err);
+            console.error('[VoiceModalAzure] ❌ TTS error:', err);
             setState('error');
             setErrorMsg('Speech playback failed');
           },
@@ -236,124 +189,57 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
         setTimeout(() => onClose(), 1000);
       }
     } catch (error) {
-      console.error('[VoiceModal] Error:', error);
+      console.error('[VoiceModalAzure] ❌ Error:', error);
       setState('error');
       setErrorMsg('Failed to process request');
       processedRef.current = false;
     }
   }, [dashInstance, onMessageSent, onClose]);
 
-  const startListening = async () => {
-    // Check for Expo Go first
-    try {
-      const Constants = await import('expo-constants').then(m => m.default);
-      if (Constants.appOwnership === 'expo') {
-        console.warn('[VoiceModal] Running in Expo Go - voice recognition requires dev build');
-        Alert.alert(
-          'Dev Build Required',
-          'Voice recognition requires a development build. It does not work in Expo Go. Please create a development build using "eas build --profile development".', 
-          [{ text: 'OK', onPress: onClose }]
-        );
-        return;
-      }
-    } catch { /* Constants not available */ }
-    
-    if (!isAvailable) {
-      Alert.alert(
-        'Not Available',
-        'Speech recognition is not available on this device.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    if (!Voice || typeof Voice.start !== 'function') {
-      console.error('[VoiceModal] Voice module not properly initialized');
-      setErrorMsg('Voice module not available');
-      setState('error');
-      return;
-    }
-
-    try {
-      // Stop any existing recognition first
-      try {
-        await Voice.stop();
-      } catch { /* Ignore errors from stopping non-active session */ }
-
-      setState('listening');
-      
-      // Additional guard: check if native module is actually linked
-      try {
-        await Voice.start(language);
-        console.log('[VoiceModal] Started listening with language:', language);
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
-      } catch (nativeError: any) {
-        // Check for specific native module errors
-        const errMsg = String(nativeError?.message || nativeError || '');
-        
-        if (errMsg.includes('startSpeech') || errMsg.includes('null is not an object')) {
-          console.error('[VoiceModal] Native voice module not linked properly');
-          setState('error');
-          setErrorMsg('Native voice module unavailable');
-          Alert.alert(
-            'Native Module Error',
-            'Voice recognition native module is not properly linked. Please rebuild the app with "expo prebuild" and "eas build".',
-            [{ text: 'OK', onPress: onClose }]
-          );
-          return;
-        }
-        
-        // Re-throw other errors to outer catch
-        throw nativeError;
-      }
-    } catch (e: any) {
-      console.error('[VoiceModal] Error starting:', e);
-      const errorMsg = e?.message || 'Failed to start speech recognition';
-      setErrorMsg(errorMsg);
-      setState('error');
-      Alert.alert(
-        'Error',
-        'Failed to start speech recognition. Please check your microphone permissions.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  const stopListening = async () => {
-    if (!Voice || typeof Voice.stop !== 'function') {
-      console.warn('[VoiceModal] Voice.stop not available');
-      return;
-    }
-
-    try {
-      await Voice.stop();
-      console.log('[VoiceModal] Stopped listening');
-    } catch (e: any) {
-      console.error('[VoiceModal] Error stopping:', e);
-    }
-  };
-
   const restartRecording = async () => {
-    if (!Voice || typeof Voice.cancel !== 'function') {
-      console.warn('[VoiceModal] Voice.cancel not available');
-      return;
-    }
-
     try {
-      await Voice.cancel();
+      if (__DEV__) console.log('[VoiceModalAzure] 🔄 Restarting recording...');
+      
+      // Stop current session
+      await sessionRef.current?.stop();
+      
+      // Reset state
       setTranscript('');
       setErrorMsg('');
       setState('idle');
       processedRef.current = false;
       
-      // Wait a bit before restarting to ensure cleanup
+      // Wait a bit before restarting
       setTimeout(async () => {
-        await startListening();
+        const provider = await getDefaultVoiceProvider(language);
+        const session = provider.createSession();
+        sessionRef.current = session;
+        
+        const ok = await session.start({
+          language,
+          onPartial: (text) => {
+            setTranscript(text);
+            setState('listening');
+          },
+          onFinal: async (text) => {
+            if (processedRef.current) return;
+            processedRef.current = true;
+            setTranscript(text);
+            await handleTranscript(text);
+          },
+        });
+        
+        if (ok) {
+          setState('listening');
+        } else {
+          setErrorMsg('Failed to restart');
+          setState('error');
+        }
       }, 100);
       
       try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     } catch (e) {
-      console.error('[VoiceModal] Restart error:', e);
+      console.error('[VoiceModalAzure] ❌ Restart error:', e);
       setErrorMsg('Failed to restart recording');
       setState('error');
     }
@@ -364,13 +250,13 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
     
     try {
       // Stop listening first
-      await stopListening();
+      await sessionRef.current?.stop();
       
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setState('thinking');
       await handleTranscript(transcript);
     } catch (e) {
-      console.error('[VoiceModal] Manual send error:', e);
+      console.error('[VoiceModalAzure] ❌ Manual send error:', e);
     }
   };
 
@@ -381,9 +267,7 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
     }
     
     // Stop listening if active
-    if (state === 'listening') {
-      await stopListening();
-    }
+    await sessionRef.current?.stop();
     
     setState('idle');
     onClose();
@@ -392,7 +276,7 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   const getStateText = () => {
     switch (state) {
       case 'idle':
-        return 'Tap to speak';
+        return 'Ready to listen...';
       case 'listening':
         return transcript || 'Listening...';
       case 'thinking':
@@ -465,7 +349,7 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
             <View style={[styles.warningContainer, { backgroundColor: theme.error + '20', borderColor: theme.error }]}>
               <Ionicons name="warning" size={24} color={theme.error} />
               <Text style={[styles.warningText, { color: theme.error }]}>
-                Voice recognition is not available on this device
+                Voice recognition unavailable. Provider: {providerId}
               </Text>
             </View>
           )}
@@ -512,17 +396,6 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
             )}
           </View>
 
-          {/* Manual trigger button (only in idle state) */}
-          {state === 'idle' && isAvailable && (
-            <TouchableOpacity
-              style={[styles.micButton, { backgroundColor: theme.primary }]}
-              onPress={startListening}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="mic" size={28} color="#fff" />
-            </TouchableOpacity>
-          )}
-
           {/* Error state action button */}
           {state === 'error' && (
             <TouchableOpacity
@@ -531,6 +404,7 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
                 setState('idle');
                 setErrorMsg('');
                 setTranscript('');
+                restartRecording();
               }}
               activeOpacity={0.8}
             >
@@ -631,19 +505,6 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     textAlign: 'left',
   },
-  micButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   buttonRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -717,4 +578,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default VoiceRecordingModalNew;
+export default VoiceRecordingModalAzure;

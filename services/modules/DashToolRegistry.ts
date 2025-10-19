@@ -5,9 +5,7 @@
  * Extracted from AgentTools.ts as part of Phase 4.5 modularization.
  */
 
-import { DashAIAssistant } from '../DashAIAssistant';
-import { DashTaskAutomation } from '../DashTaskAutomation';
-import { WorksheetService } from '../WorksheetService';
+// Avoid static imports that create require cycles; use dynamic imports inside executors instead
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import { logger } from '@/lib/logger';
 
@@ -76,9 +74,6 @@ export class DashToolRegistry {
 
   // Register default tools
   private registerDefaultTools(): void {
-    const dash = DashAIAssistant.getInstance();
-    const taskAutomation = DashTaskAutomation.getInstance();
-    const worksheetService = new WorksheetService();
 
     // Navigation tool
     this.register({
@@ -100,6 +95,10 @@ export class DashToolRegistry {
       },
       risk: 'low',
       execute: async (args) => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return await dash.navigateToScreen(args.screen, args.params);
       }
     });
@@ -123,6 +122,10 @@ export class DashToolRegistry {
       execute: async (args, context) => {
         const userInput = context?.userInput || '';
         const aiResponse = context?.aiResponse || '';
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { opened: false, error: 'Dash not available' };
         dash.openLessonGeneratorFromContext(userInput, aiResponse);
         return { opened: true };
       }
@@ -155,6 +158,10 @@ export class DashToolRegistry {
       },
       risk: 'medium',
       execute: async (args) => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return await dash.generateWorksheetAutomatically(args);
       }
     });
@@ -179,6 +186,10 @@ export class DashToolRegistry {
       },
       risk: 'medium',
       execute: async (args) => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return await dash.createAutomatedTask(args.templateId, args.customParams);
       }
     });
@@ -197,6 +208,10 @@ export class DashToolRegistry {
       },
       risk: 'low',
       execute: async (args) => {
+        const module = await import('../DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return { success: false, error: 'Dash not available' };
         return await dash.exportTextAsPDFForDownload(args.title, args.content);
       }
     });

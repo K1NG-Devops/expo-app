@@ -19,7 +19,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { audioManager } from '@/lib/voice/audio';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -81,10 +80,10 @@ export function DashSpeakingOverlay({ isSpeaking, onStopSpeaking }: DashSpeaking
       
       // Also stop via Dash AI Assistant
       try {
-        const dash = DashAIAssistant.getInstance();
-        stopPromises.push(
-          dash.stopSpeaking().catch(e => console.warn('[DashSpeakingOverlay] Dash stop warning:', e))
-        );
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (dash?.stopSpeaking) { await dash.stopSpeaking(); }
       } catch { /* Intentional: non-fatal */ }
       
       // Wait for all stop operations with timeout

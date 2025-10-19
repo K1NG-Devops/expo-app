@@ -35,15 +35,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Audio } from 'expo-av';
 import { useVoiceInteraction } from '@/lib/voice';
 import { useVoiceController } from '@/hooks/useVoiceController';
 import { DashSpeakingOverlay } from '@/components/ai/DashSpeakingOverlay';
-import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { useTranslation } from 'react-i18next';
+import { useVoiceUI } from '@/components/voice/VoiceUIController';
 
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -85,9 +84,9 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
 }) => {
   const { theme, isDark } = useTheme();
   const { t } = useTranslation();
+  const voiceUI = useVoiceUI();
   const [showTooltip, setShowTooltip] = useState(showWelcomeMessage);
   const [isDragging, setIsDragging] = useState(false);
-  const [showVoiceMode, setShowVoiceMode] = useState(false);
   const [dashResponse, setDashResponse] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   
@@ -109,11 +108,25 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
     requestPermission,
   } = useVoiceInteraction();
 
-  // Unified controller for modern recording modal
-  const dash = React.useMemo(() => DashAIAssistant.getInstance(), []);
+  // Unified controller for modern recording modal (lazy-load to avoid cycles)
+  const [dash, setDash] = useState<any>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        if (DashClass?.getInstance) {
+          setDash(DashClass.getInstance());
+        }
+      } catch (e) {
+        console.error('[DashVoiceFAB] Failed to load DashAI:', e);
+      }
+    })();
+  }, []);
+
   const vc = useVoiceController(dash, {
     onResponse: async (message) => {
-      try { await dash.speakResponse(message); } catch (e) { console.warn('[DashVoiceFAB] speakResponse error:', e); }
+      try { if (dash) { await dash.speakResponse(message); } } catch (e) { console.warn('[DashVoiceFAB] speakResponse error:', e); }
     },
   });
 
@@ -210,25 +223,32 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
      
   }, [recordingState.isRecording]);
 
-  // Play futuristic sound for tactile feedback - Society 5.0 ready
+  // Sound disabled - no beeping
   const playClickSound = async (soundType: 'awaken' | 'pulse' = 'awaken') => {
-    try {
-      const { playOrbSound } = await import('@/lib/audio/soundManager');
-      await playOrbSound(soundType);
-    } catch (e) {
-      console.log('[FAB] Sound failed:', e);
-    }
+    // Sounds disabled
   };
 
-  // Ensure a conversation exists and Dash is initialized
+  // Ensure a conversation exists and Dash is initialized (lazy-load safe)
   const ensureConversation = async (): Promise<string | null> => {
     try {
-      const dash = DashAIAssistant.getInstance();
-      try { await dash.initialize(); } catch { /* Intentional: non-fatal */ }
-      const current = dash.getCurrentConversationId();
+      let inst = dash;
+      if (!inst) {
+        try {
+          const module = await import('@/services/DashAIAssistant');
+          const DashClass = (module as any).DashAIAssistant || (module as any).default;
+          inst = DashClass?.getInstance?.() || null;
+          if (inst) setDash(inst);
+        } catch (e) {
+          console.warn('[DashVoiceFAB] Failed to load Dash module:', e);
+          return null;
+        }
+      }
+      if (!inst) return null;
+      try { await inst.initialize(); } catch { /* non-fatal */ }
+      const current = inst.getCurrentConversationId?.();
       if (!current) {
-        const id = await dash.startNewConversation('Quick Voice');
-        return id;
+        const id = await inst.startNewConversation?.('Quick Voice');
+        return id || null;
       }
       return current;
     } catch (e) {
@@ -292,18 +312,45 @@ const handleLongPress = async () => {
         console.error('[DashVoiceFAB] ⚠️ Permission check error:', err);
       }
 
-      // Ensure dash is initialized before opening voice mode
+      // Ensure dash is available and initialized before opening voice mode
+      let inst = dash;
+      if (!inst) {
+        try {
+          const module = await import('@/services/DashAIAssistant');
+          const DashClass = (module as any).DashAIAssistant || (module as any).default;
+          inst = DashClass?.getInstance?.() || null;
+          if (inst) setDash(inst);
+        } catch (e) {
+          console.error('[DashVoiceFAB] ❌ Failed to load Dash:', e);
+          setIsLoading(false);
+          return;
+        }
+      }
+      if (!inst) {
+        setIsLoading(false);
+        return;
+      }
       try {
-        await dash.initialize();
+        await inst.initialize?.();
       } catch (e) {
         console.error('[DashVoiceFAB] ❌ Failed to initialize Dash:', e);
         setIsLoading(false);
         return;
       }
-      
+
       await ensureConversation();
-      // Open elegant full-screen voice mode
-      setShowVoiceMode(true);
+      
+      // Get user's preferred language for voice routing
+      let detectedLang = 'en';
+      try {
+        const storedLang = await AsyncStorage.getItem('@dash_voice_language');
+        if (storedLang) detectedLang = storedLang.toLowerCase();
+      } catch {
+        // Use default
+      }
+      
+      // Open voice UI via controller (force streaming orb if available; falls back to recording)
+      await voiceUI.open({ language: detectedLang, forceMode: 'streaming' });
       setIsLoading(false);
     } catch (e) {
       console.error('[DashVoiceFAB] Long press failed:', e);
@@ -347,7 +394,7 @@ const handlePressOut = () => {
       longPressTimer.current = null;
     }
     // If long-press activated, do nothing — user closes voice mode via X
-    if (HOLD_TO_TALK && longPressActivated.current && showVoiceMode) {
+    if (HOLD_TO_TALK && longPressActivated.current && voiceUI.isOpen) {
       longPressActivated.current = false;
     }
     Animated.spring(scaleAnimation, {
@@ -442,7 +489,7 @@ const handlePressOut = () => {
   return (
     <>
       {/* Floating Action Button */}
-      {!showVoiceMode && (
+      {!voiceUI.isOpen && (
       <Animated.View
         style={[
           styles.container,
@@ -489,13 +536,7 @@ const handlePressOut = () => {
       </Animated.View>
       )}
 
-      {/* Elegant ChatGPT-style Voice Mode */}
-      <DashVoiceMode
-        visible={showVoiceMode}
-        onClose={() => setShowVoiceMode(false)}
-        dashInstance={dash}
-        onMessageSent={() => { /* no-op */ }}
-      />
+      {/* Voice modals handled by VoiceUIController */}
       
       {/* Global speaking overlay - shows when Dash is speaking */}
       <DashSpeakingOverlay 
