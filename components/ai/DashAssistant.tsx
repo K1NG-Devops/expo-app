@@ -12,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -74,7 +75,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
   const voiceUI = useVoiceUI();
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
@@ -160,11 +161,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change (FlatList with inverted scrolls to index 0)
   useEffect(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: 0, animated: true });
+      }, 100);
+    }
   }, [messages]);
 
   // Pulse animation for recording
@@ -1163,19 +1166,33 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
       </View>
 
-      {/* Messages */}
-      <ScrollView
-        ref={scrollViewRef}
+      {/* Messages - FlatList for better performance */}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item, index) => item.id || `msg-${index}`}
+        renderItem={({ item, index }) => renderMessage(item, index)}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
-      >
-        {messages.map((message: any, index: number) => renderMessage(message, index))}
-        
-        {renderTypingIndicator()}
-
-        {renderSuggestedActions()}
-      </ScrollView>
+        inverted={true}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={21}
+        removeClippedSubviews={Platform.OS === 'android'}
+        onScrollToIndexFailed={(info) => {
+          // Handle scroll failures gracefully
+          setTimeout(() => {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }, 100);
+        }}
+        ListHeaderComponent={
+          <>
+            {renderTypingIndicator()}
+            {renderSuggestedActions()}
+          </>
+        }
+      />
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>

@@ -350,8 +350,7 @@ export class DashToolRegistry {
         properties: {
           member_id: {
             type: 'string',
-            description: 'ID of the member to get progress for',
-            required: true
+            description: 'ID of the member to get progress for'
           },
           subject: {
             type: 'string',
