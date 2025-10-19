@@ -1094,10 +1094,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
 
-          {/* Voice (Orb) - Always Blue */}
+          {/* Voice (Orb) - Interactive Voice Mode - Always Blue */}
           <TouchableOpacity
             style={styles.iconButton}
-            accessibilityLabel="Voice Assistant"
+            accessibilityLabel="Interactive Voice Assistant"
             onPress={async () => {
               try {
                 const storedLang = await AsyncStorage.getItem('@dash_voice_language');
@@ -1269,10 +1269,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           )}
         </View>
         
+        {/* Recording indicator - shows when user is holding mic button */}
         {isRecording && (
-          <View style={styles.recordingIndicator}>
+          <View style={[styles.recordingIndicator, { backgroundColor: theme.errorLight || theme.surfaceVariant }]}>
             <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-            <Text style={[styles.recordingText, { color: theme.error }]}>
+            <Text style={[styles.recordingText, { color: theme.error, fontWeight: '600' }]}>
               Recording... Release to send
             </Text>
           </View>
@@ -1561,6 +1562,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   recordingDot: {
     width: 8,
@@ -1569,7 +1573,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   recordingText: {
-    fontSize: 12,
+    fontSize: 13,
   },
   messageBubbleFooter: {
     flexDirection: 'row',
