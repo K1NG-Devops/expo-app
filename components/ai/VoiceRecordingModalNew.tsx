@@ -68,22 +68,51 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   // Initialize Voice module
   useEffect(() => {
     const initializeVoice = async () => {
-      if (!Voice || typeof Voice.isAvailable !== 'function') {
-        console.warn('[VoiceModal] Voice module not available');
+      // Guard: Check if Voice module is loaded and not null
+      if (!Voice || typeof Voice !== 'object') {
+        // Silent - this is expected when @react-native-voice/voice is not installed
+        // or when running in Expo Go (requires dev build)
         setIsAvailable(false);
+        setErrorMsg('Voice recognition requires a development build. Not available in Expo Go.');
         return;
       }
 
       try {
-        // Check if speech recognition is available on this device
-        const available = await Voice.isAvailable();
-        if (available !== 1) {
-          console.warn('[VoiceModal] Speech recognition not available on this device');
+        // Try multiple availability check methods for compatibility
+        let available = false;
+        
+        // Method 1: isAvailable (newer API)
+        if (Voice && typeof Voice.isAvailable === 'function') {
+          try {
+            const result = await Voice.isAvailable();
+            available = result === 1 || result === true;
+          } catch (e) {
+            // Silent - expected if method not supported
+          }
+        }
+        
+        // Method 2: isSpeechAvailable (older API fallback)
+        if (!available && Voice && typeof (Voice as any).isSpeechAvailable === 'function') {
+          try {
+            const result = await (Voice as any).isSpeechAvailable();
+            available = result === true;
+          } catch (e) {
+            // Silent - expected if method not supported
+          }
+        }
+        
+        // Method 3: Assume available if start method exists (last resort)
+        if (!available && Voice && typeof Voice.start === 'function') {
+          available = true;
+        }
+        
+        if (!available) {
+          // Silent - just mark as unavailable
           setIsAvailable(false);
           return;
         }
 
-        console.log('[VoiceModal] ✅ Voice module initialized and available');
+        if (__DEV__) console.log('[VoiceModal] ✅ Voice module initialized and available');
         setIsAvailable(true);
 
         Voice.onSpeechStart = () => {

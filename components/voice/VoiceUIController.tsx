@@ -39,7 +39,7 @@ interface VoiceOpenOptions {
 
 const VoiceUIContext = createContext<VoiceUIContextValue | null>(null);
 
-export function useVoiceUI() {
+export function useVoiceUI(): VoiceUIContextValue {
   const context = useContext(VoiceUIContext);
   if (!context) {
     throw new Error('useVoiceUI must be used within VoiceUIProvider');
@@ -128,7 +128,7 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     // Only show toast if streaming was actually attempted
     if (streamingAttemptedRef.current) {
       try {
-        toast.warning?.('Streaming not supported on this device — switched to recording.');
+        toast.warn?.('Streaming not supported on this device — switched to recording.');
       } catch {
         // Toast unavailable
       }

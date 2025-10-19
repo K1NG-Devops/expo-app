@@ -66,7 +66,7 @@ function checkPicovoiceAvailability(): boolean {
     const hasPicoNativeModule = !!NativeModules.PvAudio || !!NativeModules.VoiceProcessor;
     
     if (!hasPicoNativeModule) {
-      if (__DEV__) console.log('[Capabilities] Picovoice native module not found');
+      // Silently return false - this is expected on most devices
       return false;
     }
 
@@ -76,14 +76,12 @@ function checkPicovoiceAvailability(): boolean {
       
       // Check if VoiceProcessor class exists
       if (!picoModule || !picoModule.VoiceProcessor) {
-        if (__DEV__) console.log('[Capabilities] VoiceProcessor class not found');
         return false;
       }
 
       // Check if instance is accessible
       const instance = picoModule.VoiceProcessor.instance;
       if (!instance) {
-        if (__DEV__) console.log('[Capabilities] VoiceProcessor instance is null');
         return false;
       }
 
@@ -94,18 +92,16 @@ function checkPicovoiceAvailability(): boolean {
         typeof instance.addFrameListener === 'function';
 
       if (!hasRequiredMethods) {
-        if (__DEV__) console.log('[Capabilities] VoiceProcessor missing required methods');
         return false;
       }
 
       if (__DEV__) console.log('[Capabilities] ✅ Picovoice is available and functional');
       return true;
     } catch (requireError) {
-      if (__DEV__) console.log('[Capabilities] Picovoice require failed:', requireError);
+      // Silently handle - module not installed is expected
       return false;
     }
   } catch (error) {
-    if (__DEV__) console.log('[Capabilities] Picovoice check error:', error);
     return false;
   }
 }
@@ -115,26 +111,34 @@ function checkPicovoiceAvailability(): boolean {
  * Returns false if module missing or mediaDevices unavailable
  */
 function checkWebRTCAvailability(): boolean {
+  // Suppress console errors during require by temporarily overriding console.error
+  const originalError = console.error;
   try {
+    // Temporarily silence console.error for the require call
+    console.error = () => {};
+    
     // Try to require the module
     const webrtcModule = require('react-native-webrtc');
     
+    // Restore console.error
+    console.error = originalError;
+    
     // Check if mediaDevices exists
     if (!webrtcModule || !webrtcModule.mediaDevices) {
-      if (__DEV__) console.log('[Capabilities] WebRTC mediaDevices not available');
       return false;
     }
 
     // Check if getUserMedia exists
     if (typeof webrtcModule.mediaDevices.getUserMedia !== 'function') {
-      if (__DEV__) console.log('[Capabilities] WebRTC getUserMedia not a function');
       return false;
     }
 
     if (__DEV__) console.log('[Capabilities] ✅ WebRTC is available and functional');
     return true;
-  } catch (requireError) {
-    if (__DEV__) console.log('[Capabilities] WebRTC require failed:', requireError);
+  } catch (requireError: any) {
+    // Restore console.error in case of exception
+    console.error = originalError;
+    // Silently handle - module not installed is expected on most setups
     return false;
   }
 }

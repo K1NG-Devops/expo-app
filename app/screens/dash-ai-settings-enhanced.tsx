@@ -21,16 +21,6 @@ import { initAndMigrate, setVoicePrefs, normalizeLanguageCode, resolveDefaultVoi
 
 export default function DashAISettingsEnhancedScreen() {
   const { theme } = useTheme();
-  const [dashAI] = useState(() => {
-    try {
-      // Dynamic import to avoid circular dependency
-      // Note: This returns null initially, will be set async
-      return null;
-    } catch (error) {
-      console.error('[DashAISettingsEnhancedScreen] Failed to get DashAI instance:', error);
-      return null;
-    }
-  });
   
   // Lazy load DashAI instance
   const [dashAIInstance, setDashAIInstance] = useState<any>(null);

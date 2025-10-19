@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 
 export type GraderOptions = {
   submissionText: string;
@@ -93,10 +92,13 @@ export function useGrader() {
         setResult({ text, __fallbackUsed: !!(data && (data as any).provider_error) });
         return text;
       }
-    } catch (e: any) {
+      } catch (e: any) {
       // Fallback to Dash assistant
       try {
-        const dash = DashAIAssistant.getInstance();
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         if (!dash.getCurrentConversationId()) {
           await dash.startNewConversation('AI Grader');

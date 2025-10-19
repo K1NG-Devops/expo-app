@@ -18,7 +18,7 @@ import { useVoicePreferences } from '@/lib/voice/hooks';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { toast } from '@/components/ui/ToastProvider';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
 import { playOrbSound, stopOrbSound } from '@/lib/audio/soundManager';

@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashConversation } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashConversation } from '@/services/DashAIAssistant';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -41,7 +41,10 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
   useEffect(() => {
     const initializeDash = async () => {
       try {
-        const dash = DashAIAssistant.getInstance();
+        const module = await import('@/services/DashAIAssistant');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: DashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         setDashInstance(dash);
         await loadConversations(dash);
