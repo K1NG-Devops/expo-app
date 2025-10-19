@@ -1250,25 +1250,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 style={[
                   styles.recordButton,
                   { 
-                    backgroundColor: theme.accent 
+                    backgroundColor: isRecording ? theme.error : theme.accent 
                   }
                 ]}
-                onPress={async () => {
-                  try {
-                    const storedLang = await AsyncStorage.getItem('@dash_voice_language');
-                    const detectedLang = storedLang ? storedLang.toLowerCase() : 'en';
-                    await voiceUI.open({ language: detectedLang, tier });
-                  } catch (error) {
-                    console.error('[DashAssistant] Voice UI open failed:', error);
-                    await voiceUI.open({ language: 'en', tier });
-                  }
-                }}
+                onPressIn={isRecording ? undefined : startRecording}
+                onPressOut={isRecording ? stopRecording : undefined}
+                onLongPress={isRecording ? undefined : startRecording}
                 disabled={isLoading}
+                accessibilityLabel={isRecording ? "Recording... Release to send" : "Hold to record voice message"}
               >
                 <Ionicons 
-                  name="mic" 
+                  name={isRecording ? "mic" : "mic-outline"} 
                   size={20} 
-                  color={theme.onAccent} 
+                  color={isRecording ? theme.onError || "#FFF" : theme.onAccent} 
                 />
               </TouchableOpacity>
             </Animated.View>
