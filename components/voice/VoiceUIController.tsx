@@ -89,17 +89,15 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     let mode: VoiceMode;
     
     if (forceMode) {
-      // Explicit mode requested
-      if (forceMode === 'streaming' && !capabilities.streamingAvailable) {
-        try { toast.warn?.('Streaming unavailable on this device/tier — using recording instead.'); } catch {}
-        mode = 'recording';
-      } else {
-        mode = forceMode;
+      // Explicit mode requested - always honor it since we have unified provider
+      mode = forceMode;
+      if (__DEV__) {
+        console.log('[VoiceUIController] Using forced mode:', forceMode);
       }
     } else {
       // Auto-select based on context:
       // If callback provided = mic button in chat (single-use recording modal)
-      // If no callback = long-press FAB (conversational streaming)
+      // If no callback = long-press FAB (conversational streaming mode)
       if (onTranscriptReady) {
         mode = 'recording';
         if (__DEV__) {
@@ -108,7 +106,7 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
       } else {
         mode = 'streaming';
         if (__DEV__) {
-          console.log('[VoiceUIController] 🗣️ Using streaming voice mode (long-press FAB)');
+          console.log('[VoiceUIController] 🗣️ Using streaming mode (long-press FAB)');
         }
       }
     }

@@ -223,14 +223,9 @@ export const DashVoiceFloatingButton: React.FC<DashVoiceFloatingButtonProps> = (
      
   }, [recordingState.isRecording]);
 
-  // Play futuristic sound for tactile feedback - Society 5.0 ready
+  // Sound disabled - no beeping
   const playClickSound = async (soundType: 'awaken' | 'pulse' = 'awaken') => {
-    try {
-      const { playOrbSound } = await import('@/lib/audio/soundManager');
-      await playOrbSound(soundType);
-    } catch (e) {
-      console.log('[FAB] Sound failed:', e);
-    }
+    // Sounds disabled
   };
 
   // Ensure a conversation exists and Dash is initialized (lazy-load safe)

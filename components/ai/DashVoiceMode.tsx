@@ -21,7 +21,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 import { toast } from '@/components/ui/ToastProvider';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
-import { playOrbSound, stopOrbSound } from '@/lib/audio/soundManager';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.5;
@@ -196,9 +195,6 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       processedRef.current = true;
       console.log('[DashVoiceMode] 📝 Final transcript:', transcript);
       
-      // Play thinking sound
-      playOrbSound('thinking', { loop: true }).catch(() => {});
-      
       // Send message to AI
       console.log('[DashVoiceMode] Sending message to AI with language context:', activeLang);
       const response = await dashInstance.sendMessage(transcript);
@@ -215,10 +211,6 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       
       const responseText = response.content || '';
       setAiResponse(responseText);
-      
-      // Stop thinking sound, play response sound
-      stopOrbSound('thinking').catch(() => {});
-      playOrbSound('response').catch(() => {});
       
       // Notify parent component BEFORE speaking (so UI updates immediately)
       console.log('[DashVoiceMode] Calling onMessageSent callback');
