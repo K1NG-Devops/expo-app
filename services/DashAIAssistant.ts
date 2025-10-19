@@ -1680,6 +1680,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       .replace(/(\d+)\s+years\s+old\s+(student|child|kid|boy|girl)/gi, '$1 year old $2')
       // Normalize "X-Y year old" patterns
       .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
+  }
   
   /**
    * Remove markdown formatting for speech
@@ -4687,19 +4688,31 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       
       console.log('[Dash] Calling AI with', toolSpecs?.length || 0, 'tools available');
       
+      console.log('[Dash] Invoking ai-gateway with action:', requestBody.action);
+      
       const { data, error } = await supabase.functions.invoke('ai-gateway', {
         body: requestBody
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('[Dash] AI gateway error:', error);
+        throw error;
+      }
       
-      // Handle tool use responses
-      if (data.tool_use && Array.isArray(data.tool_use)) {
-        console.log('[Dash] AI requested', data.tool_use.length, 'tool calls');
+      // Check if we received a provider error fallback
+      if (data?.provider_error) {
+        console.warn('[Dash] Provider error detected:', data.provider_error);
+        console.warn('[Dash] Fallback content returned:', data.content);
+      }
+      
+      // Handle tool use responses (check both tool_use and tool_calls for compatibility)
+      const toolUse = data.tool_use || data.tool_calls;
+      if (toolUse && Array.isArray(toolUse) && toolUse.length > 0) {
+        console.log('[Dash] AI requested', toolUse.length, 'tool calls');
         
         // Execute tool calls
         const toolResults = await Promise.all(
-          data.tool_use.map(async (toolCall: any) => {
+          toolUse.map(async (toolCall: any) => {
             try {
               const result = await toolRegistry.execute(toolCall.name, toolCall.input);
               return {
@@ -4725,7 +4738,7 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
             ...requestBody,
             messages: [
               ...(requestBody.messages || []),
-              { role: 'assistant', content: data.content, tool_use: data.tool_use },
+              { role: 'assistant', content: data.content, tool_use: toolUse },
               { role: 'user', content: toolResults }
             ]
           };
@@ -4742,7 +4755,13 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
       return data;
     } catch (error) {
       console.error('[Dash] AI service call failed:', error);
-      return { content: 'I apologize, but I encountered an issue. Please try again.' };
+      // Return a more specific error message to help diagnose issues
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[Dash] Error details:', errorMessage);
+      return { 
+        content: 'I apologize, but I encountered an issue processing your request. Please try again or contact support if the problem persists.',
+        error: errorMessage
+      };
     }
   }
 
