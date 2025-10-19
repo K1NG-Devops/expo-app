@@ -1680,6 +1680,7 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       .replace(/(\d+)\s+years\s+old\s+(student|child|kid|boy|girl)/gi, '$1 year old $2')
       // Normalize "X-Y year old" patterns
       .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
+  }
   
   /**
    * Remove markdown formatting for speech
