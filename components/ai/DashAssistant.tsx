@@ -12,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  FlatList,
   StyleSheet,
   Alert,
   ActivityIndicator,
@@ -74,7 +75,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
   const voiceUI = useVoiceUI();
 
-  const scrollViewRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
   const recordingAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
@@ -160,11 +161,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom when messages change (FlatList with inverted scrolls to index 0)
   useEffect(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+    if (messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: 0, animated: true });
+      }, 100);
+    }
   }, [messages]);
 
   // Pulse animation for recording
@@ -1046,58 +1049,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Verify tier button */}
+          {/* Voice (Orb) - Interactive Voice Mode - Always Blue */}
           <TouchableOpacity
             style={styles.iconButton}
-            accessibilityLabel="Verify subscription tier"
-            onPress={async () => {
-              try {
-                const supa = assertSupabase();
-                const { data: { user } } = await supa.auth.getUser();
-                let metaTier = (user?.user_metadata as any)?.subscription_tier || 'unknown';
-                let profileTier = 'unknown';
-                let planTier = 'unknown';
-                let schoolId: string | undefined = (user?.user_metadata as any)?.preschool_id;
-                if (!schoolId && user?.id) {
-                  const { data: profile } = await supa
-                    .from('profiles')
-                    .select('preschool_id')
-                    .eq('id', user.id)
-                    .maybeSingle();
-                  schoolId = profile?.preschool_id;
-                }
-                if (schoolId) {
-                  const { data: sub } = await supa
-                    .from('subscriptions')
-                    .select('plan_id, status')
-                    .eq('school_id', schoolId)
-                    .eq('status', 'active')
-                    .maybeSingle();
-                  if (sub?.plan_id) {
-                    const { data: plan } = await supa
-                      .from('subscription_plans')
-                      .select('tier')
-                      .eq('id', sub.plan_id)
-                      .maybeSingle();
-                    planTier = String(plan?.tier || 'unknown');
-                  }
-                }
-                // The SubscriptionContext tier
-                profileTier = tier;
-                const msg = `Tier verification:\n- Context tier: ${profileTier}\n- Metadata tier: ${metaTier}\n- Plan tier: ${planTier}\n- School: ${schoolId || 'none'}`;
-                Alert.alert('Subscription Tier', msg, [{ text: 'OK' }]);
-              } catch (e) {
-                Alert.alert('Subscription Tier', 'Failed to verify tier');
-              }
-            }}
-          >
-            <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
-          </TouchableOpacity>
-
-          {/* Voice (Orb) - Always Blue */}
-          <TouchableOpacity
-            style={styles.iconButton}
-            accessibilityLabel="Voice Assistant"
+            accessibilityLabel="Interactive Voice Assistant"
             onPress={async () => {
               try {
                 const storedLang = await AsyncStorage.getItem('@dash_voice_language');
@@ -1163,19 +1118,33 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
       </View>
 
-      {/* Messages */}
-      <ScrollView
-        ref={scrollViewRef}
+      {/* Messages - FlatList for better performance */}
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        keyExtractor={(item, index) => item.id || `msg-${index}`}
+        renderItem={({ item, index }) => renderMessage(item, index)}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
-      >
-        {messages.map((message: any, index: number) => renderMessage(message, index))}
-        
-        {renderTypingIndicator()}
-
-        {renderSuggestedActions()}
-      </ScrollView>
+        inverted={true}
+        initialNumToRender={20}
+        maxToRenderPerBatch={10}
+        windowSize={21}
+        removeClippedSubviews={Platform.OS === 'android'}
+        onScrollToIndexFailed={(info) => {
+          // Handle scroll failures gracefully
+          setTimeout(() => {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+          }, 100);
+        }}
+        ListHeaderComponent={
+          <>
+            {renderTypingIndicator()}
+            {renderSuggestedActions()}
+          </>
+        }
+      />
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -1250,35 +1219,30 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 style={[
                   styles.recordButton,
                   { 
-                    backgroundColor: theme.accent 
+                    backgroundColor: isRecording ? theme.error : theme.accent 
                   }
                 ]}
-                onPress={async () => {
-                  try {
-                    const storedLang = await AsyncStorage.getItem('@dash_voice_language');
-                    const detectedLang = storedLang ? storedLang.toLowerCase() : 'en';
-                    await voiceUI.open({ language: detectedLang, tier });
-                  } catch (error) {
-                    console.error('[DashAssistant] Voice UI open failed:', error);
-                    await voiceUI.open({ language: 'en', tier });
-                  }
-                }}
+                onPressIn={isRecording ? undefined : startRecording}
+                onPressOut={isRecording ? stopRecording : undefined}
+                onLongPress={isRecording ? undefined : startRecording}
                 disabled={isLoading}
+                accessibilityLabel={isRecording ? "Recording... Release to send" : "Hold to record voice message"}
               >
                 <Ionicons 
-                  name="mic" 
+                  name={isRecording ? "mic" : "mic-outline"} 
                   size={20} 
-                  color={theme.onAccent} 
+                  color={isRecording ? theme.onError || "#FFF" : theme.onAccent} 
                 />
               </TouchableOpacity>
             </Animated.View>
           )}
         </View>
         
+        {/* Recording indicator - shows when user is holding mic button */}
         {isRecording && (
-          <View style={styles.recordingIndicator}>
+          <View style={[styles.recordingIndicator, { backgroundColor: theme.errorLight || theme.surfaceVariant }]}>
             <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-            <Text style={[styles.recordingText, { color: theme.error }]}>
+            <Text style={[styles.recordingText, { color: theme.error, fontWeight: '600' }]}>
               Recording... Release to send
             </Text>
           </View>
@@ -1567,6 +1531,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   recordingDot: {
     width: 8,
@@ -1575,7 +1542,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   recordingText: {
-    fontSize: 12,
+    fontSize: 13,
   },
   messageBubbleFooter: {
     flexDirection: 'row',
