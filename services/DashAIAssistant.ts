@@ -1681,7 +1681,6 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
       // Normalize "X-Y year old" patterns
       .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
   }
-  
   /**
    * Remove markdown formatting for speech
    */
