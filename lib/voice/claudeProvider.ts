@@ -38,7 +38,7 @@ export interface ClaudeVoiceSession {
 
 // Chunked transcription configuration
 const CHUNK_DURATION_MS = 500; // 500ms chunks for real-time feel
-const MAX_SILENCE_MS = 1500; // Stop after 1.5s of silence
+const MAX_SILENCE_MS = 450; // Stop after 450ms of silence (optimized for faster response)
 
 // Native recording will use react-native-webrtc (same as OpenAI provider)
 // This ensures compatibility and avoids expo-audio issues
@@ -164,7 +164,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
         language,
         punctuate: 'true',
         interim_results: 'true', // Get partial results as user speaks
-        endpointing: '1500', // 1.5s silence = end of utterance
+        endpointing: '450', // 450ms silence = end of utterance (reduced from 1500ms for faster response)
         encoding: 'linear16',
         sample_rate: '16000',
         channels: '1',
@@ -236,14 +236,14 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
                 } else if (transcriptBuffer.trim()) {
                   // isFinal but NOT speechFinal - set a timeout to force send
                   // This handles cases where Deepgram doesn't detect speech_final
-                  console.log('[claudeProvider] ⏱️ isFinal but no speechFinal - setting 2s timeout');
+                  console.log('[claudeProvider] ⏱️ isFinal but no speechFinal - setting 800ms timeout');
                   
                   // Clear any existing timer
                   if (speechFinalTimer) {
                     clearTimeout(speechFinalTimer);
                   }
                   
-                  // Wait 2 seconds, then force send if no speechFinal received
+                  // Wait 800ms, then force send if no speechFinal received
                   speechFinalTimer = setTimeout(() => {
                     if (transcriptBuffer.trim()) {
                       console.log('[claudeProvider] ⏰ Timeout reached! Force-sending to Claude:', transcriptBuffer.trim().substring(0, 50));
@@ -258,7 +258,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
                       transcriptBuffer = '';
                     }
                     speechFinalTimer = null;
-                  }, 2000); // 2 seconds
+                  }, 800); // 800ms (reduced from 2s for faster response)
                 }
               } else {
                 // Interim result - show to user but don't send to Claude yet
