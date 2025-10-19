@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';

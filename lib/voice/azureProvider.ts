@@ -2,22 +2,50 @@
 // Uses microsoft-cognitiveservices-speech-sdk via dynamic import.
 // Falls back gracefully if SDK is unavailable.
 
-import { Platform } from 'react-native';
-import { Audio } from 'expo-av';
+import { Platform, PermissionsAndroid } from 'react-native';
 
 /**
- * Ensure microphone permission using Expo AV (works on iOS, Android, Web)
+ * Ensure microphone permission using platform-specific APIs
  * Returns true if permission granted, false otherwise
  */
 async function ensureMicPermission(): Promise<boolean> {
   try {
-    const { status, granted } = await Audio.requestPermissionsAsync();
-    if (status === 'granted' || granted) {
-      if (__DEV__) console.log('[azureProvider] ✅ Microphone permission granted');
+    // iOS: Permission handled by Info.plist (NSMicrophoneUsageDescription)
+    if (Platform.OS === 'ios') {
+      if (__DEV__) console.log('[azureProvider] ✅ iOS: Microphone permission handled by Info.plist');
       return true;
     }
-    if (__DEV__) console.warn('[azureProvider] ⚠️ Microphone permission denied:', status);
-    return false;
+    
+    // Android: Request RECORD_AUDIO permission
+    if (Platform.OS === 'android') {
+      const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+      const hasPermission = await PermissionsAndroid.check(permission);
+      
+      if (hasPermission) {
+        if (__DEV__) console.log('[azureProvider] ✅ Android: Microphone permission already granted');
+        return true;
+      }
+      
+      const status = await PermissionsAndroid.request(permission, {
+        title: 'Microphone Permission',
+        message: 'This app needs access to your microphone so Dash can hear your questions.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      });
+      
+      if (status === PermissionsAndroid.RESULTS.GRANTED) {
+        if (__DEV__) console.log('[azureProvider] ✅ Android: Microphone permission granted');
+        return true;
+      }
+      
+      if (__DEV__) console.warn('[azureProvider] ⚠️ Android: Microphone permission denied:', status);
+      return false;
+    }
+    
+    // Web: Browser will prompt automatically when mic is accessed
+    if (__DEV__) console.log('[azureProvider] ✅ Web: Microphone permission handled by browser');
+    return true;
   } catch (e) {
     console.error('[azureProvider] Permission request error:', e);
     return false;

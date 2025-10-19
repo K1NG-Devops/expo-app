@@ -13,9 +13,9 @@
  * - Platform-agnostic (web, iOS, Android)
  */
 
-import { createAzureSpeechSession, type AzureSpeechSession } from '@/lib/voice/azureProvider';
-import { getAzureSpeechToken } from '@/lib/voice/realtimeToken';
+import { createClaudeVoiceSession, type ClaudeVoiceSession } from '@/lib/voice/claudeProvider';
 import { expoSpeech } from '@/lib/voice/expoProvider';
+import { Platform } from 'react-native';
 
 export type VoicePartialCb = (text: string) => void;
 export type VoiceFinalCb = (text: string) => void;
@@ -35,7 +35,7 @@ export interface VoiceSession {
 }
 
 export interface VoiceProvider {
-  id: 'expo' | 'azure' | 'noop';
+  id: 'expo' | 'claude' | 'noop';
   isAvailable(): Promise<boolean>;
   createSession(): VoiceSession;
 }
@@ -56,11 +56,11 @@ class NoopSession implements VoiceSession {
 
 /**
  * Get the default voice provider based on availability and optional override
- * Priority: Expo Speech Recognition → Azure Speech SDK → Noop
+ * Priority: Expo Speech Recognition → Claude + Deepgram → Noop
  */
 export async function getDefaultVoiceProvider(language?: string): Promise<VoiceProvider> {
   // Allow environment override for testing
-  const envOverride = process.env.EXPO_PUBLIC_VOICE_PROVIDER as 'expo' | 'azure' | 'auto' | undefined;
+  const envOverride = process.env.EXPO_PUBLIC_VOICE_PROVIDER as 'expo' | 'claude' | 'auto' | undefined;
   
   if (__DEV__) {
     console.log('[UnifiedProvider] Selecting voice provider:', {
@@ -70,7 +70,7 @@ export async function getDefaultVoiceProvider(language?: string): Promise<VoiceP
   }
 
   // 1) Expo Speech Recognition (future - check availability first)
-  if (envOverride !== 'azure') {
+  if (envOverride !== 'claude') {
     try {
       const expoAvailable = await expoSpeech.isAvailable();
       if (expoAvailable) {
@@ -82,56 +82,43 @@ export async function getDefaultVoiceProvider(language?: string): Promise<VoiceP
     }
   }
 
-  // 2) Azure Speech SDK (current - works on web + mobile)
+  // 2) Claude + Deepgram Streaming (current - works on mobile + web)
   if (envOverride !== 'expo') {
     try {
-      const token = await getAzureSpeechToken();
-      if (token?.token && token.region) {
-        if (__DEV__) {
-          console.log('[UnifiedProvider] ✅ Using Azure Speech SDK:', {
-            region: token.region,
-            hasToken: !!token.token,
-          });
-        }
-
-        return {
-          id: 'azure',
-          async isAvailable() { return true; },
-          createSession() {
-            const sess: AzureSpeechSession = createAzureSpeechSession();
-            
-            // Wrap Azure session to match VoiceSession interface
-            return {
-              async start(opts: VoiceStartOptions) {
-                return await sess.start({
-                  token: token.token,
-                  region: token.region,
-                  language: opts.language,
-                  onPartialTranscript: opts.onPartial,
-                  onFinalTranscript: opts.onFinal,
-                });
-              },
-              async stop() { await sess.stop(); },
-              isActive() { return sess.isActive(); },
-              setMuted(m) { sess.setMuted(m); },
-              updateConfig(cfg) { 
-                sess.updateTranscriptionConfig({ language: cfg.language }); 
-              },
-            };
-          },
-        };
-      } else {
-        if (__DEV__) {
-          console.warn('[UnifiedProvider] ⚠️ Azure Speech SDK unavailable:', {
-            hasToken: !!token?.token,
-            hasRegion: !!token?.region,
-          });
-          console.warn('[UnifiedProvider] Hint: Check if azure-speech-token Edge Function is deployed');
-          console.warn('[UnifiedProvider] Hint: Verify AZURE_SPEECH_KEY and AZURE_SPEECH_REGION secrets in Supabase');
-        }
+      if (__DEV__) {
+        console.log('[UnifiedProvider] ✅ Using Claude + Deepgram streaming:', {
+          platform: Platform.OS,
+          language: language || 'en',
+        });
       }
+
+      return {
+        id: 'claude',
+        async isAvailable() { return true; },
+        createSession() {
+          const sess: ClaudeVoiceSession = createClaudeVoiceSession();
+          
+          // Wrap Claude session to match VoiceSession interface
+          return {
+            async start(opts: VoiceStartOptions) {
+              return await sess.start({
+                language: opts.language,
+                onPartialTranscript: opts.onPartial,
+                onFinalTranscript: opts.onFinal,
+                systemPrompt: 'You are Dash, a helpful AI assistant for EduDash Pro. Keep responses concise and friendly for voice conversations (2-3 sentences max).',
+              });
+            },
+            async stop() { await sess.stop(); },
+            isActive() { return sess.isActive(); },
+            setMuted(m) { sess.setMuted(m); },
+            updateConfig(cfg) { 
+              sess.updateTranscriptionConfig({ language: cfg.language }); 
+            },
+          };
+        },
+      };
     } catch (e) {
-      if (__DEV__) console.warn('[UnifiedProvider] Azure Speech check failed:', e);
+      if (__DEV__) console.warn('[UnifiedProvider] Claude + Deepgram check failed:', e);
     }
   }
 

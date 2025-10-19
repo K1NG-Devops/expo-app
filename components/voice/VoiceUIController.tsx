@@ -10,7 +10,7 @@
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { getVoiceCapabilities, isIndigenousSA, type VoiceCapabilities } from '@/lib/voice/capabilities';
-import VoiceRecordingModalNew from '@/components/ai/VoiceRecordingModalNew';
+import VoiceRecordingModalAzure from '@/components/ai/VoiceRecordingModalAzure';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { toast } from '@/components/ui/ToastProvider';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
@@ -81,14 +81,15 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
         streamingAvailable: capabilities.streamingAvailable,
         isIndigenous: capabilities.isIndigenousSA,
         forceMode,
+        hasCallback: !!onTranscriptReady,
       });
     }
 
-    // Determine mode
+    // Determine mode based on use case
     let mode: VoiceMode;
     
     if (forceMode) {
-      // If streaming was requested but unavailable, fall back to recording
+      // Explicit mode requested
       if (forceMode === 'streaming' && !capabilities.streamingAvailable) {
         try { toast.warn?.('Streaming unavailable on this device/tier — using recording instead.'); } catch {}
         mode = 'recording';
@@ -96,14 +97,19 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
         mode = forceMode;
       }
     } else {
-      // Default: use recording modal for mic button interactions
-      mode = 'recording';
-      if (__DEV__) {
-        console.log('[VoiceUIController] 📝 Using recording modal with animated orb', {
-          language,
-          isIndigenous: capabilities.isIndigenousSA,
-          streamingAvailable: capabilities.streamingAvailable,
-        });
+      // Auto-select based on context:
+      // If callback provided = mic button in chat (single-use recording modal)
+      // If no callback = long-press FAB (conversational streaming)
+      if (onTranscriptReady) {
+        mode = 'recording';
+        if (__DEV__) {
+          console.log('[VoiceUIController] 📝 Using recording modal (mic button in chat)');
+        }
+      } else {
+        mode = 'streaming';
+        if (__DEV__) {
+          console.log('[VoiceUIController] 🗣️ Using streaming voice mode (long-press FAB)');
+        }
       }
     }
 
@@ -186,9 +192,9 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
         />
       )}
 
-      {/* Recording Modal (animated with HolographicOrb) */}
+      {/* Recording Modal (Azure-powered with HolographicOrb) */}
       {state.isOpen && state.mode === 'recording' && (
-        <VoiceRecordingModalNew
+        <VoiceRecordingModalAzure
           visible={true}
           onClose={close}
           dashInstance={dashInstance}
