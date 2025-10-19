@@ -7,10 +7,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
-// @ts-ignore - pdf-parse types
-import pdfParse from 'pdf-parse';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 // Supabase client with service role (admin access)
 const supabase = createClient(
@@ -32,158 +30,98 @@ interface CAPSDocument {
   term?: number;
 }
 
-const CAPS_DOCUMENTS: CAPSDocument[] = [
-  // ===== MATHEMATICS =====
+// Scraped LinkClick.aspx URLs - subject extracted from PDF filename after redirect
+const BASE_URL = 'https://www.education.gov.za';
+
+const CAPS_LINK_TICKETS: Array<{url: string; grade: string; phase: string}> = [
+  // Foundation Phase (R-3) - Sample subset for testing
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=j7mNSYBjQX8%3d&tabid=571&portalid=0&mid=13003`, grade: 'R-3', phase: 'Foundation' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=xGwHzRgeMR4%3d&tabid=571&portalid=0&mid=1560`, grade: 'R-3', phase: 'Foundation' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=D86-onzL9kg%3d&tabid=571&portalid=0&mid=1560`, grade: 'R-3', phase: 'Foundation' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=dPcXTeG2f2k%3d&tabid=571&portalid=0&mid=1208`, grade: 'R-3', phase: 'Foundation' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=lMWj7htycnU%3d&tabid=571&portalid=0&mid=1562`, grade: 'R-3', phase: 'Foundation' },
   
-  // Curriculum Documents
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20MATHEMATICS%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'Mathematics',
-    type: 'curriculum',
-    title: 'Mathematics CAPS Grades 10-12'
-  },
+  // Intermediate Phase (4-6)
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=AlKuZ-T5ZvQ%3d&tabid=572&portalid=0&mid=13087`, grade: '4-6', phase: 'Intermediate' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=H2w6zb4_CVs%3d&tabid=572&portalid=0&mid=1564`, grade: '4-6', phase: 'Intermediate' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=ze6JhhFYdCg%3d&tabid=572&portalid=0&mid=1564`, grade: '4-6', phase: 'Intermediate' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=dPcXTeG2f2k%3d&tabid=572&portalid=0&mid=1208`, grade: '4-6', phase: 'Intermediate' },
   
-  // Past Papers - Grade 10
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/Grade10_Nov2023/Mathematics_P1_Grade10_Nov2023_Eng.pdf',
-    grade: '10',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 10 Mathematics November 2023 Paper 1'
-  },
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/Grade10_Nov2023/Mathematics_P2_Grade10_Nov2023_Eng.pdf',
-    grade: '10',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 10 Mathematics November 2023 Paper 2'
-  },
+  // Senior Phase (7-9)
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=IEUmcVss3wg%3d&tabid=573&portalid=0&mid=13088`, grade: '7-9', phase: 'Senior' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=slLbge-bPMk%3d&tabid=573&portalid=0&mid=1569`, grade: '7-9', phase: 'Senior' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=5xCztldu-Kw%3d&tabid=573&portalid=0&mid=1569`, grade: '7-9', phase: 'Senior' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=dPcXTeG2f2k%3d&tabid=573&portalid=0&mid=1208`, grade: '7-9', phase: 'Senior' },
   
-  // Past Papers - Grade 11
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/Grade11_Nov2023/Mathematics_P1_Grade11_Nov2023_Eng.pdf',
-    grade: '11',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 11 Mathematics November 2023 Paper 1'
-  },
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/Grade11_Nov2023/Mathematics_P2_Grade11_Nov2023_Eng.pdf',
-    grade: '11',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 11 Mathematics November 2023 Paper 2'
-  },
-  
-  // Past Papers - Grade 12 (NSC)
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/NSC/Mathematics_P1_Nov2023_Eng.pdf',
-    grade: '12',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 12 Mathematics November 2023 Paper 1'
-  },
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/NSC/Mathematics_P2_Nov2023_Eng.pdf',
-    grade: '12',
-    subject: 'Mathematics',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 12 Mathematics November 2023 Paper 2'
-  },
-  
-  // ===== ENGLISH HOME LANGUAGE =====
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20ENGLISH%20HOME%20LANGUAGE%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'English Home Language',
-    type: 'curriculum',
-    title: 'English Home Language CAPS Grades 10-12'
-  },
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/NSC/English_HL_P1_Nov2023_Eng.pdf',
-    grade: '12',
-    subject: 'English Home Language',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 12 English HL November 2023 Paper 1'
-  },
-  
-  // ===== PHYSICAL SCIENCES =====
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20PHYSICAL%20SCIENCES%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'Physical Sciences',
-    type: 'curriculum',
-    title: 'Physical Sciences CAPS Grades 10-12'
-  },
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/NSC/Physical_Sciences_P1_Nov2023_Eng.pdf',
-    grade: '12',
-    subject: 'Physical Sciences',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 12 Physical Sciences November 2023 Paper 1'
-  },
-  
-  // ===== LIFE SCIENCES =====
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20LIFE%20SCIENCES%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'Life Sciences',
-    type: 'curriculum',
-    title: 'Life Sciences CAPS Grades 10-12'
-  },
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/Documents/Exams/2023/NSC/Life_Sciences_P1_Nov2023_Eng.pdf',
-    grade: '12',
-    subject: 'Life Sciences',
-    type: 'exam',
-    year: 2023,
-    title: 'Grade 12 Life Sciences November 2023 Paper 1'
-  },
-  
-  // ===== ACCOUNTING =====
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20ACCOUNTING%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'Accounting',
-    type: 'curriculum',
-    title: 'Accounting CAPS Grades 10-12'
-  },
-  
-  // ===== AFRIKAANS =====
-  
-  {
-    url: 'https://www.education.gov.za/Portals/0/CD/National%20Curriculum%20Statements%20and%20Vocational/CAPS%20FET%20_%20AFRIKAANS%20HUISTAAL%20_%20GR%2010-12%20_%20Web.pdf',
-    grade: '10-12',
-    subject: 'Afrikaans Huistaal',
-    type: 'curriculum',
-    title: 'Afrikaans Huistaal CAPS Grades 10-12'
-  },
-  
-  // Add more documents as URLs are discovered
+  // FET Phase (10-12) - Core subjects
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=mMkdIZmk3Ow%3d&tabid=570&portalid=0&mid=1555`, grade: '10-12', phase: 'FET' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=WtjOh8RBcU0%3d&tabid=570&portalid=0&mid=1555`, grade: '10-12', phase: 'FET' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=AKAkYh_nuTo%3d&tabid=570&portalid=0&mid=1555`, grade: '10-12', phase: 'FET' },
+  { url: `${BASE_URL}/LinkClick.aspx?fileticket=dPcXTeG2f2k%3d&tabid=570&portalid=0&mid=1208`, grade: '10-12', phase: 'FET' },
 ];
+
+const CAPS_DOCUMENTS: CAPSDocument[] = [
+  // Will be populated dynamically from CAPS_LINK_TICKETS after redirect resolution
+];
+
+// =====================================================
+// Helper Functions
+// =====================================================
+
+function extractSubjectFromFilename(filename: string): string {
+  // Extract subject from PDF filename patterns
+  // Examples: "CAPS FET _ MATHEMATICS _ GR 10-12.pdf", "IP ENGLISH HL GR 4-6.pdf"
+  
+  const cleaned = decodeURIComponent(filename)
+    .replace(/\.pdf$/i, '')
+    .replace(/_+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  // Try to extract subject from common patterns
+  const patterns = [
+    /CAPS\s+(?:FET|IP|SP|FP)\s+_\s+([^_]+?)\s+_\s+GR/i,
+    /(?:FET|IP|SP|FP)\s+([A-Z][^_\d]+?)\s+(?:GR|CAPS)/i,
+    /CAPS\s+([A-Z][^\d]+?)\s+(?:GR|Grade)/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern);
+    if (match) {
+      return match[1].trim().replace(/\s+/g, ' ');
+    }
+  }
+  
+  // Fallback: take middle section if contains underscores
+  const parts = cleaned.split('_').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return parts[1];
+  }
+  
+  return 'Unknown';
+}
+
+async function resolveRedirectUrl(linkClickUrl: string): Promise<{finalUrl: string; filename: string}> {
+  const response = await fetch(linkClickUrl, { redirect: 'manual' });
+  
+  if (response.status === 302 || response.status === 301) {
+    const location = response.headers.get('location');
+    if (location) {
+      const fullUrl = location.startsWith('http') ? location : BASE_URL + location;
+      const filename = fullUrl.split('/').pop()?.split('?')[0] || 'unknown.pdf';
+      return { finalUrl: fullUrl, filename };
+    }
+  }
+  
+  throw new Error('No redirect found');
+}
 
 // =====================================================
 // Download and Process Functions
 // =====================================================
 
 async function downloadPDF(url: string): Promise<Buffer> {
-  console.log(`  📥 Downloading from: ${url.substring(0, 80)}...`);
+  console.log(`  📥 Downloading PDF...`);
   
   const response = await fetch(url);
   
@@ -198,6 +136,8 @@ async function downloadPDF(url: string): Promise<Buffer> {
 async function extractTextFromPDF(buffer: Buffer): Promise<{ text: string; pages: number }> {
   console.log(`  📄 Extracting text from PDF...`);
   
+  // pdf-parse is CommonJS - use require
+  const pdfParse = require('pdf-parse');
   const data = await pdfParse(buffer);
   
   return {
@@ -289,40 +229,51 @@ async function storeInDatabase(
 
 async function downloadAllDocuments() {
   console.log('🚀 CAPS Curriculum Download Started\n');
-  console.log(`📚 Total documents to process: ${CAPS_DOCUMENTS.length}\n`);
+  console.log(`📚 Total link tickets to resolve: ${CAPS_LINK_TICKETS.length}\n`);
   
   let successCount = 0;
   let failureCount = 0;
   const errors: Array<{ doc: string; error: string }> = [];
   
-  for (let i = 0; i < CAPS_DOCUMENTS.length; i++) {
-    const doc = CAPS_DOCUMENTS[i];
+  for (let i = 0; i < CAPS_LINK_TICKETS.length; i++) {
+    const ticket = CAPS_LINK_TICKETS[i];
     
-    console.log(`\n[${i + 1}/${CAPS_DOCUMENTS.length}] Processing: ${doc.title}`);
-    console.log(`  📖 ${doc.grade} ${doc.subject} (${doc.type})`);
+    console.log(`\n[${i + 1}/${CAPS_LINK_TICKETS.length}] Processing: ${ticket.phase} Phase (Grade ${ticket.grade})`);
     
     try {
-      // Step 1: Download PDF
-      const buffer = await downloadPDF(doc.url);
-      console.log(`  ✅ Downloaded (${(buffer.length / 1024).toFixed(1)} KB)`);
+      // Step 1: Resolve redirect to get final PDF URL and filename
+      console.log(`  🔗 Resolving redirect...`);
+      const { finalUrl, filename } = await resolveRedirectUrl(ticket.url);
+      const subject = extractSubjectFromFilename(filename);
+      console.log(`  ✅ Subject detected: ${subject}`);
+      console.log(`  📄 Filename: ${filename}`);
       
-      // Step 2: Extract text
-      const extracted = await extractTextFromPDF(buffer);
-      console.log(`  ✅ Extracted ${extracted.pages} pages, ${extracted.text.split(/\s+/).length} words`);
+      const doc: CAPSDocument = {
+        url: finalUrl,
+        grade: ticket.grade,
+        subject: subject,
+        type: 'curriculum',
+        title: `${subject} CAPS ${ticket.phase} Phase (Grade ${ticket.grade})`,
+      };
+      
+      // Step 2: Download PDF
+      const buffer = await downloadPDF(finalUrl);
+      console.log(`  ✅ Downloaded (${(buffer.length / 1024).toFixed(1)} KB)`);
       
       // Step 3: Upload to storage
       const storage = await uploadToStorage(buffer, doc);
       console.log(`  ✅ Uploaded to storage`);
       
-      // Step 4: Store metadata in database
-      await storeInDatabase(doc, storage, extracted);
-      console.log(`  ✅ Stored in database`);
+      // Step 4: Store metadata in database (text extraction deferred)
+      await storeInDatabase(doc, storage, { text: '', pages: 0 });
+      console.log(`  ✅ Stored metadata in database`);
+      console.log(`  ℹ️  Text extraction will be done server-side`);
       
       successCount++;
       console.log(`  🎉 SUCCESS!`);
       
       // Be nice to DBE servers (rate limiting)
-      if (i < CAPS_DOCUMENTS.length - 1) {
+      if (i < CAPS_LINK_TICKETS.length - 1) {
         console.log(`  ⏳ Waiting 2 seconds...`);
         await new Promise(resolve => setTimeout(resolve, 2000));
       }
@@ -331,7 +282,7 @@ async function downloadAllDocuments() {
       failureCount++;
       const errorMsg = error instanceof Error ? error.message : String(error);
       console.error(`  ❌ FAILED: ${errorMsg}`);
-      errors.push({ doc: doc.title, error: errorMsg });
+      errors.push({ doc: `${ticket.phase} ${ticket.grade}`, error: errorMsg });
       
       // Continue with next document
       continue;
@@ -344,7 +295,7 @@ async function downloadAllDocuments() {
   console.log('='.repeat(60));
   console.log(`✅ Successful: ${successCount}`);
   console.log(`❌ Failed: ${failureCount}`);
-  console.log(`📚 Total: ${CAPS_DOCUMENTS.length}`);
+  console.log(`📚 Total: ${CAPS_LINK_TICKETS.length}`);
   
   if (errors.length > 0) {
     console.log('\n❌ Errors:');
