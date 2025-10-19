@@ -118,32 +118,54 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
               // Interrupt Dash if user starts speaking while Dash is responding
               if (speaking && partial.length >= 2) {
                 console.log('[DashVoiceMode] 🛑 User interrupted - stopping TTS');
+                
+                // CRITICAL: Set abort flag and reset state immediately
+                abortSpeechRef.current = true;
+                processedRef.current = false;
                 setSpeaking(false);
+                setUserTranscript('');
+                setAiResponse('');
                 
                 (async () => {
                   try {
                     await dashInstance?.stopSpeaking?.();
                     console.log('[DashVoiceMode] ✅ Speech stopped successfully');
+                    // Reset abort flag after stop completes
+                    abortSpeechRef.current = false;
                     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
                   } catch (e) {
                     console.warn('[DashVoiceMode] Failed to stop speech:', e);
+                    abortSpeechRef.current = false;
                   }
                 })();
               }
             }
           },
           onFinal: async (text) => {
-            if (cancelled || processedRef.current) return;
+            if (cancelled) return;
             
             const transcript = String(text || '').trim();
             console.log('[DashVoiceMode] ✅ Final transcript received:', transcript);
-            setUserTranscript(transcript);
             
-            if (!transcript) {
-              console.warn('[DashVoiceMode] ⚠️ Empty transcript, skipping');
+            // Skip if already processing or if aborted
+            if (processedRef.current) {
+              console.log('[DashVoiceMode] ⏭️  Skipping duplicate - already processing');
               return;
             }
             
+            if (abortSpeechRef.current) {
+              console.log('[DashVoiceMode] ⏭️  Skipping - speech was aborted');
+              return;
+            }
+            
+            // Minimum content threshold to avoid noise triggers
+            const wordCount = transcript.split(/\s+/).length;
+            if (!transcript || wordCount < 2) {
+              console.warn('[DashVoiceMode] ⚠️ Empty or too short transcript, skipping:', transcript);
+              return;
+            }
+            
+            setUserTranscript(transcript);
             await handleTranscript(transcript);
           },
         });
@@ -170,6 +192,10 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       cancelled = true;
       if (__DEV__) console.log('[DashVoiceMode] 🧹 Cleanup: stopping session...');
       sessionRef.current?.stop().catch(() => {});
+      
+      // CRITICAL: Reset all state flags on unmount
+      processedRef.current = false;
+      abortSpeechRef.current = false;
     };
   }, [visible, activeLang]);
 
@@ -281,7 +307,9 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
       };
       
       console.log('[DashVoiceMode] 🎵 Calling dashInstance.speakResponse...');
-      await dashInstance.speakResponse(dummyMessage, {
+      
+      // Add timeout safeguard for stopSpeaking
+      const speakPromise = dashInstance.speakResponse(dummyMessage, {
         onStart: () => {
           // Check abort flag even after TTS starts
           if (abortSpeechRef.current) {
@@ -297,6 +325,20 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
           }
         },
         onError: (err) => console.error('[DashVoiceMode] ❌ TTS error:', err),
+      });
+      
+      // Wait for speech with timeout (max 30s)
+      await Promise.race([
+        speakPromise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('TTS timeout')), 30000)
+        )
+      ]).catch(err => {
+        if (err.message === 'TTS timeout') {
+          console.warn('[DashVoiceMode] ⚠️ TTS timeout - force stopping');
+          dashInstance.stopSpeaking();
+        }
+        throw err;
       });
       
       // Final check after TTS completes
