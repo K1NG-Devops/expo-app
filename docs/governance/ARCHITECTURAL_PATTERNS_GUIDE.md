@@ -791,14 +791,65 @@ DashConversationManager
 ## 📝 Refactoring Progress
 
 ### Completed
-- [ ] Phase 1: Audit and planning
-- [ ] Phase 2: Type extraction
-- [ ] Phase 3: DashAIAssistant split
+- [x] Phase 0: Documentation & branch setup
+- [x] Phase 1: Directory scaffolding
+- [x] Phase 2: Type extraction ✅
 
 ### In Progress
-- [x] Creating this guide
-- [ ] Extracting DashVoiceService
-- [ ] Extracting DashMemoryService
+- [ ] Phase 3: DashAIAssistant split (voice, memory, conversation services)
+
+### Phase 2 Learnings: Type Extraction
+
+**What We Did**: Extracted 733 lines of type definitions from `DashAIAssistant.ts` into `services/dash-ai/types.ts`
+
+**Why This Matters**:
+1. **Zero Dependencies**: Types file has NO imports, only exports
+2. **Prevents Circular Deps**: Services can import types without creating cycles
+3. **Single Source of Truth**: One place for all Dash AI type definitions
+4. **Comprehensive Documentation**: Each type explains purpose, storage, usage
+
+**Key Decision: Why One File Instead of Multiple?**
+```
+Option A: Split by domain
+- types.messages.ts
+- types.tasks.ts  
+- types.memory.ts
+
+Option B: One types.ts file ✅ (We chose this)
+```
+
+**Why Option B Won**:
+- Total: 733 lines (under 1,000-line guideline for types)
+- Logically organized into 6 clear sections
+- Easy to find ALL types in one place
+- No confusion about where types live
+
+**Rule**: Split types when >1,000 lines OR types belong to different features
+
+**Documentation Pattern**:
+```typescript
+/**
+ * DashMessage represents a single message
+ * 
+ * **Usage**: Both user input and AI responses
+ * **Storage**: AsyncStorage (local) + Supabase (cloud)
+ * 
+ * **Key Fields**:
+ * - `voiceNote`: Optional voice recording
+ * - `attachments`: File attachments
+ * - `metadata`: Rich context
+ */
+export interface DashMessage {
+  // ...
+}
+```
+
+**Key Insight**: Good documentation IN the code is better than external docs.
+- Developers see it while coding
+- IDE shows it in autocomplete
+- Never gets out of sync with code
+
+**Next Step**: Extract DashVoiceService (voice recording + transcription logic)
 
 ### Next Steps
 - [ ] Extract remaining services
