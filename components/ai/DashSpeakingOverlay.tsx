@@ -71,10 +71,14 @@ export function DashSpeakingOverlay({ isSpeaking, onStopSpeaking }: DashSpeaking
 
   const handleStop = async () => {
     try {
-      // Stop audio playback
-      await audioManager.stop();
+      console.log('[DashSpeakingOverlay] 🛑 Stop button pressed - immediate stop');
       
-      // Also try to stop via Dash AI Assistant if available
+      // Execute all stop operations in parallel for immediate effect
+      const stopPromises = [
+        audioManager.stop().catch(e => console.warn('[DashSpeakingOverlay] Audio manager stop warning:', e))
+      ];
+      
+      // Also stop via Dash AI Assistant
       try {
         const module = await import('@/services/DashAIAssistant');
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
@@ -82,9 +86,18 @@ export function DashSpeakingOverlay({ isSpeaking, onStopSpeaking }: DashSpeaking
         if (dash?.stopSpeaking) { await dash.stopSpeaking(); }
       } catch { /* Intentional: non-fatal */ }
       
+      // Wait for all stop operations with timeout
+      await Promise.race([
+        Promise.all(stopPromises),
+        new Promise(resolve => setTimeout(resolve, 500))
+      ]);
+      
+      console.log('[DashSpeakingOverlay] ✅ All audio stopped');
       onStopSpeaking?.();
     } catch (error) {
       console.error('[DashSpeakingOverlay] Failed to stop speaking:', error);
+      // Still call callback even if stop failed
+      onStopSpeaking?.();
     }
   };
 

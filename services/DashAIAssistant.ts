@@ -519,6 +519,7 @@ export class DashAIAssistant {
   private isRecording = false;
   private recordingObject: Audio.Recording | null = null;
   private soundObject: Audio.Sound | null = null;
+  private toolRegistry: any = null; // Will be initialized on first use
   
   // Enhanced agentic capabilities
   private userProfile: DashUserProfile | null = null;
@@ -1627,6 +1628,9 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     // Handle bullet points and list formatting
     normalized = this.normalizeBulletPoints(normalized);
     
+    // Handle awkward age/number phrases BEFORE general number normalization
+    normalized = this.normalizeAgeAndQuantityPhrases(normalized);
+    
     // Handle numbers intelligently
     normalized = this.normalizeNumbers(normalized);
     
@@ -1653,6 +1657,29 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
     
     return normalized;
   }
+  
+  /**
+   * Normalize awkward age and quantity phrases for natural speech
+   * Examples:
+   * - "children to 6 years old" -> "6 year old children"
+   * - "students from 5 to 7 years" -> "students aged 5 to 7 years"
+   * - "kids aged 3-4 years old" -> "3 to 4 year old kids"
+   */
+  private normalizeAgeAndQuantityPhrases(text: string): string {
+    return text
+      // Fix "X to Y years old" patterns
+      .replace(/(\w+)\s+to\s+(\d+)\s+years?\s+old/gi, '$2 year old $1')
+      .replace(/(\w+)\s+from\s+(\d+)\s+to\s+(\d+)\s+years?/gi, '$1 aged $2 to $3 years')
+      // Fix awkward "aged X-Y years old" patterns
+      .replace(/aged\s+(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old')
+      // Fix "students/children/kids of X years"
+      .replace(/(students?|children?|kids?)\s+of\s+(\d+)\s+years?/gi, '$2 year old $1')
+      // Fix "X year students" -> "X year old students"
+      .replace(/(\d+)\s+year\s+(students?|children?|kids?)/gi, '$1 year old $2')
+      // Fix plural "years old" when singular needed
+      .replace(/(\d+)\s+years\s+old\s+(student|child|kid|boy|girl)/gi, '$1 year old $2')
+      // Normalize "X-Y year old" patterns
+      .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
   
   /**
    * Remove markdown formatting for speech
@@ -2946,13 +2973,54 @@ Continue exploring ${topic} through books, videos, and hands-on experiences. The
   }
 
   /**
-   * Stop current speech
+   * Stop current speech - IMMEDIATELY stops all audio sources
+   * This is a CRITICAL function for interrupt handling
    */
   public async stopSpeaking(): Promise<void> {
     try {
-      await Speech.stop();
+      console.log('[Dash] 🛑 IMMEDIATE STOP - Stopping all speech playback...');
+      
+      // Execute all stop operations in parallel for immediate effect
+      const stopOperations = [];
+      
+      // Stop device TTS (expo-speech) - HIGHEST PRIORITY
+      if (Speech && typeof Speech.stop === 'function') {
+        stopOperations.push(
+          Speech.stop().then(() => console.log('[Dash] ✅ Device TTS stopped'))
+        );
+      }
+      
+      // Stop audio manager (Azure TTS)
+      stopOperations.push(
+        (async () => {
+          try {
+            const { audioManager } = await import('@/lib/voice/audio');
+            await audioManager.stop();
+            console.log('[Dash] ✅ Audio manager stopped');
+          } catch (e) {
+            console.warn('[Dash] ⚠️ Audio manager stop warning:', e);
+          }
+        })()
+      );
+      
+      // Stop voice controller if using Phase 4 architecture
+      if (this.voiceController) {
+        stopOperations.push(
+          this.voiceController.stopSpeaking().then(() => console.log('[Dash] ✅ Voice controller stopped'))
+        );
+      }
+      
+      // Wait for all stop operations to complete (with timeout)
+      await Promise.race([
+        Promise.all(stopOperations),
+        new Promise((resolve) => setTimeout(resolve, 500)) // 500ms timeout
+      ]);
+      
+      console.log('[Dash] ✅ All speech stopped successfully');
     } catch (error) {
-      console.error('[Dash] Failed to stop speaking:', error);
+      console.error('[Dash] ❌ Failed to stop speaking:', error);
+      // Don't throw - we want stop to be as robust as possible
+      // Throwing could prevent cleanup in the caller
     }
   }
 
@@ -4575,16 +4643,34 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
   }
 
   /**
-   * Call AI service with enhanced context
+   * Get or initialize tool registry
+   */
+  private getToolRegistry(): any {
+    if (!this.toolRegistry) {
+      // Lazy load to avoid circular dependencies
+      const { DashToolRegistry } = require('@/services/modules/DashToolRegistry');
+      this.toolRegistry = new DashToolRegistry();
+    }
+    return this.toolRegistry;
+  }
+
+  /**
+   * Call AI service with enhanced context and tool support
    */
   private async callAIService(params: any): Promise<any> {
     try {
       const supabase = assertSupabase();
       
+      // Get tool specifications for AI
+      const toolRegistry = this.getToolRegistry();
+      const toolSpecs = toolRegistry.getToolSpecs();
+      
       // Include model from environment variables if not specified
       const requestBody = {
         ...params,
-        model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022'
+        model: params.model || process.env.EXPO_PUBLIC_ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+        // Add tool support so AI can call organization data tools
+        tools: toolSpecs && toolSpecs.length > 0 ? toolSpecs : undefined
       };
       
       // If attachments with images are present, add them for vision analysis
@@ -4599,11 +4685,60 @@ IMPORTANT: Always provide specific, contextual responses that directly address t
         }
       }
       
+      console.log('[Dash] Calling AI with', toolSpecs?.length || 0, 'tools available');
+      
       const { data, error } = await supabase.functions.invoke('ai-gateway', {
         body: requestBody
       });
       
       if (error) throw error;
+      
+      // Handle tool use responses
+      if (data.tool_use && Array.isArray(data.tool_use)) {
+        console.log('[Dash] AI requested', data.tool_use.length, 'tool calls');
+        
+        // Execute tool calls
+        const toolResults = await Promise.all(
+          data.tool_use.map(async (toolCall: any) => {
+            try {
+              const result = await toolRegistry.execute(toolCall.name, toolCall.input);
+              return {
+                tool_use_id: toolCall.id,
+                type: 'tool_result',
+                content: JSON.stringify(result)
+              };
+            } catch (error) {
+              console.error(`[Dash] Tool ${toolCall.name} failed:`, error);
+              return {
+                tool_use_id: toolCall.id,
+                type: 'tool_result',
+                is_error: true,
+                content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+              };
+            }
+          })
+        );
+        
+        // If AI used tools, send results back for final response
+        if (toolResults.length > 0) {
+          const followUpBody = {
+            ...requestBody,
+            messages: [
+              ...(requestBody.messages || []),
+              { role: 'assistant', content: data.content, tool_use: data.tool_use },
+              { role: 'user', content: toolResults }
+            ]
+          };
+          
+          const { data: finalData, error: finalError } = await supabase.functions.invoke('ai-gateway', {
+            body: followUpBody
+          });
+          
+          if (finalError) throw finalError;
+          return finalData;
+        }
+      }
+      
       return data;
     } catch (error) {
       console.error('[Dash] AI service call failed:', error);

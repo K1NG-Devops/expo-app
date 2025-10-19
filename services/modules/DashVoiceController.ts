@@ -236,7 +236,7 @@ export class DashVoiceController {
   }
   
   /**
-   * Normalize text for speech (remove markdown, etc)
+   * Normalize text for speech (remove markdown, fix awkward phrases)
    */
   private normalizeTextForSpeech(text: string): string {
     let normalized = text
@@ -251,6 +251,22 @@ export class DashVoiceController {
       .replace(/\n{2,}/g, '. ') // Multi-newlines
       .replace(/\n/g, ' ') // Single newlines
       .trim();
+    
+    // Fix awkward age and quantity phrases
+    normalized = normalized
+      // Fix "X to Y years old" patterns
+      .replace(/(\w+)\s+to\s+(\d+)\s+years?\s+old/gi, '$2 year old $1')
+      .replace(/(\w+)\s+from\s+(\d+)\s+to\s+(\d+)\s+years?/gi, '$1 aged $2 to $3 years')
+      // Fix awkward "aged X-Y years old" patterns
+      .replace(/aged\s+(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old')
+      // Fix "students/children/kids of X years"
+      .replace(/(students?|children?|kids?)\s+of\s+(\d+)\s+years?/gi, '$2 year old $1')
+      // Fix "X year students" -> "X year old students"
+      .replace(/(\d+)\s+year\s+(students?|children?|kids?)/gi, '$1 year old $2')
+      // Fix plural "years old" when singular needed
+      .replace(/(\d+)\s+years\s+old\s+(student|child|kid|boy|girl)/gi, '$1 year old $2')
+      // Normalize "X-Y year old" patterns
+      .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
     
     return normalized;
   }

@@ -578,6 +578,361 @@ export class DashToolRegistry {
       }
     });
 
+    // Get organization statistics
+    this.register({
+      name: 'get_organization_stats',
+      description: 'Get comprehensive statistics about the organization (student counts, teacher counts, class counts, etc.)',
+      parameters: {
+        type: 'object',
+        properties: {
+          include_inactive: {
+            type: 'boolean',
+            description: 'Include inactive members (default: false)'
+          }
+        }
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          const profile = await (await import('@/lib/sessionManager')).getCurrentProfile();
+          
+          if (!profile) {
+            return { success: false, error: 'User not authenticated' };
+          }
+
+          const orgId = (profile as any).organization_id || (profile as any).preschool_id;
+          
+          if (!orgId) {
+            return { success: false, error: 'No organization found for user' };
+          }
+
+          // Get organization name
+          const { data: org } = await supabase
+            .from('preschools')
+            .select('name, city, province')
+            .eq('id', orgId)
+            .single();
+
+          // Count students
+          let studentsQuery = supabase
+            .from('students')
+            .select('id, status', { count: 'exact', head: true })
+            .eq('preschool_id', orgId);
+          
+          if (!args.include_inactive) {
+            studentsQuery = studentsQuery.eq('status', 'active');
+          }
+          
+          const { count: studentCount } = await studentsQuery;
+
+          // Count teachers
+          const { count: teacherCount } = await supabase
+            .from('users')
+            .select('id', { count: 'exact', head: true })
+            .eq('preschool_id', orgId)
+            .eq('role', 'teacher');
+
+          // Count classes/classrooms
+          const { count: classCount } = await supabase
+            .from('classrooms')
+            .select('id', { count: 'exact', head: true })
+            .eq('preschool_id', orgId);
+
+          // Get active students by status for more detail
+          const { data: studentsByStatus } = await supabase
+            .from('students')
+            .select('status')
+            .eq('preschool_id', orgId);
+
+          const statusBreakdown = studentsByStatus?.reduce((acc: any, s: any) => {
+            acc[s.status] = (acc[s.status] || 0) + 1;
+            return acc;
+          }, {});
+
+          return {
+            success: true,
+            organization: {
+              id: orgId,
+              name: org?.name || 'Your Organization',
+              location: org ? `${org.city}, ${org.province}` : null
+            },
+            statistics: {
+              total_students: studentCount || 0,
+              active_students: statusBreakdown?.active || 0,
+              total_teachers: teacherCount || 0,
+              total_classes: classCount || 0,
+              student_status_breakdown: statusBreakdown || {}
+            },
+            summary: `${org?.name || 'Your organization'} has ${studentCount || 0} ${args.include_inactive ? 'total' : 'active'} students, ${teacherCount || 0} teachers, and ${classCount || 0} classes.`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
+    // ========================================
+    // CAPS Curriculum Tools (Memory Bank Access)
+    // ========================================
+
+    // Search CAPS curriculum
+    this.register({
+      name: 'search_caps_curriculum',
+      description: 'Search CAPS curriculum documents for specific topics and get curriculum-aligned content',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'Search query (topic, concept, or learning outcome)'
+          },
+          grade: {
+            type: 'string',
+            description: 'Grade level (R, 1-12)'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name (e.g., Mathematics, Physical Sciences, English)'
+          },
+          document_type: {
+            type: 'string',
+            enum: ['curriculum', 'exam', 'exemplar', 'guideline', 'teaching_plan'],
+            description: 'Type of document to search (optional)'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of results (default: 5)'
+          }
+        },
+        required: ['query', 'grade', 'subject']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          
+          const { data, error } = await supabase.rpc('search_caps_curriculum', {
+            search_query: args.query,
+            search_grade: args.grade,
+            search_subject: args.subject,
+            result_limit: args.limit || 5
+          });
+          
+          if (error) {
+            return { success: false, error: error.message };
+          }
+          
+          return {
+            success: true,
+            results: data || [],
+            count: data?.length || 0,
+            message: `Found ${data?.length || 0} CAPS curriculum results for ${args.grade} ${args.subject}`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
+    // Get past exam questions
+    this.register({
+      name: 'get_past_exam_questions',
+      description: 'Get past examination questions from DBE papers for practice and analysis',
+      parameters: {
+        type: 'object',
+        properties: {
+          topic: {
+            type: 'string',
+            description: 'Topic name or keyword'
+          },
+          grade: {
+            type: 'string',
+            description: 'Grade level (10-12 for NSC)'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name'
+          },
+          difficulty: {
+            type: 'string',
+            enum: ['easy', 'medium', 'hard', 'challenging'],
+            description: 'Filter by difficulty level (optional)'
+          },
+          years_back: {
+            type: 'number',
+            description: 'How many years to look back (default: 5)'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum questions to return (default: 20)'
+          }
+        },
+        required: ['topic', 'grade', 'subject']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          
+          const { data, error } = await supabase.rpc('get_exam_questions_by_topic', {
+            topic_name: args.topic,
+            question_grade: args.grade,
+            question_subject: args.subject,
+            difficulty_level: args.difficulty || null,
+            years_back: args.years_back || 5,
+            result_limit: args.limit || 20
+          });
+          
+          if (error) {
+            return { success: false, error: error.message };
+          }
+          
+          return {
+            success: true,
+            questions: data || [],
+            count: data?.length || 0,
+            summary: `Found ${data?.length || 0} past exam questions on ${args.topic}`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
+    // Get exam patterns and predictions
+    this.register({
+      name: 'get_exam_patterns',
+      description: 'Get exam patterns and predictions for upcoming exams based on historical analysis',
+      parameters: {
+        type: 'object',
+        properties: {
+          grade: {
+            type: 'string',
+            description: 'Grade level (10-12)'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name'
+          }
+        },
+        required: ['grade', 'subject']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          
+          const { data, error } = await supabase
+            .from('caps_exam_patterns')
+            .select('*')
+            .eq('grade', args.grade)
+            .eq('subject', args.subject)
+            .order('likelihood_next_year', { ascending: false })
+            .limit(10);
+          
+          if (error) {
+            return { success: false, error: error.message };
+          }
+          
+          const highPriority = data?.filter(p => p.recommended_study_priority === 'high') || [];
+          
+          return {
+            success: true,
+            patterns: data || [],
+            high_priority_topics: highPriority.map(p => ({
+              topic: p.topic,
+              frequency: p.frequency_score,
+              likelihood: p.likelihood_next_year,
+              last_appeared: p.last_appeared_year,
+              average_marks: p.average_marks
+            })),
+            summary: `Analyzed ${data?.length || 0} topics. ${highPriority.length} high-priority topics identified.`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
+    // Get curriculum document
+    this.register({
+      name: 'get_caps_document',
+      description: 'Get specific CAPS curriculum document',
+      parameters: {
+        type: 'object',
+        properties: {
+          grade: {
+            type: 'string',
+            description: 'Grade level'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name'
+          },
+          document_type: {
+            type: 'string',
+            enum: ['curriculum', 'guideline', 'teaching_plan'],
+            description: 'Type of document'
+          }
+        },
+        required: ['grade', 'subject']
+      },
+      risk: 'low',
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          
+          let query = supabase
+            .from('caps_documents')
+            .select('id, title, grade, subject, document_type, file_url, page_count, content_text')
+            .eq('grade', args.grade)
+            .eq('subject', args.subject);
+          
+          if (args.document_type) {
+            query = query.eq('document_type', args.document_type);
+          }
+          
+          const { data, error } = await query.limit(1).single();
+          
+          if (error || !data) {
+            return {
+              success: false,
+              message: `No CAPS ${args.document_type || 'document'} found for ${args.grade} ${args.subject}`
+            };
+          }
+          
+          return {
+            success: true,
+            document: {
+              title: data.title,
+              url: data.file_url,
+              pages: data.page_count,
+              preview: data.content_text?.substring(0, 1000),
+              type: data.document_type
+            }
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
+
     // Analyze class performance
     this.register({
       name: 'analyze_class_performance',
