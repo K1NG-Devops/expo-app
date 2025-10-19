@@ -9,6 +9,8 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { TermsProvider } from '@/contexts/TerminologyContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
@@ -355,15 +357,19 @@ export default function RootLayout() {
         <QueryProvider>
           <AuthProvider>
             <ThemeProvider>
-              <DashboardPreferencesProvider>
-                <UpdatesProvider>
-                  <ToastProvider>
-                    <VoiceUIProvider dashInstance={dashInstance}>
-                      <LayoutContent />
-                    </VoiceUIProvider>
-                  </ToastProvider>
-                </UpdatesProvider>
-              </DashboardPreferencesProvider>
+              <TermsProvider>
+                <OnboardingProvider>
+                  <DashboardPreferencesProvider>
+                    <UpdatesProvider>
+                      <ToastProvider>
+                        <VoiceUIProvider dashInstance={dashInstance}>
+                          <LayoutContent />
+                        </VoiceUIProvider>
+                      </ToastProvider>
+                    </UpdatesProvider>
+                  </DashboardPreferencesProvider>
+                </OnboardingProvider>
+              </TermsProvider>
             </ThemeProvider>
           </AuthProvider>
         </QueryProvider>

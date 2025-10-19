@@ -510,62 +510,11 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
             console.warn('[claudeProvider] 💡 Picovoice error:', picoErr instanceof Error ? picoErr.message : String(picoErr));
           }
           
-          // Fallback to react-native-webrtc if Picovoice failed
+          // If Picovoice is unavailable, gracefully skip streaming on native
           if (!picovoiceSuccess) {
-            try {
-              console.log('[claudeProvider] 🔁 Attempting react-native-webrtc fallback...');
-              const { mediaDevices } = await import('react-native-webrtc');
-              
-              if (!mediaDevices || !mediaDevices.getUserMedia) {
-                throw new Error('react-native-webrtc mediaDevices not available');
-              }
-              
-              // Get microphone stream
-              localStream = await mediaDevices.getUserMedia({
-                audio: true,
-                video: false,
-              });
-              
-              console.log('[claudeProvider] ✅ Got audio stream from react-native-webrtc');
-              
-              // Create audio context for processing
-              // Note: React Native doesn't have AudioContext, so we'll send the raw stream data
-              // This uses MediaRecorder approach (similar to web)
-              const MediaRecorder = (global as any).MediaRecorder;
-              if (!MediaRecorder) {
-                throw new Error('MediaRecorder not available in React Native environment');
-              }
-              
-              mediaRecorder = new MediaRecorder(localStream, {
-                mimeType: 'audio/webm;codecs=opus', // WebM with Opus codec
-                audioBitsPerSecond: 16000 * 16 * 1, // 16kHz * 16-bit * 1 channel
-              });
-              
-              mediaRecorder.ondataavailable = async (event: any) => {
-                if (event.data && event.data.size > 0) {
-                  // Convert audio to ArrayBuffer and send to Deepgram
-                  const arrayBuffer = await event.data.arrayBuffer();
-                  sendAudioToDeepgram(arrayBuffer);
-                  
-                  // Log occasionally
-                  if (Math.random() < 0.05) {
-                    console.log('[claudeProvider] 📡 Streaming audio via WebRTC:', event.data.size, 'bytes');
-                  }
-                }
-              };
-              
-              // Start recording with frequent chunks for real-time streaming
-              mediaRecorder.start(100); // Send audio every 100ms
-              console.log('[claudeProvider] ✅ react-native-webrtc fallback active (MediaRecorder streaming to Deepgram)');
-              
-            } catch (webrtcErr) {
-              console.error('[claudeProvider] ❌ react-native-webrtc fallback failed:', webrtcErr);
-              console.error('[claudeProvider] 💡 Error details:', webrtcErr instanceof Error ? webrtcErr.message : String(webrtcErr));
-              console.error('[claudeProvider] ❌ All native audio methods failed');
-              console.warn('[claudeProvider] 💡 Voice input will not be available on this device');
-              console.warn('[claudeProvider] 💡 Please ensure dependencies are installed: npm install or yarn install');
-              return false;
-            }
+            console.warn('[claudeProvider] ⚠️ Picovoice not available on native. Streaming disabled.');
+            console.warn('[claudeProvider] ℹ️ Use the recording modal (speech recognition) instead.');
+            return false;
           }
         }
 

@@ -11,6 +11,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { getVoiceCapabilities, isIndigenousSA, type VoiceCapabilities } from '@/lib/voice/capabilities';
 import VoiceRecordingModalNew from '@/components/ai/VoiceRecordingModalNew';
+import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { toast } from '@/components/ui/ToastProvider';
 import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
 
@@ -87,11 +88,15 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     let mode: VoiceMode;
     
     if (forceMode) {
-      mode = forceMode;
+      // If streaming was requested but unavailable, fall back to recording
+      if (forceMode === 'streaming' && !capabilities.streamingAvailable) {
+        try { toast.warn?.('Streaming unavailable on this device/tier — using recording instead.'); } catch {}
+        mode = 'recording';
+      } else {
+        mode = forceMode;
+      }
     } else {
-      // ALWAYS use recording modal for mic button interactions
-      // Recording modal uses @react-native-voice/voice for speech recognition
-      // and includes animated HolographicOrb visualization
+      // Default: use recording modal for mic button interactions
       mode = 'recording';
       if (__DEV__) {
         console.log('[VoiceUIController] 📝 Using recording modal with animated orb', {
@@ -170,8 +175,19 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     <VoiceUIContext.Provider value={contextValue}>
       {children}
       
+      {/* Streaming Voice Mode (Orb) */}
+      {state.isOpen && state.mode === 'streaming' && (
+        <DashVoiceMode
+          visible={true}
+          onClose={close}
+          dashInstance={dashInstance}
+          onMessageSent={handleMessageSent}
+          forcedLanguage={state.language}
+        />
+      )}
+
       {/* Recording Modal (animated with HolographicOrb) */}
-      {state.isOpen && (
+      {state.isOpen && state.mode === 'recording' && (
         <VoiceRecordingModalNew
           visible={true}
           onClose={close}

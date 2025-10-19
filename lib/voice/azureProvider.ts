@@ -3,6 +3,26 @@
 // Falls back gracefully if SDK is unavailable.
 
 import { Platform } from 'react-native';
+import { Audio } from 'expo-av';
+
+/**
+ * Ensure microphone permission using Expo AV (works on iOS, Android, Web)
+ * Returns true if permission granted, false otherwise
+ */
+async function ensureMicPermission(): Promise<boolean> {
+  try {
+    const { status, granted } = await Audio.requestPermissionsAsync();
+    if (status === 'granted' || granted) {
+      if (__DEV__) console.log('[azureProvider] ✅ Microphone permission granted');
+      return true;
+    }
+    if (__DEV__) console.warn('[azureProvider] ⚠️ Microphone permission denied:', status);
+    return false;
+  } catch (e) {
+    console.error('[azureProvider] Permission request error:', e);
+    return false;
+  }
+}
 
 export interface AzureStartOptions {
   token: string; // Azure speech auth token (short‑lived)
@@ -31,15 +51,26 @@ export function createAzureSpeechSession(): AzureSpeechSession {
 
   return {
     async start(opts: AzureStartOptions) {
-      if (closed) return false;
+      if (closed) {
+        if (__DEV__) console.warn('[azureProvider] Session already closed');
+        return false;
+      }
+      
       try {
-        // Dynamic import to avoid bundling when unused
+        // Step 1: Check microphone permissions (mobile + web)
+        const hasPermission = await ensureMicPermission();
+        if (!hasPermission) {
+          console.error('[azureProvider] ❌ Microphone permission required');
+          return false;
+        }
+
+        // Step 2: Dynamic import to avoid bundling when unused
         try {
-          // Prefer default import name
-           
           sdk = (await import('microsoft-cognitiveservices-speech-sdk')) as any;
+          if (__DEV__) console.log('[azureProvider] ✅ Azure Speech SDK loaded');
         } catch (e) {
-          console.error('[azureProvider] SDK not available:', e);
+          console.error('[azureProvider] ❌ SDK not available:', e);
+          console.error('[azureProvider] Hint: Ensure microsoft-cognitiveservices-speech-sdk is installed');
           return false;
         }
 
@@ -61,28 +92,56 @@ export function createAzureSpeechSession(): AzureSpeechSession {
         const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
         recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
 
+        // Wire up event handlers with defensive null checks
         recognizer.recognizing = (_s: any, e: any) => {
-          const text = String(e?.result?.text || '');
-          if (text) opts.onPartialTranscript?.(text);
-        };
-        recognizer.recognized = (_s: any, e: any) => {
-          const reason = e?.result?.reason;
-          const text = String(e?.result?.text || '');
-          if (reason === sdk.ResultReason.RecognizedSpeech && text) {
-            opts.onFinalTranscript?.(text);
+          try {
+            const text = String(e?.result?.text || '');
+            if (text && !muted) {
+              if (__DEV__) console.log('[azureProvider] 🎤 Partial:', text.substring(0, 50));
+              opts.onPartialTranscript?.(text);
+            }
+          } catch (err) {
+            console.error('[azureProvider] recognizing error:', err);
           }
         };
-        recognizer.canceled = (_s: any, e: any) => {
-          console.warn('[azureProvider] canceled:', e?.errorDetails || e?.reason);
+        
+        recognizer.recognized = (_s: any, e: any) => {
+          try {
+            const reason = e?.result?.reason;
+            const text = String(e?.result?.text || '').trim();
+            if (reason === sdk.ResultReason.RecognizedSpeech && text) {
+              if (__DEV__) console.log('[azureProvider] ✅ Final:', text);
+              opts.onFinalTranscript?.(text);
+            }
+          } catch (err) {
+            console.error('[azureProvider] recognized error:', err);
+          }
         };
+        
+        recognizer.canceled = (_s: any, e: any) => {
+          const errorDetails = e?.errorDetails || e?.reason || 'unknown';
+          if (__DEV__) console.warn('[azureProvider] ⚠️ Canceled:', errorDetails);
+          active = false;
+        };
+        
         recognizer.sessionStopped = () => {
+          if (__DEV__) console.log('[azureProvider] 🛑 Session stopped');
           active = false;
         };
 
+        // Start continuous recognition
         await new Promise<void>((resolve, reject) => {
           recognizer.startContinuousRecognitionAsync(
-            () => { active = true; resolve(); },
-            (err: any) => { console.error('[azureProvider] start error:', err); reject(err); }
+            () => { 
+              active = true; 
+              if (__DEV__) console.log('[azureProvider] 🎙️ Recognition started');
+              resolve(); 
+            },
+            (err: any) => { 
+              console.error('[azureProvider] ❌ Start error:', err); 
+              active = false;
+              reject(err); 
+            }
           );
         });
 
@@ -101,19 +160,45 @@ export function createAzureSpeechSession(): AzureSpeechSession {
     },
 
     async stop() {
-      if (!recognizer) return;
+      if (!recognizer) {
+        if (__DEV__) console.log('[azureProvider] No active recognizer to stop');
+        return;
+      }
+      
+      if (__DEV__) console.log('[azureProvider] 🛑 Stopping recognition...');
+      
       try {
         await new Promise<void>((resolve) => {
           try {
             recognizer.stopContinuousRecognitionAsync(
-              () => { active = false; resolve(); },
-              () => { active = false; resolve(); }
+              () => { 
+                active = false; 
+                if (__DEV__) console.log('[azureProvider] ✅ Stopped successfully');
+                resolve(); 
+              },
+              (err: any) => { 
+                active = false; 
+                if (__DEV__) console.warn('[azureProvider] ⚠️ Stop error:', err);
+                resolve(); 
+              }
             );
-          } catch { active = false; resolve(); }
+          } catch (e) { 
+            active = false; 
+            if (__DEV__) console.error('[azureProvider] ❌ Stop exception:', e);
+            resolve(); 
+          }
         });
       } finally {
-        try { recognizer.close?.(); } catch { /* Intentional: non-fatal */ }
-        recognizer = null; closed = true; active = false;
+        // Cleanup: close recognizer and release resources
+        try { 
+          recognizer.close?.(); 
+          if (__DEV__) console.log('[azureProvider] 🧹 Recognizer closed');
+        } catch (e) {
+          if (__DEV__) console.warn('[azureProvider] Close warning:', e);
+        }
+        recognizer = null; 
+        closed = true; 
+        active = false;
       }
     },
 

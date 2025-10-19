@@ -244,6 +244,20 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
   }, [dashInstance, onMessageSent, onClose]);
 
   const startListening = async () => {
+    // Check for Expo Go first
+    try {
+      const Constants = await import('expo-constants').then(m => m.default);
+      if (Constants.appOwnership === 'expo') {
+        console.warn('[VoiceModal] Running in Expo Go - voice recognition requires dev build');
+        Alert.alert(
+          'Dev Build Required',
+          'Voice recognition requires a development build. It does not work in Expo Go. Please create a development build using "eas build --profile development".', 
+          [{ text: 'OK', onPress: onClose }]
+        );
+        return;
+      }
+    } catch { /* Constants not available */ }
+    
     if (!isAvailable) {
       Alert.alert(
         'Not Available',
@@ -267,9 +281,31 @@ export const VoiceRecordingModalNew: React.FC<VoiceRecordingModalNewProps> = ({
       } catch { /* Ignore errors from stopping non-active session */ }
 
       setState('listening');
-      await Voice.start(language);
-      console.log('[VoiceModal] Started listening with language:', language);
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      
+      // Additional guard: check if native module is actually linked
+      try {
+        await Voice.start(language);
+        console.log('[VoiceModal] Started listening with language:', language);
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      } catch (nativeError: any) {
+        // Check for specific native module errors
+        const errMsg = String(nativeError?.message || nativeError || '');
+        
+        if (errMsg.includes('startSpeech') || errMsg.includes('null is not an object')) {
+          console.error('[VoiceModal] Native voice module not linked properly');
+          setState('error');
+          setErrorMsg('Native voice module unavailable');
+          Alert.alert(
+            'Native Module Error',
+            'Voice recognition native module is not properly linked. Please rebuild the app with "expo prebuild" and "eas build".',
+            [{ text: 'OK', onPress: onClose }]
+          );
+          return;
+        }
+        
+        // Re-throw other errors to outer catch
+        throw nativeError;
+      }
     } catch (e: any) {
       console.error('[VoiceModal] Error starting:', e);
       const errorMsg = e?.message || 'Failed to start speech recognition';

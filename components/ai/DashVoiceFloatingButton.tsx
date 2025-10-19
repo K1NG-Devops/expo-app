@@ -354,8 +354,8 @@ const handleLongPress = async () => {
         // Use default
       }
       
-      // Open voice UI via controller (smart routing)
-      await voiceUI.open({ language: detectedLang });
+      // Open voice UI via controller (force streaming orb if available; falls back to recording)
+      await voiceUI.open({ language: detectedLang, forceMode: 'streaming' });
       setIsLoading(false);
     } catch (e) {
       console.error('[DashVoiceFAB] Long press failed:', e);

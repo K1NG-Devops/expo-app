@@ -1094,7 +1094,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
 
-          {/* Voice (Orb) */}
+          {/* Voice (Orb) - Always Blue */}
           <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Voice Assistant"
@@ -1109,7 +1109,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               }
             }}
           >
-            <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
+            <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color="#007AFF" />
           </TouchableOpacity>
 
           <TouchableOpacity
