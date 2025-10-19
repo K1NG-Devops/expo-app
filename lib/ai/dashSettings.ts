@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
+import { DashAIAssistant } from '@/services/dash-ai/types';
 import { voiceService } from '@/lib/voice/client';
 import type { SupportedLanguage, VoicePreference } from '@/lib/voice/types';
 

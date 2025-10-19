@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCapability } from '@/hooks/useCapability';
-import type { DashAttachment } from '@/services/DashAIAssistant';
+import type { DashAttachment } from '@/services/dash-ai/types';
 import type { VoiceState } from '@/hooks/useVoiceController';
 import { UpgradePromptModal } from './UpgradePromptModal';
 import { pickDocuments } from '@/services/AttachmentService';

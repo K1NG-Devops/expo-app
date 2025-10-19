@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRealtimeVoice } from '@/hooks/useRealtimeVoice';
-import { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import { DashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';

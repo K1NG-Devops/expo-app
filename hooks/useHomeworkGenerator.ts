@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
 import { incrementUsage, logUsageEvent } from '@/lib/ai/usage';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
+import { DashAIAssistant } from '@/services/dash-ai/DashAICompat';
 
 export type HomeworkGenOptions = {
   question: string;

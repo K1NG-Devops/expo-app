@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList, type DimensionValue } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { DashConversation } from '@/services/DashAIAssistant';
+import type { DashConversation } from '@/services/dash-ai/types';
 import { useCapability } from '@/hooks/useCapability';
 import { UpgradePromptModal } from './UpgradePromptModal';
 

@@ -16,7 +16,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
 import { VoiceUIProvider, useVoiceUI } from '@/components/voice/VoiceUIController';
-import type { DashAIAssistant } from '@/services/DashAIAssistant';
+import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
 
 // Inner component with access to AuthContext and VoiceUI
 function LayoutContent() {
@@ -104,15 +104,15 @@ function LayoutContent() {
 }
 
 export default function RootLayout() {
-  const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
+  const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
   
   // Initialize Dash AI Assistant at root level
   useEffect(() => {
     (async () => {
       try {
-        const module = await import('@/services/DashAIAssistant');
+        const module = await import('@/services/dash-ai/DashAICompat');
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
-        const dash: DashAIAssistant | null = DashClass?.getInstance?.() || null;
+        const dash: IDashAIAssistant | null = DashClass?.getInstance?.() || null;
         if (dash) {
           await dash.initialize();
           setDashInstance(dash);

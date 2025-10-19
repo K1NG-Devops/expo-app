@@ -13,7 +13,7 @@ import { getVoiceCapabilities, isIndigenousSA, type VoiceCapabilities } from '@/
 import VoiceRecordingModalAzure from '@/components/ai/VoiceRecordingModalAzure';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { toast } from '@/components/ui/ToastProvider';
-import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/dash-ai/types';
 
 type VoiceMode = 'recording' | 'streaming';
 
@@ -197,6 +197,7 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
           onClose={close}
           dashInstance={dashInstance}
           onMessageSent={handleMessageSent}
+          onTranscriptReady={onTranscriptReadyRef.current ? handleTranscriptReady : undefined}
           language={state.language}
         />
       )}

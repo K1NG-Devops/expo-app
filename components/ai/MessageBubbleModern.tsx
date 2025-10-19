@@ -13,7 +13,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAvatar } from './DashAvatar';
 import { BrandGradients, BrandColors } from '@/components/branding';
-import type { DashMessage } from '@/services/DashAIAssistant';
+import type { DashMessage } from '@/services/dash-ai/types';
 
 export interface MessageBubbleModernProps {
   message: DashMessage;

@@ -26,7 +26,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,6 +40,7 @@ interface VoiceRecordingModalAzureProps {
   onClose: () => void;
   dashInstance: DashAIAssistant | null;
   onMessageSent?: (message: DashMessage) => void;
+  onTranscriptReady?: (transcript: string) => void; // Callback for input mode (no AI)
   language?: string;
   showStartOver?: boolean; // Default false to match screenshot
 }
@@ -51,6 +52,7 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
   onClose,
   dashInstance,
   onMessageSent,
+  onTranscriptReady, // Callback for transcript-only mode (input area)
   language = 'en',
   showStartOver = false, // Hide by default (matches screenshot)
 }) => {
@@ -252,7 +254,17 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
       // Stop listening first
       await sessionRef.current?.stop();
       
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      
+      // If onTranscriptReady callback exists (input mode), just return transcript
+      if (onTranscriptReady) {
+        if (__DEV__) console.log('[VoiceModalAzure] 📝 Returning transcript to input:', transcript.substring(0, 50));
+        onTranscriptReady(transcript);
+        onClose();
+        return;
+      }
+      
+      // Otherwise, send to AI (conversation mode)
       setState('thinking');
       await handleTranscript(transcript);
     } catch (e) {

@@ -25,7 +25,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { DashAIAssistant, DashMessage, DashConversation, DashAttachment } from '@/services/DashAIAssistant';
+import type { DashMessage, DashConversation, DashAttachment } from '@/services/dash-ai/types';
+import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
@@ -33,12 +34,14 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
+import { TierBadge } from '@/components/ai/TierBadge';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceUI } from '@/components/voice/VoiceUIController';
 import { assertSupabase } from '@/lib/supabase';
 import { 
   pickDocuments, 
-  pickImages, 
+  pickImages,
+  takePhoto,
   uploadAttachment,
   getFileIconName,
   formatFileSize 
@@ -62,11 +65,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [messages, setMessages] = useState<DashMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<DashConversation | null>(null);
-  const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
+  const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [enterToSend, setEnterToSend] = useState(true);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -77,16 +79,14 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
   const flatListRef = useRef<FlatList>(null);
   const inputRef = useRef<TextInput>(null);
-  const recordingAnimation = useRef(new Animated.Value(1)).current;
-  const pulseAnimation = useRef(new Animated.Value(1)).current;
 
   // Initialize Dash AI Assistant
   useEffect(() => {
     const initializeDash = async () => {
       try {
-        const module = await import('@/services/DashAIAssistant');
+        const module = await import('@/services/dash-ai/DashAICompat');
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
-        const dash: DashAIAssistant | null = DashClass?.getInstance?.() || null;
+        const dash: IDashAIAssistant | null = DashClass?.getInstance?.() || null;
         if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         setDashInstance(dash);
@@ -169,28 +169,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       }, 100);
     }
   }, [messages]);
-
-  // Pulse animation for recording
-  useEffect(() => {
-    if (isRecording) {
-      const pulse = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnimation, {
-            toValue: 1.2,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulse.start();
-      return () => pulse.stop();
-    }
-  }, [isRecording, pulseAnimation]);
 
   // Focus effect to refresh when screen comes into focus
   useFocusEffect(
@@ -370,111 +348,30 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   };
 
-  const startRecording = async () => {
-    if (!dashInstance || isRecording) return;
-
+  // Open voice recording modal with text editing capability
+  const handleInputMicPress = async () => {
     try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      setIsRecording(true);
-      await dashInstance.startRecording();
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      Alert.alert('Error', 'Failed to start recording. Please check microphone permissions.');
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = async () => {
-    if (!dashInstance || !isRecording) return;
-
-    try {
-      setIsRecording(false);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      const audioUri = await dashInstance.stopRecording();
-      if (audioUri) {
-        setIsLoading(true);
-        const response = await dashInstance.sendVoiceMessage(audioUri);
-        
-        // Handle dashboard actions if present
-        if (response.metadata?.dashboard_action?.type === 'switch_layout') {
-          const newLayout = response.metadata.dashboard_action.layout;
-          if (newLayout && (newLayout === 'classic' || newLayout === 'enhanced')) {
-            console.log(`[Dash] Switching dashboard layout to: ${newLayout}`);
-            setLayout(newLayout);
-
-            // Provide haptic feedback
-            try {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            } catch { /* Haptics not available */ }
-          }
-        }
-
-        if (response.metadata?.dashboard_action?.type === 'open_screen') {
-          const { route, params } = response.metadata.dashboard_action as any;
-          console.log(`[Dash] Proposed open_screen: ${route}`, params || {});
-          if (typeof route === 'string' && route.includes('/screens/ai-lesson-generator')) {
-            Alert.alert(
-              'Open Lesson Generator?',
-              'Dash suggests opening the AI Lesson Generator with prefilled details. Please confirm the fields in the next screen, then press Generate to start.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Open', onPress: () => { try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate:', e); } } },
-              ]
-            );
-          } else {
-            try { router.push({ pathname: route, params } as any); } catch (e) { console.warn('Failed to navigate to route from Dash action:', e); }
-          }
-        } else if ((response.metadata?.dashboard_action?.type as string) === 'export_pdf') {
-          const { title, content } = (response.metadata?.dashboard_action as any) || {};
-          Alert.alert(
-            'Generate PDF?',
-            'Create a PDF from the latest Dash response?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Generate', onPress: async () => {
-                try { await dashInstance.exportTextAsPDF(title || 'Dash Export', content || response.content || ''); }
-                catch (e) { Alert.alert('PDF Export', 'Failed to generate PDF'); }
-              } }
-            ]
-          );
-        }
-        
-        // Update messages from conversation
-        const updatedConv = await dashInstance.getConversation(dashInstance.getCurrentConversationId()!);
-        if (updatedConv) {
-          setMessages(updatedConv.messages);
-          setConversation(updatedConv);
-        }
-
-        // Offer to open Lesson Generator when intent detected
-        try {
-          const intentType = response?.metadata?.user_intent?.primary_intent || ''
-          const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator('voice input', response?.content)
-          if (shouldOpen) {
-            setTimeout(() => {
-              Alert.alert(
-                'Open Lesson Generator?',
-                'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
-                [
-                  { text: 'Not now', style: 'cancel' },
-                  { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext('voice input', response?.content || '') }
-                ]
-              )
-            }, 200)
-          }
-        } catch {}
-
-        // Auto-speak response
-        setTimeout(() => {
-          speakResponse(response);
-        }, 500);
-      }
+      // Get current language for voice recognition
+      const storedLang = await AsyncStorage.getItem('@dash_voice_language');
+      const activeLang = storedLang ? storedLang.toLowerCase() : 'en';
+      
+      // Open recording modal via VoiceUIController
+      await voiceUI.open({
+        language: activeLang,
+        tier: String(tier || 'free'),
+        forceMode: 'recording',
+        onTranscriptReady: (transcript) => {
+          // Place the edited transcript in the input field
+          setInputText(transcript);
+          // Focus the input so user can review/edit before sending
+          setTimeout(() => inputRef.current?.focus(), 300);
+        },
+      });
     } catch (error) {
-      console.error('Failed to stop recording:', error);
-      Alert.alert('Error', 'Failed to process voice message. Please try again.');
-    } finally {
-      setIsLoading(false);
+      console.error('[DashAssistant] Failed to open voice modal:', error);
+      Alert.alert('Voice Input', 'Failed to open voice recorder. Please try again.');
     }
   };
 
@@ -626,6 +523,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   };
 
+  const handleTakePhoto = async () => {
+    try {
+      const photos = await takePhoto();
+      if (photos.length > 0) {
+        setSelectedAttachments(prev => [...prev, ...photos]);
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (error) {
+      console.error('Failed to take photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
   const handleRemoveAttachment = async (attachmentId: string) => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -675,9 +585,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         <View
           style={[
             styles.messageBubble,
+            isUser ? styles.userBubble : styles.assistantBubble,
             isUser
               ? { backgroundColor: theme.primary }
-              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
+              : { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 0.5 },
+            // Modern shadow with better depth
+            Platform.OS === 'ios' ? {
+              shadowColor: isDark ? '#000' : '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: isUser ? 0.25 : 0.12,
+              shadowRadius: 4,
+            } : {
+              elevation: isUser ? 3 : 2,
+            }
           ]}
         >
           <View style={styles.messageContentRow}>
@@ -686,6 +606,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 styles.messageText,
                 { color: isUser ? theme.onPrimary : theme.text, flex: 1 },
               ]}
+              selectable={true}
             >
               {message.content}
             </Text>
@@ -706,6 +627,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             )}
           </View>
           
+          {/* Voice note indicator */}
           {message.voiceNote && (
             <View style={styles.voiceNoteIndicator}>
               <Ionicons 
@@ -721,6 +643,49 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               >
                 {Math.round((message.voiceNote.duration || 0) / 1000)}s
               </Text>
+            </View>
+          )}
+          
+          {/* Attachments display */}
+          {message.attachments && message.attachments.length > 0 && (
+            <View style={styles.messageAttachmentsContainer}>
+              {message.attachments.map((attachment, idx) => (
+                <View 
+                  key={idx}
+                  style={[
+                    styles.messageAttachment,
+                    { 
+                      backgroundColor: isUser 
+                        ? 'rgba(255, 255, 255, 0.2)' 
+                        : theme.surfaceVariant,
+                      borderColor: isUser ? 'rgba(255, 255, 255, 0.3)' : theme.border,
+                    }
+                  ]}
+                >
+                  <Ionicons 
+                    name={getFileIconName(attachment.kind)} 
+                    size={14} 
+                    color={isUser ? theme.onPrimary : theme.text} 
+                  />
+                  <Text 
+                    style={[
+                      styles.messageAttachmentName,
+                      { color: isUser ? theme.onPrimary : theme.text }
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {attachment.name}
+                  </Text>
+                  <Text 
+                    style={[
+                      styles.messageAttachmentSize,
+                      { color: isUser ? theme.onPrimary : theme.textSecondary }
+                    ]}
+                  >
+                    {formatFileSize(attachment.size)}
+                  </Text>
+                </View>
+              ))}
             </View>
           )}
           
@@ -821,7 +786,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         <Text style={[styles.suggestedActionsTitle, { color: theme.textSecondary }]}>
           Quick actions:
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.suggestedActionsScrollContent}
+        >
           {lastMessage.metadata.suggested_actions.map((action: string, index: number) => (
             <TouchableOpacity
               key={index}
@@ -829,8 +798,17 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 styles.suggestedAction, 
                 { 
                   backgroundColor: action.includes('dashboard') ? theme.primaryLight : theme.surfaceVariant,
-                  borderColor: action.includes('dashboard') ? theme.primary : 'transparent',
-                  borderWidth: action.includes('dashboard') ? 1 : 0
+                  borderColor: action.includes('dashboard') ? theme.primary : theme.border,
+                  borderWidth: 1
+                },
+                // Modern shadow for quick actions
+                Platform.OS === 'ios' ? {
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 3,
+                } : {
+                  elevation: 2,
                 }
               ]}
               onPress={() => handleSuggestedAction(action)}
@@ -1033,13 +1011,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         <View style={styles.headerLeft}>
           <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={[styles.headerTitle, { color: theme.text }]}>Dash</Text>
-              {/* Tier badge */}
-              {subReady && (
-                <View style={[styles.tierBadge, { borderColor: theme.border, backgroundColor: getTierColor(tier) + '20' }]}>
-                  <Text style={[styles.tierBadgeText, { color: getTierColor(tier) }]}>{getTierLabel(tier)}</Text>
-                </View>
+              {subReady && tier && (
+                <TierBadge tier={tier as any} size="small" showIcon={true} />
               )}
             </View>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
@@ -1055,24 +1030,17 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             accessibilityLabel="Interactive Voice Assistant"
             onPress={async () => {
               try {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 const storedLang = await AsyncStorage.getItem('@dash_voice_language');
                 const detectedLang = storedLang ? storedLang.toLowerCase() : 'en';
-                await voiceUI.open({ language: detectedLang, tier });
+                await voiceUI.open({ language: detectedLang, tier: String(tier || 'free') });
               } catch (error) {
                 console.error('[DashAssistant] Voice UI open failed:', error);
-                await voiceUI.open({ language: 'en', tier });
+                await voiceUI.open({ language: 'en', tier: 'free' });
               }
             }}
           >
             <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color="#007AFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            accessibilityLabel="Command Palette"
-            onPress={() => setShowCommandPalette(true)}
-          >
-            <Ionicons name="compass-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
           </TouchableOpacity>
           {isSpeaking && (
             <TouchableOpacity
@@ -1152,60 +1120,90 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         {renderAttachmentChips()}
         
         <View style={styles.inputRow}>
-          {/* Attach button */}
+          {/* Camera button (outside input) */}
           <TouchableOpacity
-            style={[
-              styles.attachButton,
-              { 
-                backgroundColor: selectedAttachments.length > 0 ? theme.primaryLight : 'transparent',
-                borderColor: theme.border
-              }
-            ]}
-            onPress={handleAttachFile}
-            disabled={isLoading || isRecording}
-            accessibilityLabel="Attach files"
+            style={styles.cameraButton}
+            onPress={async () => {
+              try {
+                await Haptics.selectionAsync();
+              } catch {}
+              handleTakePhoto();
+            }}
+            disabled={isLoading || isUploading}
+            accessibilityLabel="Take photo"
+            accessibilityRole="button"
           >
             <Ionicons 
-              name="attach" 
-              size={20} 
-              color={selectedAttachments.length > 0 ? theme.primary : theme.textSecondary} 
+              name="camera-outline" 
+              size={24} 
+              color={isLoading || isUploading ? theme.textTertiary : theme.textSecondary} 
             />
-            {selectedAttachments.length > 0 && (
-              <View style={[styles.attachBadge, { backgroundColor: theme.primary }]}>
-                <Text style={[styles.attachBadgeText, { color: theme.onPrimary }]}>
-                  {selectedAttachments.length}
-                </Text>
-              </View>
-            )}
           </TouchableOpacity>
           
-          <TextInput
-            ref={inputRef}
-            style={[
-              styles.textInput,
-              { 
-                backgroundColor: theme.inputBackground, 
-                borderColor: theme.inputBorder,
-                color: theme.inputText 
-              }
-            ]}
-            placeholder={selectedAttachments.length > 0 ? "Add a message (optional)..." : "Ask Dash anything..."}
-            placeholderTextColor={theme.inputPlaceholder}
-            value={inputText}
-            onChangeText={setInputText}
-            multiline={!enterToSend}
-            maxLength={500}
-            editable={!isLoading && !isRecording && !isUploading}
-            onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
-            returnKeyType={enterToSend ? "send" : "default"}
-            blurOnSubmit={enterToSend}
-          />
+          {/* Input wrapper with paperclip inside */}
+          <View style={[styles.inputWrapper, { backgroundColor: theme.inputBackground, borderColor: theme.inputBorder }]}>
+            {/* Paperclip icon (inside left of input) */}
+            <TouchableOpacity
+              style={styles.inputLeftIcon}
+              onPress={async () => {
+                try {
+                  await Haptics.selectionAsync();
+                } catch {}
+                handleAttachFile();
+              }}
+              disabled={isLoading || isUploading}
+              accessibilityLabel="Attach files"
+              accessibilityRole="button"
+            >
+              <Ionicons 
+                name="attach" 
+                size={20} 
+                color={selectedAttachments.length > 0 ? theme.primary : theme.textTertiary} 
+              />
+              {selectedAttachments.length > 0 && (
+                <View style={[styles.attachBadgeSmall, { backgroundColor: theme.primary }]}>
+                  <Text style={[styles.attachBadgeSmallText, { color: theme.onPrimary }]}>
+                    {selectedAttachments.length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            
+            <TextInput
+              ref={inputRef}
+              style={[
+                styles.textInput,
+                { 
+                  color: theme.inputText,
+                  paddingLeft: 36, // Make room for paperclip icon
+                }
+              ]}
+              placeholder={selectedAttachments.length > 0 ? "Add a message (optional)..." : "Ask Dash anything..."}
+              placeholderTextColor={theme.inputPlaceholder}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline={!enterToSend}
+              maxLength={500}
+              editable={!isLoading && !isUploading}
+              onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
+              returnKeyType={enterToSend ? "send" : "default"}
+              blurOnSubmit={enterToSend}
+            />
+          </View>
           
+          {/* Send or Mic button */}
           {(inputText.trim() || selectedAttachments.length > 0) ? (
             <TouchableOpacity
               style={[styles.sendButton, { backgroundColor: theme.primary }]}
-              onPress={() => sendMessage()}
+              onPress={async () => {
+                try {
+                  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                } catch {}
+                sendMessage();
+              }}
               disabled={isLoading || isUploading}
+              accessibilityLabel="Send message"
+              accessibilityRole="button"
             >
               {(isLoading || isUploading) ? (
                 <ActivityIndicator size="small" color={theme.onPrimary} />
@@ -1214,39 +1212,21 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               )}
             </TouchableOpacity>
           ) : (
-            <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnimation : 1 }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.recordButton,
-                  { 
-                    backgroundColor: isRecording ? theme.error : theme.accent 
-                  }
-                ]}
-                onPressIn={isRecording ? undefined : startRecording}
-                onPressOut={isRecording ? stopRecording : undefined}
-                onLongPress={isRecording ? undefined : startRecording}
-                disabled={isLoading}
-                accessibilityLabel={isRecording ? "Recording... Release to send" : "Hold to record voice message"}
-              >
-                <Ionicons 
-                  name={isRecording ? "mic" : "mic-outline"} 
-                  size={20} 
-                  color={isRecording ? theme.onError || "#FFF" : theme.onAccent} 
-                />
-              </TouchableOpacity>
-            </Animated.View>
+            <TouchableOpacity
+              style={[styles.recordButton, { backgroundColor: theme.accent }]}
+              onPress={handleInputMicPress}
+              disabled={isLoading}
+              accessibilityLabel="Record voice message"
+              accessibilityRole="button"
+            >
+              <Ionicons 
+                name="mic-outline" 
+                size={20} 
+                color={theme.onAccent} 
+              />
+            </TouchableOpacity>
           )}
         </View>
-        
-        {/* Recording indicator - shows when user is holding mic button */}
-        {isRecording && (
-          <View style={[styles.recordingIndicator, { backgroundColor: theme.errorLight || theme.surfaceVariant }]}>
-            <View style={[styles.recordingDot, { backgroundColor: theme.error }]} />
-            <Text style={[styles.recordingText, { color: theme.error, fontWeight: '600' }]}>
-              Recording... Release to send
-            </Text>
-          </View>
-        )}
       </View>
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
@@ -1368,9 +1348,9 @@ const styles = StyleSheet.create({
   },
   messageContainer: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: 12,
     alignItems: 'flex-start',
-    paddingHorizontal: 4,
+    paddingHorizontal: 0, // No horizontal padding for better layout
   },
   userMessage: {
     justifyContent: 'flex-end',
@@ -1386,21 +1366,40 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginLeft: 4, // Close to screen edge
+    marginRight: 8,
     marginTop: 4,
     flexShrink: 0,
+    // Subtle shadow for avatar
+    ...(Platform.OS === 'ios' ? {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.15,
+      shadowRadius: 2,
+    } : {
+      elevation: 2,
+    }),
   },
   messageBubble: {
-    maxWidth: screenWidth < 400 ? screenWidth * 0.85 : screenWidth * 0.82,
-    padding: screenWidth < 400 ? 12 : 16,
-    borderRadius: 20,
+    maxWidth: screenWidth < 400 ? screenWidth * 0.75 : screenWidth * 0.72,
+    padding: screenWidth < 400 ? 14 : 16,
     minHeight: 48,
     flex: 1,
   },
+  // Modern bubble styles with smooth rounded corners
+  userBubble: {
+    borderRadius: 20,
+    borderBottomRightRadius: 6, // Subtle tail effect
+  },
+  assistantBubble: {
+    borderRadius: 20,
+    borderBottomLeftRadius: 6, // Subtle tail effect
+  },
   messageText: {
     fontSize: 15,
-    lineHeight: 21,
+    lineHeight: 22,
     flexWrap: 'wrap',
+    letterSpacing: 0.3,
   },
   messageContentRow: {
     flexDirection: 'row',
@@ -1434,6 +1433,26 @@ const styles = StyleSheet.create({
   voiceNoteDuration: {
     fontSize: 10,
     marginLeft: 4,
+  },
+  messageAttachmentsContainer: {
+    marginTop: 8,
+    gap: 6,
+  },
+  messageAttachment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 6,
+  },
+  messageAttachmentName: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  messageAttachmentSize: {
+    fontSize: 10,
   },
   messageTime: {
     fontSize: 10,
@@ -1479,21 +1498,31 @@ const styles = StyleSheet.create({
   },
   suggestedActionsContainer: {
     marginTop: 8,
-    paddingLeft: 28,
+    marginBottom: 8,
+    width: screenWidth,
+    marginLeft: -16, // Offset messages container padding
   },
   suggestedActionsTitle: {
     fontSize: 12,
-    marginBottom: 8,
+    fontWeight: '600',
+    marginBottom: 10,
+    paddingHorizontal: 16,
+  },
+  suggestedActionsScrollContent: {
+    paddingLeft: 16, // Start from left edge
+    paddingRight: 16,
+    gap: 8,
   },
   suggestedAction: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginRight: 0, // Gap handles spacing
   },
   suggestedActionText: {
-    fontSize: 12,
-    textTransform: 'capitalize',
+    fontSize: 14,
+    fontWeight: '600',
+    textTransform: 'none',
   },
   inputContainer: {
     padding: 16,
@@ -1502,16 +1531,39 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
+    gap: 8,
+  },
+  cameraButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    position: 'relative',
+    minHeight: 40,
+  },
+  inputLeftIcon: {
+    position: 'absolute',
+    left: 10,
+    zIndex: 1,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   textInput: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    marginRight: 8,
     maxHeight: 100,
     fontSize: 16,
+    borderWidth: 0, // No border, wrapper has border
   },
   sendButton: {
     width: 40,
@@ -1527,22 +1579,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  recordingIndicator: {
-    flexDirection: 'row',
+  attachBadgeSmall: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
   },
-  recordingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  recordingText: {
-    fontSize: 13,
+  attachBadgeSmallText: {
+    fontSize: 8,
+    fontWeight: '600',
   },
   messageBubbleFooter: {
     flexDirection: 'row',
