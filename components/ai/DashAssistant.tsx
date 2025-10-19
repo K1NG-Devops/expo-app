@@ -1049,54 +1049,6 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Verify tier button */}
-          <TouchableOpacity
-            style={styles.iconButton}
-            accessibilityLabel="Verify subscription tier"
-            onPress={async () => {
-              try {
-                const supa = assertSupabase();
-                const { data: { user } } = await supa.auth.getUser();
-                let metaTier = (user?.user_metadata as any)?.subscription_tier || 'unknown';
-                let profileTier = 'unknown';
-                let planTier = 'unknown';
-                let schoolId: string | undefined = (user?.user_metadata as any)?.preschool_id;
-                if (!schoolId && user?.id) {
-                  const { data: profile } = await supa
-                    .from('profiles')
-                    .select('preschool_id')
-                    .eq('id', user.id)
-                    .maybeSingle();
-                  schoolId = profile?.preschool_id;
-                }
-                if (schoolId) {
-                  const { data: sub } = await supa
-                    .from('subscriptions')
-                    .select('plan_id, status')
-                    .eq('school_id', schoolId)
-                    .eq('status', 'active')
-                    .maybeSingle();
-                  if (sub?.plan_id) {
-                    const { data: plan } = await supa
-                      .from('subscription_plans')
-                      .select('tier')
-                      .eq('id', sub.plan_id)
-                      .maybeSingle();
-                    planTier = String(plan?.tier || 'unknown');
-                  }
-                }
-                // The SubscriptionContext tier
-                profileTier = tier;
-                const msg = `Tier verification:\n- Context tier: ${profileTier}\n- Metadata tier: ${metaTier}\n- Plan tier: ${planTier}\n- School: ${schoolId || 'none'}`;
-                Alert.alert('Subscription Tier', msg, [{ text: 'OK' }]);
-              } catch (e) {
-                Alert.alert('Subscription Tier', 'Failed to verify tier');
-              }
-            }}
-          >
-            <Ionicons name="ribbon-outline" size={screenWidth < 400 ? 18 : 22} color={theme.text} />
-          </TouchableOpacity>
-
           {/* Voice (Orb) - Interactive Voice Mode - Always Blue */}
           <TouchableOpacity
             style={styles.iconButton}
