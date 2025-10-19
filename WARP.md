@@ -159,6 +159,48 @@ npm run setup-rls         # RLS policies setup
 - SQL files belong in `sql/` with appropriate subdirectories
 - Archive old files in `archive/`, temporary files in `temp/`
 
+### Documentation Organization Policy [NONNEGOTIABLE]
+
+**Purpose**: Maintain clean, organized, discoverable documentation structure.
+
+**Rules**:
+- **ONLY** `README.md` and `WARP.md` may exist at project root
+- **ALL** other markdown documentation MUST be placed in `docs/` subdirectories
+- **NEVER** create documentation files in root directory
+- **ALWAYS** use the following categorization:
+
+**Documentation Categories** (in order of precedence):
+1. `docs/deployment/` - Build guides, deployment procedures, environment configuration, CI/CD
+2. `docs/features/` - Feature specifications, implementation guides, user-facing documentation
+3. `docs/security/` - RLS policies, authentication, compliance, RBAC, data privacy
+4. `docs/database/` - Migration guides, schema documentation, database operations
+5. `docs/governance/` - Development standards, workflows, contributing guidelines, rules
+6. `docs/OBSOLETE/` - Completed work, old summaries, archived documentation
+
+**File Naming Conventions**:
+- Use UPPERCASE for important docs: `README.md`, `DEPLOYMENT_GUIDE.md`
+- Use descriptive names: `dash-ai-implementation.md` not `implementation.md`
+- Include dates for status reports: `status-2025-10-19.md`
+- Prefix with feature name: `voice-system-setup.md`, `whatsapp-integration.md`
+
+**When Creating New Documentation**:
+1. Determine correct category from list above
+2. Check if existing doc can be updated instead of creating new file
+3. Use meaningful filename that indicates content
+4. Add entry to category README.md index
+5. Reference from root README.md if critical for onboarding
+
+**Consolidation Policy**:
+- When feature is complete, move status/progress docs to `docs/OBSOLETE/`
+- Consolidate multiple fix/summary files into single comprehensive doc
+- Archive old versions before major doc rewrites
+- Keep `docs/OBSOLETE/` organized by date or feature area
+
+**Enforcement**:
+- Pre-commit hooks check for new .md files in root
+- CI/CD pipeline validates documentation structure
+- Code review requirement for any new documentation files
+
 ### Development Environment
 - Production database used as development environment
 - AdMob test IDs enforced (no production ad revenue in dev)
