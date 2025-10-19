@@ -596,11 +596,14 @@ serve(async (req: Request) => {
       const errText = await res.text().catch(() => "");
       try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch { /* Intentional: non-fatal */ }
       // Graceful fallback: return a basic, safe message instead of 500
+      console.error('[AI Gateway] Provider error - status:', res.status, 'action:', action);
       const fallback = action === 'lesson_generation'
         ? `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`
         : action === 'homework_help'
           ? `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding.`
-          : `Automated feedback: suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
+          : action === 'general_assistance' || action === 'chat'
+            ? `I'm here to help! I encountered a temporary issue connecting to my AI service. Please try your request again, or ask me something else I can help with.`
+            : `I encountered an issue processing your request. Please try again or rephrase your question.`;
       return json({ content: fallback, usage: null, cost: null, provider_error: { status: res.status, details: errText } });
     }
 
@@ -619,6 +622,12 @@ serve(async (req: Request) => {
           });
         }
       }
+    }
+    
+    // If AI only returned tool calls with no text content, this is expected
+    // The client (DashAIAssistant) will handle tool execution and get final response
+    if (toolCalls.length > 0 && !content.trim()) {
+      console.log('[AI Gateway] AI returned tool calls only, client will execute and get final response');
     }
     
     try {
