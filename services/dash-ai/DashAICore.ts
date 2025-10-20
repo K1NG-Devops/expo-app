@@ -211,17 +211,31 @@ export class DashAICore {
     this.supabaseClient = config.supabaseClient;
     this.personality = { ...DEFAULT_PERSONALITY, ...config.personality };
     
+    // Initialize services lazily - will be created on first initialize() call
+    this.voiceService = null as any;
+    this.memoryService = null as any;
+    this.conversationManager = null as any;
+    this.taskManager = null as any;
+    this.navigator = null as any;
+    this.profileManager = null as any;
+  }
+  
+  private initializeServices(config?: { supabaseClient?: any; currentUser?: any }) {
+    if (config?.supabaseClient) {
+      this.supabaseClient = config.supabaseClient;
+    }
+    
     // Initialize services with dependency injection
     const voiceConfig: VoiceRecordingConfig = {
       voiceSettings: this.personality.voice_settings,
-      supabaseClient: config.supabaseClient,
+      supabaseClient: this.supabaseClient,
     };
     this.voiceService = new DashVoiceService(voiceConfig);
     
     const memoryConfig: MemoryServiceConfig = {
-      supabaseClient: config.supabaseClient,
-      userId: config.currentUser?.id,
-      organizationId: config.currentUser?.organizationId,
+      supabaseClient: this.supabaseClient,
+      userId: config?.currentUser?.id,
+      organizationId: config?.currentUser?.organizationId,
     };
     this.memoryService = new DashMemoryService(memoryConfig);
     
@@ -229,7 +243,7 @@ export class DashAICore {
     this.conversationManager = new DashConversationManager(conversationConfig);
     
     const taskConfig: TaskManagerConfig = {
-      userId: config.currentUser?.id,
+      userId: config?.currentUser?.id,
     };
     this.taskManager = new DashTaskManager(taskConfig);
     
@@ -237,7 +251,7 @@ export class DashAICore {
     this.navigator = new DashAINavigator(navigatorConfig);
     
     const profileConfig: UserProfileManagerConfig = {
-      currentUser: config.currentUser,
+      currentUser: config?.currentUser,
     };
     this.profileManager = new DashUserProfileManager(profileConfig);
   }
@@ -259,10 +273,15 @@ export class DashAICore {
   /**
    * Initialize all services
    */
-  public async initialize(): Promise<void> {
+  public async initialize(config?: { supabaseClient?: any; currentUser?: any }): Promise<void> {
     console.log('[DashAICore] Initializing...');
     
     try {
+      // Initialize services if not already done or if config provided
+      if (!this.voiceService || config) {
+        this.initializeServices(config);
+      }
+      
       await Promise.all([
         this.voiceService.initializeAudio(),
         this.memoryService.initialize(),

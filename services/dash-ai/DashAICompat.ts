@@ -12,9 +12,11 @@
 import DashAICore, { type DashAICoreConfig } from './DashAICore';
 import type { TranscriptionResult } from './DashVoiceService';
 import type { DashMessage, DashReminder, DashTask } from './types';
+import { assertSupabase } from '@/lib/supabase';
+import { getCurrentSession } from '@/lib/sessionManager';
 
 export interface IDashAIAssistant {
-  initialize(): Promise<void>;
+  initialize(config?: { supabaseClient?: any; currentUser?: any }): Promise<void>;
   dispose(): void;
   cleanup(): void;
 
@@ -58,14 +60,56 @@ export interface IDashAIAssistant {
 }
 
 export class DashAIAssistant implements IDashAIAssistant {
+  private static instance: DashAIAssistant | null = null;
   private core: DashAICore;
 
   constructor(config: DashAICoreConfig) {
     this.core = new DashAICore(config);
     DashAICore.setInstance(this.core);
   }
+  
+  public static getInstance(): DashAIAssistant {
+    if (!DashAIAssistant.instance) {
+      // Create with default config - will be properly initialized later
+      DashAIAssistant.instance = new DashAIAssistant({
+        supabaseClient: null as any, // Will be set on initialize
+      });
+    }
+    return DashAIAssistant.instance;
+  }
+  
+  public static setInstance(instance: DashAIAssistant): void {
+    DashAIAssistant.instance = instance;
+  }
 
-  async initialize(): Promise<void> { return this.core.initialize(); }
+  async initialize(config?: { supabaseClient?: any; currentUser?: any }): Promise<void> {
+    // Auto-get Supabase client and current user if not provided
+    const initConfig = config || {};
+    if (!initConfig.supabaseClient) {
+      try {
+        initConfig.supabaseClient = assertSupabase();
+      } catch (e) {
+        console.warn('[DashAICompat] Failed to get Supabase client');
+      }
+    }
+    if (!initConfig.currentUser) {
+      try {
+        const session = await getCurrentSession();
+        if (session) {
+          initConfig.currentUser = {
+            id: session.user.id,
+            role: session.user.user_metadata?.role || 'teacher',
+            name: session.user.user_metadata?.full_name,
+            email: session.user.email,
+            organizationId: session.user.user_metadata?.organization_id,
+          };
+        }
+      } catch (e) {
+        console.warn('[DashAICompat] Failed to get current user session');
+      }
+    }
+    return this.core.initialize(initConfig); 
+  }
   dispose(): void { return this.core.dispose(); }
   cleanup(): void { return this.core.dispose(); } // Alias for dispose
 
