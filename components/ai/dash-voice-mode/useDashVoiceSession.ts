@@ -82,8 +82,8 @@ export function useDashVoiceSession({
   const initialDetectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Grace period to prevent self-interruption from AI's own voice
   const speakingStartedAtRef = useRef<number>(0);
-  const INTERRUPTION_GRACE_PERIOD_MS = 800; // Ignore partials for first 800ms of TTS
-  const MIN_INTERRUPTION_LENGTH = 8; // Require at least 8 characters to interrupt
+  const INTERRUPTION_GRACE_PERIOD_MS = 400; // Ignore partials for first 400ms of TTS
+  const MIN_INTERRUPTION_LENGTH = 4; // Require at least 4 characters to interrupt
   
   const { preferences } = useVoicePreferences();
   const { i18n } = useTranslation();
@@ -391,6 +391,9 @@ export function useDashVoiceSession({
               if (__DEV__) console.log('[useDashVoiceSession] Partial:', partial);
               setUserTranscript(partial);
 
+              // Clear any error messages once we start receiving audio
+              if (errorMessage) setErrorMessage('');
+
               // Visual level bump for orb
               try { setAudioLevel(Math.min(1, 0.3 + partial.length / 40)); } catch {}
 
@@ -451,7 +454,7 @@ export function useDashVoiceSession({
           if (ok) {
             setReady(true);
             
-            // Start a one-shot timer: if no partial is received within 3s, show an error hint
+            // Start a one-shot timer: if no partial is received within 6s, show an error hint
             if (initialDetectTimerRef.current) clearTimeout(initialDetectTimerRef.current);
             initialDetectTimerRef.current = setTimeout(async () => {
               try {
@@ -473,6 +476,8 @@ export function useDashVoiceSession({
                         if (mutedRef.current || inputGateRef.current) return;
                         const p = String(t || '').trim();
                         setUserTranscript(p);
+                        // Clear error once fallback provider receives audio
+                        if (errorMessage) setErrorMessage('');
                         try { setAudioLevel(Math.min(1, 0.3 + p.length / 40)); } catch {}
                         lastPartialAtRef.current = Date.now();
                         partialBufferRef.current = p;

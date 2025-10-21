@@ -100,14 +100,20 @@ serve(async (req) => {
     const audioUrl = body.audio_url || await signedUrlFor(body.storage_path!);
 
     // Step 1: Detect language quickly (Deepgram). If unavailable, default to en-ZA.
-    let detected = (await detectWithDeepgram(audioUrl)).language || 'en-US';
+    const detectionResult = await detectWithDeepgram(audioUrl);
+    let detected = detectionResult.language || 'en-US';
+    console.log(`[STT] Deepgram detected language: ${detected}, candidates: ${JSON.stringify(body.candidate_languages || [])}`);
+    
     // If candidates provided, prefer the closest candidate; else map to Azure locale
     if (Array.isArray(body.candidate_languages) && body.candidate_languages.length) {
       const lower = detected.toLowerCase();
       const match = body.candidate_languages.find(c => lower.startsWith(c.toLowerCase().slice(0, 2)) || lower === c.toLowerCase());
+      const beforeMatch = detected;
       detected = match || detected;
+      console.log(`[STT] Language match: ${beforeMatch} → ${detected}`);
     }
     const azureLocale = mapToAzureLocale(detected);
+    console.log(`[STT] Final Azure locale: ${azureLocale}`);
 
     // Step 2: Transcribe with Azure for quality on SA locales; fallback to Deepgram result text if Azure not configured
     if (AZURE_SPEECH_KEY) {

@@ -235,7 +235,7 @@ async function synthesizeAzure(
            xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}">
       <voice name="${voice}">
         ${style ? `<mstts:express-as style="${style}">` : ''}
-          <prosody rate="${rate || 0}%" pitch="${pitch || 0}%">
+          <prosody rate="${rate || 0}%" pitch="${pitch || 0}%" volume="+10%">
             ${text}
           </prosody>
         ${style ? '</mstts:express-as>' : ''}
@@ -377,8 +377,10 @@ serve(async (req) => {
 
     const providerLang = LANG_MAP[effectiveLang] || 'en-US';
     const effectiveVoiceId = voice_id || voiceId || AZURE_VOICES[providerLang] || '';
-    const effectiveStyle = style || 'friendly';
-    const effectiveRate = speaking_rate ?? rate ?? 0;
+    // Remove default style - let Azure use natural voice tone
+    const effectiveStyle = style || undefined;
+    // Slight speed increase for more responsive feel, neutral pitch
+    const effectiveRate = speaking_rate ?? rate ?? 5;
     const effectivePitch = pitch ?? 0;
     
     // Log TTS request for debugging
