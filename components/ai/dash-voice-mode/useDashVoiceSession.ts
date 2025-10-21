@@ -236,9 +236,45 @@ export function useDashVoiceSession({
         return;
       }
       
-      // Send to AI
-      if (__DEV__) console.log('[useDashVoiceSession] Sending to AI...');
-      const response = await dashInstance.sendMessage(transcript);
+      // Send to AI with streaming enabled for progressive TTS
+      if (__DEV__) console.log('[useDashVoiceSession] Sending to AI with streaming...');
+      
+      let accumulatedResponse = '';
+      let sentenceBuffer = '';
+      let hasStartedSpeaking = false;
+      const sentenceEndRegex = /[.!?…]+[\s]*$/;
+      
+      const response = await dashInstance.sendMessage(transcript, undefined, undefined, (chunk: string) => {
+        if (abortSpeechRef.current) return;
+        
+        accumulatedResponse += chunk;
+        sentenceBuffer += chunk;
+        setAiResponse(accumulatedResponse);
+        
+        // If we have a complete sentence, speak it immediately
+        if (sentenceEndRegex.test(sentenceBuffer.trim())) {
+          const sentenceToSpeak = sentenceBuffer.trim();
+          sentenceBuffer = '';
+          
+          if (__DEV__) console.log('[useDashVoiceSession] Streaming sentence:', sentenceToSpeak);
+          
+          // Start speaking first sentence immediately without waiting for full response
+          if (!hasStartedSpeaking && sentenceToSpeak.length > 10) {
+            hasStartedSpeaking = true;
+            setThinking(false);
+            abortSpeechRef.current = false;
+            try { sessionRef.current?.setMuted?.(true); } catch {}
+            inputGateRef.current = true;
+            setSpeaking(true);
+            speakingStartedAtRef.current = Date.now();
+            
+            // Speak in background without blocking stream
+            speakText(sentenceToSpeak).catch(err => {
+              console.error('[useDashVoiceSession] Streaming TTS error:', err);
+            });
+          }
+        }
+      });
       
       // Override language for TTS
       if (response.metadata) {
@@ -251,14 +287,14 @@ export function useDashVoiceSession({
       setAiResponse(responseText);
       onMessageSent?.(response);
       
-      // Speak response
+      // If streaming started speaking, wait for TTS to complete. Otherwise, speak now.
       const shouldSpeak = !(response.metadata as any)?.doNotSpeak;
-      if (responseText && shouldSpeak) {
+      if (responseText && shouldSpeak && !hasStartedSpeaking) {
+        // No streaming or streaming didn't start TTS - speak entire response now
         abortSpeechRef.current = false;
         setThinking(false);
-        // MUTE FIRST to prevent self-interruption
         try { sessionRef.current?.setMuted?.(true); } catch {}
-        inputGateRef.current = true; // Block incoming partials at hook level
+        inputGateRef.current = true;
         setSpeaking(true);
         speakingStartedAtRef.current = Date.now();
         await speakText(responseText);
@@ -271,6 +307,10 @@ export function useDashVoiceSession({
           setAiResponse('');
           speakingStartedAtRef.current = 0;
         }
+      } else if (hasStartedSpeaking) {
+        // Streaming TTS already started - just wait for completion
+        if (__DEV__) console.log('[useDashVoiceSession] Streaming TTS in progress, letting it complete');
+        // Cleanup will happen when TTS onDone callback fires
       } else if (!shouldSpeak) {
         setSpeaking(false);
         processedRef.current = false;
