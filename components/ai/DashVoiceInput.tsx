@@ -17,13 +17,7 @@ import {
   Vibration,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Voice, {
-  SpeechResultsEvent,
-  SpeechErrorEvent,
-  SpeechRecognizedEvent,
-  SpeechStartEvent,
-  SpeechEndEvent,
-} from '@react-native-voice/voice';
+import { getSingleUseVoiceProvider, type VoiceSession } from '@/lib/voice/unifiedProvider';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -49,50 +43,40 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isAvailable, setIsAvailable] = useState(true);
 
+  const sessionRef = useRef<VoiceSession | null>(null);
+
   const waveAnimation = useRef(new Animated.Value(1)).current;
   const pulseAnimation = useRef(new Animated.Value(1)).current;
 
-  // Initialize Voice
-  useEffect(() => {
-    // Check if Voice module is available
-    if (!Voice || typeof Voice.isAvailable !== 'function') {
-      console.warn('[DashVoiceInput] Voice module not available');
-      setIsAvailable(false);
-      return;
-    }
+// Helper: map locale to provider code
+const languageToCode = (l?: string) => {
+  const base = String(l || '').toLowerCase();
+  if (base.startsWith('af')) return 'af';
+  if (base.startsWith('zu')) return 'zu';
+  if (base.startsWith('xh')) return 'xh';
+  if (base.startsWith('nso') || base.startsWith('st') || base.startsWith('so')) return 'nso';
+  if (base.startsWith('en')) return 'en';
+  return 'en';
+};
 
+// Initialize availability once
+useEffect(() => {
+  (async () => {
     try {
-      Voice.onSpeechStart = onSpeechStart;
-      Voice.onSpeechEnd = onSpeechEnd;
-      Voice.onSpeechResults = onSpeechResults;
-      Voice.onSpeechPartialResults = onSpeechPartialResults;
-      Voice.onSpeechError = onSpeechError;
-      Voice.onSpeechRecognized = onSpeechRecognized;
-
-      // Check if speech recognition is available
-      Voice.isAvailable()
-        .then((available: number) => {
-          setIsAvailable(available === 1);
-          if (available !== 1) {
-            console.warn('[DashVoiceInput] Speech recognition not available');
-          }
-        })
-        .catch((e: any) => {
-          console.error('[DashVoiceInput] Error checking availability:', e);
-          setIsAvailable(false);
-        });
-    } catch (initError) {
-      console.error('[DashVoiceInput] Voice initialization error:', initError);
+      const provider = await getSingleUseVoiceProvider(languageToCode(language));
+      const ok = await provider.isAvailable();
+      setIsAvailable(ok);
+      if (!ok) console.warn('[DashVoiceInput] Single-use voice provider not available');
+    } catch (e) {
+      console.error('[DashVoiceInput] Availability check failed:', e);
       setIsAvailable(false);
-      return;
     }
-
-    return () => {
-      if (Voice && typeof Voice.destroy === 'function') {
-        Voice.destroy().then(Voice.removeAllListeners).catch(() => { /* Intentional: error handled */ });
-      }
-    };
-  }, []);
+  })();
+  return () => {
+    try { sessionRef.current?.stop?.(); } catch {}
+    sessionRef.current = null;
+  };
+}, [language]);
 
   // Notify parent of listening state changes
   useEffect(() => {
@@ -150,22 +134,21 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
     pulseAnimation.setValue(1);
   };
 
-  const onSpeechStart = (e: SpeechStartEvent) => {
+const onSpeechStart = () => {
     console.log('[DashVoiceInput] Speech started');
     setIsListening(true);
     setError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const onSpeechEnd = (e: SpeechEndEvent) => {
+const onSpeechEnd = () => {
     console.log('[DashVoiceInput] Speech ended');
     setIsListening(false);
   };
 
-  const onSpeechResults = (e: SpeechResultsEvent) => {
-    console.log('[DashVoiceInput] Speech results:', e.value);
-    if (e.value && e.value.length > 0) {
-      const text = e.value[0];
+const onSpeechResults = (text: string) => {
+  console.log('[DashVoiceInput] Speech results:', text);
+  if (text && text.length > 0) {
       setFinalResult(text);
       onTextRecognized(text);
 
@@ -181,42 +164,33 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
     }
   };
 
-  const onSpeechPartialResults = (e: SpeechResultsEvent) => {
-    console.log('[DashVoiceInput] Partial results:', e.value);
-    if (e.value && e.value.length > 0) {
-      setPartialResults(e.value);
-      // Update text input in real-time
-      onTextRecognized(e.value[0]);
+const onSpeechPartialResults = (text: string) => {
+  console.log('[DashVoiceInput] Partial results:', text);
+  if (text && text.length > 0) {
+      setPartialResults([text]);
+      onTextRecognized(text);
     }
   };
 
-  const onSpeechError = (e: SpeechErrorEvent) => {
-    console.error('[DashVoiceInput] Speech error:', e.error);
-    setError(e.error?.message || 'Speech recognition error');
+const onSpeechError = (message: string) => {
+    console.error('[DashVoiceInput] Speech error:', message);
+    setError(message || 'Speech recognition error');
     setIsListening(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
     // Show error to user
-    if (e.error?.message && !e.error.message.includes('No match')) {
-      Alert.alert(
-        'Speech Recognition Error',
-        e.error.message,
-        [{ text: 'OK' }]
-      );
+    if (message && !String(message).includes('No match')) {
+      Alert.alert('Speech Recognition Error', String(message), [{ text: 'OK' }]);
     }
   };
 
-  const onSpeechRecognized = (e: SpeechRecognizedEvent) => {
+const onSpeechRecognized = () => {
     console.log('[DashVoiceInput] Speech recognized');
   };
 
   const startListening = async () => {
     if (!isAvailable) {
-      Alert.alert(
-        'Not Available',
-        'Speech recognition is not available on this device.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Not Available', 'Speech recognition is not available on this device.', [{ text: 'OK' }]);
       return;
     }
 
@@ -225,21 +199,32 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
       setPartialResults([]);
       setFinalResult('');
 
-      await Voice.start(language);
+      const provider = await getSingleUseVoiceProvider(languageToCode(language));
+      const session = provider.createSession();
+      sessionRef.current = session;
+
+      const started = await session.start({
+        language: languageToCode(language),
+        onPartial: (t) => onTextRecognized((t || '').toString()),
+        onFinal: (t) => onSpeechResults((t || '').toString()),
+      });
+
+      if (!started) {
+        Alert.alert('Error', 'Failed to start speech recognition.', [{ text: 'OK' }]);
+        return;
+      }
+
+      onSpeechStart();
       console.log('[DashVoiceInput] Started listening with language:', language);
     } catch (e: any) {
       console.error('[DashVoiceInput] Error starting:', e);
-      Alert.alert(
-        'Error',
-        'Failed to start speech recognition. Please check your microphone permissions.',
-        [{ text: 'OK' }]
-      );
+      Alert.alert('Error', 'Failed to start speech recognition. Please check your microphone permissions.', [{ text: 'OK' }]);
     }
   };
 
   const stopListening = async () => {
     try {
-      await Voice.stop();
+      await sessionRef.current?.stop?.();
       console.log('[DashVoiceInput] Stopped listening');
     } catch (e: any) {
       console.error('[DashVoiceInput] Error stopping:', e);
@@ -248,7 +233,7 @@ export const DashVoiceInput: React.FC<DashVoiceInputProps> = ({
 
   const cancelListening = async () => {
     try {
-      await Voice.cancel();
+      await sessionRef.current?.stop?.();
       setPartialResults([]);
       setFinalResult('');
       onTextRecognized('');

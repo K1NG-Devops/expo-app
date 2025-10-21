@@ -69,13 +69,11 @@ export function useLessonGenerator() {
       } catch (e: any) {
       // Fallback: use Dash assistant to generate if edge function fails
       try {
-        const module = await import('@/services/DashAIAssistant');
-        const DashClass = (module as any).DashAIAssistant || (module as any).default;
-        const dash = DashClass?.getInstance?.();
-        if (!dash) throw new Error('DashAIAssistant unavailable');
-        await dash.initialize();
-        if (!dash.getCurrentConversationId()) {
-          await dash.startNewConversation('AI Lesson Generator');
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        const dash: any = await getAssistant();
+        await dash.initialize?.();
+        if (!dash.getCurrentConversationId?.()) {
+          await dash.startNewConversation?.('AI Lesson Generator');
         }
         const prompt = `Generate a ${opts.duration ?? 45} minute lesson plan for Grade ${opts.gradeLevel} in ${opts.subject} on the topic "${opts.topic}".
 Learning objectives: ${(opts.learningObjectives || []).join('; ')}.
@@ -86,18 +84,20 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         // Automatically save the Dash-generated lesson to the database
         let saveResult = null;
         try {
-          saveResult = await dash.saveLessonToDatabase(lessonText, {
-            topic: opts.topic,
-            subject: opts.subject,
-            gradeLevel: opts.gradeLevel,
-            duration: opts.duration ?? 45,
-            objectives: opts.learningObjectives,
-          });
-          if (saveResult.success) {
-            logger.info('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
-            track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
-          } else {
-            logger.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+          if (typeof (dash as any).saveLessonToDatabase === 'function') {
+            saveResult = await (dash as any).saveLessonToDatabase(lessonText, {
+              topic: opts.topic,
+              subject: opts.subject,
+              gradeLevel: opts.gradeLevel,
+              duration: opts.duration ?? 45,
+              objectives: opts.learningObjectives,
+            });
+            if (saveResult.success) {
+              logger.info('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
+              track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
+            } else {
+              logger.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+            }
           }
         } catch (saveError) {
           console.error('[useLessonGenerator] Error saving fallback lesson:', saveError);

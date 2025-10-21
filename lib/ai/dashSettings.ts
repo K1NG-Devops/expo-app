@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DashAIAssistant } from '@/services/dash-ai/types';
+import { DashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import { voiceService } from '@/lib/voice/client';
 import type { SupportedLanguage, VoicePreference } from '@/lib/voice/types';
 
@@ -24,17 +24,20 @@ const DEFAULT_CHAT_PREFS: VoiceChatPrefs = {
 // Map various legacy language codes to supported SA set
 export function normalizeLanguageCode(input?: string): SupportedLanguage {
   const raw = (input || '').toLowerCase();
+  if (raw.startsWith('en')) return 'en';
   if (raw.startsWith('af')) return 'af';
   if (raw.startsWith('zu')) return 'zu';
   if (raw.startsWith('xh')) return 'xh';
   if (raw.startsWith('nso') || raw === 'st' || raw.includes('sotho')) return 'nso';
-  // Legacy English fallback -> default to Afrikaans provider for now
-  return 'af';
+  // Default to English (SA)
+  return 'en';
 }
 
 // Choose a reasonable provider voice per language and gender
 export function resolveDefaultVoiceId(lang: SupportedLanguage, gender: 'male' | 'female' = 'female'): string {
   switch (lang) {
+    case 'en':
+      return gender === 'male' ? 'en-ZA-LukeNeural' : 'en-ZA-LeahNeural';
     case 'af':
       return gender === 'male' ? 'af-ZA-WillemNeural' : 'af-ZA-AdriNeural';
     case 'zu':
@@ -45,7 +48,7 @@ export function resolveDefaultVoiceId(lang: SupportedLanguage, gender: 'male' | 
     case 'nso':
       return 'nso-ZA-Online';
     default:
-      return 'af-ZA-AdriNeural';
+      return 'en-ZA-LeahNeural';
   }
 }
 

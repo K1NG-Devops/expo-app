@@ -75,34 +75,85 @@ export class DashToolRegistry {
   // Register default tools
   private registerDefaultTools(): void {
 
-    // Navigation tool
+    // Navigation tool - DISABLED: Method doesn't exist in refactored architecture
+    // TODO: Implement navigation via expo-router directly
+    // this.register({
+    //   name: 'navigate_to_screen',
+    //   ...
+    // });
+
+    // Open documents/curriculum resources directly
     this.register({
-      name: 'navigate_to_screen',
-      description: 'Navigate to a specific screen in the app (e.g., students, lessons, worksheets, reports)',
+      name: 'open_document',
+      description: 'Directly open CAPS curriculum documents, lesson resources, or other educational materials. Use this instead of giving instructions on how to navigate.',
       parameters: {
         type: 'object',
         properties: {
-          screen: {
+          document_type: {
             type: 'string',
-            description: 'Screen name: dashboard, students, lessons, worksheets, assignments, reports, settings, chat'
+            enum: ['caps_curriculum', 'lesson_plan', 'worksheet', 'assessment', 'resource'],
+            description: 'Type of document to open'
           },
-          params: {
-            type: 'object',
-            description: 'Optional parameters to pass to the screen'
+          subject: {
+            type: 'string',
+            description: 'Subject area (e.g., Mathematics, English, Physical Sciences)'
+          },
+          grade: {
+            type: 'string',
+            description: 'Grade level (e.g., "Grade 10", "Grade R")'
+          },
+          search_query: {
+            type: 'string',
+            description: 'Specific search term or document title'
           }
         },
-        required: ['screen']
+        required: ['document_type']
       },
       risk: 'low',
       execute: async (args) => {
-        const module = await import('../DashAIAssistant');
-        const DashClass = (module as any).DashAIAssistant || (module as any).default;
-        const dash = DashClass?.getInstance?.();
-        if (!dash) return { success: false, error: 'Dash not available' };
-        return await dash.navigateToScreen(args.screen, args.params);
+        try {
+          const { router } = await import('expo-router');
+          
+          // Build route based on document type
+          let route = '/screens/curriculum';
+          const params: any = {};
+          
+          if (args.document_type === 'caps_curriculum') {
+            route = '/screens/curriculum';
+            if (args.subject) params.subject = args.subject;
+            if (args.grade) params.grade = args.grade;
+            if (args.search_query) params.search = args.search_query;
+          } else if (args.document_type === 'lesson_plan') {
+            route = '/screens/lessons';
+            if (args.subject) params.subject = args.subject;
+          } else if (args.document_type === 'worksheet') {
+            route = '/screens/worksheets';
+          } else if (args.document_type === 'assessment') {
+            route = '/screens/assessments';
+          }
+          
+          // Navigate to the screen
+          router.push({ pathname: route, params });
+          
+          return {
+            success: true,
+            opened: true,
+            route,
+            message: `Opening ${args.document_type}${args.subject ? ` for ${args.subject}` : ''}${args.grade ? ` ${args.grade}` : ''}`
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Failed to open document'
+          };
+        }
       }
     });
 
+    // LEGACY TOOLS DISABLED - Methods don't exist in refactored architecture
+    // To re-enable: Implement methods in new modular services
+    
+    /* DISABLED
     // Lesson generator tool
     this.register({
       name: 'open_lesson_generator',
@@ -238,6 +289,88 @@ export class DashToolRegistry {
         return { opened: true };
       }
     });
+    */
+    
+    // Email sending tool (HIGH RISK - requires explicit confirmation)
+    this.register({
+      name: 'send_email',
+      description: 'Send an email to one or more recipients. REQUIRES explicit user confirmation. Only principals and teachers can send emails.',
+      parameters: {
+        type: 'object',
+        properties: {
+          to: {
+            type: 'string',
+            description: 'Recipient email address (or comma-separated addresses)'
+          },
+          subject: {
+            type: 'string',
+            description: 'Email subject line'
+          },
+          body: {
+            type: 'string',
+            description: 'Email body content (HTML supported)'
+          },
+          reply_to: {
+            type: 'string',
+            description: 'Optional reply-to email address'
+          },
+          is_html: {
+            type: 'boolean',
+            description: 'Whether body contains HTML (default: true)'
+          }
+        },
+        required: ['to', 'subject', 'body']
+      },
+      risk: 'high',
+      requiresConfirmation: true,
+      execute: async (args) => {
+        try {
+          const supabase = (await import('@/lib/supabase')).assertSupabase();
+          
+          // Call send-email Edge Function
+          const { data, error } = await supabase.functions.invoke('send-email', {
+            body: {
+              to: args.to.includes(',') ? args.to.split(',').map(e => e.trim()) : args.to,
+              subject: args.subject,
+              body: args.body,
+              reply_to: args.reply_to,
+              is_html: args.is_html !== false,
+              confirmed: true // Tool execution implies user confirmed
+            }
+          });
+          
+          if (error) {
+            logger.error('[send_email] Edge Function error:', error);
+            return { 
+              success: false, 
+              error: error.message || 'Failed to send email' 
+            };
+          }
+          
+          if (!data.success) {
+            return {
+              success: false,
+              error: data.error || 'Email sending failed',
+              rate_limit: data.rate_limit
+            };
+          }
+          
+          return {
+            success: true,
+            message_id: data.message_id,
+            message: `Email sent successfully to ${args.to}`,
+            rate_limit: data.rate_limit,
+            warning: data.warning // For test mode
+          };
+        } catch (error) {
+          logger.error('[send_email] Tool execution error:', error);
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          };
+        }
+      }
+    });
 
     // Context analysis tool
     this.register({
@@ -253,7 +386,11 @@ export class DashToolRegistry {
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
         const dash = DashClass?.getInstance?.();
         if (!dash) return { success: false, error: 'Dash not available' };
-        return dash.getCurrentScreenContext();
+        const ctx =
+          dash && typeof (dash as any).getCurrentScreenContext === 'function'
+            ? (dash as any).getCurrentScreenContext()
+            : { screen: 'unknown', capabilities: [], suggestions: [] };
+        return ctx;
       }
     });
 
@@ -687,262 +824,9 @@ export class DashToolRegistry {
     });
 
     // ========================================
-    // CAPS Curriculum Tools (Memory Bank Access)
+    // NOTE: CAPS tools moved below to avoid duplication
+    // See lines 1154+ for CAPS curriculum tools
     // ========================================
-
-    // Search CAPS curriculum
-    this.register({
-      name: 'search_caps_curriculum',
-      description: 'Search CAPS curriculum documents for specific topics and get curriculum-aligned content',
-      parameters: {
-        type: 'object',
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Search query (topic, concept, or learning outcome)'
-          },
-          grade: {
-            type: 'string',
-            description: 'Grade level (R, 1-12)'
-          },
-          subject: {
-            type: 'string',
-            description: 'Subject name (e.g., Mathematics, Physical Sciences, English)'
-          },
-          document_type: {
-            type: 'string',
-            enum: ['curriculum', 'exam', 'exemplar', 'guideline', 'teaching_plan'],
-            description: 'Type of document to search (optional)'
-          },
-          limit: {
-            type: 'number',
-            description: 'Maximum number of results (default: 5)'
-          }
-        },
-        required: ['query', 'grade', 'subject']
-      },
-      risk: 'low',
-      execute: async (args) => {
-        try {
-          const supabase = (await import('@/lib/supabase')).assertSupabase();
-          
-          const { data, error } = await supabase.rpc('search_caps_curriculum', {
-            search_query: args.query,
-            search_grade: args.grade,
-            search_subject: args.subject,
-            result_limit: args.limit || 5
-          });
-          
-          if (error) {
-            return { success: false, error: error.message };
-          }
-          
-          return {
-            success: true,
-            results: data || [],
-            count: data?.length || 0,
-            message: `Found ${data?.length || 0} CAPS curriculum results for ${args.grade} ${args.subject}`
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          };
-        }
-      }
-    });
-
-    // Get past exam questions
-    this.register({
-      name: 'get_past_exam_questions',
-      description: 'Get past examination questions from DBE papers for practice and analysis',
-      parameters: {
-        type: 'object',
-        properties: {
-          topic: {
-            type: 'string',
-            description: 'Topic name or keyword'
-          },
-          grade: {
-            type: 'string',
-            description: 'Grade level (10-12 for NSC)'
-          },
-          subject: {
-            type: 'string',
-            description: 'Subject name'
-          },
-          difficulty: {
-            type: 'string',
-            enum: ['easy', 'medium', 'hard', 'challenging'],
-            description: 'Filter by difficulty level (optional)'
-          },
-          years_back: {
-            type: 'number',
-            description: 'How many years to look back (default: 5)'
-          },
-          limit: {
-            type: 'number',
-            description: 'Maximum questions to return (default: 20)'
-          }
-        },
-        required: ['topic', 'grade', 'subject']
-      },
-      risk: 'low',
-      execute: async (args) => {
-        try {
-          const supabase = (await import('@/lib/supabase')).assertSupabase();
-          
-          const { data, error } = await supabase.rpc('get_exam_questions_by_topic', {
-            topic_name: args.topic,
-            question_grade: args.grade,
-            question_subject: args.subject,
-            difficulty_level: args.difficulty || null,
-            years_back: args.years_back || 5,
-            result_limit: args.limit || 20
-          });
-          
-          if (error) {
-            return { success: false, error: error.message };
-          }
-          
-          return {
-            success: true,
-            questions: data || [],
-            count: data?.length || 0,
-            summary: `Found ${data?.length || 0} past exam questions on ${args.topic}`
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          };
-        }
-      }
-    });
-
-    // Get exam patterns and predictions
-    this.register({
-      name: 'get_exam_patterns',
-      description: 'Get exam patterns and predictions for upcoming exams based on historical analysis',
-      parameters: {
-        type: 'object',
-        properties: {
-          grade: {
-            type: 'string',
-            description: 'Grade level (10-12)'
-          },
-          subject: {
-            type: 'string',
-            description: 'Subject name'
-          }
-        },
-        required: ['grade', 'subject']
-      },
-      risk: 'low',
-      execute: async (args) => {
-        try {
-          const supabase = (await import('@/lib/supabase')).assertSupabase();
-          
-          const { data, error } = await supabase
-            .from('caps_exam_patterns')
-            .select('*')
-            .eq('grade', args.grade)
-            .eq('subject', args.subject)
-            .order('likelihood_next_year', { ascending: false })
-            .limit(10);
-          
-          if (error) {
-            return { success: false, error: error.message };
-          }
-          
-          const highPriority = data?.filter(p => p.recommended_study_priority === 'high') || [];
-          
-          return {
-            success: true,
-            patterns: data || [],
-            high_priority_topics: highPriority.map(p => ({
-              topic: p.topic,
-              frequency: p.frequency_score,
-              likelihood: p.likelihood_next_year,
-              last_appeared: p.last_appeared_year,
-              average_marks: p.average_marks
-            })),
-            summary: `Analyzed ${data?.length || 0} topics. ${highPriority.length} high-priority topics identified.`
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          };
-        }
-      }
-    });
-
-    // Get curriculum document
-    this.register({
-      name: 'get_caps_document',
-      description: 'Get specific CAPS curriculum document',
-      parameters: {
-        type: 'object',
-        properties: {
-          grade: {
-            type: 'string',
-            description: 'Grade level'
-          },
-          subject: {
-            type: 'string',
-            description: 'Subject name'
-          },
-          document_type: {
-            type: 'string',
-            enum: ['curriculum', 'guideline', 'teaching_plan'],
-            description: 'Type of document'
-          }
-        },
-        required: ['grade', 'subject']
-      },
-      risk: 'low',
-      execute: async (args) => {
-        try {
-          const supabase = (await import('@/lib/supabase')).assertSupabase();
-          
-          let query = supabase
-            .from('caps_documents')
-            .select('id, title, grade, subject, document_type, file_url, page_count, content_text')
-            .eq('grade', args.grade)
-            .eq('subject', args.subject);
-          
-          if (args.document_type) {
-            query = query.eq('document_type', args.document_type);
-          }
-          
-          const { data, error } = await query.limit(1).single();
-          
-          if (error || !data) {
-            return {
-              success: false,
-              message: `No CAPS ${args.document_type || 'document'} found for ${args.grade} ${args.subject}`
-            };
-          }
-          
-          return {
-            success: true,
-            document: {
-              title: data.title,
-              url: data.file_url,
-              pages: data.page_count,
-              preview: data.content_text?.substring(0, 1000),
-              type: data.document_type
-            }
-          };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          };
-        }
-      }
-    });
 
     // Analyze class performance
     this.register({

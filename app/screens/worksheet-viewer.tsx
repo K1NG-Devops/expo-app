@@ -73,10 +73,11 @@ export default function WorksheetViewer() {
         return;
       }
 
-      let dash;
+      let dash: any;
       try {
-        const module = await import("@/services/DashAIAssistant"); const DashClass = module.DashAIAssistant || module.default; dash = DashClass?.getInstance?.() || null;
-        await dash.initialize();
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        dash = await getAssistant();
+        await dash.initialize?.();
       } catch (error) {
         console.error('[WorksheetViewer] Failed to get DashAI instance:', error);
         // Continue with fallback worksheet data
@@ -86,8 +87,8 @@ export default function WorksheetViewer() {
       // Try to get worksheet from Dash memory
       if (dash) {
         try {
-          const memoryItems = await dash.getAllMemoryItems();
-          const worksheetMemory = memoryItems.find(item => 
+          const memoryItems = (dash as any)?.getMemoryItems ? (dash as any).getMemoryItems() : [];
+          const worksheetMemory = (memoryItems || []).find((item: any) => 
             item.key === `generated_worksheet_${params.worksheetId}`
           );
 

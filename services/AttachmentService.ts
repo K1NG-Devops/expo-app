@@ -12,7 +12,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Crypto from 'expo-crypto';
 import { Platform, Alert } from 'react-native';
 import { assertSupabase } from '@/lib/supabase';
-import { DashAttachment, DashAttachmentKind } from '@/services/DashAIAssistant';
+import { DashAttachment, DashAttachmentKind } from '@/services/dash-ai/types';
 import { base64ToUint8Array } from '@/lib/utils/base64';
 
 // File size limits (in bytes)
@@ -106,6 +106,96 @@ export async function pickDocuments(): Promise<DashAttachment[]> {
   } catch (error) {
     console.error('Failed to pick documents:', error);
     throw new Error('Failed to select documents. Please try again.');
+  }
+}
+
+/**
+ * Take a photo using the camera
+ */
+export async function takePhoto(): Promise<DashAttachment[]> {
+  try {
+    // Check permission first
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (permissionResult.status !== 'granted') {
+      // Determine if permission was denied or needs more action
+      if (permissionResult.canAskAgain === false) {
+        Alert.alert(
+          'Camera Permission Denied',
+          'Camera access has been permanently denied. Please enable it in your device settings to take photos.',
+          [
+            { text: 'OK', style: 'default' },
+            ...(Platform.OS === 'ios' 
+              ? [{ text: 'Open Settings', onPress: () => {
+                  // iOS: Link to Settings unavailable in Expo without expo-linking
+                  console.log('[Camera] User needs to open Settings manually');
+                }}]
+              : []
+            )
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Camera Permission Required',
+          'EduDash Pro needs camera access to take photos. Please grant permission when prompted.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+      return [];
+    }
+
+    // Launch camera
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsEditing: true,
+      aspect: [4, 3],
+    });
+
+    // Handle cancellation gracefully
+    if (result.canceled || !result.assets || result.assets.length === 0) {
+      if (__DEV__) console.log('[Camera] User cancelled or no photo taken');
+      return [];
+    }
+
+    const attachments: DashAttachment[] = [];
+
+    for (const asset of result.assets) {
+      // Get file info to check size
+      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      
+      if (fileInfo.exists && fileInfo.size && fileInfo.size > MAX_IMAGE_SIZE) {
+        Alert.alert(
+          'Image Too Large',
+          `Photo is too large. Maximum image size is ${Math.round(MAX_IMAGE_SIZE / (1024 * 1024))}MB.`
+        );
+        continue;
+      }
+
+      const attachment: DashAttachment = {
+        id: `attach_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: `photo_${Date.now()}.jpg`,
+        mimeType: 'image/jpeg',
+        size: fileInfo.exists ? (fileInfo.size || 0) : 0,
+        bucket: 'attachments',
+        storagePath: '', // Will be set during upload
+        kind: 'image',
+        status: 'pending',
+        previewUri: asset.uri,
+        uploadProgress: 0,
+        meta: {
+          width: asset.width,
+          height: asset.height,
+        },
+      };
+
+      attachments.push(attachment);
+    }
+
+    return attachments;
+  } catch (error) {
+    console.error('Failed to take photo:', error);
+    throw new Error('Failed to take photo. Please try again.');
   }
 }
 

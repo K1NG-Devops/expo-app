@@ -62,18 +62,18 @@ CREATE TABLE IF NOT EXISTS caps_documents (
 );
 
 -- Indexes for fast filtering
-CREATE INDEX idx_caps_docs_type ON caps_documents(document_type);
-CREATE INDEX idx_caps_docs_grade ON caps_documents(grade);
-CREATE INDEX idx_caps_docs_subject ON caps_documents(subject);
-CREATE INDEX idx_caps_docs_year ON caps_documents(year);
-CREATE INDEX idx_caps_docs_grade_subject ON caps_documents(grade, subject);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_type ON caps_documents(document_type);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_grade ON caps_documents(grade);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_subject ON caps_documents(subject);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_year ON caps_documents(year);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_grade_subject ON caps_documents(grade, subject);
 
 -- Full-text search index (PostgreSQL built-in)
-CREATE INDEX idx_caps_docs_search ON caps_documents 
+CREATE INDEX IF NOT EXISTS idx_caps_docs_search ON caps_documents 
 USING gin(to_tsvector('english', content_text));
 
 -- Keyword search
-CREATE INDEX idx_caps_docs_keywords ON caps_documents USING gin(keywords);
+CREATE INDEX IF NOT EXISTS idx_caps_docs_keywords ON caps_documents USING gin(keywords);
 
 -- =====================================================
 -- 2. CAPS Content Chunks (for detailed search)
@@ -106,8 +106,8 @@ CREATE TABLE IF NOT EXISTS caps_content_chunks (
 );
 
 -- Indexes
-CREATE INDEX idx_chunks_document ON caps_content_chunks(document_id);
-CREATE INDEX idx_chunks_type ON caps_content_chunks(chunk_type);
+CREATE INDEX IF NOT EXISTS idx_chunks_document ON caps_content_chunks(document_id);
+CREATE INDEX IF NOT EXISTS idx_chunks_type ON caps_content_chunks(chunk_type);
 
 -- Vector similarity search index (only create if using pgvector)
 -- Uncomment when ready for semantic search
@@ -159,10 +159,10 @@ CREATE TABLE IF NOT EXISTS caps_exam_questions (
 );
 
 -- Indexes
-CREATE INDEX idx_exam_q_grade_subject ON caps_exam_questions(grade, subject);
-CREATE INDEX idx_exam_q_year ON caps_exam_questions(year);
-CREATE INDEX idx_exam_q_topic ON caps_exam_questions(topic);
-CREATE INDEX idx_exam_q_difficulty ON caps_exam_questions(difficulty);
+CREATE INDEX IF NOT EXISTS idx_exam_q_grade_subject ON caps_exam_questions(grade, subject);
+CREATE INDEX IF NOT EXISTS idx_exam_q_year ON caps_exam_questions(year);
+CREATE INDEX IF NOT EXISTS idx_exam_q_topic ON caps_exam_questions(topic);
+CREATE INDEX IF NOT EXISTS idx_exam_q_difficulty ON caps_exam_questions(difficulty);
 
 -- =====================================================
 -- 4. Exam Pattern Analysis
@@ -199,8 +199,8 @@ CREATE TABLE IF NOT EXISTS caps_exam_patterns (
 );
 
 -- Indexes
-CREATE INDEX idx_patterns_grade_subject ON caps_exam_patterns(grade, subject);
-CREATE INDEX idx_patterns_priority ON caps_exam_patterns(recommended_study_priority);
+CREATE INDEX IF NOT EXISTS idx_patterns_grade_subject ON caps_exam_patterns(grade, subject);
+CREATE INDEX IF NOT EXISTS idx_patterns_priority ON caps_exam_patterns(recommended_study_priority);
 
 -- =====================================================
 -- 5. Dash Memory Bank (Context & Insights)
@@ -248,10 +248,10 @@ CREATE TABLE IF NOT EXISTS dash_curriculum_memory (
 );
 
 -- Indexes
-CREATE INDEX idx_memory_type ON dash_curriculum_memory(memory_type);
-CREATE INDEX idx_memory_grade_subject ON dash_curriculum_memory(grade, subject);
-CREATE INDEX idx_memory_topic ON dash_curriculum_memory(topic);
-CREATE INDEX idx_memory_usefulness ON dash_curriculum_memory(usefulness_score DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_type ON dash_curriculum_memory(memory_type);
+CREATE INDEX IF NOT EXISTS idx_memory_grade_subject ON dash_curriculum_memory(grade, subject);
+CREATE INDEX IF NOT EXISTS idx_memory_topic ON dash_curriculum_memory(topic);
+CREATE INDEX IF NOT EXISTS idx_memory_usefulness ON dash_curriculum_memory(usefulness_score DESC);
 
 -- =====================================================
 -- 6. Views for Easy Access
@@ -410,22 +410,27 @@ ALTER TABLE caps_exam_patterns ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dash_curriculum_memory ENABLE ROW LEVEL SECURITY;
 
 -- Public read access (CAPS is public curriculum)
+DROP POLICY IF EXISTS "CAPS documents are publicly readable" ON caps_documents;
 CREATE POLICY "CAPS documents are publicly readable"
   ON caps_documents FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "CAPS chunks are publicly readable" ON caps_content_chunks;
 CREATE POLICY "CAPS chunks are publicly readable"
   ON caps_content_chunks FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "CAPS questions are publicly readable" ON caps_exam_questions;
 CREATE POLICY "CAPS questions are publicly readable"
   ON caps_exam_questions FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "CAPS patterns are publicly readable" ON caps_exam_patterns;
 CREATE POLICY "CAPS patterns are publicly readable"
   ON caps_exam_patterns FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Dash memory is publicly readable" ON dash_curriculum_memory;
 CREATE POLICY "Dash memory is publicly readable"
   ON dash_curriculum_memory FOR SELECT
   USING (true);
@@ -437,7 +442,7 @@ CREATE POLICY "Dash memory is publicly readable"
 -- 9. Initial Data / Metadata
 -- =====================================================
 
--- Insert metadata about CAPS system
+-- Insert metadata about CAPS system (idempotent - skip if already exists)
 INSERT INTO dash_curriculum_memory (
   memory_type,
   title,
@@ -445,13 +450,17 @@ INSERT INTO dash_curriculum_memory (
   source,
   verified,
   usefulness_score
-) VALUES (
+) 
+SELECT
   'curriculum_insight',
   'CAPS Curriculum System Initialized',
   'CAPS (Curriculum and Assessment Policy Statement) is South Africa''s national curriculum framework. It provides detailed subject specifications for Grades R-12, including learning objectives, assessment standards, and teaching plans. This database contains curriculum documents, past examination papers, and extracted questions to support curriculum-aligned teaching and learning.',
   'dash_learning',
   true,
   1.0
+WHERE NOT EXISTS (
+  SELECT 1 FROM dash_curriculum_memory 
+  WHERE title = 'CAPS Curriculum System Initialized'
 );
 
 -- Create storage bucket policy reference

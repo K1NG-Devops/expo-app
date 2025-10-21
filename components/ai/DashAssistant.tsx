@@ -6,14 +6,12 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
+import { 
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
-  FlatList,
-  StyleSheet,
   Alert,
   ActivityIndicator,
   Platform,
@@ -22,8 +20,12 @@ import {
   KeyboardAvoidingView,
   Vibration,
   ActionSheetIOS,
+  InteractionManager,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { styles } from './DashAssistant.styles';
 import { Ionicons } from '@expo/vector-icons';
+import { DashAssistantMessages } from './dash-assistant/DashAssistantMessages';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { DashMessage, DashConversation, DashAttachment } from '@/services/dash-ai/types';
 import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
@@ -46,6 +48,8 @@ import {
   getFileIconName,
   formatFileSize 
 } from '@/services/AttachmentService';
+import { track } from '@/lib/analytics';
+import { renderCAPSResults } from '@/lib/caps/parseCAPSResults';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -65,6 +69,10 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [messages, setMessages] = useState<DashMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState<'uploading' | 'thinking' | 'responding' | null>(null);
+  const [statusStartTime, setStatusStartTime] = useState<number>(0);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [conversation, setConversation] = useState<DashConversation | null>(null);
@@ -74,11 +82,64 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [selectedAttachments, setSelectedAttachments] = useState<DashAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const prevLengthRef = useRef<number>(0);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
   const voiceUI = useVoiceUI();
 
-  const flatListRef = useRef<FlatList>(null);
+  const flashListRef = useRef<FlashList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Request queue for concurrency control
+  const requestQueueRef = useRef<Array<{ text: string; attachments: DashAttachment[] }>>([]);
+  const isProcessingRef = useRef(false);
+  
+  /**
+   * Robust auto-scroll utility for React Native 0.79 Fabric
+   * Ensures FlatList scrolls to bottom reliably after layout
+   */
+  const scrollToBottom = useCallback((opts?: { animated?: boolean; delay?: number }) => {
+    const delay = opts?.delay ?? 120;
+    const animated = opts?.animated ?? true;
+
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+
+    scrollTimeoutRef.current = setTimeout(() => {
+      try {
+        InteractionManager.runAfterInteractions(() => {
+          requestAnimationFrame(() => {
+            try {
+              const lastIndex = Math.max(0, (messages?.length || 1) - 1);
+              flashListRef.current?.scrollToIndex({ index: lastIndex, animated });
+            } catch (e) {
+              console.debug('[DashAssistant] scrollToIndex failed:', e);
+            }
+          });
+        });
+      } catch (e) {
+        try {
+          const lastIndex = Math.max(0, (messages?.length || 1) - 1);
+          flashListRef.current?.scrollToIndex({ index: lastIndex, animated });
+        } catch (fallbackErr) {
+          console.debug('[DashAssistant] Fallback scroll failed:', fallbackErr);
+        }
+      }
+    }, delay);
+  }, [messages?.length]);
+  
+  // Cleanup scroll timeouts
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Initialize Dash AI Assistant
   useEffect(() => {
@@ -121,10 +182,28 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           }
           
           if (!newConvId) {
-            const createdId = await dash.startNewConversation('Chat with Dash');
-            const newConv = await dash.getConversation(createdId);
-            if (newConv) {
-              setConversation(newConv);
+            try {
+              const convs = await dash.getAllConversations();
+              if (Array.isArray(convs) && convs.length > 0) {
+                const latest = convs.reduce((a: any, b: any) => (a.updated_at > b.updated_at ? a : b));
+                hasExistingMessages = (latest.messages?.length || 0) > 0;
+                setConversation(latest);
+                setMessages(latest.messages || []);
+                dash.setCurrentConversationId(latest.id);
+                newConvId = latest.id;
+              } else {
+                const createdId = await dash.startNewConversation('Chat with Dash');
+                const newConv = await dash.getConversation(createdId);
+                if (newConv) {
+                  setConversation(newConv);
+                }
+              }
+            } catch (e) {
+              const createdId = await dash.startNewConversation('Chat with Dash');
+              const newConv = await dash.getConversation(createdId);
+              if (newConv) {
+                setConversation(newConv);
+              }
             }
           }
         }
@@ -139,9 +218,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
 
         // Send initial message if provided
         if (initialMessage && initialMessage.trim()) {
-          setTimeout(() => {
-            sendMessage(initialMessage);
-          }, 500);
+          // Send immediately for faster interaction
+          sendMessage(initialMessage);
         } else if (!hasExistingMessages) {
           // Add greeting message only if there are no previous messages
           const greeting: DashMessage = {
@@ -161,14 +239,39 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     initializeDash();
   }, [conversationId, initialMessage]);
 
-  // Auto-scroll to bottom when messages change (FlatList with inverted scrolls to index 0)
+  // Auto-scroll on mount when initialized with existing messages
   useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => {
-        flatListRef.current?.scrollToIndex({ index: 0, animated: true });
-      }, 100);
+    if (isInitialized && messages.length > 0 && flashListRef.current) {
+      // Non-animated scroll on mount for instant positioning
+      scrollToBottom({ animated: false, delay: 300 });
     }
-  }, [messages]);
+    // Only run when initialization completes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized]);
+  
+  // Auto-scroll when loading states change (thinking/responding)
+  useEffect(() => {
+    if (isLoading && flashListRef.current) {
+      // Slight delay ensures footer (typing indicator) is rendered
+      scrollToBottom({ animated: true, delay: 150 });
+    }
+  }, [isLoading, loadingStatus, scrollToBottom]);
+
+  // Track unread count when new messages arrive while scrolled up
+  useEffect(() => {
+    if (!isInitialized) return;
+    const prevLen = prevLengthRef.current || 0;
+    const currLen = messages.length;
+    if (currLen > prevLen) {
+      if (isNearBottom) {
+        // If user is at bottom, keep unread at zero
+        setUnreadCount(0);
+      } else {
+        setUnreadCount((c) => Math.min(999, c + (currLen - prevLen)));
+      }
+    }
+    prevLengthRef.current = currLen;
+  }, [messages.length, isNearBottom, isInitialized]);
 
   // Focus effect to refresh when screen comes into focus
   useFocusEffect(
@@ -234,18 +337,106 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     return false
   }
 
+  // Extract follow-up questions embedded in assistant text like "User: <question>"
+  const extractFollowUps = (text: string): string[] => {
+    try {
+      const lines = (text || '').split(/\n+/);
+      const results: string[] = [];
+      for (const line of lines) {
+        const m = line.match(/^\s*User:\s*(.+)$/i);
+        if (m && m[1]) {
+          const q = m[1].trim();
+          if (q.length > 0) results.push(q);
+        }
+      }
+      return results;
+    } catch {
+      return [];
+    }
+  }
+
+  // Process queued requests sequentially
+  const processQueue = async () => {
+    if (isProcessingRef.current || requestQueueRef.current.length === 0) return;
+    
+    isProcessingRef.current = true;
+    const request = requestQueueRef.current.shift();
+    
+    if (request) {
+      await sendMessageInternal(request.text, request.attachments);
+    }
+    
+    isProcessingRef.current = false;
+    
+    // Process next item if any
+    if (requestQueueRef.current.length > 0) {
+      setTimeout(() => processQueue(), 0);
+    }
+  };
+
+  // Public sendMessage - handles queueing and concurrency
   const sendMessage = async (text: string = inputText.trim()) => {
-    if ((!text && selectedAttachments.length === 0) || !dashInstance || isLoading) return;
+    if ((!text && selectedAttachments.length === 0) || !dashInstance) return;
+    
+    // Check if already processing a request
+    if (isProcessingRef.current) {
+      // Track concurrent attempt
+      track('edudash.dash_ai.concurrent_request_queued', {
+        queue_length: requestQueueRef.current.length,
+        timestamp: Date.now(),
+      });
+      
+      console.log('[DashAssistant] Request queued - already processing');
+    }
+
+    // Add request to queue
+    requestQueueRef.current.push({
+      text,
+      attachments: [...selectedAttachments],
+    });
+
+    // Clear input and attachments immediately for better UX
+    setInputText('');
+    setSelectedAttachments([]);
+
+    // Start processing queue
+    processQueue();
+  };
+
+  // Internal message sender (called by queue processor)
+  const sendMessageInternal = async (text: string, attachments: DashAttachment[]) => {
+    if (!dashInstance) return;
 
     try {
       setIsLoading(true);
-      setIsUploading(true);
-      setInputText('');
+      scrollToBottom({ animated: true, delay: 120 });
+      
+      // Track state: Uploading attachments
+      if (attachments.length > 0) {
+        setLoadingStatus('uploading');
+        setStatusStartTime(Date.now());
+        setIsUploading(true);
+        
+        track('edudash.dash_ai.status_transition', {
+          from: null,
+          to: 'uploading',
+          attachment_count: attachments.length,
+        });
+      } else {
+        // Skip directly to thinking if no attachments
+        setLoadingStatus('thinking');
+        setStatusStartTime(Date.now());
+        
+        track('edudash.dash_ai.status_transition', {
+          from: null,
+          to: 'thinking',
+        });
+      }
 
       // Upload attachments first if any
       const uploadedAttachments: DashAttachment[] = [];
-      if (selectedAttachments.length > 0 && conversation?.id) {
-        for (const attachment of selectedAttachments) {
+      if (attachments.length > 0 && conversation?.id) {
+        for (const attachment of attachments) {
           try {
             updateAttachmentProgress(attachment.id, 0, 'uploading');
             const uploaded = await uploadAttachment(
@@ -264,15 +455,105 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             );
           }
         }
+        
+        // Track upload completion time
+        const uploadDuration = Date.now() - statusStartTime;
+        track('edudash.dash_ai.upload_complete', {
+          duration_ms: uploadDuration,
+          file_count: attachments.length,
+        });
       }
 
       setIsUploading(false);
+      
+      // Transition to thinking state
+      const thinkingStartTime = Date.now();
+      setLoadingStatus('thinking');
+      setStatusStartTime(thinkingStartTime);
+      scrollToBottom({ animated: true, delay: 120 });
+      
+      track('edudash.dash_ai.status_transition', {
+        from: attachments.length > 0 ? 'uploading' : null,
+        to: 'thinking',
+        timestamp: thinkingStartTime,
+      });
 
       const userText = text || 'Attached files';
-      const response = await dashInstance.sendMessage(userText, undefined, uploadedAttachments.length > 0 ? uploadedAttachments : undefined);
       
-      // Clear selected attachments after successful send
-      setSelectedAttachments([]);
+      // Check if streaming is enabled (feature flag)
+      // Note: Streaming disabled on React Native due to fetch limitations
+      const streamingEnabled = Platform.OS === 'web' && (process.env.EXPO_PUBLIC_AI_STREAMING_ENABLED === 'true' || process.env.EXPO_PUBLIC_ENABLE_AI_STREAMING === 'true');
+      
+      let response: DashMessage;
+      
+      if (streamingEnabled) {
+        // STREAMING MODE: Progressive message rendering
+        const tempStreamingMsgId = `streaming_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        setStreamingMessageId(tempStreamingMsgId);
+        setStreamingContent('');
+        
+        // Add temporary streaming message to UI for progressive rendering
+        const tempStreamingMessage: DashMessage = {
+          id: tempStreamingMsgId,
+          type: 'assistant',
+          content: '',
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, tempStreamingMessage]);
+        
+        // Call sendMessage with streaming callback
+        response = await dashInstance.sendMessage(
+          userText, 
+          undefined, 
+          uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+          (chunk: string) => {
+            // Streaming callback - update content progressively
+            setStreamingContent(prev => {
+              const newContent = prev + chunk;
+              // Update the streaming message in the messages array
+              setMessages(prevMessages => 
+                prevMessages.map(msg => 
+                  msg.id === tempStreamingMsgId 
+                    ? { ...msg, content: newContent }
+                    : msg
+                )
+              );
+              return newContent;
+            });
+            // Keep newest chunk in view during streaming
+            scrollToBottom({ animated: true, delay: 60 });
+          }
+        );
+        
+        // Clear streaming state and remove temporary message
+        setStreamingMessageId(null);
+        setStreamingContent('');
+        setMessages(prev => prev.filter(msg => msg.id !== tempStreamingMsgId));
+      } else {
+        // NON-STREAMING MODE: Traditional all-at-once response
+        response = await dashInstance.sendMessage(
+          userText, 
+          undefined, 
+          uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+        );
+      }
+      
+      // Track thinking completion time
+      const thinkingDuration = Date.now() - thinkingStartTime;
+      track('edudash.dash_ai.thinking_complete', {
+        duration_ms: thinkingDuration,
+        message_length: userText.length,
+      });
+      
+      // Transition to responding state (for rendering response)
+      setLoadingStatus('responding');
+      setStatusStartTime(Date.now());
+      scrollToBottom({ animated: true, delay: 120 });
+      
+      track('edudash.dash_ai.status_transition', {
+        from: 'thinking',
+        to: 'responding',
+      });
       
       // Handle dashboard actions if present
       if (response.metadata?.dashboard_action?.type === 'switch_layout') {
@@ -313,6 +594,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       if (updatedConv) {
         setMessages(updatedConv.messages);
         setConversation(updatedConv);
+        // Auto-scroll to show the new response
+        scrollToBottom({ animated: true, delay: 150 });
       }
 
       // Offer to open Lesson Generator when intent detected
@@ -320,35 +603,47 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         const intentType = response?.metadata?.user_intent?.primary_intent || ''
         const shouldOpen = intentType === 'create_lesson' || wantsLessonGenerator(userText, response?.content)
         if (shouldOpen) {
-          // Ask user to proceed
-          setTimeout(() => {
-            Alert.alert(
-              'Open Lesson Generator?',
-              'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
-              [
-                { text: 'Not now', style: 'cancel' },
-                { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(userText, response?.content || '') }
-              ]
-            )
-          }, 200)
+          // Ask user to proceed immediately
+          Alert.alert(
+            'Open Lesson Generator?',
+            'I can open the AI Lesson Generator with the details we discussed. Please confirm the fields are correct in the next screen, then press Generate to create the lesson.',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Open', onPress: () => dashInstance.openLessonGeneratorFromContext(userText, response?.content || '') }
+            ]
+          )
         }
       } catch {}
 
-      // Auto-speak response if enabled
-      setTimeout(() => {
-        speakResponse(response);
-      }, 500);
+      // Auto-speak response immediately if enabled
+      speakResponse(response);
 
     } catch (error) {
       console.error('Failed to send message:', error);
       Alert.alert('Error', 'Failed to send message. Please try again.');
+      
+      // Track error state
+      if (loadingStatus) {
+        track('edudash.dash_ai.status_error', {
+          status_at_error: loadingStatus,
+          error_message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
     } finally {
       setIsLoading(false);
-      setIsUploading(false);
+      setLoadingStatus(null);
+      
+      // Track total interaction time
+      if (statusStartTime > 0) {
+        const totalDuration = Date.now() - statusStartTime;
+        track('edudash.dash_ai.interaction_complete', {
+          total_duration_ms: totalDuration,
+        });
+      }
     }
   };
 
-  // Open voice recording modal with text editing capability
+  // Open voice recording modal with direct send capability
   const handleInputMicPress = async () => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -362,11 +657,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         language: activeLang,
         tier: String(tier || 'free'),
         forceMode: 'recording',
-        onTranscriptReady: (transcript) => {
-          // Place the edited transcript in the input field
-          setInputText(transcript);
-          // Focus the input so user can review/edit before sending
-          setTimeout(() => inputRef.current?.focus(), 300);
+        onTranscriptReady: async (transcript) => {
+          // IMPROVEMENT: Send directly to AI instead of populating input field
+          if (__DEV__) console.log('[DashAssistant] 📨 Sending voice message directly to AI');
+          
+          // Send message immediately
+          setInputText(''); // Keep input clean
+          await sendMessage(transcript);
         },
       });
     } catch (error) {
@@ -607,8 +904,9 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
                 { color: isUser ? theme.onPrimary : theme.text, flex: 1 },
               ]}
               selectable={true}
+              selectionColor={isUser ? 'rgba(255,255,255,0.3)' : theme.primaryLight}
             >
-              {message.content}
+              {isUser ? message.content : (message.content || '').split(/\n+/).filter(line => !/^\s*User:\s*/i.test(line)).join('\n')}
             </Text>
             
             {isUser && isLastUserMessage && !isLoading && (
@@ -688,6 +986,42 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               ))}
             </View>
           )}
+          
+          {/* CAPS results (tool outputs) */}
+          {!isUser && message.metadata?.tool_results && (
+            <View style={{ marginTop: 8 }}>
+              {renderCAPSResults(message.metadata)}
+            </View>
+          )}
+
+          {/* Follow-up question chips inside assistant message */}
+          {!isUser && (
+            () => {
+              const suggestions = message.metadata?.suggested_actions && message.metadata.suggested_actions.length > 0
+                ? message.metadata.suggested_actions
+                : extractFollowUps(message.content);
+              if (!suggestions || suggestions.length === 0) return null;
+              return (
+                <View style={styles.followUpContainer}>
+                  {suggestions.map((q, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[styles.followUpChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                      onPress={() => sendMessage(q)}
+                      activeOpacity={0.75}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Send: ${q}`}
+                    >
+                      <Text style={[styles.followUpText, { color: theme.text }]}>{q}</Text>
+                      <View pointerEvents="none" style={[styles.followUpFab, { backgroundColor: theme.primary }]}> 
+                        <Ionicons name="send" size={16} color={theme.onPrimary || '#fff'} />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              );
+            }
+          )()}
           
           {/* Bottom row with speak button (left) and timestamp (right) */}
           <View style={styles.messageBubbleFooter}>
@@ -955,33 +1289,75 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   }, [isLoading, dotAnimations]);
 
+  const getStatusText = (): string => {
+    switch (loadingStatus) {
+      case 'uploading':
+        return 'Uploading files...';
+      case 'thinking':
+        return 'Thinking...';
+      case 'responding':
+        return 'Responding...';
+      default:
+        return 'Processing...';
+    }
+  };
+  
+  const getStatusIcon = (): string => {
+    switch (loadingStatus) {
+      case 'uploading':
+        return 'cloud-upload-outline';
+      case 'thinking':
+        return 'bulb-outline';
+      case 'responding':
+        return 'chatbox-ellipses-outline';
+      default:
+        return 'ellipsis-horizontal';
+    }
+  };
+
   const renderTypingIndicator = () => {
     if (!isLoading) return null;
 
     return (
       <View style={styles.typingIndicator}>
         <View style={[styles.typingBubble, { backgroundColor: theme.surface }]}>
-          <View style={styles.typingDots}>
-            {dotAnimations.map((dot: any, index: number) => (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.typingDot,
-                  {
-                    backgroundColor: theme.textTertiary,
-                    opacity: dot,
-                    transform: [
-                      {
-                        scale: dot.interpolate({
-                          inputRange: [0.3, 1],
-                          outputRange: [0.8, 1.2],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-            ))}
+          <View style={styles.typingContentRow}>
+            {/* Status Icon */}
+            <Ionicons 
+              name={getStatusIcon() as any} 
+              size={16} 
+              color={theme.accent} 
+              style={{ marginRight: 8 }}
+            />
+            
+            {/* Status Text */}
+            <Text style={[styles.typingText, { color: theme.text }]}>
+              {getStatusText()}
+            </Text>
+            
+            {/* Animated Dots */}
+            <View style={styles.typingDots}>
+              {dotAnimations.map((dot: any, index: number) => (
+                <Animated.View
+                  key={index}
+                  style={[
+                    styles.typingDot,
+                    {
+                      backgroundColor: theme.accent,
+                      opacity: dot,
+                      transform: [
+                        {
+                          scale: dot.interpolate({
+                            inputRange: [0.3, 1],
+                            outputRange: [0.8, 1.2],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              ))}
+            </View>
           </View>
         </View>
       </View>
@@ -1013,8 +1389,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={[styles.headerTitle, { color: theme.text }]}>Dash</Text>
-              {subReady && tier && (
-                <TierBadge tier={tier as any} size="small" showIcon={true} />
+{subReady && tier && (
+<TierBadge tier={tier as any} size="sm" />
               )}
             </View>
             <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
@@ -1086,33 +1462,41 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
       </View>
 
-      {/* Messages - FlatList for better performance */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item, index) => item.id || `msg-${index}`}
-        renderItem={({ item, index }) => renderMessage(item, index)}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContent}
-        showsVerticalScrollIndicator={false}
-        inverted={true}
-        initialNumToRender={20}
-        maxToRenderPerBatch={10}
-        windowSize={21}
-        removeClippedSubviews={Platform.OS === 'android'}
-        onScrollToIndexFailed={(info) => {
-          // Handle scroll failures gracefully
-          setTimeout(() => {
-            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-          }, 100);
-        }}
-        ListHeaderComponent={
-          <>
-            {renderTypingIndicator()}
-            {renderSuggestedActions()}
-          </>
-        }
+      {/* Messages */}
+      <DashAssistantMessages
+        flashListRef={flashListRef}
+        messages={messages}
+        renderMessage={renderMessage}
+        styles={styles}
+        theme={theme}
+        isLoading={isLoading}
+        isNearBottom={isNearBottom}
+        setIsNearBottom={setIsNearBottom}
+        unreadCount={unreadCount}
+        setUnreadCount={setUnreadCount}
+        scrollToBottom={scrollToBottom}
+        renderTypingIndicator={renderTypingIndicator}
+        renderSuggestedActions={renderSuggestedActions}
       />
+
+      {/* Jump to end FAB */}
+      {Platform.OS === 'android' && !isNearBottom && messages.length > 0 && (
+        <TouchableOpacity
+          style={[styles.scrollToBottomFab, { backgroundColor: theme.primary }]}
+          onPress={() => { setUnreadCount(0); scrollToBottom({ animated: true, delay: 0 }); }}
+          accessibilityLabel="Jump to bottom"
+          activeOpacity={0.8}
+        >
+          <Ionicons name="chevron-down" size={20} color={theme.onPrimary || '#fff'} />
+          {unreadCount > 0 && (
+            <View style={[styles.scrollToBottomBadge, { backgroundColor: theme.error }]}>
+              <Text style={[styles.scrollToBottomBadgeText, { color: theme.onError || '#fff' }]}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Input Area */}
       <View style={[styles.inputContainer, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
@@ -1182,28 +1566,32 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
               placeholderTextColor={theme.inputPlaceholder}
               value={inputText}
               onChangeText={setInputText}
-              multiline={!enterToSend}
+              multiline={true}
               maxLength={500}
               editable={!isLoading && !isUploading}
-              onSubmitEditing={enterToSend ? () => sendMessage() : undefined}
-              returnKeyType={enterToSend ? "send" : "default"}
-              blurOnSubmit={enterToSend}
+              onSubmitEditing={undefined}
+              returnKeyType="default"
+              blurOnSubmit={false}
             />
           </View>
           
           {/* Send or Mic button */}
           {(inputText.trim() || selectedAttachments.length > 0) ? (
             <TouchableOpacity
-              style={[styles.sendButton, { backgroundColor: theme.primary }]}
+              style={[styles.sendButton, { backgroundColor: theme.primary, opacity: (isLoading || isUploading) ? 0.5 : 1 }]}
               onPress={async () => {
+                console.log('[DashAssistant] Send button pressed');
                 try {
                   await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                } catch {}
+                } catch (e) {
+                  console.log('[DashAssistant] Haptics failed:', e);
+                }
                 sendMessage();
               }}
               disabled={isLoading || isUploading}
               accessibilityLabel="Send message"
               accessibilityRole="button"
+              activeOpacity={0.7}
             >
               {(isLoading || isUploading) ? (
                 <ActivityIndicator size="small" color={theme.onPrimary} />
@@ -1259,428 +1647,5 @@ function getTierColor(tier?: string) {
     default: return '#6B7280' // gray
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 16,
-    borderBottomWidth: 1,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  dashAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  tierBadge: {
-    marginLeft: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  tierBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    width: screenWidth < 400 ? 32 : 36,
-    height: screenWidth < 400 ? 32 : 36,
-    borderRadius: screenWidth < 400 ? 16 : 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: screenWidth < 400 ? 2 : 4,
-    minWidth: 32, // Ensure minimum touch target
-    minHeight: 32,
-  },
-  closeButton: {
-    width: screenWidth < 400 ? 32 : 36,
-    height: screenWidth < 400 ? 32 : 36,
-    borderRadius: screenWidth < 400 ? 16 : 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: screenWidth < 400 ? 2 : 4,
-    minWidth: 32, // Ensure minimum touch target
-    minHeight: 32,
-  },
-  messagesContainer: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    alignItems: 'flex-start',
-    paddingHorizontal: 0, // No horizontal padding for better layout
-  },
-  userMessage: {
-    justifyContent: 'flex-end',
-    alignSelf: 'flex-end',
-  },
-  assistantMessage: {
-    justifyContent: 'flex-start',
-    alignSelf: 'flex-start',
-  },
-  avatarContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 4, // Close to screen edge
-    marginRight: 8,
-    marginTop: 4,
-    flexShrink: 0,
-    // Subtle shadow for avatar
-    ...(Platform.OS === 'ios' ? {
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.15,
-      shadowRadius: 2,
-    } : {
-      elevation: 2,
-    }),
-  },
-  messageBubble: {
-    maxWidth: screenWidth < 400 ? screenWidth * 0.75 : screenWidth * 0.72,
-    padding: screenWidth < 400 ? 14 : 16,
-    minHeight: 48,
-    flex: 1,
-  },
-  // Modern bubble styles with smooth rounded corners
-  userBubble: {
-    borderRadius: 20,
-    borderBottomRightRadius: 6, // Subtle tail effect
-  },
-  assistantBubble: {
-    borderRadius: 20,
-    borderBottomLeftRadius: 6, // Subtle tail effect
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22,
-    flexWrap: 'wrap',
-    letterSpacing: 0.3,
-  },
-  messageContentRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  inlineBubbleRetryButton: {
-    padding: 4,
-    marginLeft: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  bubbleHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  inlineAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  voiceNoteIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  voiceNoteDuration: {
-    fontSize: 10,
-    marginLeft: 4,
-  },
-  messageAttachmentsContainer: {
-    marginTop: 8,
-    gap: 6,
-  },
-  messageAttachment: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    gap: 6,
-  },
-  messageAttachmentName: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  messageAttachmentSize: {
-    fontSize: 10,
-  },
-  messageTime: {
-    fontSize: 10,
-    marginTop: 0,
-    alignSelf: 'flex-end',
-  },
-  speakButton: {
-    width: screenWidth < 400 ? 30 : 32,
-    height: screenWidth < 400 ? 30 : 32,
-    borderRadius: screenWidth < 400 ? 15 : 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: screenWidth < 400 ? 6 : 8,
-    minWidth: 30, // Ensure minimum touch target size
-    minHeight: 30,
-  },
-  retryButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: 16,
-  },
-  typingBubble: {
-    padding: 12,
-    borderRadius: 18,
-    marginLeft: 28,
-  },
-  typingDots: {
-    flexDirection: 'row',
-  },
-  typingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginHorizontal: 2,
-  },
-  suggestedActionsContainer: {
-    marginTop: 8,
-    marginBottom: 8,
-    width: screenWidth,
-    marginLeft: -16, // Offset messages container padding
-  },
-  suggestedActionsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 10,
-    paddingHorizontal: 16,
-  },
-  suggestedActionsScrollContent: {
-    paddingLeft: 16, // Start from left edge
-    paddingRight: 16,
-    gap: 8,
-  },
-  suggestedAction: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 24,
-    marginRight: 0, // Gap handles spacing
-  },
-  suggestedActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'none',
-  },
-  inputContainer: {
-    padding: 16,
-    borderTopWidth: 1,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  cameraButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  inputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    position: 'relative',
-    minHeight: 40,
-  },
-  inputLeftIcon: {
-    position: 'absolute',
-    left: 10,
-    zIndex: 1,
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  textInput: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    maxHeight: 100,
-    fontSize: 16,
-    borderWidth: 0, // No border, wrapper has border
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recordButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachBadgeSmall: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachBadgeSmallText: {
-    fontSize: 8,
-    fontWeight: '600',
-  },
-  messageBubbleFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  inlineSpeakButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  attachmentChipsContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    maxHeight: 120,
-  },
-  attachmentChip: {
-    borderRadius: 12,
-    borderWidth: 1,
-    marginRight: 8,
-    minWidth: 200,
-    maxWidth: 250,
-    overflow: 'hidden',
-  },
-  attachmentChipContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-  },
-  attachmentChipText: {
-    flex: 1,
-    marginLeft: 8,
-    marginRight: 8,
-  },
-  attachmentChipName: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  attachmentChipSize: {
-    fontSize: 11,
-  },
-  attachmentChipRemove: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachmentProgressContainer: {
-    marginRight: 8,
-  },
-  attachmentProgressBar: {
-    height: 2,
-    marginHorizontal: 8,
-    marginBottom: 4,
-    borderRadius: 1,
-  },
-  attachmentProgressFill: {
-    height: '100%',
-    borderRadius: 1,
-  },
-  attachButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
-    borderWidth: 1,
-    position: 'relative',
-  },
-  attachBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-});
 
 export default DashAssistant;

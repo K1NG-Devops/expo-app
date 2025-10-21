@@ -106,7 +106,7 @@ function LayoutContent() {
 export default function RootLayout() {
   const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
   
-  // Initialize Dash AI Assistant at root level
+  // Initialize Dash AI Assistant at root level and sync context
   useEffect(() => {
     (async () => {
       try {
@@ -117,6 +117,19 @@ export default function RootLayout() {
           await dash.initialize();
           setDashInstance(dash);
           if (__DEV__) console.log('[RootLayout] ✅ Dash initialized');
+          // Best-effort: sync Dash user context (language, traits)
+          try {
+            const { getCurrentLanguage } = await import('@/lib/i18n');
+            const { syncDashContext } = await import('@/lib/agent/dashContextSync');
+            const { getAgenticCapabilities } = await import('@/lib/utils/agentic-mode');
+            const { getCurrentProfile } = await import('@/lib/sessionManager');
+            const profile = await getCurrentProfile().catch(() => null as any);
+            const role = profile?.role as string | undefined;
+            const caps = getAgenticCapabilities(role);
+            await syncDashContext({ language: getCurrentLanguage(), traits: { agentic: caps, role: role || null } });
+          } catch (syncErr) {
+            if (__DEV__) console.warn('[RootLayout] dash-context-sync skipped:', syncErr);
+          }
         }
       } catch (e) {
         console.error('[RootLayout] Failed to initialize Dash:', e);

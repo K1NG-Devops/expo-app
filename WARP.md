@@ -279,7 +279,7 @@ Before suggesting code, verify:
 **Purpose**: Maintain clean, organized, discoverable documentation structure.
 
 **Rules**:
-- **ONLY** `README.md` and `WARP.md` may exist at project root
+- **ONLY** `README.md`, `WARP.md`, and `ROAD-MAP.md` may exist at project root
 - **ALL** other markdown documentation MUST be placed in `docs/` subdirectories
 - **NEVER** create documentation files in root directory
 - **ALWAYS** use the following categorization:
@@ -492,17 +492,18 @@ Before submitting a PR, verify:
 
 ## 📋 Development Workflow
 
-1. **Before Starting**: Review `docs/governance/WARP.md` for comprehensive rules
+1. **Before Starting**: Review `WARP.md` and `ROAD-MAP.md` for comprehensive rules and current execution plan
 2. **Feature Development**: Mobile-first design, handle empty states properly
 3. **Database Changes**: Use migration workflow, never direct SQL execution
 4. **Code Quality**: TypeScript strict mode, ESLint compliance, no console.logs in production
 5. **Testing**: Focus on Android devices, use production database for development
 6. **Security**: Maintain RLS policies, never expose sensitive keys
 7. **Documentation**: Update relevant docs in `docs/` directory
+8. **Documentation Sources**: Every PR must include a "Documentation Sources" section with links to official docs consulted (React Native, Expo, Supabase, TanStack Query, etc.)
 
 ## 📚 Key Documentation
 
-- **Master Rules**: `docs/governance/WARP.md` (highest authority)
+- **Master Rules**: `WARP.md` (highest authority)
 - **Security Model**: `docs/security/` directory
 - **Architecture Details**: `docs/architecture/` directory  
 - **Deployment Procedures**: `docs/deployment/` directory

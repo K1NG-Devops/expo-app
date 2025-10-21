@@ -95,13 +95,11 @@ export function useGrader() {
       } catch (e: any) {
       // Fallback to Dash assistant
       try {
-        const module = await import('@/services/DashAIAssistant');
-        const DashClass = (module as any).DashAIAssistant || (module as any).default;
-        const dash = DashClass?.getInstance?.();
-        if (!dash) throw new Error('DashAIAssistant unavailable');
-        await dash.initialize();
-        if (!dash.getCurrentConversationId()) {
-          await dash.startNewConversation('AI Grader');
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        const dash = await getAssistant();
+        await dash.initialize?.();
+        if (!dash.getCurrentConversationId?.()) {
+          await dash.startNewConversation?.('AI Grader');
         }
         const prompt = `Provide constructive feedback and a concise score (0-100) for the following student submission.\nGrade Level: ${opts.gradeLevel || 'N/A'}\nRubric: ${(opts.rubric || []).join(', ') || 'accuracy, completeness, clarity'}\nSubmission:\n${opts.submissionText}`;
         const response = await dash.sendMessage(prompt);

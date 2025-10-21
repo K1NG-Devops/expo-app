@@ -102,6 +102,9 @@ export interface DashMessage {
       progress: number;  // 0-100
       next_steps: string[];
     };
+
+    /** Tool results attached to this message (LLM function/tool calls) */
+    tool_results?: any;
   };
 }
 
@@ -350,6 +353,7 @@ export interface DashUserProfile {
     organization_id?: string;
     grade_levels?: string[];
     responsibilities?: string[];
+    preferred_language?: string;
   };
   
   /** User goals */

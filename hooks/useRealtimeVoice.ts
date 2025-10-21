@@ -62,7 +62,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
   const [status, setStatus] = useState<RealtimeStatus>('disconnected');
   const [muted, setMutedState] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
+  const mediaRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const webrtcRef = useRef<{ stop: () => Promise<void>; isActive: () => boolean; updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => void; setMuted: (m: boolean) => void } | null>(null);
   const stopPromiseRef = useRef<Promise<void> | null>(null);

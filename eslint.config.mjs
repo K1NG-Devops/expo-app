@@ -91,7 +91,8 @@ export default [
       'android/',
       'ios/',
       'scripts/',
-      'docs/',
+'docs/',
+      'archive/',
       '**/*.js', // Exclude all JS files, focus on TS/TSX
       '**/*.js.map',
       'babel.config.js',

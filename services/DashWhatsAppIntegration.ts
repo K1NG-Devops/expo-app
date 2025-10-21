@@ -9,7 +9,8 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import { DashAIAssistant, type IDashAIAssistant } from './DashAIAssistant';
+import type { IDashAIAssistant } from './dash-ai/DashAICompat';
+import { getAssistant } from './core/getAssistant';
 import { router } from 'expo-router';
 import { Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -109,8 +110,7 @@ export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
       console.log('[DashWhatsApp] Initializing WhatsApp integration...');
       
       // Initialize Dash AI instance
-      this.dashInstance = DashAIAssistant.getInstance();
-      await this.dashInstance.initialize();
+      this.dashInstance = await getAssistant();
       
       // Load any active onboarding flows
       await this.loadActiveOnboardingFlows();

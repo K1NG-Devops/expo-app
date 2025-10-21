@@ -22,7 +22,7 @@ import type {
   DashUserProfile,
   DashGoal,
   AutonomyLevel 
-} from './DashAIAssistant';
+} from './dash-ai/types';
 import decisionEngine from './DashDecisionEngine';
 import ProactiveEngine from './DashProactiveEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';

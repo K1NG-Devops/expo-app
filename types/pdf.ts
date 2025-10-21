@@ -5,7 +5,7 @@
  */
 
 // Re-export existing types from DashPDFGenerator for consistency
-export {
+export type {
   DocumentType,
   ContentSection,
   BrandingOptions,

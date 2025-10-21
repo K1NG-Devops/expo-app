@@ -138,7 +138,8 @@ export class DashConversationManager {
         }
       }
       
-      return conversations.sort((a, b) => b.updated_at - a.updated_at);
+      // Sort oldest first (natural chronological order)
+      return conversations.sort((a, b) => a.updated_at - b.updated_at);
     } catch (error) {
       console.error('[DashConversation] Failed to get conversations:', error);
       return [];

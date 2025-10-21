@@ -10,7 +10,7 @@
 import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 import { voiceService } from '@/lib/voice/client';
-import type { DashMessage } from '../DashAIAssistant';
+import type { DashMessage } from '@/services/dash-ai/types';
 
 export interface VoiceSettings {
   rate: number;
@@ -116,8 +116,11 @@ export class DashVoiceController {
     const { assertSupabase } = await import('@/lib/supabase');
     const supabase = assertSupabase();
     
+    // The Edge Function expects short codes (af, zu, xh, nso, en)
+    const shortCode = this.mapLanguageCode(language);
+    
     const { data, error } = await supabase.functions.invoke('tts-proxy', {
-      body: { text, language, style: 'friendly', rate: 0, pitch: 0 }
+      body: { text, language: shortCode, style: 'friendly', rate: 0, pitch: 0 }
     });
     
     if (error) throw error;
@@ -247,6 +250,11 @@ export class DashVoiceController {
       .replace(/[-*+]\s+/g, '') // Lists
       .replace(/\n{2,}/g, '. ') // Multi-newlines
       .replace(/\n/g, ' ') // Single newlines
+      // IMPROVEMENT: Remove "User:" and "Assistant:" prefixes that shouldn't be spoken
+      .replace(/^\s*User:\s*/gi, '') // Remove "User:" at start
+      .replace(/\bUser:\s*/gi, '') // Remove "User:" anywhere
+      .replace(/^\s*Assistant:\s*/gi, '') // Remove "Assistant:" at start
+      .replace(/\bAssistant:\s*/gi, '') // Remove "Assistant:" anywhere
       .trim();
     
     // Fix awkward age and quantity phrases
@@ -296,6 +304,17 @@ export class DashVoiceController {
       'ns': 'nso', 'st': 'nso', 'se': 'nso'
     };
     return mapping[normalized] || 'en';
+  }
+  
+  /** Map to Azure locale (e.g., af -> af-ZA) */
+  private mapAzureLocale(code: string): string {
+    const c = (code || 'en').toLowerCase();
+    if (c.startsWith('af')) return 'af-ZA';
+    if (c.startsWith('zu')) return 'zu-ZA';
+    if (c.startsWith('xh')) return 'xh-ZA';
+    if (c.startsWith('nso') || c.startsWith('ns') || c.startsWith('se') || c.startsWith('st')) return 'nso-ZA';
+    if (c.startsWith('en')) return 'en-ZA';
+    return 'en-ZA';
   }
   
   /**

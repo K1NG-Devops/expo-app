@@ -28,6 +28,7 @@ export default function SignIn() {
   const [biometricFailed, setBiometricFailed] = useState(false); // Track if biometric failed
   const shouldAutoTriggerBiometric = useRef(false);
   const hasTriggeredBiometric = useRef(false);
+  const passwordInputRef = useRef<TextInput>(null);
 
   // Load saved credentials and check biometric availability
   useEffect(() => {
@@ -633,10 +634,14 @@ export default function SignIn() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordInputRef.current?.focus()}
+              blurOnSubmit={false}
             />
 
             <View style={styles.passwordContainer}>
               <TextInput
+                ref={passwordInputRef}
                 style={[styles.input, styles.passwordInput]}
                 placeholder={t('auth.password', { defaultValue: 'Password' })}
                 placeholderTextColor={theme.inputPlaceholder}
@@ -645,6 +650,8 @@ export default function SignIn() {
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                returnKeyType="go"
+                onSubmitEditing={handleSignIn}
               />
               <TouchableOpacity
                 style={styles.eyeButton}

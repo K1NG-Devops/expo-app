@@ -3,6 +3,21 @@
 /**
  * Claude + Deepgram Voice Provider
  * 
+ * @deprecated MOBILE: Use Azure Speech SDK via azureProvider.ts instead
+ * This provider is WEB-ONLY and should not be used on React Native
+ * 
+ * MOBILE ISSUES (why deprecated):
+ * - Picovoice VoiceProcessor frequently unavailable (~70% reliability)
+ * - WebSocket connection delays (5-10s init time)
+ * - Deepgram speech_final detection unreliable (requires 3s timeout)
+ * - Limited SA language support
+ * 
+ * MOBILE REPLACEMENT: Azure Speech SDK (azureProvider.ts)
+ * - Native SDK, ~98% reliability
+ * - <1s init time
+ * - Full SA language support (en-ZA, af-ZA, zu-ZA, xh-ZA)
+ * 
+ * WEB: This provider remains valid for web platform
  * Fast voice pipeline optimized for <2s response time:
  * - Deepgram Nova-2 STREAMING WebSocket for real-time transcription (~100ms)
  * - Claude 3.5 Sonnet streaming for AI (~1s)
@@ -30,6 +45,7 @@ export interface ClaudeVoiceSession {
   start: (opts: ClaudeVoiceOptions) => Promise<boolean>;
   stop: () => Promise<void>;
   isActive: () => boolean;
+  isConnected: () => boolean; // Check if WebSocket is connected and ready
   setMuted: (muted: boolean) => void;
   updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => void;
   sendMessage: (message: string) => Promise<void>;
@@ -49,6 +65,13 @@ const WEB_RECORDING_OPTIONS = {
 };
 
 export function createClaudeVoiceSession(): ClaudeVoiceSession {
+  // Runtime guard: prevent usage on mobile
+  if (Platform.OS !== 'web') {
+    console.error('[claudeProvider] ❌ DEPRECATED on mobile. Use Azure Speech SDK (azureProvider.ts) instead.');
+    console.error('[claudeProvider] This provider should only be used on web platform.');
+    throw new Error('claudeProvider is deprecated on mobile. Use azureProvider.ts instead.');
+  }
+  
   let active = false;
   let muted = false; // Mute state
   let audioSession: AudioModeSession | null = null;
@@ -164,7 +187,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
         language,
         punctuate: 'true',
         interim_results: 'true', // Get partial results as user speaks
-        endpointing: '450', // 450ms silence = end of utterance (reduced from 1500ms for faster response)
+        endpointing: '3000', // 3000ms (3s) silence = end of utterance (allows natural pauses)
         encoding: 'linear16',
         sample_rate: '16000',
         channels: '1',
@@ -236,14 +259,14 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
                 } else if (transcriptBuffer.trim()) {
                   // isFinal but NOT speechFinal - set a timeout to force send
                   // This handles cases where Deepgram doesn't detect speech_final
-                  console.log('[claudeProvider] ⏱️ isFinal but no speechFinal - setting 800ms timeout');
+                  console.log('[claudeProvider] ⏱️ isFinal but no speechFinal - setting 3s timeout');
                   
                   // Clear any existing timer
                   if (speechFinalTimer) {
                     clearTimeout(speechFinalTimer);
                   }
                   
-                  // Wait 800ms, then force send if no speechFinal received
+                  // Wait 3s, then force send if no speechFinal received
                   speechFinalTimer = setTimeout(() => {
                     if (transcriptBuffer.trim()) {
                       console.log('[claudeProvider] ⏰ Timeout reached! Force-sending to Claude:', transcriptBuffer.trim().substring(0, 50));
@@ -258,7 +281,7 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
                       transcriptBuffer = '';
                     }
                     speechFinalTimer = null;
-                  }, 800); // 800ms (reduced from 2s for faster response)
+                  }, 3000); // 3000ms (3s) allows natural pauses in speech
                 }
               } else {
                 // Interim result - show to user but don't send to Claude yet
@@ -462,15 +485,15 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
             const frameListener = (frame: number[]) => {
               try {
                 if (deepgramWs && deepgramWs.readyState === WebSocket.OPEN) {
-                  // frame is number[] of raw PCM audio samples
-                  // Convert to Int16Array then ArrayBuffer for Deepgram
-                  const int16Array = new Int16Array(frame);
+                  // frame is number[] of PCM16 audio samples from Picovoice
+                  // Already in correct format (-32768 to 32767), just convert to Int16Array
+                  const int16Array = Int16Array.from(frame);
                   const audioData = int16Array.buffer;
                   sendAudioToDeepgram(audioData);
                   
                   // Log occasionally (every 100 frames = ~3 seconds)
                   if (Math.random() < 0.01) {
-                    console.log('[claudeProvider] 📡 Streaming audio:', frame.length, 'samples');
+                    console.log('[claudeProvider] 📡 Streaming audio:', frame.length, 'samples, range:', Math.min(...frame).toFixed(0), 'to', Math.max(...frame).toFixed(0));
                   }
                 }
               } catch (e) {
@@ -534,6 +557,10 @@ export function createClaudeVoiceSession(): ClaudeVoiceSession {
 
     isActive() {
       return active;
+    },
+    
+    isConnected() {
+      return deepgramConnected && active;
     },
     
     setMuted(m: boolean) {

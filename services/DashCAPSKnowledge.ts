@@ -5,7 +5,50 @@
  * Integrates with Supabase database containing official DBE materials.
  */
 
-import { supabase } from '../lib/supabase';
+import { assertSupabase } from '../lib/supabase';
+
+/**
+ * Map individual grade to grade range in database
+ */
+function mapGradeToRange(grade: string): string {
+  // Normalize whitespace and unicode dashes to simple hyphen
+  const raw = String(grade || '').trim();
+  const upper = raw.toUpperCase();
+  const normalized = upper.replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, '');
+  // Accept direct range inputs (R-3, 4-6, 7-9, 10-12)
+  if (/^(R-3|4-6|7-9|10-12)$/.test(normalized)) {
+    return normalized;
+  }
+  // Single grade to range mapping
+  if (normalized === 'R' || /^(0|1|2|3)$/.test(normalized)) return 'R-3';
+  if (/^[4-6]$/.test(normalized)) return '4-6';
+  if (/^[7-9]$/.test(normalized)) return '7-9';
+  if (/^(10|11|12)$/.test(normalized)) return '10-12';
+  // Fallback: if someone typed like "GradeR-3" or "GRADEX-6" strip non [0-9R-] safely
+  const cleaned = normalized.replace(/[^0-9R-]/g, '');
+  if (/^(R-3|4-6|7-9|10-12)$/.test(cleaned)) return cleaned;
+  return normalized;
+}
+
+/**
+ * Normalize subject name to match database format
+ */
+function normalizeSubject(subject: string): string {
+  const lower = String(subject || '').toLowerCase();
+  
+  // Use substrings that match common DB values via ILIKE
+  if (lower.includes('math')) return 'math'; // matches 'Mathematics'
+  if (lower.includes('english')) return 'english';
+  if (lower.includes('afrikaans')) return 'afrikaans';
+  if (lower.includes('physical')) return 'physical'; // Physical Sciences
+  if (lower.includes('life science')) return 'life'; // Life Sciences
+  if (lower.includes('life skills')) return 'life skills';
+  if (lower.includes('social')) return 'social'; // Social Sciences
+  if (lower.includes('technology') || lower.includes('tech')) return 'tech';
+  if (lower.includes('isindebele') || lower.includes('ndebele')) return 'ndebele';
+  
+  return lower; // fallback to lowercase subject string for ILIKE
+}
 
 export interface CAPSDocument {
   id: string;
@@ -47,16 +90,21 @@ export async function searchCurriculum(
 
   try {
     // Build query
+    const supabase = assertSupabase();
     let queryBuilder = supabase
-      .from('caps_curriculum_latest')
+      .from('caps_documents')
       .select('*');
 
     // Apply filters
     if (grade) {
-      queryBuilder = queryBuilder.eq('grade', grade);
+      // Convert individual grade to range (e.g., "10" -> "10-12")
+      const gradeRange = mapGradeToRange(grade);
+      queryBuilder = queryBuilder.eq('grade', gradeRange);
     }
     if (subject) {
-      queryBuilder = queryBuilder.ilike('subject', `%${subject}%`);
+      // Normalize subject and search flexibly
+      const normalizedSubject = normalizeSubject(subject);
+      queryBuilder = queryBuilder.ilike('subject', `%${normalizedSubject}%`);
     }
     if (document_type) {
       queryBuilder = queryBuilder.eq('document_type', document_type);
@@ -108,11 +156,15 @@ export async function getDocumentsByGradeAndSubject(
   subject: string
 ): Promise<CAPSDocument[]> {
   try {
+    const gradeRange = mapGradeToRange(grade);
+    const normalizedSubject = normalizeSubject(subject);
+    
+    const supabase = assertSupabase();
     const { data, error } = await supabase
-      .from('caps_curriculum_latest')
+      .from('caps_documents')
       .select('*')
-      .eq('grade', grade)
-      .ilike('subject', `%${subject}%`);
+      .eq('grade', gradeRange)
+      .ilike('subject', `%${normalizedSubject}%`);
 
     if (error) throw error;
 
@@ -138,10 +190,13 @@ export async function getDocumentsByGradeAndSubject(
  */
 export async function getSubjectsByGrade(grade: string): Promise<string[]> {
   try {
+    const gradeRange = mapGradeToRange(grade);
+    
+    const supabase = assertSupabase();
     const { data, error } = await supabase
-      .from('caps_curriculum_latest')
+      .from('caps_documents')
       .select('subject')
-      .eq('grade', grade);
+      .eq('grade', gradeRange);
 
     if (error) throw error;
 

@@ -1,87 +1,202 @@
 /**
- * Expo Speech Recognition Provider (Future-Ready Stub)
+ * Expo Speech Recognition Provider
  * 
- * This is a placeholder for when Expo officially releases Speech Recognition.
- * Currently returns unavailable on all platforms.
+ * Uses expo-speech-recognition for on-device speech recognition.
+ * Works on iOS, Android, and Web.
  * 
- * To activate when Expo Speech Recognition becomes available:
- * 1. Update isAvailable() to check for the actual Expo module
- * 2. Implement start/stop/setMuted methods using the Expo API
- * 3. Wire up transcript callbacks
- * 
- * Benefits of this abstraction:
- * - Zero native module linking (managed workflow compatible)
+ * Benefits:
+ * - Zero native module linking required (Expo managed workflow)
  * - Consistent API across all platforms
- * - No rebuild required to enable (just update this file + app restart)
+ * - On-device recognition (no server costs)
+ * - Supports South African languages (device-dependent)
  */
 
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 import type { VoiceProvider, VoiceSession, VoiceStartOptions } from './unifiedProvider';
+
+// Map app language codes to device locale codes
+function mapLanguageToLocale(lang?: string): string {
+  const base = String(lang || '').toLowerCase();
+  if (base.startsWith('af')) return 'af-ZA';
+  if (base.startsWith('zu')) return 'zu-ZA';
+  if (base.startsWith('xh')) return 'xh-ZA';
+  if (base.startsWith('nso')) return 'en-ZA'; // Sepedi not reliably supported on-device → fallback to en-ZA for ASR
+  if (base.startsWith('en')) return 'en-ZA';
+  return 'en-ZA'; // Default to English (South Africa)
+}
 
 class ExpoSpeechSession implements VoiceSession {
   private active = false;
+  private muted = false;
+  private currentOpts: VoiceStartOptions | null = null;
 
-  async start(_opts: VoiceStartOptions): Promise<boolean> {
-    if (__DEV__) {
-      console.log('[ExpoProvider] start() called but Expo Speech Recognition not yet available');
+  async start(opts: VoiceStartOptions): Promise<boolean> {
+    try {
+      if (__DEV__) console.log('[ExpoProvider] Starting speech recognition...');
+      
+      this.currentOpts = opts;
+      
+      // Request microphone permissions
+      const { status } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.error('[ExpoProvider] Microphone permission denied');
+        return false;
+      }
+      
+      // Get locale for recognition
+      const locale = mapLanguageToLocale(opts.language);
+      
+      if (__DEV__) {
+        console.log('[ExpoProvider] Using locale:', locale);
+      }
+      
+      // Configure and start recognition
+      try {
+        await ExpoSpeechRecognitionModule.start({
+          lang: locale,
+          interimResults: true, // Enable partial results
+          maxAlternatives: 1,
+          continuous: true, // Keep listening
+          requiresOnDeviceRecognition: false, // Allow cloud if needed
+          addsPunctuation: true,
+          contextualStrings: [], // Could add domain-specific words
+        });
+      } catch (startErr) {
+        // If locale unsupported, fallback to en-ZA then en-US
+        console.warn('[ExpoProvider] Start failed for locale', locale, startErr);
+        try {
+          await ExpoSpeechRecognitionModule.start({
+            lang: 'en-ZA',
+            interimResults: true,
+            maxAlternatives: 1,
+            continuous: true,
+            requiresOnDeviceRecognition: false,
+            addsPunctuation: true,
+            contextualStrings: [],
+          });
+        } catch (fallbackErr) {
+          console.warn('[ExpoProvider] Fallback start failed for en-ZA, trying en-US', fallbackErr);
+          await ExpoSpeechRecognitionModule.start({
+            lang: 'en-US',
+            interimResults: true,
+            maxAlternatives: 1,
+            continuous: true,
+            requiresOnDeviceRecognition: false,
+            addsPunctuation: true,
+            contextualStrings: [],
+          });
+        }
+      }
+      
+      // Set up event listeners
+      ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+        if (this.muted) return;
+        
+        const results = event.results || [];
+        if (results.length === 0) return;
+        
+        const result = results[0];
+        const transcript = result.transcript || '';
+        
+        if (result.isFinal) {
+          if (__DEV__) console.log('[ExpoProvider] Final:', transcript);
+          opts.onFinal?.(transcript);
+        } else {
+          if (__DEV__) console.log('[ExpoProvider] Partial:', transcript.substring(0, 50));
+          opts.onPartial?.(transcript);
+        }
+      });
+      
+      ExpoSpeechRecognitionModule.addListener('error', (event: any) => {
+        console.error('[ExpoProvider] Recognition error:', event.error);
+        this.active = false;
+      });
+      
+      ExpoSpeechRecognitionModule.addListener('end', () => {
+        if (__DEV__) console.log('[ExpoProvider] Recognition ended');
+        this.active = false;
+      });
+      
+      this.active = true;
+      if (__DEV__) console.log('[ExpoProvider] Recognition started successfully');
+      return true;
+    } catch (e) {
+      console.error('[ExpoProvider] Start failed:', e);
+      this.active = false;
+      return false;
     }
-    // TODO: When Expo Speech Recognition ships, implement:
-    // 1. Check for permissions
-    // 2. Start recognition with language from opts
-    // 3. Wire up onPartial and onFinal callbacks
-    // 4. Set this.active = true
-    return false;
   }
 
   async stop(): Promise<void> {
-    if (__DEV__) {
-      console.log('[ExpoProvider] stop() called');
+    try {
+      if (__DEV__) console.log('[ExpoProvider] Stopping recognition...');
+      await ExpoSpeechRecognitionModule.stop();
+      this.active = false;
+      
+      // Remove event listeners
+      ExpoSpeechRecognitionModule.removeAllListeners('result');
+      ExpoSpeechRecognitionModule.removeAllListeners('error');
+      ExpoSpeechRecognitionModule.removeAllListeners('end');
+    } catch (e) {
+      console.error('[ExpoProvider] Stop failed:', e);
     }
-    this.active = false;
-    // TODO: Stop recognition and release microphone
   }
 
   isActive(): boolean {
     return this.active;
   }
-
-  setMuted(_muted: boolean): void {
-    // TODO: Implement mute/unmute
-    if (__DEV__) {
-      console.log('[ExpoProvider] setMuted() called but not implemented yet');
-    }
+  
+  isConnected(): boolean {
+    return this.active; // For Expo, active = connected
   }
 
-  updateConfig(_cfg: { language?: string }): void {
-    // TODO: Update language dynamically
-    if (__DEV__) {
-      console.log('[ExpoProvider] updateConfig() called but not implemented yet');
+  setMuted(muted: boolean): void {
+    this.muted = muted;
+    if (__DEV__) console.log('[ExpoProvider] Muted:', muted);
+  }
+
+  updateConfig(cfg: { language?: string }): void {
+    // Restart with new language
+    if (this.currentOpts && cfg.language) {
+      this.stop().then(() => {
+        if (this.currentOpts) {
+          this.currentOpts.language = cfg.language;
+          this.start(this.currentOpts);
+        }
+      });
     }
   }
 }
 
 /**
  * Expo Speech Recognition Provider
- * Returns unavailable until Expo officially releases this module
  */
 export const expoSpeech: VoiceProvider = {
   id: 'expo',
   
   async isAvailable(): Promise<boolean> {
-    // TODO: When Expo Speech Recognition is released, check for:
-    // 1. Module existence: expo-speech-recognition
-    // 2. Platform support (should work on iOS, Android, Web)
-    // 3. Runtime availability
-    
-    // For now, always return false (not available yet)
-    // Uncomment this when ready:
-    // try {
-    //   const { SpeechRecognition } = await import('expo-speech-recognition');
-    //   return !!SpeechRecognition;
-    // } catch {
-    //   return false;
-    // }
-    
-    return false;
+    try {
+      // Check if module is available
+      if (!ExpoSpeechRecognitionModule) {
+        if (__DEV__) console.warn('[ExpoProvider] Module not available');
+        return false;
+      }
+      
+      // Check if speech recognition is supported on device
+      const isAvailable = await ExpoSpeechRecognitionModule.getStateAsync();
+      
+      if (__DEV__) {
+        console.log('[ExpoProvider] Availability check:', isAvailable);
+      }
+      
+      return true;
+    } catch (e) {
+      if (__DEV__) console.warn('[ExpoProvider] Availability check failed:', e);
+      return false;
+    }
   },
   
   createSession(): VoiceSession {
@@ -89,39 +204,3 @@ export const expoSpeech: VoiceProvider = {
   },
 };
 
-/**
- * Example implementation when Expo Speech Recognition ships:
- * 
- * import { SpeechRecognition } from 'expo-speech-recognition';
- * 
- * async start(opts: VoiceStartOptions): Promise<boolean> {
- *   try {
- *     // Request permissions
- *     const { status } = await SpeechRecognition.requestPermissionsAsync();
- *     if (status !== 'granted') return false;
- *     
- *     // Configure recognition
- *     await SpeechRecognition.start({
- *       lang: opts.language || 'en-US',
- *       continuous: true,
- *       interimResults: true,
- *     });
- *     
- *     // Set up event listeners
- *     SpeechRecognition.onResult((event) => {
- *       const transcript = event.results[0].transcript;
- *       if (event.isFinal) {
- *         opts.onFinal?.(transcript);
- *       } else {
- *         opts.onPartial?.(transcript);
- *       }
- *     });
- *     
- *     this.active = true;
- *     return true;
- *   } catch (e) {
- *     console.error('[ExpoProvider] start failed:', e);
- *     return false;
- *   }
- * }
- */

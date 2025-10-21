@@ -80,7 +80,7 @@ export function DashSpeakingOverlay({ isSpeaking, onStopSpeaking }: DashSpeaking
       
       // Also stop via Dash AI Assistant
       try {
-        const module = await import('@/services/DashAIAssistant');
+        const module = await import('@/services/dash-ai/DashAICompat');
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
         const dash = DashClass?.getInstance?.();
         if (dash?.stopSpeaking) { await dash.stopSpeaking(); }

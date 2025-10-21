@@ -15,7 +15,7 @@ import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
 import decisionEngine, { type ActionCandidate, type Decision } from './DashDecisionEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
-import type { AutonomyLevel } from './DashAIAssistant';
+import type { AutonomyLevel } from './dash-ai/types';
 
 // ===== PROACTIVE TYPES =====
 

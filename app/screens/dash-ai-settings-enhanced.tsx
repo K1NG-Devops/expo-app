@@ -17,6 +17,8 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { router } from 'expo-router';
 import Slider from '@react-native-community/slider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
+import { voiceService } from '@/lib/voice/client';
 import { initAndMigrate, setVoicePrefs, normalizeLanguageCode, resolveDefaultVoiceId } from '@/lib/ai/dashSettings';
 
 export default function DashAISettingsEnhancedScreen() {
@@ -27,11 +29,9 @@ export default function DashAISettingsEnhancedScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const module = await import('@/services/DashAIAssistant');
-        const DashClass = module.DashAIAssistant || module.default;
-        if (DashClass && DashClass.getInstance) {
-          setDashAIInstance(DashClass.getInstance());
-        }
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        const inst = await getAssistant();
+        setDashAIInstance(inst);
       } catch (error) {
         console.error('[DashAISettingsEnhancedScreen] Failed to load DashAI:', error);
       }
@@ -39,6 +39,28 @@ export default function DashAISettingsEnhancedScreen() {
   }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const lastSavedRef = React.useRef<string>('');
+  const computeSignature = useCallback((s: typeof settings) => {
+    // Only include fields that are actually persisted
+    const langNorm = normalizeLanguageCode(s.voiceLanguage);
+    return JSON.stringify({
+      personality: s.personality,
+      customInstructions: s.customInstructions?.trim() || '',
+      userContext: s.userContext?.trim() || '',
+      teachingStyle: s.teachingStyle,
+      voice: {
+        language: langNorm,
+        voiceType: s.voiceType,
+        rate: Number(s.voiceRate?.toFixed?.(2) ?? s.voiceRate),
+        pitch: Number(s.voicePitch?.toFixed?.(2) ?? s.voicePitch),
+        volume: Number(s.voiceVolume?.toFixed?.(2) ?? s.voiceVolume),
+      },
+      // Voice chat prefs mapping
+      chat: {
+        autoSpeak: !!s.autoReadResponses,
+      },
+    });
+  }, []);
   const [settings, setSettings] = useState({
     // Core AI Settings
     voiceEnabled: true,
@@ -53,7 +75,7 @@ export default function DashAISettingsEnhancedScreen() {
     emotionalIntelligence: true,
     
     // Voice Settings
-    voiceLanguage: 'en-ZA',
+    voiceLanguage: 'en',
     voiceType: 'female_warm',
     voiceRate: 1.0,
     voicePitch: 1.0,
@@ -106,30 +128,33 @@ export default function DashAISettingsEnhancedScreen() {
   useEffect(() => { (async () => { try { const v = await AsyncStorage.getItem('@dash_streaming_enabled'); if (v !== null) setStreamingPref(v === 'true'); } catch (e) { if (__DEV__) console.warn('[Dash Settings] load streaming pref', e); } })(); }, []);
   const toggleStreamingPref = async (v: boolean) => { setStreamingPref(v); try { await AsyncStorage.setItem('@dash_streaming_enabled', v ? 'true' : 'false'); } catch (e) { if (__DEV__) console.warn('[Dash Settings] save streaming pref', e); } };
   const [expandedSections, setExpandedSections] = useState({
-    personality: false,
-    voice: false,
+    personality: true,
+    voice: true,
     chat: false,
     learning: false,
     custom: false,
     accessibility: false
   });
 
+  // Voice sample playback state
+  const [samplePlaying, setSamplePlaying] = useState(false);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const [sampleProgress, setSampleProgress] = useState(0);
+  const sampleSoundRef = React.useRef<Audio.Sound | null>(null);
+
   const initializeDashAI = useCallback(async () => {
     try {
       setLoading(true);
-      if (!dashAIInstance) {
-        console.error('[DashAISettingsEnhanced] DashAI instance is null');
-        Alert.alert('Error', 'Failed to initialize Dash AI. Please restart the app.');
-        setLoading(false);
-        return;
-      }
+      if (!dashAIInstance) return;
       await dashAIInstance.initialize();
       // One-time migrate legacy keys into SSOT (no-op after first run)
       try { await initAndMigrate(); } catch (e) { if (__DEV__) console.warn('[Dash Settings] migration warn', e); }
       
       // Load current settings from DashAI service
-      const personality = dashAIInstance.getPersonality();
-      const memory = dashAIInstance.getMemory();
+      const personality = dashAIInstance.getPersonality?.() || {};
+      const memory = (typeof dashAIInstance.getMemoryItems === 'function')
+        ? dashAIInstance.getMemoryItems()
+        : (typeof dashAIInstance.getMemory === 'function' ? dashAIInstance.getMemory() : []);
       
       const loadedSettings = {
         // Start from current state to preserve unspecified settings
@@ -138,7 +163,7 @@ export default function DashAISettingsEnhancedScreen() {
         personality: (personality.response_style === 'professional' ? 'professional' : 
                       personality.response_style === 'casual' ? 'casual' : 
                       personality.response_style === 'formal' ? 'formal' : 'encouraging') as 'professional' | 'casual' | 'encouraging' | 'formal',
-        voiceLanguage: personality.voice_settings?.language || 'en-ZA',
+        voiceLanguage: normalizeLanguageCode(personality.voice_settings?.language) || 'en',
         voiceType: personality.voice_settings?.voice || 'male', // Read from saved voice
         voiceRate: personality.voice_settings?.rate || 1.0,
         voicePitch: personality.voice_settings?.pitch || 1.0,
@@ -147,6 +172,8 @@ export default function DashAISettingsEnhancedScreen() {
       };
       
       setSettings(loadedSettings);
+      // Initialize last saved signature to avoid immediate save when nothing changed
+      try { lastSavedRef.current = computeSignature(loadedSettings as any); } catch {}
       if (__DEV__) console.log('📋 Enhanced settings loaded from DashAI:', loadedSettings);
     } catch (error) {
       console.error('Failed to initialize Dash AI:', error);
@@ -158,31 +185,27 @@ export default function DashAISettingsEnhancedScreen() {
   }, [dashAIInstance]);
 
   useEffect(() => {
-    initializeDashAI();
-  }, [initializeDashAI]);
+    if (dashAIInstance) {
+      initializeDashAI();
+    }
+  }, [dashAIInstance, initializeDashAI]);
 
 
   const handleSettingsChange = (key: string, value: any) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
+    setSettings(prev => {
+      // Prevent unnecessary state updates when value hasn't changed
+      if ((prev as any)[key] === value) return prev;
+      return { ...prev, [key]: value };
+    });
   };
   
-  // Auto-save settings after changes (debounced)
-  useEffect(() => {
-    if (loading || saving) return; // Don't auto-save during initial load or while saving
-    
-    const timer = setTimeout(() => {
-      saveSettings();
-    }, 1500); // Wait 1.5 seconds after last change before saving
-    
-    return () => clearTimeout(timer);
-  }, [settings, loading, saving]);
 
   const saveSettings = async () => {
     try {
       setSaving(true);
+      // Skip if no actual changes
+      const sig = computeSignature(settings);
+      if (sig === lastSavedRef.current) { setSaving(false); return; }
       
       // Build personality object for DashAI
       const dashPersonality = {
@@ -224,6 +247,16 @@ export default function DashAISettingsEnhancedScreen() {
         console.warn('[Dash AI Enhanced] Failed to persist voice preferences:', e);
       }
 
+      // Persist chat preferences mapping (auto-read responses -> autoSpeak)
+      try {
+        const { setVoiceChatPrefs } = await import('@/lib/ai/dashSettings');
+        await setVoiceChatPrefs({ autoSpeak: !!settings.autoReadResponses });
+      } catch (e) {
+        if (__DEV__) console.warn('[Dash AI Enhanced] Failed to persist chat prefs:', e);
+      }
+
+      // Update last saved signature
+      lastSavedRef.current = sig;
       if (__DEV__) console.log('✅ Enhanced settings saved to DashAI & voice_preferences');
     } catch (error) {
       console.error('Failed to save enhanced settings:', error);
@@ -416,12 +449,17 @@ export default function DashAISettingsEnhancedScreen() {
     }));
   };
 
-  const renderSectionHeader = (title: string, section: keyof typeof expandedSections) => (
+  const renderSectionHeader = (title: string, section: keyof typeof expandedSections, icon?: string) => (
     <TouchableOpacity
       style={[styles.sectionHeader, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => toggleSection(section)}
+      accessibilityRole="button"
+      accessibilityLabel={`${title} section`}
     >
-      <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {icon ? <Text style={{ fontSize: 18 }}>{icon}</Text> : null}
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{title}</Text>
+      </View>
       <Text style={[styles.expandIcon, { color: theme.textSecondary }]}>
         {expandedSections[section] ? '▼' : '▶'}
       </Text>
@@ -547,7 +585,7 @@ export default function DashAISettingsEnhancedScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         
         {/* Personality Settings */}
-        {renderSectionHeader('Personality & Behavior', 'personality')}
+        {renderSectionHeader('Personality & Behavior', 'personality', '🎭')}
         {expandedSections.personality && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderPickerSetting(
@@ -588,7 +626,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Voice Settings */}
-        {renderSectionHeader('Voice & Speech', 'voice')}
+        {renderSectionHeader('Voice & Speech', 'voice', '🎙️')}
         {expandedSections.voice && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {/* Realtime Streaming (Beta) toggle */}
@@ -619,21 +657,21 @@ export default function DashAISettingsEnhancedScreen() {
               'Primary language for voice output',
               settings.voiceLanguage,
               [
-                { label: 'English (SA)', value: 'en-ZA' },
-                { label: 'English (US)', value: 'en-US' },
+                { label: 'English (SA)', value: 'en' },
                 { label: 'Afrikaans', value: 'af' },
                 { label: 'isiZulu', value: 'zu' },
-                { label: 'isiXhosa (Coming Soon)', value: 'xh', disabled: true },
-                { label: 'Northern Sotho (Coming Soon)', value: 'nso', disabled: true }
+                { label: 'isiXhosa (Beta)', value: 'xh' },
+                { label: 'Sepedi (Beta)', value: 'nso' }
               ]
             )}
 
             {/* Azure Neural Voice Names (for SA languages) */}
-            {['af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
+            {['en', 'af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
               <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingTitle, { color: theme.text }]}>Azure Neural Voice</Text>
-                  <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}>
+                  <Text style={[styles.settingSubtitle, { color: theme.textSecondary }]}> 
+                    {settings.voiceLanguage === 'en' && 'English (South Africa) voices'}
                     {settings.voiceLanguage === 'af' && 'Premium Afrikaans voices'}
                     {settings.voiceLanguage === 'zu' && 'Premium isiZulu voices'}
                     {settings.voiceLanguage === 'xh' && 'isiXhosa voice (Azure Speech)'}
@@ -641,6 +679,44 @@ export default function DashAISettingsEnhancedScreen() {
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'column', gap: 8 }}>
+                  {settings.voiceLanguage === 'en' && (
+                    <>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'en-ZA-LeahNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'en-ZA-LeahNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'en-ZA-LeahNeural' ? 'white' : theme.text }
+                        ]}>
+                          👩 Leah (Female)
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerOption,
+                          { 
+                            backgroundColor: settings.voiceType === 'en-ZA-LukeNeural' ? theme.primary : 'transparent',
+                            borderColor: theme.border
+                          }
+                        ]}
+                        onPress={() => handleSettingsChange('voiceType', 'en-ZA-LukeNeural')}
+                      >
+                        <Text style={[
+                          styles.pickerOptionText,
+                          { color: settings.voiceType === 'en-ZA-LukeNeural' ? 'white' : theme.text }
+                        ]}>
+                          👨 Luke (Male)
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
                   {settings.voiceLanguage === 'af' && (
                     <>
                       <TouchableOpacity
@@ -726,8 +802,8 @@ export default function DashAISettingsEnhancedScreen() {
               </View>
             )}
 
-            {/* Generic Voice Gender (for English and other languages) */}
-            {!['af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
+            {/* Generic Voice Gender (for other languages) */}
+            {!['en', 'af', 'zu', 'xh', 'nso'].includes(settings.voiceLanguage) && (
               <View style={[styles.settingRow, { borderBottomColor: theme.border }]}>
                 <View style={styles.settingInfo}>
                   <Text style={[styles.settingTitle, { color: theme.text }]}>Voice Gender</Text>
@@ -806,16 +882,66 @@ export default function DashAISettingsEnhancedScreen() {
               0.1
             )}
             
-            {/* Test Voice Button */}
+            {/* Inline voice sample */}
             <View style={[styles.settingRow, { borderBottomColor: theme.border, paddingTop: 8 }]}>
-              <TouchableOpacity 
-                style={[styles.actionButton, { backgroundColor: theme.primary, borderWidth: 1, borderColor: theme.primary, flex: 1 }]}
-                onPress={testVoiceAdvanced}
-              >
-                <Text style={[styles.actionButtonText, { color: theme.onPrimary }]}>
-                  🎤 Test Voice
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.border, flex: 1 }]}
+                  onPress={async () => {
+                    try {
+                      if (samplePlaying) {
+                        const snd = sampleSoundRef.current; 
+                        await snd?.stopAsync();
+                        await snd?.unloadAsync();
+                        sampleSoundRef.current = null;
+                        setSamplePlaying(false);
+                        setSampleProgress(0);
+                        return;
+                      }
+                      setSampleLoading(true);
+                      const langNorm = normalizeLanguageCode(settings.voiceLanguage);
+                      const isProviderVoice = /Neural$/i.test(settings.voiceType || '');
+                      const gender = settings.voiceType === 'male' ? 'male' : settings.voiceType === 'female' ? 'female' : 'female';
+                      const voice_id = isProviderVoice ? settings.voiceType : resolveDefaultVoiceId(langNorm, gender as any);
+                      const audioUrl = await voiceService.testVoice(langNorm as any, voice_id);
+                      const sound = new Audio.Sound();
+                      await sound.loadAsync({ uri: audioUrl }, { shouldPlay: true });
+                      sound.setOnPlaybackStatusUpdate((status: any) => {
+                        if (!status?.isLoaded) return;
+                        if (status.didJustFinish) {
+                          setSamplePlaying(false);
+                          setSampleLoading(false);
+                          setSampleProgress(1);
+                          sound.unloadAsync().catch(() => {});
+                          sampleSoundRef.current = null;
+                        } else if (status.isPlaying && status.durationMillis) {
+                          setSamplePlaying(true);
+                          setSampleProgress(status.positionMillis / status.durationMillis);
+                        }
+                      });
+                      sampleSoundRef.current = sound;
+                      setSampleLoading(false);
+                    } catch (err) {
+                      setSampleLoading(false);
+                      setSamplePlaying(false);
+                      setSampleProgress(0);
+                      Alert.alert('Sample Error', 'Could not play sample. Please try again.');
+                    }
+                  }}
+                >
+                  <Text style={[styles.actionButtonText, { color: theme.text }]}>
+                    {samplePlaying ? '⏹ Stop Sample' : sampleLoading ? '⏳ Loading...' : '▶ Play Sample'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {samplePlaying || sampleLoading ? (
+                <View style={{ marginTop: 8 }}>
+                  <View style={{ height: 6, borderRadius: 4, backgroundColor: theme.border, overflow: 'hidden' }}>
+                    <View style={{ width: `${Math.round(sampleProgress * 100)}%`, height: '100%', backgroundColor: theme.primary }} />
+                  </View>
+                  <Text style={{ marginTop: 6, fontSize: 12, color: theme.textSecondary }}>Playing sample… {Math.round(sampleProgress * 100)}%</Text>
+                </View>
+              ) : null}
             </View>
 
             {renderToggleSetting(
@@ -835,7 +961,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Chat Behavior */}
-        {renderSectionHeader('Chat & Interaction', 'chat')}
+        {renderSectionHeader('Chat & Interaction', 'chat', '💬')}
         {expandedSections.chat && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -877,7 +1003,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Learning & Memory */}
-        {renderSectionHeader('Learning & Memory', 'learning')}
+        {renderSectionHeader('Learning & Memory', 'learning', '🧠')}
         {expandedSections.learning && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -900,7 +1026,7 @@ export default function DashAISettingsEnhancedScreen() {
 
 
         {/* Custom Instructions */}
-        {renderSectionHeader('Customization', 'custom')}
+        {renderSectionHeader('Customization', 'custom', '⚙️')}
         {expandedSections.custom && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderPickerSetting(
@@ -941,7 +1067,7 @@ export default function DashAISettingsEnhancedScreen() {
         )}
 
         {/* Accessibility */}
-        {renderSectionHeader('Accessibility', 'accessibility')}
+        {renderSectionHeader('Accessibility', 'accessibility', '♿')}
         {expandedSections.accessibility && (
           <View style={[styles.sectionContent, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {renderToggleSetting(
@@ -974,24 +1100,41 @@ export default function DashAISettingsEnhancedScreen() {
           </View>
         )}
 
-        {/* Reset to Defaults Action */}
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, marginTop: 24 }]}>
-          <View style={{ alignItems: 'center', marginBottom: 12 }}>
-            <Text style={[{ color: theme.textSecondary, fontSize: 12 }]}>
-              {saving ? '💾 Saving...' : '✅ Settings auto-save'}
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.error }]}
-            onPress={resetToDefaults}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.error }]}>
-              Reset to Defaults
-            </Text>
-          </TouchableOpacity>
-        </View>
 
+        {/* Footer spacer */}
+        <View style={{ height: 96 }} />
       </ScrollView>
+
+      {/* Sticky footer actions */}
+      <View style={[styles.footer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        {
+          (() => {
+            const isDirty = computeSignature(settings) !== lastSavedRef.current;
+            const successGreen = '#22c55e';
+            return (
+              <TouchableOpacity 
+                style={[
+                  styles.footerButton,
+                  { 
+                    backgroundColor: isDirty ? successGreen : 'transparent',
+                    borderColor: isDirty ? successGreen : theme.error,
+                    opacity: saving ? 0.7 : 1,
+                  }
+                ]}
+                onPress={isDirty ? saveSettings : resetToDefaults}
+                disabled={saving}
+              >
+                <Text style={[
+                  styles.footerButtonText, 
+                  { color: isDirty ? '#fff' : theme.error }
+                ]}>
+                  {isDirty ? (saving ? 'Saving…' : 'Save') : '↺ Reset'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })()
+        }
+      </View>
     </SafeAreaView>
   );
 }
@@ -1003,6 +1146,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+    paddingBottom: 96,
   },
   loadingContainer: {
     flex: 1,
@@ -1096,9 +1240,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   pickerOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
     borderWidth: 1,
   },
   pickerOptionText: {
@@ -1124,5 +1268,27 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  footerButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  footerButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

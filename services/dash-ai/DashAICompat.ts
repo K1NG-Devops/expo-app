@@ -11,9 +11,22 @@
 
 import DashAICore, { type DashAICoreConfig } from './DashAICore';
 import type { TranscriptionResult } from './DashVoiceService';
-import type { DashMessage, DashReminder, DashTask } from './types';
+import type {
+  DashMessage,
+  DashReminder,
+  DashTask,
+  DashConversation,
+} from './types';
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession } from '@/lib/sessionManager';
+
+// Re-export types for backward compatibility
+export type {
+  DashMessage,
+  DashConversation,
+  DashReminder,
+  DashTask,
+} from './types';
 
 export interface IDashAIAssistant {
   initialize(config?: { supabaseClient?: any; currentUser?: any }): Promise<void>;
@@ -32,9 +45,11 @@ export interface IDashAIAssistant {
   startNewConversation(title?: string): Promise<string>;
   getCurrentConversationId(): string | null;
   setCurrentConversationId(id: string): void;
-  getConversation(conversationId: string): Promise<any>;
+  getConversation(conversationId: string): Promise<DashConversation | null>;
+  getAllConversations(): Promise<DashConversation[]>;
+  deleteConversation(conversationId: string): Promise<void>;
   addMessageToConversation(conversationId: string, message: DashMessage): Promise<void>;
-  sendMessage(content: string, conversationId?: string): Promise<DashMessage>;
+  sendMessage(content: string, conversationId?: string, attachments?: any[], onStreamChunk?: (chunk: string) => void): Promise<DashMessage>;
 
   // Tasks & Reminders
   createTask(title: string, description: string, type?: DashTask['type'], assignedTo?: string): Promise<DashTask>;
@@ -51,12 +66,25 @@ export interface IDashAIAssistant {
   setLanguage(language: string): Promise<void>;
   getLanguage(): string | undefined;
   getPersonality(): any;
+  savePersonality(partial: any): Promise<void>;
+  exportConversation(conversationId: string): Promise<string>;
 
   // Voice response
-  speakResponse(text: string): Promise<void>;
+  speakResponse(
+    message: DashMessage,
+    callbacks?: {
+      onStart?: () => void;
+      onDone?: () => void;
+      onStopped?: () => void;
+      onError?: (error: any) => void;
+    }
+  ): Promise<void>;
 
   // Convenience shim used in some legacy hooks/components
   sendPreparedVoiceMessage(input: { text?: string; audioUri?: string }): Promise<void>;
+
+  // Screen context (for tools); optional for backward compatibility
+  getCurrentScreenContext?: () => { screen: string; capabilities: string[]; suggestions: string[] };
 }
 
 export class DashAIAssistant implements IDashAIAssistant {
@@ -97,11 +125,11 @@ export class DashAIAssistant implements IDashAIAssistant {
         const session = await getCurrentSession();
         if (session) {
           initConfig.currentUser = {
-            id: session.user.id,
-            role: session.user.user_metadata?.role || 'teacher',
-            name: session.user.user_metadata?.full_name,
-            email: session.user.email,
-            organizationId: session.user.user_metadata?.organization_id,
+            id: session.user_id,
+            role: session.role || 'teacher',
+            name: undefined, // Not available in session
+            email: session.email,
+            organizationId: session.organization_id,
           };
         }
       } catch (e) {
@@ -125,19 +153,19 @@ export class DashAIAssistant implements IDashAIAssistant {
   async startNewConversation(title?: string): Promise<string> { return this.core.startNewConversation(title); }
   getCurrentConversationId(): string | null { return this.core.getCurrentConversationId(); }
   setCurrentConversationId(id: string): void { return this.core.setCurrentConversationId(id); }
-  async getConversation(conversationId: string): Promise<any> { return this.core.getConversation(conversationId); }
+  async getConversation(conversationId: string): Promise<DashConversation | null> { return this.core.getConversation(conversationId); }
+  async getAllConversations(): Promise<DashConversation[]> { return this.core.getAllConversations(); }
+  async deleteConversation(conversationId: string): Promise<void> { return this.core.deleteConversation(conversationId); }
   async addMessageToConversation(conversationId: string, message: DashMessage): Promise<void> { return this.core.addMessageToConversation(conversationId, message); }
   
-  async sendMessage(content: string, conversationId?: string): Promise<DashMessage> {
-    const convId = conversationId || this.getCurrentConversationId() || await this.startNewConversation();
-    const userMessage: DashMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      type: 'user',
-      content,
-      timestamp: Date.now(),
-    };
-    await this.addMessageToConversation(convId, userMessage);
-    return userMessage;
+  async sendMessage(
+    content: string, 
+    conversationId?: string, 
+    attachments?: any[],
+    onStreamChunk?: (chunk: string) => void
+  ): Promise<DashMessage> {
+    // Delegate to DashAICore which now handles AI calls
+    return this.core.sendMessage(content, conversationId, attachments, onStreamChunk);
   }
 
   // Tasks & Reminders
@@ -162,16 +190,65 @@ export class DashAIAssistant implements IDashAIAssistant {
   async setLanguage(language: string): Promise<void> { return this.core.setLanguage(language); }
   getLanguage(): string | undefined { return this.core.getLanguage(); }
   getPersonality(): any { return this.core.getPersonality(); }
+  async savePersonality(partial: any): Promise<void> { return this.core.savePersonality(partial); }
+  async exportConversation(conversationId: string): Promise<string> { return this.core.exportConversation(conversationId); }
+
+  // Screen context (simple default for tools)
+  getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] } {
+    return {
+      screen: 'dashboard',
+      capabilities: [
+        'navigate',
+        'open_caps_documents',
+        'compose_message',
+        'export_pdf',
+      ],
+      suggestions: [
+        'Create a lesson plan',
+        'Generate a worksheet',
+        'Check assignments',
+        'Open CAPS documents',
+      ],
+    };
+  }
   
-  async speakResponse(text: string): Promise<void> {
-    return this.core.speakText(text);
+  /**
+   * Speak response (TTS wrapper)
+   * @param message Message to speak (only assistant messages are spoken)
+   * @param callbacks Optional callbacks for speech events
+   */
+  async speakResponse(
+    message: DashMessage,
+    callbacks?: {
+      onStart?: () => void;
+      onDone?: () => void;
+      onStopped?: () => void;
+      onError?: (error: any) => void;
+    }
+  ): Promise<void> {
+    // Only speak assistant messages
+    if (message.type !== 'assistant') {
+      console.log('[DashAICompat] Ignoring non-assistant message for TTS');
+      return;
+    }
+    
+    // Extract text content
+    const text = message.content;
+    if (!text || text.trim().length === 0) {
+      console.warn('[DashAICompat] No content to speak');
+      callbacks?.onError?.('No content to speak');
+      return;
+    }
+    
+    // Delegate to core speakText with callbacks
+    return this.core.speakText(text, callbacks);
   }
 
   // Convenience shim
   async sendPreparedVoiceMessage(input: { text?: string; audioUri?: string }): Promise<void> {
     if (input.audioUri) {
       const result = await this.core.transcribeAudio(input.audioUri);
-      if (result?.text) await this.core.speakText(result.text);
+      if (result?.transcript) await this.core.speakText(result.transcript);
       return;
     }
     if (input.text) {

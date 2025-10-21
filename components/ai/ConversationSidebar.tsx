@@ -31,7 +31,7 @@ export function ConversationSidebar({ onSelectConversation, onNewConversation, w
   useEffect(() => {
     (async () => {
       try {
-        const module = await import('@/services/DashAIAssistant');
+        const module = await import('@/services/dash-ai/DashAICompat');
         const DashClass = (module as any).DashAIAssistant || (module as any).default;
         const dash = DashClass?.getInstance?.();
         if (!dash) return;

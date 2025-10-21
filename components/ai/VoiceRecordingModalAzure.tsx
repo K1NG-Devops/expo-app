@@ -26,11 +26,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { DashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
+import type { IDashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 import { HolographicOrb } from '@/components/ui/HolographicOrb';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { getDefaultVoiceProvider, type VoiceSession } from '@/lib/voice/unifiedProvider';
+import { getSingleUseVoiceProvider, type VoiceSession } from '@/lib/voice/unifiedProvider';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.4;
@@ -38,7 +38,7 @@ const ORB_SIZE = Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) * 0.4;
 interface VoiceRecordingModalAzureProps {
   visible: boolean;
   onClose: () => void;
-  dashInstance: DashAIAssistant | null;
+  dashInstance: IDashAIAssistant | null;
   onMessageSent?: (message: DashMessage) => void;
   onTranscriptReady?: (transcript: string) => void; // Callback for input mode (no AI)
   language?: string;
@@ -67,6 +67,9 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
   const [isAvailable, setIsAvailable] = useState(true);
   const sessionRef = useRef<VoiceSession | null>(null);
   const [providerId, setProviderId] = useState<string>('azure');
+  // Finalization grace timer: allows short pauses before auto-processing
+  const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const FINALIZE_GRACE_MS = Number(process.env.EXPO_PUBLIC_VOICE_FINALIZE_GRACE_MS) || 1200;
 
   // Initialize voice session when modal opens
   useEffect(() => {
@@ -76,13 +79,13 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
     
     (async () => {
       try {
-        if (__DEV__) console.log('[VoiceModalAzure] 🎙️ Initializing voice session...');
+        if (__DEV__) console.log('[VoiceModalAzure] 🎙️ Initializing SINGLE-USE voice session (on-device)...');
         
-        const provider = await getDefaultVoiceProvider(language);
+        const provider = await getSingleUseVoiceProvider(language);
         if (cancelled) return;
         
         setProviderId(provider.id);
-        if (__DEV__) console.log('[VoiceModalAzure] Provider selected:', provider.id);
+        if (__DEV__) console.log('[VoiceModalAzure] Provider selected:', provider.id, '(on-device)');
         
         const session = provider.createSession();
         sessionRef.current = session;
@@ -93,17 +96,29 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
             if (!cancelled) {
               setTranscript(text);
               setState('listening');
+              // Any partial during grace window should delay auto-finalize
+              if (finalizeTimerRef.current) {
+                clearTimeout(finalizeTimerRef.current);
+                finalizeTimerRef.current = null;
+              }
               try { Haptics.selectionAsync(); } catch {}
             }
           },
           onFinal: async (text) => {
             if (cancelled || processedRef.current) return;
             
-            processedRef.current = true;
             setTranscript(text);
             if (__DEV__) console.log('[VoiceModalAzure] ✅ Final transcript:', text);
             
-            await handleTranscript(text);
+            // If in single-use mode (onTranscriptReady exists), DON'T auto-process
+            // Let user review and click Send button manually
+            if (onTranscriptReady) {
+              if (__DEV__) console.log('[VoiceModalAzure] 📝 Single-use mode: waiting for user to click Send');
+              return;
+            }
+            
+            // Otherwise (conversational mode), schedule auto-process with grace delay
+            scheduleFinalize(text);
           },
         });
         
@@ -131,6 +146,11 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
     return () => {
       cancelled = true;
       if (__DEV__) console.log('[VoiceModalAzure] 🧹 Cleanup: stopping session...');
+      // Clear any pending finalize timer
+      if (finalizeTimerRef.current) {
+        clearTimeout(finalizeTimerRef.current);
+        finalizeTimerRef.current = null;
+      }
       sessionRef.current?.stop().catch(() => {});
     };
   }, [visible, language]);
@@ -151,14 +171,33 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
     } else {
       fadeAnim.setValue(0);
       // Stop any active session when closing
+      if (finalizeTimerRef.current) {
+        clearTimeout(finalizeTimerRef.current);
+        finalizeTimerRef.current = null;
+      }
       sessionRef.current?.stop().catch(() => {});
     }
   }, [visible]);
 
   const handleTranscript = useCallback(async (text: string) => {
-    if (!dashInstance || processedRef.current) return;
+    if (processedRef.current) return;
     
     try {
+      // PRIORITY 1: If onTranscriptReady exists (single-use input mode), return transcript immediately
+      if (onTranscriptReady) {
+        if (__DEV__) console.log('[VoiceModalAzure] 📝 Input mode: returning transcript to callback');
+        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+        onTranscriptReady(text);
+        onClose();
+        return;
+      }
+      
+      // PRIORITY 2: Otherwise, send to AI (conversational mode)
+      if (!dashInstance) {
+        console.warn('[VoiceModalAzure] ⚠️ No dashInstance for AI processing');
+        return;
+      }
+      
       setState('thinking');
       if (__DEV__) console.log('[VoiceModalAzure] 🤖 Sending to AI:', text);
       
@@ -196,7 +235,22 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
       setErrorMsg('Failed to process request');
       processedRef.current = false;
     }
-  }, [dashInstance, onMessageSent, onClose]);
+  }, [dashInstance, onMessageSent, onClose, onTranscriptReady]);
+
+  const scheduleFinalize = useCallback((text: string) => {
+    // Clear existing timer
+    if (finalizeTimerRef.current) {
+      clearTimeout(finalizeTimerRef.current);
+      finalizeTimerRef.current = null;
+    }
+    // Arm new grace timer
+    finalizeTimerRef.current = setTimeout(async () => {
+      finalizeTimerRef.current = null;
+      if (processedRef.current) return;
+      processedRef.current = true;
+      await handleTranscript(text);
+    }, FINALIZE_GRACE_MS);
+  }, [FINALIZE_GRACE_MS, handleTranscript]);
 
   const restartRecording = async () => {
     try {
@@ -213,7 +267,7 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
       
       // Wait a bit before restarting
       setTimeout(async () => {
-        const provider = await getDefaultVoiceProvider(language);
+        const provider = await getSingleUseVoiceProvider(language);
         const session = provider.createSession();
         sessionRef.current = session;
         
@@ -222,12 +276,24 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
           onPartial: (text) => {
             setTranscript(text);
             setState('listening');
+            // Any partial during grace window should delay auto-finalize
+            if (finalizeTimerRef.current) {
+              clearTimeout(finalizeTimerRef.current);
+              finalizeTimerRef.current = null;
+            }
           },
           onFinal: async (text) => {
             if (processedRef.current) return;
-            processedRef.current = true;
             setTranscript(text);
-            await handleTranscript(text);
+            
+            // Same logic as main onFinal: check for single-use mode
+            if (onTranscriptReady) {
+              if (__DEV__) console.log('[VoiceModalAzure] 📝 Restart: single-use mode, waiting for Send');
+              return;
+            }
+            
+            // Schedule finalize after grace period
+            scheduleFinalize(text);
           },
         });
         
@@ -248,18 +314,43 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
   };
 
   const handleSend = async () => {
-    if (!transcript.trim() || processedRef.current) return;
+    if (!transcript.trim()) {
+      if (__DEV__) console.warn('[VoiceModalAzure] ⚠️ Send clicked but no transcript');
+      return;
+    }
+    
+    // Prevent double-send
+    if (processedRef.current) {
+      if (__DEV__) console.warn('[VoiceModalAzure] ⚠️ Already processed, ignoring send');
+      return;
+    }
     
     try {
+      processedRef.current = true; // Mark as processed immediately
+      
+      // Stop any pending finalize timer
+      if (finalizeTimerRef.current) {
+        clearTimeout(finalizeTimerRef.current);
+        finalizeTimerRef.current = null;
+      }
       // Stop listening first
       await sessionRef.current?.stop();
       
-      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+      // Haptic feedback
+      try { 
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (__DEV__) console.log('[VoiceModalAzure] ✅ Haptic feedback triggered');
+      } catch (e) {
+        if (__DEV__) console.warn('[VoiceModalAzure] ⚠️ Haptics failed:', e);
+      }
       
-      // If onTranscriptReady callback exists (input mode), just return transcript
+      // If onTranscriptReady callback exists (input mode), send directly to AI
+      // Don't populate input field - just send the message
       if (onTranscriptReady) {
-        if (__DEV__) console.log('[VoiceModalAzure] 📝 Returning transcript to input:', transcript.substring(0, 50));
+        if (__DEV__) console.log('[VoiceModalAzure] 📨 Single-use mode: sending directly to AI');
+        // IMPORTANT: Call the transcript callback BEFORE closing, so it isn't cleared
         onTranscriptReady(transcript);
+        // Then close the modal
         onClose();
         return;
       }
@@ -269,6 +360,7 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
       await handleTranscript(transcript);
     } catch (e) {
       console.error('[VoiceModalAzure] ❌ Manual send error:', e);
+      processedRef.current = false; // Reset on error
     }
   };
 
@@ -278,6 +370,11 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
       return;
     }
     
+    // Stop any pending finalize timer
+    if (finalizeTimerRef.current) {
+      clearTimeout(finalizeTimerRef.current);
+      finalizeTimerRef.current = null;
+    }
     // Stop listening if active
     await sessionRef.current?.stop();
     
@@ -388,11 +485,17 @@ export const VoiceRecordingModalAzure: React.FC<VoiceRecordingModalAzureProps> =
                 ]}
                 value={transcript}
                 onChangeText={setTranscript}
-                multiline
+                multiline={true}
+                numberOfLines={4}
+                blurOnSubmit={false}
+                scrollEnabled={true}
+                textAlignVertical="top"
+                returnKeyType="default"
                 placeholder="Your speech will appear here..."
                 placeholderTextColor={theme.textSecondary}
                 autoCorrect
                 autoCapitalize="sentences"
+                textBreakStrategy="simple"
               />
             ) : (
               <Text 
@@ -494,10 +597,11 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   textContainer: {
+    width: '100%',
     paddingHorizontal: 20,
     minHeight: 80,
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
   statusText: {
     fontSize: 18,
@@ -508,7 +612,7 @@ const styles = StyleSheet.create({
   transcriptInput: {
     width: '100%',
     minHeight: 80,
-    maxHeight: 200,
+    maxHeight: 300,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
@@ -516,6 +620,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'left',
+    textAlignVertical: 'top',
+    includeFontPadding: false,
   },
   buttonRow: {
     flexDirection: 'row',

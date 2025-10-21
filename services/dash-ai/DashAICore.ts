@@ -67,7 +67,7 @@ const DEFAULT_PERSONALITY: DashPersonality = {
   voice_settings: {
     rate: 0.8,
     pitch: 1.0,
-    language: 'en-US',
+    language: 'en-ZA',
   },
   role_specializations: {
     teacher: {
@@ -350,6 +350,7 @@ export class DashAICore {
     return this.conversationManager.startNewConversation(title);
   }
   
+  
   /**
    * Get conversation by ID
    */
@@ -584,10 +585,372 @@ export class DashAICore {
   }
   
   /**
+   * Save personality settings (alias for updatePersonality for backward compatibility)
+   */
+  public async savePersonality(personality: Partial<DashPersonality>): Promise<void> {
+    this.updatePersonality(personality);
+  }
+  
+  /**
    * Get personalized greeting
    */
   public getPersonalizedGreeting(): string {
     return this.profileManager.getPersonalizedGreeting(this.personality);
+  }
+  
+  // ==================== AI INTEGRATION ====================
+  
+  /**
+   * Send a message and get AI response with optional streaming
+   * @param content Message content
+   * @param conversationId Optional conversation ID
+   * @param attachments Optional file attachments
+   * @param onStreamChunk Optional callback for streaming chunks
+   */
+  public async sendMessage(
+    content: string,
+    conversationId?: string,
+    attachments?: any[],
+    onStreamChunk?: (chunk: string) => void
+  ): Promise<DashMessage> {
+    const convId = conversationId || this.getCurrentConversationId();
+    if (!convId) {
+      throw new Error('No active conversation');
+    }
+    
+    // Create user message
+    const userMessage: DashMessage = {
+      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type: 'user',
+      content,
+      timestamp: Date.now(),
+      attachments,
+    };
+    
+    // Add user message to conversation
+    await this.addMessageToConversation(convId, userMessage);
+    
+    // Generate AI response
+    const assistantMessage = await this.generateAIResponse(
+      content,
+      convId,
+      attachments,
+      onStreamChunk
+    );
+    
+    // Add assistant message to conversation
+    await this.addMessageToConversation(convId, assistantMessage);
+    
+    return assistantMessage;
+  }
+  
+  /**
+   * Generate AI response (private helper)
+   */
+  private async generateAIResponse(
+    userInput: string,
+    conversationId: string,
+    attachments?: any[],
+    onStreamChunk?: (chunk: string) => void
+  ): Promise<DashMessage> {
+    try {
+      // Get conversation history for context
+      const conversation = await this.getConversation(conversationId);
+      const recentMessages = conversation?.messages?.slice(-5) || [];
+      
+      // Build context for AI
+      const context = {
+        userInput,
+        conversationHistory: recentMessages,
+        personality: this.personality,
+        attachments,
+      };
+      
+      // Call AI service with streaming support
+      const shouldStream = typeof onStreamChunk === 'function';
+      const response = await this.callAIService({
+        action: 'general_assistance',
+        messages: this.buildMessageHistory(recentMessages, userInput),
+        context: `User role: ${this.profileManager.getUserProfile()?.role || 'educator'}`,
+        attachments,
+        stream: shouldStream,
+        onChunk: onStreamChunk,
+      });
+      
+      // Create assistant message
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: response.content || 'I apologize, but I encountered an issue processing your request.',
+        timestamp: Date.now(),
+        metadata: response.metadata,
+      };
+    } catch (error) {
+      console.error('[DashAICore] Failed to generate response:', error);
+      return {
+        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'assistant',
+        content: "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
+        timestamp: Date.now(),
+      };
+    }
+  }
+  
+  /**
+   * Build system prompt with CAPS awareness
+   */
+  private buildSystemPrompt(): string {
+    const userRole = this.profileManager.getUserProfile()?.role || 'educator';
+    const roleSpec = this.personality.role_specializations[userRole];
+    const capabilities = roleSpec?.capabilities || [];
+    
+    return `You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management.
+
+CORE PERSONALITY: ${this.personality.personality_traits.join(', ')}
+
+RESPONSE GUIDELINES:
+- Be concise, practical, and directly helpful
+- Provide specific, actionable advice
+- Reference educational best practices when relevant
+- Use a warm but professional tone
+- If the user request is ambiguous, ASK ONE brief clarifying question before proceeding
+
+CAPS CURRICULUM INTEGRATION (South African Education):
+🚨 CRITICAL - TOOL USAGE REQUIRED 🚨
+- You have DIRECT database access to South African CAPS curriculum documents via tools
+- NEVER tell users to "go to the menu" or "click on Curriculum" - EduDash Pro has NO separate curriculum section or side menus
+- ALWAYS use tools to access CAPS documents - NEVER suggest navigation
+
+WHEN USER DOES NOT SPECIFY GRADE/SUBJECT:
+- Do NOT assume a grade or subject
+- Ask: "Which grade and subject should I check?" and provide a short example (e.g., "R-3 Mathematics" or "10-12 Life Sciences")
+- You MAY call get_caps_subjects once the user provides a grade to show available subjects
+
+TOOL SELECTION GUIDE:
+- "Show me Grade X Subject CAPS documents" → Use get_caps_documents with {grade: "X", subject: "Subject"}
+- "Find CAPS content about [topic]" → Use search_caps_curriculum with {query: "topic", grade: "X", subject: "Subject"}
+- "What subjects are available?" → Use get_caps_subjects with {grade: "X"}
+
+EXAMPLES:
+  User: "Show me grade 10 mathematics CAPS documents"
+  ❌ WRONG: "Go to the Curriculum module and select..."
+  ✅ CORRECT: Use get_caps_documents tool with {grade: "10-12", subject: "Mathematics"}
+  
+  User: "Find CAPS content about photosynthesis for grade 11"
+  ✅ CORRECT: Use search_caps_curriculum tool with {query: "photosynthesis", grade: "10-12", subject: "Life Sciences"}
+
+- After using tools, present results directly in chat with document titles, grades, and subjects
+- Available CAPS subjects: Mathematics, English, Afrikaans, Physical Sciences, Life Sciences, Social Sciences, Technology
+
+ROLE-SPECIFIC CONTEXT:
+- You are helping a ${userRole}
+- Communication tone: ${roleSpec?.tone || 'professional'}
+- Your specialized capabilities: ${capabilities.join(', ')}
+
+🚨 CRITICAL LIMITATIONS 🚨:
+- You CANNOT send emails or messages directly
+- You CANNOT make phone calls or send SMS
+- You CANNOT create or modify database records without explicit user confirmation
+- When asked to send communications, use the compose_message tool to OPEN A COMPOSER UI
+- NEVER claim you sent an email/message unless a tool explicitly confirmed it was sent
+- If you don't have a tool for a task, tell the user honestly: "I can't do that, but I can help you with..."
+
+IMPORTANT: Always use tools to access real data. Never make up information. Never claim to perform actions you cannot do.`
+  }
+  
+  /**
+   * Build message history for AI context
+   */
+  private buildMessageHistory(recentMessages: DashMessage[], currentInput: string): any[] {
+    const messages = [];
+    
+    for (const msg of recentMessages) {
+      if (msg.type === 'user') {
+        messages.push({ role: 'user', content: msg.content });
+      } else if (msg.type === 'assistant') {
+        messages.push({ role: 'assistant', content: msg.content });
+      }
+    }
+    
+    messages.push({ role: 'user', content: currentInput });
+    return messages;
+  }
+  
+  /**
+   * Call AI service with tool support (non-streaming)
+   */
+  private async callAIService(params: any): Promise<any> {
+    try {
+      // Build prompt text and call ai-proxy (compliant path)
+      // Tool registry not used with ai-proxy standardization
+      const toolSpecs = undefined as any;
+      
+      // Tools enabled - Anthropic API key configured
+      const ENABLE_TOOLS = false;
+      
+      console.log('[DashAICore] Calling AI service:', {
+        action: params.action,
+        streaming: params.stream || false,
+        toolsAvailable: ENABLE_TOOLS ? toolSpecs?.length || 0 : 0,
+        toolsDisabled: !ENABLE_TOOLS,
+      });
+      
+      // Build system prompt with CAPS awareness
+      const systemPrompt = undefined as any;
+      
+      // If streaming requested, use streaming endpoint
+      if (params.stream && params.onChunk) {
+        // Build prompt from messages and delegate to streaming path
+        const messagesArr = Array.isArray(params.messages) ? params.messages : [];
+        const promptText = messagesArr.length > 0
+          ? messagesArr.map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || ''}`).join('\n')
+          : String(params.content || params.userInput || '');
+        return await this.callAIServiceStreaming({ promptText, context: params.context || undefined }, params.onChunk);
+      }
+      
+      // Non-streaming call to ai-proxy
+      const messagesArr = Array.isArray(params.messages) ? params.messages : [];
+      const promptText = messagesArr.length > 0
+        ? messagesArr.map((m: any) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content || ''}`).join('\n')
+        : String(params.content || params.userInput || '');
+      const role = (this.profileManager.getUserProfile()?.role || 'teacher').toString().toLowerCase();
+      const scope: 'teacher' | 'principal' | 'parent' = (['teacher', 'principal', 'parent'].includes(role) ? role : 'teacher') as any;
+      const { data, error } = await this.supabaseClient.functions.invoke('ai-proxy', {
+        body: {
+          scope,
+          service_type: 'dash_conversation',
+          payload: {
+            prompt: promptText,
+            context: params.context || undefined,
+          },
+          stream: false,
+        },
+      });
+      
+      if (error) {
+        console.error('[DashAICore] AI service error:', error);
+        throw error;
+      }
+      
+      // Tool use not supported via ai-proxy in this path
+      const toolUse = null;
+      const assistantContent = data?.content || '';
+
+      if (!data?.success) {
+        return { content: assistantContent };
+      }
+      return { content: data.content, metadata: { usage: data.usage } };
+    } catch (error) {
+      console.error('[DashAICore] AI service call failed:', error);
+      return {
+        content: 'I apologize, but I encountered an issue. Please try again.',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+  
+  /**
+   * Call AI service with streaming support (SSE)
+   * 
+   * Note: Streaming is not supported on React Native due to fetch limitations.
+   * For Phase 0, we fall back to non-streaming which is acceptable.
+   * 
+   * TODO (Phase 2): Implement WebSocket streaming for React Native
+   * See: docs/features/DASH_AI_STREAMING_UPGRADE_PLAN.md
+   */
+  private async callAIServiceStreaming(params: any, onChunk: (chunk: string) => void): Promise<any> {
+    try {
+      const { data: sessionData } = await this.supabaseClient.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      
+      if (!accessToken) {
+        throw new Error('No auth session for streaming');
+      }
+      
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('EXPO_PUBLIC_SUPABASE_URL not configured');
+      }
+      
+      const url = `${supabaseUrl}/functions/v1/ai-proxy`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          scope: (['teacher','principal','parent'].includes((this.profileManager.getUserProfile()?.role || 'teacher').toString().toLowerCase())
+            ? (this.profileManager.getUserProfile()?.role || 'teacher').toString().toLowerCase()
+            : 'teacher'),
+          service_type: 'dash_conversation',
+          payload: {
+            prompt: params.promptText,
+            context: params.context || undefined,
+          },
+          stream: true,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Streaming failed: ${response.status}`);
+      }
+      
+      // React Native fetch doesn't support streaming ReadableStream
+      // Fall back to reading the entire response
+      if (!response.body || typeof response.body.getReader !== 'function') {
+        console.warn('[DashAICore] Streaming not supported in this environment, falling back to non-streaming');
+        const text = await response.text();
+        // Simulate streaming by calling onChunk with full text
+        onChunk(text);
+        return {
+          content: text,
+          metadata: {},
+        };
+      }
+      
+      // Parse SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let accumulated = '';
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                accumulated += parsed.delta.text;
+                onChunk(parsed.delta.text);
+              }
+            } catch (e) {
+              console.warn('[DashAICore] Failed to parse SSE chunk:', e);
+            }
+          }
+        }
+      }
+      
+      return {
+        content: accumulated,
+        metadata: {},
+      };
+    } catch (error) {
+      console.error('[DashAICore] Streaming failed:', error);
+      throw error;
+    }
   }
   
   // ==================== LIFECYCLE ====================

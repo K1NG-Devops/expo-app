@@ -60,7 +60,7 @@ export function UpgradePromptModal({
           <ScrollView style={styles.content}>
             <View style={styles.tierBadgeContainer}>
               <Text style={styles.subtitle}>Requires</Text>
-              <TierBadge tier={requiredTier} size="large" />
+              <TierBadge tier={requiredTier as any} size="md" />
             </View>
 
             <Text style={styles.description}>

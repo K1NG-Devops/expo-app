@@ -24,21 +24,22 @@
  */
 
 import { serviceLocator } from './ServiceLocator';
+import type { IDashAIAssistant } from '../dash-ai/DashAICompat';
 
 /**
  * Get or initialize the DashAIAssistant instance
  * 
  * This function:
  * 1. Checks if the assistant is already registered in the ServiceLocator
- * 2. If not, dynamically imports the DashAIAssistant module
- * 3. Calls getInstance() or creates a new instance
+ * 2. If not, dynamically imports the DashAICompat module
+ * 3. Calls getInstance() to get the singleton instance
  * 4. Registers it in the ServiceLocator for future use
  * 5. Returns the instance
  * 
- * @returns Promise<DashAIAssistant> - The assistant instance
+ * @returns Promise<IDashAIAssistant> - The assistant instance
  * @throws Error if the module fails to load
  */
-export async function getAssistant(): Promise<any> {
+export async function getAssistant(): Promise<IDashAIAssistant> {
   // Check if already registered
   const existing = serviceLocator.get('DashAIAssistant');
   if (existing) {
@@ -46,24 +47,18 @@ export async function getAssistant(): Promise<any> {
   }
 
   try {
-    // Dynamic import to break circular dependency
-    const mod = await import('../DashAIAssistant');
+    // Dynamic import to break circular dependency - use new modular path
+    const mod = await import('../dash-ai/DashAICompat');
     
-    // Get the class (could be named export or default)
-    const AssistantClass = mod.DashAIAssistant || mod.default;
+    // Get the DashAIAssistant class from the compat module
+    const AssistantClass = mod.DashAIAssistant;
     
-    if (!AssistantClass) {
-      throw new Error('DashAIAssistant module failed to load: no export found');
+    if (!AssistantClass || typeof AssistantClass.getInstance !== 'function') {
+      throw new Error('DashAIAssistant module failed to load: getInstance not available');
     }
 
-    // Get or create instance
-    let instance: any;
-    if (typeof AssistantClass.getInstance === 'function') {
-      instance = AssistantClass.getInstance();
-    } else {
-      // Fallback to constructor if getInstance doesn't exist
-      instance = new AssistantClass();
-    }
+    // Get singleton instance
+    const instance = AssistantClass.getInstance();
 
     // Register for future use
     serviceLocator.register('DashAIAssistant', instance);
@@ -80,9 +75,9 @@ export async function getAssistant(): Promise<any> {
  * Get the assistant instance without throwing if unavailable
  * Returns null instead of throwing an error
  * 
- * @returns Promise<DashAIAssistant | null>
+ * @returns Promise<IDashAIAssistant | null>
  */
-export async function getAssistantSafe(): Promise<any | null> {
+export async function getAssistantSafe(): Promise<IDashAIAssistant | null> {
   try {
     return await getAssistant();
   } catch (error) {

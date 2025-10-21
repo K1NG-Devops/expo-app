@@ -9,7 +9,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
-import type { DashUserProfile, DashMemoryItem, DashInsight } from './DashAIAssistant';
+import type { DashUserProfile, DashMemoryItem, DashInsight } from './dash-ai/types';
 
 export interface UserIntent {
   primary_intent: string;

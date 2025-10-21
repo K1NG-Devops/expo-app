@@ -5,7 +5,7 @@
  * Handles complex multi-step tasks and workflow automation
  */
 
-import { DashTask, DashTaskStep, DashAction, DashReminder } from './DashAIAssistant';
+import { DashTask, DashTaskStep, DashAction, DashReminder } from './dash-ai/types';
 
 export interface TaskTemplate {
   id: string;

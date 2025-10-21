@@ -8,7 +8,7 @@ export class AIProxyAdapter implements AIService {
     const { data, error } = await client.functions.invoke('ai-proxy', {
       body: {
         scope: 'teacher',
-        service_type: 'chat',
+        service_type: 'dash_conversation', // Use valid service_type per DB constraint
         payload: { prompt, context },
       },
     });

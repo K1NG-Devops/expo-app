@@ -466,8 +466,67 @@ export class DashVoiceService {
   public async speakText(text: string, callbacks?: SpeechCallbacks): Promise<void> {
     try {
       const voiceSettings = this.config.voiceSettings;
-      
-      // Determine South African locale to use for TTS
+
+      // Normalize text first
+      const normalizedText = this.normalizeTextForSpeech(text);
+      if (normalizedText.length === 0) {
+        console.log('[DashVoice] No speakable content after normalization');
+        callbacks?.onError?.('No speakable content after normalization');
+        return;
+      }
+
+      // Short language code for Edge Function (af, zu, xh, nso, en)
+      let shortLang = 'en';
+      try {
+        const { getCurrentLanguage } = await import('@/lib/i18n');
+        const { normalizeLanguageCode, resolveDefaultVoiceId } = await import('@/lib/ai/dashSettings');
+        const ui = getCurrentLanguage?.();
+        shortLang = normalizeLanguageCode(ui || voiceSettings.language) as any;
+
+        // Resolve voice ID preference
+        const { voiceService } = await import('@/lib/voice/client');
+        const prefs = await voiceService.getPreferences().catch(() => null);
+        const gender = (voiceSettings as any).voice === 'male' ? 'male' : 'female';
+        const voice_id = (prefs?.language === shortLang && prefs?.voice_id)
+          ? prefs.voice_id
+          : resolveDefaultVoiceId(shortLang as any, gender as any);
+
+        // Convert rate/pitch (1.0 baseline) to -50..+50 scale expected by Edge Function
+        const speaking_rate = Math.round(((voiceSettings.rate ?? 1.0) - 1.0) * 100);
+        const pitch = Math.round(((voiceSettings.pitch ?? 1.0) - 1.0) * 100);
+
+        // Try Edge Function (Azure/Google)
+        try {
+          const resp = await voiceService.synthesize({
+            text: normalizedText,
+            language: shortLang as any,
+            voice_id,
+            speaking_rate,
+            pitch,
+          });
+
+          // Play via audio manager
+          const { audioManager } = await import('@/lib/voice/audio');
+          callbacks?.onStart?.();
+          await audioManager.play(resp.audio_url, (state) => {
+            if (!state.isPlaying && state.position === 0 && !state.error) {
+              callbacks?.onDone?.();
+            } else if (state.error) {
+              callbacks?.onError?.(new Error(state.error));
+            }
+          });
+          return;
+        } catch (edgeError: any) {
+          if (edgeError?.code !== 'DEVICE_FALLBACK') {
+            console.warn('[DashVoice] Edge TTS failed or unavailable, falling back to device TTS');
+          }
+          // Fall through to device TTS below
+        }
+      } catch (mapErr) {
+        console.warn('[DashVoice] Language normalization failed, using device TTS fallback');
+      }
+
+      // Determine device TTS locale (en-ZA, af-ZA, etc.)
       let effectiveLang = voiceSettings.language || 'en-ZA';
       try {
         const { getCurrentLanguage } = await import('@/lib/i18n');
@@ -481,48 +540,31 @@ export class DashVoiceService {
           if (base.startsWith('en')) return 'en-ZA';
           return 'en-ZA';
         };
-        // Prefer UI selection; fallback to configured voice setting
         effectiveLang = map(ui) || map(voiceSettings.language) || 'en-ZA';
       } catch {
-        // Fallback to configured language mapping
         const base = String(voiceSettings.language || '').toLowerCase();
         effectiveLang = base ? (base.startsWith('en') ? 'en-ZA' : base) : 'en-ZA';
       }
-      
-      // Intelligently normalize the text before speaking
-      const normalizedText = this.normalizeTextForSpeech(text);
-      
-      // Only speak if there's actual text content after normalization
-      if (normalizedText.length === 0) {
-        console.log('[DashVoice] No speakable content after normalization');
-        callbacks?.onError?.('No speakable content after normalization');
-        return;
-      }
-      
-      console.log('[DashVoice] About to start speaking:', normalizedText.substring(0, 100) + '...');
-      
+
+      // Device TTS fallback
       return new Promise<void>((resolve, reject) => {
         Speech.speak(normalizedText, {
           language: effectiveLang,
           pitch: voiceSettings.pitch,
           rate: voiceSettings.rate,
-          voice: voiceSettings.voice,
+          voice: (voiceSettings as any).voice,
           onStart: () => {
-            console.log('[DashVoice] Started speaking');
             callbacks?.onStart?.();
           },
           onDone: () => {
-            console.log('[DashVoice] Finished speaking');
             callbacks?.onDone?.();
             resolve();
           },
           onStopped: () => {
-            console.log('[DashVoice] Speech stopped');
             callbacks?.onStopped?.();
             resolve();
           },
           onError: (error: any) => {
-            console.error('[DashVoice] Speech error:', error);
             callbacks?.onError?.(error);
             reject(error);
           },

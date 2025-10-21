@@ -1,1 +1,2 @@
-export { AgentTool, DashToolRegistry, ToolRegistry } from './modules/DashToolRegistry';
+export type { AgentTool } from './modules/DashToolRegistry';
+export { DashToolRegistry, ToolRegistry } from './modules/DashToolRegistry';

@@ -141,16 +141,16 @@ export const HolographicOrb: React.FC<HolographicOrbProps> = ({
 
   // Society 5.0 gradient colors
   const gradientColors = isDark
-    ? [
+    ? ([
         'rgba(99, 102, 241, 0.9)',   // Indigo
         'rgba(139, 92, 246, 0.8)',   // Purple
         'rgba(236, 72, 153, 0.7)',   // Pink
-      ]
-    : [
+      ] as const)
+    : ([
         'rgba(99, 102, 241, 1)',
         'rgba(139, 92, 246, 0.9)',
         'rgba(236, 72, 153, 0.8)',
-      ];
+      ] as const);
 
   return (
     <View style={[styles.container, { width: size, height: size }, style]}>

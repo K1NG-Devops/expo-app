@@ -1,6 +1,7 @@
-// Azure Speech streaming provider for React Native / Web
-// Uses microsoft-cognitiveservices-speech-sdk via dynamic import.
-// Falls back gracefully if SDK is unavailable.
+// Azure Speech streaming provider for WEB ONLY
+// Uses microsoft-cognitiveservices-speech-sdk (browser-based)
+// NOT COMPATIBLE WITH REACT NATIVE (requires Web Audio API)
+// For mobile, use deepgramProvider or other mobile-native solutions
 
 import { Platform, PermissionsAndroid } from 'react-native';
 
@@ -79,13 +80,21 @@ export function createAzureSpeechSession(): AzureSpeechSession {
 
   return {
     async start(opts: AzureStartOptions) {
+      // CRITICAL: Azure Speech SDK requires Web Audio API (browser-only)
+      // Block on mobile platforms
+      if (Platform.OS !== 'web') {
+        console.error('[azureProvider] ❌ Azure Speech SDK is web-only (requires Web Audio API)');
+        console.error('[azureProvider] For mobile, use deepgramProvider or mobile-native solutions');
+        return false;
+      }
+      
       if (closed) {
         if (__DEV__) console.warn('[azureProvider] Session already closed');
         return false;
       }
       
       try {
-        // Step 1: Check microphone permissions (mobile + web)
+        // Step 1: Check microphone permissions (web-only now)
         const hasPermission = await ensureMicPermission();
         if (!hasPermission) {
           console.error('[azureProvider] ❌ Microphone permission required');

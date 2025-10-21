@@ -18,7 +18,7 @@ import type {
   RiskLevel,
   DecisionRecord,
   DashTask
-} from './DashAIAssistant';
+} from './dash-ai/types';
 
 // ===== DECISION ENGINE TYPES =====
 

@@ -13,7 +13,7 @@ import { getVoiceCapabilities, isIndigenousSA, type VoiceCapabilities } from '@/
 import VoiceRecordingModalAzure from '@/components/ai/VoiceRecordingModalAzure';
 import { DashVoiceMode } from '@/components/ai/DashVoiceMode';
 import { toast } from '@/components/ui/ToastProvider';
-import type { DashAIAssistant, DashMessage } from '@/services/dash-ai/types';
+import type { IDashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 
 type VoiceMode = 'recording' | 'streaming';
 
@@ -50,7 +50,7 @@ export function useVoiceUI(): VoiceUIContextValue {
 
 interface VoiceUIProviderProps {
   children: React.ReactNode;
-  dashInstance: DashAIAssistant | null;
+  dashInstance: IDashAIAssistant | null;
 }
 
 export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps) {
@@ -59,7 +59,7 @@ export function VoiceUIProvider({ children, dashInstance }: VoiceUIProviderProps
     mode: 'recording',
   });
 
-  const onTranscriptReadyRef = useRef<((transcript: string) => void) | undefined>();
+  const onTranscriptReadyRef = useRef<((transcript: string) => void) | undefined>(undefined);
   const streamingAttemptedRef = useRef(false);
 
   const open = useCallback(async (options: VoiceOpenOptions = {}) => {

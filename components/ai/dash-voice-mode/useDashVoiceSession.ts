@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useVoicePreferences } from '@/lib/voice/hooks';
 import { useTranslation } from 'react-i18next';
 import * as Haptics from 'expo-haptics';
+import { audioManager } from '@/lib/voice/audio';
 import type { IDashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 import { DashResponseCache } from '@/services/DashResponseCache';
 
@@ -74,6 +75,7 @@ export function useDashVoiceSession({
   const partialBufferRef = useRef<string>('');
   const finalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPartialAtRef = useRef<number>(0);
+  const initialDetectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Grace period to prevent self-interruption from AI's own voice
   const speakingStartedAtRef = useRef<number>(0);
   const INTERRUPTION_GRACE_PERIOD_MS = 800; // Ignore partials for first 800ms of TTS
@@ -426,11 +428,21 @@ export function useDashVoiceSession({
         
         if (cancelled) return;
         
-        if (ok) {
-          setReady(true);
-          
-          // Poll for connection (faster timeout for Azure: 2s instead of 5s)
-          const checkConnection = setInterval(() => {
+          if (ok) {
+            setReady(true);
+            
+            // Start a one-shot timer: if no partial is received within 3s, show an error hint
+            if (initialDetectTimerRef.current) clearTimeout(initialDetectTimerRef.current);
+            initialDetectTimerRef.current = setTimeout(() => {
+              try {
+                if (!cancelled && !speaking && lastPartialAtRef.current === 0) {
+                  setErrorMessage('No audio detected. Check mic permissions and speak clearly close to the mic.');
+                }
+              } catch {}
+            }, 3000);
+            
+            // Poll for connection (faster timeout for Azure: 2s instead of 5s)
+            const checkConnection = setInterval(() => {
             if (cancelled) {
               clearInterval(checkConnection);
               return;
@@ -491,24 +503,24 @@ export function useDashVoiceSession({
   
   // Close handler
   const handleClose = useCallback(async () => {
-    if (sessionRef.current) {
-      try {
-        await sessionRef.current.stop();
-      } catch (e) {
-        console.warn('[useDashVoiceSession] Error stopping session:', e);
+      if (sessionRef.current) {
+        try {
+          await sessionRef.current.stop();
+        } catch (e) {
+          console.warn('[useDashVoiceSession] Error stopping session:', e);
+        }
       }
-    }
-    
-    setSpeaking(false);
-    try {
-      dashInstance?.stopSpeaking?.();
-      const { audioManager } = await import('@/lib/voice/audio');
-      await audioManager.stop();
-    } catch (e) {
-      console.warn('[useDashVoiceSession] Error stopping TTS:', e);
-    }
-    
-    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+      
+      processedRef.current = false;
+      abortSpeechRef.current = false;
+      clearFinalizeTimer();
+      if (initialDetectTimerRef.current) clearTimeout(initialDetectTimerRef.current);
+      partialBufferRef.current = '';
+      try { await audioManager.stop(); } catch (e) {
+        console.warn('[useDashVoiceSession] Error stopping TTS:', e);
+      }
+      
+      try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
   }, [dashInstance]);
   
   return {

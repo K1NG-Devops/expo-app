@@ -23,7 +23,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.k1ngdevops.edudashpro",
       "infoPlist": {
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone so Dash can hear your questions and provide voice responses."
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone so Dash can hear your questions and provide voice responses.",
+        "NSCameraUsageDescription": "This app needs camera access so you can take photos to share with Dash.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library so you can share images with Dash."
       }
     },
     "android": {
@@ -40,10 +42,12 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE"
       ],
       "blockedPermissions": [
-        "android.permission.CAMERA",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION"
       ],
@@ -54,10 +58,12 @@
       "expo-updates",
       "sentry-expo",
       "expo-audio",
+      "@react-native-voice/voice",
+      "expo-speech-recognition",
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "androidAppId": "ca-app-pub-2808416461095370~5255516826",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511"
         }
       ],

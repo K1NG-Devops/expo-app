@@ -13,7 +13,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import type { DashMemoryItem, AutonomyLevel } from './DashAIAssistant';
+import type { DashMemoryItem, AutonomyLevel } from './dash-ai/types';
 
 // ===== SEMANTIC MEMORY TYPES =====
 
