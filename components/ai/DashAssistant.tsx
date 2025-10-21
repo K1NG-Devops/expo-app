@@ -246,7 +246,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       scrollToBottom({ animated: false, delay: 300 });
     }
     // Only run when initialization completes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isInitialized]);
   
   // Auto-scroll when loading states change (thinking/responding)

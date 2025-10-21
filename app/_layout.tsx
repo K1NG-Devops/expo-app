@@ -116,7 +116,6 @@ export default function RootLayout() {
         if (dash) {
           await dash.initialize();
           setDashInstance(dash);
-          if (__DEV__) console.log('[RootLayout] ✅ Dash initialized');
           // Best-effort: sync Dash user context (language, traits)
           try {
             const { getCurrentLanguage } = await import('@/lib/i18n');
