@@ -20,6 +20,10 @@ import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
 import type { DashPersonality } from './types';
 
+// Declare global window for web platform type safety
+declare const window: any;
+declare const navigator: any;
+
 // Dynamically import SecureStore for cross-platform compatibility
 let SecureStore: any = null;
 try {
@@ -421,23 +425,27 @@ export class DashVoiceService {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
 
-      // Invoke the transcription function
+      // Invoke the new STT proxy with auto language detection
       const { data, error: fnError } = await this.config.supabaseClient
         .functions
-        .invoke('transcribe-audio', {
-          body: { storage_path: storagePath, language }
+        .invoke('stt-proxy', {
+          body: {
+            storage_path: storagePath,
+            candidate_languages: ['af-ZA','zu-ZA','xh-ZA','nso-ZA','en-ZA','en-US']
+          }
         });
       if (fnError) {
         throw new Error(`Transcription function failed: ${fnError.message || String(fnError)}`);
       }
 
-      const transcript = (data as any)?.transcript || '';
+      const transcript = (data as any)?.text || (data as any)?.transcript || '';
+      const detectedLang = (data as any)?.language || language;
       const provider = (data as any)?.provider;
 
       return {
         transcript: transcript || 'Transcription returned empty result.',
         storagePath,
-        language,
+        language: detectedLang,
         provider,
         contentType,
       };
@@ -459,6 +467,28 @@ export class DashVoiceService {
     try {
       const voiceSettings = this.config.voiceSettings;
       
+      // Determine South African locale to use for TTS
+      let effectiveLang = voiceSettings.language || 'en-ZA';
+      try {
+        const { getCurrentLanguage } = await import('@/lib/i18n');
+        const ui = getCurrentLanguage?.(); // 'en' | 'af' | 'zu' | 'xh' | 'nso' | 'st'
+        const map = (l?: string) => {
+          const base = String(l || '').toLowerCase();
+          if (base.startsWith('af')) return 'af-ZA';
+          if (base.startsWith('zu')) return 'zu-ZA';
+          if (base.startsWith('xh')) return 'xh-ZA';
+          if (base.startsWith('nso') || base === 'st' || base.includes('sotho')) return 'nso-ZA';
+          if (base.startsWith('en')) return 'en-ZA';
+          return 'en-ZA';
+        };
+        // Prefer UI selection; fallback to configured voice setting
+        effectiveLang = map(ui) || map(voiceSettings.language) || 'en-ZA';
+      } catch {
+        // Fallback to configured language mapping
+        const base = String(voiceSettings.language || '').toLowerCase();
+        effectiveLang = base ? (base.startsWith('en') ? 'en-ZA' : base) : 'en-ZA';
+      }
+      
       // Intelligently normalize the text before speaking
       const normalizedText = this.normalizeTextForSpeech(text);
       
@@ -473,7 +503,7 @@ export class DashVoiceService {
       
       return new Promise<void>((resolve, reject) => {
         Speech.speak(normalizedText, {
-          language: voiceSettings.language,
+          language: effectiveLang,
           pitch: voiceSettings.pitch,
           rate: voiceSettings.rate,
           voice: voiceSettings.voice,

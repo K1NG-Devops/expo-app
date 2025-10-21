@@ -69,16 +69,13 @@ export class DashVoiceController {
       }
       if (!language) language = (voiceSettings.language?.toLowerCase()?.slice(0, 2) as any) || 'en';
       
-      // Use Azure TTS for SA languages
-      const saLanguages = ['af', 'zu', 'xh', 'nso'];
-      if (saLanguages.includes(language)) {
-        try {
-          await this.speakWithAzureTTS(normalizedText, language, callbacks);
-          if (this.isSpeechAborted) callbacks?.onStopped?.();
-          return;
-        } catch (azureError) {
-          console.error('[DashVoiceController] Azure TTS failed, falling back:', azureError);
-        }
+      // Prefer Azure TTS for all supported locales; device TTS is last resort
+      try {
+        await this.speakWithAzureTTS(normalizedText, language, callbacks);
+        if (this.isSpeechAborted) callbacks?.onStopped?.();
+        return;
+      } catch (azureError) {
+        console.error('[DashVoiceController] Azure TTS failed, falling back:', azureError);
       }
       
       // Device TTS fallback
