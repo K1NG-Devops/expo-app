@@ -463,7 +463,7 @@ export class DashVoiceService {
   /**
    * Speak text using TTS with intelligent text normalization
    */
-  public async speakText(text: string, callbacks?: SpeechCallbacks): Promise<void> {
+  public async speakText(text: string, callbacks?: SpeechCallbacks, options?: { language?: string }): Promise<void> {
     try {
       const voiceSettings = this.config.voiceSettings;
 
@@ -481,7 +481,7 @@ export class DashVoiceService {
         const { getCurrentLanguage } = await import('@/lib/i18n');
         const { normalizeLanguageCode, resolveDefaultVoiceId } = await import('@/lib/ai/dashSettings');
         const ui = getCurrentLanguage?.();
-        shortLang = normalizeLanguageCode(ui || voiceSettings.language) as any;
+        shortLang = normalizeLanguageCode(options?.language || ui || voiceSettings.language) as any;
 
         // Resolve voice ID preference
         const { voiceService } = await import('@/lib/voice/client');
@@ -527,10 +527,10 @@ export class DashVoiceService {
       }
 
       // Determine device TTS locale (en-ZA, af-ZA, etc.)
-      let effectiveLang = voiceSettings.language || 'en-ZA';
+      let effectiveLang = (options?.language as any) || voiceSettings.language || 'en-ZA';
       try {
         const { getCurrentLanguage } = await import('@/lib/i18n');
-        const ui = getCurrentLanguage?.(); // 'en' | 'af' | 'zu' | 'xh' | 'nso' | 'st'
+        const ui = options?.language ? options.language : getCurrentLanguage?.(); // prefer explicit override
         const map = (l?: string) => {
           const base = String(l || '').toLowerCase();
           if (base.startsWith('af')) return 'af-ZA';

@@ -53,6 +53,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     toggleMute,
     muted,
     thinking,
+    audioLevel,
   } = useDashVoiceSession({
     visible,
     dashInstance,
@@ -100,6 +101,7 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
         isSpeaking={speaking}
         isThinking={isThinking}
         isMuted={muted}
+        audioLevel={audioLevel}
       />
       
       {/* Status and Transcript Display */}

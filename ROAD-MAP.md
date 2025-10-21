@@ -143,6 +143,26 @@ Documentation Sources
 - Expo Speech (fallback behavior): https://docs.expo.dev/versions/v53.0.0/sdk/speech/
 - Supabase Edge Functions: https://supabase.com/docs/guides/functions/overview
 
+## Update — 2025-10-21: Voice Orb reliability & SA language enforcement
+
+What changed
+- Voice Orb: added audio-level visualization and smarter “no audio detected” logic with runtime fallback to on-device RN Voice when Expo SR yields no partials.
+- SA languages end-to-end: enforced reply language for LLM via system directive; TTS now respects override language (en-ZA/af-ZA/zu-ZA/xh-ZA) with Azure/Google via tts-proxy; device TTS remains a safe fallback.
+- RN Voice guard: gracefully skips fallback if the native module isn’t available (prevents null module crash in Expo Go).
+
+Impact
+- Reduced false “no audio” errors; more reliable capture on Android low-end devices.
+- Dash replies and speaks in the chosen or detected South African language consistently.
+
+Next steps
+- Build dev client to enable RN Voice fallback: npx eas build -p android --profile development → install → npx expo start --dev-client.
+- Trim ESLint warnings to ≤200 (remove unused styles, fix trivial deps/vars).
+
+Documentation Sources
+- Expo Speech Recognition: https://docs.expo.dev/versions/v53.0.0/sdk/speech-recognition/
+- @react-native-voice/voice: https://github.com/react-native-voice/voice
+- Azure Speech SDK (JS): https://learn.microsoft.com/en-us/javascript/api/microsoft-cognitiveservices-speech-sdk/
+
 # ROAD-MAP.md — Authoritative Execution Plan (Oct–Nov 2025)
 
 This roadmap is enforceable. All contributors (developers and agents) must follow it exactly. Governance lives in WARP.md (source of truth). This file distills docs/COMPREHENSIVE_AUDIT_ROADMAP_OCT_2025.md into an execution-ready plan with clear deliverables, acceptance criteria, and metrics.

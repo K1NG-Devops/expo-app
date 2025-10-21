@@ -139,22 +139,6 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
   },
-  tooltip: {
-    position: 'absolute',
-    right: FAB_SIZE + 12,
-    top: FAB_SIZE / 2 - 18,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  tooltipText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
   modalOverlay: {
     flex: 1,
     justifyContent: 'center',

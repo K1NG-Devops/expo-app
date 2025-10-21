@@ -330,8 +330,8 @@ export class DashAICore {
   /**
    * Speak text using TTS
    */
-  public async speakText(text: string, callbacks?: SpeechCallbacks): Promise<void> {
-    return this.voiceService.speakText(text, callbacks);
+  public async speakText(text: string, callbacks?: SpeechCallbacks, opts?: { language?: string }): Promise<void> {
+    return this.voiceService.speakText(text, callbacks, opts);
   }
   
   /**
@@ -666,12 +666,23 @@ export class DashAICore {
         attachments,
       };
       
+      // Reply language directive based on current voice settings
+      const replyLocale = (this.personality?.voice_settings?.language || 'en-ZA') as string;
+      const langMap: Record<string, string> = {
+        'en-ZA': 'English (South Africa)',
+        'af-ZA': 'Afrikaans',
+        'zu-ZA': 'Zulu (isiZulu)',
+        'xh-ZA': 'Xhosa (isiXhosa)',
+        'nso-ZA': 'Northern Sotho (Sepedi)',
+      };
+      const langDirective = `REPLY LANGUAGE: Reply strictly in ${langMap[replyLocale] || 'English (South Africa)'} (${replyLocale}). If the user switches language, switch accordingly.`;
+      
       // Call AI service with streaming support
       const shouldStream = typeof onStreamChunk === 'function';
       const response = await this.callAIService({
         action: 'general_assistance',
         messages: this.buildMessageHistory(recentMessages, userInput),
-        context: `User role: ${this.profileManager.getUserProfile()?.role || 'educator'}`,
+        context: `User role: ${this.profileManager.getUserProfile()?.role || 'educator'}\n${langDirective}`,
         attachments,
         stream: shouldStream,
         onChunk: onStreamChunk,

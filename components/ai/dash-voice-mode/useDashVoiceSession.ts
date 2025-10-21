@@ -41,6 +41,9 @@ export interface DashVoiceSessionState {
   userTranscript: string;
   aiResponse: string;
   
+  // Visuals
+  audioLevel: number;
+  
   // Actions
   handleClose: () => Promise<void>;
   toggleMute: () => void;
@@ -64,6 +67,7 @@ export function useDashVoiceSession({
   const [errorMessage, setErrorMessage] = useState('');
   const [muted, setMuted] = useState(false);
   const [thinking, setThinking] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   
   const abortSpeechRef = useRef(false);
   const sessionRef = useRef<VoiceSession | null>(null);
@@ -98,6 +102,18 @@ export function useDashVoiceSession({
     return 'en';
   }, []);
   
+  // Helper to map to BCP-47
+  const toBCP47 = useCallback((code: string) => {
+    switch (code) {
+      case 'af': return 'af-ZA';
+      case 'zu': return 'zu-ZA';
+      case 'xh': return 'xh-ZA';
+      case 'nso': return 'nso-ZA';
+      case 'en':
+      default: return 'en-ZA';
+    }
+  }, []);
+  
   // Active language
   const activeLang = useMemo(() => {
     const uiLang = mapLang(i18n?.language);
@@ -123,6 +139,7 @@ export function useDashVoiceSession({
         type: 'assistant',
         content: text,
         timestamp: Date.now(),
+        metadata: { detected_language: activeLang },
       };
       
       // Mute is already set before calling speakText, so no need to mute again here
@@ -168,7 +185,7 @@ export function useDashVoiceSession({
       console.error('[useDashVoiceSession] TTS failed:', error);
       try { sessionRef.current?.setMuted?.(false); } catch {}
     };
-  }, [dashInstance]);
+  }, [dashInstance, activeLang]);
   
   // Handle transcript and send to AI
   const handleTranscript = useCallback(async (transcript: string) => {
@@ -374,6 +391,9 @@ export function useDashVoiceSession({
               if (__DEV__) console.log('[useDashVoiceSession] Partial:', partial);
               setUserTranscript(partial);
 
+              // Visual level bump for orb
+              try { setAudioLevel(Math.min(1, 0.3 + partial.length / 40)); } catch {}
+
               // Accumulate and start/reset 2s finalize timer
               lastPartialAtRef.current = Date.now();
               partialBufferRef.current = partial;
@@ -433,10 +453,52 @@ export function useDashVoiceSession({
             
             // Start a one-shot timer: if no partial is received within 3s, show an error hint
             if (initialDetectTimerRef.current) clearTimeout(initialDetectTimerRef.current);
-            initialDetectTimerRef.current = setTimeout(() => {
+            initialDetectTimerRef.current = setTimeout(async () => {
               try {
                 if (!cancelled && !speaking && lastPartialAtRef.current === 0) {
-                  setErrorMessage('No audio detected. Check mic permissions and speak clearly close to the mic.');
+                  // Attempt a runtime fallback to React Native Voice if Expo SR produced no partials
+                  try {
+                    const { reactNativeVoiceProvider } = await import('@/lib/voice/reactNativeVoiceProvider');
+                    const available = await reactNativeVoiceProvider.isAvailable().catch(() => false);
+                    if (!available) {
+                      setErrorMessage('No audio detected. Check mic permissions and speak clearly close to the mic.');
+                      return;
+                    }
+                    const fallback = reactNativeVoiceProvider.createSession();
+                    try { await session.stop(); } catch {}
+                    sessionRef.current = fallback;
+                    const started = await fallback.start({
+                      language: activeLang,
+                      onPartial: (t: string) => {
+                        if (mutedRef.current || inputGateRef.current) return;
+                        const p = String(t || '').trim();
+                        setUserTranscript(p);
+                        try { setAudioLevel(Math.min(1, 0.3 + p.length / 40)); } catch {}
+                        lastPartialAtRef.current = Date.now();
+                        partialBufferRef.current = p;
+                        clearFinalizeTimer();
+                        finalizeTimerRef.current = setTimeout(finalizeFromSilence, 2000);
+                      },
+                      onFinal: async (t: string) => {
+                        if (mutedRef.current || inputGateRef.current) return;
+                        clearFinalizeTimer();
+                        partialBufferRef.current = '';
+                        setThinking(true);
+                        try { preflightKnowledgeCheck(String(t || '').trim()); } catch {}
+                        if (processedRef.current || abortSpeechRef.current) return;
+                        const transcript = String(t || '').trim();
+                        if (!transcript) return;
+                        setUserTranscript(transcript);
+                        await handleTranscript(transcript);
+                        setThinking(false);
+                      },
+                    });
+                    if (!started) {
+                      setErrorMessage('No audio detected. Check mic permissions and speak clearly close to the mic.');
+                    }
+                  } catch {
+                    setErrorMessage('No audio detected. Check mic permissions and speak clearly close to the mic.');
+                  }
                 }
               } catch {}
             }, 3000);
@@ -486,6 +548,22 @@ export function useDashVoiceSession({
     };
   }, [visible, activeLang, speaking, dashInstance, handleTranscript, clearFinalizeTimer, finalizeFromSilence]);
   
+  // Simple decay for orb audio level
+  useEffect(() => {
+    const id = setInterval(() => {
+      setAudioLevel((prev) => Math.max(0, prev - 0.05));
+    }, 120);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keep Dash internal language in sync for reply consistency
+  useEffect(() => {
+    (async () => {
+      if (!dashInstance) return;
+      try { await dashInstance.setLanguage?.(toBCP47(activeLang)); } catch {}
+    })();
+  }, [dashInstance, activeLang, toBCP47]);
+  
   // Toggle mute
   const toggleMute = useCallback(() => {
     const newMuted = !muted;
@@ -530,6 +608,10 @@ export function useDashVoiceSession({
     errorMessage,
     userTranscript,
     aiResponse,
+    
+    // visuals
+    audioLevel,
+    
     handleClose,
     toggleMute,
     muted,

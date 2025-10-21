@@ -240,8 +240,11 @@ export class DashAIAssistant implements IDashAIAssistant {
       return;
     }
     
-    // Delegate to core speakText with callbacks
-    return this.core.speakText(text, callbacks);
+    // Language override if provided in metadata
+    const langOverride = (message as any)?.metadata?.detected_language as string | undefined;
+    
+    // Delegate to core speakText with callbacks and language override
+    return this.core.speakText(text, callbacks, langOverride ? { language: langOverride } : undefined);
   }
 
   // Convenience shim

@@ -22,6 +22,7 @@ export interface DashVoiceOrbProps {
   isSpeaking: boolean;
   isThinking: boolean;
   isMuted: boolean;
+  audioLevel?: number;
 }
 
 export const DashVoiceOrb: React.FC<DashVoiceOrbProps> = ({
@@ -29,6 +30,7 @@ export const DashVoiceOrb: React.FC<DashVoiceOrbProps> = ({
   isSpeaking,
   isThinking,
   isMuted,
+  audioLevel = 0,
 }) => {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   
@@ -46,7 +48,7 @@ export const DashVoiceOrb: React.FC<DashVoiceOrbProps> = ({
         isListening={isListening && !isSpeaking}
         isSpeaking={isSpeaking}
         isThinking={isThinking}
-        audioLevel={0}  // TODO: Wire up actual audio level from voice session
+        audioLevel={audioLevel}
       />
       
       {/* Status Icon Overlay */}

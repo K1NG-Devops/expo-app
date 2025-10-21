@@ -26,7 +26,7 @@ import type { VoiceProvider, VoiceSession, VoiceStartOptions } from './unifiedPr
 
 // Map our language codes to React Native Voice locale codes
 const LANGUAGE_MAP: Record<string, string> = {
-  'en': 'en-US',
+  'en': 'en-ZA',
   'af': 'af-ZA',
   'zu': 'zu-ZA',
   'xh': 'xh-ZA',
@@ -35,9 +35,9 @@ const LANGUAGE_MAP: Record<string, string> = {
 };
 
 function mapLanguageCode(lang?: string): string {
-  if (!lang) return 'en-US';
+  if (!lang) return 'en-ZA';
   const code = lang.toLowerCase().split('-')[0];
-  return LANGUAGE_MAP[code] || 'en-US';
+  return LANGUAGE_MAP[code] || 'en-ZA';
 }
 
 class ReactNativeVoiceSession implements VoiceSession {
