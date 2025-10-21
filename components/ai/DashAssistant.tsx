@@ -36,7 +36,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
-import { TierBadge } from '@/components/ai/TierBadge';
+import { TierBadge } from '@/components/ui/TierBadge';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useVoiceUI } from '@/components/voice/VoiceUIController';
 import { assertSupabase } from '@/lib/supabase';
