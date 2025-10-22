@@ -3,22 +3,23 @@
  * 
  * Full-screen voice conversation mode with:
  * - Holographic orb animation (Society 5.0 design)
- * - Real-time transcription (Azure Speech SDK on mobile)
- * - Auto-speak responses
+ * - Real-time transcription (expo-speech-recognition + Whisper)
+ * - Auto-speak responses (Azure TTS + expo-speech fallback)
  * - Clean, minimal UI
  * 
  * Architecture:
- * - Uses custom hook (useDashVoiceSession) for session management
- * - Modular components for UI elements
- * - Azure Speech SDK on mobile (<1s init, ~98% reliability)
- * - Deepgram on web (handled in web branch)
+ * - Uses refactored hook (useDashVoiceSession-new) for session management
+ * - Unified language synchronization
+ * - Progressive TTS (speaks as sentences arrive)
+ * - No phantom responses (manual start)
  */
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { IDashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
-import { useDashVoiceSession } from './dash-voice-mode/useDashVoiceSession';
+import { useDashVoiceSession } from './dash-voice-mode/useDashVoiceSession-new';
 import { DashVoiceOrb } from './dash-voice-mode/DashVoiceOrb';
 import { DashVoiceControls } from './dash-voice-mode/DashVoiceControls';
 import { DashVoiceStatus } from './dash-voice-mode/DashVoiceStatus';
@@ -39,21 +40,27 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
   onMessageSent,
   forcedLanguage
 }) => {
+  
   const { isDark } = useTheme();
   
-  // Use custom hook for session management
+  // Use refactored hook for session management
   const {
-    ready,
-    isConnected,
-    speaking,
+    status,
+    partialTranscript,
+    finalTranscript,
+    aiPartial,
+    aiFinal,
     errorMessage,
-    userTranscript,
-    aiResponse,
-    handleClose: sessionHandleClose,
-    toggleMute,
-    muted,
-    thinking,
     audioLevel,
+    languageProfile,
+    startListening,
+    stopListening,
+    cancelAll,
+    handleClose: sessionHandleClose,
+    ready,
+    isListening,
+    isSpeaking,
+    isThinking,
   } = useDashVoiceSession({
     visible,
     dashInstance,
@@ -73,50 +80,51 @@ export const DashVoiceMode: React.FC<DashVoiceModeProps> = ({
     try { 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); 
     } catch {}
-    await dashInstance?.stopSpeaking?.();
+    await cancelAll();
+  };
+  
+  // Start listening handler
+  const handleStartListening = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch {}
+    await startListening();
   };
   
   // Early return if not visible
   if (!visible) return null;
   
-  // Compute UI state
-  const isListening = ready && isConnected && !speaking;
-  const isThinking = !ready || !isConnected;
-  
-  // Determine status for UI
-  const getStatus = (): 'idle' | 'listening' | 'thinking' | 'speaking' | 'error' => {
-    if (errorMessage) return 'error';
-    if (speaking) return 'speaking';
-    if (thinking) return 'thinking';
-    if (isListening) return 'listening';
-    if (isThinking) return 'thinking';
-    return 'idle';
-  };
+  // Display transcript (show AI response while speaking, user transcript while listening)
+  const displayTranscript = isSpeaking 
+    ? (aiPartial || aiFinal) 
+    : (partialTranscript || finalTranscript);
 
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#000' : '#fff' }]}>
+      <StatusBar style={isDark ? 'light' : 'dark'} animated={true} backgroundColor={isDark ? '#000' : '#fff'} />
+      
       {/* Holographic Orb */}
       <DashVoiceOrb
         isListening={isListening}
-        isSpeaking={speaking}
+        isSpeaking={isSpeaking}
         isThinking={isThinking}
-        isMuted={muted}
+        isMuted={false}
         audioLevel={audioLevel}
       />
       
       {/* Status and Transcript Display */}
       <DashVoiceStatus
-        status={getStatus()}
-        partialTranscript={userTranscript}
-        finalTranscript={aiResponse}
+        status={status}
+        partialTranscript={displayTranscript}
+        finalTranscript={displayTranscript}
         errorMessage={errorMessage}
       />
       
       {/* Control Buttons */}
       <DashVoiceControls
-        isMuted={muted}
-        canStop={speaking}
-        onToggleMute={toggleMute}
+        isMuted={false}
+        canStop={isSpeaking || isListening}
+        onToggleMute={status === 'idle' ? handleStartListening : stopListening}
         onStop={handleStop}
         onClose={handleClose}
       />
