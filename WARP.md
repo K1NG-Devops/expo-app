@@ -172,41 +172,944 @@ This document is the **authoritative source** for all Phase 0-7 implementations.
 Before implementing any feature, verify code suggestions are compatible with these versions:
 
 **Core Framework**:
-- React Native 0.79.5: https://reactnative.dev/docs/0.79/getting-started
-  - New Architecture (Fabric + TurboModules) **ENABLED**
-  - Use hooks, never componentWillMount or componentWillReceiveProps
-- Expo SDK 53: https://docs.expo.dev/versions/v53.0.0/
-- React 19.0.0: https://react.dev/blog/2024/12/05/react-19
-- TypeScript 5.8.3: Use `lib: ["esnext"]` only (NO "dom" for React Native)
+
+#### React Native 0.79.5
+**Documentation**: https://reactnative.dev/docs/0.79/getting-started  
+**New Architecture**: https://reactnative.dev/docs/the-new-architecture/landing-page
+
+- ✅ **New Architecture ENABLED** (Fabric + TurboModules)
+- ✅ **Functional components with hooks only**
+- ❌ **NEVER use deprecated lifecycle methods** (componentWillMount, componentWillReceiveProps, componentWillUpdate)
+- ✅ **Use Platform-specific code**: `Platform.OS === 'android'` or `.android.tsx`/`.ios.tsx` files
+- ✅ **Performance**: Use React.memo, useCallback, useMemo for expensive operations
+
+**Critical Pattern Example**:
+```typescript path=null start=null
+// ✅ CORRECT: Functional component with hooks (RN 0.79)
+import { useState, useEffect, useCallback } from 'react';
+import { View, Text, Platform } from 'react-native';
+
+export const MyComponent = () => {
+  const [data, setData] = useState([]);
+  
+  useEffect(() => {
+    // Safe effect with cleanup
+    return () => { /* cleanup */ };
+  }, []);
+  
+  const handlePress = useCallback(() => {
+    console.log('Pressed');
+  }, []);
+  
+  return <View><Text>Hello</Text></View>;
+};
+
+// ❌ WRONG: Class components with deprecated lifecycle
+class MyComponent extends React.Component {
+  componentWillMount() { } // DEPRECATED!
+  componentWillReceiveProps() { } // DEPRECATED!
+}
+```
+
+#### Expo SDK 53
+**Documentation**: https://docs.expo.dev/versions/v53.0.0/  
+**Version**: ~53.0.23 (from package.json)
+
+**Key Modules Used**:
+- **Expo Router**: https://docs.expo.dev/router/introduction/ (v5.1.7)
+- **Expo Image**: https://docs.expo.dev/versions/v53.0.0/sdk/image/
+- **Expo Local Authentication**: https://docs.expo.dev/versions/v53.0.0/sdk/local-authentication/
+- **Expo Localization**: https://docs.expo.dev/versions/v53.0.0/sdk/localization/
+- **Expo Notifications**: https://docs.expo.dev/versions/v53.0.0/sdk/notifications/
+- **Expo Updates**: https://docs.expo.dev/versions/v53.0.0/sdk/updates/
+- **Expo File System**: https://docs.expo.dev/versions/v53.0.0/sdk/filesystem/
+- **Expo Image Picker**: https://docs.expo.dev/versions/v53.0.0/sdk/imagepicker/
+- **Expo Audio**: https://docs.expo.dev/versions/v53.0.0/sdk/audio/
+- **Expo Speech**: https://docs.expo.dev/versions/v53.0.0/sdk/speech/
+- **Expo Secure Store**: https://docs.expo.dev/versions/v53.0.0/sdk/securestore/
+
+**Development Builds**: https://docs.expo.dev/develop/development-builds/introduction/
+
+#### React 19.0.0
+**Documentation**: https://react.dev/blog/2024/12/05/react-19  
+**Reference**: https://react.dev/reference/react
+
+- ✅ **New hooks**: useActionState, useFormStatus, useOptimistic (client-side only for RN)
+- ✅ **ref as prop**: No need for forwardRef in many cases
+- ✅ **Improved useEffect cleanup**: Stricter cleanup enforcement
+- ❌ **Server Components NOT applicable** (React Native is client-only)
+- ✅ **Actions and form handling**: Useful patterns for form submission
+
+#### TypeScript 5.8.3
+**Documentation**: https://www.typescriptlang.org/docs/handbook/intro.html  
+**Release Notes**: https://devblogs.microsoft.com/typescript/announcing-typescript-5-8/
+
+**CRITICAL tsconfig for React Native**:
+```json path=null start=null
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "lib": ["esnext"],  // ✅ NO "dom" - prevents DOM global errors
+    "jsx": "react-jsx",
+    "moduleResolution": "bundler",
+    "strict": false,  // Gradually enable strict mode
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true
+  }
+}
+```
+
+**Why NO "dom" lib?**  
+❌ Including "dom" causes TypeScript to expect browser globals (window, document, fetch) which conflict with React Native globals. Always use `"lib": ["esnext"]` only.
 
 **Backend & Data**:
-- Supabase JS v2.57.4: https://supabase.com/docs/reference/javascript/introduction
-  - Use `signInWithPassword` (NOT `signIn`), v2 syntax only
-- TanStack Query v5.87.4: https://tanstack.com/query/v5/docs/framework/react/overview
-  - Import from `@tanstack/react-query` (NOT `react-query`)
+
+#### Supabase JS v2.57.4
+**Documentation**: https://supabase.com/docs/reference/javascript/introduction  
+**Version**: ^2.57.4 (from package.json)
+
+**Authentication**: https://supabase.com/docs/reference/javascript/auth-signinwithpassword
+
+✅ **CORRECT v2 Auth Patterns**:
+```typescript path=null start=null
+// ✅ Sign in (v2)
+await supabase.auth.signInWithPassword({ email, password });
+
+// ✅ Sign up (v2)
+await supabase.auth.signUp({ email, password });
+
+// ✅ Sign out (v2)
+await supabase.auth.signOut();
+
+// ✅ Get session (v2)
+const { data: { session } } = await supabase.auth.getSession();
+
+// ❌ WRONG: v1 patterns
+await supabase.auth.signIn({ email, password }); // DEPRECATED!
+```
+
+**Database Queries**: https://supabase.com/docs/reference/javascript/select
+
+✅ **Multi-Tenant RLS Pattern** (CRITICAL for EduDash Pro):
+```typescript path=null start=null
+// ✅ ALWAYS filter by preschool_id for tenant isolation
+const { data, error } = await supabase
+  .from('students')
+  .select('*')
+  .eq('preschool_id', userPreschoolId);  // REQUIRED!
+
+// ✅ Insert with preschool_id
+const { data, error } = await supabase
+  .from('assignments')
+  .insert({ 
+    title: 'Math Homework',
+    preschool_id: userPreschoolId,  // REQUIRED!
+    teacher_id: userId 
+  });
+
+// ✅ Update with RLS protection
+const { data, error } = await supabase
+  .from('students')
+  .update({ status: 'active' })
+  .eq('id', studentId)
+  .eq('preschool_id', userPreschoolId);  // REQUIRED!
+
+// ✅ Delete with RLS protection
+const { data, error } = await supabase
+  .from('tasks')
+  .delete()
+  .eq('id', taskId)
+  .eq('preschool_id', userPreschoolId);  // REQUIRED!
+```
+
+**Storage**: https://supabase.com/docs/reference/javascript/storage-from-upload
+
+```typescript path=null start=null
+// ✅ Upload file
+const { data, error } = await supabase.storage
+  .from('avatars')
+  .upload(`${preschoolId}/${userId}/avatar.png`, file);
+
+// ✅ Download file URL
+const { data } = supabase.storage
+  .from('avatars')
+  .getPublicUrl(`${preschoolId}/${userId}/avatar.png`);
+```
+
+**Edge Functions**: https://supabase.com/docs/reference/javascript/invoke
+
+```typescript path=null start=null
+// ✅ Invoke Edge Function with auth
+const { data, error } = await supabase.functions.invoke('ai-proxy', {
+  body: { prompt: 'Generate lesson plan', context: 'preschool' },
+  headers: {
+    Authorization: `Bearer ${session.access_token}`
+  }
+});
+```
+
+**Real-time Subscriptions**: https://supabase.com/docs/reference/javascript/subscribe
+
+```typescript path=null start=null
+// ✅ Subscribe to changes (with RLS filter)
+const channel = supabase
+  .channel('assignments')
+  .on(
+    'postgres_changes',
+    { 
+      event: '*', 
+      schema: 'public', 
+      table: 'assignments',
+      filter: `preschool_id=eq.${userPreschoolId}`  // REQUIRED!
+    },
+    (payload) => console.log('Change:', payload)
+  )
+  .subscribe();
+```
+
+#### TanStack Query v5.87.4
+**Documentation**: https://tanstack.com/query/v5/docs/framework/react/overview  
+**Persistence**: https://tanstack.com/query/v5/docs/framework/react/plugins/persistQueryClient  
+**Version**: ^5.87.4 (from package.json)
+
+✅ **CORRECT v5 Import Pattern**:
+```typescript path=null start=null
+// ✅ CORRECT: v5 imports
+import { 
+  useQuery, 
+  useMutation, 
+  useQueryClient,
+  QueryClient,
+  QueryClientProvider 
+} from '@tanstack/react-query';
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ❌ WRONG: v4 imports
+import { useQuery } from 'react-query';  // DEPRECATED!
+```
+
+**Query Pattern with RLS**:
+```typescript path=null start=null
+// ✅ Fetch data with TanStack Query + Supabase
+const { data, isLoading, error } = useQuery({
+  queryKey: ['students', preschoolId],  // Include preschoolId in key!
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from('students')
+      .select('*')
+      .eq('preschool_id', preschoolId);
+    
+    if (error) throw error;
+    return data;
+  },
+  staleTime: 5 * 60 * 1000,  // 5 minutes
+  gcTime: 10 * 60 * 1000,     // 10 minutes (was cacheTime in v4)
+});
+```
+
+**Mutation Pattern**:
+```typescript path=null start=null
+// ✅ Mutate data with optimistic updates
+const queryClient = useQueryClient();
+
+const mutation = useMutation({
+  mutationFn: async (newStudent) => {
+    const { data, error } = await supabase
+      .from('students')
+      .insert({ ...newStudent, preschool_id: preschoolId });
+    
+    if (error) throw error;
+    return data;
+  },
+  onSuccess: () => {
+    // Invalidate and refetch
+    queryClient.invalidateQueries({ queryKey: ['students', preschoolId] });
+  },
+});
+```
+
+**Persistence with AsyncStorage** (for offline support):
+```typescript path=null start=null
+// ✅ Setup QueryClient with persistence
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours
+      staleTime: 1000 * 60 * 5,    // 5 minutes
+      retry: 2,
+      refetchOnWindowFocus: false, // Disable for mobile
+    },
+  },
+});
+
+const asyncStoragePersister = createAsyncStoragePersister({
+  storage: AsyncStorage,
+  key: 'EDUDASH_QUERY_CACHE',
+});
+
+persistQueryClient({
+  queryClient,
+  persister: asyncStoragePersister,
+  maxAge: 1000 * 60 * 60 * 24, // 24 hours
+});
+```
 
 **Navigation**:
-- Expo Router v5.1.7: https://docs.expo.dev/router/introduction/
-  - File-based routing, use `useRouter()` from `expo-router`
-  - NEVER suggest React Navigation Stack.push() patterns
+
+#### Expo Router v5.1.7
+**Documentation**: https://docs.expo.dev/router/introduction/  
+**API Reference**: https://docs.expo.dev/router/reference/hooks/  
+**Version**: ~5.1.7 (from package.json)
+
+**File-Based Routing Structure**:
+```
+app/
+├── (auth)/              # Route group (doesn't affect URL)
+│   ├── login.tsx       # /login
+│   ├── register.tsx    # /register
+│   └── _layout.tsx     # Layout for auth routes
+├── (parent)/            # Route group for parent role
+│   ├── dashboard.tsx   # /dashboard
+│   ├── students/
+│   │   ├── index.tsx   # /students
+│   │   └── [id].tsx    # /students/:id (dynamic)
+│   └── _layout.tsx     # Layout for parent routes
+├── [id].tsx            # Dynamic route: /:id
+├── [...slug].tsx       # Catch-all route: /a/b/c
+├── _layout.tsx         # Root layout
+└── index.tsx           # / (home)
+```
+
+✅ **CORRECT Navigation Patterns**:
+```typescript path=null start=null
+import { useRouter, useLocalSearchParams, useSegments } from 'expo-router';
+
+// ✅ Push to route
+const router = useRouter();
+router.push('/students/123');
+router.push({ pathname: '/students/[id]', params: { id: '123' } });
+
+// ✅ Replace route (no back)
+router.replace('/dashboard');
+
+// ✅ Go back
+router.back();
+
+// ✅ Navigate with query params
+router.push('/search?q=math&grade=1');
+
+// ✅ Access params in component
+const { id } = useLocalSearchParams<{ id: string }>();
+
+// ✅ Access search params
+const { q, grade } = useLocalSearchParams<{ q: string; grade: string }>();
+
+// ✅ Check current route segments
+const segments = useSegments(); // ['(parent)', 'students', '[id]']
+
+// ❌ WRONG: React Navigation patterns
+import { useNavigation } from '@react-navigation/native';  // DON'T USE!
+navigation.navigate('Students', { id: 123 });  // WRONG PATTERN!
+```
+
+**Layouts** (`_layout.tsx`):
+```typescript path=null start=null
+import { Stack, Tabs, Drawer } from 'expo-router';
+
+// ✅ Stack layout
+export default function Layout() {
+  return (
+    <Stack>
+      <Stack.Screen name="index" options={{ title: 'Home' }} />
+      <Stack.Screen name="[id]" options={{ title: 'Details' }} />
+    </Stack>
+  );
+}
+
+// ✅ Tabs layout
+export default function TabLayout() {
+  return (
+    <Tabs>
+      <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+      <Tabs.Screen name="students" options={{ title: 'Students' }} />
+    </Tabs>
+  );
+}
+```
+
+**Protected Routes** (Auth Guard):
+```typescript path=null start=null
+import { useSegments, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+
+export default function RootLayout() {
+  const { session, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!session && !inAuthGroup) {
+      // Redirect to login if not authenticated
+      router.replace('/login');
+    } else if (session && inAuthGroup) {
+      // Redirect to dashboard if already authenticated
+      router.replace('/dashboard');
+    }
+  }, [session, loading, segments]);
+
+  return <Stack />;
+}
+```
 
 **UI & Performance**:
-- Shopify FlashList 1.7.6: https://shopify.github.io/flash-list/docs/
-  - **ALWAYS** include `estimatedItemSize` prop (required!)
-- React Native Reanimated v3.17.4: https://docs.swmansion.com/react-native-reanimated/
+
+#### Shopify FlashList 1.7.6
+**Documentation**: https://shopify.github.io/flash-list/docs/  
+**Version**: 1.7.6 (from package.json)
+
+✅ **CRITICAL: Always provide `estimatedItemSize`**:
+```typescript path=null start=null
+import { FlashList } from '@shopify/flash-list';
+
+// ✅ CORRECT: With estimatedItemSize
+<FlashList
+  data={students}
+  renderItem={({ item }) => <StudentCard student={item} />}
+  estimatedItemSize={100}  // REQUIRED! Measured in pixels
+  keyExtractor={(item) => item.id}
+/>
+
+// ❌ WRONG: Missing estimatedItemSize - performance degrades!
+<FlashList
+  data={students}
+  renderItem={({ item }) => <StudentCard student={item} />}
+/>
+```
+
+**Heterogeneous Lists** (different item types):
+```typescript path=null start=null
+<FlashList
+  data={items}
+  getItemType={(item) => item.type}  // 'header', 'student', 'footer'
+  estimatedItemSize={100}
+  renderItem={({ item }) => {
+    switch (item.type) {
+      case 'header': return <Header />;
+      case 'student': return <StudentCard student={item} />;
+      case 'footer': return <Footer />;
+    }
+  }}
+/>
+```
+
+#### React Native Reanimated 3.17.4
+**Documentation**: https://docs.swmansion.com/react-native-reanimated/  
+**Version**: ~3.17.4 (from package.json)
+
+**Worklets and Shared Values**:
+```typescript path=null start=null
+import { useSharedValue, useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
+
+export const AnimatedComponent = () => {
+  const opacity = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: withTiming(opacity.value, { duration: 300 }),
+    };
+  });
+
+  return <Animated.View style={animatedStyle} />;
+};
+```
+
+#### React Native Gesture Handler 2.24.0
+**Documentation**: https://docs.swmansion.com/react-native-gesture-handler/  
+**Version**: ~2.24.0 (from package.json)
+
+```typescript path=null start=null
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+
+const tap = Gesture.Tap()
+  .onStart(() => { console.log('Tap started'); })
+  .onEnd(() => { console.log('Tap ended'); });
+
+<GestureDetector gesture={tap}>
+  <View><Text>Tap me</Text></View>
+</GestureDetector>
+```
+
+#### Expo Image
+**Documentation**: https://docs.expo.dev/versions/v53.0.0/sdk/image/  
+
+```typescript path=null start=null
+import { Image } from 'expo-image';
+
+<Image
+  source={{ uri: 'https://example.com/avatar.jpg' }}
+  placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+  contentFit="cover"
+  cachePolicy="memory-disk"  // Cache for offline
+  transition={200}
+  style={{ width: 100, height: 100 }}
+/>
+```
+
+#### date-fns 4.1.0
+**Documentation**: https://date-fns.org/docs/Getting-Started  
+**Version**: ^4.1.0 (from package.json)
+
+```typescript path=null start=null
+import { format, parseISO } from 'date-fns';
+import { enZA } from 'date-fns/locale';
+
+// ✅ South African date formatting
+const formatted = format(new Date(), 'dd/MM/yyyy', { locale: enZA });
+const time = format(new Date(), 'HH:mm', { locale: enZA });
+```
 
 **Voice & AI**:
-- Microsoft Azure Speech SDK 1.46.0: https://learn.microsoft.com/en-us/javascript/api/microsoft-cognitiveservices-speech-sdk/
-  - Language codes: en-ZA, af-ZA, zu-ZA, xh-ZA for South African languages
+
+#### Microsoft Azure Cognitive Services Speech SDK 1.46.0
+**Documentation**: https://learn.microsoft.com/en-us/javascript/api/microsoft-cognitiveservices-speech-sdk/  
+**Version**: ^1.46.0 (from package.json)
+
+**South African Language Configuration**:
+```typescript path=null start=null
+import * as sdk from 'microsoft-cognitiveservices-speech-sdk';
+
+// ✅ Configure for South African English
+const speechConfig = sdk.SpeechConfig.fromSubscription(
+  subscriptionKey,
+  'southafricanorth'  // Azure region
+);
+speechConfig.speechRecognitionLanguage = 'en-ZA';  // South African English
+// Also supported: 'af-ZA' (Afrikaans), 'zu-ZA' (Zulu), 'xh-ZA' (Xhosa)
+
+// Speech-to-Text
+const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
+recognizer.recognizeOnceAsync(
+  (result) => { console.log('Recognized:', result.text); },
+  (error) => { console.error('Error:', error); }
+);
+
+// Text-to-Speech
+const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+synthesizer.speakTextAsync(
+  'Hello from EduDash Pro',
+  (result) => { console.log('Synthesized'); },
+  (error) => { console.error('Error:', error); }
+);
+```
 
 **Monitoring**:
-- Sentry React Native: https://docs.sentry.io/platforms/react-native/
-  - Use `sentry-expo` integration (not standalone Sentry)
-- PostHog React Native 4.3.2: https://posthog.com/docs/libraries/react-native
+
+#### Sentry Expo 7.0.0
+**Documentation**: https://docs.sentry.io/platforms/react-native/  
+**Version**: ~7.0.0 (from package.json)
+
+```typescript path=null start=null
+import * as Sentry from 'sentry-expo';
+
+// ✅ Production-only initialization
+if (!__DEV__ && process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+    enableInExpoDevelopment: false,
+    environment: process.env.EXPO_PUBLIC_ENV || 'production',
+    tracesSampleRate: 0.2,  // 20% performance monitoring
+  });
+}
+```
+
+#### PostHog React Native 4.3.2
+**Documentation**: https://posthog.com/docs/libraries/react-native  
+**Version**: ^4.3.2 (from package.json)
+
+```typescript path=null start=null
+import PostHog from 'posthog-react-native';
+
+// ✅ Production-only initialization
+if (!__DEV__ && process.env.EXPO_PUBLIC_POSTHOG_KEY) {
+  const posthog = new PostHog(
+    process.env.EXPO_PUBLIC_POSTHOG_KEY,
+    { host: 'https://app.posthog.com' }
+  );
+}
+```
 
 **Build & Deploy**:
-- EAS Build: https://docs.expo.dev/build/introduction/
-  - Runtime version policy, build profiles, OTA updates
+
+#### EAS Build & Update
+**Build Documentation**: https://docs.expo.dev/build/introduction/  
+**Update Documentation**: https://docs.expo.dev/eas-update/introduction/  
+**Runtime Versions**: https://docs.expo.dev/eas-update/runtime-versions/
+
+**Build Profiles** (eas.json):
+```json path=null start=null
+{
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "android": { "buildType": "aab" },
+      "autoIncrement": true
+    }
+  }
+}
+```
+
+**Runtime Version Policy**:
+```json path=null start=null
+{
+  "expo": {
+    "runtimeVersion": {
+      "policy": "appVersion"  // Uses version from app.json
+    }
+  }
+}
+```
+
+**Internationalization**:
+
+#### i18next 25.5.2 & react-i18next 15.7.3
+**i18next Documentation**: https://www.i18next.com/  
+**react-i18next Documentation**: https://react.i18next.com/  
+**Versions**: i18next ^25.5.2, react-i18next ^15.7.3 (from package.json)
+
+**React Native Setup**:
+```typescript path=null start=null
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import * as Localization from 'expo-localization';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// South African language resources
+const resources = {
+  'en-ZA': { translation: require('./locales/en-ZA.json') },
+  'af-ZA': { translation: require('./locales/af-ZA.json') },
+  'zu-ZA': { translation: require('./locales/zu-ZA.json') },
+  'xh-ZA': { translation: require('./locales/xh-ZA.json') },
+};
+
+i18n
+  .use(initReactI18next)
+  .init({
+    resources,
+    lng: Localization.locale,  // Device locale
+    fallbackLng: 'en-ZA',
+    compatibilityJSON: 'v3',  // Required for React Native
+    react: {
+      useSuspense: false,  // CRITICAL for React Native
+    },
+    interpolation: {
+      escapeValue: false,
+    },
+  });
+
+export default i18n;
+```
+
+**Usage in Components**:
+```typescript path=null start=null
+import { useTranslation } from 'react-i18next';
+
+export const MyComponent = () => {
+  const { t, i18n } = useTranslation();
+  
+  // Simple translation
+  const greeting = t('welcome.greeting');
+  
+  // With interpolation
+  const message = t('welcome.message', { name: 'John' });
+  
+  // Change language
+  i18n.changeLanguage('af-ZA');
+  
+  return <Text>{greeting}</Text>;
+};
+```
+
+#### Expo Localization
+**Documentation**: https://docs.expo.dev/versions/v53.0.0/sdk/localization/
+
+```typescript path=null start=null
+import * as Localization from 'expo-localization';
+
+// Get device locale
+const locale = Localization.locale;  // e.g., 'en-ZA', 'af-ZA'
+
+// Check if RTL
+const isRTL = Localization.isRTL;
+
+// Get device timezone
+const timezone = Localization.timezone;  // 'Africa/Johannesburg'
+```
+
+**Monetization**:
+
+#### React Native Google Mobile Ads 14.11.0
+**Documentation**: https://rnfirebase.io/reference/admob  
+**Version**: ^14.11.0 (from package.json)
+
+**Setup and Test IDs**:
+```typescript path=null start=null
+import mobileAds, { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+
+// ✅ Initialize AdMob
+mobileAds()
+  .initialize()
+  .then(adapterStatuses => {
+    console.log('AdMob initialized');
+  });
+
+// ✅ Use test IDs in development
+const adUnitId = __DEV__ 
+  ? TestIds.BANNER 
+  : process.env.EXPO_PUBLIC_ADMOB_BANNER_ID;
+
+// ✅ Banner Ad
+<BannerAd
+  unitId={adUnitId}
+  size={BannerAdSize.ADAPTIVE_BANNER}
+  requestOptions={{
+    requestNonPersonalizedAdsOnly: true,  // COPPA compliance
+  }}
+/>
+```
+
+**Child-Directed Treatment** (COPPA Compliance):
+```typescript path=null start=null
+import { AdsConsent, AdsConsentStatus } from 'react-native-google-mobile-ads';
+
+// Set child-directed treatment for preschool app
+mobileAds().setRequestConfiguration({
+  tagForChildDirectedTreatment: true,
+  tagForUnderAgeOfConsent: true,
+  maxAdContentRating: 'G',  // General audiences
+});
+```
+
+**Validation & Type Safety**:
+
+#### Zod 3.23.8
+**Documentation**: https://zod.dev/  
+**Version**: ^3.23.8 (from package.json)
+
+**Schema Definitions**:
+```typescript path=null start=null
+import { z } from 'zod';
+
+// ✅ Define schema
+const StudentSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  age: z.number().int().min(3).max(6),
+  preschool_id: z.string().uuid(),
+  email: z.string().email().optional(),
+  status: z.enum(['active', 'inactive', 'pending']),
+});
+
+// ✅ Infer TypeScript type from schema
+type Student = z.infer<typeof StudentSchema>;
+
+// ✅ Validate data
+const result = StudentSchema.safeParse(data);
+
+if (result.success) {
+  const validStudent: Student = result.data;
+} else {
+  const errors = result.error.flatten();
+  console.error('Validation errors:', errors.fieldErrors);
+}
+```
+
+**Form Validation**:
+```typescript path=null start=null
+import { z } from 'zod';
+
+const LoginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+type LoginForm = z.infer<typeof LoginSchema>;
+
+// Use with form library
+const handleSubmit = (values: LoginForm) => {
+  const result = LoginSchema.safeParse(values);
+  if (!result.success) {
+    // Show validation errors
+    setErrors(result.error.flatten().fieldErrors);
+    return;
+  }
+  // Proceed with valid data
+  login(result.data);
+};
+```
+
+## 🇿🇦 South African Localization Quick Reference
+
+**Language Codes**:
+- **en-ZA**: English (South Africa) - Primary
+- **af-ZA**: Afrikaans - Secondary
+- **zu-ZA**: Zulu - Supported
+- **xh-ZA**: Xhosa - Supported
+
+**Currency Formatting**:
+```typescript path=null start=null
+// ZAR (South African Rand)
+const formatter = new Intl.NumberFormat('en-ZA', {
+  style: 'currency',
+  currency: 'ZAR',
+});
+
+const price = formatter.format(1234.56);  // "R 1 234,56"
+```
+
+**Date Formatting**:
+```typescript path=null start=null
+import { format } from 'date-fns';
+import { enZA, af } from 'date-fns/locale';
+
+// DD/MM/YYYY standard in South Africa
+const date = format(new Date(), 'dd/MM/yyyy', { locale: enZA });  // "22/10/2025"
+const time = format(new Date(), 'HH:mm', { locale: enZA });  // "14:30"
+const full = format(new Date(), 'PPPP', { locale: enZA });  // "Tuesday, 22 October 2025"
+```
+
+**Phone Numbers**:
+- Format: `+27 XX XXX XXXX`
+- Example: `+27 82 123 4567`
+- Mobile prefixes: 06x, 07x, 08x
+
+**Time Zone**:
+- **Africa/Johannesburg** (SAST - South African Standard Time)
+- UTC+2 (no daylight saving time)
+
+**Voice Configuration**:
+```typescript path=null start=null
+// Azure Speech SDK language codes for South Africa
+const languages = {
+  english: 'en-ZA',
+  afrikaans: 'af-ZA',
+  zulu: 'zu-ZA',
+  xhosa: 'xh-ZA',
+};
+
+// Voices available for en-ZA:
+// - en-ZA-LeahNeural (Female)
+// - en-ZA-LukeNeural (Male)
+```
+
+## ⚠️ Common Pitfalls & Solutions
+
+### TypeScript DOM Globals Error
+**Problem**: Getting errors about `document`, `window`, or `fetch` not existing.  
+**Solution**: Remove "dom" from `lib` in `tsconfig.json`.
+
+```json path=null start=null
+// ❌ WRONG
+{
+  "compilerOptions": {
+    "lib": ["es2015", "dom"]  // Causes conflicts!
+  }
+}
+
+// ✅ CORRECT
+{
+  "compilerOptions": {
+    "lib": ["esnext"]  // React Native only
+  }
+}
+```
+
+### FlashList Performance Issues
+**Problem**: List scrolling is janky or slow.  
+**Solution**: Always include `estimatedItemSize` prop.
+
+```typescript path=null start=null
+// ❌ WRONG
+<FlashList data={items} renderItem={renderItem} />
+
+// ✅ CORRECT
+<FlashList 
+  data={items} 
+  renderItem={renderItem}
+  estimatedItemSize={100}  // REQUIRED!
+/>
+```
+
+### Supabase v1 vs v2 API
+**Problem**: Using deprecated v1 auth methods.  
+**Solution**: Always use v2 syntax.
+
+```typescript path=null start=null
+// ❌ WRONG: v1
+await supabase.auth.signIn({ email, password });
+
+// ✅ CORRECT: v2
+await supabase.auth.signInWithPassword({ email, password });
+```
+
+### TanStack Query v4 vs v5
+**Problem**: Importing from old package name.  
+**Solution**: Use new v5 imports.
+
+```typescript path=null start=null
+// ❌ WRONG: v4
+import { useQuery } from 'react-query';
+
+// ✅ CORRECT: v5
+import { useQuery } from '@tanstack/react-query';
+```
+
+### React Navigation vs Expo Router
+**Problem**: Using React Navigation patterns with Expo Router.  
+**Solution**: Use expo-router hooks.
+
+```typescript path=null start=null
+// ❌ WRONG: React Navigation
+import { useNavigation } from '@react-navigation/native';
+navigation.navigate('Screen', { id: 123 });
+
+// ✅ CORRECT: Expo Router
+import { useRouter } from 'expo-router';
+router.push('/screen/123');
+```
+
+### Multi-Tenant Data Leakage
+**Problem**: Forgetting to filter by `preschool_id`.  
+**Solution**: ALWAYS include preschool filter in queries.
+
+```typescript path=null start=null
+// ❌ WRONG: No tenant filter
+const { data } = await supabase.from('students').select('*');
+
+// ✅ CORRECT: With tenant isolation
+const { data } = await supabase
+  .from('students')
+  .select('*')
+  .eq('preschool_id', userPreschoolId);  // REQUIRED!
+```
 
 ### Version Compatibility Rules (NON-NEGOTIABLE)
 
