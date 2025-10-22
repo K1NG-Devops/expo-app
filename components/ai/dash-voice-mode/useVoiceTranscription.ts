@@ -20,7 +20,7 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import * as ExpoSpeechRecognition from 'expo-speech-recognition';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
@@ -64,11 +64,40 @@ export function useVoiceTranscription(options: UseVoiceTranscriptionOptions) {
   });
   
   // Refs for cleanup and state management
-  const recognitionRef = useRef<any>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastPartialRef = useRef<string>('');
   const isStoppingRef = useRef(false);
+  const isRecognitionActiveRef = useRef(false);
+  
+  // Expo Speech Recognition event handler (must be at component level)
+  const { state: recognitionState, error: recognitionError } = useSpeechRecognitionEvent((event) => {
+    if (!isRecognitionActiveRef.current || isStoppingRef.current) return;
+    
+    if (event.results && event.results.length > 0) {
+      const result = event.results[0];
+      if (result) {
+        const transcript = result.transcript;
+        
+        if (result.isFinal) {
+          handleFinal(transcript);
+        } else {
+          handlePartial(transcript);
+        }
+      }
+    }
+  });
+  
+  // Handle recognition errors
+  useEffect(() => {
+    if (recognitionError && isRecognitionActiveRef.current) {
+      console.error('[Transcription] Recognition error:', recognitionError);
+      // Attempt Whisper fallback
+      fallbackToWhisper().catch(err => {
+        console.error('[Transcription] Fallback also failed:', err);
+      });
+    }
+  }, [recognitionError]);
   
   // Permissions check
   const checkPermissions = useCallback(async (): Promise<boolean> => {
@@ -84,7 +113,7 @@ export function useVoiceTranscription(options: UseVoiceTranscriptionOptions) {
       }
       
       // Check speech recognition availability
-      const available = await ExpoSpeechRecognition.getStateAsync();
+      const available = await ExpoSpeechRecognitionModule.getStateAsync();
       if (!available) {
         if (__DEV__) {
           console.warn('[Transcription] Speech recognition not available, will use Whisper fallback');
@@ -274,30 +303,9 @@ export function useVoiceTranscription(options: UseVoiceTranscriptionOptions) {
       
       // Start speech recognition
       try {
-        recognitionRef.current = ExpoSpeechRecognition.useSpeechRecognitionEvent((event) => {
-          if (isStoppingRef.current) return;
-          
-          if (event.results) {
-            const results = event.results[0];
-            if (results) {
-              const transcript = results.transcript;
-              
-              if (results.isFinal) {
-                handleFinal(transcript);
-              } else {
-                handlePartial(transcript);
-              }
-            }
-          }
-          
-          if (event.error) {
-            console.error('[Transcription] Recognition error:', event.error);
-            // Attempt Whisper fallback
-            fallbackToWhisper();
-          }
-        });
+        isRecognitionActiveRef.current = true;
         
-        await ExpoSpeechRecognition.start({
+        await ExpoSpeechRecognitionModule.start({
           lang: options.locale || 'en-ZA',
           interimResults: true,
           maxAlternatives: 1,
@@ -311,6 +319,7 @@ export function useVoiceTranscription(options: UseVoiceTranscriptionOptions) {
         
       } catch (error) {
         console.error('[Transcription] Speech recognition failed, using Whisper:', error);
+        isRecognitionActiveRef.current = false;
         // Immediately fallback to Whisper
         await fallbackToWhisper();
       }
@@ -339,9 +348,12 @@ export function useVoiceTranscription(options: UseVoiceTranscriptionOptions) {
         silenceTimerRef.current = null;
       }
       
+      // Mark recognition as inactive
+      isRecognitionActiveRef.current = false;
+      
       // Stop speech recognition
       try {
-        await ExpoSpeechRecognition.stop();
+        await ExpoSpeechRecognitionModule.stop();
       } catch (error) {
         // Ignore stop errors (already stopped)
         if (__DEV__) console.warn('[Transcription] Stop recognition warning:', error);
