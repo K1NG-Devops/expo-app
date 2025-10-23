@@ -1,70 +1,60 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Platform, ScrollView, View, Text, RefreshControl, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Platform, ScrollView, View, Text, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { router } from 'expo-router';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import AdBanner from '@/components/ui/AdBanner';
 import { NativeAdCard } from '@/components/ads/NativeAdCard';
 import { PLACEMENT_KEYS } from '@/lib/ads/placements';
 import ErrorBanner from '@/components/ui/ErrorBanner';
-// IconSymbol import removed - now using enhanced components
-// Removed unused imports: WhatsAppStatusChip, WhatsAppQuickAction
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import OfflineBanner from '@/components/sync/OfflineBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
-import { getCurrentLanguage, changeLanguage, getAvailableLanguages } from '@/lib/i18n';
-// import claudeService from '@/lib/ai-gateway/claude-service';
-import { useHomeworkGenerator } from '@/hooks/useHomeworkGenerator';
+import { getCurrentLanguage } from '@/lib/i18n';
 import { track } from '@/lib/analytics';
-// Colors import removed - now using theme colors
-import EnhancedHeader from './EnhancedHeader';
-// import SimpleEnhancedHeader from './SimpleEnhancedHeader';
 import { EnhancedStatsRow } from './EnhancedStats';
 import { EnhancedQuickActions } from './EnhancedQuickActions';
 import SkeletonLoader from '../ui/SkeletonLoader';
-import { RoleBasedHeader } from '../RoleBasedHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useUnreadMessageCount } from '@/hooks/useParentMessaging';
 import { usePOPStats } from '@/hooks/usePOPUploads';
-import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
-// import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
-
-// WhatsApp integration
-// Prefer real hook when available; otherwise gracefully degrade
+import { PendingRegistrationRequests } from './PendingRegistrationRequests';
+import { HomeworkModal } from './HomeworkModal';
 import { useWhatsAppConnection as useRealWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import { useParentDashboardData } from '@/hooks/useParentDashboardData';
 
-const getMockWhatsAppConnection = () => ({
-  connectionStatus: { isConnected: false, isLoading: false, error: undefined },
-  isLoading: false,
-  error: undefined,
-  optIn: async () => {},
-  optOut: () => {},
-  sendTestMessage: () => {},
-  isOptingIn: false,
-  isOptingOut: false,
-  isSendingTest: false,
-  getWhatsAppDeepLink: () => null,
-  formatPhoneNumber: (phone: string) => phone,
-  isWhatsAppEnabled: () => false,
-  optInError: null,
-  optOutError: null,
-  testMessageError: null,
-});
+// Extracted components
+import { ChildSwitcher } from './parent/ChildSwitcher';
+import { ChildCard } from './parent/ChildCard';
+import { LanguageModal } from './parent/LanguageModal';
+import { WelcomeSection } from './parent/WelcomeSection';
+import { ParentInsightsCard } from '@/components/parent/ParentInsightsCard';
+import { InteractiveLessonsWidget } from '@/components/parent/InteractiveLessonsWidget';
+
+// Extracted helpers
+import { 
+  getMockWhatsAppConnection, 
+  getAttendanceColor,
+  getAttendanceIcon 
+} from '@/lib/dashboard/parentDashboardHelpers';
+
+// Proactive insights service
+import { ProactiveInsightsService } from '@/services/ProactiveInsightsService';
+import type { ProactiveInsight, InteractiveLesson } from '@/services/ProactiveInsightsService';
 
 function useTier() {
-  // Temporary: derive from env or profiles; default to 'free'
-  const [tier, setTier] = useState<'free' | 'pro' | 'enterprise'>('free');
+  // Parent-specific tiers: free, parent-starter, parent-plus
+  const [tier, setTier] = useState<'free' | 'parent-starter' | 'parent-plus'>('free');
   useEffect(() => {
     const forced = (process.env.EXPO_PUBLIC_FORCE_TIER || '').toLowerCase();
-    if (forced === 'pro' || forced === 'enterprise') setTier(forced as any);
+    if (['parent-starter', 'parent-plus'].includes(forced)) setTier(forced as any);
     (async () => {
       try {
-const { data } = await assertSupabase().auth.getUser();
+        const { data } = await assertSupabase().auth.getUser();
         const roleTier = (data.user?.user_metadata as any)?.subscription_tier as string | undefined;
-        if (roleTier === 'pro' || roleTier === 'enterprise') setTier(roleTier as any);
+        if (roleTier && ['parent-starter', 'parent-plus'].includes(roleTier)) setTier(roleTier as any);
       } catch (error) {
         console.warn('Failed to get tier from user metadata:', error);
       }
@@ -73,81 +63,6 @@ const { data } = await assertSupabase().auth.getUser();
   return tier;
 }
 
-// Child Switcher Component
-interface ChildSwitcherProps {
-  children: any[];
-  activeChildId: string | null;
-  onChildChange: (childId: string) => void;
-}
-
-const ChildSwitcher: React.FC<ChildSwitcherProps> = ({ children, activeChildId, onChildChange }) => {
-  const { theme } = useTheme();
-  const { t } = useTranslation();
-
-  if (children.length <= 1) return null;
-
-  return (
-    <View style={{
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-      shadowColor: theme.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 2,
-    }}>
-      <Text style={{
-        fontSize: 14,
-        fontWeight: '600',
-        color: theme.text,
-        marginBottom: 12,
-      }}>{t('parent.selectChild')}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-          {children.map((child) => {
-            const isActive = child.id === activeChildId;
-            return (
-              <TouchableOpacity
-                key={child.id}
-                style={{
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 20,
-                  backgroundColor: isActive ? theme.primary : theme.elevated,
-                  borderWidth: isActive ? 0 : 1,
-                  borderColor: theme.border,
-                }}
-                onPress={() => onChildChange(child.id)}
-              >
-                <Text style={{
-                  fontSize: 14,
-                  fontWeight: isActive ? '600' : '500',
-                  color: isActive ? theme.onPrimary : theme.text,
-                }}>
-                  {child.firstName} {child.lastName}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-          <TouchableOpacity
-            onPress={() => router.push('/screens/parent-children')}
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: theme.elevated,
-              borderWidth: 1,
-              borderColor: theme.border,
-            }}
-          >
-            <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text }}>{t('common.viewAll')}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </View>
-  );
-};
 
 export default function ParentDashboard() {
   const { t } = useTranslation();
@@ -155,257 +70,76 @@ export default function ParentDashboard() {
   const { user, profile } = useAuth();
   const { data: unreadMessageCount = 0 } = useUnreadMessageCount();
   const [refreshing, setRefreshing] = useState(false);
-const [showHomeworkModal, setShowHomeworkModal] = useState(false);
+  const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-  const [usage, setUsage] = useState<{ ai_help: number; ai_lessons: number; tutoring_sessions: number }>({ ai_help: 0, ai_lessons: 0, tutoring_sessions: 0 });
   const [limits, setLimits] = useState<{ ai_help: number | 'unlimited'; ai_lessons: number | 'unlimited'; tutoring_sessions: number | 'unlimited' }>({ ai_help: 10, ai_lessons: 5, tutoring_sessions: 2 });
-  const [children, setChildren] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const tier = useTier();
+  
+  // Proactive insights state
+  const [insights, setInsights] = useState<ProactiveInsight[]>([]);
+  const [interactiveLessons, setInteractiveLessons] = useState<InteractiveLesson[]>([]);
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  
+  // Custom hook for dashboard data
+  const {
+    children,
+    childrenCards,
+    activeChildId,
+    setActiveChildId,
+    urgentMetrics,
+    setUrgentMetrics,
+    usage,
+    loading,
+    error,
+    setError,
+    loadDashboardData,
+  } = useParentDashboardData();
   
   // WhatsApp integration
   const realWhatsApp = useRealWhatsAppConnection();
   const whatsApp = realWhatsApp || getMockWhatsAppConnection();
 
-  // Create profile initials for avatar
-
   const isAndroid = Platform.OS === 'android';
   const adsEnabled = process.env.EXPO_PUBLIC_ENABLE_ADS !== '0';
   const showBanner = isAndroid && adsEnabled && tier === 'free';
-
-  // Load dashboard data
-  const [childrenCards, setChildrenCards] = useState<any[]>([]);
-  const [activeChildId, setActiveChildId] = useState<string | null>(null);
   
-  // POP stats hook - must be after activeChildId is declared
+  // POP stats hook
   const { data: popStats } = usePOPStats(activeChildId || undefined);
-  const [urgentMetrics, setUrgentMetrics] = useState<{
-    feesDue: { amount: number; dueDate: string | null; overdue: boolean } | null;
-    unreadMessages: number;
-    pendingHomework: number;
-    todayAttendance: 'present' | 'absent' | 'late' | 'unknown';
-    upcomingEvents: number;
-  }>({ 
-    feesDue: null, 
-    unreadMessages: 0, 
-    pendingHomework: 0, 
-    todayAttendance: 'unknown',
-    upcomingEvents: 0 
-  });
-
-  const loadDashboardData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Load children (if any) - handle various parent-child relationship patterns
-      if (user?.id) {
-        const client = assertSupabase();
-        
-        // Try multiple approaches to find linked children
-        let studentsData: any[] = [];
-        
-        try {
-          // Resolve internal user id from auth uid
-          const { data: me } = await client
-            .from('users')
-            .select('id, preschool_id')
-            .eq('auth_user_id', user.id)
-            .single();
-          const internalUserId = me?.id;
-          const mySchoolId = me?.preschool_id || (profile as any)?.organization_id || null;
-
-          // Approach 1: Direct parent_id/guardian_id lookup with class names using internal user id
-          const { data: directChildren } = internalUserId ? await client
-            .from('students')
-            .select(`
-              id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id,
-              classes!left(id, name, grade_level)
-            `)
-            .or(`parent_id.eq.${internalUserId},guardian_id.eq.${internalUserId}`)
-            .eq('is_active', true)
-            .maybeSingle() : { data: null } as any;
-
-          let directChildrenList: any[] = [];
-          if (directChildren) {
-            directChildrenList = Array.isArray(directChildren) ? directChildren : [directChildren];
-          }
-
-          if (directChildrenList.length > 0) {
-            studentsData = directChildrenList;
-            console.log(`Found ${directChildrenList.length} children via direct parent/guardian link`);
-          } else {
-            // Approach 2: If no direct links and user is parent role, try preschool-based lookup
-            if (profile?.role === 'parent' && mySchoolId) {
-              console.log('No direct parent links found, trying preschool-based lookup');
-              const { data: preschoolChildren } = await client
-                .from('students')
-                .select(`
-                  id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id,
-                  classes!left(id, name, grade_level)
-                `)
-                .eq('preschool_id', mySchoolId)
-                .eq('is_active', true)
-                .is('parent_id', null) // Only orphaned students
-                .limit(5);
-              
-              if (preschoolChildren && preschoolChildren.length > 0) {
-                studentsData = preschoolChildren;
-                console.log(`Found ${preschoolChildren.length} potential children in same preschool (orphaned)`);
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error loading children:', error);
-        }
-        
-        const realChildren = studentsData || [];
-        setChildren(realChildren);
-        if (realChildren.length > 0) {
-          setActiveChildId(realChildren[0].id);
-        }
-
-        // Derive child cards with real metrics (attendance-based progress, homework pending, upcoming events)
-        const nowIso = new Date().toISOString();
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-        async function buildCard(child: any) {
-          let lastActivity: Date = new Date();
-          let status: 'active' | 'absent' | 'late' = 'active';
-          let progressScore = 75;
-          let homeworkPending = 0;
-          let upcomingEvents = 0;
-
-          try {
-            // Attendance: latest record and 30-day rate
-            const { data: latestAtt } = await client
-              .from('attendance_records')
-              .select('status, date, created_at')
-              .eq('student_id', child.id)
-              .order('date', { ascending: false })
-              .limit(1);
-            if (latestAtt && latestAtt[0]) {
-              lastActivity = new Date(latestAtt[0].created_at || latestAtt[0].date);
-              const st = String(latestAtt[0].status || '').toLowerCase();
-              status = st === 'late' ? 'late' : st === 'absent' ? 'absent' : 'active';
-            }
-            const { data: windowAtt } = await client
-              .from('attendance_records')
-              .select('status')
-              .eq('student_id', child.id)
-              .gte('date', thirtyDaysAgo)
-              .limit(1000);
-            if (windowAtt && windowAtt.length > 0) {
-              const present = windowAtt.filter((a: any) => String(a.status).toLowerCase() === 'present').length;
-              const ratio = present / windowAtt.length; // 0..1
-              progressScore = Math.max(60, Math.min(100, Math.round(60 + ratio * 40)));
-            }
-          } catch {}
-
-          try {
-            // Homework pending: assignments for class not yet submitted by this child
-            if (child.class_id) {
-              const { data: assignments } = await client
-                .from('homework_assignments')
-                .select('id, due_date')
-                .eq('class_id', child.class_id)
-                .gte('due_date', new Date(Date.now() - 7*24*60*60*1000).toISOString())
-                .lte('due_date', new Date(Date.now() + 14*24*60*60*1000).toISOString());
-              const assignmentIds = (assignments || []).map((a: any) => a.id);
-              if (assignmentIds.length > 0) {
-                const { data: subs } = await client
-                  .from('homework_submissions')
-                  .select('assignment_id')
-                  .eq('student_id', child.id)
-                  .in('assignment_id', assignmentIds);
-                const submittedSet = new Set((subs || []).map((s: any) => s.assignment_id));
-                homeworkPending = assignmentIds.filter((id: string) => !submittedSet.has(id)).length;
-              } else {
-                homeworkPending = 0;
-              }
-            }
-          } catch {
-            homeworkPending = 0;
-          }
-
-          try {
-            // Upcoming events: attempt class_events, fallback to 0
-            if (child.class_id) {
-              const { data: events } = await client
-                .from('class_events')
-                .select('id, start_time')
-                .eq('class_id', child.class_id)
-                .gte('start_time', nowIso)
-                .limit(3);
-              upcomingEvents = (events || []).length;
-            }
-          } catch {
-            upcomingEvents = 0;
-          }
-
-          return {
-            id: child.id,
-            firstName: child.first_name,
-            lastName: child.last_name,
-            dateOfBirth: child.date_of_birth,
-            grade: child.classes?.grade_level || t('students.preschool'),
-            className: child.classes?.name || (child.class_id ? `Class ${String(child.class_id).slice(-4)}` : null),
-            lastActivity,
-            homeworkPending,
-            upcomingEvents,
-            progressScore,
-            status,
-          };
-        }
-
-        const cards = await Promise.all(realChildren.map(buildCard));
-        setChildrenCards(cards);
-        
-        // Set active child if not already set
-        if (cards.length > 0 && !activeChildId) {
-          const savedChildId = await AsyncStorage.getItem('@edudash_active_child_id');
-          const validChildId = savedChildId && cards.find(c => c.id === savedChildId) ? savedChildId : cards[0].id;
-          setActiveChildId(validChildId);
-        }
-        
-        // Load urgent metrics for active child
-        if (cards.length > 0) {
-          const targetChild = cards.find(c => c.id === (activeChildId || cards[0].id));
-          if (targetChild) {
-            await loadUrgentMetrics(targetChild.id);
-          }
-        }
-
-        // Load AI usage for this month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
-
-        const { data: usageData } = await client
-          .from('ai_usage_logs')
-          .select('service_type')
-          .eq('user_id', user.id)
-          .gte('created_at', startOfMonth.toISOString());
-
-        if (usageData) {
-          const homeworkCount = usageData.filter(u => u.service_type === 'homework_help').length;
-          const lessonCount = usageData.filter(u => u.service_type === 'lesson_generation').length;
-          setUsage({ ai_help: homeworkCount, ai_lessons: lessonCount, tutoring_sessions: 0 });
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard data:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-    } finally {
-      setLoading(false);
-    }
-    }, [user?.id, t, activeChildId]);
-
+  
+  // Update urgent metrics with unread messages
   useEffect(() => {
-    loadDashboardData();
-  }, [loadDashboardData]);
+    setUrgentMetrics(prev => ({ ...prev, unreadMessages: unreadMessageCount }));
+  }, [unreadMessageCount, setUrgentMetrics]);
+  
+  // Load proactive insights when active child changes
+  useEffect(() => {
+    const loadInsights = async () => {
+      if (!activeChildId || !profile?.preschool_id) {
+        console.log('[ParentDashboard] Cannot load insights:', { activeChildId, hasPreschoolId: !!profile?.preschool_id });
+        return;
+      }
+      
+      console.log('[ParentDashboard] Loading insights for child:', activeChildId);
+      setLoadingInsights(true);
+      try {
+        const insightsService = new ProactiveInsightsService(profile.preschool_id);
+        const studentInsights = await insightsService.generateProactiveInsights(activeChildId);
+        const lessons = await insightsService.getInteractiveLessons(activeChildId, 5);
+        
+        console.log('[ParentDashboard] Loaded insights:', studentInsights.length, 'lessons:', lessons.length);
+        setInsights(studentInsights);
+        setInteractiveLessons(lessons);
+      } catch (error) {
+        console.error('[ParentDashboard] Failed to load proactive insights:', error);
+      } finally {
+        setLoadingInsights(false);
+      }
+    };
+    
+    loadInsights();
+  }, [activeChildId, profile?.preschool_id]);
+
 
   const onRefresh = useCallback(async () => {
     const refreshStart = Date.now();
@@ -438,318 +172,21 @@ const [showHomeworkModal, setShowHomeworkModal] = useState(false);
   }, [loadDashboardData, user?.id, children.length, usage.ai_help, usage.ai_lessons]);
 
   useEffect(() => {
-    // Adjust limits by tier
-    if (tier === 'pro') {
+    // Adjust limits by parent tier - matching parent pricing
+    if (tier === 'parent-starter') {
+      setLimits({ ai_help: 30, ai_lessons: 20, tutoring_sessions: 5 });
+    } else if (tier === 'parent-plus') {
       setLimits({ ai_help: 100, ai_lessons: 50, tutoring_sessions: 10 });
-    } else if (tier === 'enterprise') {
-      setLimits({ ai_help: 'unlimited', ai_lessons: 'unlimited', tutoring_sessions: 'unlimited' });
     } else {
+      // Free tier
       setLimits({ ai_help: 10, ai_lessons: 5, tutoring_sessions: 2 });
     }
   }, [tier]);
 
-  // Helper for greeting based on time
-  const getGreeting = (): string => {
-    const hour = new Date().getHours();
-    if (hour < 12) return t('dashboard.good_morning');
-    if (hour < 18) return t('dashboard.good_afternoon');
-    return t('dashboard.good_evening');
-  };
 
-  // Handle active child change and persist
-  useEffect(() => {
-    if (activeChildId) {
-      AsyncStorage.setItem('@edudash_active_child_id', activeChildId).catch(() => {});
-      // Reload metrics for the newly selected child
-      if (activeChildId && childrenCards.find(c => c.id === activeChildId)) {
-        loadUrgentMetrics(activeChildId);
-      }
-    }
-  }, [activeChildId]);
 
-  // Load urgent metrics for a specific child
-  const loadUrgentMetrics = async (studentId: string) => {
-    try {
-      const client = assertSupabase();
-      const today = new Date().toISOString().split('T')[0];
-      const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      
-      // Get the student's preschool_id for scoped queries
-      const { data: studentData } = await client
-        .from('students')
-        .select('preschool_id, class_id')
-        .eq('id', studentId)
-        .single();
-      
-      if (!studentData) return;
-      
-      // 1. Check for fees due (mock for now - will be real when payments table exists)
-      // TODO: Replace with real payment_records query
-      const feesDue = {
-        amount: Math.random() > 0.7 ? Math.floor(Math.random() * 5000) + 500 : 0,
-        dueDate: Math.random() > 0.5 ? thirtyDaysFromNow : null,
-        overdue: Math.random() > 0.8
-      };
-      
-      // 2. Get real unread messages count
-      const unreadMessages = unreadMessageCount;
-      
-      // 3. Get pending homework count
-      let pendingHomework = 0;
-      if (studentData.class_id) {
-        const { data: assignments } = await client
-          .from('homework_assignments')
-          .select('id')
-          .eq('class_id', studentData.class_id)
-          .gte('due_date', today)
-          .limit(10);
-        
-        if (assignments) {
-          const assignmentIds = assignments.map(a => a.id);
-          const { data: submissions } = await client
-            .from('homework_submissions')
-            .select('assignment_id')
-            .eq('student_id', studentId)
-            .in('assignment_id', assignmentIds);
-          
-          const submittedIds = new Set(submissions?.map(s => s.assignment_id) || []);
-          pendingHomework = assignmentIds.filter(id => !submittedIds.has(id)).length;
-        }
-      }
-      
-      // 4. Get today's attendance
-      let todayAttendance: 'present' | 'absent' | 'late' | 'unknown' = 'unknown';
-      try {
-        const { data: attendanceData } = await client
-          .from('attendance_records')
-          .select('status')
-          .eq('student_id', studentId)
-          .eq('date', today)
-          .maybeSingle();
-        
-        if (attendanceData) {
-          const status = String(attendanceData.status).toLowerCase();
-          todayAttendance = ['present', 'absent', 'late'].includes(status) 
-            ? status as 'present' | 'absent' | 'late' 
-            : 'unknown';
-        }
-      } catch {}
-      
-      // 5. Get upcoming events count
-      let upcomingEvents = 0;
-      if (studentData.class_id) {
-        try {
-          const { count } = await client
-            .from('class_events')
-            .select('id', { count: 'exact', head: true })
-            .eq('class_id', studentData.class_id)
-            .gte('start_time', new Date().toISOString())
-            .lte('start_time', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
-          
-          upcomingEvents = count || 0;
-        } catch {}
-      }
-      
-      setUrgentMetrics({
-        feesDue: feesDue.amount > 0 ? feesDue : null,
-        unreadMessages,
-        pendingHomework,
-        todayAttendance,
-        upcomingEvents
-      });
-      
-    } catch (error) {
-      console.error('Failed to load urgent metrics:', error);
-    }
-  };
 
-  // Helper function to calculate and display child age
-  const getChildAgeText = (child: any): string => {
-    if (!child.dateOfBirth && !child.date_of_birth) {
-      return t('common.ageUnknown');
-    }
-    
-    try {
-      const birthDate = new Date(child.dateOfBirth || child.date_of_birth);
-      const today = new Date();
-      const ageInMs = today.getTime() - birthDate.getTime();
-      const ageInYears = Math.floor(ageInMs / (365.25 * 24 * 60 * 60 * 1000));
-      
-      if (ageInYears < 0 || ageInYears > 10) {
-        return t('common.ageUnknown');
-      }
-      
-      return t('common.ageYears', { age: ageInYears });
-    } catch {
-      return t('common.ageUnknown');
-    }
-  };
-  
-  // Helper to format currency (South African Rand)
-  const formatCurrency = (amount: number): string => {
-    return `R ${amount.toLocaleString()}`;
-  };
 
-  // Helper functions for attendance status
-  const getAttendanceColor = (): string => {
-    switch (urgentMetrics.todayAttendance) {
-      case 'present': return theme.success;
-      case 'absent': return theme.error;
-      case 'late': return theme.warning;
-      default: return theme.textSecondary;
-    }
-  };
-
-  const getAttendanceIcon = (): keyof typeof Ionicons.glyphMap => {
-    switch (urgentMetrics.todayAttendance) {
-      case 'present': return 'checkmark-circle';
-      case 'absent': return 'close-circle';
-      case 'late': return 'time';
-      default: return 'help-circle';
-    }
-  };
-
-  // Removed unused Stat component - now using EnhancedStatsRow
-
-  // Removed unused QuickActionProps interface
-
-  // Removed unused QuickAction component - now using EnhancedQuickActions
-
-  const LanguageModal = () => (
-    <Modal visible={showLanguageModal} animationType="slide" transparent>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{t('settings.language')}</Text>
-          {getAvailableLanguages().map((lang) => (
-            <TouchableOpacity
-              key={lang.code}
-              style={[
-                styles.languageOption,
-                getCurrentLanguage() === lang.code && styles.activeLanguageOption
-              ]}
-              onPress={async () => {
-                const previousLang = getCurrentLanguage();
-                await changeLanguage(lang.code);
-                
-                // Track language change from parent dashboard
-                track('edudash.language.changed', {
-                  user_id: user?.id,
-                  from: previousLang,
-                  to: lang.code,
-                  source: 'parent_dashboard',
-                  role: 'parent',
-                });
-                
-                setShowLanguageModal(false);
-              }}
-            >
-              <Text style={styles.languageText}>{lang.nativeName}</Text>
-              <Text style={styles.languageSubtext}>{lang.name}</Text>
-            </TouchableOpacity>
-          ))}
-          <TouchableOpacity
-            style={styles.modalCloseButton}
-            onPress={() => setShowLanguageModal(false)}
-          >
-            <Text style={styles.modalCloseText}>{t('common.close')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
-  );
-
-  interface HomeworkModalProps {
-    visible: boolean;
-    onClose: () => void;
-  }
-
-  const HomeworkModal: React.FC<HomeworkModalProps> = ({ visible, onClose }) => {
-    const [question, setQuestion] = useState('');
-    const [response, setResponse] = useState('');
-    const { loading: aiLoading, generate } = useHomeworkGenerator();
-  
-    const handleSubmit = async () => {
-      if (!question.trim()) return;
-  
-      try {
-        const start = Date.now();
-        const text = await generate({
-          question,
-          subject: 'General Education',
-          gradeLevel: children.length > 0 ? 8 : 10,
-          difficulty: 'easy',
-        });
-
-        const content = typeof text === 'string' ? text : String(text ?? '');
-        setResponse(content);
-        track('edudash.ai.homework_help_completed', {
-          user_id: user?.id,
-          question_length: question.length,
-          success: true,
-          duration_ms: Date.now() - start,
-          source: 'parent_dashboard',
-          response_length: content.length,
-        });
-      } catch (error) {
-        Alert.alert(t('common.error'), t('ai.homework.error'));
-        console.error('Homework help error:', error);
-      }
-    };
-  
-    const handleClose = () => {
-      setQuestion('');
-      setResponse('');
-      onClose();
-    };
-  
-    return (
-      <Modal visible={visible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
-            <Text style={styles.modalTitle}>{t('ai.homework.title')}</Text>
-            
-            <TextInput
-              style={styles.textInput}
-              placeholder={t('ai.homework.questionPlaceholder')}
-              value={question}
-              onChangeText={setQuestion}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-  
-            <TouchableOpacity
-              style={[styles.submitButton, (!question.trim() || aiLoading) && styles.disabledButton]}
-              onPress={handleSubmit}
-              disabled={!question.trim() || aiLoading}
-            >
-              <LinearGradient
-                colors={loading ? ['#6B7280', '#9CA3AF'] : ['#00f5ff', '#0080ff']}
-                style={styles.submitGradient}
-              >
-                {aiLoading ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitText}>{t('ai.homework.getHelp')}</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
-  
-            {response && (
-              <ScrollView style={styles.responseContainer}>
-                <Text style={styles.responseTitle}>{t('ai.homework.explanation')}</Text>
-                <Text style={styles.responseText}>{response}</Text>
-              </ScrollView>
-            )}
-  
-            <TouchableOpacity style={styles.modalCloseButton} onPress={handleClose}>
-              <Text style={styles.modalCloseText}>{t('common.close')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  };
 
   const handleQuickAction = (action: string) => {
     track('edudash.dashboard.quick_action', {
@@ -790,8 +227,8 @@ case 'homework':
       case 'upgrade':
         track('edudash.billing.upgrade_viewed', {
           user_id: user?.id,
-          current_tier: 'free',
-          target_tier: 'pro',
+          current_tier: tier,
+          target_tier: 'parent-plus', // Default parent upgrade target
         });
         // Navigate to pricing screen instead of showing placeholder alert
         router.push('/pricing');
@@ -960,97 +397,6 @@ case 'homework':
       fontWeight: 'bold',
       fontSize: 12,
     },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    modalContent: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 20,
-      width: '100%',
-      maxWidth: 400,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.text,
-      marginBottom: 16,
-      textAlign: 'center',
-    },
-    languageOption: {
-      padding: 12,
-      borderRadius: 8,
-      marginBottom: 8,
-      backgroundColor: theme.elevated,
-    },
-    activeLanguageOption: {
-      backgroundColor: theme.primary + '20',
-    },
-    languageText: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.text,
-    },
-    languageSubtext: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      marginTop: 2,
-    },
-    modalCloseButton: {
-      padding: 12,
-      alignItems: 'center',
-    },
-    modalCloseText: {
-      color: theme.textSecondary,
-      fontSize: 16,
-    },
-    textInput: {
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 8,
-      padding: 12,
-      fontSize: 14,
-      color: theme.text,
-      backgroundColor: theme.background,
-      marginBottom: 16,
-      minHeight: 100,
-    },
-    submitButton: {
-      borderRadius: 8,
-      overflow: 'hidden',
-      marginBottom: 16,
-    },
-    disabledButton: {
-      opacity: 0.5,
-    },
-    submitGradient: {
-      padding: 12,
-      alignItems: 'center',
-    },
-    submitText: {
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-      fontSize: 16,
-    },
-    responseContainer: {
-      maxHeight: 200,
-      marginBottom: 16,
-    },
-    responseTitle: {
-      fontSize: 16,
-      fontWeight: 'bold',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    responseText: {
-      fontSize: 14,
-      color: theme.textSecondary,
-      lineHeight: 20,
-    },
     emptyCard: {
       backgroundColor: theme.surface,
       borderRadius: 12,
@@ -1131,94 +477,6 @@ case 'homework':
       height: 1,
       backgroundColor: theme.border,
       marginVertical: 4,
-    },
-    // Enhanced Child Card Styles
-    childCard: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 16,
-      shadowColor: theme.shadow || '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    childHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      marginBottom: 16,
-    },
-    childInfo: {
-      flex: 1,
-    },
-    childName: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.text,
-      marginBottom: 4,
-    },
-    childDetails: {
-      fontSize: 14,
-      color: theme.textSecondary,
-    },
-    statusBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: '600',
-      textTransform: 'capitalize',
-    },
-    childStats: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    statItem: {
-      alignItems: 'center',
-    },
-    statLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginBottom: 4,
-    },
-    childStatValue: {
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    childActions: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      marginBottom: 12,
-    },
-    actionButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 8,
-      flex: 1,
-      marginHorizontal: 2,
-      justifyContent: 'center',
-    },
-    actionText: {
-      fontSize: 12,
-      fontWeight: '600',
-      marginLeft: 4,
-    },
-    lastActivityContainer: {
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-    },
-    lastActivityText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      textAlign: 'center',
     },
     // Empty State Styles
     emptyState: {
@@ -1306,39 +564,6 @@ case 'homework':
     toolSubtitle: {
       fontSize: 14,
       color: theme.textSecondary,
-    },
-    // Principal Dashboard Style Welcome Section
-    welcomeSection: {
-      backgroundColor: theme.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-      marginBottom: 8,
-    },
-    greeting: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.onPrimary,
-    },
-    welcomeSubtitle: {
-      fontSize: 14,
-      color: theme.onPrimary,
-      opacity: 0.9,
-      marginTop: 4,
-    },
-    welcomeHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-    },
-    themeToggleButton: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 1,
-      borderColor: 'rgba(255, 255, 255, 0.3)',
     },
     // Urgent Cards Styling
     urgentCardsGrid: {
@@ -1603,46 +828,21 @@ case 'homework':
         )}
 
         {/* Professional Welcome Section */}
-        <View style={styles.welcomeSection}>
-          <View style={styles.welcomeHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>
-                {getGreeting()}, {`${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || t('roles.parent')}! 👋
-              </Text>
-              <Text style={styles.welcomeSubtitle}>
-                {(() => {
-                  const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
-                  if (active) return `Managing ${active.firstName} ${active.lastName}`;
-                  if (children.length > 0) return t('dashboard.managingChildrenPlural', { count: children.length });
-                  return 'Welcome to EduDash Pro';
-                })()}
-              </Text>
-            </View>
-            
-            <TouchableOpacity
-              style={styles.themeToggleButton}
-              onPress={async () => {
-                await toggleTheme();
-                try { 
-                  if (Platform.OS !== 'web') {
-                    // Use platform-appropriate haptics
-                    if (Platform.OS === 'ios') {
-                      await require('expo-haptics').impactAsync(require('expo-haptics').ImpactFeedbackStyle.Light);
-                    } else {
-                      require('react-native').Vibration.vibrate(15);
-                    }
-                  }
-                } catch {}
-              }}
-            >
-              <Ionicons 
-                name={isDark ? 'sunny' : 'moon'} 
-                size={18} 
-                color={theme.primary} 
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <WelcomeSection
+          userName={`${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || t('roles.parent')}
+          subtitle={(() => {
+            const active = (childrenCards || []).find(c => c.id === activeChildId) || (childrenCards.length === 1 ? childrenCards[0] : null);
+            if (active) {
+              return `Managing ${active.firstName} ${active.lastName}`;
+            }
+            if (children.length > 0) {
+              return t('dashboard.managingChildrenPlural', { count: children.length });
+            }
+            return 'Welcome to EduDash Pro';
+          })()}
+          isDark={isDark}
+          onThemeToggle={toggleTheme}
+        />
 
         {/* Enhanced Children Section (moved under welcome) */}
         {children.length > 0 ? (
@@ -1669,75 +869,14 @@ case 'homework':
             {(children.length > 1 && activeChildId ? 
               childrenCards.filter(child => child.id === activeChildId) : 
               childrenCards
-            ).map((child, index) => (
-              <View key={child.id} style={styles.childCard}>
-                <View style={styles.childHeader}>
-                  <View style={styles.childInfo}>
-                    <Text style={styles.childName}>{child.firstName} {child.lastName}</Text>
-                    <Text style={styles.childDetails}>{getChildAgeText(child)} • {child.grade} • {child.className || t('common.noClass')}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, 
-                    child.status === 'active' ? { backgroundColor: theme.success + '20' } :
-                    child.status === 'late' ? { backgroundColor: theme.warning + '20' } : 
-                    { backgroundColor: theme.error + '20' }
-                  ]}>
-                    <Text style={[styles.statusText, 
-                      child.status === 'active' ? { color: theme.success } :
-                      child.status === 'late' ? { color: theme.warning } : 
-                      { color: theme.error }
-                    ]}>{child.status}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.childStats}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Attendance</Text>
-                    <Text style={[styles.childStatValue, { color: theme.success }]}>{child.progressScore}%</Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Pending Homework</Text>
-                    <Text style={[styles.childStatValue, child.homeworkPending > 0 ? { color: theme.warning } : { color: theme.success }]}>
-                      {child.homeworkPending}
-                    </Text>
-                  </View>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statLabel}>Upcoming Events</Text>
-                    <Text style={[styles.childStatValue, { color: theme.primary }]}>{child.upcomingEvents}</Text>
-                  </View>
-                </View>
-                
-                <View style={styles.childActions}>
-                  <TouchableOpacity 
-                    style={[styles.actionButton, { backgroundColor: theme.primary + '10' }]}
-                    onPress={() => console.log('View attendance for', child.id)}
-                  >
-                    <Ionicons name="calendar" size={16} color={theme.primary} />
-                    <Text style={[styles.actionText, { color: theme.primary }]}>Attendance</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.actionButton, { backgroundColor: theme.success + '10' }]}
-                    onPress={() => console.log('View homework for', child.id)}
-                  >
-                    <Ionicons name="book" size={16} color={theme.success} />
-                    <Text style={[styles.actionText, { color: theme.success }]}>Homework</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.actionButton, { backgroundColor: theme.accent + '10' }]}
-                    onPress={() => handleQuickMessage(child)}
-                  >
-                    <Ionicons name="chatbubble" size={16} color={theme.accent} />
-                    <Text style={[styles.actionText, { color: theme.accent }]}>Message</Text>
-                  </TouchableOpacity>
-                </View>
-                
-                <View style={styles.lastActivityContainer}>
-                  <Text style={styles.lastActivityText}>
-                    Last activity: {child.lastActivity.toLocaleDateString()}
-                  </Text>
-                </View>
-              </View>
+            ).map((child) => (
+              <ChildCard
+                key={child.id}
+                child={child}
+                onAttendancePress={() => console.log('View attendance for', child.id)}
+                onHomeworkPress={() => console.log('View homework for', child.id)}
+                onMessagePress={() => handleQuickMessage(child)}
+              />
             ))}
           </View>
         ) : (
@@ -1758,6 +897,69 @@ case 'homework':
                 <Text style={styles.emptyStateButtonText}>{t('parent.registerChild')}</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        )}
+
+        {/* AI-Powered Proactive Insights */}
+        {activeChildId && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="bulb" size={24} color="#00f5ff" style={{ marginRight: 8 }} />
+              <Text style={styles.sectionTitle}>Insights for Your Child</Text>
+            </View>
+            {loadingInsights ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>Loading insights...</Text>
+              </View>
+            ) : insights.length > 0 ? (
+              insights.slice(0, 3).map((insight, index) => (
+                <ParentInsightsCard
+                  key={index}
+                  insight={insight}
+                  onActionPress={(actionTitle) => {
+                    track('edudash.parent.insight_action_pressed', {
+                      action: actionTitle,
+                      insight_type: insight.type,
+                      child_id: activeChildId,
+                      user_id: user?.id,
+                    });
+                    // Navigate or perform action based on actionTitle
+                    console.log('Action pressed:', actionTitle);
+                  }}
+                />
+              ))
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>No insights available yet</Text>
+                <Text style={styles.emptySubtitle}>Check back later for personalized guidance</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* CAPS-Aligned Interactive Lessons */}
+        {activeChildId && (
+          <View style={styles.section}>
+            {loadingInsights ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>Loading lessons...</Text>
+              </View>
+            ) : (
+              <InteractiveLessonsWidget
+                lessons={interactiveLessons}
+                onLessonPress={(lesson) => {
+                  track('edudash.parent.lesson_started', {
+                    lesson_id: lesson.id,
+                    lesson_title: lesson.title,
+                    difficulty: lesson.difficulty,
+                    child_id: activeChildId,
+                    user_id: user?.id,
+                  });
+                  // Navigate to lesson detail or start lesson
+                  console.log('Lesson pressed:', lesson.title);
+                }}
+              />
+            )}
           </View>
         )}
 
@@ -1840,12 +1042,12 @@ case 'homework':
                 style={[styles.metricCard, { borderColor: theme.primary + '30' }]}
                 onPress={() => router.push('/attendance')}
               >
-                <View style={[styles.metricIcon, { backgroundColor: getAttendanceColor() }]}>
-                  <Ionicons name={getAttendanceIcon()} size={20} color="white" />
+                <View style={[styles.metricIcon, { backgroundColor: getAttendanceColor(urgentMetrics.todayAttendance, theme) }]}>
+                  <Ionicons name={getAttendanceIcon(urgentMetrics.todayAttendance)} size={20} color="white" />
                 </View>
                 <Text style={styles.metricValue}>Today</Text>
                 <Text style={styles.metricLabel}>Attendance</Text>
-                <Text style={[styles.metricStatus, { color: getAttendanceColor() }]}>
+                <Text style={[styles.metricStatus, { color: getAttendanceColor(urgentMetrics.todayAttendance, theme) }]}>
                   {urgentMetrics.todayAttendance === 'unknown' ? 'not recorded' : urgentMetrics.todayAttendance}
                 </Text>
               </TouchableOpacity>
@@ -1876,7 +1078,7 @@ case 'homework':
                 <Text style={styles.popActionSubtitle}>Share receipts & payment confirmations</Text>
                 {popStats?.proof_of_payment?.pending && popStats.proof_of_payment.pending > 0 && (
                   <View style={[styles.popActionBadge, { backgroundColor: theme.warning }]}>
-                    <Text style={styles.popActionBadgeText}>{popStats.proof_of_payment.pending} pending</Text>
+                    <Text style={styles.popActionBadgeText}>{`${popStats.proof_of_payment.pending} pending`}</Text>
                   </View>
                 )}
               </View>
@@ -1902,7 +1104,7 @@ case 'homework':
                 <Text style={styles.popActionSubtitle}>Document your child's learning journey</Text>
                 {popStats?.picture_of_progress?.recent && popStats.picture_of_progress.recent > 0 && (
                   <View style={[styles.popActionBadge, { backgroundColor: theme.accent }]}>
-                    <Text style={styles.popActionBadgeText}>{popStats.picture_of_progress.recent} this week</Text>
+                    <Text style={styles.popActionBadgeText}>{`${popStats.picture_of_progress.recent} this week`}</Text>
                   </View>
                 )}
               </View>
@@ -1921,7 +1123,7 @@ case 'homework':
                 <Text style={styles.popActionSubtitle}>Manage all your uploads & approvals</Text>
                 {popStats?.total_pending && popStats.total_pending > 0 && (
                   <View style={[styles.popActionBadge, { backgroundColor: theme.primary }]}>
-                    <Text style={styles.popActionBadgeText}>{popStats.total_pending} to review</Text>
+                    <Text style={styles.popActionBadgeText}>{`${popStats.total_pending} to review`}</Text>
                   </View>
                 )}
               </View>
@@ -2046,6 +1248,9 @@ case 'homework':
           </View>
         )}
         
+        {/* Child Registration Requests - Shows pending/approved/rejected requests */}
+        <PendingRegistrationRequests />
+        
         {/* Recent Activity Timeline */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('dashboard.recentActivity')}</Text>
@@ -2141,16 +1346,24 @@ case 'homework':
       </ScrollView>
 
       {/* Homework Modal */}
-      <HomeworkModal visible={showHomeworkModal} onClose={() => setShowHomeworkModal(false)} />
+      <HomeworkModal 
+        visible={showHomeworkModal} 
+        onClose={() => setShowHomeworkModal(false)}
+        activeChildId={activeChildId}
+        children={children}
+      />
       
       {/* Language Modal */}
-      <LanguageModal />
+      <LanguageModal 
+        visible={showLanguageModal} 
+        onClose={() => setShowLanguageModal(false)}
+        userId={user?.id}
+      />
       
       {/* WhatsApp Modal */}
       <WhatsAppOptInModal visible={showWhatsAppModal} onClose={() => setShowWhatsAppModal(false)} />
       
-      {/* AI Assistant Floating Button */}
-      <DashVoiceFloatingButton />
+      {/* VOICETODO: AI Assistant Floating Button now in root layout */}
     </View>
   );
 }

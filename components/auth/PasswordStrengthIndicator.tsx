@@ -35,6 +35,12 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
 }) => {
   const { theme } = useTheme();
   
+  // Store callback in ref to avoid dependency issues
+  const onStrengthChangeRef = React.useRef(onStrengthChange);
+  React.useEffect(() => {
+    onStrengthChangeRef.current = onStrengthChange;
+  }, [onStrengthChange]);
+  
   // Get password validation results
   const validation = React.useMemo(() => {
     if (!password) {
@@ -59,10 +65,10 @@ export const PasswordStrengthIndicator: React.FC<PasswordStrengthIndicatorProps>
     return passwordPolicyEnforcer.validatePassword(password, userInfo);
   }, [password, userInfo]);
 
-  // Notify parent of strength changes
+  // Notify parent of strength changes (using ref to avoid infinite loop)
   React.useEffect(() => {
-    onStrengthChange?.(validation);
-  }, [validation, onStrengthChange]);
+    onStrengthChangeRef.current?.(validation);
+  }, [validation]);
 
   // Get strength configuration
   const getStrengthConfig = (strength: PasswordValidation['strength']): StrengthConfig => {

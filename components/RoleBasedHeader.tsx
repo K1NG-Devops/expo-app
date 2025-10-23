@@ -270,7 +270,7 @@ export function RoleBasedHeader({
     <View style={[
       styles.container,
       { 
-        paddingTop: insets.top,
+        paddingTop: Math.max(insets.top, 0),
         backgroundColor: headerBgColor,
         borderBottomColor: theme.divider,
       }
@@ -533,7 +533,7 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     minWidth: 120,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,

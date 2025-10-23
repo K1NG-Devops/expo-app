@@ -173,10 +173,6 @@ export const useMyPOPUploads = (
         .from('pop_uploads')
         .select(`
           *,
-          reviewer:user_profiles!reviewed_by (
-            first_name,
-            last_name
-          ),
           student:students (
             first_name,
             last_name
@@ -204,9 +200,7 @@ export const useMyPOPUploads = (
       
       return (data || []).map(upload => ({
         ...upload,
-        reviewer_name: upload.reviewer ? 
-          `${upload.reviewer.first_name} ${upload.reviewer.last_name}`.trim() : 
-          undefined,
+        reviewer_name: undefined,
       }));
     },
   });
@@ -228,7 +222,7 @@ export const useCreatePOPUpload = () => {
       
       // Get user's preschool_id
       const { data: profile, error: profileError } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('preschool_id')
         .eq('id', user.id)
         .single();
@@ -348,10 +342,6 @@ export const useUpdatePOPStatus = () => {
         .eq('id', uploadId)
         .select(`
           *,
-          reviewer:user_profiles!reviewed_by (
-            first_name,
-            last_name
-          ),
           student:students (
             first_name,
             last_name
@@ -365,9 +355,7 @@ export const useUpdatePOPStatus = () => {
       
       return {
         ...data,
-        reviewer_name: data.reviewer ? 
-          `${data.reviewer.first_name} ${data.reviewer.last_name}`.trim() : 
-          undefined,
+        reviewer_name: undefined,
       };
     },
     onSuccess: () => {

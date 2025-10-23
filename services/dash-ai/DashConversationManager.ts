@@ -9,21 +9,25 @@
  * - Conversation summaries and tagging
  * 
  * Design principles:
- * - Persistent storage via AsyncStorage
+ * - Server-backed storage via Supabase with RLS tenant isolation
  * - Efficient in-memory caching
  * - Context window management (avoid token limits)
  * - Message deduplication
+ * - Fallback to AsyncStorage for current conversation pointer only
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { DashConversation, DashMessage } from './types';
+import { DashConversationService } from './DashConversationService';
 
 /**
  * Conversation manager configuration
  */
 export interface ConversationManagerConfig {
-  /** Storage key prefix for conversations */
-  conversationsKey?: string;
+  /** User ID (required for Supabase operations) */
+  userId: string;
+  /** Preschool ID (required for tenant isolation) */
+  preschoolId: string;
   /** Storage key for current conversation pointer */
   currentConversationKey?: string;
   /** Maximum messages to keep in context window */
@@ -32,19 +36,28 @@ export interface ConversationManagerConfig {
 
 /**
  * DashConversationManager
- * Handles all conversation and message history operations
+ * Handles all conversation and message history operations with Supabase backend
  */
 export class DashConversationManager {
   private config: ConversationManagerConfig;
   private currentConversationId: string | null = null;
+  private service: DashConversationService;
 
-  constructor(config: ConversationManagerConfig = {}) {
+  constructor(config: ConversationManagerConfig) {
+    if (!config.userId || !config.preschoolId) {
+      throw new Error('[DashConversationManager] userId and preschoolId are required');
+    }
+
     this.config = {
-      conversationsKey: config.conversationsKey || 'dash_conversations',
+      userId: config.userId,
+      preschoolId: config.preschoolId,
       currentConversationKey:
         config.currentConversationKey || '@dash_ai_current_conversation_id',
       maxContextMessages: config.maxContextMessages || 10,
     };
+
+    // Initialize Supabase service with tenant context
+    this.service = new DashConversationService(config.userId, config.preschoolId);
   }
 
   /**
@@ -71,15 +84,12 @@ export class DashConversationManager {
     const conversationId = `dash_conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     this.currentConversationId = conversationId;
 
-    const conversation: DashConversation = {
-      id: conversationId,
-      title: title || `Conversation ${new Date().toLocaleDateString()}`,
-      messages: [],
-      created_at: Date.now(),
-      updated_at: Date.now(),
-    };
+    const conversationTitle = title || `Conversation ${new Date().toLocaleDateString()}`;
 
-    await this.saveConversation(conversation);
+    // Create conversation in Supabase with tenant isolation
+    await this.service.createConversation(conversationId, conversationTitle);
+
+    // Store current conversation pointer in AsyncStorage
     try {
       await AsyncStorage.setItem(
         this.config.currentConversationKey!,
@@ -97,68 +107,16 @@ export class DashConversationManager {
   public async getConversation(
     conversationId: string
   ): Promise<DashConversation | null> {
-    try {
-      const key = `${this.config.conversationsKey}_${conversationId}`;
-      const conversationData = await AsyncStorage.getItem(key);
-      return conversationData ? JSON.parse(conversationData) : null;
-    } catch (error) {
-      console.error('[DashConversation] Failed to get conversation:', error);
-      return null;
-    }
+    return await this.service.getConversation(conversationId);
   }
 
   /**
-   * Get all conversations
+   * Get all conversations (filtered by preschool_id via RLS)
    */
   public async getAllConversations(): Promise<DashConversation[]> {
-    try {
-      const conversationKeys = await this.getConversationKeys();
-      const conversations: DashConversation[] = [];
-      
-      for (const key of conversationKeys) {
-        const conversationData = await AsyncStorage.getItem(key);
-        if (conversationData) {
-          try {
-            const parsed = JSON.parse(conversationData);
-            // Validate structure
-            if (!Array.isArray(parsed.messages)) parsed.messages = [];
-            if (typeof parsed.title !== 'string') parsed.title = 'Conversation';
-            if (typeof parsed.created_at !== 'number')
-              parsed.created_at = Date.now();
-            if (typeof parsed.updated_at !== 'number')
-              parsed.updated_at = parsed.created_at;
-            conversations.push(parsed as DashConversation);
-          } catch (e) {
-            console.warn(
-              '[DashConversation] Skipping invalid conversation entry for key:',
-              key,
-              e
-            );
-          }
-        }
-      }
-      
-      // Sort oldest first (natural chronological order)
-      return conversations.sort((a, b) => a.updated_at - b.updated_at);
-    } catch (error) {
-      console.error('[DashConversation] Failed to get conversations:', error);
-      return [];
-    }
+    return await this.service.getAllConversations();
   }
 
-  /**
-   * Save conversation
-   */
-  private async saveConversation(
-    conversation: DashConversation
-  ): Promise<void> {
-    try {
-      const key = `${this.config.conversationsKey}_${conversation.id}`;
-      await AsyncStorage.setItem(key, JSON.stringify(conversation));
-    } catch (error) {
-      console.error('[DashConversation] Failed to save conversation:', error);
-    }
-  }
 
   /**
    * Add message to conversation
@@ -167,31 +125,15 @@ export class DashConversationManager {
     conversationId: string,
     message: DashMessage
   ): Promise<void> {
+    await this.service.addMessageToConversation(conversationId, message);
+    
+    // Update current conversation pointer in AsyncStorage
     try {
-      const conversation = await this.getConversation(conversationId);
-      if (conversation) {
-        // Check for duplicate messages (by ID)
-        const exists = conversation.messages.some((m) => m.id === message.id);
-        if (!exists) {
-          conversation.messages.push(message);
-          conversation.updated_at = Date.now();
-          await this.saveConversation(conversation);
-          
-          // Update current conversation pointer
-          try {
-            await AsyncStorage.setItem(
-              this.config.currentConversationKey!,
-              conversationId
-            );
-          } catch {}
-        }
-      }
-    } catch (error) {
-      console.error(
-        '[DashConversation] Failed to add message to conversation:',
-        error
+      await AsyncStorage.setItem(
+        this.config.currentConversationKey!,
+        conversationId
       );
-    }
+    } catch {}
   }
 
   /**
@@ -201,55 +143,24 @@ export class DashConversationManager {
     conversationId: string,
     maxMessages?: number
   ): Promise<DashMessage[]> {
-    try {
-      const conversation = await this.getConversation(conversationId);
-      if (!conversation || !conversation.messages.length) {
-        return [];
-      }
-
-      const limit = maxMessages || this.config.maxContextMessages || 10;
-      return conversation.messages.slice(-limit);
-    } catch (error) {
-      console.error('[DashConversation] Failed to build context window:', error);
-      return [];
-    }
+    const limit = maxMessages || this.config.maxContextMessages || 10;
+    return await this.service.getRecentMessages(conversationId, limit);
   }
 
-  /**
-   * Get conversation keys from storage
-   */
-  private async getConversationKeys(): Promise<string[]> {
-    try {
-      const allKeys = await AsyncStorage.getAllKeys();
-      return allKeys.filter((k: string) =>
-        k.startsWith(`${this.config.conversationsKey}_`)
-      );
-    } catch (error) {
-      console.error('[DashConversation] Failed to list conversation keys:', error);
-      return [];
-    }
-  }
 
   /**
    * Delete conversation
    */
   public async deleteConversation(conversationId: string): Promise<void> {
-    try {
-      const key = `${this.config.conversationsKey}_${conversationId}`;
-      await AsyncStorage.removeItem(key);
-      
-      // If deleting the current conversation, clear current pointer
-      const currentId = await AsyncStorage.getItem(
-        this.config.currentConversationKey!
-      );
-      if (currentId === conversationId) {
-        await AsyncStorage.removeItem(this.config.currentConversationKey!);
-        this.currentConversationId = null;
-      }
-      
-      console.log(`[DashConversation] Deleted conversation: ${conversationId}`);
-    } catch (error) {
-      console.error('[DashConversation] Failed to delete conversation:', error);
+    await this.service.deleteConversation(conversationId);
+    
+    // If deleting the current conversation, clear current pointer
+    const currentId = await AsyncStorage.getItem(
+      this.config.currentConversationKey!
+    );
+    if (currentId === conversationId) {
+      await AsyncStorage.removeItem(this.config.currentConversationKey!);
+      this.currentConversationId = null;
     }
   }
 
@@ -306,19 +217,7 @@ export class DashConversationManager {
     conversationId: string,
     title: string
   ): Promise<void> {
-    try {
-      const conversation = await this.getConversation(conversationId);
-      if (conversation) {
-        conversation.title = title;
-        conversation.updated_at = Date.now();
-        await this.saveConversation(conversation);
-      }
-    } catch (error) {
-      console.error(
-        '[DashConversation] Failed to update conversation title:',
-        error
-      );
-    }
+    await this.service.updateConversationTitle(conversationId, title);
   }
 
   /**
@@ -363,19 +262,7 @@ export class DashConversationManager {
     conversationId: string,
     maxMessages: number
   ): Promise<void> {
-    try {
-      const conversation = await this.getConversation(conversationId);
-      if (conversation && conversation.messages.length > maxMessages) {
-        conversation.messages = conversation.messages.slice(-maxMessages);
-        conversation.updated_at = Date.now();
-        await this.saveConversation(conversation);
-        console.log(
-          `[DashConversation] Trimmed conversation to ${maxMessages} messages`
-        );
-      }
-    } catch (error) {
-      console.error('[DashConversation] Failed to trim conversation:', error);
-    }
+    await this.service.trimConversation(conversationId, maxMessages);
   }
 
   /**

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { track } from '@/lib/analytics';
 
 interface PremiumFeatureBannerProps {
@@ -83,6 +84,11 @@ export default function PremiumFeatureBanner({
 }: PremiumFeatureBannerProps) {
   const { theme, isDark } = useTheme();
   const { tier } = useSubscription();
+  const { profile } = useAuth();
+  
+  // Role-aware tier naming
+  const isParent = profile?.role === 'parent';
+  const tierName = isParent ? 'Plus' : 'Premium';
 
   const handleUpgradePress = () => {
     track('premium.upgrade_clicked', {
@@ -149,7 +155,7 @@ export default function PremiumFeatureBanner({
           <View style={[styles.premiumBadge, { backgroundColor: theme.primary + '15', borderColor: theme.primary }]}>
             <Ionicons name="diamond" size={16} color={theme.primary} />
             <Text style={[styles.premiumText, { color: theme.primary }]}>
-              Premium Feature
+              {tierName} Feature
             </Text>
           </View>
 
@@ -161,12 +167,12 @@ export default function PremiumFeatureBanner({
           >
             <Ionicons name="rocket" size={20} color="white" />
             <Text style={styles.upgradeButtonText}>
-              Upgrade to Premium
+              Upgrade to {tierName}
             </Text>
           </TouchableOpacity>
           
           <Text style={[styles.benefitsText, { color: theme.textSecondary }]}>
-            Unlock this feature and many more with a Premium subscription
+            Unlock this feature and many more with a {tierName} subscription
           </Text>
         </View>
       </View>

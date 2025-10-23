@@ -13,6 +13,7 @@ interface CheckoutInput {
   seats?: number;
   return_url?: string;
   cancel_url?: string;
+  email_address?: string;
 }
 
 serve(async (req) => {
@@ -82,7 +83,9 @@ serve(async (req) => {
       });
     }
 
-    const amount = (input.billing === 'annual' ? (plan.price_annual || 0) : (plan.price_monthly || 0));
+    // Prices in DB are stored in cents; convert to ZAR for PayFast and DB records
+    const amountCents = (input.billing === 'annual' ? (plan.price_annual || 0) : (plan.price_monthly || 0));
+    const amountZAR = (amountCents || 0) / 100;
 
     // Insert a payment_transactions row (pending)
     const txId = crypto.randomUUID();
@@ -106,7 +109,7 @@ serve(async (req) => {
       school_id: input.schoolId || null,
       subscription_id: subscriptionId,
       invoice_number: invoiceNumber,
-      amount,
+      amount: amountZAR,
       currency: 'ZAR',
       status: 'pending',
       due_date: new Date().toISOString(),
@@ -117,7 +120,7 @@ serve(async (req) => {
       id: txId,
       school_id: input.schoolId || null,
       subscription_plan_id: String(plan.id),
-      amount,
+      amount: amountZAR,
       currency: 'ZAR',
       status: 'pending',
       metadata: { scope: input.scope, billing: input.billing, seats: input.seats || 1, invoice_number: invoiceNumber },
@@ -133,16 +136,25 @@ serve(async (req) => {
     const mode = (Deno.env.get('PAYFAST_MODE') || 'sandbox').toLowerCase();
     const base = mode === 'live' ? 'https://www.payfast.co.za/eng/process' : 'https://sandbox.payfast.co.za/eng/process';
 
+    // Construct webhook URLs - ensure they use the correct Supabase URL
+    const webhookBaseUrl = SUPABASE_URL.replace(/\/$/, ''); // Remove trailing slash if present
+    const notifyUrl = Deno.env.get('PAYFAST_NOTIFY_URL') || `${webhookBaseUrl}/functions/v1/payfast-webhook`;
+    const returnUrl = input.return_url || Deno.env.get('PAYFAST_RETURN_URL') || `${webhookBaseUrl}/functions/v1/payments-webhook`;
+    const cancelUrl = input.cancel_url || Deno.env.get('PAYFAST_CANCEL_URL') || `${webhookBaseUrl}/functions/v1/payments-webhook`;
+
+    console.log('PayFast webhook URLs:', { notifyUrl, returnUrl, cancelUrl, mode });
+
     const params: Record<string,string> = {
       merchant_id: Deno.env.get('PAYFAST_MERCHANT_ID') || '',
       merchant_key: Deno.env.get('PAYFAST_MERCHANT_KEY') || '',
-      return_url: input.return_url || Deno.env.get('PAYFAST_RETURN_URL') || `${SUPABASE_URL}/functions/v1/payments-webhook`,
-      cancel_url: input.cancel_url || Deno.env.get('PAYFAST_CANCEL_URL') || `${SUPABASE_URL}/functions/v1/payments-webhook`,
-      notify_url: Deno.env.get('PAYFAST_NOTIFY_URL') || `${SUPABASE_URL}/functions/v1/payfast-webhook`,
+      return_url: returnUrl,
+      cancel_url: cancelUrl,
+      notify_url: notifyUrl,
       m_payment_id: txId,
-      amount: amount.toFixed(2),
+      amount: amountZAR.toFixed(2),
       item_name: `EduDash Pro - ${plan.name} (${input.billing})`,
       email_confirmation: '1',
+      email_address: input.email_address || (input.scope === 'user' ? Deno.env.get('PAYFAST_TEST_EMAIL') || '' : ''),
       custom_str1: input.planTier,
       custom_str2: input.scope,
       custom_str3: input.schoolId || input.userId || '',

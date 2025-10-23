@@ -124,12 +124,26 @@ export class DashAIAssistant implements IDashAIAssistant {
       try {
         const session = await getCurrentSession();
         if (session) {
+          // Fetch preschool_id from profile for tenant isolation
+          let preschoolId: string | undefined;
+          try {
+            const { data: profile } = await initConfig.supabaseClient
+              .from('profiles')
+              .select('preschool_id')
+              .eq('id', session.user_id)
+              .single();
+            preschoolId = profile?.preschool_id;
+          } catch (profileError) {
+            console.warn('[DashAICompat] Failed to fetch preschool_id from profile:', profileError);
+          }
+
           initConfig.currentUser = {
             id: session.user_id,
             role: session.role || 'teacher',
             name: undefined, // Not available in session
             email: session.email,
             organizationId: session.organization_id,
+            preschoolId, // REQUIRED for tenant isolation
           };
         }
       } catch (e) {

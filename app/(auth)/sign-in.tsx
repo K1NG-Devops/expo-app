@@ -245,29 +245,6 @@ export default function SignIn() {
     }
   };
 
-  const handleResendConfirmation = async () => {
-    if (!email) {
-      Alert.alert('Email required', 'Enter your email above, then tap Resend.');
-      return;
-    }
-    try {
-      const { error } = await assertSupabase().auth.resend({
-        type: 'signup',
-        email: email.trim(),
-        options: {
-          emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
-        },
-      } as any);
-      if (error) throw error;
-      Alert.alert('Sent', 'We have resent the confirmation email. Please check your inbox and spam folder.');
-    } catch (e: any) {
-      let msg = e?.message || 'Failed to resend confirmation';
-      if (msg.toLowerCase().includes('already confirmed')) {
-        msg = 'This email is already confirmed. You can sign in now.';
-      }
-      Alert.alert('Resend', msg);
-    }
-  };
 
   const styles = StyleSheet.create({
     container: {
@@ -710,16 +687,6 @@ export default function SignIn() {
                 </TouchableOpacity>
               )}
             </View>
-
-            <TouchableOpacity
-              style={{ alignItems: 'center', marginTop: 10 }}
-              onPress={handleResendConfirmation}
-              activeOpacity={0.7}
-            >
-              <Text style={{ color: theme.primary, textDecorationLine: 'underline' }}>
-                {t('auth.resend_confirmation', { defaultValue: 'Resend confirmation email' })}
-              </Text>
-            </TouchableOpacity>
           </View>
           )}
 

@@ -183,6 +183,7 @@ export interface DashAICoreConfig {
     name?: string;
     email?: string;
     organizationId?: string;
+    preschoolId?: string;  // REQUIRED for tenant isolation
   };
   /** Personality customization */
   personality?: Partial<DashPersonality>;
@@ -239,7 +240,15 @@ export class DashAICore {
     };
     this.memoryService = new DashMemoryService(memoryConfig);
     
-    const conversationConfig: ConversationManagerConfig = {};
+    // CRITICAL: Pass userId and preschoolId for tenant isolation
+    if (!config?.currentUser?.id || !config?.currentUser?.preschoolId) {
+      console.warn('[DashAICore] Missing userId or preschoolId - conversation isolation disabled');
+    }
+    
+    const conversationConfig: ConversationManagerConfig = {
+      userId: config?.currentUser?.id || 'unknown',
+      preschoolId: config?.currentUser?.preschoolId || 'unknown',
+    };
     this.conversationManager = new DashConversationManager(conversationConfig);
     
     const taskConfig: TaskManagerConfig = {
@@ -909,14 +918,38 @@ IMPORTANT: Always use tools to access real data. Never make up information. Neve
       }
       
       // React Native fetch doesn't support streaming ReadableStream
-      // Fall back to reading the entire response
+      // Fall back to reading the entire response and parsing SSE format
       if (!response.body || typeof response.body.getReader !== 'function') {
-        console.warn('[DashAICore] Streaming not supported in this environment, falling back to non-streaming');
-        const text = await response.text();
-        // Simulate streaming by calling onChunk with full text
-        onChunk(text);
+        console.warn('[DashAICore] Streaming not supported in this environment, parsing SSE from full response');
+        const sseText = await response.text();
+        
+        // Parse SSE format to extract content_block_delta text chunks
+        let accumulated = '';
+        const lines = sseText.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data === '[DONE]') continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+                accumulated += parsed.delta.text;
+                onChunk(parsed.delta.text); // Send only the clean text
+              }
+            } catch (e) {
+              console.warn('[DashAICore] Failed to parse SSE line:', line.substring(0, 100));
+            }
+          }
+        }
+        
+        if (__DEV__) {
+          console.log('[DashAICore] SSE fallback parsed, accumulated length:', accumulated.length);
+        }
+        
         return {
-          content: text,
+          content: accumulated || 'No content extracted from SSE stream',
           metadata: {},
         };
       }

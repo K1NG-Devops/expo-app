@@ -34,8 +34,11 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
   const cardWidth = (width - 48) / 2
   const { tier } = useSubscription()
   
-  // Check if feature is premium-gated and user doesn't have premium
-  const isPremiumBlocked = isPremium && tier !== 'premium'
+  // Check if feature is premium-gated and user doesn't have a paid tier
+  // For parents: parent-starter or parent-plus unlock premium features
+  // For schools: premium or enterprise unlock premium features
+  const isPaidTier = tier === 'parent-starter' || tier === 'parent-plus' || tier === 'premium' || tier === 'enterprise' || tier === 'pro'
+  const isPremiumBlocked = isPremium && !isPaidTier
   
   const handlePress = () => {
     if (isPremiumBlocked) {
@@ -72,7 +75,7 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
         {isPremiumBlocked && (
           <View style={styles.premiumBadge}>
             <Ionicons name="diamond" size={12} color="#FFD700" />
-            <Text style={styles.premiumBadgeText}>{t('subscription.premium', { defaultValue: 'Premium' })}</Text>
+            <Text style={styles.premiumBadgeText}>{t('subscription.plus_feature', { defaultValue: 'Plus' })}</Text>
           </View>
         )}
         <View style={styles.iconContainer}>
@@ -134,6 +137,14 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
     <View style={styles.container}>
       <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('quick_actions.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
       <View style={styles.quickActionsGrid}>
+        <EnhancedQuickAction
+          icon="chatbubbles"
+          title={t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' })}
+          description={t('quick_actions.ai_assistant', { defaultValue: 'Your AI teaching assistant' })}
+          gradientColors={['#6366F1', '#8B5CF6']}
+          onPress={() => router.push('/screens/dash-assistant')}
+        />
+        
         <EnhancedQuickAction
           icon="help-circle"
           title={aiHelperTitle}

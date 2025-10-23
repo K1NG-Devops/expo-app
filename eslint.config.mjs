@@ -37,8 +37,8 @@ export default [
       'i18next': i18next,
     },
     rules: {
-      // Code quality: No console.log in production (allow warn/error for debugging)
-      'no-console': ['error', { allow: ['warn', 'error'] }],
+      // Code quality: console.log removed by babel in production, so disable lint rule
+      'no-console': 'off',
       // Allow any for scaffolded/generated code
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'warn',

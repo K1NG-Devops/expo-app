@@ -22,6 +22,7 @@ import {
   ActionSheetIOS,
   InteractionManager,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { styles } from './DashAssistant.styles';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,7 +39,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 import { TierBadge } from '@/components/ui/TierBadge';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { useVoiceUI } from '@/components/voice/VoiceUIController';
+// VOICETODO: VoiceUI archived for production build
+// import { useVoiceUI } from '@/components/voice/VoiceUIController';
 import { assertSupabase } from '@/lib/supabase';
 import { 
   pickDocuments, 
@@ -86,7 +88,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   const [unreadCount, setUnreadCount] = useState(0);
   const prevLengthRef = useRef<number>(0);
   const { tier, ready: subReady, refresh: refreshTier } = useSubscription();
-  const voiceUI = useVoiceUI();
+  // VOICETODO: voiceUI hook removed (archived)
 
   const flashListRef = useRef<FlashList<DashMessage>>(null);
   const inputRef = useRef<TextInput>(null);
@@ -322,12 +324,19 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     };
 
     // Only add event listener if we're in a web environment with proper DOM API
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.addEventListener) {
+    // Verify both addEventListener and removeEventListener are functions to avoid RN errors
+    if (
+      Platform.OS === 'web' && 
+      typeof window !== 'undefined' && 
+      typeof window.addEventListener === 'function' &&
+      typeof window.removeEventListener === 'function'
+    ) {
       window.addEventListener('beforeunload', handleBeforeUnload);
       return () => {
         window.removeEventListener('beforeunload', handleBeforeUnload);
       };
     }
+    return undefined;
   }, [dashInstance, isSpeaking]);
 
   const wantsLessonGenerator = (t: string, assistantText?: string): boolean => {
@@ -643,33 +652,13 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
     }
   };
 
-  // Open voice recording modal with direct send capability
+  // VOICETODO: Voice recording disabled (archived)
   const handleInputMicPress = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      // Get current language for voice recognition
-      const storedLang = await AsyncStorage.getItem('@dash_voice_language');
-      const activeLang = storedLang ? storedLang.toLowerCase() : 'en';
-      
-      // Open recording modal via VoiceUIController
-      await voiceUI.open({
-        language: activeLang,
-        tier: String(tier || 'free'),
-        forceMode: 'recording',
-        onTranscriptReady: async (transcript) => {
-          // IMPROVEMENT: Send directly to AI instead of populating input field
-          if (__DEV__) console.log('[DashAssistant] 📨 Sending voice message directly to AI');
-          
-          // Send message immediately
-          setInputText(''); // Keep input clean
-          await sendMessage(transcript);
-        },
-      });
-    } catch (error) {
-      console.error('[DashAssistant] Failed to open voice modal:', error);
-      Alert.alert('Voice Input', 'Failed to open voice recorder. Please try again.');
-    }
+    Alert.alert(
+      'Voice Input Unavailable',
+      'Voice input is temporarily disabled. Please use the text input instead.',
+      [{ text: 'OK' }]
+    );
   };
 
   const speakResponse = async (message: DashMessage) => {
@@ -1377,10 +1366,11 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { backgroundColor: theme.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      <KeyboardAvoidingView 
+        style={[styles.container, { backgroundColor: theme.background }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <StatusBar style={isDark ? 'light' : 'dark'} />
       
       {/* Header */}
@@ -1400,8 +1390,8 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Voice (Orb) - Interactive Voice Mode - Always Blue */}
-          <TouchableOpacity
+          {/* VOICETODO: Voice mode disabled for production build */}
+          {/* <TouchableOpacity
             style={styles.iconButton}
             accessibilityLabel="Interactive Voice Assistant"
             onPress={async () => {
@@ -1417,7 +1407,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
             }}
           >
             <Ionicons name="mic" size={screenWidth < 400 ? 18 : 22} color="#007AFF" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
           {isSpeaking && (
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: theme.error }]}
@@ -1482,7 +1472,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       {/* Jump to end FAB */}
       {Platform.OS === 'android' && !isNearBottom && messages.length > 0 && (
         <TouchableOpacity
-          style={[styles.scrollToBottomFab, { backgroundColor: theme.primary }]}
+          style={[styles.scrollToBottomFab, { backgroundColor: theme.primary, bottom: (styles.scrollToBottomFab?.bottom || 24) + 8 }]}
           onPress={() => { setUnreadCount(0); scrollToBottom({ animated: true, delay: 0 }); }}
           accessibilityLabel="Jump to bottom"
           activeOpacity={0.8}
@@ -1619,6 +1609,7 @@ export const DashAssistant: React.FC<DashAssistantProps> = ({
       {/* Command Palette Modal */}
       <DashCommandPalette visible={showCommandPalette} onClose={() => setShowCommandPalette(false)} />
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 

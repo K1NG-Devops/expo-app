@@ -17,9 +17,7 @@ function getTierMeta(t?: string) {
   const tt = String(t || 'free').toLowerCase()
   switch (tt) {
     case 'starter': return { label: 'Starter', color: '#059669' }
-    case 'basic': return { label: 'Basic', color: '#10B981' }
     case 'premium': return { label: 'Premium', color: '#7C3AED' }
-    case 'pro': return { label: 'Pro', color: '#2563EB' }
     case 'enterprise': return { label: 'Enterprise', color: '#DC2626' }
     case 'free':
     default: return { label: 'Free', color: '#6B7280' }

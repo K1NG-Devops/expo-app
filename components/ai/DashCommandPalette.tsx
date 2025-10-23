@@ -27,13 +27,24 @@ export function DashCommandPalette({
 }) {
   // Close on ESC (web)
   React.useEffect(() => {
-    if (!visible || typeof window === 'undefined') return;
-    const handler = (e: KeyboardEvent) => {
+    if (!visible) return;
+    
+    // Verify DOM APIs exist before using them (React Native compatibility)
+    if (
+      typeof window === 'undefined' ||
+      typeof window.addEventListener !== 'function' ||
+      typeof window.removeEventListener !== 'function'
+    ) {
+      return undefined;
+    }
+    
+    const handler = (e: any) => {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
       }
     };
+    
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [visible, onClose]);

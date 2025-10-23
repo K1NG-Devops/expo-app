@@ -1144,15 +1144,181 @@ const { data } = await supabase
 
 ### Quick Reference Checklist
 
-Before suggesting code, verify:
+**For detailed pre-implementation validation, see the comprehensive [Pre-Implementation Checklist](#-pre-implementation-checklist) below.**
+
+**Quick validation** before submitting a PR:
+
+- [ ] No file exceeds size limits (components ≤400, screens ≤500, services ≤500, hooks ≤200, types ≤300)
 - [ ] React Native 0.79 patterns (new architecture)
 - [ ] Expo SDK 53 APIs (not outdated examples)
 - [ ] Supabase v2 syntax (not v1)
 - [ ] TanStack Query v5 imports (not react-query)
 - [ ] Expo Router v5 navigation (not React Navigation)
-- [ ] TypeScript 5.8 tsconfig (correct lib settings)
+- [ ] TypeScript 5.8 tsconfig (lib: ["esnext"] only, NO "dom")
 - [ ] FlashList with estimatedItemSize
-- [ ] Correct language codes for voice (en-ZA, af-ZA, zu-ZA, etc.)
+- [ ] Multi-tenant isolation (preschool_id filters)
+- [ ] DOM API guards (window.addEventListener with type checks)
+
+See [Version Compatibility Matrix](#-version-compatibility-matrix) for detailed version requirements.
+
+## 📊 Version Compatibility Matrix
+
+**Purpose**: Quick reference for compatible version combinations and known issues.
+
+| Package | Version | Compatible With | Known Issues | Migration Notes |
+|---------|---------|-----------------|--------------|-----------------|
+| React Native | 0.79.5 | React 19.0.0, Expo SDK 53 | ⚠️ New Architecture required | Must enable Fabric + TurboModules |
+| Expo SDK | ~53.0.23 | RN 0.79.x, React 19 | ✅ Stable | Use expo-router v5 patterns |
+| React | 19.0.0 | RN 0.79.x | ⚠️ No Server Components in RN | Use client-side hooks only |
+| TypeScript | 5.8.3 | All packages | ⚠️ Must use `lib: ["esnext"]` only | Never include "dom" in lib |
+| Supabase JS | ^2.57.4 | TanStack Query v5 | ✅ Use v2 API only | signInWithPassword not signIn |
+| TanStack Query | ^5.87.4 | React 19, Supabase v2 | ✅ Import from @tanstack/react-query | Not 'react-query' |
+| Expo Router | ~5.1.7 | Expo SDK 53 | ✅ File-based routing | No React Navigation patterns |
+| FlashList | 1.7.6 | RN 0.79.x, Reanimated 3 | ⚠️ Requires estimatedItemSize | Performance degrades without |
+| Reanimated | ~3.17.4 | RN 0.79.x, FlashList | ✅ Worklet syntax v3 | Use New Architecture |
+| Azure Speech SDK | ^1.46.0 | React Native | ✅ Supports en-ZA, af-ZA, zu-ZA | Use southafricanorth region |
+| Sentry Expo | ~7.0.0 | Expo SDK 53 | ✅ Use sentry-expo not @sentry/react-native | Production only |
+| PostHog RN | ^4.3.2 | React Native 0.79 | ✅ Stable | Production only |
+| React Native Screens | ~4.11.1 | Expo Router v5 | ✅ Required for navigation | - |
+| Gesture Handler | ~2.24.0 | Reanimated 3 | ✅ Stable | - |
+| Zod | ^3.23.8 | TypeScript 5.8 | ✅ Stable | Use for validation |
+| date-fns | ^4.1.0 | - | ✅ Use enZA locale | South African formatting |
+| i18next | ^25.5.2 | react-i18next 15.7.3 | ⚠️ Set useSuspense: false for RN | compatibilityJSON: 'v3' |
+| Google AdMob | ^14.11.0 | React Native 0.79 | ⚠️ Use test IDs in dev | COPPA compliance required |
+
+**Legend**:
+- ✅ **Stable**: No known issues
+- ⚠️ **Requires Configuration**: Needs specific setup
+- ❌ **Breaking Changes**: Migration required
+
+**Update Schedule**: Review monthly or when upgrading major dependencies.
+
+## ✅ Pre-Implementation Checklist
+
+**Purpose**: Validate requirements before starting any feature implementation.
+
+### Before Writing Code
+
+Use this checklist to ensure you have all necessary context and compatibility verified:
+
+#### 1. Requirements Validation
+- [ ] User story or feature spec is clear and unambiguous
+- [ ] Acceptance criteria are defined
+- [ ] Success metrics identified (align with Comprehensive Audit Roadmap)
+- [ ] Phase alignment confirmed (Phase 0-7 from audit roadmap)
+
+#### 2. Documentation Review
+- [ ] Reviewed relevant section in WARP.md
+- [ ] Checked DOCUMENTATION_SOURCES.md for official API references
+- [ ] Verified current package versions in package.json
+- [ ] Reviewed Version Compatibility Matrix (above)
+
+#### 3. Architecture & Design
+- [ ] Component/screen fits within file size limits (≤400 lines components, ≤500 lines screens)
+- [ ] Multi-tenant isolation pattern planned (preschool_id filters)
+- [ ] Mobile-first design approach (5.5" baseline)
+- [ ] Offline-first data strategy (TanStack Query caching)
+- [ ] Error states and empty states designed
+
+#### 4. Database Changes (if applicable)
+- [ ] Migration file created with `supabase migration new <name>`
+- [ ] SQL linted with `npm run lint:sql`
+- [ ] RLS policies defined for tenant isolation
+- [ ] Service role usage limited to Edge Functions only
+- [ ] NO direct SQL execution in Supabase Dashboard
+- [ ] NO local Docker or `supabase start` usage
+
+#### 5. API & Data Layer
+- [ ] Supabase v2 syntax verified (signInWithPassword, not signIn)
+- [ ] TanStack Query v5 imports (@tanstack/react-query, not react-query)
+- [ ] All queries include preschool_id filter
+- [ ] Query keys include preschool_id
+- [ ] Error handling implemented
+- [ ] Loading states defined
+
+#### 6. UI & Performance
+- [ ] FlashList used for lists >10 items with estimatedItemSize
+- [ ] Reanimated 3 used for animations (worklet syntax)
+- [ ] Expo Image used instead of React Native Image
+- [ ] Touch targets ≥44x44 pixels
+- [ ] Dark mode support via useTheme()
+- [ ] South African localization (en-ZA, af-ZA, zu-ZA, xh-ZA)
+
+#### 7. AI Integration (if applicable)
+- [ ] All AI calls routed through ai-proxy Edge Function
+- [ ] No client-side AI API keys
+- [ ] Usage tracking in ai_usage_logs table
+- [ ] Subscription limits enforced server-side
+- [ ] PII redaction implemented before AI calls
+
+#### 8. Voice Features (if applicable)
+- [ ] Azure Speech SDK configured with correct region (southafricanorth)
+- [ ] Language codes correct (en-ZA, af-ZA, zu-ZA, xh-ZA)
+- [ ] Voice profiles synchronized with UI language
+- [ ] Permissions requested (microphone access)
+- [ ] Error handling for permission denials
+
+#### 9. Navigation & Routing
+- [ ] Expo Router v5 file-based routing patterns used
+- [ ] useRouter() from expo-router (not React Navigation)
+- [ ] Dynamic routes follow [id].tsx convention
+- [ ] Layouts defined in _layout.tsx
+- [ ] Protected routes implemented with auth guards
+
+#### 10. TypeScript & Type Safety
+- [ ] TypeScript 5.8 patterns used
+- [ ] tsconfig.json has lib: ["esnext"] only (NO "dom")
+- [ ] Zod schemas defined for validation
+- [ ] Proper type imports/exports
+- [ ] No any types (or justified with comment)
+
+#### 11. Testing & Quality
+- [ ] Platform.OS checks for platform-specific code
+- [ ] Android-first testing approach
+- [ ] AdMob test IDs used in development
+- [ ] Production database used (EXPO_PUBLIC_USE_PRODUCTION_DB_AS_DEV=true)
+- [ ] No console.log in production code (use __DEV__ guards)
+
+#### 12. Security & Compliance
+- [ ] Row Level Security (RLS) policies enforce tenant isolation
+- [ ] No sensitive keys in client code
+- [ ] Service role operations server-side only
+- [ ] COPPA compliance for ads (child-directed treatment)
+- [ ] Proper authentication flow (Supabase Auth)
+
+#### 13. Monitoring & Analytics (Production)
+- [ ] Sentry error tracking configured (production only)
+- [ ] PostHog event tracking defined (production only)
+- [ ] Performance monitoring planned
+- [ ] Key user actions tracked
+
+#### 14. Documentation
+- [ ] Code comments for complex logic
+- [ ] Update relevant docs in docs/ directory
+- [ ] Add JSDoc for exported functions/components
+- [ ] Update this checklist if new patterns emerge
+
+### After Implementation
+
+- [ ] Run `npm run typecheck` (must pass)
+- [ ] Run `npm run lint` (max 200 warnings)
+- [ ] Run `npm run lint:sql` (if SQL changes)
+- [ ] Test on physical Android device (primary platform)
+- [ ] Verify dark mode works
+- [ ] Verify multi-tenant data isolation
+- [ ] Create PR with "Documentation Sources" section listing official docs referenced
+- [ ] Code review by peer
+- [ ] QA testing in production-like environment
+
+### Emergency Rollback Plan
+
+If production issues arise:
+1. Use EAS Update for OTA hotfix (if no native changes)
+2. Revert migration with new down migration (if database changes)
+3. Roll back to previous build in stores (if native changes)
+4. Post-mortem documentation in docs/OBSOLETE/incidents/
+
+**Note**: This checklist is living documentation. Update it as new patterns and requirements emerge.
 
 ## 🚨 Critical Development Rules
 

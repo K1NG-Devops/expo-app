@@ -20,9 +20,19 @@ export function ThemedStackWrapper() {
   // Global keyboard shortcut Cmd/Ctrl+K for web
   useEffect(() => {
     if (Platform.OS !== 'web') return;
+
+    // Verify DOM APIs exist before using them (React Native compatibility)
+    if (
+      typeof window === 'undefined' ||
+      typeof window.addEventListener !== 'function' ||
+      typeof window.removeEventListener !== 'function'
+    ) {
+      return undefined;
+    }
+
     const seqRef = { lastKey: '', lastTime: 0 } as { lastKey: string; lastTime: number };
 
-    const handler = (e: KeyboardEvent) => {
+    const handler = (e: any) => {
       const key = e.key;
       const lower = key?.toLowerCase?.() || '';
 

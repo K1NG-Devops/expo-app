@@ -40,16 +40,18 @@ export default function LandingHandler() {
     };
     document.addEventListener('visibilitychange', visibilityHandler);
 
-    // Kick off scheme open
-    window.location.href = schemeUrl;
+    // Immediate redirect via location.replace (more reliable than href on mobile)
+    window.location.replace(schemeUrl);
 
-    // After 1.2s, if we are still visible, assume app is not installed and go to Play Store
+    // After 2s, if we are still visible, assume app is not installed and go to Play Store
     setTimeout(() => {
       document.removeEventListener('visibilitychange', visibilityHandler);
       if (!didHide) {
-        window.location.href = playStoreUrl;
+        // Show install prompt instead of immediate redirect
+        setStatus('error');
+        setMessage(t('landing.app_not_installed', { defaultValue: 'App not detected. Please install EduDash Pro to continue.' }));
       }
-    }, 1200);
+    }, 2000);
   };
 
   useEffect(() => {
@@ -60,25 +62,41 @@ export default function LandingHandler() {
         // EMAIL CONFIRMATION: verify via token_hash if provided
         const tokenHash = query.token_hash || query.token || '';
         if ((flow === 'email-confirm' || query.type === 'email') && tokenHash) {
-setMessage(t('landing.verifying_email', { defaultValue: 'Verifying your email...' }));
+          setMessage(t('landing.verifying_email', { defaultValue: 'Verifying your email...' }));
           try {
             const { data, error } = await assertSupabase().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
             if (error) throw error;
-setMessage(t('landing.email_verified', { defaultValue: 'Email verified. Opening app...' }));
+            
+            setMessage(t('landing.email_verified', { defaultValue: 'Email verified! Redirecting to app...' }));
             setStatus('done');
-            // On native, route to sign-in or dashboard
+            
+            // On native, route to sign-in with success message
             if (!isWeb) {
-              router.replace('/(auth)/sign-in');
+              // Small delay to show success message
+              setTimeout(() => {
+                router.replace({
+                  pathname: '/(auth)/sign-in',
+                  params: { emailVerified: 'true' }
+                } as any);
+              }, 1500);
               return;
             }
-            // On web, try to open app with context
-            tryOpenApp(`/post-verify`);
+            
+            // On web, try to open app with verified context
+            // Use immediate redirect for better mobile browser support
+            setTimeout(() => {
+              tryOpenApp('(auth)/sign-in?emailVerified=true');
+            }, 1000);
             return;
           } catch (e: any) {
             setStatus('error');
-setMessage(e?.message || t('landing.email_verification_failed', { defaultValue: 'Email verification failed.' }));
+            setMessage(e?.message || t('landing.email_verification_failed', { defaultValue: 'Email verification failed.' }));
             // Still try to open the app so the user can continue there
-            if (isWeb) tryOpenApp(`/post-verify-error`);
+            if (isWeb) {
+              setTimeout(() => {
+                tryOpenApp('(auth)/sign-in?emailVerificationFailed=true');
+              }, 2000);
+            }
             return;
           }
         }
@@ -138,15 +156,49 @@ setMessage(e?.message || t('common.unexpected_error', { defaultValue: 'Something
 
   // Minimal web UI (fallback) for when app isn't installed
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: '#0a0a0f' }}>
-      <ActivityIndicator color="#00f5ff" />
-      {!!message && <Text style={{ color: '#ffffff', textAlign: 'center' }}>{message}</Text>}
-      <TouchableOpacity onPress={() => tryOpenApp('/')} style={{ backgroundColor: '#00f5ff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 }}>
-        <Text style={{ color: '#000', fontWeight: '800' }}>{t('invite.open_app_cta', { defaultValue: 'Open EduDash Pro App' })}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => Linking.openURL(playStoreUrl)}>
-        <Text style={{ color: '#9CA3AF', textDecorationLine: 'underline' }}>{t('invite.install_google_play', { defaultValue: 'Install from Google Play' })}</Text>
-      </TouchableOpacity>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24, backgroundColor: '#0a0a0f' }}>
+      {status === 'loading' || status === 'done' ? (
+        <ActivityIndicator size="large" color="#00f5ff" />
+      ) : null}
+      
+      {!!message && (
+        <Text style={{ color: '#ffffff', textAlign: 'center', fontSize: 16, marginBottom: 8 }}>
+          {message}
+        </Text>
+      )}
+      
+      {status === 'done' && (
+        <Text style={{ color: '#22c55e', textAlign: 'center', fontSize: 14, marginTop: 8 }}>
+          ✓ {t('landing.opening_app_automatically', { defaultValue: 'Opening app automatically...' })}
+        </Text>
+      )}
+      
+      {(status === 'ready' || status === 'error') && (
+        <>
+          <TouchableOpacity 
+            onPress={() => {
+              const path = query.token_hash ? '(auth)/sign-in?emailVerified=true' : '/';
+              tryOpenApp(path);
+            }} 
+            style={{ backgroundColor: '#00f5ff', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginTop: 8 }}
+          >
+            <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>
+              {t('invite.open_app_cta', { defaultValue: 'Open EduDash Pro App' })}
+            </Text>
+          </TouchableOpacity>
+          
+          <View style={{ marginTop: 24, alignItems: 'center' }}>
+            <Text style={{ color: '#9CA3AF', fontSize: 14, marginBottom: 8 }}>
+              {t('landing.app_not_installed_yet', { defaultValue: "Don't have the app yet?" })}
+            </Text>
+            <TouchableOpacity onPress={() => Linking.openURL(playStoreUrl)}>
+              <Text style={{ color: '#00f5ff', textDecorationLine: 'underline', fontSize: 14, fontWeight: '600' }}>
+                {t('invite.install_google_play', { defaultValue: 'Install from Google Play' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
     </View>
   );
 }

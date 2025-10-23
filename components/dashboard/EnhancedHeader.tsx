@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   statusSection: {
     flex: 1,
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   syncStatus: {
     flexDirection: 'row',

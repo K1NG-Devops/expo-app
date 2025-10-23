@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, usePathname } from 'expo-router';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
@@ -14,16 +14,22 @@ import { TermsProvider } from '@/contexts/TerminologyContext';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
-import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
-import { VoiceUIProvider, useVoiceUI } from '@/components/voice/VoiceUIController';
+// VOICETODO: Voice orb functionality completely archived for production build
 import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
+import { DashChatButton } from '@/components/ui/DashChatButton';
 
 // Inner component with access to AuthContext and VoiceUI
 function LayoutContent() {
   const pathname = usePathname();
   const { loading: authLoading } = useAuth();
-  const voiceUI = useVoiceUI();
+  const { isDark } = useTheme();
   const [showFAB, setShowFAB] = useState(false);
+  const [statusBarKey, setStatusBarKey] = useState(0);
+  
+  // Force StatusBar re-render when theme changes
+  useEffect(() => {
+    setStatusBarKey(prev => prev + 1);
+  }, [isDark]);
   
   // Enhanced FAB hiding logic (restore preview behavior)
   const shouldHideFAB = useMemo(() => {
@@ -34,6 +40,16 @@ function LayoutContent() {
         pathname === '/sign-in' ||
         pathname === '/(auth)/sign-in' ||
         pathname.includes('auth-callback')) {
+      return true;
+    }
+    
+    // Registration routes (hide Dash Orb during sign-up)
+    if (pathname.includes('registration') ||
+        pathname.includes('register') ||
+        pathname.includes('sign-up') ||
+        pathname.includes('signup') ||
+        pathname.includes('verify-your-email') ||
+        pathname.includes('profiles-gate')) {
       return true;
     }
     
@@ -54,13 +70,10 @@ function LayoutContent() {
       return true;
     }
     
-    // Voice UI is open (any modal)
-    if (voiceUI.isOpen) {
-      return true;
-    }
+    // VOICETODO: Voice UI check removed (archived)
     
     return false;
-  }, [pathname, voiceUI.isOpen]);
+  }, [pathname]);
   
   const isAuthRoute = typeof pathname === 'string' && (
     pathname.startsWith('/(auth)') ||
@@ -83,7 +96,7 @@ function LayoutContent() {
   
   return (
     <View style={styles.container}>
-      <StatusBar style="dark" />
+      <StatusBar key={statusBarKey} style={isDark ? 'light' : 'dark'} animated />
       {Platform.OS !== 'web' && <DashWakeWordListener />}
       <Stack
         screenOptions={{
@@ -95,9 +108,9 @@ function LayoutContent() {
         {/* Let Expo Router auto-discover screens */}
       </Stack>
       
-      {/* FAB (Floating Action Button) */}
+      {/* Dash Chat FAB - replaces archived voice orb */}
       {showFAB && !shouldHideFAB && (
-        <DashVoiceFloatingButton showWelcomeMessage={true} />
+        <DashChatButton />
       )}
     </View>
   );
@@ -375,9 +388,8 @@ export default function RootLayout() {
                   <DashboardPreferencesProvider>
                     <UpdatesProvider>
                       <ToastProvider>
-                        <VoiceUIProvider dashInstance={dashInstance}>
-                          <LayoutContent />
-                        </VoiceUIProvider>
+                        {/* VOICETODO: VoiceUIProvider removed (archived) */}
+                        <LayoutContent />
                       </ToastProvider>
                     </UpdatesProvider>
                   </DashboardPreferencesProvider>

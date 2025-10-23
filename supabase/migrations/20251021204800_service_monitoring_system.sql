@@ -24,7 +24,7 @@ CREATE EXTENSION IF NOT EXISTS "pg_cron";
 
 -- Service health status tracking (real-time health monitoring)
 CREATE TABLE IF NOT EXISTS public.service_health_status (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_name TEXT NOT NULL UNIQUE,
   service_category TEXT NOT NULL CHECK (service_category IN ('infrastructure', 'ai', 'voice', 'payment', 'communication', 'monitoring', 'development')),
   status TEXT NOT NULL CHECK (status IN ('healthy', 'degraded', 'down', 'maintenance', 'unknown')) DEFAULT 'unknown',
@@ -46,7 +46,7 @@ COMMENT ON COLUMN public.service_health_status.metadata IS 'Additional service-s
 
 -- Cost tracking per preschool per service
 CREATE TABLE IF NOT EXISTS public.service_cost_tracking (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   preschool_id UUID REFERENCES public.preschools(id) ON DELETE CASCADE,
   service_name TEXT NOT NULL,
   period_month DATE NOT NULL,
@@ -64,7 +64,7 @@ COMMENT ON COLUMN public.service_cost_tracking.usage_units IS 'Service-specific 
 
 -- API key management (superadmin only)
 CREATE TABLE IF NOT EXISTS public.service_api_keys (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_name TEXT NOT NULL UNIQUE,
   key_alias TEXT NOT NULL,
   owner_email TEXT NOT NULL,
@@ -83,7 +83,7 @@ COMMENT ON COLUMN public.service_api_keys.scopes IS 'API key permissions/scopes 
 
 -- Service usage limits per tier
 CREATE TABLE IF NOT EXISTS public.service_usage_limits (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   preschool_id UUID REFERENCES public.preschools(id) ON DELETE CASCADE,
   service_name TEXT NOT NULL,
   tier TEXT NOT NULL,
@@ -104,7 +104,7 @@ COMMENT ON COLUMN public.service_usage_limits.hard_limit IS 'Hard cutoff thresho
 
 -- Incident tracking (PII-scrubbed)
 CREATE TABLE IF NOT EXISTS public.service_incidents (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_name TEXT NOT NULL,
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ended_at TIMESTAMPTZ,
@@ -122,7 +122,7 @@ COMMENT ON COLUMN public.service_incidents.pii_scrubbed_message IS 'Error messag
 
 -- Alert tracking
 CREATE TABLE IF NOT EXISTS public.service_alerts (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_name TEXT NOT NULL,
   alert_type TEXT NOT NULL,
   triggered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

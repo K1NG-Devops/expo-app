@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
+  Platform,
+  StatusBar as RNStatusBar,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -203,11 +205,25 @@ export default function SubscriptionUpgradePostScreen() {
       // Ensure data is an array
       const plansData = Array.isArray(data) ? data : [];
       
-      // Show all plans except the current tier (so users can downgrade or upgrade)
+      // Role-aware filtering: parents see parent plans only, schools see school plans
+      const isParent = profile?.role === 'parent';
       const currentTierLower = currentTier.toLowerCase();
+      
       const filteredPlans = plansData.filter(plan => {
         if (!plan || !plan.tier) return false; // Skip invalid plans
-        return plan.tier.toLowerCase() !== currentTierLower; // exclude current plan only
+        
+        const planTier = plan.tier.toLowerCase();
+        
+        // Exclude current tier
+        if (planTier === currentTierLower) return false;
+        
+        // Parents only see parent tiers
+        if (isParent) {
+          return planTier === 'free' || planTier.includes('parent');
+        }
+        
+        // Non-parents don't see parent tiers
+        return !planTier.includes('parent');
       });
       
       setPlans(filteredPlans);
@@ -539,20 +555,25 @@ export default function SubscriptionUpgradePostScreen() {
 
   // Wrap in try-catch to prevent render crashes on mobile
   try {
+    const statusBarHeight = Platform.OS === 'android' ? RNStatusBar.currentHeight || 0 : 0;
+    
     return (
       <View style={styles.container}>
       <Stack.Screen options={{ 
         title: 'Upgrade Plan',
         headerShown: true,
-        headerStyle: { backgroundColor: '#0b1220' },
+        headerStyle: { 
+          backgroundColor: '#0b1220',
+          height: 56 + statusBarHeight, // Standard header height + status bar
+        },
         headerTitleStyle: { color: '#fff' },
         headerTintColor: '#00f5ff',
         headerBackVisible: true,
-        gestureEnabled: true
+        gestureEnabled: true,
+        headerTransparent: false,
+        headerStatusBarHeight: statusBarHeight,
       }} />
       <StatusBar style="light" backgroundColor="#0b1220" />
-      
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           
           {/* Header Section */}
@@ -605,8 +626,10 @@ export default function SubscriptionUpgradePostScreen() {
             <View style={styles.plansGrid}>
               {plans.map((plan) => {
                 const price = annual ? plan.price_annual : plan.price_monthly;
+                const priceInRands = price / 100; // Convert cents to rands
                 const monthlyPrice = annual ? Math.round(plan.price_annual / 12) : plan.price_monthly;
-                const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) : 0;
+                const monthlyPriceInRands = monthlyPrice / 100; // Convert cents to rands
+                const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) / 100 : 0;
                 const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
                 const isSelected = selectedPlan === plan.id;
                 const planColor = getPlanColor(plan.tier);
@@ -649,14 +672,14 @@ export default function SubscriptionUpgradePostScreen() {
                       ) : (
                         <View>
                           <View style={styles.priceRow}>
-                            <Text style={[styles.price, { color: planColor }]}>R{monthlyPrice}</Text>
+                            <Text style={[styles.price, { color: planColor }]}>R{monthlyPriceInRands.toFixed(2)}</Text>
                             <Text style={styles.pricePeriod}>/month</Text>
                           </View>
                           {annual && (
                             <View>
-                              <Text style={styles.annualPrice}>R{price} billed annually</Text>
+                              <Text style={styles.annualPrice}>R{priceInRands.toFixed(2)} billed annually</Text>
                               {savings > 0 && (
-                                <Text style={styles.savingsAmount}>Save R{savings}/month</Text>
+                                <Text style={styles.savingsAmount}>Save R{savings.toFixed(2)}/month</Text>
                               )}
                             </View>
                           )}
@@ -673,7 +696,9 @@ export default function SubscriptionUpgradePostScreen() {
                               ? '-'
                               : (plan.max_teachers < 0 ? 'Unlimited' : String(plan.max_teachers))}
                           </Text>
-                          <Text style={styles.limitLabel}>Teachers</Text>
+                          <Text style={styles.limitLabel}>
+                            {plan.tier.toLowerCase().includes('parent') ? 'Parents' : 'Teachers'}
+                          </Text>
                         </View>
                         <View style={styles.limitItem}>
                           <Text style={styles.limitNumber}>
@@ -681,7 +706,9 @@ export default function SubscriptionUpgradePostScreen() {
                               ? '-'
                               : (plan.max_students < 0 ? 'Unlimited' : String(plan.max_students))}
                           </Text>
-                          <Text style={styles.limitLabel}>Students</Text>
+                          <Text style={styles.limitLabel}>
+                            {plan.tier.toLowerCase().includes('parent') ? 'Children' : 'Students'}
+                          </Text>
                         </View>
                       </View>
 
@@ -707,7 +734,7 @@ export default function SubscriptionUpgradePostScreen() {
                       onPress={() => handleUpgrade(plan.id)}
                     >
                       <Text style={styles.upgradeButtonText}>
-                        {isEnterprise ? 'Contact Sales' : (monthlyPrice === 0 ? 'Downgrade' : 'Upgrade')}
+                        {isEnterprise ? 'Contact Sales' : (monthlyPriceInRands === 0 ? 'Downgrade' : 'Upgrade')}
                       </Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -773,15 +800,13 @@ export default function SubscriptionUpgradePostScreen() {
           )}
           
         </ScrollView>
-      </SafeAreaView>
-    </View>
+      </View>
     );
   } catch (renderError: any) {
     // Fallback render for crash protection
     console.error('Subscription upgrade screen render error:', renderError);
     return (
       <View style={styles.container}>
-        <SafeAreaView edges={['top']} style={styles.safeArea}>
           <View style={styles.loadingContainer}>
             <Text style={styles.errorTitle}>Unable to Load Upgrade Options</Text>
             <Text style={styles.loadingText}>Please try restarting the app</Text>
@@ -798,7 +823,6 @@ export default function SubscriptionUpgradePostScreen() {
               <Text style={[styles.cancelButtonText, { color: '#000', fontWeight: '600' }]}>Go Back</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
       </View>
     );
   }
