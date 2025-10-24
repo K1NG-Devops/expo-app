@@ -105,6 +105,19 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const hasRefreshedOnFocus = useRef(false);
   
+  // Collapsible sections (start with long sections collapsed)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set([
+    'financial-tools', 'ai-analytics', 'quick-actions',
+  ]));
+  const toggleSection = useCallback((id: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    try { Feedback.vibrate(8); } catch { /* no-op */ }
+  }, []);
+  
   // Refresh on focus
   useFocusEffect(
     useCallback(() => {
@@ -778,10 +791,14 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Financial Management Tools - Respects backend settings */}
+      {/* Financial Management Tools - Collapsible */}
       {financialsEnabled && (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('financial-tools')} activeOpacity={0.7}>
+          <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+          <Ionicons name={collapsedSections.has('financial-tools') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('financial-tools') && (
         <View style={styles.toolsGrid}>
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#4F46E5' + '10' }]}
@@ -855,12 +872,17 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
+        )}
       </View>
       )}
 
-      {/* AI & Analytics Tools */}
+      {/* AI & Analytics Tools - Collapsible */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('ai-analytics')} activeOpacity={0.7}>
+          <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+          <Ionicons name={collapsedSections.has('ai-analytics') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('ai-analytics') && (
         <View style={styles.toolsGrid}>
           {/* Active Tools First - Available with starter subscription */}
           <TouchableOpacity 
@@ -963,11 +985,16 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
             )}
           </TouchableOpacity>
         </View>
+        )}
       </View>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Collapsible */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('quick-actions')} activeOpacity={0.7}>
+          <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+          <Ionicons name={collapsedSections.has('quick-actions') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('quick-actions') && (
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
@@ -1096,6 +1123,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
             </TouchableOpacity>
           )}
         </View>
+        )}
       </View>
 
       </ScrollView>
@@ -1357,6 +1385,12 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
   },
   viewAllButton: {
     flexDirection: 'row',

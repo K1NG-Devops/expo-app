@@ -11,7 +11,7 @@
  * - Optimized for touch interfaces and accessibility
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -105,28 +105,36 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     return t('dashboard.good_evening');
   };
 
-  const toggleSection = (sectionId: string) => {
+  const toggleSection = useCallback((sectionId: string) => {
+    console.log('🔄 Toggling section:', sectionId);
     setCollapsedSections(prev => {
       const newSet = new Set(prev);
       if (newSet.has(sectionId)) {
+        console.log('✅ Expanding:', sectionId);
         newSet.delete(sectionId);
       } else {
+        console.log('❌ Collapsing:', sectionId);
         newSet.add(sectionId);
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = ({ title, sectionId, icon }) => {
+  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = useCallback(({ title, sectionId, icon }) => {
     const isCollapsed = collapsedSections.has(sectionId);
+    console.log(`📋 Rendering SectionHeader: ${title} (${sectionId}) - collapsed: ${isCollapsed}`);
     return (
       <TouchableOpacity
         style={styles.sectionHeader}
         onPress={() => {
+          console.log('👆 SectionHeader tapped:', sectionId);
           toggleSection(sectionId);
           try { Feedback.vibrate(5); } catch { /* non-fatal */ }
         }}
         activeOpacity={0.7}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`${isCollapsed ? 'Expand' : 'Collapse'} ${title}`}
       >
         {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
         <Text style={styles.sectionHeaderTitle}>{title}</Text>
@@ -137,7 +145,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         />
       </TouchableOpacity>
     );
-  };
+  }, [collapsedSections, styles, theme, toggleSection]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
