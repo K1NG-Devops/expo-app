@@ -1274,6 +1274,17 @@ export default function ProgressReportCreator() {
   // Removed duplicate styles definition to fix React Hooks rules violation
 
   return (
+    <SafeAreaView edges={['top', 'bottom']} style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ title: 'Create Progress Report', headerStyle: { backgroundColor: theme.background }, headerTintColor: theme.primary }} />
+      
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {/* Progress Indicator */}
+        <View style={[styles.progressContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressTitle, { color: theme.text }]}>Report Progress</Text>
+            <View style={styles.autoSaveContainer}>
+              {autoSaveStatus === 'saving' && (
+                <ActivityIndicator size="small" color={theme.primary} style={{ marginRight: 8 }} />
               )}
               {autoSaveStatus === 'saved' && lastAutoSave && (
                 <Text style={[styles.autoSaveText, { color: theme.textSecondary }]}>
