@@ -117,21 +117,27 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     });
   };
 
-  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = ({ title, sectionId, icon }) => (
-    <TouchableOpacity
-      style={styles.sectionHeader}
-      onPress={() => toggleSection(sectionId)}
-      activeOpacity={0.7}
-    >
-      {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
-      <Text style={styles.sectionHeaderTitle}>{title}</Text>
-      <Ionicons
-        name={collapsedSections.has(sectionId) ? 'chevron-down' : 'chevron-up'}
-        size={20}
-        color={theme.textSecondary}
-      />
-    </TouchableOpacity>
-  );
+  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = ({ title, sectionId, icon }) => {
+    const isCollapsed = collapsedSections.has(sectionId);
+    return (
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        onPress={() => {
+          toggleSection(sectionId);
+          try { Feedback.vibrate(5); } catch { /* non-fatal */ }
+        }}
+        activeOpacity={0.7}
+      >
+        {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
+        <Text style={styles.sectionHeaderTitle}>{title}</Text>
+        <Ionicons
+          name={isCollapsed ? 'chevron-down' : 'chevron-up'}
+          size={20}
+          color={theme.textSecondary}
+        />
+      </TouchableOpacity>
+    );
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
