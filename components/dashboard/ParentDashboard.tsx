@@ -842,6 +842,9 @@ case 'homework':
           })()}
           isDark={isDark}
           onThemeToggle={toggleTheme}
+          showTierBadge={true}
+          tierBadgePlacement="subtitle-inline"
+          tierBadgeSize="sm"
         />
 
         {/* Enhanced Children Section (moved under welcome) */}

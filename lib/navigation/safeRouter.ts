@@ -9,7 +9,7 @@
  */
 
 import { router } from 'expo-router';
-import { Platform, Alert, ToastAndroid } from 'react-native';
+import { Platform, ToastAndroid } from 'react-native';
 
 // ============================================================================
 // Module-level state for duplicate prevention

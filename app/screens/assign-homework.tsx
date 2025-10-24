@@ -42,7 +42,7 @@ export default function AssignHomeworkScreen() {
   const studentsQuery = useQuery({
     queryKey: ['students', classId],
     queryFn: async () => {
-      let q = assertSupabase().from('students').select('id,first_name,last_name,class_id,is_active').eq('is_active', true)
+      let q = assertSupabase().from('students').select('id,first_name,last_name,class_id,is_active,age_groups!students_age_group_id_fkey(*)').eq('is_active', true)
       if (classId) q = q.eq('class_id', classId)
       const { data, error } = await q
       if (error) throw error

@@ -43,6 +43,7 @@ import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext'
 import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import TierBadge from '@/components/ui/TierBadge';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -399,6 +400,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
+            {/* Tier Badge */}
+            <View style={{ marginLeft: 8 }}>
+              <TierBadge size="sm" showManageButton={true} />
+            </View>
           </View>
           <View style={styles.headerRight}>
             {/* Layout toggle */}
@@ -1039,6 +1044,14 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
           >
             <Ionicons name="cloud-download" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.export_data')}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionCard, { borderLeftColor: '#8B5CF6', shadowColor: '#8B5CF6' }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/student-management') }}
+          >
+            <Ionicons name="school" size={24} color="#8B5CF6" />
+            <Text style={styles.actionText}>Progress Reports</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 

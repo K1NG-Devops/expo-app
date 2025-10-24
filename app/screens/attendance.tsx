@@ -56,7 +56,7 @@ export default function AttendanceScreen() {
   const studentsQuery = useQuery({
     queryKey: ['students_for_attendance', classId],
     queryFn: async () => {
-      let q = assertSupabase().from('students').select('id,first_name,last_name,class_id,is_active')
+      let q = assertSupabase().from('students').select('id,first_name,last_name,class_id,is_active,age_groups!students_age_group_id_fkey(*)')
       if (classId) q = q.eq('class_id', classId)
       const { data, error } = await q
       if (error) throw error

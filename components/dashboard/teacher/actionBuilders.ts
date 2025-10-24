@@ -189,6 +189,17 @@ export const buildQuickActions = (params: BuildQuickActionsParams): QuickAction[
       requiredCap: "view_class_analytics",
     },
     {
+      id: "create-progress-report",
+      title: "Progress Reports",
+      icon: "school",
+      color: "#8B5CF6",
+      onPress: () => {
+        track('edudash.progress_reports.quick_action_pressed');
+        router.push("/screens/student-management");
+      },
+      requiredCap: "manage_students",
+    },
+    {
       id: "whatsapp-connect",
       title: connectionStatus.isConnected ? "WhatsApp Connected" : "Connect WhatsApp",
       icon: "logo-whatsapp",

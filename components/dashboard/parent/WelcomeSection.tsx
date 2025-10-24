@@ -4,19 +4,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getGreeting } from '@/lib/dashboard/parentDashboardHelpers';
+import TierBadge from '@/components/ui/TierBadge';
 
 interface WelcomeSectionProps {
   userName: string;
   subtitle: string;
   isDark: boolean;
   onThemeToggle: () => Promise<void>;
+  showTierBadge?: boolean;
+  tierBadgePlacement?: 'subtitle-inline' | 'header-right';
+  tierBadgeSize?: 'sm' | 'md';
 }
 
 export const WelcomeSection: React.FC<WelcomeSectionProps> = ({ 
   userName, 
   subtitle, 
   isDark,
-  onThemeToggle 
+  onThemeToggle,
+  showTierBadge = true,
+  tierBadgePlacement = 'subtitle-inline',
+  tierBadgeSize = 'sm'
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -68,6 +75,12 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
       borderWidth: 1,
       borderColor: 'rgba(255, 255, 255, 0.3)',
     },
+    tierBadgeContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      marginTop: 6,
+    },
   });
 
   return (
@@ -78,6 +91,13 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
             {getGreeting(t)}, {userName}! 👋
           </Text>
           <Text style={styles.welcomeSubtitle}>{subtitle}</Text>
+          
+          {/* TierBadge - Inline placement below subtitle */}
+          {showTierBadge && tierBadgePlacement === 'subtitle-inline' && (
+            <View style={styles.tierBadgeContainer}>
+              <TierBadge size={tierBadgeSize} showManageButton={false} />
+            </View>
+          )}
         </View>
         
         <TouchableOpacity

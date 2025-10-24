@@ -1,6 +1,5 @@
 import { logger } from '@/lib/logger';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import { toast } from '@/components/ui/ToastProvider';
 import { track } from '@/lib/analytics';
 import { assertSupabase } from '@/lib/supabase';
@@ -113,7 +112,7 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => { /* Intentional: error handled */ });
         track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown', savedToDatabase: saveResult?.success });
         return lessonText;
-      } catch (fallbackErr) {
+      } catch {
         setError(e?.message || 'Failed to generate lesson');
         throw e;
       }

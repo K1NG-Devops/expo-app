@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, PanResponder, Platform } from 'react-native';
+import { Animated, PanResponder } from 'react-native';
 import type { FABPosition, Position } from '@/lib/fab-position';
 import { clampPosition, loadSavedPosition, savePosition } from '@/lib/fab-position';
 

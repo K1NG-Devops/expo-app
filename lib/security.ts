@@ -74,7 +74,7 @@ export class SecureQueryBuilder {
    * Build secure query for students table
    */
   students() {
-    const query = assertSupabase().from('students').select('*');
+    const query = assertSupabase().from('students').select('*,age_groups!students_age_group_id_fkey(*)');
 
     if (this.context.role === 'super_admin') {
       return query;

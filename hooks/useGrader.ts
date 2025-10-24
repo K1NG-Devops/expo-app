@@ -106,7 +106,7 @@ export function useGrader() {
         const text = response.content || '';
         setResult({ text, __fallbackUsed: true });
         return text;
-      } catch (fallbackErr) {
+      } catch {
         setError(e?.message || 'Failed to grade submission');
         throw e;
       }

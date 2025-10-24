@@ -32,8 +32,7 @@ export function usePagination<T>(
   options: PaginationOptions = {}
 ): [PaginationState<T>, PaginationActions] {
   const { 
-    initialPageSize = 20,
-    loadMoreThreshold = 0.8 
+    initialPageSize = 20 
   } = options;
 
   const [page, setPage] = useState(0);

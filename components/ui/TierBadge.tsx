@@ -60,8 +60,12 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
         <TouchableOpacity
           style={[styles.manageBtn, { borderColor: meta.color, height }]}
           onPress={() => {
-            if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-            else router.push('/pricing')
+            if (profile?.role === 'super_admin') {
+              router.push('/screens/super-admin-subscriptions')
+            } else {
+              // Principals/admins go to subscription setup to manage/upgrade
+              router.push('/screens/subscription-setup')
+            }
           }}
           accessibilityLabel={t('subscription.managePlan', { defaultValue: 'Manage plan' })}
         >

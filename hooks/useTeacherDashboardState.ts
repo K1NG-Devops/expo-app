@@ -4,7 +4,6 @@
  */
 
 import React from 'react';
-import { Alert } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTeacherHasSeat } from '@/lib/hooks/useSeatLimits';
