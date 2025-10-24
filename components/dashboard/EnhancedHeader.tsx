@@ -116,13 +116,6 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
             <Text style={[styles.welcomeText, { color: theme.text }]}>
               {t('dashboard.welcome', { name: userName })} 👨‍👩‍👧‍👦
             </Text>
-            
-            {/* Tier and Role Info */}
-            <View style={styles.infoRow}>
-              {/* Unified Tier Badge component */}
-              {/* Manage plan button displayed for principal/super_admin via TierBadge */}
-              <TierBadge showManageButton size="md" />
-            </View>
 
             {/* Children Count */}
             {childrenCount > 0 && (
