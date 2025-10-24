@@ -141,12 +141,23 @@ utils/authRecovery.ts
 .*.png
 *.screenshot.png
 
-# Editor temporary files
+# Editor temporary files and backup artifacts
 *.swp
 *.swo
 *~
+*.bak
+*.old
+*.orig
+*.rej
+*.tmp
+Thumbs.db
 .vscode/
 .idea/
 *.code-workspace
+# Merge conflict artifacts
+*_BASE_*
+*_LOCAL_*
+*_REMOTE_*
+*.backup
 
 .vercel

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { withTimeout, wait } from '@/lib/utils/async';
 import { SubscriptionContext } from '@/contexts/SubscriptionContext';
@@ -62,7 +62,7 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
   const [status, setStatus] = useState<RealtimeStatus>('disconnected');
   const [muted, setMutedState] = useState<boolean>(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const mediaRef = useRef<MediaRecorder | null>(null);
+  const mediaRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const webrtcRef = useRef<{ stop: () => Promise<void>; isActive: () => boolean; updateTranscriptionConfig: (cfg: { language?: string; vadSilenceMs?: number; transcriptionModel?: string }) => void; setMuted: (m: boolean) => void } | null>(null);
   const stopPromiseRef = useRef<Promise<void> | null>(null);
@@ -80,6 +80,19 @@ export function useRealtimeVoice(opts: UseRealtimeVoiceOptions = {}) {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
     try {
       setStatusSafe('connecting');
+
+      // Capability preflight gating before any provider attempts
+      try {
+        const { getVoiceCapabilities } = await import('@/lib/voice/capabilities');
+        const caps = await getVoiceCapabilities({ language, tier: subscriptionTier });
+        if (!caps.streamingAvailable) {
+          console.log('[RealtimeVoice] ⚠️ Streaming not available:', caps.streamingReasons);
+          setStatusSafe('error');
+          return false;
+        }
+      } catch (e) {
+        console.warn('[RealtimeVoice] Capability preflight failed (continuing cautiously):', e);
+      }
 
       // Resolve URL + token
       let wsUrl = url;

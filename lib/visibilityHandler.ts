@@ -82,9 +82,10 @@ class VisibilityHandler {
     }
   };
 
-  private handlePageShow = (event: PageTransitionEvent) => {
-    // Handle browser back/forward navigation
-    if (event.persisted && this.options.onSessionRefresh) {
+  private handlePageShow = (event: unknown) => {
+    // Handle browser back/forward navigation (web-only). We avoid DOM types in RN tsconfig.
+    const e = event as { persisted?: boolean } | null;
+    if (e?.persisted && this.options.onSessionRefresh) {
       this.scheduleSessionRefresh();
     }
   };

@@ -17,9 +17,7 @@ function getTierMeta(t?: string) {
   const tt = String(t || 'free').toLowerCase()
   switch (tt) {
     case 'starter': return { label: 'Starter', color: '#059669' }
-    case 'basic': return { label: 'Basic', color: '#10B981' }
     case 'premium': return { label: 'Premium', color: '#7C3AED' }
-    case 'pro': return { label: 'Pro', color: '#2563EB' }
     case 'enterprise': return { label: 'Enterprise', color: '#DC2626' }
     case 'free':
     default: return { label: 'Free', color: '#6B7280' }
@@ -62,8 +60,12 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
         <TouchableOpacity
           style={[styles.manageBtn, { borderColor: meta.color, height }]}
           onPress={() => {
-            if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-            else router.push('/pricing')
+            if (profile?.role === 'super_admin') {
+              router.push('/screens/super-admin-subscriptions')
+            } else {
+              // Principals/admins go to subscription setup to manage/upgrade
+              router.push('/screens/subscription-setup')
+            }
           }}
           accessibilityLabel={t('subscription.managePlan', { defaultValue: 'Manage plan' })}
         >

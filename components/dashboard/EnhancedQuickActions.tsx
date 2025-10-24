@@ -6,6 +6,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import { router } from 'expo-router'
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useOrganizationTerminology, useOrgType } from '@/lib/hooks/useOrganizationTerminology'
 
 interface EnhancedQuickActionProps {
   icon: keyof typeof Ionicons.glyphMap
@@ -33,8 +34,11 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
   const cardWidth = (width - 48) / 2
   const { tier } = useSubscription()
   
-  // Check if feature is premium-gated and user doesn't have premium
-  const isPremiumBlocked = isPremium && tier !== 'premium'
+  // Check if feature is premium-gated and user doesn't have a paid tier
+  // For parents: parent-starter or parent-plus unlock premium features
+  // For schools: premium or enterprise unlock premium features
+  const isPaidTier = tier === 'parent-starter' || tier === 'parent-plus' || tier === 'premium' || tier === 'enterprise' || tier === 'pro'
+  const isPremiumBlocked = isPremium && !isPaidTier
   
   const handlePress = () => {
     if (isPremiumBlocked) {
@@ -71,7 +75,7 @@ const EnhancedQuickAction: React.FC<EnhancedQuickActionProps> = ({
         {isPremiumBlocked && (
           <View style={styles.premiumBadge}>
             <Ionicons name="diamond" size={12} color="#FFD700" />
-            <Text style={styles.premiumBadgeText}>{t('subscription.premium', { defaultValue: 'Premium' })}</Text>
+            <Text style={styles.premiumBadgeText}>{t('subscription.plus_feature', { defaultValue: 'Plus' })}</Text>
           </View>
         )}
         <View style={styles.iconContainer}>
@@ -103,16 +107,47 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
 }) => {
   const { theme } = useTheme()
   const { t } = useTranslation('common')
+  const { terminology } = useOrganizationTerminology()
+  const { isCorporate, isSportsClub } = useOrgType()
   const remaining = aiHelpLimit === 'unlimited' ? 'unlimited' : Number(aiHelpLimit) - aiHelpUsage
   const isHomeworkDisabled = aiHelpLimit !== 'unlimited' && aiHelpUsage >= Number(aiHelpLimit)
+
+  // Organization-aware labels
+  const aiHelperTitle = isCorporate 
+    ? t('quick_actions.ai_learning_assistant', { defaultValue: 'AI Learning Assistant' })
+    : isSportsClub
+    ? t('quick_actions.ai_training_helper', { defaultValue: 'AI Training Helper' })
+    : t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })
+  
+  const connectDescription = t('quick_actions.connect_with_instructors', { 
+    defaultValue: `Connect with ${terminology.instructors.toLowerCase()}` 
+  })
+  
+  const whatsappPremiumDesc = t('quick_actions.whatsapp_premium_description_org', {
+    defaultValue: `Get instant communication with your ${terminology.instructors.toLowerCase()} and receive real-time updates on assignments and progress`
+  })
+  
+  const learningResourcesDesc = isCorporate
+    ? t('quick_actions.access_training_materials', { defaultValue: 'Access training materials' })
+    : isSportsClub
+    ? t('quick_actions.access_training_materials', { defaultValue: 'Access training materials' })
+    : t('quick_actions.access_study_materials', { defaultValue: 'Access study materials' })
 
   return (
     <View style={styles.container}>
       <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('quick_actions.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
       <View style={styles.quickActionsGrid}>
         <EnhancedQuickAction
+          icon="chatbubbles"
+          title={t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' })}
+          description={t('quick_actions.ai_assistant', { defaultValue: 'Your AI teaching assistant' })}
+          gradientColors={['#6366F1', '#8B5CF6']}
+          onPress={() => router.push('/screens/dash-assistant')}
+        />
+        
+        <EnhancedQuickAction
           icon="help-circle"
-          title={t('quick_actions.ai_homework_helper', { defaultValue: 'AI Homework Helper' })}
+          title={aiHelperTitle}
           description={
             isHomeworkDisabled
               ? t('quick_actions.limit_reached', 'Limit reached')
@@ -126,17 +161,17 @@ export const EnhancedQuickActions: React.FC<EnhancedQuickActionsProps> = ({
         <EnhancedQuickAction
           icon="logo-whatsapp"
           title={t('quick_actions.whatsapp_connect', { defaultValue: 'WhatsApp Connect' })}
-          description={t('quick_actions.connect_with_teachers', { defaultValue: 'Connect with teachers' })}
+          description={connectDescription}
           gradientColors={['#25D366', '#128C7E']}
           onPress={onWhatsAppPress}
           isPremium={true}
-          premiumDescription={t('quick_actions.whatsapp_premium_description', { defaultValue: 'Get instant communication with your teachers and receive real-time updates on assignments and progress' })}
+          premiumDescription={whatsappPremiumDesc}
         />
         
         <EnhancedQuickAction
           icon="library"
           title={t('quick_actions.learning_resources', { defaultValue: 'Learning Resources' })}
-          description={t('quick_actions.access_study_materials', { defaultValue: 'Access study materials' })}
+          description={learningResourcesDesc}
           gradientColors={['#8B5CF6', '#7C3AED']}
           onPress={() => router.push('/screens/learning-resources')}
           isPremium={true}

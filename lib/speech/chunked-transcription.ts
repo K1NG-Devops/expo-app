@@ -35,7 +35,7 @@ export class ChunkedTranscription {
   private sessionId: string;
   private chunkIndex = 0;
   private chunkMap = new Map<number, string>();
-  private mediaRecorder: MediaRecorder | null = null;
+  private mediaRecorder: any = null;
   private config: Required<ChunkedTranscriptionConfig>;
   private startTime: number = 0;
   private chunkLatencies: number[] = [];
@@ -164,7 +164,7 @@ export class ChunkedTranscription {
       
       // Create form data
       const formData = new FormData();
-      formData.append('audio', blob, `chunk-${chunkIdx}.webm`);
+      (formData as any).append('audio', blob as any, `chunk-${chunkIdx}.webm`);
       formData.append('session_id', this.sessionId);
       formData.append('chunk_index', chunkIdx.toString());
       formData.append('language', this.config.language);

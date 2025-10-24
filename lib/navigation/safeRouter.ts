@@ -9,7 +9,7 @@
  */
 
 import { router } from 'expo-router';
-import { Platform, Alert, ToastAndroid } from 'react-native';
+import { Platform, ToastAndroid } from 'react-native';
 
 // ============================================================================
 // Module-level state for duplicate prevention
@@ -35,19 +35,48 @@ const VALID_ROUTES = new Set([
   '/(auth)/sign-in',
   '/(auth)/sign-up',
   '/profiles-gate',
+  '/pricing',
+  '/marketing/pricing',
+  '/sales/contact',
+  '/invite',
+  '/invite/parent',
+  '/invite/student',
   '/screens/teacher-dashboard',
   '/screens/parent-dashboard',
   '/screens/principal-dashboard',
   '/screens/super-admin-dashboard',
+  '/screens/org-admin-dashboard',
+  '/screens/learner-dashboard',
+  '/screens/student-dashboard',
   '/screens/account',
   '/screens/settings',
   '/screens/student-management',
   '/screens/teacher-management',
   '/screens/financial-dashboard',
+  '/screens/financial-reports',
+  '/screens/financial-transactions',
   '/screens/petty-cash',
   '/screens/petty-cash-reconcile',
   '/screens/ai-lesson-generator',
+  '/screens/ai-homework-helper',
+  '/screens/ai-homework-grader-live',
+  '/screens/ai-progress-analysis',
   '/screens/dash-assistant',
+  '/screens/dash-ai-settings',
+  '/screens/dash-ai-settings-enhanced',
+  '/screens/dash-conversations-history',
+  '/screens/subscription-setup',
+  '/screens/subscription-upgrade-post',
+  '/screens/manage-subscription',
+  '/screens/principal-onboarding',
+  '/screens/org-onboarding',
+  '/screens/super-admin-subscriptions',
+  '/screens/super-admin-users',
+  '/screens/super-admin-feature-flags',
+  '/screens/super-admin-settings',
+  '/screens/super-admin-analytics',
+  '/screens/teacher-reports',
+  '/screens/teacher-messages',
   // Add more routes as needed
 ]);
 
@@ -60,10 +89,15 @@ const VALID_PATTERNS = [
   /^\/screens\/class-teacher-management/,
   /^\/screens\/class-details/,
   /^\/screens\/.+-detail/,
-  /^\/screens\/.+/,
-  /^\/invite/,
-  /^\/pricing/,
-  /^\/marketing/,
+  /^\/screens\/admin\//,  // Allow all admin/* routes
+  /^\/screens\/payments\//,  // Allow all payments/* routes
+  /^\/screens\/super-admin/,  // Allow all super-admin routes
+  /^\/screens\/.+/,  // Allow all other screens routes (catch-all for screens)
+  /^\/invite/,  // Allow all invite routes
+  /^\/pricing/,  // Allow pricing routes
+  /^\/marketing/,  // Allow marketing routes
+  /^\/sales/,  // Allow sales routes
+  /^\/(auth)\//,  // Allow all auth routes
   // Add more patterns as needed
 ];
 
@@ -221,13 +255,14 @@ export const safeRouter = {
       // Extract pathname for validation
       const pathname = typeof route === 'object' && route.pathname ? route.pathname : route;
       
-      // Validate route
+      // Validate route - warn but don't block in development
       if (!isValidRoute(pathname)) {
         if (__DEV__) {
-          console.error(`[SafeRouter] Invalid route: ${pathname}`);
+          console.warn(`[SafeRouter] Route not in whitelist (allowing anyway): ${pathname}`);
+          console.warn(`[SafeRouter] Consider adding this route to VALID_ROUTES or VALID_PATTERNS`);
         }
-        (originalPush || router.push)('/'); // Fallback to root
-        return;
+        // Still allow the navigation - the route might be valid but not in our whitelist
+        // This prevents false positives from blocking valid routes
       }
       
       // Debounce: prevent rapid duplicate navigation
@@ -270,7 +305,14 @@ export const safeRouter = {
       (originalPush || router.push)(route);
     } catch (error) {
       console.error('[SafeRouter] Navigation error:', error);
-      (originalPush || router.push)('/'); // Fallback to root
+      // Only fallback to root if the error is actually a navigation error
+      // Let expo-router handle "Unmatched Route" errors naturally
+      if (error && String(error).includes('Unmatched')) {
+        console.error('[SafeRouter] Unmatched route error - the route file may not exist');
+        (originalPush || router.push)('/');
+      } else {
+        throw error; // Re-throw other errors
+      }
     }
   },
 
@@ -285,13 +327,13 @@ export const safeRouter = {
       // Extract pathname for validation
       const pathname = typeof route === 'object' && route.pathname ? route.pathname : route;
       
-      // Validate route
+      // Validate route - warn but don't block in development
       if (!isValidRoute(pathname)) {
         if (__DEV__) {
-          console.error(`[SafeRouter] Invalid route: ${pathname}`);
+          console.warn(`[SafeRouter] Route not in whitelist (allowing anyway): ${pathname}`);
+          console.warn(`[SafeRouter] Consider adding this route to VALID_ROUTES or VALID_PATTERNS`);
         }
-        (originalReplace || router.replace)('/'); // Fallback to root
-        return;
+        // Still allow the navigation - the route might be valid but not in our whitelist
       }
       
       // Debounce replace operations
@@ -307,7 +349,13 @@ export const safeRouter = {
       (originalReplace || router.replace)(route);
     } catch (error) {
       console.error('[SafeRouter] Replace error:', error);
-      (originalReplace || router.replace)('/'); // Fallback to root
+      // Only fallback to root if the error is actually a navigation error
+      if (error && String(error).includes('Unmatched')) {
+        console.error('[SafeRouter] Unmatched route error - the route file may not exist');
+        (originalReplace || router.replace)('/');
+      } else {
+        throw error; // Re-throw other errors
+      }
     }
   },
 

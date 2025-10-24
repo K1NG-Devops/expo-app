@@ -1,1 +1,3 @@
-export { default } from '../screens/parent-message-thread';
+import ParentMessageThreadScreen from '../screens/parent-message-thread';
+
+export default ParentMessageThreadScreen;

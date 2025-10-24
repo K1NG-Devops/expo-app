@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { LanguagePickerButton } from '@/components/ui/LanguagePickerButton';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { router } from 'expo-router';
@@ -269,7 +270,7 @@ export function RoleBasedHeader({
     <View style={[
       styles.container,
       { 
-        paddingTop: insets.top,
+        paddingTop: Math.max(insets.top, 0),
         backgroundColor: headerBgColor,
         borderBottomColor: theme.divider,
       }
@@ -356,18 +357,6 @@ export function RoleBasedHeader({
 
         {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
-          {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
-            <TouchableOpacity
-              style={[styles.managePlanBtn, { borderColor: theme.primary }]}
-              onPress={() => {
-                if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-                else router.push('/pricing')
-              }}
-              accessibilityLabel="Manage subscription plan"
-            >
-              <Ionicons name="pricetags-outline" size={14} color={theme.primary} />
-            </TouchableOpacity>
-          )}
           {/* Dashboard layout toggle (replaces theme toggle) */}
           <TouchableOpacity
             style={[styles.themeButton, { marginRight: 8 }]}
@@ -376,6 +365,9 @@ export function RoleBasedHeader({
           >
             <Ionicons name={(dashboardPreferences.layout === 'enhanced' ? 'grid' : 'apps') as any} size={18} color={headerTextColor} />
           </TouchableOpacity>
+
+          {/* Language Picker Button */}
+          <LanguagePickerButton variant="compact" />
           
           {/* Settings Button */}
           <TouchableOpacity 
@@ -411,6 +403,20 @@ export function RoleBasedHeader({
                 <Ionicons name="person-circle-outline" size={18} color={theme.textSecondary} />
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Account Settings</Text>
               </TouchableOpacity>
+
+              {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions');
+                    else router.push('/pricing');
+                  }}
+                >
+                  <Ionicons name="pricetags-outline" size={18} color={theme.textSecondary} />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Manage Subscription</Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setLanguageVisible(true); }}>
                 <Ionicons name="language" size={18} color={theme.textSecondary} />
@@ -527,7 +533,7 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     minWidth: 120,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,

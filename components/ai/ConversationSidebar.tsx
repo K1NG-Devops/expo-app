@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList, type DimensionValue } from 'react-native';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, type DashConversation } from '@/services/DashAIAssistant';
+import type { DashConversation } from '@/services/dash-ai/types';
 import { useCapability } from '@/hooks/useCapability';
 import { UpgradePromptModal } from './UpgradePromptModal';
 
@@ -30,16 +30,17 @@ export function ConversationSidebar({ onSelectConversation, onNewConversation, w
 
   useEffect(() => {
     (async () => {
-      const dash = DashAIAssistant.getInstance();
       try {
-        await dash.initialize();
-      } catch {
-        // Initialization is optional; ignore errors to keep sidebar usable
-      }
-      const list = await dash.getAllConversations();
-      setConversations(list);
-      const current = dash.getCurrentConversationId();
-      if (current) setSelectedId(current);
+        const module = await import('@/services/dash-ai/DashAICompat');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash = DashClass?.getInstance?.();
+        if (!dash) return;
+        try { await dash.initialize(); } catch {}
+        const list = await dash.getAllConversations();
+        setConversations(list);
+        const current = dash.getCurrentConversationId();
+        if (current) setSelectedId(current);
+      } catch {}
     })();
   }, []);
 

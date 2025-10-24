@@ -3,7 +3,16 @@ module.exports = function (api) {
   const isProd = process.env.NODE_ENV === 'production';
   
   return {
-    presets: ['babel-preset-expo'],
+    presets: [
+      [
+        'babel-preset-expo',
+        {
+          // Ensure classes are transformed properly for Hermes
+          jsxRuntime: 'automatic',
+          lazyImports: true,
+        }
+      ]
+    ],
     plugins: [
       [
         'module-resolver',
@@ -35,4 +44,3 @@ module.exports = function (api) {
     ].filter(Boolean),
   };
 };
-

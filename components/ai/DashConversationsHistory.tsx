@@ -20,7 +20,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant, DashConversation } from '@/services/DashAIAssistant';
+import type { DashConversation } from '@/services/dash-ai/types';
+import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import { router } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -35,13 +36,16 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
   const [conversations, setConversations] = useState<DashConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dashInstance, setDashInstance] = useState<DashAIAssistant | null>(null);
+  const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
 
   // Initialize Dash instance
   useEffect(() => {
     const initializeDash = async () => {
       try {
-        const dash = DashAIAssistant.getInstance();
+        const module = await import('@/services/dash-ai/DashAICompat');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: IDashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (!dash) throw new Error('DashAIAssistant unavailable');
         await dash.initialize();
         setDashInstance(dash);
         await loadConversations(dash);
@@ -63,7 +67,7 @@ export const DashConversationsHistory: React.FC<DashConversationsHistoryProps> =
     }, [dashInstance])
   );
 
-  const loadConversations = async (dash: DashAIAssistant) => {
+  const loadConversations = async (dash: IDashAIAssistant) => {
     try {
       const convs = await dash.getAllConversations();
       setConversations(convs);

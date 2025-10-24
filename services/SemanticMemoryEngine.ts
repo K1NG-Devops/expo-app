@@ -13,7 +13,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import type { DashMemoryItem, AutonomyLevel } from './DashAIAssistant';
+import type { DashMemoryItem, AutonomyLevel } from './dash-ai/types';
 
 // ===== SEMANTIC MEMORY TYPES =====
 
@@ -60,6 +60,9 @@ export interface ISemanticMemoryEngine {
 }
 
 export class SemanticMemoryEngine implements ISemanticMemoryEngine {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => SemanticMemoryEngine;
+  
   // Memory consolidation settings
   private readonly CONSOLIDATION_THRESHOLD = 0.85; // Similarity threshold for grouping
   private readonly MIN_MEMORIES_TO_CONSOLIDATE = 3;
@@ -542,20 +545,18 @@ export class SemanticMemoryEngine implements ISemanticMemoryEngine {
 // Backward compatibility: Export singleton instance
 // TODO: Remove once all call sites migrated to DI
 import { container, TOKENS } from '../lib/di/providers/default';
-export const SemanticMemoryEngineInstance = (() => {
+export const SemanticMemoryEngineInstance: SemanticMemoryEngine = (() => {
   try {
-    return container.resolve(TOKENS.semanticMemory);
+    return container.resolve(TOKENS.semanticMemory) as SemanticMemoryEngine;
   } catch {
     // Fallback during initialization
     return new SemanticMemoryEngine();
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace SemanticMemoryEngine {
-  export function getInstance() {
-    return SemanticMemoryEngineInstance;
-  }
-}
+// Add static getInstance method to class
+SemanticMemoryEngine.getInstance = function() {
+  return SemanticMemoryEngineInstance;
+};
 
 export default SemanticMemoryEngineInstance;

@@ -61,7 +61,7 @@ export default function DemoIndex() {
     try {
       await Linking.openURL(fullUrl);
     } catch (error) {
-      console.log('Could not open URL:', fullUrl);
+      // URL open failed silently
     }
   };
 

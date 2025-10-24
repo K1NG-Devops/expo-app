@@ -9,7 +9,8 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import { DashAIAssistant, type IDashAIAssistant } from './DashAIAssistant';
+import type { IDashAIAssistant } from './dash-ai/DashAICompat';
+import { getAssistant } from './core/getAssistant';
 import { router } from 'expo-router';
 import { Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -91,6 +92,9 @@ export interface IDashWhatsAppIntegration {
 }
 
 export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashWhatsAppIntegration;
+  
   private dashInstance: IDashAIAssistant | null = null;
   private activeOnboardingFlows: Map<string, WhatsAppOnboardingFlow> = new Map();
 
@@ -106,8 +110,7 @@ export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
       console.log('[DashWhatsApp] Initializing WhatsApp integration...');
       
       // Initialize Dash AI instance
-      this.dashInstance = DashAIAssistant.getInstance();
-      await this.dashInstance.initialize();
+      this.dashInstance = await getAssistant();
       
       // Load any active onboarding flows
       await this.loadActiveOnboardingFlows();
@@ -390,7 +393,7 @@ export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
     return {
       id: 'dash_introduction',
       type: 'onboarding',
-      content: `Meet Dash! 🤖 Your AI assistant can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
+      content: `Meet Dash! 🤖 I can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
       quick_replies: [
         { id: 'try_dash', title: '🚀 Try Dash Now', action: 'start_dash_conversation' },
         { id: 'dashboard', title: '📊 Open Dashboard', action: 'open_dashboard' },
@@ -951,11 +954,9 @@ export const DashWhatsAppIntegrationInstance = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashWhatsAppIntegration {
-  export function getInstance() {
-    return DashWhatsAppIntegrationInstance;
-  }
-}
+// Add static getInstance method to class
+DashWhatsAppIntegration.getInstance = function() {
+  return DashWhatsAppIntegrationInstance;
+};
 
 export default DashWhatsAppIntegrationInstance;

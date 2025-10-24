@@ -26,13 +26,13 @@ interface TTSRequest {
   format?: 'mp3' | 'ogg' | 'wav';
 }
 
-interface TTSResponse {
-  audioUrl: string;
-  provider: 'azure' | 'google' | 'device';
-  language: string;
-  cacheHit: boolean;
-  fallback?: 'device';
-}
+// interface TTSResponse {
+//   audioUrl: string;
+//   provider: 'azure' | 'google' | 'device';
+//   language: string;
+//   cacheHit: boolean;
+//   fallback?: 'device';
+// }
 
 // Language mapping
 const LANG_MAP: Record<string, string> = {
@@ -44,17 +44,34 @@ const LANG_MAP: Record<string, string> = {
   en: 'en-ZA',
 };
 
-// Default Azure voices (based on testing)
+// Default Azure voices (verified Neural voices only)
+// CRITICAL: Only use voices that actually exist in Azure catalog
 const AZURE_VOICES: Record<string, string> = {
-  'af-ZA': 'af-ZA-AdriNeural', // Female, warm, natural Afrikaans
-  'af-ZA-male': 'af-ZA-WillemNeural', // Male, warm Afrikaans
-  'zu-ZA': 'zu-ZA-ThandoNeural', // Female, clear isiZulu
-  'zu-ZA-male': 'zu-ZA-ThembaNeural', // Male, clear isiZulu
-  'xh-ZA': 'xh-ZA-YaandeNeural', // Female, isiXhosa
-  'nso-ZA': 'nso-ZA-Online', // Sepedi/Northern Sotho (OpenAI fallback if needed)
-  'en-ZA': 'en-ZA-LeahNeural', // Female, South African English
-  'en-US': 'en-US-JennyNeural', // Female, friendly US English
-  'en-US-male': 'en-US-GuyNeural', // Male, friendly US English
+  // Native SA English - Verified ✅
+  'en-ZA': 'en-ZA-LeahNeural',         // Female, South African English
+  'en-ZA-male': 'en-ZA-LukeNeural',    // Male, South African English
+  
+  // Afrikaans - Verified ✅
+  'af-ZA': 'af-ZA-AdriNeural',         // Female, warm, natural Afrikaans
+  'af-ZA-male': 'af-ZA-WillemNeural',  // Male, warm Afrikaans
+  
+  // isiZulu - Verified ✅
+  'zu-ZA': 'zu-ZA-ThandoNeural',       // Female, native isiZulu speaker
+  'zu-ZA-male': 'zu-ZA-ThembaNeural',  // Male, native isiZulu speaker
+  
+  // isiXhosa - NOT AVAILABLE IN AZURE ❌
+  // Fallback: Use multilingual South African English (understands Xhosa context)
+  'xh-ZA': 'en-ZA-LeahNeural',         // FALLBACK - Best pronunciation approximation
+  'xh-ZA-male': 'en-ZA-LukeNeural',    // FALLBACK - Male variant
+  
+  // Sepedi/Northern Sotho - NOT AVAILABLE IN AZURE ❌
+  // Fallback: Use South African English
+  'nso-ZA': 'en-ZA-LeahNeural',        // FALLBACK - Device TTS recommended
+  'nso-ZA-male': 'en-ZA-LukeNeural',   // FALLBACK - Male variant
+  
+  // US English (for comparison/testing)
+  'en-US': 'en-US-JennyNeural',        // Female, friendly US English
+  'en-US-male': 'en-US-GuyNeural',     // Male, friendly US English
 };
 
 /**
@@ -235,7 +252,7 @@ async function synthesizeAzure(
            xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}">
       <voice name="${voice}">
         ${style ? `<mstts:express-as style="${style}">` : ''}
-          <prosody rate="${rate || 0}%" pitch="${pitch || 0}%">
+          <prosody rate="${rate || 0}%" pitch="${pitch || 0}%" volume="+10%">
             ${text}
           </prosody>
         ${style ? '</mstts:express-as>' : ''}
@@ -363,7 +380,7 @@ serve(async (req) => {
 
     // Parse request (handle both param names for compatibility)
     const request: TTSRequest = await req.json();
-    const { text, lang, language, voiceId, voice_id, style, rate, pitch, speaking_rate, format } = request;
+    const { text, lang, language, voiceId, voice_id, style, rate, pitch, speaking_rate } = request;
 
     // Use language param name OR lang param name
     const effectiveLang = language || lang;
@@ -377,8 +394,10 @@ serve(async (req) => {
 
     const providerLang = LANG_MAP[effectiveLang] || 'en-US';
     const effectiveVoiceId = voice_id || voiceId || AZURE_VOICES[providerLang] || '';
-    const effectiveStyle = style || 'friendly';
-    const effectiveRate = speaking_rate ?? rate ?? 0;
+    // Remove default style - let Azure use natural voice tone
+    const effectiveStyle = style || undefined;
+    // Slight speed increase for more responsive feel, neutral pitch
+    const effectiveRate = speaking_rate ?? rate ?? 5;
     const effectivePitch = pitch ?? 0;
     
     // Log TTS request for debugging

@@ -127,10 +127,19 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
   const [touched, setTouched] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(false);
   const [passwordValidation, setPasswordValidation] = React.useState<PasswordValidation | null>(null);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   
   // Multi-step flow management
   const [currentStep, setCurrentStep] = React.useState<AuthFlowStep>('personal_info');
   const [completedSteps, setCompletedSteps] = React.useState<AuthFlowStep[]>([]);
+  
+  // Memoize userInfo object to prevent infinite re-renders
+  const userInfo = React.useMemo(() => ({
+    email: formState.email,
+    firstName: formState.firstName,
+    lastName: formState.lastName
+  }), [formState.email, formState.firstName, formState.lastName]);
   
   // Get available steps based on role
   const getAvailableSteps = (): AuthFlowStep[] => {
@@ -576,11 +585,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         {formState.password && (
           <PasswordStrengthIndicator
             password={formState.password}
-            userInfo={{
-              email: formState.email,
-              firstName: formState.firstName,
-              lastName: formState.lastName
-            }}
+            userInfo={userInfo}
             onStrengthChange={setPasswordValidation}
           />
         )}
@@ -649,6 +654,14 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             </Text>
           </TouchableOpacity>
         </View>
+        
+        {!formState.acceptTerms && (
+          <View style={{ marginTop: 16, padding: 12, backgroundColor: theme.colors.errorContainer || theme.colors.surfaceVariant, borderRadius: 8 }}>
+            <Text style={{ color: theme.colors.error, fontSize: 13, textAlign: 'center' }}>
+              ⚠️ Please accept the Terms and Conditions to continue
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -716,6 +729,15 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     const fieldErrors = errors[fieldName] || [];
     const hasError = fieldErrors.length > 0 && touched[fieldName];
     const value = formState[fieldName];
+    const isPasswordField = fieldName === 'password';
+    const isVisible = isPasswordField ? showPassword : showConfirmPassword;
+    const toggleVisibility = () => {
+      if (isPasswordField) {
+        setShowPassword(!showPassword);
+      } else {
+        setShowConfirmPassword(!showConfirmPassword);
+      }
+    };
     
     return (
       <View style={styles.fieldContainer}>
@@ -731,25 +753,45 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           {required && <Text style={{ color: theme.colors.error }}> *</Text>}
         </Text>
         
-        <TextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: hasError ? theme.colors.error : theme.colors.outline,
-              color: theme.colors.onSurface
-            }
-          ]}
-          value={value}
-          onChangeText={(text) => handleFieldChange(fieldName, text)}
-          onBlur={() => handleFieldBlur(fieldName)}
-          placeholder="••••••••"
-          placeholderTextColor={theme.colors.onSurfaceVariant}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
-        />
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={[
+              styles.textInput,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: hasError ? theme.colors.error : theme.colors.outline,
+                color: theme.colors.onSurface,
+                paddingRight: 50
+              }
+            ]}
+            value={value}
+            onChangeText={(text) => handleFieldChange(fieldName, text)}
+            onBlur={() => handleFieldBlur(fieldName)}
+            placeholder="••••••••"
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            secureTextEntry={!isVisible}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+          />
+          
+          <TouchableOpacity
+            onPress={toggleVisibility}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: 0,
+              bottom: 0,
+              justifyContent: 'center',
+              paddingHorizontal: 8
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={{ fontSize: 18, color: theme.colors.primary, fontWeight: '600' }}>
+              {isVisible ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         
         {hasError && (
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -1013,13 +1055,14 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
                 styles.navButton,
                 styles.nextButton,
                 { 
-                  backgroundColor: loading 
+                  backgroundColor: (loading || (currentStep === 'security_setup' && !formState.acceptTerms))
                     ? theme.colors.surfaceVariant 
-                    : theme.colors.primary
+                    : theme.colors.primary,
+                  opacity: (loading || (currentStep === 'security_setup' && !formState.acceptTerms)) ? 0.5 : 1
                 }
               ]}
               onPress={handleNextStep}
-              disabled={loading}
+              disabled={loading || (currentStep === 'security_setup' && !formState.acceptTerms)}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={theme.colors.onPrimary} />

@@ -7,7 +7,7 @@
 import { assertSupabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { DashAttachment } from '@/services/DashAIAssistant';
+import { DashAttachment } from '@/services/dash-ai/types';
 
 const BUCKET_NAME = 'dash-attachments';
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB

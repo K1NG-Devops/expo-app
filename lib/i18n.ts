@@ -202,6 +202,14 @@ export const changeLanguage = async (language: SupportedLanguage): Promise<void>
     } catch {
       console.debug('[i18n] Analytics not available for language tracking');
     }
+
+    // Best-effort: sync Dash user context
+    try {
+      const { syncDashContext } = await import('@/lib/agent/dashContextSync');
+      await syncDashContext({ language });
+    } catch (e) {
+      console.debug('[i18n] dash-context-sync skipped:', e);
+    }
   } catch (error) {
     console.error('Failed to change language:', error);
   }

@@ -661,7 +661,7 @@ async function sendMessage(request: Request): Promise<Response> {
  */
 async function handleMessageTrigger(request: Request): Promise<Response> {
   try {
-    const { record, old_record, type } = await request.json()
+    const { record, type } = await request.json()
     
     // Only process INSERT events for outbound WhatsApp messages
     if (type !== 'INSERT' || record.direction !== 'out' || !record.channel || record.channel !== 'whatsapp') {

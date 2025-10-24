@@ -409,7 +409,7 @@ export default function SubscriptionSetupScreen() {
 
   if (existingSubscription) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
         <Stack.Screen options={{ 
           title: 'Subscription Active',
           headerStyle: { backgroundColor: '#0b1220' },
@@ -417,7 +417,6 @@ export default function SubscriptionSetupScreen() {
           headerTintColor: '#00f5ff'
         }} />
         <StatusBar style="light" backgroundColor="#0b1220" />
-        <SafeAreaView edges={['top']} style={styles.safeArea}>
           <ScrollView contentContainerStyle={styles.scrollContainer}>
             <View style={styles.existingSubscriptionCard}>
               <Text style={styles.title}>Active Subscription</Text>
@@ -446,13 +445,12 @@ export default function SubscriptionSetupScreen() {
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </SafeAreaView>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <Stack.Screen options={{ 
         title: 'Setup Subscription',
         headerStyle: { backgroundColor: '#0b1220' },
@@ -460,7 +458,6 @@ export default function SubscriptionSetupScreen() {
         headerTintColor: '#00f5ff'
       }} />
       <StatusBar style="light" backgroundColor="#0b1220" />
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
         <ScrollView contentContainerStyle={styles.scrollContainer}>
           <Text style={styles.title}>Choose Your Subscription Plan</Text>
           <Text style={styles.subtitle}>
@@ -529,8 +526,7 @@ export default function SubscriptionSetupScreen() {
             </View>
           )}
         </ScrollView>
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -546,7 +542,8 @@ interface PlanCardProps {
 
 function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating, schoolType }: PlanCardProps) {
   const price = annual ? plan.price_annual : plan.price_monthly;
-  const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) : 0;
+  const priceInRands = price / 100; // Convert cents to rands
+  const savings = annual ? Math.round((plan.price_monthly * 12 - plan.price_annual) / 12) / 100 : 0;
   const isFree = price === 0;
   const isEnterprise = plan.tier.toLowerCase() === 'enterprise';
   
@@ -600,14 +597,14 @@ function PlanCard({ plan, annual, selected, onSelect, onSubscribe, creating, sch
               <Text style={styles.customPrice}>Custom</Text>
             ) : (
               <>
-                <Text style={[styles.price, { color: planColor }]}>R{price}</Text>
+                <Text style={[styles.price, { color: planColor }]}>R{priceInRands.toFixed(2)}</Text>
                 <Text style={styles.pricePeriod}>/ {annual ? 'year' : 'month'}</Text>
               </>
             )}
           </View>
           {savings > 0 && (
             <View style={styles.savingsBadge}>
-              <Text style={styles.savings}>Save R{savings}/mo</Text>
+              <Text style={styles.savings}>Save R{savings.toFixed(2)}/mo</Text>
             </View>
           )}
         </View>

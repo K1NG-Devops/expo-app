@@ -255,6 +255,12 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       },
     },
     {
+      title: 'Progress Reports',
+      icon: 'school',
+      color: '#8B5CF6',
+      onPress: () => router.push('/screens/student-management'),
+    },
+    {
       title: t('quick_actions.view_finances'),
       icon: 'analytics',
       color: '#059669',
@@ -284,6 +290,10 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
               {tenantSlug || data.schoolName || t('dashboard.your_school')}
             </Text>
+            {/* Tier Badge */}
+            <View style={{ marginLeft: 8 }}>
+              <TierBadge size="sm" showManageButton={true} />
+            </View>
           </View>
           
           {/* Right side - Dashboard Toggle + Settings */}

@@ -19,7 +19,6 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService';
 import * as Sharing from 'expo-sharing';
 
@@ -74,29 +73,46 @@ export default function WorksheetViewer() {
         return;
       }
 
-      const dash = DashAIAssistant.getInstance();
-      await dash.initialize();
+      let dash: any;
+      try {
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        dash = await getAssistant();
+        await dash.initialize?.();
+      } catch (error) {
+        console.error('[WorksheetViewer] Failed to get DashAI instance:', error);
+        // Continue with fallback worksheet data
+        dash = null;
+      }
+      
       // Try to get worksheet from Dash memory
-      const memoryItems = await dash.getAllMemoryItems();
-      const worksheetMemory = memoryItems.find(item => 
-        item.key === `generated_worksheet_${params.worksheetId}`
-      );
+      if (dash) {
+        try {
+          const memoryItems = (dash as any)?.getMemoryItems ? (dash as any).getMemoryItems() : [];
+          const worksheetMemory = (memoryItems || []).find((item: any) => 
+            item.key === `generated_worksheet_${params.worksheetId}`
+          );
 
-      if (worksheetMemory && worksheetMemory.value) {
-        setWorksheet(worksheetMemory.value as WorksheetData);
-      } else {
-        // Create a demo worksheet based on parameters
-        const worksheetType = (params.type as string) || 'math';
-        const ageGroup = (params.ageGroup as string) || '5-6 years';
-        const difficulty = (params.difficulty as string) || 'Medium';
-        
-        if (worksheetType === 'math') {
-          setWorksheet(createDemoMathWorksheet(ageGroup, difficulty));
-        } else if (worksheetType === 'reading') {
-          setWorksheet(createDemoReadingWorksheet(ageGroup, difficulty));
-        } else {
-          setWorksheet(createDemoActivityWorksheet(ageGroup, difficulty));
+          if (worksheetMemory && worksheetMemory.value) {
+            setWorksheet(worksheetMemory.value as WorksheetData);
+            setLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error('[WorksheetViewer] Failed to load from memory:', error);
         }
+      }
+      
+      // Create a demo worksheet based on parameters
+      const worksheetType = (params.type as string) || 'math';
+      const ageGroup = (params.ageGroup as string) || '5-6 years';
+      const difficulty = (params.difficulty as string) || 'Medium';
+      
+      if (worksheetType === 'math') {
+        setWorksheet(createDemoMathWorksheet(ageGroup, difficulty));
+      } else if (worksheetType === 'reading') {
+        setWorksheet(createDemoReadingWorksheet(ageGroup, difficulty));
+      } else {
+        setWorksheet(createDemoActivityWorksheet(ageGroup, difficulty));
       }
     } catch (error) {
       console.error('Failed to load worksheet:', error);

@@ -37,6 +37,8 @@ export default [
       'i18next': i18next,
     },
     rules: {
+      // Code quality: console.log removed by babel in production, so disable lint rule
+      'no-console': 'off',
       // Allow any for scaffolded/generated code
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-unused-vars': 'warn',
@@ -81,6 +83,36 @@ export default [
       '@typescript-eslint/no-unused-vars': 'off',
       'react-hooks/exhaustive-deps': 'off',
       'no-empty': 'off',
+      // WARP.md File Size Standards: components ≤400 lines
+      'max-lines': ['warn', { max: 400, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['app/**/*.tsx'],
+    rules: {
+      // WARP.md File Size Standards: screens ≤500 lines
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['services/**/*.ts', 'lib/**/*.ts'],
+    rules: {
+      // WARP.md File Size Standards: services/lib ≤500 lines
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['hooks/**/*.ts', 'hooks/**/*.tsx'],
+    rules: {
+      // WARP.md File Size Standards: hooks ≤200 lines
+      'max-lines': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
+    },
+  },
+  {
+    files: ['**/*types.ts', '**/*types.tsx', '**/types/*.ts'],
+    rules: {
+      // WARP.md File Size Standards: types ≤300 lines (except auto-generated)
+      'max-lines': ['warn', { max: 300, skipBlankLines: true, skipComments: true }],
     },
   },
   {
@@ -91,7 +123,8 @@ export default [
       'android/',
       'ios/',
       'scripts/',
-      'docs/',
+'docs/',
+      'archive/',
       '**/*.js', // Exclude all JS files, focus on TS/TSX
       '**/*.js.map',
       'babel.config.js',

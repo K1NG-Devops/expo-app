@@ -8,7 +8,7 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router } from 'expo-router';
-import { TierBadge } from './TierBadge';
+import { TierBadge } from '@/components/ui/TierBadge';
 import { getTierInfo, getExclusiveCapabilities, type Tier, type DashCapability } from '@/lib/ai/capabilities';
 
 export interface UpgradePromptModalProps {
@@ -60,7 +60,7 @@ export function UpgradePromptModal({
           <ScrollView style={styles.content}>
             <View style={styles.tierBadgeContainer}>
               <Text style={styles.subtitle}>Requires</Text>
-              <TierBadge tier={requiredTier} size="large" />
+              <TierBadge tier={requiredTier as any} size="md" />
             </View>
 
             <Text style={styles.description}>

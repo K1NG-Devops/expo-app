@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCapability } from '@/hooks/useCapability';
-import type { DashAttachment } from '@/services/DashAIAssistant';
+import type { DashAttachment } from '@/services/dash-ai/types';
 import type { VoiceState } from '@/hooks/useVoiceController';
 import { UpgradePromptModal } from './UpgradePromptModal';
 import { pickDocuments } from '@/services/AttachmentService';
@@ -204,12 +204,17 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
       )}
       
       <View style={styles.inputRow}>
-        {/* Camera button: open device camera */}
-        <TouchableOpacity onPress={handleOpenCamera} style={[styles.iconButtonInline]}> 
-          <Ionicons name="camera-outline" size={24} color={theme.textSecondary} />
-        </TouchableOpacity>
-        
         <View style={styles.inputWrapper}>
+          {/* Camera button inside input field (left side) */}
+          <TouchableOpacity onPress={handleOpenCamera} style={styles.iconButtonLeftInInput}> 
+            <Ionicons name="camera-outline" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+          
+          {/* Cash/Money clip button inside input field */}
+          <TouchableOpacity onPress={handlePickDocs} style={styles.iconButtonLeftSecondInInput}> 
+            <Ionicons name="cash-outline" size={20} color={theme.textSecondary} />
+          </TouchableOpacity>
+          
           <TextInput
             value={text}
             onChangeText={setText}
@@ -218,9 +223,10 @@ export function EnhancedInputArea({ placeholder = 'Message Dash...', sending = f
             multiline
             style={[styles.input, { color: theme.text }]}
           />
-          {/* Document upload button inside input field */}
+          
+          {/* Document upload button inside input field (right side) */}
           <TouchableOpacity onPress={handlePickDocs} style={styles.iconButtonInInput}> 
-            <Ionicons name="attach-outline" size={22} color={theme.textSecondary} />
+            <Ionicons name="attach-outline" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
         
@@ -424,24 +430,39 @@ const styles = StyleSheet.create({
     position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(127,127,127,0.08)',
+    borderRadius: 20,
   },
   input: {
     flex: 1,
     minHeight: 40,
     maxHeight: 120,
     lineHeight: 20,
-    paddingHorizontal: 12,
+    paddingLeft: 72,
     paddingRight: 40,
     paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: 'rgba(127,127,127,0.08)',
     fontSize: 15,
+  },
+  iconButtonLeftInInput: {
+    position: 'absolute',
+    left: 8,
+    bottom: 10,
+    padding: 4,
+    zIndex: 1,
+  },
+  iconButtonLeftSecondInInput: {
+    position: 'absolute',
+    left: 40,
+    bottom: 10,
+    padding: 4,
+    zIndex: 1,
   },
   iconButtonInInput: {
     position: 'absolute',
-    right: 8,
-    bottom: 8,
+    right: 10,
+    bottom: 10,
     padding: 4,
+    zIndex: 1,
   },
   actionButton: {
     width: 40,

@@ -1,6 +1,32 @@
 const AI_ENABLED = (process.env.EXPO_PUBLIC_AI_ENABLED === 'true') || (process.env.EXPO_PUBLIC_ENABLE_AI_FEATURES === 'true')
 import { assertSupabase } from '../supabase'
 import { track } from '../analytics'
+import { getCurrentLanguage } from '../i18n'
+
+/**
+ * Convert app language code to proper locale for AI services
+ * Prioritizes South African locales for supported SA languages
+ */
+function getAILocale(): string {
+  const lang = getCurrentLanguage();
+  
+  // South African languages - use ZA locale
+  const saLanguages: Record<string, string> = {
+    'en': 'en-ZA',
+    'af': 'af-ZA',
+    'zu': 'zu-ZA',
+    'xh': 'xh-ZA',
+    'st': 'st-ZA',
+    'tn': 'tn-ZA',
+    'ss': 'ss-ZA',
+    'nr': 'nr-ZA',
+    've': 've-ZA',
+    'ts': 'ts-ZA',
+  };
+  
+  // Return SA locale if available, otherwise use generic language code
+  return saLanguages[lang] || lang;
+}
 
 export class HomeworkService {
   static async gradeHomework(submissionId: string, submissionContent: string, assignmentTitle: string, gradeLevel: string) {
@@ -80,12 +106,18 @@ export class HomeworkService {
         track('edudash.ai.grading.started', {})
         const { data, error } = await assertSupabase().functions.invoke('ai-proxy', {
           body: {
-            feature: 'grading_assistance',
-            model: options?.model,
-            submission: submissionContent,
-            assignment_title: assignmentTitle,
-            grade_level: gradeLevel,
-            locale: 'en-ZA'
+            scope: 'teacher',
+            service_type: 'grading_assistance', // Valid service_type per DB constraint
+            payload: {
+              prompt: `Grade this homework submission.\n\nAssignment: ${assignmentTitle}\nGrade Level: ${gradeLevel}\n\nSubmission:\n${submissionContent}`,
+              model: options?.model,
+            },
+            metadata: {
+              assignment_title: assignmentTitle,
+              grade_level: gradeLevel,
+              locale: getAILocale(), // Dynamic locale based on user's language preference
+              language: getCurrentLanguage(), // Raw language code for additional context
+            }
           }
         })
         if (error) throw error

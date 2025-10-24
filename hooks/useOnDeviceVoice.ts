@@ -15,8 +15,6 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Voice, {
   SpeechResultsEvent,
   SpeechErrorEvent,
-  SpeechStartEvent,
-  SpeechEndEvent,
 } from '@react-native-voice/voice';
 import * as Haptics from 'expo-haptics';
 
@@ -63,7 +61,7 @@ export function useOnDeviceVoice(options: OnDeviceVoiceOptions = {}) {
     }
 
     try {
-      Voice.onSpeechStart = (_e: SpeechStartEvent) => {
+      Voice.onSpeechStart = () => {
         console.log('[useOnDeviceVoice] Speech started');
         isListeningRef.current = true;
         setState(prev => ({ 
@@ -76,7 +74,7 @@ export function useOnDeviceVoice(options: OnDeviceVoiceOptions = {}) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { /* Intentional: error handled */ });
       };
 
-      Voice.onSpeechEnd = (_e: SpeechEndEvent) => {
+      Voice.onSpeechEnd = () => {
         console.log('[useOnDeviceVoice] Speech ended');
         isListeningRef.current = false;
         setState(prev => ({ ...prev, isListening: false }));

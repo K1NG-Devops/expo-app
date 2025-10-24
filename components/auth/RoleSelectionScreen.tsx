@@ -1,10 +1,12 @@
 // 🔐 Role Selection Screen Component
 // Intuitive role selection with hierarchy explanation
+// Now with organization-aware terminology
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { EnhancedUserRole, RoleSelectionProps } from '../../types/auth-enhanced';
+import { useOrganizationTerminology, useOrgType } from '@/lib/hooks/useOrganizationTerminology';
 
 interface RoleOption {
   role: EnhancedUserRole;
@@ -18,21 +20,41 @@ interface RoleOption {
   level: number;
 }
 
-const ROLE_OPTIONS: RoleOption[] = [
-  {
+// Helper function to generate organization-aware role options
+function generateRoleOptions(terminology: any, orgType: any): RoleOption[] {
+  const { 
+    isPreschool, 
+    isK12, 
+    isCorporate, 
+    isSportsClub, 
+    isUniversity 
+  } = orgType;
+  
+  // Principal/Administrator role
+  const principalRole: RoleOption = {
     role: 'principal',
-    title: 'Principal / Administrator',
-    description: 'Manage your educational institution with complete administrative control',
-    icon: '🏛️',
-    color: '#8B5CF6', // Purple
+    title: isCorporate 
+      ? 'Organization Administrator'
+      : isSportsClub
+      ? 'Club Administrator'
+      : isUniversity
+      ? 'Department Head / Dean'
+      : 'Principal / Administrator',
+    description: isCorporate
+      ? 'Manage your organization with complete administrative control'
+      : isSportsClub
+      ? 'Manage your sports club with complete administrative control'
+      : `Manage your ${terminology.institution.toLowerCase()} with complete administrative control`,
+    icon: isCorporate ? '👔' : isSportsClub ? '⚽' : '🏛️',
+    color: '#8B5CF6',
     requirements: [
-      'Must be an educational institution administrator',
+      `Must be an ${terminology.institution.toLowerCase()} administrator`,
       'Authorized to create organizational accounts',
       'Responsible for institutional compliance'
     ],
     capabilities: [
       'Create and manage the organization',
-      'Invite and manage teachers',
+      `Invite and manage ${terminology.instructors.toLowerCase()}`,
       'View institutional analytics',
       'Configure organizational settings',
       'Export institutional data',
@@ -40,74 +62,96 @@ const ROLE_OPTIONS: RoleOption[] = [
     ],
     invitationRequired: false,
     level: 1
-  },
-  {
+  };
+  
+  // Teacher/Instructor role
+  const teacherRole: RoleOption = {
     role: 'teacher',
-    title: 'Teacher / Instructor',
-    description: 'Educate students and manage classroom activities',
-    icon: '👩‍🏫',
-    color: '#10B981', // Green
+    title: terminology.getRoleLabel('teacher'),
+    description: isCorporate
+      ? `Train ${terminology.members.toLowerCase()} and manage department activities`
+      : isSportsClub
+      ? `Train ${terminology.members.toLowerCase()} and manage team activities`
+      : `Educate ${terminology.members.toLowerCase()} and manage ${terminology.group.toLowerCase()} activities`,
+    icon: isCorporate ? '👨‍💼' : isSportsClub ? '🏋️' : '👩‍🏫',
+    color: '#10B981',
     requirements: [
-      'Must be invited by a Principal',
-      'Professional teaching credentials (recommended)',
-      'Assigned to specific subjects/grades'
+      'Must be invited by an Administrator',
+      isCorporate ? 'Professional training credentials (recommended)' : 'Professional credentials (recommended)',
+      `Assigned to specific ${terminology.groups.toLowerCase()}`
     ],
     capabilities: [
-      'Create and manage classes',
-      'Create assignments and assessments',
-      'Grade student work',
-      'Track student progress',
-      'Invite parents',
-      'Communicate with parents and students'
+      `Create and manage ${terminology.groups.toLowerCase()}`,
+      isCorporate ? 'Create training programs and assessments' : 'Create assignments and assessments',
+      isCorporate ? `Track ${terminology.member.toLowerCase()} progress` : `Grade ${terminology.member.toLowerCase()} work`,
+      `Track ${terminology.member.toLowerCase()} progress`,
+      `Invite ${terminology.guardians.toLowerCase()}`,
+      `Communicate with ${terminology.guardians.toLowerCase()} and ${terminology.members.toLowerCase()}`
     ],
     invitationRequired: true,
     level: 2
-  },
-  {
+  };
+  
+  // Parent/Guardian role
+  const parentRole: RoleOption = {
     role: 'parent',
-    title: 'Parent / Guardian',
-    description: 'Monitor your child\'s educational progress and stay connected',
+    title: terminology.getRoleLabel('parent'),
+    description: isCorporate
+      ? `Monitor ${terminology.member.toLowerCase()} progress and stay connected`
+      : isSportsClub
+      ? `Monitor your ${terminology.member.toLowerCase()}'s progress and stay connected`
+      : `Monitor your child's educational progress and stay connected`,
     icon: '👨‍👩‍👧‍👦',
-    color: '#F59E0B', // Amber
+    color: '#F59E0B',
     requirements: [
-      'Must be invited by your child\'s teacher',
-      'Connected to one or more students',
+      `Must be invited by your ${terminology.member.toLowerCase()}'s ${terminology.instructor.toLowerCase()}`,
+      `Connected to one or more ${terminology.members.toLowerCase()}`,
       'Verified identity and relationship'
     ],
     capabilities: [
-      'View child\'s assignments and grades',
-      'Track academic progress',
-      'Communicate with teachers',
+      isCorporate ? `View ${terminology.member.toLowerCase()} training progress` : `View ${terminology.member.toLowerCase()}'s assignments and grades`,
+      isCorporate ? 'Track performance progress' : 'Track academic progress',
+      `Communicate with ${terminology.instructors.toLowerCase()}`,
       'Receive notifications and updates',
-      'Access school announcements',
-      'Schedule parent-teacher conferences'
+      `Access ${terminology.institution.toLowerCase()} announcements`,
+      isCorporate ? 'Schedule performance reviews' : 'Schedule conferences'
     ],
     invitationRequired: true,
     level: 3
-  },
-  {
+  };
+  
+  // Student/Member role
+  const studentRole: RoleOption = {
     role: 'student',
-    title: 'Student',
-    description: 'Access your coursework, assignments, and track your academic journey',
-    icon: '🎓',
-    color: '#3B82F6', // Blue
+    title: terminology.getRoleLabel('student'),
+    description: isCorporate
+      ? 'Access your training programs and track your professional development'
+      : isSportsClub
+      ? 'Access your training programs, track performance, and develop your skills'
+      : 'Access your coursework, assignments, and track your academic journey',
+    icon: isCorporate ? '💼' : isSportsClub ? '🏃' : '🎓',
+    color: '#3B82F6',
     requirements: [
-      'Must be enrolled in participating school (recommended)',
-      'Age appropriate (typically 8+ years)',
-      'Parent/guardian approval may be required'
+      `Must be enrolled in participating ${terminology.institution.toLowerCase()} (recommended)`,
+      'Age appropriate',
+      `${terminology.guardian} approval may be required`
     ],
     capabilities: [
-      'View and submit assignments',
-      'Access course materials',
+      isCorporate ? 'View and complete training modules' : 'View and submit assignments',
+      isCorporate ? 'Access training materials' : 'Access course materials',
       'Track grades and progress',
-      'Participate in online classes',
-      'Communicate with teachers',
-      'Access educational resources'
+      isCorporate ? 'Participate in training sessions' : isSportsClub ? 'Participate in training sessions' : 'Participate in online classes',
+      `Communicate with ${terminology.instructors.toLowerCase()}`,
+      isCorporate ? 'Access professional development resources' : 'Access educational resources'
     ],
     invitationRequired: false,
     level: 4
-  }
-];
+  };
+  
+  return [principalRole, teacherRole, parentRole, studentRole];
+}
+
+// Legacy hardcoded options removed - now generated dynamically
 
 export const RoleSelectionScreen: React.FC<RoleSelectionProps> = ({
   onRoleSelect,
@@ -115,7 +159,15 @@ export const RoleSelectionScreen: React.FC<RoleSelectionProps> = ({
   showHierarchy = true
 }) => {
   const { theme } = useTheme();
+  const { terminology } = useOrganizationTerminology();
+  const orgType = useOrgType();
   const [selectedRole, setSelectedRole] = React.useState<EnhancedUserRole | null>(null);
+
+  // Generate organization-aware role options
+  const ROLE_OPTIONS = React.useMemo(
+    () => generateRoleOptions(terminology, orgType),
+    [terminology, orgType]
+  );
 
   // Filter roles based on allowed roles
   const availableRoles = allowedRoles 
@@ -133,6 +185,12 @@ export const RoleSelectionScreen: React.FC<RoleSelectionProps> = ({
   const renderHierarchyExplanation = () => {
     if (!showHierarchy) return null;
 
+    const hierarchyTitle = orgType.isCorporate
+      ? 'Organizational Hierarchy'
+      : orgType.isSportsClub
+      ? 'Club Hierarchy'
+      : 'Organizational Hierarchy';
+
     return (
       <View style={[
         styles.hierarchyContainer,
@@ -146,37 +204,37 @@ export const RoleSelectionScreen: React.FC<RoleSelectionProps> = ({
             fontWeight: theme.typography.subtitle2.fontWeight as any
           }
         ]}>
-          Educational Hierarchy
+          {hierarchyTitle}
         </Text>
         
         <View style={styles.hierarchyFlow}>
           <HierarchyItem
-            icon="🏛️"
-            title="Principal"
+            icon={ROLE_OPTIONS[0].icon}
+            title={terminology.getRoleLabel('principal')}
             description="Creates organization"
             level={1}
             theme={theme}
           />
           <HierarchyArrow theme={theme} />
           <HierarchyItem
-            icon="👩‍🏫"
-            title="Teachers"
-            description="Invited by Principal"
+            icon={ROLE_OPTIONS[1].icon}
+            title={terminology.getRoleLabelPlural('teacher')}
+            description="Invited by Administrator"
             level={2}
             theme={theme}
           />
           <HierarchyArrow theme={theme} />
           <HierarchyItem
-            icon="👨‍👩‍👧‍👦"
-            title="Parents"
-            description="Invited by Teachers"
+            icon={ROLE_OPTIONS[2].icon}
+            title={terminology.getRoleLabelPlural('parent')}
+            description={`Invited by ${terminology.getRoleLabelPlural('teacher')}`}
             level={3}
             theme={theme}
           />
           <HierarchyArrow theme={theme} />
           <HierarchyItem
-            icon="🎓"
-            title="Students"
+            icon={ROLE_OPTIONS[3].icon}
+            title={terminology.getRoleLabelPlural('student')}
             description="Self-register or invited"
             level={4}
             theme={theme}
@@ -357,7 +415,7 @@ export const RoleSelectionScreen: React.FC<RoleSelectionProps> = ({
               fontSize: theme.typography.body1.fontSize
             }
           ]}>
-            Select the role that best describes your position in the educational system
+            Select the role that best describes your position in the {terminology.institution.toLowerCase()}
           </Text>
         </View>
 

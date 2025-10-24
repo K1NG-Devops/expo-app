@@ -1,13 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { useTranslation } from 'react-i18next';
 import { useAuth, usePermissions } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import ParentDashboardWrapper from '@/components/dashboard/ParentDashboardWrapper';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
@@ -129,7 +128,6 @@ export default function ParentDashboardScreen() {
     return (
       <View style={{ flex: 1 }}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ThemedStatusBar />
         <SafeAreaView edges={['top']} style={deniedStyles.deniedContainer}>
           <LinearGradient
             colors={isDark 
@@ -138,13 +136,13 @@ export default function ParentDashboardScreen() {
             }
             style={deniedStyles.deniedGradient}
           >
-            <IconSymbol name="person-add" size={64} color="#00f5ff" />
+            <Ionicons name="person-add" size={64} color="#00f5ff" />
             <Text style={deniedStyles.deniedTitle}>{titleText}</Text>
             <Text style={deniedStyles.deniedText}>{subtitleText}</Text>
             <TouchableOpacity style={deniedStyles.accountButton} onPress={buttonAction}>
               <LinearGradient colors={["#00f5ff", "#0080ff"]} style={deniedStyles.accountButtonGradient}>
                 <Text style={deniedStyles.accountButtonText}>{buttonText}</Text>
-                <IconSymbol name="chevron-forward" size={18} color="#000" />
+                <Ionicons name="chevron-forward" size={18} color="#000" />
               </LinearGradient>
             </TouchableOpacity>
           </LinearGradient>
@@ -154,13 +152,15 @@ export default function ParentDashboardScreen() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.headerBackground}
+        translucent={false}
+      />
       <Stack.Screen options={{ headerShown: false }} />
-      <ThemedStatusBar />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
-        <RoleBasedHeader showBackButton={false} />
-        <ParentDashboardWrapper />
-      </SafeAreaView>
+      <RoleBasedHeader showBackButton={false} />
+      <ParentDashboardWrapper />
     </View>
   );
 }

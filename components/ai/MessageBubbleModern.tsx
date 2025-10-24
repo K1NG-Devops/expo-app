@@ -13,7 +13,8 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '@/contexts/ThemeContext';
 import { DashAvatar } from './DashAvatar';
 import { BrandGradients, BrandColors } from '@/components/branding';
-import type { DashMessage } from '@/services/DashAIAssistant';
+import type { DashMessage } from '@/services/dash-ai/types';
+import { renderCAPSResults } from '@/lib/caps/parseCAPSResults';
 
 export interface MessageBubbleModernProps {
   message: DashMessage;
@@ -24,6 +25,7 @@ export interface MessageBubbleModernProps {
   isSpeaking?: boolean;
   showActions?: boolean;
   showIcon?: boolean;
+  onSendFollowUp?: (question: string) => void; // Send follow-up question directly
 }
 
 export function MessageBubbleModern({
@@ -35,6 +37,7 @@ export function MessageBubbleModern({
   isSpeaking = false,
   showActions = true,
   showIcon = false,
+  onSendFollowUp,
 }: MessageBubbleModernProps) {
   const { theme, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -297,6 +300,13 @@ export function MessageBubbleModern({
           )}
         </View>
 
+        {/* CAPS Document Results (for assistant messages with tool results) */}
+        {!isUser && !isSystem && message.metadata?.tool_results && (
+          <View style={styles.capsResultsContainer}>
+            {renderCAPSResults(message.metadata)}
+          </View>
+        )}
+
         {/* Timestamp */}
         <Text
           style={[
@@ -394,6 +404,29 @@ export function MessageBubbleModern({
                 </Text>
               </TouchableOpacity>
             )}
+          </View>
+        )}
+        
+        {/* Follow-up question chips with send buttons (assistant messages only) */}
+        {!isUser && !isSystem && message.metadata?.suggested_actions && message.metadata.suggested_actions.length > 0 && onSendFollowUp && (
+          <View style={styles.followUpContainer}>
+            {message.metadata.suggested_actions.map((question, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[styles.followUpChip, { backgroundColor: theme.surface, borderColor: theme.primary }]}
+                onPress={() => onSendFollowUp(question)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Send: ${question}`}
+              >
+                <Text style={[styles.followUpText, { color: theme.text }]}> 
+                  {question}
+                </Text>
+                <View pointerEvents="none" style={[styles.followUpFab, { backgroundColor: theme.primary }]}> 
+                  <Ionicons name="send" size={16} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </View>
@@ -687,8 +720,70 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
       },
       android: {
+        elevation: 4,
+      },
+    }),
+  },
+  // Follow-up question chips
+  followUpContainer: {
+    marginTop: 8,
+    gap: 6,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
+  followUpChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingRight: 56,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 8,
+    position: 'relative',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.12,
+        shadowRadius: 2,
+      },
+      android: {
         elevation: 5,
       },
     }),
   },
+  followUpText: {
+    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  followUpFab: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 3,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  capsResultsContainer: {
+    marginTop: 12,
+    marginBottom: 8,
+  }
 });

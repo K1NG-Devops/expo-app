@@ -18,7 +18,7 @@ import type {
   RiskLevel,
   DecisionRecord,
   DashTask
-} from './DashAIAssistant';
+} from './dash-ai/types';
 
 // ===== DECISION ENGINE TYPES =====
 
@@ -555,16 +555,15 @@ export class DashDecisionEngine implements IDashDecisionEngine {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashDecisionEngineInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashDecisionEngine);
-  } catch {
-    // Fallback during initialization
-    return new DashDecisionEngine();
-  }
-})();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashDecisionEngine | null = null;
 
-export default DashDecisionEngineInstance;
+export function getDashDecisionEngineInstance(): DashDecisionEngine {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashDecisionEngine();
+  }
+  return _defaultInstance;
+}
+
+export default getDashDecisionEngineInstance();

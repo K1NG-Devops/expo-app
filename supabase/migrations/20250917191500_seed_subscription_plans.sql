@@ -1,5 +1,6 @@
 -- Seed basic subscription plans if they don't exist
 -- This ensures the pricing page has data to display
+-- Updated to match production tiers: Free, Starter, Premium, Enterprise
 
 -- First, check and insert plans that don't exist
 INSERT INTO public.subscription_plans (
@@ -8,63 +9,43 @@ INSERT INTO public.subscription_plans (
 SELECT * FROM (
   VALUES
   (
-    'Free',
+    'Free Plan',
     'free',
     0,
     0,
-    3,
+    2,
     50,
     '["Basic dashboard", "Student management", "Parent communication", "Email support"]'::jsonb,
     TRUE
   ),
   (
-    'Starter',
+    'Starter Plan',
     'starter',
-    49,
-    490,
-    5,
-    100,
-    '["Advanced dashboard", "AI-powered insights", "Priority support", "Parent portal"]'::jsonb,
-    TRUE
-  ),
-  (
-    'Basic',
-    'basic',
     299,
     2990,
-    10,
-    200,
-    '["Full feature set", "Advanced analytics", "Multi-teacher support", "WhatsApp integration"]'::jsonb,
+    5,
+    150,
+    '["Up to 5 teachers", "150 students", "AI-powered insights", "Parent portal", "WhatsApp notifications", "Email support"]'::jsonb,
     TRUE
   ),
   (
-    'Premium',
+    'Premium Plan',
     'premium',
-    499,
-    4990,
-    20,
-    400,
-    '["Premium features", "Advanced reporting", "Priority support", "Custom branding"]'::jsonb,
+    599,
+    5990,
+    15,
+    500,
+    '["Up to 15 teachers", "500 students", "Advanced reporting", "Priority support", "Custom branding", "API access", "Advanced analytics"]'::jsonb,
     TRUE
   ),
   (
-    'Pro',
-    'pro',
-    899,
-    8990,
-    50,
-    800,
-    '["All features", "Custom integrations", "Dedicated support", "Multi-school management"]'::jsonb,
-    TRUE
-  ),
-  (
-    'Enterprise',
+    'Enterprise Plan',
     'enterprise',
-    1999,
-    19990,
+    1299,
+    12990,
     100,
-    2000,
-    '["Unlimited features", "Custom integrations", "Dedicated success manager", "SLA guarantee", "White-label solution"]'::jsonb,
+    -1,
+    '["Up to 100 teachers", "Unlimited students", "Dedicated success manager", "SLA guarantee", "White-label solution", "Custom integrations", "24/7 priority support"]'::jsonb,
     TRUE
   )
 ) AS new_plans (name, tier, price_monthly, price_annual, max_teachers, max_students, features, is_active)

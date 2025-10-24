@@ -17,6 +17,7 @@ export default function PricingScreen() {
   const { profile } = useAuth();
   const roleNorm = normalizeRole(String(profile?.role || ''));
   const canRequestEnterprise = roleNorm === 'principal_admin' || roleNorm === 'super_admin';
+  const isParent = profile?.role === 'parent';
 
   const priceStr = (monthly: number): string => {
     if (annual) {
@@ -26,7 +27,10 @@ export default function PricingScreen() {
     return `R${monthly} / month`;
   };
 
-const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['free','parent-starter','parent-plus','private-teacher','pro'];
+  // Role-based plan visibility: parents see parent plans only, teachers see teacher plans, admins see all
+  const visiblePlans: PlanId[] | undefined = isParent 
+    ? ['free', 'parent-starter', 'parent-plus'] 
+    : (canRequestEnterprise ? undefined : ['free','parent-starter','parent-plus','private-teacher','pro']);
 
   // Swipe carousel state and items
   const screenWidth = Dimensions.get('window').width
@@ -57,8 +61,8 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
       render: () => (
         <PlanCard
           name="Parent Starter"
-          price={priceStr(49)}
-          description="Affordable AI help for families"
+          price={priceStr(49.99)}
+          description="1 parent - 1 child"
           features={[
             'Homework Helper · 30/mo',
             'Child-safe explanations',
@@ -74,8 +78,8 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
       render: () => (
         <PlanCard
           name="Parent Plus"
-          price={priceStr(149)}
-          description="Expanded AI support for families"
+          price={priceStr(149.99)}
+          description="2 parents - 3 children"
           features={[
             'Homework Helper · 100/mo',
             'Priority processing',
@@ -127,11 +131,10 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
   ] as const
 
   return (
-    <View style={{ flex: 1 }}>
+    <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
       <Stack.Screen options={{ title: t('pricing.title', { defaultValue: 'Pricing' }), headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
       <StatusBar style="light" />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
-        <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container}>
           {/* Free ribbon if on free tier */}
           {String((profile as any)?.plan_tier || 'free').toLowerCase() === 'free' && (
             <View style={{ backgroundColor: '#111827', borderColor: '#1f2937', borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -202,8 +205,8 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
 
             <PlanCard
               name="Parent Starter"
-              price={priceStr(49)}
-              description="Affordable AI help for families"
+              price={priceStr(49.99)}
+              description="1 parent - 1 child"
               features={[
                 'Homework Helper · 30/mo',
                 'Child-safe explanations',
@@ -215,8 +218,8 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
 
             <PlanCard
               name="Parent Plus"
-              price={priceStr(149)}
-              description="Expanded AI support for families"
+              price={priceStr(149.99)}
+              description="2 parents - 3 children"
               features={[
                 'Homework Helper · 100/mo',
                 'Priority processing',
@@ -334,8 +337,7 @@ const visiblePlans: PlanId[] | undefined = canRequestEnterprise ? undefined : ['
             }}
           />
         </ScrollView>
-      </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 }
 

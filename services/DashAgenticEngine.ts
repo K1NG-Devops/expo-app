@@ -22,7 +22,7 @@ import type {
   DashUserProfile,
   DashGoal,
   AutonomyLevel 
-} from './DashAIAssistant';
+} from './dash-ai/types';
 import decisionEngine from './DashDecisionEngine';
 import ProactiveEngine from './DashProactiveEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
@@ -45,6 +45,9 @@ export interface IDashAgenticEngine {
 }
 
 export class DashAgenticEngine implements IDashAgenticEngine {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashAgenticEngine;
+  
   private activeTasks: Map<string, DashTask> = new Map();
   private activeReminders: Map<string, DashReminder> = new Map();
   private executionQueue: Array<{ taskId: string; action: DashAction; priority: number }> = [];
@@ -767,11 +770,9 @@ export const DashAgenticEngineInstance = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashAgenticEngine {
-  export function getInstance() {
-    return DashAgenticEngineInstance;
-  }
-}
+// Add static getInstance method to class
+DashAgenticEngine.getInstance = function() {
+  return DashAgenticEngineInstance;
+};
 
 export default DashAgenticEngineInstance;

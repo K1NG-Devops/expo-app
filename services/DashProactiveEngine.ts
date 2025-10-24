@@ -15,7 +15,7 @@ import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
 import decisionEngine, { type ActionCandidate, type Decision } from './DashDecisionEngine';
 import { DashContextAnalyzer } from './DashContextAnalyzer';
-import type { AutonomyLevel } from './DashAIAssistant';
+import type { AutonomyLevel } from './dash-ai/types';
 
 // ===== PROACTIVE TYPES =====
 
@@ -670,16 +670,15 @@ export class DashProactiveEngine implements IDashProactiveEngine {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashProactiveEngineInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashProactive);
-  } catch {
-    // Fallback during initialization
-    return new DashProactiveEngine();
-  }
-})();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashProactiveEngine | null = null;
 
-export default DashProactiveEngineInstance;
+export function getDashProactiveEngineInstance(): DashProactiveEngine {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashProactiveEngine();
+  }
+  return _defaultInstance;
+}
+
+export default getDashProactiveEngineInstance();

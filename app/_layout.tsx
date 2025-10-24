@@ -1,141 +1,156 @@
-import 'react-native-gesture-handler';
 import 'react-native-get-random-values';
-import React, { useEffect, useState } from 'react';
-import { Platform, LogBox } from 'react-native';
+import React, { useEffect, useState, useMemo } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Stack, usePathname } from 'expo-router';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
-import { GlobalUpdateBanner } from '@/components/GlobalUpdateBanner';
+import { TermsProvider } from '@/contexts/TerminologyContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
-import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
-import ToastProvider from '@/components/ui/ToastProvider';
-import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
+// VOICETODO: Voice orb functionality completely archived for production build
+import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
+import { DashChatButton } from '@/components/ui/DashChatButton';
 
-// Initialize performance monitoring and global error handling first
-import { initPerformanceMonitoring } from '@/lib/perf';
-import { installGlobalErrorHandler } from '@/lib/global-errors';
-import { initMonitoring } from '@/lib/monitoring';
-
-// Suppress non-critical dev warnings
-if (__DEV__) {
-  LogBox.ignoreLogs([
-    'Looks like you have configured linking in multiple places',
-    'ReactImageView: Image source "null" doesn\'t exist',
-  ]);
-}
-
-// Initialize critical systems (guarded to avoid double init in dev / fast refresh)
-const __globalAny: any = (global as any);
-if (!__globalAny.__EDUDASH_BOOTSTRAPPED__) {
-  initPerformanceMonitoring();
-  installGlobalErrorHandler();
-  initMonitoring();
-  __globalAny.__EDUDASH_BOOTSTRAPPED__ = true;
-}
-
-// Initialize lazy loading for ultra-fast navigation
-import { ChunkPreloader } from '@/lib/lazy-loading';
-try {
-  ChunkPreloader.preloadCriticalChunks();
-} catch {
-  // Non-critical; ignore in environments where preloader isn't available
-}
-
-// Initialize i18n BEFORE any components render
-import '@/lib/i18n';
-import ErrorBoundary from '@/components/ErrorBoundary';
-
-// Add polyfill for web environments
-if (Platform.OS === 'web') {
-  // Polyfill DeviceEventEmitter for web
-  if (typeof global !== 'undefined' && !(global as any).DeviceEventEmitter) {
-    try {
-      const EventEmitter = require('eventemitter3');
-      (global as any).DeviceEventEmitter = new EventEmitter();
-    } catch {
-      // Fallback if eventemitter3 is not available
-      console.warn('EventEmitter3 not available, using basic polyfill');
-      (global as any).DeviceEventEmitter = {
-        addListener: () => ({ remove: () => {} }),
-        emit: () => {},
-        removeAllListeners: () => {}
-      };
-    }
-  }
-}
-
-// Inner component that has access to AuthContext
+// Inner component with access to AuthContext and VoiceUI
 function LayoutContent() {
   const pathname = usePathname();
   const { loading: authLoading } = useAuth();
+  const { isDark } = useTheme();
   const [showFAB, setShowFAB] = useState(false);
+  const [statusBarKey, setStatusBarKey] = useState(0);
+  
+  // Force StatusBar re-render when theme changes
+  useEffect(() => {
+    setStatusBarKey(prev => prev + 1);
+  }, [isDark]);
+  
+  // Enhanced FAB hiding logic (restore preview behavior)
+  const shouldHideFAB = useMemo(() => {
+    if (!pathname || typeof pathname !== 'string') return false;
+    
+    // Auth routes
+    if (pathname.startsWith('/(auth)') ||
+        pathname === '/sign-in' ||
+        pathname === '/(auth)/sign-in' ||
+        pathname.includes('auth-callback')) {
+      return true;
+    }
+    
+    // Registration routes (hide Dash Orb during sign-up)
+    if (pathname.includes('registration') ||
+        pathname.includes('register') ||
+        pathname.includes('sign-up') ||
+        pathname.includes('signup') ||
+        pathname.includes('verify-your-email') ||
+        pathname.includes('profiles-gate')) {
+      return true;
+    }
+    
+    // Landing routes (preview parity)
+    if (pathname === '/' ||
+        pathname === '/landing' ||
+        pathname.startsWith('/landing') ||
+        pathname.includes('welcome') ||
+        pathname.includes('onboarding')) {
+      return true;
+    }
+    
+    // Dash Assistant routes/modal (preview parity)
+    if (pathname.includes('dash-assistant') ||
+        pathname.includes('/screens/dash-assistant') ||
+        pathname.startsWith('/ai/dash') ||
+        pathname.startsWith('/ai/assistant')) {
+      return true;
+    }
+    
+    // VOICETODO: Voice UI check removed (archived)
+    
+    return false;
+  }, [pathname]);
   
   const isAuthRoute = typeof pathname === 'string' && (
     pathname.startsWith('/(auth)') ||
     pathname === '/sign-in' ||
     pathname === '/(auth)/sign-in' ||
+    pathname === '/landing' ||
+    pathname === '/' ||
     pathname.includes('auth-callback')
   );
   
-  // Show FAB after auth is loaded and a brief delay for dashboard to render
+  // Show FAB after auth loads and brief delay
   useEffect(() => {
-    if (!authLoading) {
-      const timer = setTimeout(() => {
-        setShowFAB(true);
-      }, 800); // 800ms delay after auth loads
-      
+    if (!authLoading && !isAuthRoute) {
+      const timer = setTimeout(() => setShowFAB(true), 800);
       return () => clearTimeout(timer);
+    } else {
+      setShowFAB(false);
     }
-  }, [authLoading]);
+  }, [authLoading, isAuthRoute]);
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar key={statusBarKey} style={isDark ? 'light' : 'dark'} animated />
+      {Platform.OS !== 'web' && <DashWakeWordListener />}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          presentation: 'card',
+          animationTypeForReplace: 'push',
+        }}
+      >
+        {/* Let Expo Router auto-discover screens */}
+      </Stack>
+      
+      {/* Dash Chat FAB - replaces archived voice orb */}
+      {showFAB && !shouldHideFAB && (
+        <DashChatButton />
+      )}
+    </View>
+  );
+}
+
+export default function RootLayout() {
+  const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
+  
+  // Initialize Dash AI Assistant at root level and sync context
+  useEffect(() => {
+    (async () => {
+      try {
+        const module = await import('@/services/dash-ai/DashAICompat');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: IDashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (dash) {
+          await dash.initialize();
+          setDashInstance(dash);
+          // Best-effort: sync Dash user context (language, traits)
+          try {
+            const { getCurrentLanguage } = await import('@/lib/i18n');
+            const { syncDashContext } = await import('@/lib/agent/dashContextSync');
+            const { getAgenticCapabilities } = await import('@/lib/utils/agentic-mode');
+            const { getCurrentProfile } = await import('@/lib/sessionManager');
+            const profile = await getCurrentProfile().catch(() => null as any);
+            const role = profile?.role as string | undefined;
+            const caps = getAgenticCapabilities(role);
+            await syncDashContext({ language: getCurrentLanguage(), traits: { agentic: caps, role: role || null } });
+          } catch (syncErr) {
+            if (__DEV__) console.warn('[RootLayout] dash-context-sync skipped:', syncErr);
+          }
+        }
+      } catch (e) {
+        console.error('[RootLayout] Failed to initialize Dash:', e);
+      }
+    })();
+  }, []);
+  
   // Hide development navigation header on web
   useEffect(() => {
-    // Track OTA/app launch (non-blocking)
-    try {
-      const { trackAppLaunch } = require('@/lib/otaObservability');
-      trackAppLaunch();
-    } catch {
-      // Optional telemetry; ignore failures to avoid impacting UX
-    }
-
-    // Pre-warm audio recorder on mobile for faster FAB voice interaction
-    if (Platform.OS !== 'web') {
-      try {
-        // Initialize SoundManager for UI sounds (once per app launch)
-        import('@/lib/audio/soundManager').then(({ SoundManager }) => {
-          SoundManager.initialize().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] SoundManager init failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-
-        // Initialize audio manager early
-        import('@/lib/voice/audio').then(({ audioManager }) => {
-          audioManager.initialize().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] Audio manager pre-warm failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-
-        // Pre-warm Dash AI recorder
-        import('@/services/DashAIAssistant').then(({ DashAIAssistant }) => {
-          const dash = DashAIAssistant.getInstance();
-          dash.preWarmRecorder().catch((err) => {
-            if (__DEV__) {
-              console.log('[App] Dash recorder pre-warm failed:', err);
-            }
-          });
-        }).catch(() => { /* Intentional: error handled */ });
-      } catch (e) {
-        // Non-critical; ignore
-      }
-    }
-
     if (Platform.OS === 'web') {
       const style = document.createElement('style');
       style.textContent = `
@@ -206,113 +221,191 @@ function LayoutContent() {
           height: 0 !important;
         }
         
-        /* Force full height and width for main content */
-        html, body {
-          width: 100vw !important;
-          max-width: 100vw !important;
-          height: 100vh !important;
-          min-height: 100vh !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          overflow-x: hidden !important;
+        /* Hide any element containing "screens" text in navigation context */
+        *:has-text("screens"),
+        [role="navigation"]:has-text("screens"),
+        header:has-text("screens") {
+          display: none !important;
         }
+        
+        /* More targeted Expo Router header hiding */
+        .expo-router-header:not([data-settings-screen]),
+        [data-expo-router-header]:not([data-settings-screen]) {
+          display: none !important;
+          visibility: hidden !important;
+          height: 0 !important;
+        }
+        
+        /* Force full height for main content */
         #root,
         .expo-root,
         .expo-app-container {
-          width: 100vw !important;
-          max-width: 100vw !important;
           height: 100vh !important;
           min-height: 100vh !important;
-          overflow-x: hidden !important;
+        }
+        
+        /* Protect settings screen from being hidden */
+        .settings-screen,
+        [data-settings-screen="true"] {
+          display: flex !important;
+          visibility: visible !important;
+          height: auto !important;
+          opacity: 1 !important;
+        }
+        
+        /* Allow natural display for settings content */
+        .settings-screen *,
+        [data-settings-screen="true"] * {
+          visibility: visible !important;
+          opacity: 1 !important;
+        }
+        
+        /* Hide back/forward buttons in development */
+        .expo-dev-buttons,
+        .expo-router-buttons,
+        [data-expo-dev-buttons] {
+          display: none !important;
         }
       `;
       document.head.appendChild(style);
-
-      // Add MutationObserver to dynamically hide elements
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === 1) { // Element node
-              const element = node as Element;
-              
-              // Check for development headers
-              if (element.classList?.contains('expo-dev-navigation') ||
-                  element.classList?.contains('expo-router-header') ||
-                  element.getAttribute('style')?.includes('background-color: rgb(255, 255, 255)')) {
-                (element as HTMLElement).style.display = 'none';
-              }
-              
-              // Check child elements
-              const devHeaders = element.querySelectorAll?.('.expo-dev-navigation, .expo-router-header, [class*="r-borderBottomWidth"][style*="background-color: rgb(255, 255, 255)"]');
-              devHeaders?.forEach((header) => {
-                (header as HTMLElement).style.display = 'none';
-              });
-            }
+      
+      // Also try to hide elements after they're rendered
+      const hideElements = () => {
+        const selectors = [
+          '.__expo-nav',
+          '.expo-web-dev-navigation',
+          '.expo-dev-navigation',
+          '.expo-router-dev-navigation',
+          '[data-expo-web-navigation]',
+          '.expo-web-navigation',
+          '.expo-dev-header',
+          '.expo-web-header',
+          '.expo-router-header',
+          '.expo-dev-nav',
+          '.expo-navigation-header',
+          '.expo-router-screens-nav',
+          '[data-expo-screens-nav]',
+          '.screens-navigation',
+          '.dev-screens-header',
+          '[data-expo-router-header]',
+          '.react-navigation-header',
+          '[data-react-navigation-header]'
+        ];
+        
+        selectors.forEach(selector => {
+          const elements = document.querySelectorAll(selector);
+          elements.forEach(el => {
+            (el as HTMLElement).style.display = 'none';
+            (el as HTMLElement).style.visibility = 'hidden';
+            (el as HTMLElement).style.height = '0';
           });
         });
-      });
-
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-
-      return () => observer.disconnect();
+        
+        // More careful hiding - only hide elements that are clearly navigation headers
+        const allDivs = document.querySelectorAll('div');
+        allDivs.forEach(div => {
+          // Skip elements that are inside the main app content
+          if (div.closest('[data-settings-screen]') || div.closest('.settings-screen')) {
+            return;
+          }
+          
+          const style = window.getComputedStyle(div);
+          const hasWhiteBackground = style.backgroundColor === 'rgb(255, 255, 255)' || style.backgroundColor === 'white';
+          // const hasBackButton = div.querySelector('button[aria-label="Go back"]') || div.querySelector('button[aria-label*="back"]'); // TODO: Use this for more precise hiding
+          const hasScreensText = div.textContent?.trim() === 'screens'; // More specific match
+          
+          // Only hide if it's clearly a navigation header (not app content)
+          if (hasWhiteBackground && hasScreensText && div.children.length < 3) {
+            (div as HTMLElement).style.display = 'none';
+            (div as HTMLElement).style.visibility = 'hidden';
+            (div as HTMLElement).style.height = '0';
+          }
+        });
+        
+        // Hide any element containing "screens" text in navigation context
+        const elementsWithScreensText = document.querySelectorAll('*');
+        elementsWithScreensText.forEach(el => {
+          if (el.textContent?.trim() === 'screens' && el.closest('header, nav, [role="navigation"]')) {
+            const parent = el.closest('div, header, nav') as HTMLElement;
+            if (parent) {
+              parent.style.display = 'none';
+              parent.style.visibility = 'hidden';
+              parent.style.height = '0';
+            }
+          }
+        });
+      };
+      
+      // Run immediately and on DOM changes
+      hideElements();
+      const observer = new MutationObserver(hideElements);
+      observer.observe(document.body, { childList: true, subtree: true });
+      
+      // Additional aggressive hiding after a delay
+      setTimeout(() => {
+        hideElements();
+        // Try to find and remove the header with "screens" text
+        const headers = document.querySelectorAll('*');
+        headers.forEach(el => {
+          if (el.textContent === 'screens' || el.textContent?.trim() === 'screens') {
+            // Find the parent container that looks like a header
+            let parent = el.parentElement;
+            while (parent) {
+              const style = window.getComputedStyle(parent);
+              if (style.backgroundColor === 'rgb(255, 255, 255)' || style.backgroundColor === 'white') {
+                (parent as HTMLElement).style.display = 'none';
+                break;
+              }
+              parent = parent.parentElement;
+            }
+          }
+        });
+      }, 100);
+      
+      // Even more aggressive approach - continuous monitoring
+      const continuousHiding = setInterval(() => {
+        hideElements();
+      }, 500);
+      
+      return () => {
+        if (document.head.contains(style)) {
+          document.head.removeChild(style);
+        }
+        observer.disconnect();
+        clearInterval(continuousHiding);
+      };
     }
   }, []);
-
+  
   return (
-    <>
-      {/* Global themed status bar for consistent visibility across screens */}
-      <ThemedStatusBar />
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            presentation: 'card',
-            animationTypeForReplace: 'push',
-          }}
-        >
-          {/* Let Expo Router auto-discover screens */}
-        </Stack>
-        
-        {/* OTA Update Banner */}
-        <GlobalUpdateBanner />
-        
-        {/* Voice-Enabled Dash Floating Button (Global Access) */}
-        {showFAB && (!isAuthRoute && 
-          !(pathname || '').includes('dash-assistant') && 
-          !(pathname || '').toLowerCase().includes('landing') &&
-          pathname !== '/landing' &&
-          pathname !== 'landing') && (
-          <DashVoiceFloatingButton showWelcomeMessage={true} />
-        )}
-        
-        {/* Platform-specific components */}
-        {Platform.OS !== 'web' ? <DashWakeWordListener /> : null}
-      </GestureHandlerRootView>
-    </>
-  );
-}
-
-// Root layout wrapper with providers
-export default function RootLayout() {
-  return (
-    <ErrorBoundary>
-      <QueryProvider>
-        <AuthProvider>
-          <UpdatesProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryProvider>
+          <AuthProvider>
             <ThemeProvider>
-              <ToastProvider>
-                <DashboardPreferencesProvider>
-                  <LayoutContent />
-                </DashboardPreferencesProvider>
-              </ToastProvider>
+              <TermsProvider>
+                <OnboardingProvider>
+                  <DashboardPreferencesProvider>
+                    <UpdatesProvider>
+                      <ToastProvider>
+                        {/* VOICETODO: VoiceUIProvider removed (archived) */}
+                        <LayoutContent />
+                      </ToastProvider>
+                    </UpdatesProvider>
+                  </DashboardPreferencesProvider>
+                </OnboardingProvider>
+              </TermsProvider>
             </ThemeProvider>
-          </UpdatesProvider>
-        </AuthProvider>
-      </QueryProvider>
-    </ErrorBoundary>
+          </AuthProvider>
+        </QueryProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+});

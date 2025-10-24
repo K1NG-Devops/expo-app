@@ -52,6 +52,7 @@ export function useOrganizationTerminology() {
       getRoleLabelPlural: (role: string) => getRolePluralName(role, orgType),
       orgType,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.organization_membership?.organization_id]);
   
   return { terminology };

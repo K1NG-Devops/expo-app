@@ -31,7 +31,7 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashVoiceFloatingButton } from '@/components/ai/DashVoiceFloatingButton';
+// VOICETODO: DashVoiceFloatingButton archived - now using DashChatButton in root layout
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
 
@@ -374,23 +374,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
           </View>
         </View>
 
-        {/* Layout Toggle for Testing */}
-        {process.env.NODE_ENV === 'development' && (
-          <View style={styles.debugSection}>
-            <TouchableOpacity
-              style={styles.debugButton}
-              onPress={() => setLayout(dashPrefs.layout === 'enhanced' ? 'classic' : 'enhanced')}
-            >
-              <Text style={styles.debugButtonText}>
-                Switch to {dashPrefs.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </ScrollView>
-
-      {/* AI Assistant Floating Button */}
-      <DashVoiceFloatingButton />
     </View>
   );
 };

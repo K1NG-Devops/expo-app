@@ -10,7 +10,7 @@
 import * as Speech from 'expo-speech';
 import { Platform } from 'react-native';
 import { voiceService } from '@/lib/voice/client';
-import type { DashMessage } from '../DashAIAssistant';
+import type { DashMessage } from '@/services/dash-ai/types';
 
 export interface VoiceSettings {
   rate: number;
@@ -69,16 +69,13 @@ export class DashVoiceController {
       }
       if (!language) language = (voiceSettings.language?.toLowerCase()?.slice(0, 2) as any) || 'en';
       
-      // Use Azure TTS for SA languages
-      const saLanguages = ['af', 'zu', 'xh', 'nso'];
-      if (saLanguages.includes(language)) {
-        try {
-          await this.speakWithAzureTTS(normalizedText, language, callbacks);
-          if (this.isSpeechAborted) callbacks?.onStopped?.();
-          return;
-        } catch (azureError) {
-          console.error('[DashVoiceController] Azure TTS failed, falling back:', azureError);
-        }
+      // Prefer Azure TTS for all supported locales; device TTS is last resort
+      try {
+        await this.speakWithAzureTTS(normalizedText, language, callbacks);
+        if (this.isSpeechAborted) callbacks?.onStopped?.();
+        return;
+      } catch (azureError) {
+        console.error('[DashVoiceController] Azure TTS failed, falling back:', azureError);
       }
       
       // Device TTS fallback
@@ -119,8 +116,11 @@ export class DashVoiceController {
     const { assertSupabase } = await import('@/lib/supabase');
     const supabase = assertSupabase();
     
+    // The Edge Function expects short codes (af, zu, xh, nso, en)
+    const shortCode = this.mapLanguageCode(language);
+    
     const { data, error } = await supabase.functions.invoke('tts-proxy', {
-      body: { text, language, style: 'friendly', rate: 0, pitch: 0 }
+      body: { text, language: shortCode, rate: 5, pitch: 0 }
     });
     
     if (error) throw error;
@@ -236,7 +236,7 @@ export class DashVoiceController {
   }
   
   /**
-   * Normalize text for speech (remove markdown, etc)
+   * Normalize text for speech (remove markdown, fix awkward phrases)
    */
   private normalizeTextForSpeech(text: string): string {
     let normalized = text
@@ -250,7 +250,28 @@ export class DashVoiceController {
       .replace(/[-*+]\s+/g, '') // Lists
       .replace(/\n{2,}/g, '. ') // Multi-newlines
       .replace(/\n/g, ' ') // Single newlines
+      // IMPROVEMENT: Remove "User:" and "Assistant:" prefixes that shouldn't be spoken
+      .replace(/^\s*User:\s*/gi, '') // Remove "User:" at start
+      .replace(/\bUser:\s*/gi, '') // Remove "User:" anywhere
+      .replace(/^\s*Assistant:\s*/gi, '') // Remove "Assistant:" at start
+      .replace(/\bAssistant:\s*/gi, '') // Remove "Assistant:" anywhere
       .trim();
+    
+    // Fix awkward age and quantity phrases
+    normalized = normalized
+      // Fix "X to Y years old" patterns
+      .replace(/(\w+)\s+to\s+(\d+)\s+years?\s+old/gi, '$2 year old $1')
+      .replace(/(\w+)\s+from\s+(\d+)\s+to\s+(\d+)\s+years?/gi, '$1 aged $2 to $3 years')
+      // Fix awkward "aged X-Y years old" patterns
+      .replace(/aged\s+(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old')
+      // Fix "students/children/kids of X years"
+      .replace(/(students?|children?|kids?)\s+of\s+(\d+)\s+years?/gi, '$2 year old $1')
+      // Fix "X year students" -> "X year old students"
+      .replace(/(\d+)\s+year\s+(students?|children?|kids?)/gi, '$1 year old $2')
+      // Fix plural "years old" when singular needed
+      .replace(/(\d+)\s+years\s+old\s+(student|child|kid|boy|girl)/gi, '$1 year old $2')
+      // Normalize "X-Y year old" patterns
+      .replace(/(\d+)-(\d+)\s+years?\s+old/gi, '$1 to $2 year old');
     
     return normalized;
   }
@@ -283,6 +304,17 @@ export class DashVoiceController {
       'ns': 'nso', 'st': 'nso', 'se': 'nso'
     };
     return mapping[normalized] || 'en';
+  }
+  
+  /** Map to Azure locale (e.g., af -> af-ZA) */
+  private mapAzureLocale(code: string): string {
+    const c = (code || 'en').toLowerCase();
+    if (c.startsWith('af')) return 'af-ZA';
+    if (c.startsWith('zu')) return 'zu-ZA';
+    if (c.startsWith('xh')) return 'xh-ZA';
+    if (c.startsWith('nso') || c.startsWith('ns') || c.startsWith('se') || c.startsWith('st')) return 'nso-ZA';
+    if (c.startsWith('en')) return 'en-ZA';
+    return 'en-ZA';
   }
   
   /**

@@ -12,6 +12,7 @@
 import { router } from 'expo-router';
 import { getCurrentProfile, type UserProfile } from '@/lib/sessionManager';
 import { assertSupabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 export interface DashAwareness {
   user: {
@@ -66,8 +67,12 @@ export interface IDashRealTimeAwareness {
 }
 
 export class DashRealTimeAwareness implements IDashRealTimeAwareness {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashRealTimeAwareness;
+  
   private awareness: DashAwareness | null = null;
   private conversationStarted = new Map<string, Date>();
+  private conversationMessageCount = new Map<string, number>(); // Track message count per conversation
   private screenHistory: string[] = [];
   
   constructor() {}
@@ -146,7 +151,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         }
       }
     } catch (error) {
-      console.error('[DashAwareness] Failed to get user name:', error);
+      logger.error('[DashAwareness] Failed to get user name:', error);
     }
     
     return {
@@ -299,7 +304,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         preschoolId: (profile as any).preschool_id
       };
     } catch (error) {
-      console.error('[DashAwareness] Failed to get data context:', error);
+      logger.error('[DashAwareness] Failed to get data context:', error);
       return {};
     }
   }
@@ -308,17 +313,32 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
    * Track conversation context
    */
   private getConversationContext(conversationId: string): DashAwareness['conversation'] {
-    const startTime = this.conversationStarted.get(conversationId);
-    const isNew = !startTime || (Date.now() - startTime.getTime() > 30 * 60 * 1000); // 30 min gap = new
+    const lastInteraction = this.conversationStarted.get(conversationId);
     
-    if (isNew || !startTime) {
-      this.conversationStarted.set(conversationId, new Date());
+    // Consider a conversation "new" if:
+    // 1. No previous interaction exists, OR
+    // 2. Last interaction was more than 30 minutes ago
+    const timeSinceLastMessage = lastInteraction ? Date.now() - lastInteraction.getTime() : Infinity;
+    const isNew = !lastInteraction || timeSinceLastMessage > 30 * 60 * 1000; // 30 min gap = new
+    
+    // Reset message count if new conversation
+    if (isNew) {
+      this.conversationMessageCount.set(conversationId, 1);
+    } else {
+      // Increment message count for ongoing conversation
+      const currentCount = this.conversationMessageCount.get(conversationId) || 1;
+      this.conversationMessageCount.set(conversationId, currentCount + 1);
     }
     
+    // Update last interaction time for this conversation
+    this.conversationStarted.set(conversationId, new Date());
+    
+    const messageCount = this.conversationMessageCount.get(conversationId) || 1;
+    
     return {
-      messageCount: 0, // Would be tracked properly
+      messageCount: messageCount,
       isNewConversation: isNew,
-      lastInteraction: startTime,
+      lastInteraction: lastInteraction,
       topics: [] // Would track discussed topics
     };
   }
@@ -327,7 +347,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
    * ACTUALLY open a screen right now
    */
   public async openScreen(route: string, params?: Record<string, any>): Promise<void> {
-    console.log(`[DashAwareness] Opening screen: ${route}`, params);
+    logger.debug(`[DashAwareness] Opening screen: ${route}`, params);
     
     try {
       // Track navigation
@@ -342,9 +362,9 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
         params: params || {}
       });
       
-      console.log(`[DashAwareness] Successfully opened: ${route}`);
+      logger.debug(`[DashAwareness] Successfully opened: ${route}`);
     } catch (error) {
-      console.error(`[DashAwareness] Failed to open screen ${route}:`, error);
+      logger.error(`[DashAwareness] Failed to open screen ${route}:`, error);
       throw error;
     }
   }
@@ -374,7 +394,7 @@ export class DashRealTimeAwareness implements IDashRealTimeAwareness {
   public buildAwareSystemPrompt(awareness: DashAwareness): string {
     const { user, app, conversation } = awareness;
     
-    let prompt = `You are Dash, an AI assistant for EduDash Pro.
+    let prompt = `You are Dash, the educational assistant for EduDash Pro.
 
 🚨 CRITICAL: NO THEATRICAL NARRATION 🚨
 You are a TEXT-BASED assistant. NEVER use:
@@ -442,10 +462,28 @@ ADDITIONAL FEATURES:
   }
 
   /**
+   * Clean up old conversation tracking (prevent memory leaks)
+   * Call this periodically to remove stale conversation data
+   */
+  private cleanupOldConversations(): void {
+    const now = Date.now();
+    const oneHourAgo = now - (60 * 60 * 1000);
+    
+    // Remove conversations older than 1 hour
+    for (const [conversationId, lastTime] of this.conversationStarted.entries()) {
+      if (lastTime.getTime() < oneHourAgo) {
+        this.conversationStarted.delete(conversationId);
+        this.conversationMessageCount.delete(conversationId);
+      }
+    }
+  }
+
+  /**
    * Dispose method for cleanup
    */
   public dispose(): void {
     this.conversationStarted.clear();
+    this.conversationMessageCount.clear();
     this.screenHistory = [];
     this.awareness = null;
   }
@@ -463,11 +501,9 @@ export const DashRealTimeAwarenessInstance = (() => {
   }
 })();
 
-// Back-compat static accessor for legacy call sites
-export namespace DashRealTimeAwareness {
-  export function getInstance() {
-    return DashRealTimeAwarenessInstance;
-  }
-}
+// Add static getInstance method to class
+DashRealTimeAwareness.getInstance = function() {
+  return DashRealTimeAwarenessInstance;
+};
 
 export default DashRealTimeAwarenessInstance;

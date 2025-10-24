@@ -18,7 +18,6 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/contexts/ThemeContext'
 import { toast } from '@/components/ui/ToastProvider'
-import { DashAIAssistant } from '@/services/DashAIAssistant'
 import { EducationalPDFService } from '@/lib/services/EducationalPDFService'
 
 export default function AILessonGeneratorScreen() {

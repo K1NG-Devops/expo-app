@@ -5,7 +5,7 @@
  * Handles complex multi-step tasks and workflow automation
  */
 
-import { DashTask, DashTaskStep, DashAction, DashReminder } from './DashAIAssistant';
+import { DashTask, DashTaskStep, DashAction, DashReminder } from './dash-ai/types';
 
 export interface TaskTemplate {
   id: string;
@@ -33,6 +33,9 @@ export interface IDashTaskAutomation {
 }
 
 export class DashTaskAutomation implements IDashTaskAutomation {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashTaskAutomation;
+  
   private activeTasks: Map<string, DashTask> = new Map();
   private taskTemplates: Map<string, TaskTemplate> = new Map();
   private automationRules: Map<string, any> = new Map();
@@ -588,23 +591,21 @@ export class DashTaskAutomation implements IDashTaskAutomation {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashTaskAutomationInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashTaskAutomation);
-  } catch {
-    // Fallback during initialization
-    return new DashTaskAutomation();
-  }
-})();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashTaskAutomation | null = null;
 
-// Back-compat static accessor for legacy call sites
-export namespace DashTaskAutomation {
-  export function getInstance() {
-    return DashTaskAutomationInstance;
+export function getDashTaskAutomationInstance(): DashTaskAutomation {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashTaskAutomation();
   }
+  return _defaultInstance;
 }
+
+// Add static getInstance method to class
+const DashTaskAutomationInstance = getDashTaskAutomationInstance();
+DashTaskAutomation.getInstance = function() {
+  return DashTaskAutomationInstance;
+};
 
 export default DashTaskAutomationInstance;

@@ -34,8 +34,7 @@ export default function NotFound() {
         setDebugInfo(info);
         
         if (__DEV__) {
-          console.log('🚨 [NOT-FOUND] Unmatched route detected!');
-          console.log('🚨 [NOT-FOUND] Debug info:', info);
+          console.warn('🚨 [NOT-FOUND] Unmatched route detected:', info);
         }
       } catch (error) {
         console.error('🚨 [NOT-FOUND] Error gathering debug info:', error);

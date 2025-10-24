@@ -9,7 +9,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
-import type { DashUserProfile, DashMemoryItem, DashInsight } from './DashAIAssistant';
+import type { DashUserProfile, DashMemoryItem, DashInsight } from './dash-ai/types';
 
 export interface UserIntent {
   primary_intent: string;
@@ -86,6 +86,8 @@ export interface IDashContextAnalyzer {
 }
 
 export class DashContextAnalyzer implements IDashContextAnalyzer {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashContextAnalyzer;
   
   // ===== PHASE 1.4: AGENTIC ENHANCEMENTS =====
   private lastSnapshotTime: number = 0;
@@ -1058,23 +1060,21 @@ export class DashContextAnalyzer implements IDashContextAnalyzer {
   }
 }
 
-// Backward compatibility: Export singleton instance
-// TODO: Remove once all call sites migrated to DI
-import { container, TOKENS } from '../lib/di/providers/default';
-export const DashContextAnalyzerInstance = (() => {
-  try {
-    return container.resolve(TOKENS.dashContextAnalyzer);
-  } catch {
-    // Fallback during initialization
-    return new DashContextAnalyzer();
-  }
-})();
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashContextAnalyzer | null = null;
 
-// Back-compat static accessor for legacy call sites
-export namespace DashContextAnalyzer {
-  export function getInstance() {
-    return DashContextAnalyzerInstance;
+export function getDashContextAnalyzerInstance(): DashContextAnalyzer {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashContextAnalyzer();
   }
+  return _defaultInstance;
 }
+
+// Add static getInstance method to class
+const DashContextAnalyzerInstance = getDashContextAnalyzerInstance();
+DashContextAnalyzer.getInstance = function() {
+  return DashContextAnalyzerInstance;
+};
 
 export default DashContextAnalyzerInstance;

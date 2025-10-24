@@ -2,6 +2,17 @@
  * RBAC Authorization Middleware Tests
  */
 
+// Mock Supabase before any imports
+jest.mock('../../supabase', () => ({
+  assertSupabase: jest.fn(() => ({
+    from: jest.fn(),
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      onAuthStateChange: jest.fn(() => ({ data: { subscription: { unsubscribe: () => {} } } })),
+    },
+  })),
+}));
+
 import { 
   UserRole, 
   Permission, 

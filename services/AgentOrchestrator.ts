@@ -8,7 +8,7 @@ import { MemoryService } from './MemoryService';
 import { EventBus, Events } from './EventBus';
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import { DashAIAssistant } from './DashAIAssistant';
+import { getAssistant } from './core/getAssistant';
 
 export interface AgentGoal {
   objective: string;
@@ -192,7 +192,7 @@ export class AgentOrchestratorClass implements IAgentOrchestrator {
     const toolSpecs = ToolRegistry.getToolSpecs();
     
     // Get current screen context
-    const dash = DashAIAssistant.getInstance();
+    const dash = await getAssistant();
     const screenContext = dash.getCurrentScreenContext();
     
     return {
@@ -277,7 +277,7 @@ export class AgentOrchestratorClass implements IAgentOrchestrator {
         body: {
           action: 'chat',
           messages: [
-            { role: 'system', content: 'You are a helpful AI assistant reflecting on task execution.' },
+            { role: 'system', content: 'You are Dash reflecting on task execution.' },
             { role: 'user', content: reflectionPrompt }
           ],
           model: 'claude-3-haiku',

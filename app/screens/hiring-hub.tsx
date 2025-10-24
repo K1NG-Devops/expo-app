@@ -206,7 +206,7 @@ function JobPostingCard({ job, theme, styles }: { job: JobPosting; theme: any; s
   return (
     <TouchableOpacity
       style={[styles.jobCard, { backgroundColor: theme.surface }]}
-      onPress={() => router.push(`/screens/job-posting-detail?id=${job.id}`)}
+      onPress={() => console.log('Job detail view coming soon', job.id)}
     >
       <Text style={[styles.jobTitle, { color: theme.text }]} numberOfLines={1}>
         {job.title}

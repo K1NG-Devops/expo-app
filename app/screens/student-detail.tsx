@@ -123,7 +123,7 @@ export default function StudentDetailScreen() {
             email,
             phone
           ),
-          age_groups (
+          age_groups!students_age_group_id_fkey (
             name
           )
         `)
@@ -483,6 +483,26 @@ const { error } = await assertSupabase()
           ) : (
             <Text style={styles.noContact}>No parent contact information</Text>
           )}
+        </View>
+
+        {/* Progress Reports */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Academic Reports</Text>
+          <TouchableOpacity 
+            style={styles.progressReportButton}
+            onPress={() => router.push(`/screens/progress-report-creator?student_id=${student.id}`)}
+          >
+            <View style={styles.progressReportContent}>
+              <View style={styles.progressReportIcon}>
+                <Ionicons name="document-text" size={24} color="#8B5CF6" />
+              </View>
+              <View style={styles.progressReportText}>
+                <Text style={styles.progressReportTitle}>Create Progress Report</Text>
+                <Text style={styles.progressReportSubtitle}>Send academic progress to parents</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Financial Information */}
@@ -917,5 +937,38 @@ const styles = StyleSheet.create({
   picker: {
     backgroundColor: '#fff',
     borderRadius: 8,
+  },
+  progressReportButton: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  progressReportContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  progressReportIcon: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  progressReportText: {
+    flex: 1,
+  },
+  progressReportTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  progressReportSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
   },
 });

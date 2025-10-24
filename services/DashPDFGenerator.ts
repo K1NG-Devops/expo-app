@@ -805,10 +805,28 @@ class DashPDFGeneratorImpl {
   }
 
   /**
-   * Extract title from prompt
+   * Extract title from prompt using intelligent heuristics
    */
   private extractTitle(prompt: string): string | null {
-    // Simple heuristic: first sentence or first line
+    // Check for explicit title markers
+    const titleMatch = prompt.match(/(?:title|name|called?):?\s*["']?([^"'\n]+)["']?/i);
+    if (titleMatch && titleMatch[1].trim().length > 0) {
+      return titleMatch[1].trim().substring(0, 100);
+    }
+    
+    // Check for "about X" or "on X" patterns
+    const topicMatch = prompt.match(/(?:about|on|regarding|concerning)\s+([^,.\n]{5,80})/i);
+    if (topicMatch && topicMatch[1].trim().length > 0) {
+      return topicMatch[1].trim();
+    }
+    
+    // Check for "create a X for Y" patterns
+    const createMatch = prompt.match(/(?:create|make|generate|write)\s+(?:a|an)\s+([^,.\n]{5,80})/i);
+    if (createMatch && createMatch[1].trim().length > 0) {
+      return createMatch[1].trim();
+    }
+    
+    // Fallback: first line or first sentence
     const firstLine = prompt.split('\n')[0].trim();
     if (firstLine.length > 0 && firstLine.length < 100) {
       return firstLine;
@@ -1148,10 +1166,24 @@ class DashPDFGeneratorImpl {
       
       onProgress?.('render', 85, 'Finalizing...');
 
-      // Generate filename
+      // Generate meaningful filename from context
       const timestamp = new Date().toISOString().split('T')[0];
-      const sanitizedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 50);
-      const filename = `dash_${timestamp}_${sanitizedTitle}_${Math.random().toString(36).substr(2, 6)}.pdf`;
+      
+      // Clean and sanitize title for filename
+      const sanitizedTitle = title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9\s-]/g, '') // Remove special chars
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Remove consecutive hyphens
+        .replace(/^-|-$/g, '') // Remove leading/trailing hyphens
+        .substring(0, 50); // Limit length
+      
+      // Add document type prefix for context
+      const typePrefix = docType === 'general' ? '' : `${docType.replace('_', '-')}-`;
+      
+      // Generate filename: [type-]title_date.pdf
+      const filename = `${typePrefix}${sanitizedTitle || 'document'}_${timestamp}.pdf`;
 
       // On native platforms, optionally upload to Supabase Storage
       if (Platform.OS !== 'web') {

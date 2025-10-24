@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import type { DashAIAssistant, DashMessage } from '@/services/DashAIAssistant';
+import type { DashAIAssistant, DashMessage } from '@/services/dash-ai/DashAICompat';
 import { useRealtimeVoice } from './useRealtimeVoice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
@@ -146,7 +146,6 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       setLocked(false);
       setState('prewarm');
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch { /* Intentional: non-fatal */ }
-      try { await dash.preWarmRecorder(); } catch { /* Intentional: non-fatal */ }
       
       // Start streaming if enabled (local file recording removed)
       let started = false;
@@ -262,7 +261,7 @@ export function useVoiceController(dash: DashAIAssistant | null, opts: Options =
       
       // Generate AI response (no local audio URI available in streaming mode)
       setState('thinking');
-      const response = await dash.sendPreparedVoiceMessage('', transcript, duration);
+      const response = await dash.sendMessage(transcript);
       onResponse?.(response);
       setState('idle');
       try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { /* Intentional: non-fatal */ }
