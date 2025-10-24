@@ -155,22 +155,22 @@ export class DashAIAssistant implements IDashAIAssistant {
   dispose(): void { return this.core.dispose(); }
   cleanup(): void { return this.core.dispose(); } // Alias for dispose
 
-  // Voice
-  async startRecording(): Promise<void> { return this.core.startRecording(); }
-  async stopRecording(): Promise<string> { return this.core.stopRecording(); }
-  isCurrentlyRecording(): boolean { return this.core.isCurrentlyRecording(); }
-  async transcribeAudio(audioUri: string, userId?: string): Promise<TranscriptionResult> { return this.core.transcribeAudio(audioUri, userId); }
-  async speakText(text: string): Promise<void> { return this.core.speakText(text); }
-  async stopSpeaking(): Promise<void> { return this.core.stopSpeaking(); }
+  // Voice - delegate to facade
+  async startRecording(): Promise<void> { return this.core.voice.startRecording(); }
+  async stopRecording(): Promise<string> { return this.core.voice.stopRecording(); }
+  isCurrentlyRecording(): boolean { return this.core.voice.isCurrentlyRecording(); }
+  async transcribeAudio(audioUri: string, userId?: string): Promise<TranscriptionResult> { return this.core.voice.transcribeAudio(audioUri, userId); }
+  async speakText(text: string): Promise<void> { return this.core.voice.speakText(text); }
+  async stopSpeaking(): Promise<void> { return this.core.voice.stopSpeaking(); }
 
-  // Conversations
-  async startNewConversation(title?: string): Promise<string> { return this.core.startNewConversation(title); }
-  getCurrentConversationId(): string | null { return this.core.getCurrentConversationId(); }
-  setCurrentConversationId(id: string): void { return this.core.setCurrentConversationId(id); }
-  async getConversation(conversationId: string): Promise<DashConversation | null> { return this.core.getConversation(conversationId); }
-  async getAllConversations(): Promise<DashConversation[]> { return this.core.getAllConversations(); }
-  async deleteConversation(conversationId: string): Promise<void> { return this.core.deleteConversation(conversationId); }
-  async addMessageToConversation(conversationId: string, message: DashMessage): Promise<void> { return this.core.addMessageToConversation(conversationId, message); }
+  // Conversations - delegate to facade
+  async startNewConversation(title?: string): Promise<string> { return this.core.conversation.startNewConversation(title); }
+  getCurrentConversationId(): string | null { return this.core.conversation.getCurrentConversationId(); }
+  setCurrentConversationId(id: string): void { return this.core.conversation.setCurrentConversationId(id); }
+  async getConversation(conversationId: string): Promise<DashConversation | null> { return this.core.conversation.getConversation(conversationId); }
+  async getAllConversations(): Promise<DashConversation[]> { return this.core.conversation.getAllConversations(); }
+  async deleteConversation(conversationId: string): Promise<void> { return this.core.conversation.deleteConversation(conversationId); }
+  async addMessageToConversation(conversationId: string, message: DashMessage): Promise<void> { return this.core.conversation.addMessageToConversation(conversationId, message); }
   
   async sendMessage(
     content: string, 
@@ -182,19 +182,19 @@ export class DashAIAssistant implements IDashAIAssistant {
     return this.core.sendMessage(content, conversationId, attachments, onStreamChunk);
   }
 
-  // Tasks & Reminders
+  // Tasks & Reminders - delegate to facade
   async createTask(title: string, description: string, type?: DashTask['type'], assignedTo?: string): Promise<DashTask> {
-    return this.core.createTask(title, description, type, assignedTo);
+    return this.core.tasks.createTask(title, description, type, assignedTo);
   }
-  getActiveTasks(): DashTask[] { return this.core.getActiveTasks(); }
+  getActiveTasks(): DashTask[] { return this.core.tasks.getActiveTasks(); }
   async createReminder(title: string, message: string, triggerAt: number, priority?: DashReminder['priority']): Promise<DashReminder> {
-    return this.core.createReminder(title, message, triggerAt, priority);
+    return this.core.tasks.createReminder(title, message, triggerAt, priority);
   }
-  getActiveReminders(): DashReminder[] { return this.core.getActiveReminders(); }
+  getActiveReminders(): DashReminder[] { return this.core.tasks.getActiveReminders(); }
 
-  // Navigation
-  async navigateToScreen(route: string, params?: Record<string, any>) { return this.core.navigateToScreen(route, params); }
-  async navigateByVoice(command: string) { return this.core.navigateByVoice(command); }
+  // Navigation - delegate to facade
+  async navigateToScreen(route: string, params?: Record<string, any>) { return this.core.navigation.navigateToScreen(route, params); }
+  async navigateByVoice(command: string) { return this.core.navigation.navigateByVoice(command); }
   openLessonGeneratorFromContext(userInput: string, aiResponse: string): void {
     // Legacy method - now uses navigator's openLessonGenerator
     console.warn('[DashAICompat] openLessonGeneratorFromContext is deprecated');
@@ -205,7 +205,7 @@ export class DashAIAssistant implements IDashAIAssistant {
   getLanguage(): string | undefined { return this.core.getLanguage(); }
   getPersonality(): any { return this.core.getPersonality(); }
   async savePersonality(partial: any): Promise<void> { return this.core.savePersonality(partial); }
-  async exportConversation(conversationId: string): Promise<string> { return this.core.exportConversation(conversationId); }
+  async exportConversation(conversationId: string): Promise<string> { return this.core.conversation.exportConversation(conversationId); }
 
   // Screen context (simple default for tools)
   getCurrentScreenContext(): { screen: string; capabilities: string[]; suggestions: string[] } {
@@ -257,19 +257,19 @@ export class DashAIAssistant implements IDashAIAssistant {
     // Language override if provided in metadata
     const langOverride = (message as any)?.metadata?.detected_language as string | undefined;
     
-    // Delegate to core speakText with callbacks and language override
-    return this.core.speakText(text, callbacks, langOverride ? { language: langOverride } : undefined);
+    // Delegate to core.voice speakText with callbacks and language override
+    return this.core.voice.speakText(text, callbacks, langOverride ? { language: langOverride } : undefined);
   }
 
   // Convenience shim
   async sendPreparedVoiceMessage(input: { text?: string; audioUri?: string }): Promise<void> {
     if (input.audioUri) {
-      const result = await this.core.transcribeAudio(input.audioUri);
-      if (result?.transcript) await this.core.speakText(result.transcript);
+      const result = await this.core.voice.transcribeAudio(input.audioUri);
+      if (result?.transcript) await this.core.voice.speakText(result.transcript);
       return;
     }
     if (input.text) {
-      await this.core.speakText(input.text);
+      await this.core.voice.speakText(input.text);
       return;
     }
   }
