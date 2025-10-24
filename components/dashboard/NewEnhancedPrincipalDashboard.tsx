@@ -36,6 +36,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { PendingParentLinkRequests } from './PendingParentLinkRequests';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -290,10 +291,6 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
               {tenantSlug || data.schoolName || t('dashboard.your_school')}
             </Text>
-            {/* Tier Badge */}
-            <View style={{ marginLeft: 8 }}>
-              <TierBadge size="sm" showManageButton={true} />
-            </View>
           </View>
           
           {/* Right side - Dashboard Toggle + Settings */}
@@ -466,6 +463,11 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             </View>
           </View>
         </View>
+      </View>
+
+      {/* Parent Link Requests Widget */}
+      <View style={styles.section}>
+        <PendingParentLinkRequests />
       </View>
 
       {/* ┌────────────────────────────────────────────── ┐ */}
@@ -723,25 +725,6 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     welcomeSubtitle: {
       fontSize: isSmallScreen ? 14 : 16,
       color: theme.textSecondary,
-    },
-    tierBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: isSmallScreen ? 8 : 10,
-      paddingVertical: isSmallScreen ? 3 : 4,
-      borderRadius: isSmallScreen ? 12 : 14,
-      gap: 4,
-    },
-    freeTierBadge: {
-      backgroundColor: '#F59E0B',
-    },
-    premiumTierBadge: {
-      backgroundColor: '#8B5CF6',
-    },
-    tierBadgeText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: '#FFFFFF',
     },
     upgradePrompt: {
       flexDirection: 'row',

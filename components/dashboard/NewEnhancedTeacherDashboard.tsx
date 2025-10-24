@@ -34,6 +34,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // VOICETODO: DashVoiceFloatingButton archived - now using DashChatButton in root layout
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
+import { PendingParentLinkRequests } from './PendingParentLinkRequests';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -372,6 +373,11 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
               />
             ))}
           </View>
+        </View>
+
+        {/* Parent Link Requests Widget */}
+        <View style={styles.section}>
+          <PendingParentLinkRequests />
         </View>
 
       </ScrollView>

@@ -32,6 +32,7 @@ import { LanguageModal } from './parent/LanguageModal';
 import { WelcomeSection } from './parent/WelcomeSection';
 import { ParentInsightsCard } from '@/components/parent/ParentInsightsCard';
 import { InteractiveLessonsWidget } from '@/components/parent/InteractiveLessonsWidget';
+import { PendingLinkRequests } from './PendingLinkRequests';
 
 // Extracted helpers
 import { 
@@ -501,16 +502,19 @@ case 'homework':
       lineHeight: 20,
     },
     emptyStateButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
       backgroundColor: theme.primary,
       paddingHorizontal: 24,
       paddingVertical: 12,
       borderRadius: 8,
-      marginTop: 20,
+      marginTop: 16,
     },
     emptyStateButtonText: {
-      color: theme.onPrimary,
+      color: '#fff',
       fontSize: 14,
-      fontWeight: '600',
+      fontWeight: '700',
     },
     // Principal Dashboard Style Section Headers
     sectionHeader: {
@@ -893,15 +897,32 @@ case 'homework':
               <Text style={styles.emptyStateSubtitle}>
                 {t('parent.registerOrLinkChild')}
               </Text>
+              
+              {/* Claim Existing Child Button */}
               <TouchableOpacity 
-                style={styles.emptyStateButton}
+                style={[styles.emptyStateButton, { backgroundColor: theme.primary, marginBottom: 12 }]}
+                onPress={() => router.push('/screens/parent-claim-child')}
+              >
+                <Ionicons name="link" size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={[styles.emptyStateButtonText, { color: '#fff' }]}>Claim Existing Child</Text>
+              </TouchableOpacity>
+              
+              {/* Register New Child Button */}
+              <TouchableOpacity 
+                style={[styles.emptyStateButton, { borderWidth: 1, borderColor: theme.border, backgroundColor: 'transparent' }]}
                 onPress={() => router.push('/screens/parent-child-registration')}
               >
-                <Text style={styles.emptyStateButtonText}>{t('parent.registerChild')}</Text>
+                <Ionicons name="person-add" size={20} color={theme.text} style={{ marginRight: 8 }} />
+                <Text style={[styles.emptyStateButtonText, { color: theme.text }]}>{t('parent.registerChild')}</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
+
+        {/* Parent Link Requests Status */}
+        <View style={styles.section}>
+          <PendingLinkRequests />
+        </View>
 
         {/* AI-Powered Proactive Insights */}
         {activeChildId && (

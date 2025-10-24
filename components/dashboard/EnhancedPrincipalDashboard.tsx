@@ -393,17 +393,13 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 size={36}
               />
             </TouchableOpacity>
-              <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
+            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
               {data.schoolName ||
                (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : undefined) ||
                tenantSlug ||
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
-            {/* Tier Badge */}
-            <View style={{ marginLeft: 8 }}>
-              <TierBadge size="sm" showManageButton={true} />
-            </View>
           </View>
           <View style={styles.headerRight}>
             {/* Layout toggle */}
@@ -452,29 +448,12 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               <Text style={styles.welcomeSubtitle}>
                 {t('dashboard.managing_school', { schoolName: data.schoolName || (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : t('dashboard.your_school')) })} • {t('dashboard.school_overview')}
               </Text>
+              {/* Tier Badge - moved from header */}
+              <View style={{ marginTop: 8 }}>
+                <TierBadge size="sm" showManageButton={true} />
+              </View>
             </View>
             <View style={styles.headerActions}>
-              {/* Subscription Badge */}
-              {subscriptionReady && (
-                <View style={styles.subscriptionBadgeContainer}>
-                  <View style={[
-                    styles.subscriptionBadge, 
-                    hasAdvancedFeatures ? styles.premiumSubscriptionBadge : styles.basicSubscriptionBadge
-                  ]}>
-                    <Ionicons 
-                      name={hasAdvancedFeatures ? "diamond" : "flash"} 
-                      size={12} 
-                      color={hasAdvancedFeatures ? "#8B5CF6" : "#F59E0B"} 
-                    />
-                    <Text style={[
-                      styles.subscriptionBadgeText,
-                      hasAdvancedFeatures ? styles.premiumBadgeText : styles.basicBadgeText
-                    ]}>
-                      {tier.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-              )}
               {/* Theme Toggle */}
               <TouchableOpacity
                 style={styles.themeToggle}

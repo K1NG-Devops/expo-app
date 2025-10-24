@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -273,6 +273,212 @@ export default function ProgressReportCreator() {
     subjects,
     reportCategory,
   ]);
+
+  // Create theme-aware styles (MUST be before any early returns)
+  const styles = useMemo(() => StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    content: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    header: {
+      marginBottom: 24,
+      padding: 16,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    studentName: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: theme.text,
+      marginBottom: 8,
+    },
+    parentInfo: {
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    section: {
+      marginBottom: 20,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    suggestionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 12,
+      gap: 4,
+      backgroundColor: theme.primary,
+    },
+    suggestionButtonText: {
+      color: '#fff',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 16,
+      marginTop: 8,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 8,
+    },
+    input: {
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      padding: 12,
+      color: theme.text,
+      fontSize: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    textArea: {
+      minHeight: 80,
+      textAlignVertical: 'top',
+    },
+    subjectCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+    },
+    subjectName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 12,
+    },
+    actionsContainer: {
+      gap: 12,
+      marginTop: 24,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    actionButtonSmall: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 14,
+      borderRadius: 8,
+      gap: 8,
+    },
+    actionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+      borderRadius: 12,
+      gap: 10,
+    },
+    primaryButton: {
+      backgroundColor: theme.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    actionButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#fff',
+    },
+    secondaryButtonText: {
+      color: theme.text,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    errorText: {
+      fontSize: 16,
+      color: theme.error,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    modalContainer: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      backgroundColor: theme.background,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 20,
+      maxHeight: '80%',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    modalTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    closeButton: {
+      padding: 8,
+    },
+    suggestionItem: {
+      padding: 12,
+      backgroundColor: theme.surface,
+      borderRadius: 8,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    suggestionText: {
+      fontSize: 14,
+      color: theme.text,
+      lineHeight: 20,
+    },
+    previewModal: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    previewHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    previewTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    webview: {
+      flex: 1,
+    },
+  }), [theme]);
 
   // Auto-save draft every 30 seconds
   useEffect(() => {
@@ -1064,18 +1270,10 @@ export default function ProgressReportCreator() {
     );
   }
 
+  // Styles already created at top of component (line ~277)
+  // Removed duplicate styles definition to fix React Hooks rules violation
+
   return (
-    <SafeAreaView edges={['top', 'bottom']} style={[styles.container, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ title: 'Create Progress Report', headerStyle: { backgroundColor: theme.background }, headerTintColor: theme.primary }} />
-      
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Progress Indicator */}
-        <View style={[styles.progressContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.progressHeader}>
-            <Text style={[styles.progressTitle, { color: theme.text }]}>Report Progress</Text>
-            <View style={styles.autoSaveContainer}>
-              {autoSaveStatus === 'saving' && (
-                <ActivityIndicator size="small" color={theme.primary} style={{ marginRight: 8 }} />
               )}
               {autoSaveStatus === 'saved' && lastAutoSave && (
                 <Text style={[styles.autoSaveText, { color: theme.textSecondary }]}>
@@ -1403,16 +1601,16 @@ export default function ProgressReportCreator() {
           </View>
 
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.primary }]}
+            style={styles.actionButton}
             onPress={handleSendPDF}
             disabled={sending || !reportPeriod || !overallGrade || !teacherComments}
           >
             {sending ? (
-              <ActivityIndicator size="small" color={theme.background} />
+              <ActivityIndicator size="small" color={theme.onPrimary} />
             ) : (
               <>
-                <Ionicons name="document-text-outline" size={20} color={theme.background} />
-                <Text style={[styles.actionButtonText, { color: theme.background }]}>Save as PDF</Text>
+                <Ionicons name="document-text-outline" size={20} color={theme.onPrimary} />
+                <Text style={styles.actionButtonText}>Save as PDF</Text>
               </>
             )}
           </TouchableOpacity>
@@ -1456,11 +1654,11 @@ export default function ProgressReportCreator() {
           onRequestClose={() => setShowPreviewModal(false)}
         >
           <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-            <View style={[styles.previewHeader, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+            <View style={styles.previewHeader}>
               <TouchableOpacity onPress={() => setShowPreviewModal(false)}>
                 <Ionicons name="close" size={28} color={theme.text} />
               </TouchableOpacity>
-              <Text style={[styles.previewTitle, { color: theme.text }]}>Report Preview</Text>
+              <Text style={styles.previewTitle}>Report Preview</Text>
               <View style={{ width: 28 }} />
             </View>
             <WebView
@@ -1495,9 +1693,9 @@ export default function ProgressReportCreator() {
           onRequestClose={() => setShowSuggestionsModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-              <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
                   Age-Appropriate Suggestions
                   {student?.age_years && ` (Age ${student.age_years})`}
                 </Text>
@@ -1506,25 +1704,25 @@ export default function ProgressReportCreator() {
                 </TouchableOpacity>
               </View>
               <ScrollView style={styles.modalScroll}>
-                <Text style={[styles.modalSubtitle, { color: theme.textSecondary }]}>
+                <Text style={styles.modalSubtitle}>
                   Tap a suggestion to add it to your report:
                 </Text>
                 {getCurrentSuggestions().map((suggestion, index) => (
                   <TouchableOpacity
                     key={index}
-                    style={[styles.suggestionChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                    style={styles.suggestionChip}
                     onPress={() => {
                       insertSuggestion(suggestion);
                       setShowSuggestionsModal(false);
                     }}
                   >
                     <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
-                    <Text style={[styles.suggestionChipText, { color: theme.text }]}>{suggestion}</Text>
+                    <Text style={styles.suggestionChipText}>{suggestion}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
               <TouchableOpacity
-                style={[styles.modalCloseButton, { backgroundColor: theme.primary }]}
+                style={styles.modalCloseButton}
                 onPress={() => setShowSuggestionsModal(false)}
               >
                 <Text style={styles.modalCloseButtonText}>Close</Text>
@@ -1536,375 +1734,3 @@ export default function ProgressReportCreator() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b1220',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  header: {
-    marginBottom: 24,
-    padding: 16,
-    backgroundColor: '#1a2332',
-    borderRadius: 12,
-  },
-  studentName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  parentInfo: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  section: {
-    marginBottom: 20,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  suggestionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    gap: 4,
-  },
-  suggestionButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#1a2332',
-    borderRadius: 8,
-    padding: 12,
-    color: '#fff',
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#2a3442',
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  subjectCard: {
-    backgroundColor: '#1a2332',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  subjectName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#00f5ff',
-    marginBottom: 12,
-  },
-  actionsContainer: {
-    gap: 12,
-    marginTop: 24,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButtonSmall: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderRadius: 12,
-    gap: 6,
-    borderWidth: 1,
-  },
-  actionButtonTextSmall: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff6b6b',
-    textAlign: 'center',
-    marginTop: 40,
-  },
-  // Progress indicator styles
-  progressContainer: {
-    backgroundColor: '#1a2332',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#2a3442',
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  autoSaveContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  autoSaveText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  progressBarOuter: {
-    width: '100%',
-    height: 8,
-    backgroundColor: '#2a3442',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
-  },
-  progressBarInner: {
-    height: '100%',
-    backgroundColor: '#00f5ff',
-    borderRadius: 4,
-    transition: 'width 0.3s ease',
-  },
-  progressPercentage: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'right',
-  },
-  // School readiness specific styles
-  categoryToggle: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  categoryButton: {
-    flex: 1,
-    padding: 12,
-    backgroundColor: '#1a2332',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2a3442',
-    alignItems: 'center',
-  },
-  categoryButtonActive: {
-    borderColor: '#8B5CF6',
-    backgroundColor: '#8B5CF615',
-  },
-  categoryButtonText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  categoryButtonTextActive: {
-    color: '#8B5CF6',
-  },
-  helperText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 8,
-    fontStyle: 'italic',
-  },
-  readinessLevelContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
-  },
-  readinessLevelButton: {
-    flex: 1,
-    minWidth: '45%',
-    padding: 10,
-    backgroundColor: '#1a2332',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2a3442',
-    alignItems: 'center',
-  },
-  readinessLevelButtonActive: {
-    borderColor: '#059669',
-    backgroundColor: '#05966915',
-  },
-  readinessLevelText: {
-    color: '#9CA3AF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  readinessLevelTextActive: {
-    color: '#059669',
-  },
-  indicatorCard: {
-    backgroundColor: '#1a2332',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  indicatorName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#00f5ff',
-    marginBottom: 12,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    gap: 8,
-    justifyContent: 'space-around',
-    marginBottom: 8,
-  },
-  starButton: {
-    padding: 8,
-  },
-  starButtonActive: {
-    // Active star styling handled by text color
-  },
-  starText: {
-    fontSize: 28,
-    color: '#F59E0B',
-  },
-  milestonesContainer: {
-    backgroundColor: '#1a2332',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  milestoneItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a3442',
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#2a3442',
-    backgroundColor: '#0b1220',
-    marginRight: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  milestoneText: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 14,
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  previewTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    flex: 1,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  modalScroll: {
-    maxHeight: 400,
-  },
-  suggestionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-    gap: 8,
-  },
-  suggestionChipText: {
-    fontSize: 14,
-    flex: 1,
-  },
-  modalCloseButton: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modalCloseButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
