@@ -39,9 +39,11 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
   const tierKey = String(effectiveTier || 'free').toLowerCase()
   const label = t(`subscription.tiers.${tierKey}`, { defaultValue: meta.label })
 
+  // Only show source info if we have a valid source
+  const hasValidSource = tierSource && tierSource !== 'unknown'
   const tierSourceKey = `subscription.tierSource.${tierSource || 'unknown'}`
-  const tierSourceText = t(tierSourceKey, { defaultValue: t('subscription.tierSource.unknown', { defaultValue: 'Unknown' }) })
-  const sourceCaption = t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` })
+  const tierSourceText = hasValidSource ? t(tierSourceKey, { defaultValue: tierSource }) : null
+  const sourceCaption = tierSourceText ? t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` }) : null
 
   const [showTip, setShowTip] = useState(false)
 
@@ -73,7 +75,7 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
           <Text style={[styles.manageText, { color: meta.color, fontSize: fontSize - 1 }]}>{t('subscription.managePlan', { defaultValue: 'Manage plan' })}</Text>
         </TouchableOpacity>
       )}
-      {canManage && (
+      {canManage && hasValidSource && sourceCaption && (
         <View style={styles.sourceWrap}>
           <TouchableOpacity
             onPress={() => setShowTip(prev => !prev)}

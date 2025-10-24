@@ -76,6 +76,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { preferences, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
   const userRole = (profile as any)?.role || 'principal';
   // Prefer explicit tenant slug when available
@@ -103,6 +104,34 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     if (hour < 18) return t('dashboard.good_afternoon');
     return t('dashboard.good_evening');
   };
+
+  const toggleSection = (sectionId: string) => {
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId);
+      } else {
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  };
+
+  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = ({ title, sectionId, icon }) => (
+    <TouchableOpacity
+      style={styles.sectionHeader}
+      onPress={() => toggleSection(sectionId)}
+      activeOpacity={0.7}
+    >
+      {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
+      <Text style={styles.sectionHeaderTitle}>{title}</Text>
+      <Ionicons
+        name={collapsedSections.has(sectionId) ? 'chevron-down' : 'chevron-up'}
+        size={20}
+        color={theme.textSecondary}
+      />
+    </TouchableOpacity>
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -375,12 +404,10 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         </View>
       </View>
 
-      {/* ┌────────── ────────── ────────── ──────────┐ */}
-      {/* │ Students │ Teachers │ Classes │ Budget  │ */}
-      {/* │  1,234  │   56    │   42    │ $125K   │ */}
-      {/* │   +5%   │   +2    │   +3    │  -12%   │ */}
-      {/* └────────── ────────── ────────── ──────────┘ */}
+      {/* School Overview Metrics - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('dashboard.school_overview')} sectionId="school-metrics" icon="📊" />
+        {!collapsedSections.has('school-metrics') && (
         <View style={styles.metricsGrid}>
           {allMetrics.slice(0, 4).map((metric, index) => (
             <MetricCard
@@ -409,18 +436,14 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             />
           ))}
         </View>
+        )}
       </View>
 
-      {/* ┌───────────────────┐ ┌────────────────────────┐ */}
-      {/* │  Quick Actions     │ │  Performance Chart     │ */}
-      {/* │ • Add Teacher      │ │  [📈 Line Graph]       │ */}
-      {/* │ • Schedule Meeting │ │                        │ */}
-      {/* │ • View Reports     │ │                        │ */}
-      {/* │ • Announcements    │ │                        │ */}
-      {/* └───────────────────┘ └────────────────────────┘ */}
+      {/* Quick Actions & Statistics - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('dashboard.quick_actions_stats')} sectionId="quick-actions" icon="⚡" />
+        {!collapsedSections.has('quick-actions') && (
         <View style={styles.twoColumnLayout}>
-          {/* Quick Actions Column */}
           <View style={styles.leftColumn}>
             <View style={styles.quickActionsCard}>
               <Text style={styles.cardTitle}>{t('dashboard.quick_actions')}</Text>
@@ -463,20 +486,21 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             </View>
           </View>
         </View>
+        )}
       </View>
 
-      {/* Parent Link Requests Widget */}
+      {/* Parent Link Requests Widget - Collapsible */}
       <View style={styles.section}>
-        <PendingParentLinkRequests />
+        <SectionHeader title={t('dashboard.parent_requests')} sectionId="parent-requests" icon="👨‍👩‍👧" />
+        {!collapsedSections.has('parent-requests') && (
+          <PendingParentLinkRequests />
+        )}
       </View>
 
-      {/* ┌────────────────────────────────────────────── ┐ */}
-      {/* │  Recent Activity                              │ */}
-      {/* │  • New enrollment: John Doe (Grade 5)         │ */}
-      {/* │  • Teacher leave request: Ms. Smith           │ */}
-      {/* │  • Budget approval pending                    │ */}
-      {/* └────────────────────────────────────────────── ┘ */}
+      {/* Recent Activity - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('activity.recent_activity')} sectionId="recent-activity" icon="🔔" />
+        {!collapsedSections.has('recent-activity') && (
         <View style={styles.recentActivityCard}>
           <Text style={styles.cardTitle}>{t('activity.recent_activity')}</Text>
           {data.recentActivities && data.recentActivities.length > 0 ? (
@@ -507,12 +531,14 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             </TouchableOpacity>
           )}
         </View>
+        )}
       </View>
 
-      {/* Financial Summary */}
+      {/* Financial Summary - Collapsible */}
       {data.financialSummary && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.financial_overview')}</Text>
+          <SectionHeader title={t('dashboard.financial_overview')} sectionId="financials" icon="💰" />
+          {!collapsedSections.has('financials') && (
           <View style={styles.financialGrid}>
             <View style={styles.financialCard}>
               <Text style={styles.financialLabel}>{t('dashboard.monthly_revenue')}</Text>
@@ -529,6 +555,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               </Text>
             </View>
           </View>
+          )}
         </View>
       )}
       </ScrollView>
@@ -651,6 +678,27 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: isSmallScreen ? 12 : 14,
+      paddingHorizontal: cardPadding,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    sectionHeaderIcon: {
+      fontSize: 18,
+      marginRight: 8,
+    },
+    sectionHeaderTitle: {
+      flex: 1,
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: '700',
+      color: theme.text,
     },
     headerIcon: {
       fontSize: 24,
