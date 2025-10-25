@@ -16,14 +16,14 @@ import { z } from 'zod';
 // ENUMS (matches database enums)
 // ============================================
 
-export const FeedbackSeverity = z.enum(['bug', 'feature', 'improvement']);
-export type FeedbackSeverity = z.infer<typeof FeedbackSeverity>;
+export const FeedbackSeveritySchema = z.enum(['bug', 'feature', 'improvement']);
+export type FeedbackSeverity = z.infer<typeof FeedbackSeveritySchema>;
 
-export const FeedbackStatus = z.enum(['new', 'reviewing', 'resolved']);
-export type FeedbackStatus = z.infer<typeof FeedbackStatus>;
+export const FeedbackStatusSchema = z.enum(['new', 'reviewing', 'resolved']);
+export type FeedbackStatus = z.infer<typeof FeedbackStatusSchema>;
 
-export const FeedbackPlatform = z.enum(['android', 'ios', 'web']);
-export type FeedbackPlatform = z.infer<typeof FeedbackPlatform>;
+export const FeedbackPlatformSchema = z.enum(['android', 'ios', 'web']);
+export type FeedbackPlatform = z.infer<typeof FeedbackPlatformSchema>;
 
 // ============================================
 // DEVICE INFO SCHEMA
@@ -71,9 +71,9 @@ export const TesterFeedbackSchema = z.object({
   screenshot_path: z.string().nullable(),
   device_info: DeviceInfoSchema,
   app_version: z.string().nullable(),
-  platform: FeedbackPlatform.nullable(),
-  severity: FeedbackSeverity,
-  status: FeedbackStatus,
+  platform: FeedbackPlatformSchema.nullable(),
+  severity: FeedbackSeveritySchema,
+  status: FeedbackStatusSchema,
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 });
@@ -95,12 +95,12 @@ export const SubmitFeedbackSchema = z.object({
     .trim()
     .refine((val) => val.length > 0, 'Feedback cannot be empty'),
   
-  severity: FeedbackSeverity.default('bug'),
+  severity: FeedbackSeveritySchema.default('bug'),
   
   // Device metadata (auto-collected)
   device_info: DeviceInfoSchema.default({}),
   app_version: z.string().optional(),
-  platform: FeedbackPlatform.optional(),
+  platform: FeedbackPlatformSchema.optional(),
   
   // Screenshot (optional, will be uploaded separately)
   has_screenshot: z.boolean().default(false),
@@ -114,7 +114,7 @@ export type SubmitFeedbackPayload = z.infer<typeof SubmitFeedbackSchema>;
 export const InsertFeedbackSchema = SubmitFeedbackSchema.extend({
   preschool_id: z.string().uuid(),
   user_id: z.string().uuid(),
-  status: FeedbackStatus.default('new'),
+  status: FeedbackStatusSchema.default('new'),
 }).omit({ has_screenshot: true });
 
 export type InsertFeedbackPayload = z.infer<typeof InsertFeedbackSchema>;
@@ -128,7 +128,7 @@ export type InsertFeedbackPayload = z.infer<typeof InsertFeedbackSchema>;
  */
 export const UpdateFeedbackStatusSchema = z.object({
   id: z.string().uuid(),
-  status: FeedbackStatus,
+  status: FeedbackStatusSchema,
 });
 
 export type UpdateFeedbackStatusPayload = z.infer<typeof UpdateFeedbackStatusSchema>;
@@ -153,9 +153,9 @@ export type AttachScreenshotPayload = z.infer<typeof AttachScreenshotSchema>;
 export const FeedbackFiltersSchema = z.object({
   preschool_id: z.string().uuid().optional(),
   user_id: z.string().uuid().optional(),
-  severity: FeedbackSeverity.optional(),
-  status: FeedbackStatus.optional(),
-  platform: FeedbackPlatform.optional(),
+  severity: FeedbackSeveritySchema.optional(),
+  status: FeedbackStatusSchema.optional(),
+  platform: FeedbackPlatformSchema.optional(),
   search: z.string().optional(), // Search in feedback_text
   from_date: z.string().datetime().optional(),
   to_date: z.string().datetime().optional(),
@@ -236,15 +236,15 @@ export type FeedbackErrorResponse = z.infer<typeof FeedbackErrorResponseSchema>;
 // ============================================
 
 export const isFeedbackSeverity = (value: unknown): value is FeedbackSeverity => {
-  return FeedbackSeverity.safeParse(value).success;
+  return FeedbackSeveritySchema.safeParse(value).success;
 };
 
 export const isFeedbackStatus = (value: unknown): value is FeedbackStatus => {
-  return FeedbackStatus.safeParse(value).success;
+  return FeedbackStatusSchema.safeParse(value).success;
 };
 
 export const isFeedbackPlatform = (value: unknown): value is FeedbackPlatform => {
-  return FeedbackPlatform.safeParse(value).success;
+  return FeedbackPlatformSchema.safeParse(value).success;
 };
 
 // ============================================

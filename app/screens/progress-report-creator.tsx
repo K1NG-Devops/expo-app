@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 import emailTemplateService, { ProgressReport } from '@/services/EmailTemplateService';
 import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
+import { createProgressReportStyles } from './progress-report-creator.styles';
+import { SuggestionsModal, StudentInfoEditor } from '@/components/progress-report';
 
 interface Student {
   id: string;
@@ -274,211 +276,11 @@ export default function ProgressReportCreator() {
     reportCategory,
   ]);
 
-  // Create theme-aware styles (MUST be before any early returns)
-  const styles = useMemo(() => StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    scrollView: {
-      flex: 1,
-    },
-    content: {
-      padding: 16,
-      paddingBottom: 40,
-    },
-    header: {
-      marginBottom: 24,
-      padding: 16,
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    studentName: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    parentInfo: {
-      fontSize: 14,
-      color: theme.textSecondary,
-    },
-    section: {
-      marginBottom: 20,
-    },
-    labelRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    suggestionButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 12,
-      gap: 4,
-      backgroundColor: theme.primary,
-    },
-    suggestionButtonText: {
-      color: '#fff',
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 16,
-      marginTop: 8,
-    },
-    label: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    input: {
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      padding: 12,
-      color: theme.text,
-      fontSize: 14,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    textArea: {
-      minHeight: 80,
-      textAlignVertical: 'top',
-    },
-    subjectCard: {
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
-    },
-    subjectName: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.primary,
-      marginBottom: 12,
-    },
-    actionsContainer: {
-      gap: 12,
-      marginTop: 24,
-    },
-    actionRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    actionButtonSmall: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 14,
-      borderRadius: 8,
-      gap: 8,
-    },
-    actionButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: 16,
-      borderRadius: 12,
-      gap: 10,
-    },
-    primaryButton: {
-      backgroundColor: theme.primary,
-    },
-    secondaryButton: {
-      backgroundColor: theme.surface,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    actionButtonText: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: '#fff',
-    },
-    secondaryButtonText: {
-      color: theme.text,
-    },
-    errorContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 20,
-    },
-    errorText: {
-      fontSize: 16,
-      color: theme.error,
-      marginTop: 16,
-      textAlign: 'center',
-    },
-    modalContainer: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-      justifyContent: 'flex-end',
-    },
-    modalContent: {
-      backgroundColor: theme.background,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      padding: 20,
-      maxHeight: '80%',
-    },
-    modalHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
-    modalTitle: {
-      fontSize: 20,
-      fontWeight: '700',
-      color: theme.text,
-    },
-    closeButton: {
-      padding: 8,
-    },
-    suggestionItem: {
-      padding: 12,
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      marginBottom: 8,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    suggestionText: {
-      fontSize: 14,
-      color: theme.text,
-      lineHeight: 20,
-    },
-    previewModal: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    previewHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    previewTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    webview: {
-      flex: 1,
-    },
-  }), [theme]);
+  // Create theme-aware styles using extracted style function
+  // References:
+  // - React Native Hooks: https://reactnative.dev/docs/0.79/hooks
+  // - useMemo: https://react.dev/reference/react/useMemo
+  const styles = useMemo(() => createProgressReportStyles(theme), [theme]);
 
   // Auto-save draft every 30 seconds
   useEffect(() => {
@@ -1309,10 +1111,13 @@ export default function ProgressReportCreator() {
           </Text>
         </View>
 
-        <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Text style={[styles.studentName, { color: theme.text }]}>{student.first_name} {student.last_name}</Text>
-          <Text style={[styles.parentInfo, { color: theme.textSecondary }]}>Parent: {student.parent_name} ({student.parent_email})</Text>
-        </View>
+        {/* Student Information Editor */}
+        <StudentInfoEditor
+          student={student}
+          preschoolId={profile.preschool_id || profile.organization_id || ''}
+          onSaved={(updatedStudent) => setStudent(updatedStudent)}
+          collapsedInitially={true}
+        />
 
         {/* Report Category Toggle */}
         <View style={styles.section}>
@@ -1697,50 +1502,13 @@ export default function ProgressReportCreator() {
         </Modal>
 
         {/* Suggestions Modal */}
-        <Modal
+        <SuggestionsModal
           visible={showSuggestionsModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowSuggestionsModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>
-                  Age-Appropriate Suggestions
-                  {student?.age_years && ` (Age ${student.age_years})`}
-                </Text>
-                <TouchableOpacity onPress={() => setShowSuggestionsModal(false)}>
-                  <Ionicons name="close" size={24} color={theme.text} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScroll}>
-                <Text style={styles.modalSubtitle}>
-                  Tap a suggestion to add it to your report:
-                </Text>
-                {getCurrentSuggestions().map((suggestion, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.suggestionChip}
-                    onPress={() => {
-                      insertSuggestion(suggestion);
-                      setShowSuggestionsModal(false);
-                    }}
-                  >
-                    <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
-                    <Text style={styles.suggestionChipText}>{suggestion}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setShowSuggestionsModal(false)}
-              >
-                <Text style={styles.modalCloseButtonText}>Close</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
+          onClose={() => setShowSuggestionsModal(false)}
+          suggestions={getCurrentSuggestions()}
+          onInsert={insertSuggestion}
+          title={`Age-Appropriate Suggestions${student?.age_years ? ` (Age ${student.age_years})` : ''}`}
+        />
       </ScrollView>
     </SafeAreaView>
   );
