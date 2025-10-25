@@ -1003,6 +1003,14 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
         {!collapsedSections.has('quick-actions') && (
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
+            style={[styles.actionCard, { borderLeftColor: '#6366F1', shadowColor: '#6366F1' }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/dash-assistant') }}
+          >
+            <Ionicons name="chatbubbles" size={24} color="#6366F1" />
+            <Text style={styles.actionText}>{t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' })}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
             style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/student-enrollment') }}
           >

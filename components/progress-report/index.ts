@@ -9,3 +9,8 @@
 
 export { SuggestionsModal } from './SuggestionsModal';
 export { StudentInfoEditor } from './StudentInfoEditor';
+export { ReportProgressIndicator } from './ReportProgressIndicator';
+export { ReportPreviewModal } from './ReportPreviewModal';
+export { ReportActionButtons } from './ReportActionButtons';
+export { SignatureCapture } from './SignatureCapture';
+export { SignatureModal } from './SignatureModal';

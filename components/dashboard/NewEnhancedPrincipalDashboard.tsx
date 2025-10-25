@@ -281,6 +281,13 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   // Quick actions with modern grouping
   const primaryActions = [
     {
+      title: t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' }),
+      icon: 'chatbubbles',
+      color: '#6366F1',
+      onPress: () => router.push('/screens/dash-assistant'),
+      subtitle: t('quick_actions.ai_assistant', { defaultValue: 'Your AI teaching assistant' })
+    },
+    {
       title: t('quick_actions.enroll_student'),
       icon: 'person-add',
       color: theme.primary,
@@ -301,10 +308,18 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       },
     },
     {
-      title: 'Progress Reports',
-      icon: 'school',
+      title: 'Review Progress Reports',
+      icon: 'document-text',
       color: '#8B5CF6',
+      onPress: () => router.push('/screens/principal-report-review'),
+      subtitle: 'Approve and review reports'
+    },
+    {
+      title: 'Student Management',
+      icon: 'school',
+      color: '#3B82F6',
       onPress: () => router.push('/screens/student-management'),
+      subtitle: 'View and manage students'
     },
     {
       title: t('quick_actions.view_finances'),

@@ -77,7 +77,7 @@ interface Class {
 }
 
 export default function StudentDetailScreen() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { theme } = useTheme();
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
@@ -93,6 +93,13 @@ export default function StudentDetailScreen() {
   const [editMode, setEditMode] = useState(false);
   const [editedStudent, setEditedStudent] = useState<Partial<StudentDetail>>({});
   const [saving, setSaving] = useState(false);
+  
+  // Financial details state
+  const [showFinancialDetails, setShowFinancialDetails] = useState(false);
+  const [childTransactions, setChildTransactions] = useState<any[]>([]);
+  
+  // Role-based checks
+  const isPrincipal = profile?.role === 'principal';
 
   const loadStudentData = async () => {
     if (!studentId || !user) return;
@@ -164,7 +171,7 @@ export default function StudentDetailScreen() {
       const attendanceRate = totalRecords > 0 ? (presentRecords / totalRecords) * 100 : 0;
       const lastAttendance = attendanceData?.[0]?.date;
 
-      // Get financial data
+      // Get financial data - summary for outstanding fees
       const { data: financialData } = await assertSupabase()
         .from('financial_transactions')
         .select('amount, status, type')
@@ -174,6 +181,16 @@ export default function StudentDetailScreen() {
       const outstandingFees = financialData
         ?.filter(f => f.status === 'pending')
         ?.reduce((sum, f) => sum + f.amount, 0) || 0;
+
+      // Get child-specific transaction history (last 10)
+      const { data: transactionsData } = await assertSupabase()
+        .from('financial_transactions')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      setChildTransactions(transactionsData || []);
 
       const processedStudent: StudentDetail = {
         ...studentData,
@@ -588,29 +605,44 @@ const { error } = await assertSupabase()
           <Text style={styles.sectionTitle}>Academic Reports</Text>
           <TouchableOpacity 
             style={styles.progressReportButton}
-            onPress={() => router.push(`/screens/progress-report-creator?student_id=${student.id}`)}
+            onPress={() => {
+              if (isPrincipal) {
+                router.push('/screens/principal-report-review');
+              } else {
+                router.push(`/screens/progress-report-creator?student_id=${student.id}`);
+              }
+            }}
           >
             <View style={styles.progressReportContent}>
               <View style={styles.progressReportIcon}>
                 <Ionicons name="document-text" size={24} color="#8B5CF6" />
               </View>
               <View style={styles.progressReportText}>
-                <Text style={styles.progressReportTitle}>Create Progress Report</Text>
-                <Text style={styles.progressReportSubtitle}>Send academic progress to parents</Text>
+                <Text style={styles.progressReportTitle}>
+                  {isPrincipal ? 'Review Progress Reports' : 'Create Progress Report'}
+                </Text>
+                <Text style={styles.progressReportSubtitle}>
+                  {isPrincipal ? 'View and approve student reports' : 'Send academic progress to parents'}
+                </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </View>
           </TouchableOpacity>
         </View>
 
-        {/* Financial Information */}
+        {/* Financial Information - Child Specific */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <TouchableOpacity 
+            style={styles.sectionHeader}
+            onPress={() => setShowFinancialDetails(!showFinancialDetails)}
+          >
             <Text style={styles.sectionTitle}>Financial Status</Text>
-<TouchableOpacity onPress={() => router.push('/screens/financial-transactions')}>
-              <Text style={styles.viewAllText}>View Details</Text>
-            </TouchableOpacity>
-          </View>
+            <Ionicons 
+              name={showFinancialDetails ? 'chevron-up' : 'chevron-down'} 
+              size={20} 
+              color={theme.primary} 
+            />
+          </TouchableOpacity>
           
           <View style={styles.financialCard}>
             <View style={styles.feeInfo}>
@@ -631,6 +663,34 @@ const { error } = await assertSupabase()
               </Text>
             </View>
           </View>
+
+          {/* Transaction History (Expandable) */}
+          {showFinancialDetails && (
+            <View style={styles.transactionHistory}>
+              <Text style={styles.transactionHistoryTitle}>Recent Transactions</Text>
+              {childTransactions.length > 0 ? (
+                childTransactions.map((transaction) => (
+                  <View key={transaction.id} style={styles.transactionItem}>
+                    <View style={styles.transactionLeft}>
+                      <Text style={styles.transactionType}>{transaction.type.replace('_', ' ')}</Text>
+                      <Text style={styles.transactionDate}>
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <Text style={[
+                      styles.transactionAmount,
+                      { color: transaction.type.includes('payment') ? '#10B981' : '#EF4444' }
+                    ]}>
+                      {transaction.type.includes('payment') ? '+' : '-'}
+                      {formatCurrency(Math.abs(transaction.amount))}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.noTransactions}>No transaction history</Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Medical Information */}
@@ -1149,5 +1209,53 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 16,
+  },
+  // Transaction history styles
+  transactionHistory: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: theme.surface,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  transactionHistoryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 12,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  transactionLeft: {
+    flex: 1,
+  },
+  transactionType: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.text,
+    textTransform: 'capitalize',
+    marginBottom: 2,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  noTransactions: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    textAlign: 'center',
+    padding: 16,
+    fontStyle: 'italic',
   },
 });

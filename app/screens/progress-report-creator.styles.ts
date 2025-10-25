@@ -475,6 +475,25 @@ export const createProgressReportStyles = (theme: any) => StyleSheet.create({
     flex: 1,
   },
 
+  // Signature Button Styles
+  signatureButton: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    minHeight: 100,
+    gap: 8,
+  },
+  signatureButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signatureSubtext: {
+    fontSize: 13,
+  },
+
   // Error State Styles
   errorContainer: {
     flex: 1,

@@ -1343,6 +1343,12 @@ If production issues arise:
 - SQL files belong in `sql/` with appropriate subdirectories
 - Archive old files in `archive/`, temporary files in `temp/`
 
+### Shell Command Restrictions (NON-NEGOTIABLE)
+- **NEVER** use heredoc syntax (`<<EOF`, `<<-EOF`, `<<'EOF'`) in shell commands
+- Heredoc does not work reliably in this environment and will cause command failures
+- Use alternative approaches: echo with newlines, separate file writes, or printf
+- Use `echo "line1" && echo "line2"` or write to files directly instead
+
 ### Documentation Organization Policy [NONNEGOTIABLE]
 
 **Purpose**: Maintain clean, organized, discoverable documentation structure.
