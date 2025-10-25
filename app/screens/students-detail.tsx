@@ -7,7 +7,7 @@
  * - Parents see only their children with read-only access
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,11 +19,12 @@ import {
   RefreshControl,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
 import { EmptyStudentsState } from '@/components/ui/EmptyState';
@@ -70,6 +71,7 @@ interface FilterOptions {
 export default function StudentsDetailScreen() {
   const { t } = useTranslation();  
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);

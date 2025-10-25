@@ -57,20 +57,16 @@ COMMENT ON COLUMN guardian_requests.status IS
 'Request status: pending (awaiting approval), approved (link created), rejected (denied), cancelled (withdrawn by parent)';
 
 -- ============================================================================
--- PART 4: Add constraint to prevent duplicate pending requests
+-- PART 4: Add partial unique index to prevent duplicate pending requests
 -- ============================================================================
 
--- Drop existing constraint if it exists
-ALTER TABLE guardian_requests 
-DROP CONSTRAINT IF EXISTS guardian_requests_no_duplicate_pending;
-
--- Add constraint: one pending request per parent-student pair
-ALTER TABLE guardian_requests
-ADD CONSTRAINT guardian_requests_no_duplicate_pending 
-UNIQUE NULLS NOT DISTINCT (parent_auth_id, student_id, status)
+-- Use a partial unique index instead of constraint with WHERE clause
+-- This prevents multiple pending requests for the same parent-child pair
+CREATE UNIQUE INDEX IF NOT EXISTS idx_guardian_requests_no_duplicate_pending
+ON guardian_requests (parent_auth_id, student_id)
 WHERE status = 'pending';
 
-COMMENT ON CONSTRAINT guardian_requests_no_duplicate_pending ON guardian_requests IS
+COMMENT ON INDEX idx_guardian_requests_no_duplicate_pending IS
 'Prevents parents from submitting multiple pending requests for the same child';
 
 COMMIT;

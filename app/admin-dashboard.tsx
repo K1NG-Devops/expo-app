@@ -364,9 +364,11 @@ export default function AdminDashboard() {
         {/* User Management Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              {t('admin.user_management.title', { defaultValue: '👥 User Management' })}
-            </Text>
+            <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                {t('admin.user_management.title', { defaultValue: '👥 User Management' })}
+              </Text>
+            </View>
             <TouchableOpacity 
               style={[styles.addButton, { backgroundColor: theme.primary }]}
               onPress={() => Alert.alert(t('admin.add_user_title', { defaultValue: 'Add User' }), t('common.coming_soon', { defaultValue: 'Coming Soon' }))}
@@ -380,9 +382,11 @@ export default function AdminDashboard() {
 
         {/* Pending Invitations */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            {t('admin.pending_invitations', { defaultValue: '📤 Pending Invitations' })}
-          </Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              {t('admin.pending_invitations', { defaultValue: '📤 Pending Invitations' })}
+            </Text>
+          </View>
           
           {invitations.filter(inv => inv.status === 'pending').map(invitation => (
             <View key={invitation.id} style={[styles.invitationRow, { backgroundColor: theme.surface }]}>
@@ -418,18 +422,22 @@ export default function AdminDashboard() {
 
         {/* Recent Activity */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            {t('admin.recent_activity', { defaultValue: '📊 Recent Activity' })}
-          </Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              {t('admin.recent_activity', { defaultValue: '📊 Recent Activity' })}
+            </Text>
+          </View>
           
           {activity.slice(0, 5).map(renderActivityRow)}
         </View>
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            {t('admin.quick_actions', { defaultValue: '⚡ Quick Actions' })}
-          </Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              {t('admin.quick_actions', { defaultValue: '⚡ Quick Actions' })}
+            </Text>
+          </View>
           
           <View style={styles.quickActions}>
             <TouchableOpacity
@@ -538,8 +546,22 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'left',
     marginBottom: 12,
+  },
+  sectionTitleChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
   },
   addButton: {
     paddingHorizontal: 16,

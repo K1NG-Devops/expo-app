@@ -9,7 +9,7 @@
  * - Real database integration
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { assertSupabase } from '@/lib/supabase';
 import { router } from 'expo-router';
 
@@ -71,6 +72,8 @@ interface FilterOptions {
 
 export default function StudentManagementScreen() {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [students, setStudents] = useState<Student[]>([]);
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
   const [, setAgeGroups] = useState<AgeGroup[]>([]);
@@ -297,7 +300,7 @@ export default function StudentManagementScreen() {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingContent}>
-          <Ionicons name="people-outline" size={48} color="#6B7280" />
+          <Ionicons name="people-outline" size={48} color={theme.textSecondary} />
           <Text style={styles.loadingText}>Loading students...</Text>
         </View>
       </View>
@@ -311,8 +314,8 @@ export default function StudentManagementScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color="white" />
+        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Student Management</Text>
@@ -321,7 +324,7 @@ export default function StudentManagementScreen() {
             </Text>
           </View>
           <TouchableOpacity onPress={() => setShowFilters(true)} style={styles.filterButton}>
-            <Ionicons name="filter" size={20} color="white" />
+            <Ionicons name="filter" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
         
@@ -344,16 +347,17 @@ export default function StudentManagementScreen() {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#6B7280" style={styles.searchIcon} />
+        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search students..."
+          placeholderTextColor={theme.textSecondary}
           value={filters.searchTerm}
           onChangeText={(text) => setFilters({...filters, searchTerm: text})}
         />
         {filters.searchTerm ? (
           <TouchableOpacity onPress={() => setFilters({...filters, searchTerm: ''})}>
-            <Ionicons name="close" size={20} color="#6B7280" />
+            <Ionicons name="close" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -473,7 +477,7 @@ export default function StudentManagementScreen() {
 
       {/* Add Student FAB */}
       <TouchableOpacity style={styles.fab} onPress={handleAddStudent}>
-        <Ionicons name="add" size={24} color="white" />
+        <Ionicons name="add" size={24} color={theme.onPrimary} />
       </TouchableOpacity>
 
       {/* Filter Modal */}
@@ -515,16 +519,16 @@ export default function StudentManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.background,
   },
   loadingContent: {
     alignItems: 'center',
@@ -532,10 +536,10 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   header: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
@@ -554,11 +558,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'white',
+    color: theme.onPrimary,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#E0E7FF',
+    color: theme.onPrimary + 'CC',
     marginTop: 2,
   },
   filterButton: {
@@ -577,22 +581,22 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'white',
+    color: theme.onPrimary,
   },
   statLabel: {
     fontSize: 12,
-    color: '#E0E7FF',
+    color: theme.onPrimary + 'CC',
     marginTop: 4,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: theme.surface,
     margin: 20,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -604,7 +608,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
   },
   ageGroupOverview: {
     paddingHorizontal: 20,
@@ -613,7 +617,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 12,
   },
   ageGroupsRow: {
@@ -634,7 +638,7 @@ const styles = StyleSheet.create({
   },
   ageGroupCount: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   studentsList: {
@@ -645,11 +649,11 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   studentCard: {
-    backgroundColor: 'white',
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -669,7 +673,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   studentInitials: {
-    color: 'white',
+    color: '#fff',
     fontSize: 16,
     fontWeight: '700',
   },
@@ -679,11 +683,11 @@ const styles = StyleSheet.create({
   studentName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   studentAge: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   studentDetails: {
@@ -701,11 +705,11 @@ const styles = StyleSheet.create({
   },
   classInfo: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   parentInfo: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   emptyState: {
     alignItems: 'center',
@@ -714,12 +718,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 8,
     lineHeight: 20,
@@ -727,14 +731,14 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
     marginTop: 20,
   },
   addButtonText: {
-    color: 'white',
+    color: theme.onPrimary,
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
@@ -746,10 +750,10 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#4F46E5',
+    backgroundColor: theme.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: theme.shadow || '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -757,7 +761,7 @@ const styles = StyleSheet.create({
   },
   filterModal: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.background,
   },
   filterHeader: {
     flexDirection: 'row',
@@ -765,22 +769,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     paddingTop: 60,
-    backgroundColor: 'white',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: theme.border,
   },
   filterTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   filterCancel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   filterClear: {
     fontSize: 16,
-    color: '#4F46E5',
+    color: theme.primary,
     fontWeight: '600',
   },
   filterContent: {
@@ -789,7 +793,7 @@ const styles = StyleSheet.create({
   },
   filterNote: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     lineHeight: 20,
   },
 });

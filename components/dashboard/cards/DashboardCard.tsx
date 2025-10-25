@@ -38,7 +38,15 @@ export function DashboardCard({
           {icon && (
             <Ionicons name={icon} size={20} color={theme.colors.primary} style={styles.icon} />
           )}
-          <ThemedText style={styles.title}>{title}</ThemedText>
+          <ThemedText
+            style={[styles.title, onPress && styles.linkTitle, onPress && { color: theme.colors.primary }]}
+            accessibilityRole={onPress ? 'link' : undefined}
+          >
+            {title}
+          </ThemedText>
+          {onPress && (
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} style={styles.chevron} />
+          )}
         </View>
       </View>
 
@@ -95,6 +103,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  linkTitle: {
+    textDecorationLine: 'underline',
+  },
+  chevron: {
+    marginLeft: 6,
   },
   content: {
     minHeight: 60,

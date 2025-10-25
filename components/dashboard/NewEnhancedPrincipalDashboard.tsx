@@ -137,7 +137,9 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         accessibilityLabel={`${isCollapsed ? 'Expand' : 'Collapse'} ${title}`}
       >
         {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
-        <Text style={styles.sectionHeaderTitle}>{title}</Text>
+        <View style={[styles.sectionHeaderChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+          <Text style={styles.sectionHeaderTitleText}>{title}</Text>
+        </View>
         <Ionicons
           name={isCollapsed ? 'chevron-down' : 'chevron-up'}
           size={20}
@@ -693,7 +695,7 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       alignItems: 'center',
       flex: 1,
     },
-    sectionHeader: {
+    sectionHeaderSurface: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: isSmallScreen ? 12 : 14,
@@ -710,6 +712,24 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     sectionHeaderTitle: {
       flex: 1,
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    sectionHeaderChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      alignSelf: 'flex-start',
+      marginRight: 8,
+    },
+    sectionHeaderTitleText: {
       fontSize: isSmallScreen ? 16 : 18,
       fontWeight: '700',
       color: theme.text,

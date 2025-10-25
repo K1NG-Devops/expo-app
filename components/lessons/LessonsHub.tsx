@@ -209,14 +209,22 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const renderCategories = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Explore Categories
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/screens/lessons-categories')}
+          accessibilityRole="link"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.sectionTitlePressable}
+        >
+          <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}> 
+            Explore Categories
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push('/screens/lessons-categories')}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.sectionAction, { color: theme.primary }]}>
+          <Text style={[styles.sectionAction, { color: theme.primary }]}> 
             View All
           </Text>
         </TouchableOpacity>
@@ -241,9 +249,17 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const renderFeaturedLessons = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Featured Lessons
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/screens/lessons-search', params: { featured: 'true' } })}
+          accessibilityRole="link"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.sectionTitlePressable}
+        >
+          <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}> 
+            Featured Lessons
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push({
             pathname: '/screens/lessons-search',
@@ -251,7 +267,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
           })}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.sectionAction, { color: theme.primary }]}>
+          <Text style={[styles.sectionAction, { color: theme.primary }]}> 
             View All
           </Text>
         </TouchableOpacity>
@@ -277,9 +293,17 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const renderPopularLessons = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Popular This Week
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/screens/lessons-search', params: { sort: 'most_popular' } })}
+          accessibilityRole="link"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.sectionTitlePressable}
+        >
+          <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}> 
+            Popular This Week
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push({
             pathname: '/screens/lessons-search',
@@ -287,7 +311,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
           })}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.sectionAction, { color: theme.primary }]}>
+          <Text style={[styles.sectionAction, { color: theme.primary }]}> 
             View All
           </Text>
         </TouchableOpacity>
@@ -337,19 +361,26 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            {sectionLabel}
-          </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/screens/my-lessons')}
+            accessibilityRole="link"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.sectionTitlePressable}
+          >
+            <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}>
+              {sectionLabel}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={() => router.push('/screens/ai-lesson-generator')}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={[styles.sectionAction, { color: theme.primary }]}>
+            <Text style={[styles.sectionAction, { color: theme.primary }]}> 
               Generate New
             </Text>
           </TouchableOpacity>
         </View>
-        
         {displayLessons.length > 0 ? (
           <ScrollView
             horizontal
@@ -390,9 +421,17 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const renderRecentLessons = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Recently Added
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/screens/lessons-search', params: { sort: 'newest' } })}
+          accessibilityRole="link"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.sectionTitlePressable}
+        >
+          <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}> 
+            Recently Added
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={() => router.push({
             pathname: '/screens/lessons-search',
@@ -400,7 +439,7 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
           })}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={[styles.sectionAction, { color: theme.primary }]}>
+          <Text style={[styles.sectionAction, { color: theme.primary }]}> 
             View All
           </Text>
         </TouchableOpacity>
@@ -423,9 +462,17 @@ export const LessonsHub = forwardRef<{ handleRefresh: () => void }, LessonsHubPr
   const renderQuickActions = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Quick Actions
-        </Text>
+        <TouchableOpacity
+          onPress={() => router.push('/screens/ai-lesson-generator')}
+          accessibilityRole="link"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.sectionTitlePressable}
+        >
+          <Text style={[styles.sectionTitle, styles.clickableTitle, { color: theme.primary }]}> 
+            Quick Actions
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={theme.primary} style={styles.sectionTitleChevron} />
+        </TouchableOpacity>
       </View>
       
       <View style={styles.quickActionsGrid}>
@@ -557,6 +604,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: screenWidth < 380 ? 20 : 22,
     fontWeight: '600',
+  },
+  sectionTitlePressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sectionTitleChevron: {
+    marginLeft: 6,
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
   },
   sectionAction: {
     fontSize: 16,

@@ -338,7 +338,9 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
         {/* Metrics Grid */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.overview')}</Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.overview')}</Text>
+          </View>
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => (
               <MetricCard
@@ -359,7 +361,9 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions')}</Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.quick_actions')}</Text>
+          </View>
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
               <QuickAction
@@ -430,6 +434,19 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontWeight: '600',
     color: theme.text,
     marginBottom: 16,
+  },
+  sectionTitleChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
   },
   metricsGrid: {
     flexDirection: 'row',

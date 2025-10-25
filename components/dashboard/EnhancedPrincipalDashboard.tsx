@@ -794,8 +794,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       {/* Financial Management Tools - Collapsible */}
       {financialsEnabled && (
       <View style={styles.section}>
-        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('financial-tools')} activeOpacity={0.7}>
-          <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('financial-tools')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+          </View>
           <Ionicons name={collapsedSections.has('financial-tools') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
         </TouchableOpacity>
         {!collapsedSections.has('financial-tools') && (
@@ -878,8 +880,10 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
 
       {/* AI & Analytics Tools - Collapsible */}
       <View style={styles.section}>
-        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('ai-analytics')} activeOpacity={0.7}>
-          <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('ai-analytics')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+          </View>
           <Ionicons name={collapsedSections.has('ai-analytics') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
         </TouchableOpacity>
         {!collapsedSections.has('ai-analytics') && (
@@ -990,8 +994,10 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics un
 
       {/* Quick Actions - Collapsible */}
       <View style={styles.section}>
-        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('quick-actions')} activeOpacity={0.7}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('quick-actions')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+          </View>
           <Ionicons name={collapsedSections.has('quick-actions') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
         </TouchableOpacity>
         {!collapsedSections.has('quick-actions') && (
@@ -1379,6 +1385,22 @@ const createStyles = (theme: any, preferences: any = {}) => {
     fontWeight: '600',
     color: theme.text,
     marginBottom: 12,
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
+  },
+  titleChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginRight: 8,
   },
   sectionHeader: {
     flexDirection: 'row',

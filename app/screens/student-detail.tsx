@@ -22,12 +22,16 @@ import {
   Linking,
   RefreshControl,
   Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Picker } from '@react-native-picker/picker';
 
 interface StudentDetail {
@@ -74,6 +78,7 @@ interface Class {
 
 export default function StudentDetailScreen() {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const router = useRouter();
   const { studentId } = useLocalSearchParams<{ studentId: string }>();
   
@@ -83,6 +88,11 @@ export default function StudentDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showClassAssignment, setShowClassAssignment] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
+  
+  // Edit mode state
+  const [editMode, setEditMode] = useState(false);
+  const [editedStudent, setEditedStudent] = useState<Partial<StudentDetail>>({});
+  const [saving, setSaving] = useState(false);
 
   const loadStudentData = async () => {
     if (!studentId || !user) return;
@@ -296,6 +306,60 @@ const { error } = await assertSupabase()
     }).format(amount);
   };
 
+  const handleEditToggle = () => {
+    if (editMode) {
+      // Canceling edit
+      setEditMode(false);
+      setEditedStudent({});
+    } else {
+      // Enter edit mode
+      setEditMode(true);
+      setEditedStudent({
+        first_name: student?.first_name,
+        last_name: student?.last_name,
+        medical_conditions: student?.medical_conditions,
+        allergies: student?.allergies,
+        emergency_contact: student?.emergency_contact,
+        emergency_phone: student?.emergency_phone,
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    if (!student || !editedStudent) return;
+
+    try {
+      setSaving(true);
+
+      const { error } = await assertSupabase()
+        .from('students')
+        .update({
+          first_name: editedStudent.first_name,
+          last_name: editedStudent.last_name,
+          medical_conditions: editedStudent.medical_conditions,
+          allergies: editedStudent.allergies,
+          emergency_contact: editedStudent.emergency_contact,
+          emergency_phone: editedStudent.emergency_phone,
+        })
+        .eq('id', student.id);
+
+      if (error) {
+        Alert.alert('Error', 'Failed to save student details');
+        return;
+      }
+
+      Alert.alert('Success', 'Student details updated successfully');
+      setEditMode(false);
+      setEditedStudent({});
+      loadStudentData(); // Refresh data
+    } catch (error) {
+      console.error('Error saving student:', error);
+      Alert.alert('Error', 'Failed to save student details');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   useEffect(() => {
     loadStudentData();
   }, [studentId, user]);
@@ -305,11 +369,13 @@ const { error } = await assertSupabase()
     loadStudentData();
   };
 
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="person-outline" size={48} color="#6B7280" />
+          <Ionicons name="person-outline" size={48} color={theme.textSecondary} />
           <Text style={styles.loadingText}>Loading student details...</Text>
         </View>
       </SafeAreaView>
@@ -335,12 +401,23 @@ const { error } = await assertSupabase()
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Student Details</Text>
-<TouchableOpacity onPress={() => router.push('/screens/student-management')}>
-          <Ionicons name="create" size={24} color="#007AFF" />
-        </TouchableOpacity>
+        {editMode ? (
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={handleEditToggle} disabled={saving}>
+              <Ionicons name="close" size={24} color={theme.error} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleSave} disabled={saving}>
+              <Ionicons name="checkmark" size={24} color={theme.success} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={handleEditToggle}>
+            <Ionicons name="create" size={24} color={theme.primary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView 
@@ -362,14 +439,35 @@ const { error } = await assertSupabase()
               )}
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.studentName}>
-                {student.first_name} {student.last_name}
-              </Text>
-              <Text style={styles.studentAge}>
-                {formatAge(student.age_months, student.age_years)}
-              </Text>
-              {student.age_group_name && (
-                <Text style={styles.ageGroup}>{student.age_group_name}</Text>
+              {editMode ? (
+                <View style={{ gap: 8 }}>
+                  <TextInput
+                    style={styles.input}
+                    value={editedStudent.first_name}
+                    onChangeText={(text) => setEditedStudent({ ...editedStudent, first_name: text })}
+                    placeholder="First Name"
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                  <TextInput
+                    style={styles.input}
+                    value={editedStudent.last_name}
+                    onChangeText={(text) => setEditedStudent({ ...editedStudent, last_name: text })}
+                    placeholder="Last Name"
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.studentName}>
+                    {student.first_name} {student.last_name}
+                  </Text>
+                  <Text style={styles.studentAge}>
+                    {formatAge(student.age_months, student.age_years)}
+                  </Text>
+                  {student.age_group_name && (
+                    <Text style={styles.ageGroup}>{student.age_group_name}</Text>
+                  )}
+                </>
               )}
             </View>
             <View style={styles.statusBadge}>
@@ -536,32 +634,85 @@ const { error } = await assertSupabase()
         </View>
 
         {/* Medical Information */}
-        {(student.medical_conditions || student.allergies || student.emergency_contact) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Medical Information</Text>
-            {student.medical_conditions && (
-              <View style={styles.medicalItem}>
-                <Text style={styles.medicalLabel}>Medical Conditions:</Text>
-                <Text style={styles.medicalValue}>{student.medical_conditions}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Medical & Emergency Information</Text>
+          {editMode ? (
+            <View style={{ gap: 12 }}>
+              <View>
+                <Text style={styles.fieldLabel}>Medical Conditions</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={editedStudent.medical_conditions || ''}
+                  onChangeText={(text) => setEditedStudent({ ...editedStudent, medical_conditions: text })}
+                  placeholder="Enter medical conditions..."
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  numberOfLines={3}
+                />
               </View>
-            )}
-            {student.allergies && (
-              <View style={styles.medicalItem}>
-                <Text style={styles.medicalLabel}>Allergies:</Text>
-                <Text style={styles.medicalValue}>{student.allergies}</Text>
+              <View>
+                <Text style={styles.fieldLabel}>Allergies</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={editedStudent.allergies || ''}
+                  onChangeText={(text) => setEditedStudent({ ...editedStudent, allergies: text })}
+                  placeholder="Enter allergies..."
+                  placeholderTextColor={theme.textSecondary}
+                  multiline
+                  numberOfLines={3}
+                />
               </View>
-            )}
-            {student.emergency_contact && (
-              <View style={styles.medicalItem}>
-                <Text style={styles.medicalLabel}>Emergency Contact:</Text>
-                <Text style={styles.medicalValue}>{student.emergency_contact}</Text>
-                {student.emergency_phone && (
-                  <Text style={styles.medicalValue}>{student.emergency_phone}</Text>
-                )}
+              <View>
+                <Text style={styles.fieldLabel}>Emergency Contact Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editedStudent.emergency_contact || ''}
+                  onChangeText={(text) => setEditedStudent({ ...editedStudent, emergency_contact: text })}
+                  placeholder="Emergency contact name..."
+                  placeholderTextColor={theme.textSecondary}
+                />
               </View>
-            )}
-          </View>
-        )}
+              <View>
+                <Text style={styles.fieldLabel}>Emergency Contact Phone</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editedStudent.emergency_phone || ''}
+                  onChangeText={(text) => setEditedStudent({ ...editedStudent, emergency_phone: text })}
+                  placeholder="Emergency phone number..."
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {student.medical_conditions && (
+                <View style={styles.medicalItem}>
+                  <Text style={styles.medicalLabel}>Medical Conditions:</Text>
+                  <Text style={styles.medicalValue}>{student.medical_conditions}</Text>
+                </View>
+              )}
+              {student.allergies && (
+                <View style={styles.medicalItem}>
+                  <Text style={styles.medicalLabel}>Allergies:</Text>
+                  <Text style={styles.medicalValue}>{student.allergies}</Text>
+                </View>
+              )}
+              {student.emergency_contact && (
+                <View style={styles.medicalItem}>
+                  <Text style={styles.medicalLabel}>Emergency Contact:</Text>
+                  <Text style={styles.medicalValue}>{student.emergency_contact}</Text>
+                  {student.emergency_phone && (
+                    <Text style={styles.medicalValue}>{student.emergency_phone}</Text>
+                  )}
+                </View>
+              )}
+              {!student.medical_conditions && !student.allergies && !student.emergency_contact && (
+                <Text style={styles.noMedicalInfo}>No medical or emergency information</Text>
+              )}
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       {/* Class Assignment Modal */}
@@ -610,10 +761,10 @@ const { error } = await assertSupabase()
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
@@ -623,7 +774,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
   },
   errorContainer: {
     flex: 1,
@@ -633,12 +784,12 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 18,
-    color: '#EF4444',
+    color: theme.error,
     marginTop: 16,
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -654,24 +805,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
   },
   scrollView: {
     flex: 1,
   },
   profileCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -693,7 +844,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -708,12 +859,12 @@ const styles = StyleSheet.create({
   studentName: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: theme.text,
     marginBottom: 4,
   },
   studentAge: {
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   ageGroup: {
@@ -733,10 +884,10 @@ const styles = StyleSheet.create({
   },
   section: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -751,7 +902,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 16,
   },
   editText: {
@@ -775,12 +926,12 @@ const styles = StyleSheet.create({
   className: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 2,
   },
   teacherName: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textSecondary,
   },
   unassignedClass: {
     flexDirection: 'row',
@@ -794,7 +945,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   assignButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
@@ -810,7 +961,7 @@ const styles = StyleSheet.create({
   },
   performanceCard: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.card,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -819,12 +970,12 @@ const styles = StyleSheet.create({
   performanceValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: theme.text,
     marginBottom: 4,
   },
   performanceLabel: {
     fontSize: 12,
-    color: '#666',
+    color: theme.textSecondary,
     textAlign: 'center',
   },
   contactInfo: {
@@ -833,12 +984,12 @@ const styles = StyleSheet.create({
   parentName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 8,
   },
   contactDetail: {
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   contactActions: {
@@ -851,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   contactButtonText: {
     fontSize: 12,
-    color: '#333',
+    color: theme.text,
     marginTop: 4,
   },
   noContact: {
@@ -869,7 +1020,7 @@ const styles = StyleSheet.create({
   },
   feeLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   feeAmount: {
@@ -892,34 +1043,34 @@ const styles = StyleSheet.create({
   medicalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 4,
   },
   medicalValue: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textSecondary,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.card,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
   },
   modalCancel: {
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
   },
   modalSave: {
     fontSize: 16,
@@ -931,15 +1082,15 @@ const styles = StyleSheet.create({
   },
   pickerLabel: {
     fontSize: 16,
-    color: '#333',
+    color: theme.text,
     marginBottom: 16,
   },
   picker: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 8,
   },
   progressReportButton: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
@@ -952,7 +1103,7 @@ const styles = StyleSheet.create({
   progressReportIcon: {
     width: 48,
     height: 48,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
     borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
@@ -964,11 +1115,39 @@ const styles = StyleSheet.create({
   progressReportTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginBottom: 4,
   },
   progressReportSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
+  },
+  // Edit mode styles
+  input: {
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: theme.text,
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.text,
+    marginBottom: 6,
+  },
+  noMedicalInfo: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+    padding: 16,
   },
 });
