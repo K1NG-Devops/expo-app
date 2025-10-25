@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import emailTemplateService, { ProgressReport } from '@/services/EmailTemplateService';
 import * as Sharing from 'expo-sharing';
 import { getAgeSuggestions } from '@/lib/progress-report-helpers';
+import { notifyReportSubmittedForReview } from '@/services/notification-service';
 
 export interface UseProgressReportActionsProps {
   formState: any;
@@ -425,6 +426,19 @@ export const useProgressReportActions = ({ formState, profile, studentId }: UseP
       formState.setApprovalStatus('pending_review');
       formState.setIsSubmitted(true);
       await formState.clearDraft();
+
+      // Send notification to principals
+      try {
+        await notifyReportSubmittedForReview(
+          savedReport.id,
+          studentId,
+          preschoolId
+        );
+        console.log('Notification sent to principals');
+      } catch (notifError: any) {
+        // Log but don't fail the submission
+        console.error('Failed to send notification:', notifError);
+      }
 
       // Show success modal
       formState.setShowSuccessModal(true);

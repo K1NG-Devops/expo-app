@@ -50,6 +50,19 @@ export interface ProgressReport {
   email_sent_at?: string;
   email_message_id?: string;
   
+  // Approval workflow fields
+  status?: 'draft' | 'pending_review' | 'approved' | 'rejected' | 'sent';
+  teacher_signature?: string;
+  teacher_signature_data?: string;
+  teacher_signed_at?: string;
+  principal_signature_data?: string;
+  principal_signed_at?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  reviewer_name?: string;
+  rejection_reason?: string;
+  review_notes?: string;
+  
   // School readiness fields (for Grade R transition reports)
   report_category?: 'general' | 'school_readiness';
   school_readiness_indicators?: {
@@ -477,6 +490,11 @@ class EmailTemplateService {
         <style>
           @page { 
             margin: 20mm;
+            @bottom-center {
+              content: "Page " counter(page) " of " counter(pages);
+              font-size: 10px;
+              color: #6b7280;
+            }
           }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -640,6 +658,47 @@ class EmailTemplateService {
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
           }
+          .page-number {
+            position: fixed;
+            bottom: 10mm;
+            right: 10mm;
+            font-size: 10px;
+            color: #9ca3af;
+          }
+          .approval-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .badge-approved {
+            background: #d1fae5;
+            color: #065f46;
+          }
+          .badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+          }
+          .badge-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+          }
+          .signature-img {
+            max-width: 200px;
+            max-height: 80px;
+            height: auto;
+            margin: 10px 0;
+            display: block;
+            object-fit: contain;
+            image-orientation: from-image;
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+          }
           @media print {
             body { 
               margin: 0;
@@ -659,6 +718,13 @@ class EmailTemplateService {
           <!-- <img src="[SCHOOL_LOGO_URL]" alt="School Logo" class="school-logo" /> -->
           <h1 class="school-name">${preschoolName}</h1>
           <p class="report-title">${isSchoolReadiness ? '🎓 School Readiness Report' : '📚 Student Progress Report'}</p>
+          ${report.status ? `
+            <div style="margin-top: 12px;">
+              <span class="approval-badge ${report.status === 'approved' ? 'badge-approved' : report.status === 'pending_review' ? 'badge-pending' : report.status === 'rejected' ? 'badge-rejected' : ''}">
+                ${report.status === 'approved' ? '✓ Approved' : report.status === 'pending_review' ? '⏳ Pending Review' : report.status === 'rejected' ? '✗ Needs Revision' : report.status.replace('_', ' ').toUpperCase()}
+              </span>
+            </div>
+          ` : ''}
           <!-- QR Code for digital verification -->
           <div class="qr-code">
             ${qrCodeURL}
@@ -768,32 +834,56 @@ class EmailTemplateService {
         <div class="signature-section">
           <div class="signature-box">
             <p class="signature-label">Teacher/Preparer</p>
-            ${report.teacher_signature ? `
-              <img src="${report.teacher_signature}" alt="Teacher Signature" 
-                   style="max-width: 200px; max-height: 100px; height: auto; margin: 10px 0; display: block; 
-                          object-fit: contain; image-orientation: from-image;" />
+            ${(report.teacher_signature || report.teacher_signature_data) ? `
+              <img src="${report.teacher_signature || report.teacher_signature_data}" alt="Teacher Signature" 
+                   class="signature-img" />
             ` : `
               <div class="signature-line"></div>
             `}
             <p class="signature-name">${teacherName}</p>
-            <p class="signature-date">Date: ${currentDate}</p>
+            <p class="signature-date">Signed: ${report.teacher_signed_at ? new Date(report.teacher_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }) : currentDate}</p>
           </div>
           <div class="signature-box">
-            <p class="signature-label">Principal/Head</p>
-            <div class="signature-line"></div>
-            <p class="signature-name">___________________________</p>
-            <p class="signature-date">Date: __________________</p>
+            <p class="signature-label">Principal/Head - ${report.status === 'approved' ? 'Approved' : 'Approval'}</p>
+            ${report.principal_signature_data && report.status === 'approved' ? `
+              <img src="${report.principal_signature_data}" alt="Principal Signature" 
+                   class="signature-img" />
+              <p class="signature-name">${report.reviewer_name || 'Principal'}</p>
+              <p class="signature-date">Approved: ${report.principal_signed_at ? new Date(report.principal_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Date unavailable'}</p>
+              ${report.review_notes ? `
+                <p style="margin-top: 8px; font-size: 12px; color: #6b7280; font-style: italic;">Note: ${report.review_notes}</p>
+              ` : ''}
+            ` : `
+              <div class="signature-line"></div>
+              <p class="signature-name">___________________________</p>
+              <p class="signature-date">Date: __________________</p>
+            `}
           </div>
         </div>
 
         <div class="footer">
-          <p style="margin: 0; font-weight: 600;">Prepared by: ${teacherName}</p>
-          <p style="margin: 8px 0 0 0;">Generated by EduDash Pro - ${preschoolName}</p>
-          <p style="margin: 4px 0 0 0;">${currentDate}</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="text-align: left;">
+              <p style="margin: 0; font-weight: 600;">Prepared by: ${teacherName}</p>
+              <p style="margin: 4px 0 0 0; font-size: 11px;">Teacher Signature: ${report.teacher_signed_at ? new Date(report.teacher_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Pending'}</p>
+            </div>
+            ${report.status === 'approved' && report.reviewed_by ? `
+              <div style="text-align: right;">
+                <p style="margin: 0; font-weight: 600;">Approved by: ${report.reviewer_name || 'Principal'}</p>
+                <p style="margin: 4px 0 0 0; font-size: 11px;">Approval Date: ${report.principal_signed_at ? new Date(report.principal_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</p>
+              </div>
+            ` : ''}
+          </div>
+          <p style="margin: 0;">Generated by EduDash Pro - ${preschoolName}</p>
+          <p style="margin: 4px 0 0 0;">Document ID: ${report.id || 'Preview'} | Generated: ${currentDate}</p>
+          ${report.status ? `
+            <p style="margin: 8px 0 0 0; font-size: 11px;">Status: ${report.status === 'approved' ? 'Approved & Finalized' : report.status === 'pending_review' ? 'Awaiting Principal Approval' : report.status === 'rejected' ? 'Returned for Revision' : report.status.toUpperCase()}</p>
+          ` : ''}
           <p style="margin: 12px 0 0 0; font-size: 10px; font-style: italic;">
-            This document is confidential and intended solely for the named parent/guardian.
+            This document is confidential and intended solely for the named parent/guardian. Unauthorized distribution is prohibited.
           </p>
         </div>
+        <div class="page-number">Page 1</div>
       </body>
       </html>
     `;

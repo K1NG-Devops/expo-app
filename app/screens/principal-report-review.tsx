@@ -36,6 +36,7 @@ import { ReportApprovalCard } from '@/components/progress-report/ReportApprovalC
 import { ApprovalStatusBadge } from '@/components/progress-report/ApprovalStatusBadge';
 import { SignatureDisplay } from '@/components/progress-report/SignatureDisplay';
 import { SignaturePad } from '@/components/signature/SignaturePad';
+import { notifyReportApproved, notifyReportRejected } from '@/services/notification-service';
 
 /**
  * PrincipalReportReview - Screen for reviewing pending reports
@@ -125,13 +126,28 @@ export default function PrincipalReportReviewScreen() {
       );
       if (!success) throw new Error('Failed to approve report');
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['pending-reports'] });
+      
+      // Send notification to teacher
+      if (selectedReport && profile?.preschool_id) {
+        try {
+          await notifyReportApproved(
+            selectedReport.id,
+            selectedReport.student_id,
+            profile.preschool_id
+          );
+          console.log('Approval notification sent to teacher');
+        } catch (notifError: any) {
+          console.error('Failed to send notification:', notifError);
+        }
+      }
+      
       setShowApproveModal(false);
       setSelectedReport(null);
       setPrincipalSignature('');
       setApprovalNotes('');
-      Alert.alert('Success', 'Report approved successfully');
+      Alert.alert('Success', 'Report approved successfully. Teacher has been notified.');
     },
     onError: (error: Error) => {
       Alert.alert('Error', `Failed to approve report: ${error.message}`);
@@ -156,8 +172,24 @@ export default function PrincipalReportReviewScreen() {
       );
       if (!success) throw new Error('Failed to reject report');
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['pending-reports'] });
+      
+      // Send notification to teacher
+      if (selectedReport && profile?.preschool_id && rejectionReason) {
+        try {
+          await notifyReportRejected(
+            selectedReport.id,
+            selectedReport.student_id,
+            profile.preschool_id,
+            rejectionReason
+          );
+          console.log('Rejection notification sent to teacher');
+        } catch (notifError: any) {
+          console.error('Failed to send notification:', notifError);
+        }
+      }
+      
       setShowRejectModal(false);
       setSelectedReport(null);
       setRejectionReason('');
