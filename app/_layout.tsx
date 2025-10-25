@@ -108,10 +108,10 @@ function LayoutContent() {
         {/* Let Expo Router auto-discover screens */}
       </Stack>
       
-      {/* Dash Chat FAB - replaces archived voice orb */}
-      {showFAB && !shouldHideFAB && (
+      {/* Dash Chat FAB - temporarily hidden per user request */}
+      {/* {showFAB && !shouldHideFAB && (
         <DashChatButton />
-      )}
+      )} */}
     </View>
   );
 }

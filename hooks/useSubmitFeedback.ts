@@ -21,10 +21,10 @@ import * as Device from 'expo-device';
 import * as Application from 'expo-application';
 import * as Localization from 'expo-localization';
 import Constants from 'expo-constants';
-// import { useSupabase } from '@/contexts/SupabaseContext';
-// import { submitFeedbackWithScreenshot } from '@/services/feedback.service';
+import { useAuth } from '@/contexts/AuthContext';
+import { assertSupabase } from '@/lib/supabase';
+import { submitFeedbackWithScreenshot } from '@/services/feedback.service';
 import type {
-  SubmitFeedbackPayload,
   DeviceInfo,
   InsertFeedbackPayload,
 } from '@/types/feedback.types';
@@ -89,8 +89,9 @@ export interface SubmitFeedbackResult {
  * Automatically collects device metadata and handles screenshot upload
  */
 export function useSubmitFeedback() {
-  const { supabase, user, profile } = useSupabase();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
+  const supabase = assertSupabase();
 
   return useMutation<SubmitFeedbackResult, Error, SubmitFeedbackInput>({
     mutationKey: ['submitFeedback'],
@@ -100,7 +101,7 @@ export function useSubmitFeedback() {
       if (!user?.id) {
         throw new Error('User not authenticated');
       }
-      if (!profile?.preschool_id) {
+      if (!profile?.organization_id) {
         throw new Error('User has no preschool association');
       }
 
@@ -109,7 +110,7 @@ export function useSubmitFeedback() {
 
       // Build insert payload
       const payload: InsertFeedbackPayload = {
-        preschool_id: profile.preschool_id,
+        preschool_id: profile.organization_id,
         user_id: user.id,
         feedback_text: input.feedback_text.trim(),
         severity: input.severity,
@@ -132,11 +133,11 @@ export function useSubmitFeedback() {
       };
     },
 
-    onSuccess: (data, variables) => {
+    onSuccess: (data) => {
       // Invalidate feedback queries to refresh lists
-      if (profile?.preschool_id) {
+      if (profile?.organization_id) {
         queryClient.invalidateQueries({
-          queryKey: ['feedback', profile.preschool_id],
+          queryKey: ['feedback', profile.organization_id],
         });
       }
       

@@ -50,6 +50,19 @@ export interface ProgressReport {
   email_sent_at?: string;
   email_message_id?: string;
   
+  // Approval workflow fields
+  status?: 'draft' | 'pending_review' | 'approved' | 'rejected' | 'sent';
+  teacher_signature?: string;
+  teacher_signature_data?: string;
+  teacher_signed_at?: string;
+  principal_signature_data?: string;
+  principal_signed_at?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  reviewer_name?: string;
+  rejection_reason?: string;
+  review_notes?: string;
+  
   // School readiness fields (for Grade R transition reports)
   report_category?: 'general' | 'school_readiness';
   school_readiness_indicators?: {
@@ -192,8 +205,14 @@ class EmailTemplateService {
     const templates = await this.getTemplates(report.preschool_id, 'progress_report');
     const template = templates[0]; // Use first available template
 
+    // If no template exists, use professional PDF HTML as fallback
     if (!template) {
-      throw new Error('No progress report template found');
+      if (__DEV__) {
+        console.log('[EmailTemplateService] No template found, using professional PDF HTML fallback');
+      }
+      const html = this.generateProfessionalPDFHTML(report, studentName, parentName, teacherName, preschoolName);
+      const subject = `Progress Report for ${studentName} - ${report.report_period}`;
+      return { subject, html, text: '' };
     }
 
     // Generate subjects performance table
@@ -470,14 +489,14 @@ class EmailTemplateService {
         <title>Progress Report - ${studentName}</title>
         <style>
           @page { 
-            margin: 20mm; 
-            @top-right {
+            margin: 20mm;
+            @bottom-center {
               content: "Page " counter(page) " of " counter(pages);
               font-size: 10px;
               color: #6b7280;
             }
           }
-          body { 
+          body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             line-height: 1.6;
             color: #1f2937;
@@ -591,20 +610,37 @@ class EmailTemplateService {
           }
           .signature-section {
             display: flex;
-            justify-content: space-around;
+            justify-content: space-between;
             margin-top: 60px;
+            gap: 40px;
             page-break-inside: avoid;
           }
           .signature-box {
-            width: 45%;
-            text-align: center;
+            flex: 1;
+            min-width: 200px;
+          }
+          .signature-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
           }
           .signature-line {
-            border-top: 2px solid #1f2937;
-            margin-top: 50px;
-            padding-top: 10px;
+            border-bottom: 2px solid #1f2937;
+            height: 60px;
+            margin-bottom: 8px;
+          }
+          .signature-name {
             font-size: 14px;
+            color: #1f2937;
+            font-weight: 500;
+          }
+          .signature-date {
+            font-size: 12px;
             color: #6b7280;
+            margin-top: 4px;
           }
           .footer {
             margin-top: 50px;
@@ -614,12 +650,54 @@ class EmailTemplateService {
             color: #6b7280;
             font-size: 12px;
           }
+          .page-footer {
+            text-align: center;
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+          }
           .page-number {
             position: fixed;
             bottom: 10mm;
             right: 10mm;
             font-size: 10px;
-            color: #6b7280;
+            color: #9ca3af;
+          }
+          .approval-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .badge-approved {
+            background: #d1fae5;
+            color: #065f46;
+          }
+          .badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+          }
+          .badge-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+          }
+          .signature-img {
+            max-width: 200px;
+            max-height: 80px;
+            height: auto;
+            margin: 10px 0;
+            display: block;
+            object-fit: contain;
+            image-orientation: from-image;
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
           }
           @media print {
             body { 
@@ -640,6 +718,13 @@ class EmailTemplateService {
           <!-- <img src="[SCHOOL_LOGO_URL]" alt="School Logo" class="school-logo" /> -->
           <h1 class="school-name">${preschoolName}</h1>
           <p class="report-title">${isSchoolReadiness ? '🎓 School Readiness Report' : '📚 Student Progress Report'}</p>
+          ${report.status ? `
+            <div style="margin-top: 12px;">
+              <span class="approval-badge ${report.status === 'approved' ? 'badge-approved' : report.status === 'pending_review' ? 'badge-pending' : report.status === 'rejected' ? 'badge-rejected' : ''}">
+                ${report.status === 'approved' ? '✓ Approved' : report.status === 'pending_review' ? '⏳ Pending Review' : report.status === 'rejected' ? '✗ Needs Revision' : report.status.replace('_', ' ').toUpperCase()}
+              </span>
+            </div>
+          ` : ''}
           <!-- QR Code for digital verification -->
           <div class="qr-code">
             ${qrCodeURL}
@@ -748,28 +833,56 @@ class EmailTemplateService {
         
         <div class="signature-section">
           <div class="signature-box">
-            <div class="signature-line">
-              <strong>Teacher Signature</strong><br/>
-              ${teacherName}
-            </div>
+            <p class="signature-label">Teacher/Preparer</p>
+            ${(report.teacher_signature || report.teacher_signature_data) ? `
+              <img src="${report.teacher_signature || report.teacher_signature_data}" alt="Teacher Signature" 
+                   class="signature-img" />
+            ` : `
+              <div class="signature-line"></div>
+            `}
+            <p class="signature-name">${teacherName}</p>
+            <p class="signature-date">Signed: ${report.teacher_signed_at ? new Date(report.teacher_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }) : currentDate}</p>
           </div>
           <div class="signature-box">
-            <div class="signature-line">
-              <strong>Principal/Head Signature</strong><br/>
-              ___________________
-            </div>
+            <p class="signature-label">Principal/Head - ${report.status === 'approved' ? 'Approved' : 'Approval'}</p>
+            ${report.principal_signature_data && report.status === 'approved' ? `
+              <img src="${report.principal_signature_data}" alt="Principal Signature" 
+                   class="signature-img" />
+              <p class="signature-name">${report.reviewer_name || 'Principal'}</p>
+              <p class="signature-date">Approved: ${report.principal_signed_at ? new Date(report.principal_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long', day: 'numeric' }) : 'Date unavailable'}</p>
+              ${report.review_notes ? `
+                <p style="margin-top: 8px; font-size: 12px; color: #6b7280; font-style: italic;">Note: ${report.review_notes}</p>
+              ` : ''}
+            ` : `
+              <div class="signature-line"></div>
+              <p class="signature-name">___________________________</p>
+              <p class="signature-date">Date: __________________</p>
+            `}
           </div>
         </div>
 
         <div class="footer">
-          <p style="margin: 0; font-weight: 600;">Prepared by: ${teacherName}</p>
-          <p style="margin: 8px 0 0 0;">Generated by EduDash Pro - ${preschoolName}</p>
-          <p style="margin: 4px 0 0 0;">${currentDate}</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb;">
+            <div style="text-align: left;">
+              <p style="margin: 0; font-weight: 600;">Prepared by: ${teacherName}</p>
+              <p style="margin: 4px 0 0 0; font-size: 11px;">Teacher Signature: ${report.teacher_signed_at ? new Date(report.teacher_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : 'Pending'}</p>
+            </div>
+            ${report.status === 'approved' && report.reviewed_by ? `
+              <div style="text-align: right;">
+                <p style="margin: 0; font-weight: 600;">Approved by: ${report.reviewer_name || 'Principal'}</p>
+                <p style="margin: 4px 0 0 0; font-size: 11px;">Approval Date: ${report.principal_signed_at ? new Date(report.principal_signed_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</p>
+              </div>
+            ` : ''}
+          </div>
+          <p style="margin: 0;">Generated by EduDash Pro - ${preschoolName}</p>
+          <p style="margin: 4px 0 0 0;">Document ID: ${report.id || 'Preview'} | Generated: ${currentDate}</p>
+          ${report.status ? `
+            <p style="margin: 8px 0 0 0; font-size: 11px;">Status: ${report.status === 'approved' ? 'Approved & Finalized' : report.status === 'pending_review' ? 'Awaiting Principal Approval' : report.status === 'rejected' ? 'Returned for Revision' : report.status.toUpperCase()}</p>
+          ` : ''}
           <p style="margin: 12px 0 0 0; font-size: 10px; font-style: italic;">
-            This document is confidential and intended solely for the named parent/guardian.
+            This document is confidential and intended solely for the named parent/guardian. Unauthorized distribution is prohibited.
           </p>
         </div>
-        
         <div class="page-number">Page 1</div>
       </body>
       </html>
@@ -824,21 +937,60 @@ class EmailTemplateService {
   }
 
   /**
-   * Save progress report to database
+   * Save progress report to database (upsert: insert or update if duplicate)
    */
   async saveProgressReport(report: Omit<ProgressReport, 'id'>): Promise<ProgressReport | null> {
-    const { data, error } = await supabase
-      .from('progress_reports')
-      .insert(report)
-      .select()
-      .single();
+    try {
+      // First, check if a report exists for this student and period
+      const { data: existing, error: fetchError } = await supabase
+        .from('progress_reports')
+        .select('id')
+        .eq('student_id', report.student_id)
+        .eq('report_period', report.report_period)
+        .maybeSingle();
 
-    if (error) {
-      console.error('[EmailTemplateService] Failed to save progress report:', error);
+      if (fetchError) {
+        console.error('[EmailTemplateService] Failed to check existing report:', fetchError);
+        return null;
+      }
+
+      // If report exists, update it
+      if (existing) {
+        const { data, error } = await supabase
+          .from('progress_reports')
+          .update({
+            ...report,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[EmailTemplateService] Failed to update progress report:', error);
+          return null;
+        }
+
+        return data;
+      }
+
+      // Otherwise, insert new report
+      const { data, error } = await supabase
+        .from('progress_reports')
+        .insert(report)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[EmailTemplateService] Failed to save progress report:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error: any) {
+      console.error('[EmailTemplateService] Unexpected error saving progress report:', error);
       return null;
     }
-
-    return data;
   }
 
   /**
@@ -976,9 +1128,9 @@ class EmailTemplateService {
    * Generate radar chart SVG for school readiness indicators
    */
   private generateRadarChartSVG(indicators: Record<string, { rating: number; notes: string }>): string {
-    const size = 400;
+    const size = 500;  // Increased from 400 to give more room for labels
     const center = size / 2;
-    const maxRadius = 150;
+    const maxRadius = 130;  // Reduced from 150 to give more label space
     const numAxes = Object.keys(indicators).length;
     const angleStep = (2 * Math.PI) / numAxes;
 
@@ -991,18 +1143,24 @@ class EmailTemplateService {
       return `${x},${y}`;
     }).join(' ');
 
-    // Generate axis lines and labels
+    // Generate axis lines and labels with better positioning
     const axes = Object.keys(indicators).map((key, index) => {
       const angle = angleStep * index - Math.PI / 2;
       const x2 = center + maxRadius * Math.cos(angle);
       const y2 = center + maxRadius * Math.sin(angle);
-      const labelX = center + (maxRadius + 30) * Math.cos(angle);
-      const labelY = center + (maxRadius + 30) * Math.sin(angle);
+      const labelDistance = maxRadius + 60;  // Increased from 30 to 60
+      const labelX = center + labelDistance * Math.cos(angle);
+      const labelY = center + labelDistance * Math.sin(angle);
       const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      
+      // Determine text anchor based on position
+      let textAnchor = 'middle';
+      if (labelX < center - 20) textAnchor = 'end';
+      else if (labelX > center + 20) textAnchor = 'start';
       
       return `
         <line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="#cbd5e1" stroke-width="1" />
-        <text x="${labelX}" y="${labelY}" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#374151" font-weight="600">${label}</text>
+        <text x="${labelX}" y="${labelY}" text-anchor="${textAnchor}" dominant-baseline="middle" font-size="11" fill="#374151" font-weight="600">${label}</text>
       `;
     }).join('');
 

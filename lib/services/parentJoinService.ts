@@ -110,14 +110,40 @@ export class ParentJoinService {
       // Try to set parent_id if not set
       const { data: student } = await assertSupabase()
         .from('students')
-        .select('id, parent_id, guardian_id')
+        .select('id, parent_id, guardian_id, preschool_id')
         .eq('id', studentId)
         .single();
       if (student) {
         if (!student.parent_id) {
           await assertSupabase().from('students').update({ parent_id: req.parent_auth_id }).eq('id', studentId);
+          
+          // ✅ NEW: Sync parent's preschool_id from student
+          if (student.preschool_id) {
+            await assertSupabase()
+              .from('profiles')
+              .update({ 
+                preschool_id: student.preschool_id,
+                organization_id: student.preschool_id,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', req.parent_auth_id)
+              .eq('role', 'parent');
+          }
         } else if (!student.guardian_id && req.parent_auth_id !== student.parent_id) {
           await assertSupabase().from('students').update({ guardian_id: req.parent_auth_id }).eq('id', studentId);
+          
+          // ✅ NEW: Sync guardian's preschool_id from student
+          if (student.preschool_id) {
+            await assertSupabase()
+              .from('profiles')
+              .update({ 
+                preschool_id: student.preschool_id,
+                organization_id: student.preschool_id,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', req.parent_auth_id)
+              .eq('role', 'parent');
+          }
         }
       }
     } catch { /* Intentional: non-fatal */ }
