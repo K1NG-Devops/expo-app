@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert, ActivityIndicator, Linking, Modal, KeyboardAvoidingView, Platform, Keyboard, TouchableWithoutFeedback } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -630,6 +630,10 @@ export default function ProgressReportCreator() {
       // Generate HTML based on report type
       let html: string;
       if (reportCategory === 'school_readiness') {
+        if (__DEV__) {
+          console.log('[Preview] Generating school readiness email');
+          console.log('[Preview] Report data:', JSON.stringify(report, null, 2));
+        }
         const result = await emailTemplateService.generateSchoolReadinessEmail(
           report,
           `${student.first_name} ${student.last_name}`,
@@ -638,7 +642,15 @@ export default function ProgressReportCreator() {
           preschoolData.data?.name || 'School'
         );
         html = result.html;
+        if (__DEV__) {
+          console.log('[Preview] Generated HTML length:', html?.length || 0);
+          console.log('[Preview] HTML preview (first 500 chars):', html?.substring(0, 500));
+        }
       } else {
+        if (__DEV__) {
+          console.log('[Preview] Generating progress report email');
+          console.log('[Preview] Report data:', JSON.stringify(report, null, 2));
+        }
         const result = await emailTemplateService.generateProgressReportEmail(
           report,
           `${student.first_name} ${student.last_name}`,
@@ -647,6 +659,10 @@ export default function ProgressReportCreator() {
           preschoolData.data?.name || 'School'
         );
         html = result.html;
+        if (__DEV__) {
+          console.log('[Preview] Generated HTML length:', html?.length || 0);
+          console.log('[Preview] HTML preview (first 500 chars):', html?.substring(0, 500));
+        }
       }
 
       // Wrap HTML with additional mobile viewport settings for better WebView rendering
@@ -1079,7 +1095,18 @@ export default function ProgressReportCreator() {
     <SafeAreaView edges={['top', 'bottom']} style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ title: 'Create Progress Report', headerStyle: { backgroundColor: theme.background }, headerTintColor: theme.primary }} />
       
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+          >
         {/* Progress Indicator */}
         <View style={[styles.progressContainer, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <View style={styles.progressHeader}>
@@ -1509,7 +1536,9 @@ export default function ProgressReportCreator() {
           onInsert={insertSuggestion}
           title={`Age-Appropriate Suggestions${student?.age_years ? ` (Age ${student.age_years})` : ''}`}
         />
-      </ScrollView>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

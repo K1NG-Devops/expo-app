@@ -271,6 +271,8 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           placeholder="Enter first name"
           placeholderTextColor={theme.textSecondary}
           autoCapitalize="words"
+          returnKeyType="next"
+          blurOnSubmit={false}
         />
         {errors.first_name && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.first_name}</Text>
@@ -287,6 +289,8 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           placeholder="Enter last name"
           placeholderTextColor={theme.textSecondary}
           autoCapitalize="words"
+          returnKeyType="next"
+          blurOnSubmit={false}
         />
         {errors.last_name && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.last_name}</Text>
@@ -302,6 +306,8 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           onChangeText={(text) => setEditedStudent((prev) => ({ ...prev, date_of_birth: text }))}
           placeholder="YYYY-MM-DD"
           placeholderTextColor={theme.textSecondary}
+          returnKeyType="next"
+          blurOnSubmit={false}
         />
         {errors.date_of_birth && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.date_of_birth}</Text>
@@ -319,6 +325,8 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           placeholder="Enter parent/guardian name"
           placeholderTextColor={theme.textSecondary}
           autoCapitalize="words"
+          returnKeyType="next"
+          blurOnSubmit={false}
         />
         {errors.parent_name && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.parent_name}</Text>
@@ -337,6 +345,8 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="next"
+          blurOnSubmit={false}
         />
         {errors.parent_email && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.parent_email}</Text>
@@ -353,6 +363,7 @@ export const StudentInfoEditor: React.FC<StudentInfoEditorProps> = ({
           placeholder="+27XXXXXXXXX or 0XXXXXXXXX"
           placeholderTextColor={theme.textSecondary}
           keyboardType="phone-pad"
+          returnKeyType="done"
         />
         {errors.parent_phone && (
           <Text style={[styles.helperText, { color: theme.error }]}>{errors.parent_phone}</Text>
