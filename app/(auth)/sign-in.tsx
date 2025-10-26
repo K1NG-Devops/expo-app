@@ -8,9 +8,10 @@ import { useTranslation } from 'react-i18next';
 import * as Linking from 'expo-linking';
 import { SocialLoginButtons } from '@/components/ui/SocialLoginButtons';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storage } from '@/lib/storage';
+import { secureStore } from '@/lib/secure-store';
+import { biometrics } from '@/lib/biometrics';
 import { BiometricAuthService } from '@/services/BiometricAuthService';
-import * as SecureStore from 'expo-secure-store';
 import { signInWithSession } from '@/lib/sessionManager';
 
 export default function SignIn() {
@@ -51,8 +52,8 @@ export default function SignIn() {
         }
         
         // Load saved email from remember me
-        const savedRememberMe = await AsyncStorage.getItem('rememberMe');
-        const savedEmail = await AsyncStorage.getItem('savedEmail');
+        const savedRememberMe = await storage.getItem('rememberMe');
+        const savedEmail = await storage.getItem('savedEmail');
         if (savedRememberMe === 'true' && savedEmail) {
           setEmail(savedEmail);
           setRememberMe(true);
@@ -60,7 +61,7 @@ export default function SignIn() {
           
           // Try to load saved password from secure store (sanitize email for secure store key)
           const sanitizedKey = `password_${savedEmail.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          const savedPassword = await SecureStore.getItemAsync(sanitizedKey);
+          const savedPassword = await secureStore.getItem(sanitizedKey);
           if (savedPassword) {
             setPassword(savedPassword);
           }
@@ -102,15 +103,15 @@ export default function SignIn() {
       // Save remember me preference and credentials (best-effort; do not block sign-in)
       try {
         if (rememberMe) {
-          await AsyncStorage.setItem('rememberMe', 'true');
-          await AsyncStorage.setItem('savedEmail', email.trim());
+          await storage.setItem('rememberMe', 'true');
+          await storage.setItem('savedEmail', email.trim());
           const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          await SecureStore.setItemAsync(sanitizedKey, password);
+          await secureStore.setItem(sanitizedKey, password);
         } else {
-          await AsyncStorage.removeItem('rememberMe');
-          await AsyncStorage.removeItem('savedEmail');
+          await storage.removeItem('rememberMe');
+          await storage.removeItem('savedEmail');
           const sanitizedKey = `password_${email.trim().replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-          try { await SecureStore.deleteItemAsync(sanitizedKey); } catch { /* Intentional: non-fatal */ }
+          try { await secureStore.deleteItem(sanitizedKey); } catch { /* Intentional: non-fatal */ }
         }
       } catch (credErr) {
         console.warn('Remember me save failed:', credErr);
