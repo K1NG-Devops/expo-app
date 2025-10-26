@@ -272,15 +272,6 @@ export const TeacherDashboard: React.FC = () => {
           />
         )}
 
-        {/* First Ad Placement: Below Quick Actions */}
-        {showAds && (
-          <AdBannerWithUpgrade
-            screen="teacher_dashboard"
-            showUpgradeCTA={true}
-            margin={12}
-          />
-        )}
-
         {/* AI Tools */}
         <TeacherAITools
           aiTools={aiTools}
@@ -327,19 +318,9 @@ export const TeacherDashboard: React.FC = () => {
           />
         )}
 
-        {/* Bottom Ad Placement: For long sessions */}
-        {showAds && (
-          <AdBannerWithUpgrade
-            screen="teacher_dashboard"
-            showUpgradeCTA={false}
-            margin={16}
-          />
-        )}
-
         {/* Bottom Padding */}
         <View style={{ height: 100 }} />
-        </ScrollView>
-      </TouchableWithoutFeedback>
+      </ScrollView>
 
       {/* Modals */}
       <TeacherModals
