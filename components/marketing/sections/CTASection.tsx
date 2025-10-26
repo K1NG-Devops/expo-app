@@ -24,7 +24,7 @@ export function CTASection() {
         <View style={styles.ctaButtons}>
           <GradientButton
             label="Start Free Trial"
-            onPress={() => router.push('/(auth)/sign-up')}
+            onPress={() => router.push('/(auth)/sign-in')}
             size="lg"
             variant="indigo"
             style={styles.primaryButton}

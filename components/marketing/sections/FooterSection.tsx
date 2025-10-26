@@ -47,6 +47,36 @@ export function FooterSection() {
         >
           <Text style={styles.linkText}>Terms of Service</Text>
         </Pressable>
+
+        <View style={styles.linkDivider} />
+
+        <Pressable 
+          style={styles.link}
+          onPress={() => {
+            if (typeof window !== 'undefined') {
+              window.open('/data-deletion.html', '_blank');
+            }
+          }}
+          accessibilityRole="link"
+          accessibilityLabel="Data Deletion"
+        >
+          <Text style={styles.linkText}>Data Deletion</Text>
+        </Pressable>
+
+        <View style={styles.linkDivider} />
+
+        <Pressable 
+          style={styles.link}
+          onPress={() => {
+            if (typeof window !== 'undefined') {
+              window.open('/data-safety-details.html', '_blank');
+            }
+          }}
+          accessibilityRole="link"
+          accessibilityLabel="Data Safety"
+        >
+          <Text style={styles.linkText}>Data Safety</Text>
+        </Pressable>
       </View>
 
       {/* Copyright */}
@@ -94,6 +124,8 @@ const styles = StyleSheet.create({
   },
   legalLinks: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: marketingTokens.spacing.lg,
     marginBottom: marketingTokens.spacing.lg,
