@@ -6,6 +6,7 @@ import { getPostHog } from '@/lib/posthogClient';
 import { track } from '@/lib/analytics';
 import { Platform } from 'react-native';
 import { routeAfterLogin } from '@/lib/routeAfterLogin';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   fetchEnhancedUserProfile, 
   createPermissionChecker,
@@ -76,6 +77,7 @@ function toEnhancedProfile(p: any | null): EnhancedUserProfile | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthContextValue['user']>(null);
   const [session, setSession] = useState<AuthContextValue['session']>(null);
   const [profile, setProfile] = useState<EnhancedUserProfile | null>(null);
@@ -136,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Don't check session, don't refresh profile - just continue where user left off
   }, []);
 
-  // Enhanced sign out
+  // Enhanced sign out with cache clearing and browser history management
   const handleSignOut = useCallback(async () => {
     try {
       console.log('[AuthContext] Starting sign-out process...');
@@ -156,6 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setPermissions(createPermissionChecker(null));
       setProfileLoading(false);
+      
+      // Clear TanStack Query cache to prevent stale data flash
+      try {
+        console.log('[AuthContext] Clearing TanStack Query cache...');
+        queryClient.clear();
+        console.log('[AuthContext] Query cache cleared successfully');
+      } catch (cacheErr) {
+        console.warn('[AuthContext] Query cache clear failed:', cacheErr);
+      }
       
       // Call sessionManager sign out (this clears storage and Supabase session)
       await signOut();
@@ -177,9 +188,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       console.log('[AuthContext] Sign-out completed successfully');
       
-      // Navigate to sign-in screen
+      // Navigate to sign-in screen using replace (no back navigation)
       try {
-        router.replace('/(auth)/sign-in');
+        // Web-only: Clear browser history to prevent back button to protected routes
+        if (Platform.OS === 'web') {
+          try {
+            const w = globalThis as any;
+            // Clear all history and navigate to sign-in with a fresh history stack
+            // This prevents back button from accessing protected pages
+            if (w?.location) {
+              // Use location.replace to completely replace history entry
+              w.location.replace('/(auth)/sign-in');
+              console.log('[AuthContext] Browser navigated to sign-in with history cleared');
+            } else {
+              // Fallback to router if location is not available
+              router.replace('/(auth)/sign-in');
+            }
+          } catch (historyErr) {
+            console.warn('[AuthContext] Browser history manipulation failed:', historyErr);
+            router.replace('/(auth)/sign-in');
+          }
+        } else {
+          // Mobile: use router replace
+          router.replace('/(auth)/sign-in');
+        }
       } catch (navErr) {
         console.error('[AuthContext] Navigation to sign-in failed:', navErr);
         try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
@@ -193,6 +225,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setPermissions(createPermissionChecker(null));
       
+      // Clear query cache even on error
+      try {
+        queryClient.clear();
+      } catch { /* Intentional: non-fatal */ }
+      
       // Security audit for failed logout
       if (user?.id) {
         securityAuditor.auditAuthenticationEvent(user.id, 'auth_failure', {
@@ -203,13 +240,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Still try to navigate even if there was an error
       try {
-        router.replace('/(auth)/sign-in');
+        // Web-only: Clear browser history even on error
+        if (Platform.OS === 'web') {
+          try {
+            const w = globalThis as any;
+            if (w?.location) {
+              w.location.replace('/(auth)/sign-in');
+            } else {
+              router.replace('/(auth)/sign-in');
+            }
+          } catch { 
+            router.replace('/(auth)/sign-in');
+          }
+        } else {
+          router.replace('/(auth)/sign-in');
+        }
       } catch (navErr) {
         console.error('[AuthContext] Navigation to sign-in failed:', navErr);
         try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
       }
     }
-  }, [user?.id, profile?.role, session]);
+  }, [user?.id, profile?.role, session, queryClient]);
 
   useEffect(() => {
     let unsub: { subscription?: { unsubscribe: () => void } } | null = null;
