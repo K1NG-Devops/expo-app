@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { DesktopLayout } from '@/components/layout/DesktopLayout';
 
 export default function PrincipalDashboardScreen() {
   const { user, profile, profileLoading, loading } = useAuth();
@@ -90,7 +91,11 @@ export default function PrincipalDashboardScreen() {
     );
   }
 
-  return <PrincipalDashboardWrapper />;
+  return (
+    <DesktopLayout role="principal">
+      <PrincipalDashboardWrapper />
+    </DesktopLayout>
+  );
 }
 
 const createStyles = (theme: any) => StyleSheet.create({

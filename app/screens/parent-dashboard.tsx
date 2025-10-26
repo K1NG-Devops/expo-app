@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ParentDashboardWrapper from '@/components/dashboard/ParentDashboardWrapper';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
 import { track } from '@/lib/analytics';
+import { DesktopLayout } from '@/components/layout/DesktopLayout';
 
 export default function ParentDashboardScreen() {
   const { t } = useTranslation();
@@ -152,15 +153,17 @@ export default function ParentDashboardScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={theme.headerBackground}
-        translucent={false}
-      />
-      <Stack.Screen options={{ headerShown: false }} />
-      <RoleBasedHeader showBackButton={false} />
-      <ParentDashboardWrapper />
-    </View>
+    <DesktopLayout role="parent">
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={theme.headerBackground}
+          translucent={false}
+        />
+        <Stack.Screen options={{ headerShown: false }} />
+        <RoleBasedHeader showBackButton={false} />
+        <ParentDashboardWrapper />
+      </View>
+    </DesktopLayout>
   );
 }

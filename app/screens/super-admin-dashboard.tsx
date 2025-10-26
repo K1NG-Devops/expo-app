@@ -19,6 +19,7 @@ import { track } from '@/lib/analytics';
 import { useTheme } from '@/contexts/ThemeContext';
 import { isSuperAdmin } from '@/lib/roleUtils';
 import { assertSupabase } from '@/lib/supabase';
+import { DesktopLayout } from '@/components/layout/DesktopLayout';
 
 interface DashboardStats {
   total_users: number;
@@ -481,8 +482,9 @@ export default function SuperAdminDashboardScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <ThemedStatusBar />
+    <DesktopLayout role="superadmin">
+      <View style={styles.container}>
+        <ThemedStatusBar />
       
       {/* Header */}
       <SafeAreaView style={[styles.header, { backgroundColor: theme.background }]}>
@@ -735,7 +737,8 @@ export default function SuperAdminDashboardScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+      </View>
+    </DesktopLayout>
   );
 }
 
