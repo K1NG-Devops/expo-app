@@ -118,9 +118,15 @@ function LayoutContent() {
 
 export default function RootLayout() {
   const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
+  const { session } = useAuth(); // Get session to guard Edge Function calls
   
   // Initialize Dash AI Assistant at root level and sync context
   useEffect(() => {
+    // Skip initialization if no session (unauthenticated)
+    if (!session) {
+      return;
+    }
+    
     (async () => {
       try {
         const module = await import('@/services/dash-ai/DashAICompat');
@@ -130,6 +136,7 @@ export default function RootLayout() {
           await dash.initialize();
           setDashInstance(dash);
           // Best-effort: sync Dash user context (language, traits)
+          // Only call Edge Functions when authenticated
           try {
             const { getCurrentLanguage } = await import('@/lib/i18n');
             const { syncDashContext } = await import('@/lib/agent/dashContextSync');
@@ -147,7 +154,7 @@ export default function RootLayout() {
         console.error('[RootLayout] Failed to initialize Dash:', e);
       }
     })();
-  }, []);
+  }, [session]); // Re-run when session changes
   
   // Hide development navigation header on web
   useEffect(() => {
