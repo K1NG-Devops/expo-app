@@ -52,6 +52,15 @@ export const logger = {
   },
 
   /**
+   * Log alias for info (for compatibility)
+   */
+  log: (message: string, ...args: any[]) => {
+    if (currentLogLevel <= LogLevel.INFO && isDevelopment) {
+      console.log(`[LOG] ${message}`, ...args);
+    }
+  },
+
+  /**
    * Warning logging - shown in development and tests
    */
   warn: (message: string, ...args: any[]) => {
