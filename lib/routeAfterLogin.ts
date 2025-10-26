@@ -10,10 +10,6 @@ import { logger } from '@/lib/logger';
 let AsyncStorage: any = null;
 try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { /* noop */ }
 
-// Optional AsyncStorage for bridging plan selection across auth (no-op on web)
-let AsyncStorage: any = null;
-try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { /* noop */ }
-
 function normalizeRole(r?: string | null): string | null {
   if (!r) return null;
   const s = String(r).trim().toLowerCase();
