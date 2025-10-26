@@ -1,6 +1,17 @@
 import 'react-native-get-random-values';
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, LogBox } from 'react-native';
+
+// Suppress known dev warnings
+if (__DEV__) {
+  LogBox.ignoreLogs([
+    'shadow* style props are deprecated',
+    'textShadow* style props are deprecated',
+    'props.pointerEvents is deprecated',
+    '[expo-av]: Expo AV has been deprecated',
+    'Require cycle:', // Suppress circular dependency warnings in dev
+  ]);
+}
 import { StatusBar } from 'expo-status-bar';
 import { Stack, usePathname } from 'expo-router';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
@@ -21,10 +32,33 @@ import { DashChatButton } from '@/components/ui/DashChatButton';
 // Inner component with access to AuthContext and VoiceUI
 function LayoutContent() {
   const pathname = usePathname();
-  const { loading: authLoading } = useAuth();
+  const { loading: authLoading, session } = useAuth();
   const { isDark } = useTheme();
   const [showFAB, setShowFAB] = useState(false);
   const [statusBarKey, setStatusBarKey] = useState(0);
+  
+  // Auth redirect guard (especially important for web)
+  useEffect(() => {
+    if (authLoading) return; // Wait for auth to load
+    
+    const isPublicRoute = !pathname || 
+      pathname === '/' ||
+      pathname === '/landing' ||
+      pathname.startsWith('/(auth)') ||
+      pathname.startsWith('/sign-in') ||
+      pathname.includes('auth-callback') ||
+      pathname.includes('register') ||
+      pathname === '/web-test'; // Allow test page
+    
+    // Redirect to root (marketing landing) if no session and not on public route
+    if (!session && !isPublicRoute) {
+      console.log('[LayoutContent] No session, redirecting to home');
+      // Use window.location on web for immediate redirect
+      if (Platform.OS === 'web') {
+        window.location.href = '/';
+      }
+    }
+  }, [session, authLoading, pathname]);
   
   // Force StatusBar re-render when theme changes
   useEffect(() => {
@@ -117,11 +151,43 @@ function LayoutContent() {
 }
 
 export default function RootLayout() {
+  console.log('[RootLayout] Rendering...');
+  
+  return (
+    <SafeAreaProvider>
+      <QueryProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <DashboardPreferencesProvider>
+              <TermsProvider>
+                <ToastProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <RootLayoutContent />
+                  </GestureHandlerRootView>
+                </ToastProvider>
+              </TermsProvider>
+            </DashboardPreferencesProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function RootLayoutContent() {
   const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
-  const { session } = useAuth(); // Get session to guard Edge Function calls
+  const { session } = useAuth(); // Now we're inside AuthProvider
+  
+  console.log('[RootLayoutContent] Rendering...');
   
   // Initialize Dash AI Assistant at root level and sync context
   useEffect(() => {
+    // Skip Dash AI on web platform
+    if (Platform.OS === 'web') {
+      console.log('[RootLayoutContent] Skipping Dash AI on web');
+      return;
+    }
+    
     // Skip initialization if no session (unauthenticated)
     if (!session) {
       return;
@@ -158,7 +224,7 @@ export default function RootLayout() {
   
   // Hide development navigation header on web
   useEffect(() => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const style = document.createElement('style');
       style.textContent = `
         /* Hide all Expo development navigation and headers */
@@ -276,6 +342,35 @@ export default function RootLayout() {
       `;
       document.head.appendChild(style);
       
+      // Add global CSS to ensure all screens have proper min-height on web
+      const globalStyle = document.createElement('style');
+      globalStyle.textContent = `
+        /* Ensure all app containers have full viewport height on web */
+        #root, .expo-root, .expo-app-container, [data-reactroot], body, html {
+          min-height: 100vh !important;
+          height: 100%;
+          width: 100%;
+        }
+        
+        /* Ensure all React Native View containers fill viewport */
+        [data-focusable="true"], [role="main"], main {
+          min-height: 100vh;
+        }
+        
+        /* Force all top-level Views to fill height */
+        #root > div, .expo-root > div, .expo-app-container > div {
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        /* Ensure ScrollViews display content properly */
+        [data-focusable="true"][style*="flex: 1"] {
+          min-height: 100vh;
+        }
+      `;
+      document.head.appendChild(globalStyle);
+      
       // Also try to hide elements after they're rendered
       const hideElements = () => {
         const selectors = [
@@ -384,30 +479,7 @@ export default function RootLayout() {
     }
   }, []);
   
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryProvider>
-          <AuthProvider>
-            <ThemeProvider>
-              <TermsProvider>
-                <OnboardingProvider>
-                  <DashboardPreferencesProvider>
-                    <UpdatesProvider>
-                      <ToastProvider>
-                        {/* VOICETODO: VoiceUIProvider removed (archived) */}
-                        <LayoutContent />
-                      </ToastProvider>
-                    </UpdatesProvider>
-                  </DashboardPreferencesProvider>
-                </OnboardingProvider>
-              </TermsProvider>
-            </ThemeProvider>
-          </AuthProvider>
-        </QueryProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
-  );
+  return <LayoutContent />;
 }
 
 const styles = StyleSheet.create({

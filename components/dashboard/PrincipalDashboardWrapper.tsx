@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { EnhancedPrincipalDashboard } from './EnhancedPrincipalDashboard';
@@ -48,6 +48,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    ...(Platform.OS === 'web' && {
+      minHeight: '100vh' as any,
+    }),
   },
 });
 

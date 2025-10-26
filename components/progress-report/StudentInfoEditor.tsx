@@ -6,7 +6,7 @@ import { differenceInYears, parse, format, isValid } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
-import { createProgressReportStyles } from '@/app/screens/progress-report-creator.styles';
+import { createProgressReportStyles } from '@/styles/progress-report/creator.styles';
 
 /**
  * StudentInfoEditor Component

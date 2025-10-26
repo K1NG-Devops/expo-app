@@ -21,6 +21,7 @@ import {
   Alert,
   Modal,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -390,7 +391,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const allMetrics = [...metrics, ...pettyCashCards];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'web' && { minHeight: '100vh' }]}>
       {/* Fixed top header to match enhanced dashboard */}
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
@@ -446,6 +447,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
       <ScrollView
         style={styles.scrollContainer}
+        contentContainerStyle={Platform.OS === 'web' ? { minHeight: '100vh', paddingBottom: 40 } : undefined}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refresh} />

@@ -7,7 +7,7 @@
  */
 
 const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
-const isTest = process.env.NODE_ENV === 'test';
+const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
 
 /**
  * Log levels for controlling output
