@@ -41,14 +41,33 @@ function LayoutContent() {
   useEffect(() => {
     if (authLoading) return; // Wait for auth to load
     
-    const isPublicRoute = !pathname || 
-      pathname === '/' ||
-      pathname === '/landing' ||
-      pathname.startsWith('/(auth)') ||
-      pathname.startsWith('/sign-in') ||
-      pathname.includes('auth-callback') ||
-      pathname.includes('register') ||
-      pathname === '/web-test'; // Allow test page
+    const isPublicRoute = (() => {
+      if (!pathname) return true;
+      const publicPrefixes = [
+        '/',
+        '/landing',
+        '/(auth)',
+        '/sign-in',
+        '/sign-up',
+        '/privacy-policy',
+        '/terms-of-service',
+        '/pricing',
+        '/sales',
+        '/invite',
+        '/web-test',
+      ];
+
+      // Allow route-group paths like /(public)
+      if (pathname.startsWith('/(public)')) return true;
+
+      // Allow explicit prefixes above
+      if (publicPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))) return true;
+
+      // Allow auth callback and registration anywhere
+      if (pathname.includes('auth-callback') || pathname.includes('register')) return true;
+
+      return false;
+    })();
     
     // Redirect to root (marketing landing) if no session and not on public route
     if (!session && !isPublicRoute) {
@@ -153,20 +172,67 @@ function LayoutContent() {
 export default function RootLayout() {
   console.log('[RootLayout] Rendering...');
   
+  // Add PWA head tags on web platform
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const head = document.head;
+      
+      // Add manifest link
+      const manifestLink = document.createElement('link');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = '/manifest.json';
+      head.appendChild(manifestLink);
+      
+      // Add theme color
+      const themeColor = document.createElement('meta');
+      themeColor.name = 'theme-color';
+      themeColor.content = '#00f5ff';
+      head.appendChild(themeColor);
+      
+      // Add apple touch icon
+      const appleTouchIcon = document.createElement('link');
+      appleTouchIcon.rel = 'apple-touch-icon';
+      appleTouchIcon.href = '/icons/icon-192.png';
+      head.appendChild(appleTouchIcon);
+      
+      // Add apple mobile web app capable
+      const appleCapable = document.createElement('meta');
+      appleCapable.name = 'apple-mobile-web-app-capable';
+      appleCapable.content = 'yes';
+      head.appendChild(appleCapable);
+      
+      // Add apple status bar style
+      const appleStatusBar = document.createElement('meta');
+      appleStatusBar.name = 'apple-mobile-web-app-status-bar-style';
+      appleStatusBar.content = 'black-translucent';
+      head.appendChild(appleStatusBar);
+      
+      // Add apple app title
+      const appleTitle = document.createElement('meta');
+      appleTitle.name = 'apple-mobile-web-app-title';
+      appleTitle.content = 'EduDash Pro';
+      head.appendChild(appleTitle);
+      
+      console.log('[RootLayout] PWA head tags added');
+    }
+  }, []);
+  
   return (
     <SafeAreaProvider>
       <QueryProvider>
         <ThemeProvider>
           <AuthProvider>
-            <DashboardPreferencesProvider>
-              <TermsProvider>
-                <ToastProvider>
-                  <GestureHandlerRootView style={{ flex: 1 }}>
-                    <RootLayoutContent />
-                  </GestureHandlerRootView>
-                </ToastProvider>
-              </TermsProvider>
-            </DashboardPreferencesProvider>
+            <OnboardingProvider>
+              <DashboardPreferencesProvider>
+                <TermsProvider>
+                  <ToastProvider>
+                    <GestureHandlerRootView style={{ flex: 1 }}>
+                      <RootLayoutContent />
+                    </GestureHandlerRootView>
+                  </ToastProvider>
+                </TermsProvider>
+              </DashboardPreferencesProvider>
+            </OnboardingProvider>
           </AuthProvider>
         </ThemeProvider>
       </QueryProvider>
@@ -179,6 +245,27 @@ function RootLayoutContent() {
   const { session } = useAuth(); // Now we're inside AuthProvider
   
   console.log('[RootLayoutContent] Rendering...');
+  
+  // Register service worker for PWA (web-only)
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    
+    const w = globalThis as any;
+    const n = w?.navigator;
+    
+    if (n?.serviceWorker) {
+      n.serviceWorker
+        .register('/sw.js')
+        .then((registration: any) => {
+          console.log('[PWA] Service worker registered:', registration.scope);
+        })
+        .catch((error: Error) => {
+          console.warn('[PWA] Service worker registration failed:', error);
+        });
+    } else {
+      console.log('[PWA] Service workers not supported in this browser');
+    }
+  }, []);
   
   // Initialize Dash AI Assistant at root level and sync context
   useEffect(() => {

@@ -80,7 +80,7 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
           )
         `)
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (!error && data) {
         profile = data;
@@ -119,7 +119,7 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
             )
           `)
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         
         if (!error && data) {
           profile = data;

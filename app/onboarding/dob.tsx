@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
+  TextInput,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
@@ -45,11 +46,29 @@ export default function DOBCaptureScreen() {
     }
   };
 
+  // Compute age group on mount for initial date
+  useEffect(() => {
+    computeAgeGroupFromDate(dateOfBirth);
+  }, []);
+
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowPicker(Platform.OS === 'ios');
     if (selectedDate) {
       setDateOfBirth(selectedDate);
       computeAgeGroupFromDate(selectedDate);
+    }
+  };
+
+  // Web-only: handle date input change
+  const handleWebDateChange = (dateString: string) => {
+    try {
+      const selected = new Date(dateString);
+      if (!isNaN(selected.getTime())) {
+        setDateOfBirth(selected);
+        computeAgeGroupFromDate(selected);
+      }
+    } catch (e) {
+      console.error('Invalid date:', e);
     }
   };
 
@@ -90,13 +109,31 @@ export default function DOBCaptureScreen() {
         </View>
 
         <View style={styles.dateSection}>
-          <TouchableOpacity
-            style={styles.dateButton}
-            onPress={() => setShowPicker(true)}
-          >
-            <Text style={styles.dateLabel}>Date of Birth</Text>
-            <Text style={styles.dateValue}>{formatDate(dateOfBirth)}</Text>
-          </TouchableOpacity>
+          {Platform.OS === 'web' ? (
+            // Web: native HTML date input
+            <View style={styles.webDateInputContainer}>
+              <Text style={styles.dateLabel}>Date of Birth</Text>
+              <TextInput
+                style={styles.webDateInput}
+                value={dateOfBirth.toISOString().split('T')[0]}
+                onChangeText={handleWebDateChange}
+                placeholder="YYYY-MM-DD"
+                // @ts-ignore - web-only prop
+                type="date"
+                max={new Date().toISOString().split('T')[0]}
+                min="1920-01-01"
+              />
+            </View>
+          ) : (
+            // Native: TouchableOpacity with picker
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowPicker(true)}
+            >
+              <Text style={styles.dateLabel}>Date of Birth</Text>
+              <Text style={styles.dateValue}>{formatDate(dateOfBirth)}</Text>
+            </TouchableOpacity>
+          )}
 
           {ageGroup && (
             <View style={styles.ageInfo}>
@@ -115,7 +152,7 @@ export default function DOBCaptureScreen() {
           )}
         </View>
 
-        {(showPicker || Platform.OS === 'ios') && (
+        {Platform.OS !== 'web' && (showPicker || Platform.OS === 'ios') && (
           <View style={styles.pickerContainer}>
             <DateTimePicker
               value={dateOfBirth}
@@ -261,5 +298,23 @@ const styles = StyleSheet.create({
   },
   continueButtonTextDisabled: {
     color: '#9CA3AF',
+  },
+  webDateInputContainer: {
+    backgroundColor: '#F8F9FA',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#4F46E5',
+  },
+  webDateInput: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    marginTop: 8,
   },
 });

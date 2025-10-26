@@ -505,16 +505,50 @@ case 'homework':
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.primary,
-      paddingHorizontal: 24,
+      paddingHorizontal: 20,
       paddingVertical: 12,
-      borderRadius: 8,
-      marginTop: 16,
+      borderRadius: 12,
     },
     emptyStateButtonText: {
-      color: '#fff',
       fontSize: 14,
+      fontWeight: '600',
+    },
+    // Claim overlay styles
+    claimOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backdropFilter: 'blur(4px)',
+    },
+    claimButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      borderRadius: 12,
+      gap: 8,
+    },
+    claimButtonText: {
+      color: '#fff',
+      fontSize: 16,
       fontWeight: '700',
+    },
+    infoBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 12,
+      borderRadius: 8,
+      borderWidth: 1,
+      marginBottom: 12,
+    },
+    infoText: {
+      fontSize: 13,
+      lineHeight: 18,
     },
     // Principal Dashboard Style Section Headers
     sectionHeader: {
@@ -892,19 +926,19 @@ case 'homework':
               <Text style={styles.sectionTitle}>{t('parent.noChildrenFound')}</Text>
             </View>
             <View style={styles.emptyState}>
-              <Ionicons name="person-add" size={48} color={theme.textSecondary} />
-              <Text style={styles.emptyStateTitle}>{t('parent.noChildrenLinked')}</Text>
+              <Ionicons name="search" size={48} color={theme.primary} />
+              <Text style={styles.emptyStateTitle}>No Children Linked Yet</Text>
               <Text style={styles.emptyStateSubtitle}>
-                {t('parent.registerOrLinkChild')}
+                Search for your child by name to link them to your account. The school will approve your request.
               </Text>
               
               {/* Claim Existing Child Button */}
               <TouchableOpacity 
-                style={[styles.emptyStateButton, { backgroundColor: theme.primary, marginBottom: 12 }]}
+                style={[styles.emptyStateButton, { backgroundColor: theme.primary, marginBottom: 12, marginTop: 8 }]}
                 onPress={() => router.push('/screens/parent-claim-child')}
               >
-                <Ionicons name="link" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={[styles.emptyStateButtonText, { color: '#fff' }]}>Claim Existing Child</Text>
+                <Ionicons name="search" size={20} color="#fff" style={{ marginRight: 8 }} />
+                <Text style={[styles.emptyStateButtonText, { color: '#fff' }]}>Search & Claim Child</Text>
               </TouchableOpacity>
               
               {/* Register New Child Button */}

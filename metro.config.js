@@ -6,10 +6,12 @@
  * 
  * Only essential customizations:
  * - JSON files as source files (required for i18n locales)
+ * - Public assets serving (PWA manifest and icons)
  * 
  * Learn more: https://docs.expo.io/guides/customizing-metro
  */
 const { getDefaultConfig } = require('expo/metro-config');
+const path = require('path');
 
 // Load environment variables from .env file
 require('dotenv').config();
@@ -139,6 +141,60 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return originalResolver(context, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
+};
+
+// Serve public assets (PWA manifest and icons) for web builds
+const fs = require('fs');
+
+config.server = {
+  ...config.server,
+  enhanceMiddleware: (middleware) => {
+    return (req, res, next) => {
+      // Serve /manifest.json from /public/manifest.json
+      if (req.url === '/manifest.json') {
+        const manifestPath = path.join(__dirname, 'public', 'manifest.json');
+        try {
+          const content = fs.readFileSync(manifestPath, 'utf8');
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          res.end(content);
+          return;
+        } catch (err) {
+          console.error('[Metro] Failed to serve manifest.json:', err);
+        }
+      }
+      
+      // Serve /icons/* from /public/icons/*
+      if (req.url.startsWith('/icons/')) {
+        const iconPath = path.join(__dirname, 'public', req.url);
+        try {
+          const content = fs.readFileSync(iconPath);
+          res.setHeader('Content-Type', 'image/png');
+          res.setHeader('Cache-Control', 'public, max-age=31536000');
+          res.end(content);
+          return;
+        } catch (err) {
+          console.error('[Metro] Failed to serve icon:', req.url, err.message);
+        }
+      }
+      
+      // Serve /sw.js from /public/sw.js
+      if (req.url === '/sw.js') {
+        const swPath = path.join(__dirname, 'public', 'sw.js');
+        try {
+          const content = fs.readFileSync(swPath, 'utf8');
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.end(content);
+          return;
+        } catch (err) {
+          console.error('[Metro] Failed to serve sw.js:', err);
+        }
+      }
+      
+      return middleware(req, res, next);
+    };
+  },
 };
 
 module.exports = config;

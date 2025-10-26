@@ -30,6 +30,7 @@ export type SearchedStudent = {
   last_name: string;
   date_of_birth: string;
   avatar_url?: string | null;
+  preschool_id?: string | null;
   age_group?: { name: string } | null;
 };
 
@@ -176,14 +177,31 @@ export class ParentJoinService {
     preschoolId: string, 
     query: string
   ): Promise<SearchedStudent[]> {
-    const { data, error } = await assertSupabase()
+    const supabase = assertSupabase();
+
+    // Prefer explicit FK-qualified embed to avoid PostgREST 300 (ambiguous relationship)
+    const selectWithAgeGroup = 'id, first_name, last_name, date_of_birth, avatar_url, preschool_id, age_group:age_groups!students_age_group_id_fkey(name)';
+
+    let { data, error, status } = await supabase
       .from('students')
-      .select('id, first_name, last_name, date_of_birth, avatar_url, age_group:age_groups(name)')
+      .select(selectWithAgeGroup)
       .eq('preschool_id', preschoolId)
       .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
       .order('first_name', { ascending: true })
       .limit(20);
-    
+
+    // If ambiguous relationship persists (HTTP 300 / PGRST302), retry without embed as a safe fallback
+    if (error && (status === 300 || (error as any)?.code === 'PGRST302')) {
+      const retry = await supabase
+        .from('students')
+        .select('id, first_name, last_name, date_of_birth, avatar_url, preschool_id')
+        .eq('preschool_id', preschoolId)
+        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+        .order('first_name', { ascending: true })
+        .limit(20);
+      if (retry.error) throw retry.error;
+      return (retry.data || []) as SearchedStudent[];
+    }
     if (error) throw error;
     return (data || []) as SearchedStudent[];
   }

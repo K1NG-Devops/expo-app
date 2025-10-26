@@ -1,67 +1,55 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
-  Text,
   ScrollView,
-  TouchableOpacity,
   StyleSheet,
-  Animated,
-  Dimensions,
   Platform,
-  Modal,
-  ColorValue,
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, Link } from 'expo-router';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Pressable } from 'react-native';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import { DesignSystem } from '@/constants/DesignSystem';
-import { Avatar } from '@/components/ui/Avatar';
-import AdBanner from '@/components/ui/AdBanner';
-import { featuresContent } from '@/constants/marketing';
-import { useAuth } from '@/contexts/AuthContext';
-import { normalizeRole } from '@/lib/rbac';
 import { setPageMetadata, landingPageSEO } from '@/lib/webSEO';
 
-const { width, height } = Dimensions.get('window');
-const isSmall = width < 400;
+// Modern design system imports
+import { marketingTokens } from './tokens';
+import { useResponsive } from './useResponsive';
+
+// Section components
+import { HeroSection } from './sections/HeroSection';
+import { TrustBadgesSection } from './sections/TrustBadgesSection';
+import { FeaturesSection } from './sections/FeaturesSection';
+import { DashAISection } from './sections/DashAISection';
+import { RoleBasedBenefitsSection } from './sections/RoleBasedBenefitsSection';
+import { TestimonialsSection } from './sections/TestimonialsSection';
+import { PricingSection } from './sections/PricingSection';
+import { QASection } from './sections/QASection';
+import { CTASection } from './sections/CTASection';
+import { FooterSection } from './sections/FooterSection';
+import { PWAInstallButton } from './PWAInstallButton';
+
 const isWeb = Platform.OS === 'web';
-const isTablet = width >= 768;
-const isDesktop = width >= 1024;
 
-interface FeaturesSectionProps {
-  setSelectedFeature: (feature: any) => void;
-  webOptimized?: boolean;
-}
-
-interface TestimonialsSectionProps {
-  activeTestimonial: number;
-  setActiveTestimonial: (index: number | ((prev: number) => number)) => void;
-  webOptimized?: boolean;
-}
-
-interface QASectionProps {
-  webOptimized?: boolean;
-}
-
-interface FeatureModalProps {
-  selectedFeature: any;
-  setSelectedFeature: (feature: any) => void;
-}
-
+/**
+ * Modern marketing landing page with glassmorphism design
+ * Dark theme optimized for web and mobile
+ * 
+ * Architecture: Modular section-based design
+ * Each section is a self-contained component in ./sections/
+ * 
+ * Design System:
+ * - Dark minimal theme with glassmorphism
+ * - Cyan/blue gradient accents
+ * - Mobile-first responsive scaling
+ * - Accessibility-friendly (WCAG AA contrast, 44dp touch targets)
+ * 
+ * @returns Marketing landing page with all sections
+ */
 export default function MarketingLanding() {
-  console.log('[Landing] Rendering start');
-  const [selectedFeature, setSelectedFeature] = useState<any>(null);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [webOptimized, setWebOptimized] = useState(false);
-  const [isAppLoading, setIsAppLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
+  const { columns } = useResponsive();
 
-  // Web-only: if a raw ?code=XYZ arrives at the root URL, redirect to the invite entry handler
+  // Web-only: handle invitation codes and SEO
   useEffect(() => {
     if (isWeb) {
       try {
@@ -73,510 +61,89 @@ export default function MarketingLanding() {
       } catch (e) {
         console.warn('[Landing] Failed to parse query for invite code:', e);
       }
-      // Ensure splash state is off on web to avoid any unintended effects
-      setShowSplash(false);
+      setPageMetadata(landingPageSEO);
     }
-     
   }, []);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    // Simulate a lightweight refresh (e.g., refetch marketing content later)
     setTimeout(() => setRefreshing(false), 600);
   }, []);
 
-  useEffect(() => {
-    // Set SEO metadata for web
-    if (isWeb) {
-      console.log('[Landing] Setting SEO metadata');
-      setPageMetadata(landingPageSEO);
-    }
-
-    // Enable web-specific optimizations
-    if (isWeb && (isTablet || isDesktop)) {
-      console.log('[Landing] Enabling web optimizations');
-      setWebOptimized(true);
-    }
-
-    // Simulate app initialization
-    const initializeApp = async () => {
-      // Add any app initialization logic here
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading time
-      console.log('[Landing] Init complete');
-      setIsAppLoading(false);
-    };
-
-    initializeApp();
-
-    // Removed mobile-first routing logic
-  }, [showSplash]);
-
-
-  // Splash screen removed
-
-  console.log('[Landing] Rendering UI');
   return (
     <View style={styles.container}>
       <StatusBar style="light" translucent />
-      <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
-        <View style={{ flex: 1 }}>
-          <HeroSection webOptimized={webOptimized} />
-          <FeaturesSection setSelectedFeature={setSelectedFeature} webOptimized={webOptimized} />
-          <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} webOptimized={webOptimized} />
-          <QASection webOptimized={webOptimized} />
-          {!webOptimized && <AdBanner />}
-          <FooterSection />
-        </View>
-      </SafeAreaView>
+      
+      {/* Background gradient */}
+      <LinearGradient
+        colors={marketingTokens.gradients.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={marketingTokens.colors.accent.cyan400}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero with headline and CTAs */}
+        <HeroSection />
+        
+        {/* Trust badges row */}
+        <TrustBadgesSection />
+        
+        {/* Feature grid with glass cards */}
+        <FeaturesSection columns={columns} />
+        
+        {/* Dash AI showcase */}
+        <DashAISection />
+        
+        {/* Role-based benefits (Teachers, Parents, Principals) */}
+        <RoleBasedBenefitsSection columns={columns} />
+        
+        {/* Testimonial carousel */}
+        <TestimonialsSection columns={columns} />
+        
+        {/* Pricing tiers */}
+        <PricingSection columns={columns} />
+        
+        {/* FAQ accordion */}
+        <QASection />
+        
+        {/* Final CTA */}
+        <CTASection />
+        
+        {/* Footer */}
+        <FooterSection />
+      </ScrollView>
 
-      <FeatureModal selectedFeature={selectedFeature} setSelectedFeature={setSelectedFeature} />
+      {/* PWA Install Prompt (web only) */}
+      <PWAInstallButton />
     </View>
   );
 }
 
-const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
-  const floatingY = useRef(new Animated.Value(0)).current;
-
-  const { profile } = useAuth();
-  const roleNorm = normalizeRole(String(profile?.role || ''));
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatingY, { toValue: isSmall ? -12 : -20, duration: 2000, useNativeDriver: true }),
-        Animated.timing(floatingY, { toValue: 0, duration: 2000, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
-
-  return (
-    <View style={styles.heroContainer}>
-      <LinearGradient
-        colors={['#0a0a0f', '#1a0a2e', '#16213e', '#0f3460', '#533a71']}
-        style={styles.heroGradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <SafeAreaView edges={['top', 'left', 'right']} style={styles.heroContent}>
-          <View style={styles.navbar}>
-            <View style={styles.logo}>
-              <LinearGradient colors={['#00f5ff', '#0080ff', '#8000ff']} style={styles.logoGradient}>
-                <IconSymbol name="help-circle" size={28} color="#FFFFFF" />
-              </LinearGradient>
-              <Text style={styles.logoText}>EduDash Pro</Text>
-            </View>
-          </View>
-
-          <View style={[styles.heroTextContainer, webOptimized && styles.heroTextContainerWeb]}>
-            <Animated.View style={[styles.heroTitle, { transform: [{ translateY: floatingY }] }, webOptimized && styles.heroTitleWeb]}>
-              <Text style={[styles.heroMainTitle, webOptimized && styles.heroMainTitleWeb]}>
-                Empower Your Preschool with{String.fromCharCode(10)}
-                <Text style={styles.gradientTextPrimary}>AI-Powered Education</Text>
-              </Text>
-              <Text style={[styles.heroSubtitle, webOptimized && styles.heroSubtitleWeb]}>
-                A comprehensive platform for preschools, teachers, and parents. Streamline classroom management, track student progress, and enhance learning outcomes with intelligent tools designed for early childhood education.
-                {webOptimized && " Trusted by educational institutions across South Africa."}
-              </Text>
-            </Animated.View>
-
-            <View style={styles.statsContainer}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>3-6</Text>
-                <Text style={styles.statLabel}>Years Old</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>AI</Text>
-                <Text style={styles.statLabel}>Powered</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>100%</Text>
-                <Text style={styles.statLabel}>COPPA Safe</Text>
-              </View>
-            </View>
-
-          <View style={styles.heroActions}>
-              <TouchableOpacity style={styles.primaryCTA} onPress={() => router.push('/(auth)/sign-up')}>
-                <LinearGradient colors={['#00f5ff', '#0080ff']} style={styles.ctaGradient}>
-                  <Text style={styles.ctaText}>Get Started Free</Text>
-                  <IconSymbol name="arrow.right" size={20} color="#000000" />
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.secondaryCTANew}
-                onPress={() => router.push('/(auth)/sign-in')}
-              >
-                <Text style={styles.secondaryCtaTextNew}>Already have an account? Sign In</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
-    </View>
-  );
-};
-
-
-const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature }) => {
-  const features = featuresContent;
-  return (
-    <View style={styles.featuresContainer}>
-      <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.featuresGradient}>
-        <Text style={styles.sectionTitle}>Key Features</Text>
-        <Text style={styles.sectionSubtitle}>Everything you need to run your preschool efficiently</Text>
-        <View style={styles.featuresGrid}>
-          {features.map((feature) => (
-            <TouchableOpacity key={feature.id} style={styles.featureCard} onPress={() => setSelectedFeature(feature)}>
-              <LinearGradient colors={DesignSystem.gradients.surfaceCard as [ColorValue, ColorValue]} style={styles.featureGradient}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureSubtitle}>{feature.subtitle}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-                {feature.tech ? (
-                  <View style={styles.featureTech}>
-                    <Text style={styles.featureTechText}>{feature.tech}</Text>
-                  </View>
-                ) : null}
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </LinearGradient>
-    </View>
-  );
-};
-
-const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimonial, setActiveTestimonial }) => {
-  const testimonials = require('@/constants/marketing').testimonialsContent as typeof import('@/constants/marketing').testimonialsContent;
-  const isDesktopView = width >= (DesignSystem.breakpoints?.lg ?? 1024);
-
-  useEffect(() => {
-    if (isDesktopView) return;
-    const interval = setInterval(() => {
-      setActiveTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [isDesktopView]);
-
-  const TestimonialCard = ({ index }: { index: number }) => (
-    <View style={styles.testimonialCard}>
-      <LinearGradient colors={DesignSystem.gradients.surfaceCard as [ColorValue, ColorValue]} style={styles.testimonialGradient}>
-        <View style={styles.testimonialHeader}>
-          <View style={styles.avatarContainer}>
-            <Avatar name={testimonials[index].name} imageUri={testimonials[index].imageUri} size={50} />
-          </View>
-          <View style={styles.testimonialInfo}>
-            <Text style={styles.testimonialName}>{testimonials[index].name}</Text>
-            <Text style={styles.testimonialRole}>{testimonials[index].role}</Text>
-            <Text style={styles.testimonialSchool}>{testimonials[index].org}</Text>
-          </View>
-        </View>
-        <Text style={styles.testimonialMessage}>"{testimonials[index].message}"</Text>
-      </LinearGradient>
-    </View>
-  );
-
-  return (
-    <View style={styles.testimonialsContainer}>
-      <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.testimonialsGradient}>
-        <Text style={styles.sectionTitle}>What Educators Say</Text>
-        <Text style={styles.sectionSubtitle}>Trusted by preschools across South Africa</Text>
-        <View style={{ flex: 1 }}>
-          <TestimonialCard index={activeTestimonial} />
-          <View style={styles.testimonialDots}>
-            {testimonials.map((_: any, index: number) => (
-              <TouchableOpacity key={index} style={[styles.dot, index === activeTestimonial && styles.activeDot]} onPress={() => setActiveTestimonial(index)} />
-            ))}
-          </View>
-        </View>
-      </LinearGradient>
-    </View>
-  );
-};
-
-const QASection: React.FC<QASectionProps> = () => {
-  const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
-  const qaData = [
-    { question: 'How does the AI assistance work?', answer: 'Our AI tools run securely on the server with strict privacy and COPPA compliance. No child data is used for AI training.' },
-    { question: 'Is it safe for preschool children?', answer: 'Yes. EduDash Pro is designed specifically for ages 3-6 with parental consent, data minimization, and child-directed advertising restrictions.' },
-    { question: 'Do I need technical skills to use it?', answer: 'No technical skills required. Our platform is designed to be intuitive for teachers, parents, and administrators with no prior tech experience.' },
-  ];
-  return (
-    <View style={styles.qaContainer}>
-      <LinearGradient colors={['#0f3460', '#533a71']} style={styles.qaGradient}>
-        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
-        <Text style={styles.sectionSubtitle}>Common questions about EduDash Pro</Text>
-        <View style={styles.qaList}>
-          {qaData.map((item, index) => (
-            <TouchableOpacity key={index} style={styles.qaItem} onPress={() => setSelectedQuestion(selectedQuestion === index ? null : index)}>
-              <LinearGradient colors={selectedQuestion === index ? ['rgba(0,245,255,0.2)', 'rgba(128,0,255,0.2)'] : ['rgba(0,245,255,0.05)', 'rgba(128,0,255,0.05)']} style={styles.qaItemGradient}>
-                <View style={styles.qaHeader}>
-                  <Text style={styles.qaQuestion}>{item.question}</Text>
-                  <IconSymbol name={selectedQuestion === index ? 'chevron.up' : 'chevron.down'} size={20} color="#00f5ff" />
-                </View>
-                {selectedQuestion === index && <Text style={styles.qaAnswer}>{item.answer}</Text>}
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </LinearGradient>
-    </View>
-  );
-};
-
-const FeatureModal: React.FC<FeatureModalProps> = ({ selectedFeature, setSelectedFeature }) => {
-  if (!selectedFeature) return null;
-  return (
-    <Modal visible transparent animationType="fade" onRequestClose={() => setSelectedFeature(null)}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <LinearGradient colors={selectedFeature.color} style={styles.modalGradient}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedFeature(null)}>
-              <IconSymbol name="xmark" size={24} color="#000000" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{selectedFeature.title}</Text>
-            <Text style={styles.modalSubtitle}>{selectedFeature.subtitle}</Text>
-            <Text style={styles.modalDescription}>{selectedFeature.description}</Text>
-            <Text style={styles.modalTech}>Technology: {selectedFeature.tech}</Text>
-            <TouchableOpacity style={styles.tryFeatureButton} onPress={() => setSelectedFeature(null)}>
-              <Text style={styles.tryFeatureText}>ACTIVATE FEATURE</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
-const FooterSection = () => {
-  const handleLegalNavigation = (path: string) => {
-    router.push(path);
-  };
-
-  return (
-    <View style={styles.footerContainer}>
-      <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.footerGradient}>
-        <View style={styles.footerContent}>
-          <View style={styles.footerLogo}>
-            <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.footerLogoGradient}>
-              <IconSymbol name="help-circle" size={32} color="#000000" />
-            </LinearGradient>
-            <Text style={styles.footerLogoText}>EduDash Pro</Text>
-            <Text style={styles.footerLogoSubtext}>AI-Powered Education Platform</Text>
-          </View>
-
-          {/* Legal Links */}
-          <View style={styles.footerLinks}>
-            <Link href="/privacy-policy" asChild>
-              <Pressable
-                onPress={() => handleLegalNavigation('/privacy-policy')}
-                style={({ pressed }) => [
-                  styles.footerLink,
-                  pressed && styles.footerLinkPressed,
-                ]}
-                accessibilityRole="link"
-                accessibilityLabel="Privacy Policy"
-              >
-                <Text style={styles.footerLinkText}>Privacy Policy</Text>
-              </Pressable>
-            </Link>
-
-            <View style={styles.footerLinkDivider} />
-
-            <Link href="/terms-of-service" asChild>
-              <Pressable
-                onPress={() => handleLegalNavigation('/terms-of-service')}
-                style={({ pressed }) => [
-                  styles.footerLink,
-                  pressed && styles.footerLinkPressed,
-                ]}
-                accessibilityRole="link"
-                accessibilityLabel="Terms of Service"
-              >
-                <Text style={styles.footerLinkText}>Terms of Service</Text>
-              </Pressable>
-            </Link>
-          </View>
-
-          {/* Copyright */}
-          <Text style={styles.footerCopyright}>
-            © 2025 EduDash Pro. All rights reserved.
-          </Text>
-        </View>
-      </LinearGradient>
-    </View>
-  );
-};
-
+/**
+ * Styles for container and scroll view only
+ * All section styles are co-located in ./sections/ components
+ */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: DesignSystem.colors.background },
-  loadingContainer: {
-    backgroundColor: '#0a0a0f',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#00f5ff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 0 },
-  heroContainer: { minHeight: Math.max(600, height * 0.9) },
-  heroGradient: { flex: 1, position: 'relative' },
-  heroContent: { flex: 1, zIndex: 2, paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg },
-  navbar: { flexDirection: 'column', justifyContent: 'center', alignItems: 'center', paddingVertical: isSmall ? 12 : 16, marginBottom: isSmall ? 28 : 32 },
-  logo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  logoGradient: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 8 },
-  logoText: { fontSize: 24, fontWeight: 'bold', color: DesignSystem.colors.text.primary, marginRight: 6 },
-  logoSubtext: { fontSize: 12, color: DesignSystem.colors.text.quantum, fontWeight: '600' },
-  accessButton: { borderRadius: 25, overflow: 'hidden', marginTop: 10 },
-  accessGradient: { paddingHorizontal: isSmall ? 16 : 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' },
-  accessButtonText: { fontSize: 16, fontWeight: '700', color: '#000000', marginRight: 8 },
-  heroTextContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingTop: isSmall ? 6 : 10 },
-  heroTitle: { alignItems: 'center', marginBottom: isSmall ? 24 : 32 },
-  heroMainTitle: { fontSize: isSmall ? 28 : 36, fontWeight: '900', textAlign: 'center', color: DesignSystem.colors.text.primary, marginBottom: 12, lineHeight: isSmall ? 32 : 42 },
-  gradientTextPrimary: { color: DesignSystem.colors.text.quantum },
-  gradientTextSecondary: { color: DesignSystem.colors.secondary },
-  heroSubtitle: { fontSize: isSmall ? 15 : 17, color: DesignSystem.colors.text.secondary, textAlign: 'center', lineHeight: isSmall ? 21 : 24, maxWidth: 420, marginTop: 6 },
-  statsContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-around', 
-    marginBottom: isSmall ? 24 : 32, 
-    width: '100%',
-    paddingHorizontal: DesignSystem.spacing.md,
-  },
-  statCard: { 
-    alignItems: 'center', 
+  container: {
     flex: 1,
-    paddingVertical: 16,
+    backgroundColor: marketingTokens.colors.bg.base,
   },
-  statNumber: { 
-    fontSize: 28, 
-    fontWeight: '800', 
-    color: DesignSystem.colors.text.primary, 
-    marginBottom: 4 
+  scrollView: {
+    flex: 1,
   },
-  statLabel: { 
-    fontSize: 12, 
-    color: DesignSystem.colors.text.secondary, 
-    fontWeight: '600', 
-    textAlign: 'center' 
+  scrollContent: {
+    paddingBottom: 0,
   },
-  heroActions: { width: '100%', alignItems: 'center' },
-  primaryCTA: { borderRadius: 30, overflow: 'hidden', marginBottom: 14, width: 'auto' },
-  ctaGradient: { paddingHorizontal: isSmall ? 20 : 28, paddingVertical: isSmall ? 12 : 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  ctaText: { fontSize: isSmall ? 15 : 16, fontWeight: '800', color: '#000000', marginLeft: 8, letterSpacing: 0.5 },
-  secondaryCTANew: { 
-    marginTop: 16, 
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  secondaryCtaTextNew: { 
-    fontSize: 14, 
-    fontWeight: '600', 
-    color: DesignSystem.colors.text.secondary,
-    textDecorationLine: 'underline',
-  },
-  featuresContainer: { },
-  featuresGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 36, justifyContent: 'center' },
-  sectionTitle: { fontSize: isSmall ? 26 : 32, fontWeight: '900', color: DesignSystem.colors.text.primary, textAlign: 'center', marginBottom: 12, letterSpacing: 1 },
-  sectionSubtitle: { fontSize: 14, color: DesignSystem.colors.text.quantum, textAlign: 'center', marginBottom: isSmall ? 18 : 24, fontWeight: '600' },
-  featuresGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: isSmall ? 12 : 16 },
-  featureCard: { width: width < 480 ? width - 48 : (width - 80) / 2, borderRadius: 20, overflow: 'hidden', marginBottom: isSmall ? 14 : 18 },
-  featureGradient: { padding: isSmall ? 16 : 18, minHeight: 140, borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 16 },
-  featureTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 6 },
-  featureSubtitle: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 10 },
-  featureDescription: { fontSize: 13, color: '#4B5563', lineHeight: 18, marginBottom: 10 },
-  featureTech: { marginTop: 'auto' },
-  featureTechText: { fontSize: 12, color: '#6B7280', fontWeight: '600', fontStyle: 'italic' },
-  testimonialsContainer: { },
-  testimonialsGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 36, justifyContent: 'center' },
-  testimonialCard: { marginHorizontal: isSmall ? 16 : 20, borderRadius: 20, overflow: 'hidden' },
-  testimonialGradient: { padding: isSmall ? 18 : 22 },
-  testimonialHeader: { flexDirection: 'row', marginBottom: 16, alignItems: 'center' },
-  avatarContainer: { position: 'relative', alignItems: 'center' },
-  testimonialInfo: { flex: 1, alignItems: 'flex-start' },
-  testimonialName: { fontSize: 16, fontWeight: '800', color: '#111827', marginBottom: 2 },
-  testimonialRole: { fontSize: 13, color: DesignSystem.colors.text.quantum, marginBottom: 2 },
-  testimonialSchool: { fontSize: 12, color: '#6B7280' },
-  testimonialMessage: { fontSize: 15, color: '#374151', lineHeight: 21, marginBottom: 16, fontStyle: 'italic', textAlign: 'center' },
-  testimonialDots: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D1D5DB' },
-  activeDot: { backgroundColor: DesignSystem.colors.text.quantum },
-  qaContainer: { },
-  qaGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 32, justifyContent: 'center' },
-  qaList: { gap: isSmall ? 8 : 12 },
-  qaItem: { borderRadius: 15, overflow: 'hidden' },
-  qaItemGradient: { padding: isSmall ? 16 : 20 },
-  qaHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  qaQuestion: { fontSize: 15, fontWeight: '700', color: DesignSystem.colors.text.primary, flex: 1, marginRight: 10 },
-  qaAnswer: { fontSize: 13, color: DesignSystem.colors.text.secondary, lineHeight: 19, marginTop: 12 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: DesignSystem.spacing.lg },
-  modalContent: { width: '100%', maxWidth: 400, borderRadius: 25, overflow: 'hidden' },
-  modalGradient: { padding: 26, position: 'relative' },
-  closeButton: { position: 'absolute', top: 12, right: 12, zIndex: 1, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 15, padding: 8 },
-  modalTitle: { fontSize: 22, fontWeight: '900', color: '#000000', textAlign: 'center', marginBottom: 8 },
-  modalSubtitle: { fontSize: 15, fontWeight: '600', color: 'rgba(0,0,0,0.8)', textAlign: 'center', marginBottom: 12 },
-  modalDescription: { fontSize: 13, color: 'rgba(0,0,0,0.7)', textAlign: 'center', lineHeight: 19, marginBottom: 12 },
-  modalTech: { fontSize: 12, color: 'rgba(0,0,0,0.6)', textAlign: 'center', fontStyle: 'italic', marginBottom: 20 },
-  tryFeatureButton: { backgroundColor: 'rgba(0,0,0,0.2)', paddingVertical: 14, borderRadius: 25 },
-  tryFeatureText: { fontSize: 15, fontWeight: '800', color: '#000000', textAlign: 'center', letterSpacing: 0.5 },
-  footerContainer: { paddingTop: 32, paddingBottom: 12 },
-  footerGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg },
-  footerContent: { alignItems: 'center' },
-  footerLogo: { alignItems: 'center', marginBottom: 24 },
-  footerLogoGradient: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  footerLogoText: { fontSize: 26, fontWeight: '900', color: DesignSystem.colors.text.primary, marginBottom: 4 },
-  footerLogoSubtext: { fontSize: 13, color: DesignSystem.colors.text.quantum, fontWeight: '600' },
-  footerLinks: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    marginBottom: 16,
-    gap: 16,
-  },
-  footerLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    ...(Platform.OS === 'web' && {
-      cursor: 'pointer',
-      transition: 'opacity 0.2s',
-    }),
-  },
-  footerLinkPressed: {
-    opacity: 0.6,
-  },
-  footerLinkText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: DesignSystem.colors.text.secondary,
-    textDecorationLine: 'underline',
-    ...(Platform.OS === 'web' && {
-      ':hover': {
-        color: DesignSystem.colors.text.primary,
-      },
-    }),
-  },
-  footerLinkDivider: {
-    width: 1,
-    height: 16,
-    backgroundColor: DesignSystem.colors.text.secondary,
-    opacity: 0.3,
-  },
-  footerCopyright: {
-    fontSize: 12,
-    color: DesignSystem.colors.text.secondary,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  // Web-specific styles
-  accessButtonWeb: { borderRadius: 8 },
-  accessGradientWeb: { paddingHorizontal: 24, paddingVertical: 14 },
-  accessButtonTextWeb: { fontSize: 14 },
-  heroTextContainerWeb: { maxWidth: 800, alignSelf: 'center' },
-  heroTitleWeb: { marginBottom: 32 },
-  heroMainTitleWeb: { fontSize: 48, lineHeight: 56 },
-  heroTaglineWeb: { fontSize: 16, marginBottom: 16 },
-  heroSubtitleWeb: { fontSize: 18, lineHeight: 26, maxWidth: 600 },
 });

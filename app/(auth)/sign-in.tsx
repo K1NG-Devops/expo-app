@@ -11,10 +11,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
 import { secureStore } from '@/lib/secure-store';
 import { signInWithSession } from '@/lib/sessionManager';
+import { LinearGradient } from 'expo-linear-gradient';
+import { marketingTokens } from '@/components/marketing/tokens';
+import { GlassCard } from '@/components/marketing/GlassCard';
+import { GradientButton } from '@/components/marketing/GradientButton';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'expo-router';
 
 export default function SignIn() {
   const { t } = useTranslation();
   const { theme } = useTheme();
+  const { session, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,6 +30,24 @@ export default function SignIn() {
   const passwordInputRef = useRef<TextInput>(null);
 
 console.log('[SignIn] Component rendering, theme:', theme);
+
+  // Removed auth guard to allow users to explicitly access sign-in page
+  // even if they have a stale session. This fixes the issue where
+  // clicking "Sign In" from landing page redirects to onboarding instead.
+
+  // Web-only: Prevent back navigation to this page after sign-out
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    
+    const w = globalThis as any;
+    const onPopState = () => {
+      console.log('[SignIn] Browser back detected, re-enforcing sign-in page');
+      router.replace('/(auth)/sign-in');
+    };
+    
+    w?.addEventListener?.('popstate', onPopState);
+    return () => w?.removeEventListener?.('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     console.log('[SignIn] Mounted');
@@ -249,21 +274,8 @@ console.log('[SignIn] Component rendering, theme:', theme);
     card: {
       width: '100%',
       maxWidth: 520,
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      padding: 20,
-      shadowColor: theme.shadow,
-      shadowOpacity: 0.15,
-      shadowRadius: 12,
-      elevation: 4,
       alignSelf: 'center',
-      minHeight: 100,
-      ...(Platform.OS === 'web' && {
-        boxShadow: '0 10px 40px rgba(0, 0, 0, 0.1)',
-        marginVertical: 20,
-      }),
+      ...(Platform.OS === 'web' && { marginVertical: 20 }),
     },
     header: {
       marginBottom: 20,
@@ -272,13 +284,13 @@ console.log('[SignIn] Component rendering, theme:', theme);
     },
     title: {
       fontSize: 22,
-      fontWeight: '700',
-      color: theme.text,
+      fontWeight: '800',
+      color: marketingTokens.colors.fg.primary,
       textAlign: 'center',
     },
     subtitle: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: marketingTokens.colors.fg.secondary,
       textAlign: 'center',
     },
     form: {
@@ -408,22 +420,59 @@ console.log('[SignIn] Component rendering, theme:', theme);
       fontWeight: '600',
       textDecorationLine: 'underline',
     },
+    homeButtonContainer: {
+      position: 'absolute',
+      top: Platform.OS === 'web' ? 16 : 8,
+      right: 16,
+      zIndex: 10,
+    },
+    homeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: 'rgba(14, 165, 233, 0.1)',
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(14, 165, 233, 0.3)',
+      minHeight: 44,
+      minWidth: 44,
+    },
+    homeButtonText: {
+      color: marketingTokens.colors.accent.cyan400,
+      fontSize: 14,
+      fontWeight: '600',
+    },
   });
 
 return (
-<SafeAreaView style={[styles.container, (__DEV__ && Platform.OS === 'web') && { backgroundColor: '#FDF4FF' }]} edges={['top', 'left', 'right']} onLayout={onContainerLayout}>
-      {/* DEBUG RIBBON */}
-      {__DEV__ && (
-        <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#22c55e', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, zIndex: 10 }}>
-          <Text style={{ color: '#0b0f0a', fontWeight: '700' }}>SignIn Debug: Mounted</Text>
-        </View>
-      )}
+<SafeAreaView style={styles.container} edges={['top', 'left', 'right']} onLayout={onContainerLayout}>
+      {/* Background gradient */}
+      <LinearGradient
+        colors={marketingTokens.gradients.background}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
 
+      {/* Go to Home button */}
+      <View style={styles.homeButtonContainer}>
+        <Link href="/" asChild>
+          <TouchableOpacity 
+            style={styles.homeButton}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="home-outline" size={20} color={marketingTokens.colors.accent.cyan400} />
+            <Text style={styles.homeButtonText}>{t('auth.go_to_home', { defaultValue: 'Go to Home' })}</Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -445,12 +494,9 @@ return (
               <Text style={styles.logoSubtext}>{t('app.tagline', { defaultValue: 'Empowering Education Through AI' })}</Text>
             </View>
 
-<View style={[styles.card, __DEV__ && { borderWidth: 4, borderColor: '#22c55e', backgroundColor: '#ffffff', zIndex: 2 }]} onLayout={onCardLayout}>
+<GlassCard style={styles.card}>
               <View style={styles.header}>
 <Text style={styles.title}>{t('auth.sign_in.welcome_back', { defaultValue: 'Welcome Back' })}</Text>
-                {__DEV__ && (
-                  <Text style={[styles.subtitle, { color: '#16a34a' }]}>DEBUG: Card visible</Text>
-                )}
                 <Text style={styles.subtitle}>{t('auth.sign_in.sign_in_to_account', { defaultValue: 'Sign in to your account' })}</Text>
               </View>
 
@@ -509,15 +555,12 @@ return (
               <Text style={styles.rememberMeText}>{t('auth.remember_me', { defaultValue: 'Remember me' })}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleSignIn}
-              disabled={loading}
-            >
-              <Text style={styles.buttonText}>
-                {loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}
-              </Text>
-            </TouchableOpacity>
+            <GradientButton
+              label={loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}
+              onPress={() => { if (!loading) handleSignIn(); }}
+              variant="indigo"
+              size="lg"
+            />
           </View>
 
 
@@ -567,7 +610,7 @@ return (
               </Text>
             </TouchableOpacity>
           </View>
-          </View>
+          </GlassCard>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
