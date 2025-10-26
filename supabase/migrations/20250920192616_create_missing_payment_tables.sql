@@ -5,20 +5,20 @@
 -- CREATE SUBSCRIPTION_SEATS TABLE
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS public.subscription_seats (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    subscription_id uuid NOT NULL REFERENCES public.subscriptions(id) ON DELETE CASCADE,
-    user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
-    assigned_at timestamp with time zone DEFAULT now(),
-    assigned_by uuid REFERENCES public.users(id),
-    is_active boolean DEFAULT true,
-    created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  subscription_id uuid NOT NULL REFERENCES public.subscriptions (id) ON DELETE CASCADE,
+  user_id uuid REFERENCES public.users (id) ON DELETE CASCADE,
+  assigned_at timestamp with time zone DEFAULT now(),
+  assigned_by uuid REFERENCES public.users (id),
+  is_active boolean DEFAULT TRUE,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now()
 );
 
 -- Add indexes for performance
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_subscription_id ON public.subscription_seats(subscription_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_user_id ON public.subscription_seats(user_id);
-CREATE INDEX IF NOT EXISTS idx_subscription_seats_active ON public.subscription_seats(subscription_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_subscription_id ON public.subscription_seats (subscription_id);
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_user_id ON public.subscription_seats (user_id);
+CREATE INDEX IF NOT EXISTS idx_subscription_seats_active ON public.subscription_seats (subscription_id, is_active);
 
 -- Enable RLS
 ALTER TABLE public.subscription_seats ENABLE ROW LEVEL SECURITY;
@@ -27,17 +27,18 @@ ALTER TABLE public.subscription_seats ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view subscription seats for their school"
 ON public.subscription_seats FOR SELECT
 USING (
-    EXISTS (
-        SELECT 1 FROM public.subscriptions s
-        JOIN public.users u ON u.preschool_id = s.school_id
-        WHERE s.id = subscription_id
-        AND u.auth_user_id = auth.uid()
-    )
-    OR
-    EXISTS (
-        SELECT 1 FROM public.users u
-        WHERE u.id = user_id AND u.auth_user_id = auth.uid()
-    )
+  EXISTS (
+    SELECT 1 FROM public.subscriptions AS s
+    INNER JOIN public.users AS u ON s.school_id = u.preschool_id
+    WHERE
+      s.id = subscription_id
+      AND u.auth_user_id = auth.uid()
+  )
+  OR
+  EXISTS (
+    SELECT 1 FROM public.users AS u
+    WHERE u.id = u.user_id AND u.auth_user_id = auth.uid()
+  )
 );
 
 -- =============================================================================
@@ -70,10 +71,10 @@ END
 $$;
 
 -- Add useful indexes for existing columns
-CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_m_payment_id ON public.payfast_itn_logs(m_payment_id);
-CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_pf_payment_id ON public.payfast_itn_logs(pf_payment_id);
-CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_payment_status ON public.payfast_itn_logs(payment_status);
-CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_created_at ON public.payfast_itn_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_m_payment_id ON public.payfast_itn_logs (m_payment_id);
+CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_pf_payment_id ON public.payfast_itn_logs (pf_payment_id);
+CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_payment_status ON public.payfast_itn_logs (payment_status);
+CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_created_at ON public.payfast_itn_logs (created_at);
 
 -- =============================================================================
 -- CREATE ASSIGN_TEACHER_SEAT FUNCTION
@@ -82,8 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_payfast_itn_logs_created_at ON public.payfast_itn
 DROP FUNCTION IF EXISTS public.assign_teacher_seat(uuid, uuid);
 
 CREATE OR REPLACE FUNCTION public.assign_teacher_seat(
-    p_subscription_id uuid,
-    p_user_id uuid
+  p_subscription_id uuid,
+  p_user_id uuid
 )
 RETURNS jsonb
 LANGUAGE plpgsql

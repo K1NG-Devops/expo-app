@@ -26,7 +26,7 @@ import {
   PasswordValidation
 } from '../../types/auth-enhanced';
 import { AuthValidation } from '../../lib/auth/AuthValidation';
-import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
+// import { passwordPolicyEnforcer } from '../../lib/auth/PasswordPolicy';
 import { AuthProgressIndicator, AuthProgressSummary } from './AuthProgressIndicator';
 import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 import { OrganizationSetup, OrganizationData } from './OrganizationSetup';
@@ -66,6 +66,7 @@ interface FormState {
   bio?: string;
   
   // Parent
+  invitationCode?: string;
   children?: Array<{
     firstName: string;
     lastName: string;
@@ -126,10 +127,19 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
   const [touched, setTouched] = React.useState<Record<string, boolean>>({});
   const [loading, setLoading] = React.useState(false);
   const [passwordValidation, setPasswordValidation] = React.useState<PasswordValidation | null>(null);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
   
   // Multi-step flow management
   const [currentStep, setCurrentStep] = React.useState<AuthFlowStep>('personal_info');
   const [completedSteps, setCompletedSteps] = React.useState<AuthFlowStep[]>([]);
+  
+  // Memoize userInfo object to prevent infinite re-renders
+  const userInfo = React.useMemo(() => ({
+    email: formState.email,
+    firstName: formState.firstName,
+    lastName: formState.lastName
+  }), [formState.email, formState.firstName, formState.lastName]);
   
   // Get available steps based on role
   const getAvailableSteps = (): AuthFlowStep[] => {
@@ -369,7 +379,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
       };
       
       switch (role) {
-        case 'principal': {
+        case 'principal':
           registration = {
             ...baseRegistration,
             role: 'principal',
@@ -383,9 +393,8 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             yearsExperience: formState.yearsExperience
           } as PrincipalRegistration;
           break;
-        }
           
-        case 'teacher': {
+        case 'teacher':
           registration = {
             ...baseRegistration,
             role: 'teacher',
@@ -397,21 +406,19 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             bio: formState.bio
           } as TeacherRegistration;
           break;
-        }
           
-        case 'parent': {
+        case 'parent':
           registration = {
             ...baseRegistration,
             role: 'parent',
-            invitationToken,
+            invitationToken: invitationToken || formState.invitationCode,
             children: formState.children || [],
             emergencyContact: formState.emergencyContact
           } as ParentRegistration;
           break;
-        }
           
         case 'student':
-        default: {
+        default:
           registration = {
             ...baseRegistration,
             role: 'student',
@@ -422,7 +429,6 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             interests: formState.interests
           } as StudentRegistration;
           break;
-        }
       }
       
       // Call success handler
@@ -485,6 +491,32 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         
         {renderTextField('email', 'Email Address', 'john.doe@example.com', true, 'email-address')}
         {renderTextField('phone', 'Phone Number', '(555) 123-4567', false, 'phone-pad')}
+        
+        {role === 'parent' && !invitationToken && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={[
+              styles.label,
+              { 
+                color: theme.colors.onBackground,
+                fontSize: theme.typography.body2.fontSize,
+                marginBottom: 4
+              }
+            ]}>
+              School Invitation Code (Optional)
+            </Text>
+            <Text style={[
+              styles.helperText,
+              { 
+                color: theme.colors.onSurfaceVariant,
+                fontSize: theme.typography.caption.fontSize,
+                marginBottom: 8
+              }
+            ]}>
+              If your school provided an invitation code, enter it here to link your account
+            </Text>
+            {renderTextField('invitationCode', 'Invitation Code', 'ABC12345', false, 'default')}
+          </View>
+        )}
         
         {role === 'principal' && (
           <>
@@ -553,11 +585,7 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
         {formState.password && (
           <PasswordStrengthIndicator
             password={formState.password}
-            userInfo={{
-              email: formState.email,
-              firstName: formState.firstName,
-              lastName: formState.lastName
-            }}
+            userInfo={userInfo}
             onStrengthChange={setPasswordValidation}
           />
         )}
@@ -626,6 +654,14 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
             </Text>
           </TouchableOpacity>
         </View>
+        
+        {!formState.acceptTerms && (
+          <View style={{ marginTop: 16, padding: 12, backgroundColor: theme.colors.errorContainer || theme.colors.surfaceVariant, borderRadius: 8 }}>
+            <Text style={{ color: theme.colors.error, fontSize: 13, textAlign: 'center' }}>
+              ⚠️ Please accept the Terms and Conditions to continue
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -693,6 +729,15 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
     const fieldErrors = errors[fieldName] || [];
     const hasError = fieldErrors.length > 0 && touched[fieldName];
     const value = formState[fieldName];
+    const isPasswordField = fieldName === 'password';
+    const isVisible = isPasswordField ? showPassword : showConfirmPassword;
+    const toggleVisibility = () => {
+      if (isPasswordField) {
+        setShowPassword(!showPassword);
+      } else {
+        setShowConfirmPassword(!showConfirmPassword);
+      }
+    };
     
     return (
       <View style={styles.fieldContainer}>
@@ -708,25 +753,45 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
           {required && <Text style={{ color: theme.colors.error }}> *</Text>}
         </Text>
         
-        <TextInput
-          style={[
-            styles.textInput,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: hasError ? theme.colors.error : theme.colors.outline,
-              color: theme.colors.onSurface
-            }
-          ]}
-          value={value}
-          onChangeText={(text) => handleFieldChange(fieldName, text)}
-          onBlur={() => handleFieldBlur(fieldName)}
-          placeholder="••••••••"
-          placeholderTextColor={theme.colors.onSurfaceVariant}
-          secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
-        />
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={[
+              styles.textInput,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: hasError ? theme.colors.error : theme.colors.outline,
+                color: theme.colors.onSurface,
+                paddingRight: 50
+              }
+            ]}
+            value={value}
+            onChangeText={(text) => handleFieldChange(fieldName, text)}
+            onBlur={() => handleFieldBlur(fieldName)}
+            placeholder="••••••••"
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            secureTextEntry={!isVisible}
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!loading}
+          />
+          
+          <TouchableOpacity
+            onPress={toggleVisibility}
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: 0,
+              bottom: 0,
+              justifyContent: 'center',
+              paddingHorizontal: 8
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={{ fontSize: 18, color: theme.colors.primary, fontWeight: '600' }}>
+              {isVisible ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         
         {hasError && (
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -990,13 +1055,14 @@ export const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> =
                 styles.navButton,
                 styles.nextButton,
                 { 
-                  backgroundColor: loading 
+                  backgroundColor: (loading || (currentStep === 'security_setup' && !formState.acceptTerms))
                     ? theme.colors.surfaceVariant 
-                    : theme.colors.primary
+                    : theme.colors.primary,
+                  opacity: (loading || (currentStep === 'security_setup' && !formState.acceptTerms)) ? 0.5 : 1
                 }
               ]}
               onPress={handleNextStep}
-              disabled={loading}
+              disabled={loading || (currentStep === 'security_setup' && !formState.acceptTerms)}
             >
               {loading ? (
                 <ActivityIndicator size="small" color={theme.colors.onPrimary} />
@@ -1050,6 +1116,12 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontWeight: '600',
+  },
+  label: {
+    fontWeight: '600',
+  },
+  helperText: {
+    lineHeight: 18,
   },
   textInput: {
     borderWidth: 1,

@@ -75,10 +75,10 @@ END;
 $$;
 
 -- Add comments for documentation
-COMMENT ON FUNCTION merge_invoice_notification_prefs(UUID, JSONB) IS 
+COMMENT ON FUNCTION merge_invoice_notification_prefs(UUID, JSONB) IS
 'Safely merges partial updates into user invoice notification preferences with security checks';
 
-COMMENT ON FUNCTION jsonb_deep_merge(JSONB, JSONB) IS 
+COMMENT ON FUNCTION jsonb_deep_merge(JSONB, JSONB) IS
 'Recursively merges two JSONB objects, preserving nested structure';
 
 -- Grant execute permissions to authenticated users

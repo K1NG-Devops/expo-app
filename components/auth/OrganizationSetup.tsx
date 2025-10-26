@@ -121,7 +121,8 @@ export const OrganizationSetup: React.FC<OrganizationSetupProps> = ({
       }
       case 'website': {
         if (!value) return { isValid: true, errors: [] };
-        const urlRegex = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([/\w .-]*)*\/?$/;
+        // eslint-disable-next-line no-useless-escape
+        const urlRegex = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
         return urlRegex.test(value)
           ? { isValid: true, errors: [] }
           : { isValid: false, errors: ['Please enter a valid website URL'] };

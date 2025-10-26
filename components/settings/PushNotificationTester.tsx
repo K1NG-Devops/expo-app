@@ -71,9 +71,9 @@ export const PushNotificationTester: React.FC = () => {
 
       // Get detailed permissions
       const permissions = await Notifications.getPermissionsAsync();
-      const canSetBadge = permissions.ios?.allowsBadge || false;
-      const canPlaySound = permissions.ios?.allowsSound || false;
-      const canAlert = permissions.ios?.allowsAlert || false;
+      const canSetBadge = permissions.canSetBadge;
+      const canPlaySound = permissions.canPlaySound;
+      const canAlert = permissions.canAlert;
 
       // Get push tokens if we have permission
       let expoPushToken = null;
@@ -148,6 +148,7 @@ export const PushNotificationTester: React.FC = () => {
           allowCriticalAlerts: false,
           provideAppNotificationSettings: false,
           allowProvisional: false,
+          allowAnnouncements: false,
         },
       });
 
@@ -162,9 +163,7 @@ export const PushNotificationTester: React.FC = () => {
           'Notifications permission was denied. You can enable it in your device settings.',
           [
             { text: 'OK' },
-            { text: 'Open Settings', onPress: () => {
-              Alert.alert('Open Settings', 'Please go to Settings > Notifications to enable push notifications for this app.');
-            } }
+            { text: 'Open Settings', onPress: () => Notifications.openSettingsAsync() }
           ]
         );
       }
@@ -202,7 +201,7 @@ export const PushNotificationTester: React.FC = () => {
           data: testMessage.data,
           sound: 'default',
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 1 },
+        trigger: { seconds: 1 },
       });
 
       addTestResult('✅ Local notification scheduled');
@@ -641,9 +640,7 @@ export const PushNotificationTester: React.FC = () => {
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <TouchableOpacity 
           style={[styles.button, styles.buttonSecondary]}
-          onPress={() => {
-            Alert.alert('Open Settings', 'Please go to Settings > Notifications > EduDash Pro to configure notification settings.');
-          }}
+          onPress={() => Notifications.openSettingsAsync()}
         >
           <Text style={[styles.buttonText, styles.buttonTextSecondary]}>⚙️ Open Notification Settings</Text>
         </TouchableOpacity>

@@ -1,5 +1,5 @@
+import { logger } from '@/lib/logger';
 import { useCallback, useState } from 'react';
-import { Alert } from 'react-native';
 import { toast } from '@/components/ui/ToastProvider';
 import { track } from '@/lib/analytics';
 import { assertSupabase } from '@/lib/supabase';
@@ -42,14 +42,14 @@ export function useLessonGenerator() {
       if (error) throw error;
 
       if (data && (data as any).provider_error) {
-        try { toast.warn('AI provider error – used safe fallback'); } catch {}
+        try { toast.warn('AI provider error – used safe fallback'); } catch { /* Intentional: non-fatal */ }
       }
 
       const lessonText: string = (data && data.content) || '';
       setResult({ text: lessonText, __fallbackUsed: !!(data && (data as any).provider_error) });
 
       // Track usage client-side (best-effort) in addition to server logs
-      incrementUsage('lesson_generation', 1).catch(() => {});
+      incrementUsage('lesson_generation', 1).catch(() => { /* Intentional: error handled */ });
       logUsageEvent({
         feature: 'lesson_generation',
         model: String(payload.model),
@@ -57,7 +57,7 @@ export function useLessonGenerator() {
         tokensOut: (data && data.usage?.output_tokens) || 0,
         estCostCents: (data && data.cost) || 0,
         timestamp: new Date().toISOString(),
-      }).catch(() => {});
+      }).catch(() => { /* Intentional: error handled */ });
 
       track('edudash.ai.lesson_generated', {
         subject: opts.subject,
@@ -66,13 +66,14 @@ export function useLessonGenerator() {
       });
 
       return lessonText;
-    } catch (e: any) {
+      } catch (e: any) {
       // Fallback: use Dash assistant to generate if edge function fails
       try {
-        const dash = DashAIAssistant.getInstance();
-        await dash.initialize();
-        if (!dash.getCurrentConversationId()) {
-          await dash.startNewConversation('AI Lesson Generator');
+        const { getAssistant } = await import('@/services/core/getAssistant');
+        const dash: any = await getAssistant();
+        await dash.initialize?.();
+        if (!dash.getCurrentConversationId?.()) {
+          await dash.startNewConversation?.('AI Lesson Generator');
         }
         const prompt = `Generate a ${opts.duration ?? 45} minute lesson plan for Grade ${opts.gradeLevel} in ${opts.subject} on the topic "${opts.topic}".
 Learning objectives: ${(opts.learningObjectives || []).join('; ')}.
@@ -83,18 +84,20 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
         // Automatically save the Dash-generated lesson to the database
         let saveResult = null;
         try {
-          saveResult = await dash.saveLessonToDatabase(lessonText, {
-            topic: opts.topic,
-            subject: opts.subject,
-            gradeLevel: opts.gradeLevel,
-            duration: opts.duration ?? 45,
-            objectives: opts.learningObjectives,
-          });
-          if (saveResult.success) {
-            console.log('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
-            track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
-          } else {
-            console.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+          if (typeof (dash as any).saveLessonToDatabase === 'function') {
+            saveResult = await (dash as any).saveLessonToDatabase(lessonText, {
+              topic: opts.topic,
+              subject: opts.subject,
+              gradeLevel: opts.gradeLevel,
+              duration: opts.duration ?? 45,
+              objectives: opts.learningObjectives,
+            });
+            if (saveResult.success) {
+              logger.info('[useLessonGenerator] Fallback lesson saved to database:', saveResult.lessonId);
+              track('edudash.ai.lesson.fallback_saved_to_database', { lessonId: saveResult.lessonId });
+            } else {
+              logger.warn('[useLessonGenerator] Failed to save fallback lesson:', saveResult.error);
+            }
           }
         } catch (saveError) {
           console.error('[useLessonGenerator] Error saving fallback lesson:', saveError);
@@ -106,11 +109,11 @@ Provide a structured plan with objectives, warm-up, core activities, assessment 
           __savedToDatabase: saveResult?.success || false,
           __lessonId: saveResult?.lessonId || null
         });
-        incrementUsage('lesson_generation', 1).catch(() => {});
-        logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => {});
+        incrementUsage('lesson_generation', 1).catch(() => { /* Intentional: error handled */ });
+        logUsageEvent({ feature: 'lesson_generation', model: 'dash-fallback', tokensIn: 0, tokensOut: 0, estCostCents: 0, timestamp: new Date().toISOString() }).catch(() => { /* Intentional: error handled */ });
         track('edudash.ai.lesson.generate_fallback_dash', { reason: e?.message || 'unknown', savedToDatabase: saveResult?.success });
         return lessonText;
-      } catch (fallbackErr) {
+      } catch {
         setError(e?.message || 'Failed to generate lesson');
         throw e;
       }

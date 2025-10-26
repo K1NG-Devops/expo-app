@@ -1,18 +1,154 @@
-import React, { useEffect } from 'react';
+import 'react-native-get-random-values';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Stack } from 'expo-router';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { Stack, usePathname } from 'expo-router';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import ToastProvider from '@/components/ui/ToastProvider';
 import { QueryProvider } from '@/lib/query/queryClient';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DashboardPreferencesProvider } from '@/contexts/DashboardPreferencesContext';
 import { UpdatesProvider } from '@/contexts/UpdatesProvider';
+import { TermsProvider } from '@/contexts/TerminologyContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
+// VOICETODO: Voice orb functionality completely archived for production build
+import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
+import { DashChatButton } from '@/components/ui/DashChatButton';
+
+// Inner component with access to AuthContext and VoiceUI
+function LayoutContent() {
+  const pathname = usePathname();
+  const { loading: authLoading } = useAuth();
+  const { isDark } = useTheme();
+  const [showFAB, setShowFAB] = useState(false);
+  const [statusBarKey, setStatusBarKey] = useState(0);
+  
+  // Force StatusBar re-render when theme changes
+  useEffect(() => {
+    setStatusBarKey(prev => prev + 1);
+  }, [isDark]);
+  
+  // Enhanced FAB hiding logic (restore preview behavior)
+  const shouldHideFAB = useMemo(() => {
+    if (!pathname || typeof pathname !== 'string') return false;
+    
+    // Auth routes
+    if (pathname.startsWith('/(auth)') ||
+        pathname === '/sign-in' ||
+        pathname === '/(auth)/sign-in' ||
+        pathname.includes('auth-callback')) {
+      return true;
+    }
+    
+    // Registration routes (hide Dash Orb during sign-up)
+    if (pathname.includes('registration') ||
+        pathname.includes('register') ||
+        pathname.includes('sign-up') ||
+        pathname.includes('signup') ||
+        pathname.includes('verify-your-email') ||
+        pathname.includes('profiles-gate')) {
+      return true;
+    }
+    
+    // Landing routes (preview parity)
+    if (pathname === '/' ||
+        pathname === '/landing' ||
+        pathname.startsWith('/landing') ||
+        pathname.includes('welcome') ||
+        pathname.includes('onboarding')) {
+      return true;
+    }
+    
+    // Dash Assistant routes/modal (preview parity)
+    if (pathname.includes('dash-assistant') ||
+        pathname.includes('/screens/dash-assistant') ||
+        pathname.startsWith('/ai/dash') ||
+        pathname.startsWith('/ai/assistant')) {
+      return true;
+    }
+    
+    // VOICETODO: Voice UI check removed (archived)
+    
+    return false;
+  }, [pathname]);
+  
+  const isAuthRoute = typeof pathname === 'string' && (
+    pathname.startsWith('/(auth)') ||
+    pathname === '/sign-in' ||
+    pathname === '/(auth)/sign-in' ||
+    pathname === '/landing' ||
+    pathname === '/' ||
+    pathname.includes('auth-callback')
+  );
+  
+  // Show FAB after auth loads and brief delay
+  useEffect(() => {
+    if (!authLoading && !isAuthRoute) {
+      const timer = setTimeout(() => setShowFAB(true), 800);
+      return () => clearTimeout(timer);
+    } else {
+      setShowFAB(false);
+    }
+  }, [authLoading, isAuthRoute]);
+  
+  return (
+    <View style={styles.container}>
+      <StatusBar key={statusBarKey} style={isDark ? 'light' : 'dark'} animated />
+      {Platform.OS !== 'web' && <DashWakeWordListener />}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          presentation: 'card',
+          animationTypeForReplace: 'push',
+        }}
+      >
+        {/* Let Expo Router auto-discover screens */}
+      </Stack>
+      
+      {/* Dash Chat FAB - temporarily hidden per user request */}
+      {/* {showFAB && !shouldHideFAB && (
+        <DashChatButton />
+      )} */}
+    </View>
+  );
+}
 
 export default function RootLayout() {
+  const [dashInstance, setDashInstance] = useState<IDashAIAssistant | null>(null);
+  
+  // Initialize Dash AI Assistant at root level and sync context
+  useEffect(() => {
+    (async () => {
+      try {
+        const module = await import('@/services/dash-ai/DashAICompat');
+        const DashClass = (module as any).DashAIAssistant || (module as any).default;
+        const dash: IDashAIAssistant | null = DashClass?.getInstance?.() || null;
+        if (dash) {
+          await dash.initialize();
+          setDashInstance(dash);
+          // Best-effort: sync Dash user context (language, traits)
+          try {
+            const { getCurrentLanguage } = await import('@/lib/i18n');
+            const { syncDashContext } = await import('@/lib/agent/dashContextSync');
+            const { getAgenticCapabilities } = await import('@/lib/utils/agentic-mode');
+            const { getCurrentProfile } = await import('@/lib/sessionManager');
+            const profile = await getCurrentProfile().catch(() => null as any);
+            const role = profile?.role as string | undefined;
+            const caps = getAgenticCapabilities(role);
+            await syncDashContext({ language: getCurrentLanguage(), traits: { agentic: caps, role: role || null } });
+          } catch (syncErr) {
+            if (__DEV__) console.warn('[RootLayout] dash-context-sync skipped:', syncErr);
+          }
+        }
+      } catch (e) {
+        console.error('[RootLayout] Failed to initialize Dash:', e);
+      }
+    })();
+  }, []);
+  
   // Hide development navigation header on web
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -247,25 +383,18 @@ export default function RootLayout() {
         <QueryProvider>
           <AuthProvider>
             <ThemeProvider>
-              <DashboardPreferencesProvider>
-                <UpdatesProvider>
-                  <ToastProvider>
-                    <View style={styles.container}>
-                      <StatusBar style="dark" />
-                      <DashWakeWordListener />
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          presentation: 'card',
-                          animationTypeForReplace: 'push',
-                        }}
-                      >
-                        {/* Let Expo Router auto-discover screens */}
-                      </Stack>
-                    </View>
-                  </ToastProvider>
-                </UpdatesProvider>
-              </DashboardPreferencesProvider>
+              <TermsProvider>
+                <OnboardingProvider>
+                  <DashboardPreferencesProvider>
+                    <UpdatesProvider>
+                      <ToastProvider>
+                        {/* VOICETODO: VoiceUIProvider removed (archived) */}
+                        <LayoutContent />
+                      </ToastProvider>
+                    </UpdatesProvider>
+                  </DashboardPreferencesProvider>
+                </OnboardingProvider>
+              </TermsProvider>
             </ThemeProvider>
           </AuthProvider>
         </QueryProvider>

@@ -1,16 +1,5 @@
 import React from 'react';
-// Conditional import to prevent build failures if package not installed
-let Purchases: any = null;
-let CustomerInfo: any = null;
-let PurchasesEntitlementInfo: any = null;
-try {
-  const purchases = require('react-native-purchases');
-  Purchases = purchases.default;
-  CustomerInfo = purchases.CustomerInfo;
-  PurchasesEntitlementInfo = purchases.PurchasesEntitlementInfo;
-} catch (error) {
-  console.warn('RevenueCat not available - subscription features disabled');
-}
+import Purchases, { CustomerInfo, PurchasesEntitlementInfo } from 'react-native-purchases';
 import { Platform } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -271,7 +260,7 @@ export function useRevenueCatCustomerInfo() {
     fetchCustomerInfo();
 
     // Set up listener for customer info updates
-    Purchases?.addCustomerInfoUpdateListener((info: any) => {
+    Purchases.addCustomerInfoUpdateListener((info) => {
       if (isMounted) {
         setCustomerInfo(info);
       }

@@ -12,11 +12,13 @@ BEGIN;
 
 -- Drop functions that may have signature conflicts
 DROP FUNCTION IF EXISTS superadmin_reactivate_user(UUID, TEXT);
-DROP FUNCTION IF EXISTS superadmin_suspend_user(UUID, escalation_level_enum, TEXT, INTEGER);
-DROP FUNCTION IF EXISTS superadmin_request_user_deletion(UUID, deletion_type_enum, TEXT, TIMESTAMPTZ);
-DROP FUNCTION IF EXISTS superadmin_bulk_suspend_users(UUID[], escalation_level_enum, TEXT, INTEGER);
-DROP FUNCTION IF EXISTS create_superadmin_notification(notification_type_enum, severity_enum, TEXT, TEXT, notification_source_enum, UUID[], JSONB);
-DROP FUNCTION IF EXISTS log_superadmin_action(superadmin_action_enum, JSONB);
+DROP FUNCTION IF EXISTS superadmin_suspend_user(UUID, ESCALATION_LEVEL_ENUM, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS superadmin_request_user_deletion(UUID, DELETION_TYPE_ENUM, TEXT, TIMESTAMPTZ);
+DROP FUNCTION IF EXISTS superadmin_bulk_suspend_users(UUID [], ESCALATION_LEVEL_ENUM, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS create_superadmin_notification(
+  NOTIFICATION_TYPE_ENUM, SEVERITY_ENUM, TEXT, TEXT, NOTIFICATION_SOURCE_ENUM, UUID [], JSONB
+);
+DROP FUNCTION IF EXISTS log_superadmin_action(SUPERADMIN_ACTION_ENUM, JSONB);
 DROP FUNCTION IF EXISTS get_superadmin_dashboard_data();
 DROP FUNCTION IF EXISTS test_superadmin_system();
 
@@ -43,7 +45,7 @@ $$;
 CREATE OR REPLACE FUNCTION is_superadmin_by_id(user_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
-STABLE 
+STABLE
 SECURITY DEFINER
 AS $$
   SELECT EXISTS (
@@ -271,14 +273,14 @@ VALUES (
   'superadmin_functions_fix_20250919195200',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'functions_recreated', 7,
     'migration_file', '20250919195200_recreate_superadmin_functions.sql'
   ),
   'Superadmin functions recreation migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'SUPERADMIN FUNCTIONS RECREATED' AS status;

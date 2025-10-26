@@ -6,7 +6,7 @@
 -- ============================================================================
 
 -- Add status column with check constraint
-ALTER TABLE lessons 
+ALTER TABLE lessons
 ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'draft'
 CHECK (status IN ('draft', 'active', 'archived', 'published'));
 
@@ -22,13 +22,13 @@ CHECK (age_group IN ('3-4', '4-5', '5-6', '3-6'));
 
 -- Add additional useful columns for lesson management
 ALTER TABLE lessons
-ADD COLUMN IF NOT EXISTS is_featured boolean NOT NULL DEFAULT false;
+ADD COLUMN IF NOT EXISTS is_featured boolean NOT NULL DEFAULT FALSE;
 
 ALTER TABLE lessons
-ADD COLUMN IF NOT EXISTS is_premium boolean NOT NULL DEFAULT false;
+ADD COLUMN IF NOT EXISTS is_premium boolean NOT NULL DEFAULT FALSE;
 
 ALTER TABLE lessons
-ADD COLUMN IF NOT EXISTS rating numeric(2,1) DEFAULT 0.0
+ADD COLUMN IF NOT EXISTS rating numeric(2, 1) DEFAULT 0.0
 CHECK (rating >= 0 AND rating <= 5);
 
 ALTER TABLE lessons
@@ -48,29 +48,31 @@ ADD COLUMN IF NOT EXISTS short_description text;
 
 -- Update existing lessons with default values
 UPDATE lessons SET
-  status = CASE 
-    WHEN is_public = true THEN 'published'
+  status = CASE
+    WHEN is_public = TRUE THEN 'published'
     ELSE 'draft'
   END,
   subject = 'general',  -- Default subject
   age_group = CASE
-    WHEN age_group_min IS NOT NULL AND age_group_max IS NOT NULL THEN
-      CASE 
-        WHEN age_group_min >= 3 AND age_group_max <= 4 THEN '3-4'
-        WHEN age_group_min >= 4 AND age_group_max <= 5 THEN '4-5'
-        WHEN age_group_min >= 5 AND age_group_max <= 6 THEN '5-6'
-        ELSE '3-6'
-      END
+    WHEN age_group_min IS NOT NULL AND age_group_max IS NOT NULL
+      THEN
+        CASE
+          WHEN age_group_min >= 3 AND age_group_max <= 4 THEN '3-4'
+          WHEN age_group_min >= 4 AND age_group_max <= 5 THEN '4-5'
+          WHEN age_group_min >= 5 AND age_group_max <= 6 THEN '5-6'
+          ELSE '3-6'
+        END
     ELSE '3-6'
   END,
   is_featured = is_public,  -- Make public lessons featured by default
-  is_premium = false,
+  is_premium = FALSE,
   rating = 4.5,  -- Default good rating
   completion_count = 0,
   language = 'en',
-  short_description = CASE 
-    WHEN description IS NOT NULL THEN 
-      LEFT(description, 150) || CASE WHEN LENGTH(description) > 150 THEN '...' ELSE '' END
+  short_description = CASE
+    WHEN description IS NOT NULL
+      THEN
+        LEFT(description, 150) || CASE WHEN LENGTH(description) > 150 THEN '...' ELSE '' END
     ELSE 'Preschool lesson'
   END
 WHERE status IS NULL OR subject IS NULL OR age_group IS NULL;
@@ -80,34 +82,34 @@ WHERE status IS NULL OR subject IS NULL OR age_group IS NULL;
 -- ============================================================================
 
 -- Index on status for filtering
-CREATE INDEX IF NOT EXISTS idx_lessons_status ON lessons(status);
+CREATE INDEX IF NOT EXISTS idx_lessons_status ON lessons (status);
 
 -- Index on subject for filtering
-CREATE INDEX IF NOT EXISTS idx_lessons_subject ON lessons(subject);
+CREATE INDEX IF NOT EXISTS idx_lessons_subject ON lessons (subject);
 
 -- Index on age_group for filtering  
-CREATE INDEX IF NOT EXISTS idx_lessons_age_group ON lessons(age_group);
+CREATE INDEX IF NOT EXISTS idx_lessons_age_group ON lessons (age_group);
 
 -- Index on is_featured for featured lessons
-CREATE INDEX IF NOT EXISTS idx_lessons_is_featured ON lessons(is_featured);
+CREATE INDEX IF NOT EXISTS idx_lessons_is_featured ON lessons (is_featured);
 
 -- Index on rating for sorting
-CREATE INDEX IF NOT EXISTS idx_lessons_rating ON lessons(rating);
+CREATE INDEX IF NOT EXISTS idx_lessons_rating ON lessons (rating);
 
 -- Index on completion_count for popular lessons
-CREATE INDEX IF NOT EXISTS idx_lessons_completion_count ON lessons(completion_count);
+CREATE INDEX IF NOT EXISTS idx_lessons_completion_count ON lessons (completion_count);
 
 -- Composite index for common queries
-CREATE INDEX IF NOT EXISTS idx_lessons_status_public_created 
-ON lessons(status, is_public, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lessons_status_public_created
+ON lessons (status, is_public, created_at DESC);
 
 -- ============================================================================
 -- PART 4: UPDATE TRIGGERS
 -- ============================================================================
 
 -- Ensure updated_at is updated when lessons are modified
-CREATE OR REPLACE FUNCTION update_lessons_updated_at()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION UPDATE_LESSONS_UPDATED_AT()
+RETURNS trigger AS $$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
@@ -133,21 +135,28 @@ END $$;
 -- ============================================================================
 
 -- Try to infer subjects from lesson titles and descriptions
-UPDATE lessons SET subject = CASE
-  WHEN LOWER(title) ~ '.*(math|number|count|add|subtract).*' OR 
-       LOWER(description) ~ '.*(math|number|count|add|subtract).*' THEN 'mathematics'
-  WHEN LOWER(title) ~ '.*(read|letter|word|book|story|alphabet).*' OR
-       LOWER(description) ~ '.*(read|letter|word|book|story|alphabet).*' THEN 'literacy'
-  WHEN LOWER(title) ~ '.*(science|nature|plant|animal|experiment).*' OR
-       LOWER(description) ~ '.*(science|nature|plant|animal|experiment).*' THEN 'science'
-  WHEN LOWER(title) ~ '.*(art|draw|paint|color|creative).*' OR
-       LOWER(description) ~ '.*(art|draw|paint|color|creative).*' THEN 'art'
-  WHEN LOWER(title) ~ '.*(music|song|rhythm|dance|instrument).*' OR
-       LOWER(description) ~ '.*(music|song|rhythm|dance|instrument).*' THEN 'music'
-  WHEN LOWER(title) ~ '.*(physical|exercise|movement|motor|run|jump).*' OR
-       LOWER(description) ~ '.*(physical|exercise|movement|motor|run|jump).*' THEN 'physical'
-  ELSE 'general'
-END
+UPDATE lessons SET
+  subject = CASE
+    WHEN
+      LOWER(title) ~ '.*(math|number|count|add|subtract).*'
+      OR LOWER(description) ~ '.*(math|number|count|add|subtract).*' THEN 'mathematics'
+    WHEN
+      LOWER(title) ~ '.*(read|letter|word|book|story|alphabet).*'
+      OR LOWER(description) ~ '.*(read|letter|word|book|story|alphabet).*' THEN 'literacy'
+    WHEN
+      LOWER(title) ~ '.*(science|nature|plant|animal|experiment).*'
+      OR LOWER(description) ~ '.*(science|nature|plant|animal|experiment).*' THEN 'science'
+    WHEN
+      LOWER(title) ~ '.*(art|draw|paint|color|creative).*'
+      OR LOWER(description) ~ '.*(art|draw|paint|color|creative).*' THEN 'art'
+    WHEN
+      LOWER(title) ~ '.*(music|song|rhythm|dance|instrument).*'
+      OR LOWER(description) ~ '.*(music|song|rhythm|dance|instrument).*' THEN 'music'
+    WHEN
+      LOWER(title) ~ '.*(physical|exercise|movement|motor|run|jump).*'
+      OR LOWER(description) ~ '.*(physical|exercise|movement|motor|run|jump).*' THEN 'physical'
+    ELSE 'general'
+  END
 WHERE subject = 'general';
 
 -- ============================================================================
@@ -155,7 +164,7 @@ WHERE subject = 'general';
 -- ============================================================================
 
 -- Function to verify the migration
-CREATE OR REPLACE FUNCTION verify_lessons_migration()
+CREATE OR REPLACE FUNCTION VERIFY_LESSONS_MIGRATION()
 RETURNS TABLE (
   total_lessons bigint,
   status_breakdown json,
@@ -195,4 +204,4 @@ COMMENT ON COLUMN lessons.rating IS 'Average rating from 0.0 to 5.0';
 COMMENT ON COLUMN lessons.completion_count IS 'Number of times this lesson has been completed';
 COMMENT ON COLUMN lessons.short_description IS 'Short description for UI display';
 
-COMMENT ON FUNCTION verify_lessons_migration IS 'Verify the lessons table migration was successful';
+COMMENT ON FUNCTION VERIFY_LESSONS_MIGRATION IS 'Verify the lessons table migration was successful';

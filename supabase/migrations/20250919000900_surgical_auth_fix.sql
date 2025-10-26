@@ -3,12 +3,12 @@
 
 -- Step 1: Create a minimal user_profiles table for auth if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.user_profiles (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    auth_user_id uuid UNIQUE,
-    email text,
-    full_name text,
-    created_at timestamptz DEFAULT now(),
-    updated_at timestamptz DEFAULT now()
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth_user_id uuid UNIQUE,
+  email text,
+  full_name text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
 );
 
 -- Step 2: Ensure no foreign key constraints that could block auth.users creation
@@ -24,7 +24,7 @@ END $$;
 
 -- Step 3: Create the most minimal auth trigger possible
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user_minimal()
-RETURNS TRIGGER
+RETURNS trigger
 SECURITY DEFINER
 SET search_path = public, auth
 LANGUAGE plpgsql
@@ -55,28 +55,28 @@ DROP TRIGGER IF EXISTS handle_new_user ON auth.users;
 
 -- Create new minimal trigger
 CREATE TRIGGER on_auth_user_created_minimal
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_new_auth_user_minimal();
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_new_auth_user_minimal();
 
 -- Step 5: Set very permissive RLS policies on user_profiles
 ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.user_profiles;
 CREATE POLICY "Enable all for authenticated users"
-    ON public.user_profiles
-    FOR ALL
-    TO authenticated
-    USING (true)
-    WITH CHECK (true);
+ON public.user_profiles
+FOR ALL
+TO authenticated
+USING (TRUE)
+WITH CHECK (TRUE);
 
 DROP POLICY IF EXISTS "Enable all for service role" ON public.user_profiles;
 CREATE POLICY "Enable all for service role"
-    ON public.user_profiles
-    FOR ALL
-    TO service_role
-    USING (true)
-    WITH CHECK (true);
+ON public.user_profiles
+FOR ALL
+TO service_role
+USING (TRUE)
+WITH CHECK (TRUE);
 
 -- Step 6: Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
@@ -85,4 +85,4 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_profiles TO authenticated;
 GRANT SELECT ON public.user_profiles TO anon;
 
 -- Final check
-SELECT 'Surgical auth fix applied successfully' as status;
+SELECT 'Surgical auth fix applied successfully' AS status;

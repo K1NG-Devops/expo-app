@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * Biometric Debug Utility
  * 
@@ -53,7 +54,7 @@ export class BiometricDebugger {
     try {
       securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
     } catch (error) {
-      console.warn('Could not get security level:', error);
+      logger.warn('Could not get security level:', error);
     }
 
     const capabilities = {
@@ -345,17 +346,17 @@ export class BiometricDebugger {
    * Log debug information to console
    */
   static async logDebugInfo(): Promise<void> {
-    console.log('🔍 BIOMETRIC DEBUG INFO 🔍');
+    logger.info('🔍 BIOMETRIC DEBUG INFO 🔍');
     
     const debugInfo = await this.getDebugInfo();
-    console.log('Device Info:', debugInfo.deviceInfo);
-    console.log('Capabilities:', debugInfo.capabilities);
-    console.log('Supported Types:', debugInfo.detailedTypes);
-    console.log('Potential Issues:', debugInfo.potentialIssues);
-    console.log('Recommendations:', debugInfo.recommendations);
+    logger.info('Device Info:', debugInfo.deviceInfo);
+    logger.info('Capabilities:', debugInfo.capabilities);
+    logger.info('Supported Types:', debugInfo.detailedTypes);
+    logger.info('Potential Issues:', debugInfo.potentialIssues);
+    logger.info('Recommendations:', debugInfo.recommendations);
     
     const report = await this.generateReport();
-    console.log('\n' + report);
+    logger.info('\n' + report);
   }
 }
 

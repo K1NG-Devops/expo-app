@@ -52,7 +52,7 @@ AS $$
 $$;
 
 -- Function to check if user has any of the specified roles
-CREATE OR REPLACE FUNCTION public.user_has_any_role(roles TEXT[])
+CREATE OR REPLACE FUNCTION public.user_has_any_role(roles TEXT [])
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -501,9 +501,9 @@ $$;
 -- Create trigger for grade changes
 DROP TRIGGER IF EXISTS update_gradebook_on_grade_change ON grades;
 CREATE TRIGGER update_gradebook_on_grade_change
-    AFTER INSERT OR UPDATE OR DELETE ON grades
-    FOR EACH ROW
-    EXECUTE FUNCTION trigger_gradebook_update();
+AFTER INSERT OR UPDATE OR DELETE ON grades
+FOR EACH ROW
+EXECUTE FUNCTION trigger_gradebook_update();
 
 -- ====================================================================
 -- PART 7: GRANT PERMISSIONS
@@ -513,7 +513,7 @@ CREATE TRIGGER update_gradebook_on_grade_change
 GRANT EXECUTE ON FUNCTION public.get_user_organization_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_user_role() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.user_has_role(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.user_has_any_role(TEXT[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.user_has_any_role(TEXT []) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.same_organization_as_user(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_access_course(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_access_assignment(UUID) TO authenticated;

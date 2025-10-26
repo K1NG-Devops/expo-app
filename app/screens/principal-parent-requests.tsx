@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Alert, RefreshControl } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { ParentJoinService, GuardianRequest } from '@/lib/services/parentJoinService';
 
 export default function PrincipalParentRequestsScreen() {
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   const schoolId = (profile?.organization_id as string) || null;
   const [requests, setRequests] = useState<GuardianRequest[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,11 +54,17 @@ export default function PrincipalParentRequestsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Parent Requests' }} />
+      <Stack.Screen 
+        options={{ 
+          title: 'Parent Requests',
+          headerShown: true,
+          headerBackVisible: true,
+        }} 
+      />
       <FlatList
         data={requests}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme?.primary || '#00f5ff'} />}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.text}>Parent: {item.parent_email || item.parent_auth_id}</Text>
@@ -66,7 +75,7 @@ export default function PrincipalParentRequestsScreen() {
               value={studentIdMap[item.id] ?? ''}
               onChangeText={(v) => setStudentIdMap((m) => ({ ...m, [item.id]: v }))}
               placeholder={item.student_id || 'Enter student ID'}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={theme?.textSecondary || '#9CA3AF'}
             />
             <View style={styles.row}>
               <TouchableOpacity style={[styles.btn, styles.approve]} onPress={() => approve(item)}>
@@ -84,15 +93,15 @@ export default function PrincipalParentRequestsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0b1220', padding: 12 },
-  card: { backgroundColor: '#111827', borderRadius: 12, padding: 12, borderColor: '#1f2937', borderWidth: 1, marginBottom: 10 },
-  text: { color: '#fff', marginBottom: 4 },
-  input: { backgroundColor: '#0b1220', color: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#1f2937', padding: 10, marginTop: 8 },
+const createStyles = (theme: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme?.background || '#0b1220', padding: 12 },
+  card: { backgroundColor: theme?.cardBackground || '#111827', borderRadius: 12, padding: 12, borderColor: theme?.border || '#1f2937', borderWidth: 1, marginBottom: 10 },
+  text: { color: theme?.text || '#fff', marginBottom: 4 },
+  input: { backgroundColor: theme?.surface || '#0b1220', color: theme?.text || '#fff', borderRadius: 8, borderWidth: 1, borderColor: theme?.border || '#1f2937', padding: 10, marginTop: 8 },
   row: { flexDirection: 'row', gap: 8, marginTop: 8 },
   btn: { flex: 1, alignItems: 'center', padding: 10, borderRadius: 10 },
-  approve: { backgroundColor: '#00f5ff' },
-  reject: { backgroundColor: '#ff0080' },
+  approve: { backgroundColor: theme?.primary || '#00f5ff' },
+  reject: { backgroundColor: theme?.error || '#ff0080' },
   btnTextDark: { color: '#000', fontWeight: '800' },
-  empty: { color: '#9CA3AF', textAlign: 'center', marginTop: 20 },
+  empty: { color: theme?.textSecondary || '#9CA3AF', textAlign: 'center', marginTop: 20 },
 });

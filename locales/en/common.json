@@ -5,8 +5,30 @@
   "save": "Save",
   "app": {
     "name": "EduDash",
+    "fullName": "EduDash Pro",
     "tagline": "Empowering Education Through AI",
     "version": "1.0.0"
+  },
+  "fallback": {
+    "loading_issue": "Loading issue detected",
+    "description": "The app is having trouble loading. This might be due to network connectivity or configuration issues.",
+    "go_to_sign_in": "Go to Sign In"
+  },
+  "common": {
+    "error": "Error",
+    "success": "Success",
+    "ok": "OK",
+    "cancel": "Cancel",
+    "unexpected_error": "An unexpected error occurred",
+    "or": "or",
+    "click_here": "Click here",
+    "go_now": "Go now",
+    "try_again": "Try Again",
+    "not_set": "Not set",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "not_available": "Not available",
+    "coming_soon": "Coming Soon"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -23,9 +45,12 @@
     "add": "Add",
     "search": "Search",
     "retry": "Retry",
-    "close": "Close"
+    "close": "Close",
+    "switch_account": "Switch account"
   },
   "auth": {
+    "resend_confirmation": "Resend confirmation email",
+    "org_onboard_q": "Looking to onboard an organization?",
     "signIn": "Sign In",
     "signUp": "Sign Up",
     "signOut": "Sign Out",
@@ -41,7 +66,47 @@
     "signingUp": "Creating account...",
     "invalidCredentials": "Invalid email or password",
     "accountCreated": "Account created successfully",
-    "passwordResetSent": "Password reset link sent to your email"
+    "passwordResetSent": "Password reset link sent to your email",
+    "remember_me": "Remember me",
+    "dont_have_account": "Don't have an account?",
+    "sign_in": {
+      "enter_email_password": "Please enter email and password",
+      "welcome_back": "Welcome Back",
+      "sign_in_to_account": "Sign in to your account",
+      "failed": "Sign In Failed",
+      "signing_in": "Signing In...",
+      "cta": "Sign In",
+      "no_saved_credentials": "No saved credentials found. Please sign in with your password."
+    },
+    "biometric": {
+      "prompt": "Sign in to EduDash Pro",
+      "use_face_id": "Use Face ID",
+      "use_fingerprint": "Use Fingerprint",
+      "use_biometric": "Use Biometric",
+      "enabled_for": "Biometric login enabled",
+      "authenticating": "Authenticating",
+      "authenticating_face": "Authenticating with Face ID",
+      "authenticating_fingerprint": "Authenticating with Fingerprint",
+      "please_verify": "Please verify your identity"
+    },
+    "biometric_not_available": {
+      "title": "Biometric Not Available",
+      "desc": "Please use your password to sign in."
+    },
+    "biometric_failed": {
+      "title": "Authentication Failed",
+      "desc": "Biometric authentication failed",
+      "unexpected": "An error occurred during biometric authentication"
+    },
+    "oauth": {
+      "failed_start": "Failed to start social login",
+      "config_error": "OAuth configuration error. Please contact support.",
+      "unavailable": "Sign-in Unavailable",
+      "error": "Sign-in Error"
+    },
+    "sign_up_parent": "Sign up as Parent",
+    "sign_up_teacher": "Sign up as Teacher",
+    "school_register_q": "Looking to register a school?"
   },
   "roles": {
     "parent": "Parent",
@@ -50,7 +115,127 @@
     "admin": "Administrator",
     "superAdmin": "Super Admin"
   },
+  "admin": {
+    "header": {
+      "title": "🎛️ Admin Dashboard",
+      "subtitle": "Real-time school management"
+    },
+    "stats": {
+      "total_users": "Total Users",
+      "active_today": "Active Today",
+      "pending_invites": "Pending Invites",
+      "security_alerts": "Security Alerts"
+    },
+    "user_management": {
+      "title": "👥 User Management"
+    },
+    "pending_invitations": "📤 Pending Invitations",
+    "resend": "📤 Resend",
+    "cancel": "❌ Cancel",
+    "recent_activity": "📊 Recent Activity",
+    "quick_actions": "⚡ Quick Actions",
+    "security_settings_title": "🔐 Security Settings",
+    "security_settings_label": "Security Settings",
+    "opening_security": "Opening security management...",
+    "view_analytics": "View Analytics",
+    "analytics_title": "📊 Analytics",
+    "opening_analytics": "Opening analytics dashboard...",
+    "backup_title": "💾 Backup",
+    "starting_backup": "Starting system backup...",
+    "system_backup_label": "System Backup",
+    "data_refreshed_title": "✅ Data Refreshed",
+    "data_refreshed_desc": "Dashboard data has been updated with the latest information.",
+    "user_action_title": "{{action}} User",
+    "user_action_confirm": "Are you sure you want to {{action}} this user?",
+    "action_completed_title": "✅ Action Completed",
+    "action_completed_desc": "User has been {{action}} successfully.",
+    "invitation_resent_title": "📤 Invitation Resent",
+    "invitation_resent_desc": "The invitation has been sent again to the user.",
+    "invitation_cancelled_title": "❌ Invitation Cancelled",
+    "invitation_cancelled_desc": "The invitation has been cancelled.",
+    "last_seen": "Last seen",
+    "sent": "Sent"
+  },
+  "not_found": {
+    "title": "Route Not Found",
+    "subtitle": "The requested page doesn't exist in the app.",
+    "go_to_dashboard": "Go to Dashboard",
+    "go_to_home": "Go to Home",
+    "debug": {
+      "title": "Debug Information",
+      "path": "Path",
+      "user_role": "User Role",
+      "authenticated": "Authenticated",
+      "can_go_back": "Can Go Back",
+      "segments": "Segments",
+      "timestamp": "Timestamp"
+    }
+  },
+  "time": {
+    "just_now": "Just now",
+    "minutes_short_ago": "{{count}}m ago",
+    "hours_short_ago": "{{count}}h ago",
+    "days_short_ago": "{{count}}d ago",
+    "month": "month",
+    "year": "year"
+  },
+  "marketing": {
+    "pricing": {
+      "back_to_home": "Back to Home"
+    }
+  },
+  "pricing": {
+    "load_error": "Unable to load pricing information. Please try again later.",
+    "loading": "Loading pricing plans...",
+    "unable_title": "Unable to Load Pricing",
+    "cta": {
+      "contact_sales": "Contact Sales",
+      "start_free": "Start Free",
+      "choose_named": "Choose {{name}}"
+    },
+    "tier": {
+      "free": { "desc": "Perfect for small preschools getting started" },
+      "starter": { "desc": "Essential features for growing schools" },
+      "basic": { "desc": "Comprehensive tools for active schools" },
+      "premium": { "desc": "Professional features for established schools" },
+      "pro": { "desc": "Advanced solution for large schools" },
+      "enterprise": { "desc": "Complete solution for large organizations" }
+    },
+    "subtitle_marketing": "Flexible pricing for schools of all sizes. Start free and scale as you grow.",
+    "plans_title": "Plans & Pricing",
+    "subtitle_app": "Flexible options for individuals, preschools and schools. AI usage includes monthly quotas. Overages require prepayment.",
+    "back_to_pricing": "Back to Pricing",
+    "free_ribbon": "You are on the Free plan",
+    "restricted_principal_only": "Only principals or school admins can request Preschool Pro.",
+    "restricted_enterprise_only": "Only principals or school admins can request Enterprise.",
+    "restricted_submit_only": "Only principals or school admins can submit these requests.",
+    "enterprise_subtitle": "Our enterprise solutions are designed for large school districts, government education departments, and multi-national education providers.",
+    "enterprise": {
+      "features": {
+        "multi_tenant": "Multi-tenant architecture",
+        "advanced_security": "Advanced security & compliance",
+        "custom_integrations": "Custom integrations & APIs",
+        "dedicated_support": "Dedicated support team"
+      }
+    },
+    "notes": {
+      "title": "Notes",
+      "quota": "AI quotas are monthly and reset at the start of each month.",
+      "overages": "Overages require prepayment; once paid, access resumes immediately.",
+      "model_selection": "Model selection affects cost; Opus > Sonnet > Haiku. We recommend Haiku for most classroom use.",
+      "enterprise_contact": "For K-12 Enterprise pricing, contact sales. We tailor seat counts and AI usage pools to your school size and needs."
+    },
+    "faq": {
+      "q1": "Can I upgrade or downgrade my plan anytime?",
+      "a1": "Yes! You can change your plan at any time. Upgrades take effect immediately, and downgrades take effect at the start of your next billing cycle.",
+      "q2": "Is there a setup fee?",
+      "a2": "No setup fees for Starter and Professional plans. Enterprise plans may include implementation services.",
+      "q3": "What payment methods do you accept?",
+      "a3": "We accept all major credit cards, PayFast, and bank transfers for South African customers."
+    }
+  },
   "dashboard": {
+    "welcome_generic": "Welcome to EduDash Pro",
     "parentDashboard": "Parent Dashboard",
     "accessDenied": "Access Denied",
     "mobileAppAccessRequired": "Mobile app access is required to use this feature. Please contact your administrator.",
@@ -551,6 +736,8 @@
   },
   "transactions_categories": {},
   "parent": {
+    "approvedPayments": "Approved Payments",
+    "pendingPayments": "Pending Payments",
     "selectChild": "Select Child",
     "myChildren": "My Children",
     "communicationHub": "Communication Hub",
@@ -698,17 +885,21 @@
     "ai_homework_helper": "AI Homework Helper",
     "limit_reached": "Limit reached",
     "requests_left": "{{count}} requests left",
-    "whatsapp_connect": "WhatsApp Connect",
-    "connect_with_teachers": "Connect with teachers",
-    "whatsapp_premium_description": "Get instant communication with your teachers and receive real-time updates on assignments and progress",
-    "learning_resources": "Learning Resources",
-    "access_study_materials": "Access study materials",
-    "learning_resources_premium_description": "Access premium study materials, interactive content, and curated educational resources",
-    "progress_analytics": "Progress Analytics",
-    "track_your_performance": "Track your performance",
-    "upgrade_to_unlock": "Upgrade to unlock",
-    "progress_analytics_premium_description": "Get detailed insights into your learning progress with advanced analytics and performance tracking",
-    "ai_lessons": "AI Lessons",
+      "whatsapp_connect": "WhatsApp Connect",
+      "connect_with_teachers": "Connect with teachers",
+      "connect_with_instructors": "Connect with teachers",
+      "whatsapp_premium_description": "Get instant communication with your teachers and receive real-time updates on assignments and progress",
+      "whatsapp_premium_description_org": "Get instant communication with your teachers and receive real-time updates on assignments and progress",
+      "dash_chat": "Chat with Dash",
+      "ai_assistant": "Your AI teaching assistant",
+      "learning_resources": "Learning Resources",
+      "access_study_materials": "Access study materials",
+      "learning_resources_premium_description": "Access premium study materials, interactive content, and curated educational resources",
+      "progress_analytics": "Progress Analytics",
+      "track_your_performance": "Track your performance",
+      "upgrade_to_unlock": "Upgrade to unlock",
+      "progress_analytics_premium_description": "Get detailed insights into your learning progress with advanced analytics and performance tracking",
+      "ai_lessons": "AI Lessons",
     "ai_lesson_generator": "✨ AI Lesson Generator",
     "ai_lesson_description": "Create engaging educational content for your students:\n\n• Age-appropriate lesson plans\n• Interactive activity suggestions\n• Assessment templates\n• Learning objectives alignment\n\nStart creating lessons now:",
     "create_lesson": "Create Lesson",
@@ -721,7 +912,9 @@
     "create_lessons": "Create Lessons",
     "create_lessons_subtitle": "Generate lessons & assessments with AI",
     "advanced_analytics_subtitle": "Deep insights & forecasting",
-    "seat_management_subtitle": "Assign or revoke teacher seats"
+    "seat_management_subtitle": "Assign or revoke teacher seats",
+    "configure_in_settings": "Configure in Settings",
+    "go_to_settings": "Go to Settings"
   },
   "ai": {
     "homework": {
@@ -807,6 +1000,13 @@
     "dataProtection": "Data Protection",
     "learnDataProtection": "Learn about data protection",
     "appearanceLanguage": "Appearance & Language",
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "timezone": "Timezone",
+    "currency": "Currency",
+    "whatsappConfigured": "WhatsApp Configured",
+    "whatsappYes": "Yes",
+    "whatsappNo": "No",
     "aboutSupport": "About & Support",
     "pushNotifications": "Push Notifications",
     "manageAlerts": "Manage your alerts and reminders",
@@ -845,7 +1045,8 @@
       "current": "Current Language",
       "available": "Available Languages",
       "comingSoon": "Coming Soon",
-      "soon": "Soon"
+      "soon": "Soon",
+      "sa_blurb": "We're working on adding support for all 11 official South African languages"
     },
     "theme": {
       "title": "Theme",
@@ -865,7 +1066,59 @@
     "about": "About",
     "support": "Support",
     "termsOfService": "Terms of Service",
-    "privacyPolicy": "Privacy Policy"
+    "privacyPolicy": "Privacy Policy",
+    "dashboard": {
+      "title": "Dashboard Layout",
+      "current": "Current Layout",
+      "available": "Available Layouts",
+      "classic": "Classic",
+      "classicDesc": "Traditional dashboard with familiar layout and navigation",
+      "enhanced": "Enhanced",
+      "enhancedDesc": "Modern dashboard with improved design and new features"
+    },
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "timezone": "Timezone",
+    "currency": "Currency",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "Configured",
+    "whatsappNotConfigured": "Not Configured",
+    "whatsappYes": "Yes, configured",
+    "whatsappNo": "Not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "loadingSchoolSettings": "Loading school settings...",
+    "failedToLoadSettings": "Failed to load settings",
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financials",
+      "pettyCash": "Petty Cash"
+    },
+    "noFeaturesEnabled": "No features enabled"
+},
+  "trends": {
+    "up": "up",
+    "down": "down",
+    "stable": "stable",
+    "high": "high",
+    "low": "low",
+    "needs_attention": "needs attention",
+    "excellent": "excellent",
+    "good": "good"
+  },
+  "teacher": {
+    "performance": {
+      "active": "Active teacher",
+      "no_classes": "No classes assigned - requires attention",
+      "high_ratio": "High student ratio ({{ratio}}:1) - may need support",
+      "excellent": "Excellent performance - {{classes}} classes, {{ratio}}:1 ratio, {{attendance}}% attendance",
+      "strong": "Strong performance - {{classes}} classes, good attendance rates",
+      "good": "Good performance - managing {{students}} students effectively",
+      "review_needed": "Performance review needed - {{attendance}}% attendance rate in classes"
+    }
   },
   "teacher": {
     "performance": {
@@ -915,6 +1168,7 @@
     "title": "Notifications",
     "markAllRead": "Mark All as Read",
     "noNotifications": "No notifications",
+    "all_read": "all read",
     "newAssignment": "New assignment: {{title}}",
     "gradePosted": "Grade posted for {{assignment}}",
     "reminderDue": "Reminder: {{assignment}} is due tomorrow"
@@ -950,6 +1204,10 @@
   },
   "common": {
     "all": "All",
+    "processing": "Processing...",
+    "verified": "verified",
+    "review_needed": "review needed",
+    "last_activity": "Last activity:",
     "last_7_days": "Last 7 days",
     "last_30_days": "Last 30 days",
     "all_time": "All time",
@@ -1025,33 +1283,27 @@
     }
   },
   "subscription": {
-    "free": "Free",
-    "starter": "Starter",
-    "premium": "Premium", 
-    "enterprise": "Enterprise",
-    "upgrade": "Upgrade Plan",
-    "upgradeToPro": "Upgrade to Pro",
+    "plus_feature": "Plus",
+    "currentPlan": "Current Plan",
+    "changePlanFor": "Change Plan - {{name}}",
+    "selectNewPlan": "Select New Plan ({{count}} available)",
+    "planOrderHint": "Plans are ordered from lowest to highest tier",
+    "billingFrequency": "Billing Frequency",
+    "billing_monthly": "Monthly",
+    "billing_annual": "Annual",
+    "numberOfSeats": "Number of Seats",
+    "enterSeats": "Enter number of seats",
+    "reasonOptional": "Reason (Optional)",
+    "reasonPlaceholder": "Reason for plan change...",
+    "changeSummary": "Change Summary",
+    "upgrade": "UPGRADE",
+    "downgrade": "DOWNGRADE",
+    "plan": "Plan",
     "billing": "Billing",
-    "usage": "Usage",
-    "limits": "Plan Limits",
-    "choose_your_plan": "Choose Your Plan",
-    "managePlan": "Manage plan",
-    "tiers": {
-      "free": "Free",
-      "starter": "Starter",
-      "basic": "Basic",
-      "premium": "Premium",
-      "pro": "Pro",
-      "enterprise": "Enterprise"
-    },
-    "tierSource": {
-      "caption": "Source: {{source}}",
-      "organization": "Organization plan",
-      "school_plan": "School subscription",
-      "school_default": "School default",
-      "user": "User setting",
-      "unknown": "Unknown"
-    }
+    "seatsLabel": "Seats",
+    "paymentRequiredNotice": "Payment required - The school principal will be notified via email and push notification to complete payment via PayFast.",
+    "notifySchoolToPay": "Notify School to Pay",
+    "confirmChange": "Confirm Change"
   },
   "lessons_create": {
     "title": "Create Lesson",
@@ -1085,6 +1337,14 @@
     "failed_load_title": "Failed to Load AI Data",
     "failed_load_desc": "Unable to load allocation data.",
     "retry": "Retry Loading"
+  },
+  "wireframes": {
+    "global_overview": "Global Platform Overview",
+    "no_leads_yet": "No Leads Yet",
+    "view_more_leads": "View {{count}} more leads",
+    "schools_by_region": "Schools by Region",
+    "no_schools_yet": "No schools registered yet",
+    "no_school_selected": "No School Selected"
   },
   "updates": {
     "Update Ready": "Update Ready",
@@ -1127,44 +1387,6 @@
     "no_financial_data_description": "Financial reports and revenue data will be shown here once available.",
     "view_reports": "View Reports"
   },
-  "settings": {
-    "theme": {
-      "title": "Theme",
-      "light": "Light",
-      "dark": "Dark",
-      "system": "System",
-      "preview": "Preview",
-      "primary": "Primary",
-      "secondary": "Secondary",
-      "accent": "Accent"
-    },
-    "language": {
-      "title": "Language",
-      "current": "Current Language",
-      "available": "Available Languages",
-      "comingSoon": "Coming Soon",
-      "soon": "Soon"
-    },
-    "dashboard": {
-      "title": "Dashboard Layout",
-      "current": "Current Layout",
-      "available": "Available Layouts",
-      "classic": "Classic",
-      "classicDesc": "Traditional dashboard with familiar layout and navigation",
-      "enhanced": "Enhanced",
-      "enhancedDesc": "Modern dashboard with improved design and new features"
-    },
-    "preferences": {
-      "title": "Preferences",
-      "autoTheme": "Auto Theme",
-      "autoThemeDesc": "Automatically switch between light and dark themes based on system settings"
-    },
-    "biometric": {
-      "unlockApp": "Unlock EduDash Pro",
-      "authRequired": "Biometric authentication is required to continue",
-      "authenticate": "Authenticate"
-    }
-  },
   "trends": {
     "up": "Up",
     "down": "Down",
@@ -1179,6 +1401,7 @@
   },
   "dash_ai": {
     "assistant_name": "Dash",
+    "optimizing": "Dash AI is optimizing...",
     "greeting": "Hi! I'm Dash, your AI teaching assistant. How can I help you today?",
     "voice_greeting": "Hello! Ready to work together?",
     "processing": "Processing your request...",
@@ -1188,6 +1411,529 @@
     "help_dashboard": "I can help you switch between dashboard layouts, adjust preferences, or explore different views.",
     "layout_switched": "Dashboard layout has been changed!",
     "welcome_message": "Welcome! I'm here to help with teaching, dashboard management, and school administration.",
-    "initializing": "Initializing Dash..."
+      "initializing": "Initializing Dash..."
+    },
+  "dash": {
+    "voice": {
+      "tooltip": "Tap to speak • Double-tap for chat"
+    }
+  },
+  "voice": {
+    "recording": {
+      "listening": "Listening…",
+      "transcribing": "Transcribing…",
+      "preview": "Preview",
+      "speak_clearly": "🎤 Speak clearly into your microphone",
+      "stop_recording_label": "Stop recording",
+      "stop_recording_hint_stream": "Stops stream and finalizes transcript",
+      "stop_recording_hint_file": "Stops recording and transcribes your voice",
+      "finalizing_stream": "Finalizing stream...",
+      "stopping_recording": "Stopping recording...",
+      "validating_audio": "Validating audio...",
+      "uploading_cloud": "Uploading to cloud...",
+      "transcribing_speech": "Transcribing speech...",
+      "done": "Done!",
+      "usually_takes_seconds": "This usually takes a few seconds...",
+      "edit_transcript_label": "Edit transcript before sending:",
+      "no_speech_detected": "No speech detected.",
+      "discard": "Discard",
+      "send": "Send",
+      "sending": "Sending…",
+      "something_wrong": "Something went wrong",
+      "try_again": "Try Again",
+      "failed_streaming": "Failed to start realtime streaming",
+      "recording_captured": "Recording captured.",
+      "failed_process": "Failed to process voice recording",
+      "failed_send": "Failed to send message",
+      "slide_up_lock": "Slide up to lock",
+      "thinking": "Thinking...",
+      "starting": "Starting...",
+      "hold_to_record": "Hold to record • Slide up to lock",
+      "recording_locked": "Recording Locked",
+      "processing": "Processing...",
+      "transcription_label": "Transcription:",
+      "analyzing": "🤖 Dash AI is analyzing...",
+      "clear": "Clear",
+      "no_transcription_warning": "No transcription received"
+    },
+    "status": {
+      "connecting": "Connecting...",
+      "connected": "Connected",
+      "streaming": "Streaming...",
+      "reconnecting": "Reconnecting...",
+      "offline": "Offline",
+      "error": "Error"
+    },
+    "errors": {
+      "failed_start": "Failed to start recording",
+      "failed_stop": "Failed to stop/transcribe",
+      "cancel_error": "Cancel error",
+      "send_error": "Send error",
+      "no_transcription": "No speech detected or transcription failed"
+    }
+  },
+  "cache": {
+    "management": "Cache Management",
+    "health": "Cache Health",
+    "statistics": "Statistics",
+    "about": "About Cache",
+    "clear": "Clear",
+    "clearing": "Clearing cache...",
+    "clear_personal": "Clear Personal Cache",
+    "clear_personal_title": "Clear Personal Cache",
+    "clear_personal_message": "This will clear all cached data for your account. You may experience slower loading times until data is cached again.",
+    "clear_personal_desc": "Clear cached data for your account only",
+    "personal_cleared": "Personal cache cleared successfully",
+    "clear_school": "Clear School Cache",
+    "clear_school_title": "Clear School Cache",
+    "clear_school_message": "This will clear all cached data for your entire school. All staff members will experience slower loading times until data is cached again. This action should only be performed if you are experiencing data synchronization issues.",
+    "clear_school_button": "Clear School Cache",
+    "clear_school_desc": "Clear cached data for entire school (Principal only)",
+    "school_cleared": "School cache cleared successfully",
+    "clear_failed": "Failed to clear cache",
+    "clear_school_failed": "Failed to clear school cache",
+    "school_info_unavailable": "School information not available",
+    "refresh_stats": "Refresh Statistics",
+    "refresh_stats_desc": "Reload cache statistics and health status",
+    "loading_stats": "Loading cache statistics...",
+    "status_unknown": "Unable to determine status",
+    "size_very_large": "Cache size is very large",
+    "size_moderate": "Cache size is moderate",
+    "efficiency_low": "Low cache efficiency",
+    "operating_efficiently": "Cache operating efficiently",
+    "total_size": "Total Size",
+    "entries": "Cache Entries",
+    "hit_rate": "Hit Rate",
+    "last_updated": "Last Updated",
+    "about_description": "The offline cache stores dashboard data locally on your device for faster loading and offline access. Cache is automatically managed but can be cleared if you experience sync issues.",
+    "about_details": "• Cache expires automatically after 5-10 minutes\n• Data is encrypted and user-specific\n• Maximum cache size is limited to 10MB\n• Cache improves loading speeds by 60-90%"
+  },
+  "invitation": {
+    "validation_error": "Validation Error",
+    "duplicate_email": "Duplicate Email",
+    "duplicate_email_message": "This email has already been added to the invitation list.",
+    "parse_error": "Parse Error",
+    "parse_failed": "Failed to parse CSV data",
+    "no_valid_data": "No Valid Data",
+    "no_valid_data_message": "No valid invitations found in the CSV data.",
+    "invitations_added": "{{count}} invitations added to the list.",
+    "no_invitations": "No Invitations",
+    "add_one_invitation": "Please add at least one invitation.",
+    "send_failed": "Failed to send invitation",
+    "invitations_sent": "Invitations Sent",
+    "send_results": "Successfully sent: {{success}}\nFailed: {{failed}}",
+    "error_valid_email": "Please enter a valid email address",
+    "error_valid_name": "Please enter a valid name",
+    "error_select_subject": "Please select at least one subject",
+    "error_select_grade": "Please select at least one grade level",
+    "error_select_student": "Please select at least one student",
+    "csv_headers_required": "CSV must have headers and at least one data row",
+    "csv_email_name_required": "CSV must have \"email\" and \"name\" columns",
+    "csv_parent_columns_required": "CSV must have \"email\", \"name\", and \"student_name\" columns",
+    "email_address": "Email Address *",
+    "email_placeholder": "john.doe@example.com",
+    "full_name": "Full Name *",
+    "name_placeholder": "John Doe",
+    "subjects": "Subjects *",
+    "grade_levels": "Grade Levels *",
+    "add_to_list": "Add to Invitation List"
+  },
+  "auth_comp": {
+    "enter_email_password": "Please enter both email and password",
+    "login_successful": "Login successful!",
+    "login_failed": "Login Failed",
+    "sign_in_title": "Sign In to EduDash Pro",
+    "dismiss": "Dismiss",
+    "enter_email": "Enter your email",
+    "enter_password": "Enter your password",
+    "fill_all_fields": "Please fill in all fields",
+    "passwords_no_match": "Passwords do not match",
+    "registration_verify_email": "Registration successful! Please check your email to verify your account.",
+    "registration_success": "Registration successful! You are now logged in.",
+    "registration_failed": "Registration Failed",
+    "create_account": "Create Your Account",
+    "join_as_student": "Join EduDash Pro as a student",
+    "first_name_placeholder": "First name",
+    "last_name_placeholder": "Last name",
+    "create_password": "Create a strong password",
+    "password_requirements": "Minimum 12 characters with uppercase, lowercase, numbers, and symbols",
+    "confirm_password_placeholder": "Confirm your password",
+    "create_account_button": "Create Account",
+    "already_have_account": "Already have an account?",
+    "logout": "Logout",
+    "logout_confirm": "Are you sure you want to logout?",
+    "logout_success": "Logged out successfully",
+    "logout_failed": "Failed to logout",
+    "no_profile": "No user profile found"
+  },
+  "settings": {
+    "title": "Settings",
+    "profile": "Profile Settings",
+    "notifications": "Notifications",
+    "privacy": "Privacy",
+    "securityPrivacy": "Security & Privacy",
+    "dataProtection": "Data Protection",
+    "learnDataProtection": "Learn how we protect your data",
+    "appearanceLanguage": "Appearance & Language",
+    "schoolOverview": "School Overview",
+    "schoolName": "School Name",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "WhatsApp is configured",
+    "whatsappNotConfigured": "WhatsApp is not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "loadingSchoolSettings": "Loading school settings...",
+    "failedToLoadSettings": "Failed to load school settings",
+    "noFeaturesEnabled": "No features are currently enabled",
+    "aboutSupport": "About & Support",
+    "language": {
+      "title": "Language"
+    },
+    "theme": {
+      "title": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "biometric": {
+      "title": "Biometric Authentication",
+      "notAvailable": "Biometric authentication is not available on this device",
+      "setupRequired": "Please set up biometrics in your device settings first",
+      "enabled": "Biometric login is enabled",
+      "disabled": "Biometric login is disabled",
+      "fingerprint": "Fingerprint",
+      "faceId": "Face ID",
+      "not_available_desc": "Biometric authentication is not available on this device. This feature requires fingerprint or face recognition hardware."
+    },
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financials",
+      "pettyCash": "Petty Cash"
+    },
+    "manage_alerts": "Manage your alerts",
+    "notifications_coming_soon_desc": "Notification settings will be available in the next update.",
+    "privacy_security": {
+      "title": "Privacy & Security",
+      "info": "Data protection info"
+    }
+  },
+  "account": {
+    "info": {
+      "title": "Account Information",
+      "full_name": "Full Name",
+      "role": "Role",
+      "school_id": "School ID"
+    },
+    "edit": {
+      "title": "Edit Profile",
+      "personal_information": "Personal Information"
+    },
+    "placeholders": {
+      "first_name": "Enter your first name",
+      "last_name": "Enter your last name"
+    }
+  },
+  "trends": {
+    "up": "up",
+    "down": "down",
+    "stable": "stable",
+    "good": "good",
+    "excellent": "excellent",
+    "warning": "warning",
+    "attention": "attention",
+    "needs_attention": "needs attention",
+    "low": "low",
+    "high": "high"
+  },
+  "updates": {
+    "Restart App": "Restart App",
+    "Restart Now": "Restart Now",
+    "The app will restart to apply the update. Any unsaved changes will be lost.": "The app will restart to apply the update. Any unsaved changes will be lost."
+  },
+  "dash": {
+    "onboarding": {
+      "welcome": {
+        "title": "Meet Dash",
+        "subtitle": "Your AI assistant for EduDash Pro. I can help you save time and personalize learning.",
+        "start": "Get Started",
+        "skip": "Skip for now"
+      },
+      "roles": {
+        "title": "Tell me your role",
+        "subtitle": "I'll personalize recommendations for you.",
+        "options": {
+          "principal": "Principal",
+          "teacher": "Teacher",
+          "parent": "Parent",
+          "admin": "Administrator"
+        }
+      },
+      "communication_style": {
+        "title": "Choose communication style",
+        "subtitle": "How would you like Dash to communicate with you?",
+        "options": {
+          "professional": "Professional",
+          "casual": "Casual",
+          "encouraging": "Encouraging",
+          "formal": "Formal"
+        }
+      },
+      "features": {
+        "title": "Feature preferences",
+        "subtitle": "Enable what you want Dash to use proactively.",
+        "options": {
+          "voice": "Voice responses",
+          "proactiveHelp": "Proactive suggestions",
+          "memory": "Remember preferences",
+          "summaries": "Auto summaries",
+          "taskAssist": "Task assistance"
+        }
+      },
+      "voice_settings": {
+        "title": "Voice settings",
+        "subtitle": "Customize Dash's voice",
+        "language": "Language",
+        "voiceType": "Voice type",
+        "rate": "Speaking rate",
+        "pitch": "Pitch",
+        "testVoice": "Test voice",
+        "voiceTypeOptions": {
+          "female": "Female",
+          "male": "Male",
+          "neutral": "Neutral"
+        },
+        "languageOptions": {
+          "en-ZA": "English (South Africa)",
+          "en-US": "English (US)",
+          "en-GB": "English (UK)"
+        }
+      },
+      "review": {
+        "title": "Review your setup",
+        "subtitle": "Confirm your preferences before finishing.",
+        "finish": "Complete Setup",
+        "back": "Back",
+        "next": "Next",
+        "save": "Save",
+        "reset": "Reset",
+        "role": "Role",
+        "style": "Communication style",
+        "features": "Features",
+        "voice": "Voice"
+      },
+      "status": {
+        "completed": "Onboarding complete",
+        "incomplete": "Onboarding incomplete",
+        "saving": "Saving your preferences...",
+        "success": "Setup complete! Dash is ready to assist you."
+      },
+      "settings": {
+        "resetSetup": "Reset Dash Setup",
+        "resetSetupDescription": "Clear your onboarding and start over",
+        "resetConfirm": "Are you sure you want to reset Dash setup? This will clear all your personalization."
+      },
+      "errors": {
+        "saveFailed": "Failed to save preferences",
+        "loadFailed": "Failed to load onboarding state"
+      }
+    }
+  },
+  "actions": {
+    "continue": "Continue",
+    "next": "Next",
+    "back": "Back",
+    "finish": "Finish",
+    "skip": "Skip",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "done": "Done"
+  },
+  "screens": {
+    "loading": "Loading...",
+    "error_loading": "Error loading screen",
+    "no_data": "No data available"
+  },
+  "components": {
+    "button": {
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "save": "Save",
+      "delete": "Delete",
+      "edit": "Edit",
+      "add": "Add",
+      "remove": "Remove",
+      "close": "Close"
+    },
+    "card": {
+      "view_details": "View Details",
+      "expand": "Expand",
+      "collapse": "Collapse"
+    },
+    "list": {
+      "no_items": "No items to display",
+      "loading_items": "Loading items...",
+      "load_more": "Load More"
+    },
+    "search": {
+      "placeholder": "Search...",
+      "no_results": "No results found",
+      "clear": "Clear search"
+    },
+    "filter": {
+      "apply": "Apply Filters",
+      "clear": "Clear Filters",
+      "title": "Filter"
+    }
+  },
+  "modals": {
+    "confirm": {
+      "title": "Confirm Action",
+      "message": "Are you sure you want to proceed?",
+      "yes": "Yes",
+      "no": "No",
+      "cancel": "Cancel"
+    },
+    "delete": {
+      "title": "Confirm Deletion",
+      "message": "Are you sure you want to delete this item? This action cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "unsaved_changes": {
+      "title": "Unsaved Changes",
+      "message": "You have unsaved changes. Do you want to save before leaving?",
+      "save": "Save",
+      "discard": "Discard",
+      "cancel": "Cancel"
+    }
+  },
+  "forms": {
+    "required_field": "This field is required",
+    "invalid_format": "Invalid format",
+    "saving": "Saving...",
+    "saved": "Saved successfully",
+    "save_failed": "Failed to save",
+    "required_indicator": "*",
+    "optional_indicator": "(optional)",
+    "character_count": "{{current}}/{{max}} characters",
+    "select_option": "Select an option",
+    "no_options": "No options available"
+  },
+  "validation": {
+    "required": "{{field}} is required",
+    "min_length": "{{field}} must be at least {{min}} characters",
+    "max_length": "{{field}} must be no more than {{max}} characters",
+    "email_invalid": "Please enter a valid email address",
+    "phone_invalid": "Please enter a valid phone number",
+    "url_invalid": "Please enter a valid URL",
+    "number_invalid": "Please enter a valid number",
+    "min_value": "Value must be at least {{min}}",
+    "max_value": "Value must be no more than {{max}}",
+    "date_invalid": "Please enter a valid date",
+    "password_weak": "Password is too weak",
+    "password_mismatch": "Passwords do not match",
+    "must_accept": "You must accept the {{field}}"
+  },
+  "loading": {
+    "default": "Loading...",
+    "please_wait": "Please wait...",
+    "fetching_data": "Fetching data...",
+    "processing": "Processing...",
+    "saving": "Saving...",
+    "uploading": "Uploading...",
+    "downloading": "Downloading...",
+    "connecting": "Connecting...",
+    "initializing": "Initializing..."
+  },
+  "apply": {
+    "screenTitle": "Apply for Job",
+    "headerTitle": "Apply for Position",
+    "loadingPosting": "Loading job posting...",
+    "notFoundTitle": "Job posting not found",
+    "notFoundDesc": "This job may have been removed or expired",
+    "jobNotAvailableTitle": "Job Not Available",
+    "jobNotAvailableDesc": "This job posting is no longer active.",
+    "jobExpiredTitle": "Job Expired",
+    "jobExpiredDesc": "This job posting has expired.",
+    "loadError": "Failed to load job posting",
+    "schoolPosition": "School Position",
+    "personalInfo": "Personal Information",
+    "phoneNumber": "Phone Number",
+    "yearsExperience": "Years of Experience",
+    "qualificationsTitle": "Qualifications",
+    "educationOptionalLabel": "Education & Certifications (Optional)",
+    "resumeLabel": "Resume/CV",
+    "uploadResumeCta": "Upload Resume/CV",
+    "uploadHint": "PDF or Word document, max 50MB",
+    "coverLetterOptional": "Cover Letter (Optional)",
+    "submitCta": "Submit Application",
+    "privacyNotice": "Your information will only be shared with the hiring school. We respect your privacy and comply with POPIA regulations.",
+    "fileTooLargeTitle": "File Too Large",
+    "fileTooLargeDesc": "Resume must be less than 50MB",
+    "invalidFileTypeTitle": "Invalid File Type",
+    "invalidFileTypeDesc": "Please upload a PDF or Word document",
+    "pickDocumentError": "Failed to pick document",
+    "validationErrorTitle": "Validation Error",
+    "error": {
+      "yearsExperienceNumber": "Please enter valid years of experience (number)",
+      "resumeRequired": "Please upload your resume"
+    },
+    "submittedTitle": "Application Submitted! 🎉",
+    "submittedDesc": "Your application has been received. The school will review your application and contact you if you're shortlisted for an interview.\n\nYou will receive a confirmation email shortly.",
+    "submitError": "Failed to submit application. Please try again.",
+    "placeholder": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "phone": "+27 82 123 4567",
+      "years": "e.g. 3",
+      "qualificationsText": "e.g. Bachelor's Degree in Early Childhood Education, SACE Registration",
+      "coverLetterLong": "Tell us why you're interested in this position and what makes you a great fit..."
+    }
+  },
+  "currency": {
+    "symbol": "R"
+  },
+  "invite": {
+    "opening_app": "Opening the app...",
+    "open_app_cta": "Open EduDash Pro App",
+    "install_google_play": "Install from Google Play",
+    "opening_parent_registration": "Opening the app for parent registration...",
+    "opening_join_by_code": "Opening the app to join by code..."
+  },
+  "landing": {
+    "verifying_email": "Verifying your email...",
+    "email_verified": "Email verified. Opening app...",
+    "email_verification_failed": "Email verification failed."
+  },
+  "demo": {
+    "header": {
+      "title": "🚀 EduDash Pro Demo",
+      "subtitle": "Comprehensive Authentication System - Complete!"
+    },
+    "sections": {
+      "project_overview": "📊 Project Overview",
+      "interactive_demos": "🎮 Interactive Demos",
+      "tap_any_demo": "Tap any demo below to see the components in action!",
+      "completed_components": "📦 Completed Components",
+      "whats_next": "🎯 What's Next?"
+    },
+    "stats": {
+      "complete": "Complete",
+      "components": "Components",
+      "lines_of_code": "Lines of Code"
+    },
+    "next": {
+      "auth_complete_title": "🎉 Authentication System Complete!",
+      "auth_complete_points": "You now have a production-ready authentication system with:\n• Enterprise-grade security\n• Multi-factor authentication\n• Comprehensive admin tools\n• Real-time monitoring\n• Mobile-responsive design",
+      "integration_ready": "💡 Integration Ready",
+      "integration_points": "All components are:\n• Fully typed with TypeScript\n• Theme-integrated and accessible\n• Production-ready with error handling\n• Documented with clear interfaces\n• Ready for backend integration"
+    },
+    "open_demo": "Open Demo →",
+    "localhost_prefix": "localhost:8082"
   }
 }

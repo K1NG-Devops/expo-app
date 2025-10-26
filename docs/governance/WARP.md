@@ -1,4 +1,10 @@
-# WARP.md - EduDash Pro Master Rules Document
+# Governance Pointer
+
+This repository's authoritative governance rules live in `/WARP.md` at the repository root. This file intentionally delegates to the root to prevent drift.
+
+For official documentation sources and versions, also see:
+- `ROAD-MAP.md` (Non-negotiables, execution plan, and references)
+- `docs/governance/DOCUMENTATION_SOURCES.md` (curated external links to official documentation)
 
 ## 🚨 RULES-FIRST PRECEDENCE
 **WARP.md > rules.md > .cursorrules > code**  

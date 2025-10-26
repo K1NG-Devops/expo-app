@@ -114,120 +114,69 @@ export default function SuperAdminAIQuotasScreen() {
     try {
       setLoading(true);
 
-      // Mock data for AI quota settings
-      const mockQuotas: AIQuotaSettings[] = [
-        {
-          id: '1',
-          school_id: 'school1',
-          school_name: 'Bright Minds Preschool',
-          plan_type: 'pro',
-          monthly_limit: 25000,
-          current_usage: 22500,
-          reset_date: new Date(2024, 11, 1).toISOString(),
-          overage_allowed: true,
-          overage_limit: 5000,
-          cost_per_overage: 0.002,
-          warnings_enabled: true,
-          warning_thresholds: [75, 90, 95],
-          is_suspended: false,
-          last_updated: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          school_id: 'school2',
-          school_name: 'Little Learners Academy',
-          plan_type: 'basic',
-          monthly_limit: 5000,
-          current_usage: 6200,
-          reset_date: new Date(2024, 11, 1).toISOString(),
-          overage_allowed: true,
-          overage_limit: 2000,
-          cost_per_overage: 0.002,
-          warnings_enabled: true,
-          warning_thresholds: [75, 90, 95],
-          is_suspended: false,
-          last_updated: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          school_id: 'school3',
-          school_name: 'Sunny Days Nursery',
-          plan_type: 'free',
-          monthly_limit: 1000,
-          current_usage: 1250,
-          reset_date: new Date(2024, 11, 1).toISOString(),
-          overage_allowed: false,
-          cost_per_overage: 0,
-          warnings_enabled: true,
-          warning_thresholds: [75, 90, 95],
-          is_suspended: true,
-          last_updated: new Date().toISOString(),
-        },
-        {
-          id: '4',
-          school_id: 'school4',
-          school_name: 'Creative Kids Center',
-          plan_type: 'enterprise',
-          monthly_limit: 100000,
-          current_usage: 45800,
-          reset_date: new Date(2024, 11, 1).toISOString(),
-          overage_allowed: true,
-          overage_limit: 25000,
-          cost_per_overage: 0.0015,
-          warnings_enabled: true,
-          warning_thresholds: [75, 90, 95],
-          is_suspended: false,
-          last_updated: new Date().toISOString(),
-        },
-        {
-          id: '5',
-          school_id: 'school5',
-          school_name: 'Happy Kids Preschool',
-          plan_type: 'basic',
-          monthly_limit: 5000,
-          current_usage: 3200,
-          reset_date: new Date(2024, 11, 1).toISOString(),
-          overage_allowed: true,
-          overage_limit: 1000,
-          cost_per_overage: 0.002,
-          warnings_enabled: true,
-          warning_thresholds: [75, 90, 95],
-          is_suspended: false,
-          last_updated: new Date().toISOString(),
-        },
-      ];
-
-      setSchoolQuotas(mockQuotas);
-
-      // Calculate usage statistics
-      const totalUsage = mockQuotas.reduce((sum, school) => sum + school.current_usage, 0);
-      const totalCost = mockQuotas.reduce((sum, school) => {
-        const overageTokens = Math.max(0, school.current_usage - school.monthly_limit);
-        return sum + (overageTokens * school.cost_per_overage);
-      }, 0);
+      // Fetch real AI quota data from database
+      const quotasResponse = await assertSupabase().rpc('get_superadmin_ai_quotas');
       
-      const overLimitSchools = mockQuotas.filter(school => school.current_usage > school.monthly_limit);
-      const suspendedSchools = mockQuotas.filter(school => school.is_suspended);
-      
-      const topSchools = mockQuotas
-        .map(school => ({
-          school_name: school.school_name,
-          usage: school.current_usage,
-          cost: Math.max(0, school.current_usage - school.monthly_limit) * school.cost_per_overage,
-          percentage: (school.current_usage / school.monthly_limit) * 100,
-        }))
-        .sort((a, b) => b.usage - a.usage)
-        .slice(0, 5);
+      if (quotasResponse.error) {
+        console.error('AI quotas RPC error:', quotasResponse.error);
+        throw new Error('Failed to fetch AI quota data');
+      }
 
-      setUsageStats({
-        total_tokens_used: totalUsage,
-        total_cost: totalCost,
-        average_cost_per_school: totalCost / mockQuotas.length,
-        schools_over_limit: overLimitSchools.length,
-        schools_suspended: suspendedSchools.length,
-        projected_monthly_cost: totalCost * 2, // Simple projection
-        top_consuming_schools: topSchools,
-      });
+      if (!quotasResponse.data?.success) {
+        throw new Error(quotasResponse.data?.error || 'Failed to fetch AI quota data');
+      }
+
+      const responseData = quotasResponse.data.data;
+      
+      // Set real school quotas from database
+      const realQuotas: AIQuotaSettings[] = (responseData.school_quotas || []).map((quota: any) => ({
+        id: quota.id,
+        school_id: quota.school_id,
+        school_name: quota.school_name,
+        plan_type: quota.plan_type,
+        monthly_limit: quota.monthly_limit,
+        current_usage: quota.current_usage,
+        reset_date: quota.reset_date,
+        overage_allowed: quota.overage_allowed,
+        overage_limit: quota.overage_limit,
+        cost_per_overage: quota.cost_per_overage,
+        warnings_enabled: quota.warnings_enabled,
+        warning_thresholds: quota.warning_thresholds,
+        is_suspended: quota.is_suspended,
+        last_updated: quota.last_updated,
+      }));
+
+      setSchoolQuotas(realQuotas);
+
+      // Update global config from database
+      if (responseData.global_config) {
+        setGlobalConfig({
+          free_tier_limit: responseData.global_config.free_tier_limit,
+          basic_tier_limit: responseData.global_config.basic_tier_limit,
+          pro_tier_limit: responseData.global_config.pro_tier_limit,
+          enterprise_tier_limit: responseData.global_config.enterprise_tier_limit,
+          overage_rate: responseData.global_config.overage_rate,
+          warning_thresholds: responseData.global_config.warning_thresholds,
+          suspension_threshold: responseData.global_config.suspension_threshold,
+          auto_reset_enabled: responseData.global_config.auto_reset_enabled,
+          cost_alerts_enabled: responseData.global_config.cost_alerts_enabled,
+        });
+      }
+
+      // Update usage statistics from database
+      if (responseData.usage_stats) {
+        setUsageStats({
+          total_tokens_used: responseData.usage_stats.total_tokens_used,
+          total_cost: responseData.usage_stats.total_cost,
+          average_cost_per_school: responseData.usage_stats.average_cost_per_school,
+          schools_over_limit: responseData.usage_stats.schools_over_limit,
+          schools_suspended: responseData.usage_stats.schools_suspended,
+          projected_monthly_cost: responseData.usage_stats.projected_monthly_cost,
+          top_consuming_schools: responseData.usage_stats.top_consuming_schools,
+        });
+      }
+
+      console.log(`AI Quotas: Loaded ${realQuotas.length} schools, ${responseData.usage_stats?.total_tokens_used || 0} tokens used`);
 
     } catch (error) {
       console.error('Failed to fetch AI quotas:', error);
@@ -530,7 +479,16 @@ export default function SuperAdminAIQuotasScreen() {
       {/* Header */}
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity 
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/screens/super-admin-dashboard');
+              }
+            }} 
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={theme.primary} />
           </TouchableOpacity>
           <Text style={styles.title}>AI Quota Management</Text>

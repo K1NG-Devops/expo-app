@@ -1,18 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator, Linking } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { assertSupabase } from '@/lib/supabase';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getEffectiveLimits } from '@/lib/ai/limits';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
+import { navigateBack } from '@/lib/navigation';
 
 export default function PrincipalSeatManagementScreen() {
+  const { theme, isDark } = useTheme();
+  // Use theme tokens and explicit isDark flag for styling
+  const styles = React.useMemo(() => createStyles(theme, isDark), [theme, isDark]);
   const params = useLocalSearchParams<{ school?: string }>();
   const routeSchoolId = (params?.school ? String(params.school) : null);
-  const { seats, assignSeat, revokeSeat } = useSubscription();
+  const { seats, assignSeat, revokeSeat, refresh } = useSubscription();
   const [effectiveSchoolId, setEffectiveSchoolId] = useState<string | null>(routeSchoolId);
   const [subscriptionId, setSubscriptionId] = useState<string | null>(null);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
@@ -94,6 +99,7 @@ export default function PrincipalSeatManagementScreen() {
         .eq('preschool_id', effectiveSchoolId)
         .eq('role', 'teacher');
 
+      // Use profiles.id (auth user ID) for RPC calls - RPC function expects this
       let teacherList: { id: string; email: string; hasSeat: boolean }[] = (profs || []).map((p: any) => ({ id: p.id, email: p.email, hasSeat: false }));
 
       // If none found (schema variance), fall back to users table by auth_user_id
@@ -101,7 +107,7 @@ export default function PrincipalSeatManagementScreen() {
         try {
           const { data: users } = await assertSupabase()
             .from('users')
-            .select('id, auth_user_id, email, role, preschool_id')
+            .select('auth_user_id, email, role, preschool_id')
             .eq('preschool_id', effectiveSchoolId)
             .eq('role', 'teacher');
           teacherList = (users || []).map((u: any) => ({ id: u.auth_user_id || u.id, email: u.email, hasSeat: false }));
@@ -110,11 +116,28 @@ export default function PrincipalSeatManagementScreen() {
         }
       }
 
-      // Overlay seat assignment if we have a subscription id
+      // Use the fixed RPC function to get seat assignments
+      // This function now properly returns auth_user_id as user_id for comparison
       let seatSet = new Set<string>();
       if (subscriptionId) {
-        const { data: seatsRows } = await assertSupabase().from('subscription_seats').select('user_id').eq('subscription_id', subscriptionId);
-        seatSet = new Set((seatsRows || []).map((r: any) => r.user_id as string));
+        try {
+          const { data: seatsData, error: seatsError } = await assertSupabase()
+            .rpc('rpc_list_teacher_seats');
+            
+          if (!seatsError && seatsData) {
+            // The RPC now returns auth_user_id as user_id, and only active seats (revoked_at IS NULL)
+            seatSet = new Set(
+              seatsData
+                .filter((seat: any) => seat.revoked_at === null) // Only active seats
+                .map((seat: any) => seat.user_id)
+                .filter(Boolean)
+            );
+          } else if (seatsError) {
+            console.warn('Failed to load seats via RPC:', seatsError);
+          }
+        } catch (rpcErr) {
+          console.warn('RPC call failed:', rpcErr);
+        }
       }
 
       setTeachers(teacherList.map(t => ({ ...t, hasSeat: seatSet.has(t.id) })));
@@ -129,11 +152,16 @@ export default function PrincipalSeatManagementScreen() {
 
   const findTeacherIdByEmail = async (email: string): Promise<string | null> => {
     try {
+      // First try profiles table (RPC function expects profiles.id which is auth user ID)
       const { data } = await assertSupabase().from('profiles').select('id,role,preschool_id').eq('email', email).maybeSingle();
-      if (data && (data as any).id) return (data as any).id as string;
-      // Fallback to users table if profiles lookup fails
+      if (data && (data as any).id) {
+        return (data as any).id as string; // This is the auth user ID
+      }
+      
+      // Fallback to users table and get auth_user_id
       const { data: u } = await assertSupabase().from('users').select('auth_user_id,email').eq('email', email).maybeSingle();
       if (u && (u as any).auth_user_id) return (u as any).auth_user_id as string;
+      
       return null;
     } catch { return null; }
   };
@@ -144,15 +172,16 @@ export default function PrincipalSeatManagementScreen() {
       setAssigning(true); setError(null); setSuccess(null);
       const userId = await findTeacherIdByEmail(teacherEmail);
       if (!userId) { setError('Teacher not found by email'); return; }
-      const ok = await assignSeat(subscriptionId, userId);
-      if (!ok) { setError('Failed to assign seat'); return; }
-      try {
-        const { notifySeatRequestApproved } = await import('@/lib/notify');
-        await notifySeatRequestApproved(userId);
-      } catch {}
+      await assignSeat(subscriptionId, userId);
+      // Optimistically update UI
+      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, hasSeat: true } : t));
       setSuccess('Seat assigned successfully');
       setTeacherEmail('');
+      // Also refresh from server to stay in sync
       await loadTeachers();
+      try { await refresh(); } catch { /* Intentional: non-fatal */ }
+    } catch (error: any) {
+      setError(error?.message || 'Failed to assign seat');
     } finally {
       setAssigning(false);
     }
@@ -164,11 +193,14 @@ export default function PrincipalSeatManagementScreen() {
       setRevoking(true); setError(null); setSuccess(null);
       const userId = await findTeacherIdByEmail(teacherEmail);
       if (!userId) { setError('Teacher not found by email'); return; }
-      const ok = await revokeSeat(subscriptionId, userId);
-      if (!ok) { setError('Failed to revoke seat'); return; }
+      await revokeSeat(subscriptionId, userId);
+      // Optimistically update UI
+      setTeachers(prev => prev.map(t => t.id === userId ? { ...t, hasSeat: false } : t));
       setSuccess('Seat revoked successfully');
       setTeacherEmail('');
       await loadTeachers();
+    } catch (error: any) {
+      setError(error?.message || 'Failed to revoke seat');
     } finally {
       setRevoking(false);
     }
@@ -179,13 +211,13 @@ export default function PrincipalSeatManagementScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Seat Management', headerStyle: { backgroundColor: '#0b1220' }, headerTitleStyle: { color: '#fff' }, headerTintColor: '#00f5ff' }} />
-      <StatusBar style="light" backgroundColor="#0b1220" />
-      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: '#0b1220' }}>
-      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00f5ff" />}>
+      <Stack.Screen options={{ title: 'Seat Management', headerStyle: { backgroundColor: theme.headerBackground }, headerTitleStyle: { color: theme.headerText }, headerTintColor: theme.headerTint }} />
+      <ThemedStatusBar />
+      <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: theme.background }}>
+      <ScrollView contentContainerStyle={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} />}>
         <View style={styles.backRow}>
-          <TouchableOpacity style={styles.backLink} onPress={() => router.replace('/screens/principal-dashboard')}>
-            <Ionicons name="chevron-back" size={20} color="#00f5ff" />
+          <TouchableOpacity style={styles.backLink} onPress={() => navigateBack('/screens/principal-dashboard')}>
+            <Ionicons name="chevron-back" size={20} color={styles.accentColor} />
             <Text style={styles.backText}>Back to Dashboard</Text>
           </TouchableOpacity>
         </View>
@@ -245,7 +277,7 @@ export default function PrincipalSeatManagementScreen() {
                   if (error) throw error;
                   // Optimistically set subscription id returned by RPC (enables bulk-assign immediately)
                   if (data) {
-                    try { setSubscriptionId(String(data)); } catch {}
+                    try { setSubscriptionId(String(data)); } catch { /* Intentional: non-fatal */ }
                   }
                   setSuccess('Free trial started. You can now assign seats.');
                   await loadSubscription();
@@ -257,27 +289,6 @@ export default function PrincipalSeatManagementScreen() {
               >
                 <Ionicons name="flash" size={16} color="#000" />
                 <Text style={styles.contactBtnText}>Start Free Trial (14 days)</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={[styles.contactButtonsRow, { marginTop: 8 }]}>
-              <TouchableOpacity
-                style={[styles.contactBtn, styles.contactBtnWhatsApp]}
-                onPress={async () => {
-                  const message = encodeURIComponent('Hello, I need help with my school subscription on EduDash Pro.');
-                  const waUrl = `whatsapp://send?phone=27674770975&text=${message}`;
-                  const webUrl = `https://wa.me/27674770975?text=${message}`;
-                  try {
-                    const supported = await Linking.canOpenURL('whatsapp://send');
-                    if (supported) {
-                      await Linking.openURL(waUrl);
-                    } else {
-                      await Linking.openURL(webUrl);
-                    }
-                  } catch {}
-                }}
-              >
-                <Ionicons name="logo-whatsapp" size={16} color="#000" />
-                <Text style={styles.contactBtnText}>Contact Support</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -345,7 +356,7 @@ export default function PrincipalSeatManagementScreen() {
 
           {teachers.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color="#9CA3AF" />
+              <Ionicons name="people-outline" size={48} color={styles.subtitle.color} />
               <Text style={styles.emptyStateTitle}>No Teachers Found</Text>
               <Text style={styles.emptyStateSubtitle}>Add teachers to your school to manage seat assignments</Text>
             </View>
@@ -356,27 +367,61 @@ export default function PrincipalSeatManagementScreen() {
                 <>
                   <View style={styles.categoryHeader}>
                     <View style={styles.categoryIndicator}>
-                      <View style={[styles.statusDot, { backgroundColor: '#10b981' }]} />
+                      <View style={[styles.statusDot, { backgroundColor: styles.successColor }]} />
                       <Text style={styles.categoryTitle}>Teachers with Seats ({teachers.filter(t => t.hasSeat).length})</Text>
                     </View>
                   </View>
                   {teachers.filter(t => t.hasSeat).map((t) => (
                     <View key={t.id} style={[styles.teacherRow, styles.teacherRowWithSeat]}>
                       <View style={styles.teacherInfo}>
-                        <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                        <Ionicons name="checkmark-circle" size={20} color={styles.successColor} />
                         <Text style={styles.teacherEmail}>{t.email}</Text>
                       </View>
                       <TouchableOpacity
                         style={[styles.smallBtn, styles.btnDanger, (pendingTeacherId === t.id || !subscriptionId) && styles.btnDisabled]}
                         disabled={pendingTeacherId === t.id || !subscriptionId}
                         onPress={async () => {
-                          if (!subscriptionId) { setError('No active subscription for this school'); return; }
+                          if (!subscriptionId) { 
+                            setError('No active subscription for this school'); 
+                            return; 
+                          }
+                          
+                          console.log('[Seat Revoke] Starting revoke for:', {
+                            teacherId: t.id,
+                            teacherEmail: t.email,
+                            subscriptionId
+                          });
+                          
                           try {
-                            setPendingTeacherId(t.id); setError(null); setSuccess(null);
-                            const ok = await revokeSeat(subscriptionId, t.id);
-                            if (!ok) { setError('Failed to revoke seat'); return; }
+                            setPendingTeacherId(t.id); 
+                            setError(null); 
+                            setSuccess(null);
+                            
+                            // Call the revoke RPC function
+                            await revokeSeat(subscriptionId, t.id);
+                            
+                            console.log('[Seat Revoke] RPC call successful');
+                            
+                            // Optimistically update UI before reload
+                            setTeachers(prev => prev.map(x => 
+                              x.id === t.id ? { ...x, hasSeat: false } : x
+                            ));
+                            
                             setSuccess(`Seat revoked for ${t.email}`);
+                            
+                            // Reload data from server to ensure consistency
+                            console.log('[Seat Revoke] Reloading teacher data...');
                             await loadTeachers();
+                            
+                            // Try to refresh subscription context
+                            try { 
+                              await refresh(); 
+                            } catch (refreshErr) {
+                              console.warn('[Seat Revoke] Subscription refresh failed:', refreshErr);
+                            }
+                          } catch (error: any) {
+                            console.error('[Seat Revoke] Failed:', error);
+                            setError(error?.message || `Failed to revoke seat for ${t.email}`);
                           } finally {
                             setPendingTeacherId(null);
                           }
@@ -398,14 +443,14 @@ export default function PrincipalSeatManagementScreen() {
                 <>
                   <View style={[styles.categoryHeader, { marginTop: teachers.filter(t => t.hasSeat).length > 0 ? 20 : 0 }]}>
                     <View style={styles.categoryIndicator}>
-                      <View style={[styles.statusDot, { backgroundColor: '#f59e0b' }]} />
+                      <View style={[styles.statusDot, { backgroundColor: styles.warningColor }]} />
                       <Text style={styles.categoryTitle}>Teachers without Seats ({teachers.filter(t => !t.hasSeat).length})</Text>
                     </View>
                   </View>
                   {teachers.filter(t => !t.hasSeat).map((t) => (
                     <View key={t.id} style={[styles.teacherRow, styles.teacherRowWithoutSeat]}>
                       <View style={styles.teacherInfo}>
-                        <Ionicons name="alert-circle-outline" size={20} color="#f59e0b" />
+                        <Ionicons name="alert-circle-outline" size={20} color={styles.warningColor} />
                         <Text style={styles.teacherEmail}>{t.email}</Text>
                       </View>
                       <TouchableOpacity
@@ -415,11 +460,15 @@ export default function PrincipalSeatManagementScreen() {
                           if (!subscriptionId) { setError('No active subscription for this school'); return; }
                           try {
                             setPendingTeacherId(t.id); setError(null); setSuccess(null);
-                            const ok = await assignSeat(subscriptionId, t.id);
-                            if (!ok) { setError('Failed to assign seat'); return; }
-                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch {}
+                            await assignSeat(subscriptionId, t.id);
+                            // Optimistically update before reload
+                            setTeachers(prev => prev.map(x => x.id === t.id ? { ...x, hasSeat: true } : x));
+                            try { const { notifySeatRequestApproved } = await import('@/lib/notify'); await notifySeatRequestApproved(t.id); } catch { /* Intentional: non-fatal */ }
                             setSuccess(`Seat assigned to ${t.email}`);
                             await loadTeachers();
+                            try { await refresh(); } catch { /* Intentional: non-fatal */ }
+                          } catch (error: any) {
+                            setError(error?.message || `Failed to assign seat to ${t.email}`);
                           } finally {
                             setPendingTeacherId(null);
                           }
@@ -444,32 +493,45 @@ export default function PrincipalSeatManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12, backgroundColor: '#0b1220' },
-  title: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-  subtitle: { fontSize: 14, color: '#9CA3AF' },
-  info: { color: '#9CA3AF' },
-  error: { color: '#ff6b6b' },
-  success: { color: '#10b981' },
-  banner: { color: '#f59e0b' },
-  bannerCard: { backgroundColor: '#111827', borderRadius: 12, padding: 16, borderWidth: 1, borderColor: '#f59e0b' },
-  bannerTitle: { color: '#f59e0b', fontWeight: '800', fontSize: 16, marginBottom: 8 },
-  bannerText: { color: '#9CA3AF', fontSize: 14, lineHeight: 20, marginBottom: 8 },
-  bannerSubtext: { color: '#9CA3AF', fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
-  contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
-  contactBtnEmail: { backgroundColor: '#00f5ff' },
-  contactBtnWhatsApp: { backgroundColor: '#25D366' },
-  contactBtnText: { color: '#000', fontWeight: '800' },
-  inputGroup: { gap: 6 },
-  label: { color: '#FFFFFF' },
-  input: { backgroundColor: '#111827', color: '#FFFFFF', borderRadius: 10, borderWidth: 1, borderColor: '#1f2937', padding: 12 },
-  row: { flexDirection: 'row', gap: 12 },
-  btn: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 12 },
-  btnPrimary: { backgroundColor: '#00f5ff' },
-  btnPrimaryText: { color: '#000', fontWeight: '800' },
-  btnDanger: { backgroundColor: '#ff0080' },
-  btnDangerText: { color: '#000', fontWeight: '800' },
+const createStyles = (theme: any, isDark: boolean) => {
+  // Theme-respecting tokens
+  const darkBg = theme.background;
+  const cardBg = theme.surface;
+  const borderColor = theme.border;
+  const textPrimary = theme.text;
+  const textSecondary = theme.textSecondary;
+  const accentColor = theme.primary;
+  const successColor = theme.success;
+  const warningColor = theme.warning;
+  const errorColor = theme.error;
+  const dangerColor = theme.error;
+
+  // Create styles object with theme colors accessible separately
+  const styles = StyleSheet.create({
+    container: { padding: 16, gap: 12, backgroundColor: darkBg },
+    title: { fontSize: 22, fontWeight: '800', color: textPrimary },
+    subtitle: { fontSize: 14, color: textSecondary },
+    info: { color: textSecondary },
+    error: { color: errorColor },
+    success: { color: successColor },
+    banner: { color: warningColor },
+    bannerCard: { backgroundColor: cardBg, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: warningColor },
+    bannerTitle: { color: warningColor, fontWeight: '800', fontSize: 16, marginBottom: 8 },
+    bannerText: { color: textSecondary, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    bannerSubtext: { color: textSecondary, fontSize: 12, lineHeight: 18, fontStyle: 'italic' },
+    contactButtonsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 10 },
+    contactBtnEmail: { backgroundColor: accentColor },
+    contactBtnText: { color: theme.onPrimary, fontWeight: '800' },
+    inputGroup: { gap: 6 },
+    label: { color: textPrimary },
+    input: { backgroundColor: cardBg, color: textPrimary, borderRadius: 10, borderWidth: 1, borderColor: borderColor, padding: 12 },
+    row: { flexDirection: 'row', gap: 12 },
+    btn: { flex: 1, alignItems: 'center', padding: 12, borderRadius: 12 },
+    btnPrimary: { backgroundColor: accentColor },
+    btnPrimaryText: { color: theme.onPrimary, fontWeight: '800' },
+    btnDanger: { backgroundColor: dangerColor },
+    btnDangerText: { color: theme.onError, fontWeight: '800' },
   
   // New teacher management section styles
   teachersSection: {
@@ -483,39 +545,39 @@ const styles = StyleSheet.create({
     gap: 16,
     marginTop: 8,
   },
-  seatsAssigned: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  seatsUnassigned: {
-    color: '#f59e0b',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+    seatsAssigned: {
+      color: successColor,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    seatsUnassigned: {
+      color: warningColor,
+      fontSize: 14,
+      fontWeight: '600',
+    },
   
   // Empty state
-  emptyState: {
-    alignItems: 'center',
-    padding: 32,
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#1f2937',
-  },
-  emptyStateTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptyStateSubtitle: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
-  },
+    emptyState: {
+      alignItems: 'center',
+      padding: 32,
+      backgroundColor: cardBg,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: borderColor,
+    },
+    emptyStateTitle: {
+      color: textPrimary,
+      fontSize: 18,
+      fontWeight: '600',
+      marginTop: 16,
+    },
+    emptyStateSubtitle: {
+      color: textSecondary,
+      fontSize: 14,
+      textAlign: 'center',
+      marginTop: 8,
+      lineHeight: 20,
+    },
   
   // Teacher list styles
   teachersList: {
@@ -534,52 +596,62 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  categoryTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
-  // Teacher row styles
-  teacherRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#111827',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  teacherRowWithSeat: {
-    borderColor: '#10b981',
-    backgroundColor: '#111827',
-  },
-  teacherRowWithoutSeat: {
-    borderColor: '#f59e0b',
-    backgroundColor: '#111827',
-  },
-  teacherInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  teacherEmail: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  
-  smallBtn: { 
-    paddingVertical: 8, 
-    paddingHorizontal: 12, 
-    borderRadius: 10,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  btnDisabled: { opacity: 0.5 },
-  backRow: { marginBottom: 8 },
-  backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  backText: { color: '#00f5ff', fontWeight: '800' },
-});
+    categoryTitle: {
+      color: textPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    
+    // Teacher row styles
+    teacherRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: cardBg,
+      borderRadius: 10,
+      padding: 12,
+      borderWidth: 1,
+      marginBottom: 8,
+    },
+    teacherRowWithSeat: {
+      borderColor: successColor,
+      backgroundColor: cardBg,
+    },
+    teacherRowWithoutSeat: {
+      borderColor: warningColor,
+      backgroundColor: cardBg,
+    },
+    teacherInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    teacherEmail: {
+      color: textPrimary,
+      fontSize: 14,
+      fontWeight: '500',
+    },
+    
+    smallBtn: { 
+      paddingVertical: 8, 
+      paddingHorizontal: 12, 
+      borderRadius: 10,
+      minWidth: 80,
+      alignItems: 'center',
+    },
+    btnDisabled: { opacity: 0.5 },
+    backRow: { marginBottom: 8 },
+    backLink: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    backText: { color: accentColor, fontWeight: '800' },
+  });
+
+  // Return styles object with color properties attached
+  return Object.assign(styles, {
+    accentColor,
+    successColor,
+    warningColor,
+    errorColor,
+    dangerColor,
+  });
+};

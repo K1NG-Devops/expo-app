@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/contexts/AuthContext';
 import { signOutAndRedirect } from '@/lib/authActions';
 import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { LanguagePickerButton } from '@/components/ui/LanguagePickerButton';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { router } from 'expo-router';
@@ -16,6 +17,7 @@ import { navigateBack, shouldShowBackButton } from '@/lib/navigation';
 import { isSuperAdmin } from '@/lib/roleUtils';
 import ProfileImageService from '@/services/ProfileImageService';
 import TierBadge from '@/components/ui/TierBadge';
+import { useRoleLabel } from '@/lib/hooks/useOrganizationTerminology';
 
 // Helper function to get the appropriate settings route based on user role
 function getSettingsRoute(role?: string | null): string {
@@ -68,8 +70,11 @@ export function RoleBasedHeader({
   const { tier } = useSubscription();
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
+  
+  // Get role labels based on organization type
+  const getRoleLabelFn = useRoleLabel;
 
-  // Load avatar URL from user metadata or profiles table
+  // Load avatar URL from user metadata, profiles, or users table
   useEffect(() => {
     const loadAvatarUrl = async () => {
       if (!user?.id) {
@@ -96,6 +101,24 @@ export function RoleBasedHeader({
           console.debug('Failed to load avatar from profiles:', error);
         }
       }
+
+      // If still not found, try users table (fallback)
+      if (!url) {
+        try {
+          const { data: userData } = await assertSupabase()
+            .from('users')
+            .select('avatar_url')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+          
+          if (userData?.avatar_url) {
+            url = userData.avatar_url;
+            console.log('✓ Avatar loaded from users table:', url);
+          }
+        } catch (error) {
+          console.debug('Failed to load avatar from users:', error);
+        }
+      }
       
       // Check if URL is a local file:// URI on web platform - don't use these
       if (Platform.OS === 'web' && url && url.startsWith('file://')) {
@@ -103,6 +126,7 @@ export function RoleBasedHeader({
         url = null;
       }
       
+      console.log('Avatar URL loaded:', url ? 'Found' : 'Not found');
       setAvatarUrl(url || null);
     };
 
@@ -153,18 +177,13 @@ export function RoleBasedHeader({
     const routeName = route.name;
     if (routeName.includes('dashboard')) {
       const role = permissions?.enhancedProfile?.role;
-      switch (role) {
-        case 'super_admin':
-          return 'SuperAdmin Dashboard';
-        case 'principal_admin':
-          return 'Principal Hub';
-        case 'teacher':
-          return 'Teacher Dashboard';
-        case 'parent':
-          return 'Parent Dashboard';
-        default:
-          return 'Dashboard';
-      }
+      if (!role) return 'Dashboard';
+      
+      // Use terminology system for role-specific dashboard titles
+      if (role === 'super_admin') return 'SuperAdmin Dashboard';
+      
+      const roleLabel = getRoleLabelFn(role);
+      return `${roleLabel} Dashboard`;
     }
     
     // Convert route name to readable title
@@ -251,7 +270,7 @@ export function RoleBasedHeader({
     <View style={[
       styles.container,
       { 
-        paddingTop: insets.top,
+        paddingTop: Math.max(insets.top, 0),
         backgroundColor: headerBgColor,
         borderBottomColor: theme.divider,
       }
@@ -338,18 +357,6 @@ export function RoleBasedHeader({
 
         {/* Right Section - Theme Toggle & Settings */}
         <View style={styles.rightSection}>
-          {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
-            <TouchableOpacity
-              style={[styles.managePlanBtn, { borderColor: theme.primary }]}
-              onPress={() => {
-                if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-                else router.push('/pricing')
-              }}
-              accessibilityLabel="Manage subscription plan"
-            >
-              <Ionicons name="pricetags-outline" size={14} color={theme.primary} />
-            </TouchableOpacity>
-          )}
           {/* Dashboard layout toggle (replaces theme toggle) */}
           <TouchableOpacity
             style={[styles.themeButton, { marginRight: 8 }]}
@@ -358,6 +365,9 @@ export function RoleBasedHeader({
           >
             <Ionicons name={(dashboardPreferences.layout === 'enhanced' ? 'grid' : 'apps') as any} size={18} color={headerTextColor} />
           </TouchableOpacity>
+
+          {/* Language Picker Button */}
+          <LanguagePickerButton variant="compact" />
           
           {/* Settings Button */}
           <TouchableOpacity 
@@ -394,6 +404,20 @@ export function RoleBasedHeader({
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Account Settings</Text>
               </TouchableOpacity>
 
+              {(permissions?.enhancedProfile?.role === 'principal' || permissions?.enhancedProfile?.role === 'principal_admin' || permissions?.enhancedProfile?.role === 'super_admin') && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    if (permissions?.enhancedProfile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions');
+                    else router.push('/pricing');
+                  }}
+                >
+                  <Ionicons name="pricetags-outline" size={18} color={theme.textSecondary} />
+                  <Text style={[styles.menuItemText, { color: theme.text }]}>Manage Subscription</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setLanguageVisible(true); }}>
                 <Ionicons name="language" size={18} color={theme.textSecondary} />
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Language</Text>
@@ -409,19 +433,26 @@ export function RoleBasedHeader({
 
               <View style={[styles.menuDivider, { backgroundColor: theme.divider }]} />
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); router.push('/(auth)/sign-in?switch=1'); }}>
+              <TouchableOpacity 
+                style={styles.menuItem} 
+                onPress={() => {
+                  // Close menu immediately
+                  setMenuVisible(false);
+                  // Perform sign-out without delay
+                  signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in?switch=1' });
+                }}
+              >
                 <Ionicons name="swap-horizontal" size={18} color={theme.textSecondary} />
                 <Text style={[styles.menuItemText, { color: theme.text }]}>Switch account</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
                 style={styles.menuItem} 
-                onPress={async () => {
+                onPress={() => {
+                  // Close menu immediately
                   setMenuVisible(false);
-                  // Small delay to let modal close gracefully
-                  setTimeout(async () => {
-                    await signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' });
-                  }, 100);
+                  // Perform sign-out without delay
+                  signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' });
                 }}
               >
                 <Ionicons name="log-out-outline" size={18} color={theme.error} />
@@ -458,7 +489,7 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 56,
+    height: 64,
     paddingHorizontal: 16,
   },
   leftSection: {
@@ -501,10 +532,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   rightSection: {
-    width: 88, // Increased width to fit both buttons
-    alignItems: 'flex-end',
+    minWidth: 120,
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'flex-end',
+    gap: 8,
   },
   themeButton: {
     width: 32,

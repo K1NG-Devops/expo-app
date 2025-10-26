@@ -10,8 +10,8 @@
 -- Ensure app_auth schema exists (dependency check)
 SELECT 1 FROM pg_proc AS p
 WHERE p.proname = 'is_super_admin' AND p.pronamespace = (
-    SELECT n.oid FROM pg_namespace AS n
-    WHERE n.nspname = 'app_auth'
+  SELECT n.oid FROM pg_namespace AS n
+  WHERE n.nspname = 'app_auth'
 );
 
 
@@ -32,27 +32,27 @@ ON push_notifications
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR recipient_user_id = (
-        SELECT id
-        FROM users
-        WHERE auth_user_id = app_auth.user_id()
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR recipient_user_id = (
+    SELECT id
+    FROM users
+    WHERE auth_user_id = app_auth.user_id()
+  )
+  OR (
+    app_auth.is_principal()
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
+      INNER JOIN users AS u ON pn.recipient_user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
-    OR (
-        app_auth.is_principal()
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
-            INNER JOIN users AS u ON pn.recipient_user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
-    )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -61,54 +61,54 @@ ON push_notifications
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR recipient_user_id = (
-        SELECT id
-        FROM users
-        WHERE auth_user_id = app_auth.user_id()
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR recipient_user_id = (
+    SELECT id
+    FROM users
+    WHERE auth_user_id = app_auth.user_id()
+  )
+  OR (
+    app_auth.is_principal()
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
+      INNER JOIN users AS u ON pn.recipient_user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
-    OR (
-        app_auth.is_principal()
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
-            INNER JOIN users AS u ON pn.recipient_user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
-    )
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        recipient_user_id = (
-            SELECT id
-            FROM users
-            WHERE auth_user_id = app_auth.user_id()
-        )
-        AND app_auth.has_cap('manage_own_profile')
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    recipient_user_id = (
+      SELECT id
+      FROM users
+      WHERE auth_user_id = app_auth.user_id()
     )
-    OR (
-        app_auth.is_principal()
-        AND app_auth.has_cap('send_notifications')
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
-            INNER JOIN users AS u ON pn.recipient_user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
+    AND app_auth.has_cap('manage_own_profile')
+  )
+  OR (
+    app_auth.is_principal()
+    AND app_auth.has_cap('send_notifications')
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT recipient_user_id) AS pn (recipient_user_id)
+      INNER JOIN users AS u ON pn.recipient_user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
+  )
 );
 
 
@@ -129,27 +129,27 @@ ON push_devices
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR user_id = (
-        SELECT id
-        FROM users
-        WHERE auth_user_id = app_auth.user_id()
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR user_id = (
+    SELECT id
+    FROM users
+    WHERE auth_user_id = app_auth.user_id()
+  )
+  OR (
+    app_auth.is_principal()
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT user_id) AS pd (user_id)
+      INNER JOIN users AS u ON pd.user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
-    OR (
-        app_auth.is_principal()
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT user_id) AS pd (user_id)
-            INNER JOIN users AS u ON pd.user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
-    )
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -158,54 +158,54 @@ ON push_devices
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR user_id = (
-        SELECT id
-        FROM users
-        WHERE auth_user_id = app_auth.user_id()
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR user_id = (
+    SELECT id
+    FROM users
+    WHERE auth_user_id = app_auth.user_id()
+  )
+  OR (
+    app_auth.is_principal()
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT user_id) AS pd (user_id)
+      INNER JOIN users AS u ON pd.user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
-    OR (
-        app_auth.is_principal()
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT user_id) AS pd (user_id)
-            INNER JOIN users AS u ON pd.user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
-    )
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        user_id = (
-            SELECT id
-            FROM users
-            WHERE auth_user_id = app_auth.user_id()
-        )
-        AND app_auth.has_cap('manage_own_profile')
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    user_id = (
+      SELECT id
+      FROM users
+      WHERE auth_user_id = app_auth.user_id()
     )
-    OR (
-        app_auth.is_principal()
-        AND app_auth.has_cap('manage_devices')
-        AND EXISTS (
-            SELECT 1
-            FROM (SELECT user_id) AS pd (user_id)
-            INNER JOIN users AS u ON pd.user_id = u.id
-            WHERE COALESCE(
-                u.preschool_id,
-                u.organization_id
-            ) = COALESCE(
-                app_auth.current_user_org_id(),
-                app_auth.org_id()
-            )
-        )
+    AND app_auth.has_cap('manage_own_profile')
+  )
+  OR (
+    app_auth.is_principal()
+    AND app_auth.has_cap('manage_devices')
+    AND EXISTS (
+      SELECT 1
+      FROM (SELECT user_id) AS pd (user_id)
+      INNER JOIN users AS u ON pd.user_id = u.id
+      WHERE COALESCE(
+        u.preschool_id,
+        u.organization_id
+      ) = COALESCE(
+        app_auth.current_user_org_id(),
+        app_auth.org_id()
+      )
     )
+  )
 );
 
 
@@ -226,11 +226,11 @@ ON homework_assignments
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -239,19 +239,19 @@ ON homework_assignments
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('manage_assignments')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('manage_assignments')
+  )
 );
 
 
@@ -272,11 +272,11 @@ ON lessons
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -285,19 +285,19 @@ ON lessons
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('manage_lessons')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('manage_lessons')
+  )
 );
 
 
@@ -318,11 +318,11 @@ ON ai_generations
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -331,19 +331,19 @@ ON ai_generations
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('use_ai_features')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('use_ai_features')
+  )
 );
 
 
@@ -364,7 +364,7 @@ ON billing_plans
 FOR SELECT
 TO public
 USING (
-    active = true
+  active = TRUE
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -373,10 +373,10 @@ ON billing_plans
 FOR ALL
 TO public
 USING (
-    active = true
+  active = TRUE
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
 );
 
 
@@ -399,11 +399,11 @@ ON school_ai_subscriptions
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -412,19 +412,19 @@ ON school_ai_subscriptions
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('manage_ai_subscriptions')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('manage_ai_subscriptions')
+  )
 );
 
 
@@ -445,11 +445,11 @@ ON petty_cash_receipts
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        school_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    school_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -458,19 +458,19 @@ ON petty_cash_receipts
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        school_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    school_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        school_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('manage_petty_cash')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    school_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('manage_petty_cash')
+  )
 );
 
 
@@ -493,11 +493,11 @@ ON petty_cash_reconciliations
 FOR SELECT
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 );
 
 -- Write Policy (INSERT, UPDATE, DELETE)
@@ -506,19 +506,19 @@ ON petty_cash_reconciliations
 FOR ALL
 TO public
 USING (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+  )
 )
 WITH CHECK (
-    (app_auth.is_superadmin() OR app_auth.is_super_admin())
-    OR (
-        preschool_id
-        = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
-        AND app_auth.has_cap('manage_petty_cash')
-    )
+  (app_auth.is_superadmin() OR app_auth.is_super_admin())
+  OR (
+    preschool_id
+    = COALESCE(app_auth.current_user_org_id(), app_auth.org_id())
+    AND app_auth.has_cap('manage_petty_cash')
+  )
 );
 
 

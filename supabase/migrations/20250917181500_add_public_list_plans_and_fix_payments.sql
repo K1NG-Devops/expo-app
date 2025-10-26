@@ -61,8 +61,8 @@ GRANT EXECUTE ON FUNCTION public.public_list_plans() TO authenticated;
 
 -- Ensure subscription_plans table has proper RLS for anonymous reads
 -- Anonymous users should be able to read active plans for pricing display
-CREATE POLICY "Anonymous users can view active subscription plans" 
-ON public.subscription_plans 
-FOR SELECT 
-TO anon 
-USING (is_active = true);
+CREATE POLICY "Anonymous users can view active subscription plans"
+ON public.subscription_plans
+FOR SELECT
+TO anon
+USING (is_active = TRUE);

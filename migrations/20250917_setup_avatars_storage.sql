@@ -13,7 +13,7 @@ INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 VALUES (
   'avatars',
   'avatars',
-  true, -- Public bucket for profile pictures
+  TRUE, -- Public bucket for profile pictures
   5242880, -- 5MB limit
   ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif']
 ) ON CONFLICT (id) DO NOTHING;
@@ -157,7 +157,7 @@ END $$;
 
 -- Create index on avatar_url for faster queries
 CREATE INDEX IF NOT EXISTS idx_profiles_avatar_url ON profiles (avatar_url)
-WHERE avatar_url IS NOT null;
+WHERE avatar_url IS NOT NULL;
 
 -- ============================================================================
 -- 5. TRIGGERS FOR AVATAR CLEANUP

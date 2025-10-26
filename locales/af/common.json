@@ -1,8 +1,65 @@
 {
+  "back": "Terug",
+  "ok": "OK",
+  "cancel": "Kanselleer",
+  "save": "Stoor",
   "app": {
     "name": "EduDash",
     "tagline": "Onderwys bemagtig deur KI",
     "version": "1.0.0"
+  },
+  "common": {
+    "error": "Fout",
+    "success": "Sukses",
+    "ok": "OK",
+    "cancel": "Kanselleer",
+    "unexpected_error": "'n Onverwagte fout het voorgekom",
+    "or": "of",
+    "click_here": "Klik hier",
+    "go_now": "Gaan nou",
+    "try_again": "Probeer Weer",
+    "not_set": "Nie ingestel nie",
+    "enabled": "Geaktiveer",
+    "disabled": "Gedeaktiveer",
+    "not_available": "Nie beskikbaar nie",
+    "coming_soon": "Binnekort Beskikbaar",
+    "all": "Almal",
+    "last_7_days": "Laaste 7 dae",
+    "last_30_days": "Laaste 30 dae",
+    "all_time": "Alle tyd",
+    "custom_range": "Pasgemaakte reeks",
+    "start_date": "Begindatum",
+    "end_date": "Einddatum",
+    "apply": "Pas toe",
+    "viewAll": "Bekyk Alles",
+    "ageYears": "{{age}} jaar oud",
+    "ageUnknown": "Ouderdom onbekend",
+    "noClass": "Geen klas toegewys nie",
+    "connectionError": "Verbindingsfout. Kontroleer asseblief jou internet.",
+    "loading": "Laai...",
+    "optional": "Opsioneel",
+    "add": "Voeg by",
+    "record": "Rekord",
+    "uploading": "Laai op...",
+    "important": "Belangrik",
+    "not_allowed": "Nie toegelaat nie",
+    "info": "Inligting",
+    "confirm": "Is jy seker?",
+    "yes": "Ja",
+    "no": "Nee",
+    "close": "Maak toe",
+    "retry": "Probeer weer",
+    "refresh": "Verfris",
+    "upgrade": "Opgradeer",
+    "submit": "Dien in",
+    "continue": "Gaan voort",
+    "done": "Klaar",
+    "view_details": "Bekyk Besonderhede",
+    "menu": "Menu",
+    "my_profile": "My Profiel",
+    "email": "E-pos",
+    "status": "Status",
+    "go_now": "Gaan nou"
   },
   "navigation": {
     "dashboard": "Kontrolepaneel",
@@ -17,7 +74,10 @@
     "edit": "Wysig",
     "delete": "Verwyder",
     "add": "Voeg by",
-    "search": "Soek"
+    "search": "Soek",
+    "retry": "Probeer Weer",
+    "close": "Maak Toe",
+    "switch_account": "Wissel rekening"
   },
   "auth": {
     "signIn": "Teken In",
@@ -35,7 +95,45 @@
     "signingUp": "Skep rekening...",
     "invalidCredentials": "Ongeldige e-pos of wagwoord",
     "accountCreated": "Rekening suksesvol geskep",
-    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos"
+    "passwordResetSent": "Wagwoord herstel skakel gestuur na jou e-pos",
+    "remember_me": "Onthou my",
+    "dont_have_account": "Het jy nie 'n rekening nie?",
+    "sign_in": {
+      "enter_email_password": "Voer asseblief e-pos en wagwoord in",
+      "failed": "Aanmelding Misluk",
+      "signing_in": "Teken In...",
+      "cta": "Teken In",
+      "no_saved_credentials": "Geen gestoorde geloofsbriewe gevind nie. Teken asseblief in met jou wagwoord."
+    },
+    "biometric": {
+      "prompt": "Teken in na EduDash Pro",
+      "use_face_id": "Gebruik Gesig ID",
+      "use_fingerprint": "Gebruik Vingerafdruk",
+      "use_biometric": "Gebruik Biometrie",
+      "enabled_for": "Biometriese aanmelding geaktiveer",
+      "authenticating": "Verifieer tans",
+      "authenticating_face": "Verifieer met Gesig ID",
+      "authenticating_fingerprint": "Verifieer met Vingerafdruk",
+      "please_verify": "Verifieer asseblief jou identiteit"
+    },
+    "biometric_not_available": {
+      "title": "Biometrie Nie Beskikbaar Nie",
+      "desc": "Gebruik asseblief jou wagwoord om in te teken."
+    },
+    "biometric_failed": {
+      "title": "Verifikasie Misluk",
+      "desc": "Biometriese verifikasie het misluk",
+      "unexpected": "'n Fout het tydens biometriese verifikasie plaasgevind"
+    },
+    "oauth": {
+      "failed_start": "Kon nie sosiale aanmelding begin nie",
+      "config_error": "OAuth-konfigurasie fout. Kontak asseblief ondersteuning.",
+      "unavailable": "Aanmelding Nie Beskikbaar Nie",
+      "error": "Aanmelding Fout"
+    },
+    "sign_up_parent": "Registreer as Ouer",
+    "sign_up_teacher": "Registreer as Onderwyser",
+    "school_register_q": "Wil jy 'n skool registreer?"
   },
   "roles": {
     "parent": "Ouer",
@@ -272,6 +370,7 @@
       "enabled": "Ingeskakel",
       "disabled": "Afgeskakel",
       "notAvailable": "Nie beskikbaar op hierdie toestel nie",
+      "not_available_desc": "Biometriese verifikasie is nie op hierdie toestel beskikbaar nie. Hierdie funksie vereis vingerafdruk of gesigsherkenning-hardeware.",
       "setupRequired": "Opstelling vereis in toestel instellings",
       "authRequired": "Gebruik jou vingerafdruk of toestel wagkode om voort te gaan",
       "authenticate": "Verifieer",
@@ -331,7 +430,13 @@
     "about": "Oor",
     "support": "Ondersteuning",
     "termsOfService": "Diensbepalings",
-    "privacyPolicy": "Privaatheidsbeleid"
+    "privacyPolicy": "Privaatheidsbeleid",
+    "privacy_security": {
+      "title": "Privaatheid & Sekuriteit",
+      "info": "Databeskerming inligting"
+    },
+    "manage_alerts": "Bestuur jou kennisgewings",
+    "notifications_coming_soon_desc": "Kennisgewing-instellings sal in die volgende opdatering beskikbaar wees."
   },
   "notifications": {
     "title": "Kennisgewings",
@@ -348,6 +453,22 @@
     "notFound": "Die aangevraagde hulpbron is nie gevind nie.",
     "validation": "Gaan asseblief jou invoer na en probeer weer.",
     "serverError": "Bedienerfout. Probeer asseblief later weer."
+  },
+  "account": {
+    "info": {
+      "title": "Rekeninginligting",
+      "full_name": "Volle Naam",
+      "role": "Rol",
+      "school_id": "Skool-ID"
+    },
+    "edit": {
+      "title": "Wysig Profiel",
+      "personal_information": "Persoonlike Inligting"
+    },
+    "placeholders": {
+      "first_name": "Voer jou naam in",
+      "last_name": "Voer jou van in"
+    }
   },
   "success": {
     "saved": "Veranderinge suksesvol gestoor",
@@ -377,6 +498,11 @@
     "confirm": "Bevestig",
     "continue": "Gaan voort",
     "skip": "Slaan oor",
+    "not_set": "Nie gestel nie",
+    "enabled": "Geaktiveer",
+    "disabled": "Uitgeskakel",
+    "not_available": "Nie beskikbaar nie",
+    "coming_soon": "Binnekort beskikbaar",
     "done": "Klaar",
     "retry": "Probeer weer",
     "refresh": "Verfris",
@@ -723,5 +849,63 @@
     "tab_categories": "Kategorieë",
     "tab_comparison": "Vergelyk",
     "no_financial_data_export": "Geen finansiële data beskikbaar om uit te voer nie"
+  },
+  "trends": {
+    "up": "op",
+    "down": "af",
+    "stable": "stabiel",
+    "good": "goed",
+    "excellent": "uitstekend",
+    "warning": "waarskuwing",
+    "attention": "aandag",
+    "needs_attention": "benodig aandag",
+    "low": "laag",
+    "high": "hoog"
+  },
+  "actions": {
+    "continue": "Gaan voort",
+    "next": "Volgende",
+    "back": "Terug",
+    "finish": "Voltooi",
+    "skip": "Slaan oor",
+    "save": "Stoor",
+    "cancel": "Kanselleer",
+    "confirm": "Bevestig",
+    "done": "Klaar",
+    "delete": "Verwyder",
+    "edit": "Wysig",
+    "submit": "Dien in",
+    "add": "Voeg by",
+    "remove": "Verwyder",
+    "close": "Maak toe"
+  },
+  "errors": {
+    "generic": "Iets het verkeerd geloop. Probeer asseblief weer.",
+    "network": "Netwerkfout. Kontroleer asseblief jou verbinding.",
+    "unauthorized": "Jy het nie toestemming om toegang tot hierdie hulpbron te verkry nie.",
+    "notFound": "Die aangevraagde hulpbron is nie gevind nie.",
+    "validation": "Kontroleer asseblief jou invoer en probeer weer.",
+    "serverError": "Bediener fout. Probeer asseblief later weer.",
+    "security": {
+      "validation_failed": "Validasie het misluk",
+      "content_type_required": "Content-Type moet application/json wees",
+      "request_too_large": "Versoek te groot. Maksimum grootte is {{maxSize}} KB",
+      "invalid_json": "Ongeldige JSON in versoek",
+      "invalid_parameters": "Ongeldige URL parameters",
+      "invalid_query": "Ongeldige navraag parameters",
+      "authentication_required": "Verifikasie benodig",
+      "invalid_token": "Ongeldige of verstreke verifikasie teken",
+      "insufficient_permissions": "Onvoldoende toestemmings",
+      "rate_limit_exceeded": "Te veel versoeke, probeer asseblief later weer",
+      "login_attempts_exceeded": "Te veel aanmeldpogings. Probeer asseblief later weer.",
+      "account_locked": "Rekening tydelik gesluit weens te veel mislukte aanmeldpogings. Probeer weer oor {{minutes}} minute.",
+      "internal_security_error": "Interne sekuriteitsfout"
+    }
+  },
+  "success": {
+    "saved": "Veranderinge suksesvol gestoor",
+    "deleted": "Item suksesvol verwyder",
+    "created": "Item suksesvol geskep",
+    "updated": "Item suksesvol opgedateer"
   }
 }

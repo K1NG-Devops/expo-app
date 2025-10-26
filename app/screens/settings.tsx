@@ -8,6 +8,7 @@ import {
   Alert,
   Switch,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,11 +19,43 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { useTranslation } from "react-i18next";
 import { useThemedStyles, themedStyles } from "@/hooks/useThemedStyles";
 import { ThemeLanguageSettings } from '@/components/settings/ThemeLanguageSettings';
+import InvoiceNotificationSettings from '@/components/settings/InvoiceNotificationSettings';
 import { RoleBasedHeader } from '@/components/RoleBasedHeader';
+import Constants from 'expo-constants';
+// Safe useUpdates hook that handles missing provider
+const useSafeUpdates = () => {
+  try {
+    const { useUpdates } = require('@/contexts/UpdatesProvider');
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useUpdates();
+  } catch (error) {
+    console.warn('[Settings] UpdatesProvider not available:', error instanceof Error ? error.message : String(error));
+    // Return fallback values
+    return {
+      isDownloading: false,
+      isUpdateDownloaded: false,
+      updateError: null,
+      checkForUpdates: async () => {
+        console.log('[Settings] Updates check not available in current environment');
+        return false;
+      },
+      applyUpdate: async () => {
+        console.log('[Settings] Update apply not available in current environment');
+      },
+    };
+  }
+};
+import { useAuth } from '@/contexts/AuthContext';
+import { useSchoolSettings } from '@/lib/hooks/useSchoolSettings';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// Haptics temporarily disabled to prevent device-specific crashes
+// import { Vibration } from 'react-native';
+// import Feedback from '@/lib/feedback';
 
 export default function SettingsScreen() {
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
+  const { profile } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [biometricSupported, setBiometricSupported] = useState(false);
   const [biometricEnrolled, setBiometricEnrolled] = useState(false);
@@ -31,6 +64,13 @@ export default function SettingsScreen() {
   const [biometricLastUsed, setBiometricLastUsed] = useState<string | null>(null);
   const [hasBackupMethods, setHasBackupMethods] = useState(false);
   const [loading, setLoading] = useState(true);
+  const { isDownloading, isUpdateDownloaded, updateError, checkForUpdates, applyUpdate } = useSafeUpdates();
+  const schoolId = profile?.organization_id || undefined;
+  const schoolSettingsQuery = useSchoolSettings(schoolId);
+  
+  // Feedback preferences
+  const [hapticsEnabled, setHapticsEnabled] = useState<boolean>(true);
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
   const styles = useThemedStyles((theme) => ({
     container: {
@@ -134,6 +174,28 @@ export default function SettingsScreen() {
     },
   }));
 
+  // Load feedback preferences
+  const loadFeedbackPrefs = useCallback(async () => {
+    try {
+      const [h, s] = await Promise.all([
+        AsyncStorage.getItem('pref_haptics_enabled'),
+        AsyncStorage.getItem('pref_sound_enabled'),
+      ]);
+      setHapticsEnabled(h !== 'false');
+      setSoundEnabled(s !== 'false');
+    } catch { /* Storage unavailable */ }
+  }, []);
+
+  const saveHapticsPref = async (val: boolean) => {
+    setHapticsEnabled(val);
+    try { await AsyncStorage.setItem('pref_haptics_enabled', val ? 'true' : 'false'); } catch { /* Storage unavailable */ }
+  };
+
+  const saveSoundPref = async (val: boolean) => {
+    setSoundEnabled(val);
+    try { await AsyncStorage.setItem('pref_sound_enabled', val ? 'true' : 'false'); } catch { /* Storage unavailable */ }
+  };
+
   // Load user settings and biometric information
   const loadSettings = useCallback(async () => {
     try {
@@ -171,7 +233,8 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    loadFeedbackPrefs();
+  }, [loadSettings, loadFeedbackPrefs]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -264,6 +327,8 @@ export default function SettingsScreen() {
     }
     return t('settings.biometric.title');
   };
+
+  // Testing and debug UI removed from Settings screen
 
   if (loading) {
     return (
@@ -421,54 +486,101 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* Notifications */}
+        {/* Notifications & Alerts */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.notifications')}</Text>
           
+          {/* Feedback toggles */}
           <View style={styles.settingsCard}>
+            {/* Haptic feedback */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+<Ionicons name="pulse" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Vibration on actions</Text>
+                  <Text style={styles.settingSubtitle}>Use vibration feedback on important actions</Text>
+                </View>
+              </View>
+              <Switch
+                value={hapticsEnabled}
+                onValueChange={saveHapticsPref}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={hapticsEnabled ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            {/* Sound alerts */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="volume-high" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>Sound alerts</Text>
+                  <Text style={styles.settingSubtitle}>Play a short sound on success or important alerts</Text>
+                </View>
+              </View>
+              <Switch
+                value={soundEnabled}
+                onValueChange={saveSoundPref}
+                trackColor={{ false: theme.border, true: theme.primary }}
+                thumbColor={soundEnabled ? theme.onPrimary : theme.textTertiary}
+              />
+            </View>
+
+            {/* Advanced Sound Alert Settings */}
+            <View style={[styles.settingItem, styles.lastSettingItem]}>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                onPress={() => router.push('/screens/sound-alert-settings')}
+              >
+                <View style={styles.settingLeft}>
+                  <Ionicons name="musical-notes" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>Advanced Sound Settings</Text>
+                    <Text style={styles.settingSubtitle}>Configure sounds for different alert types</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Billing & Subscriptions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Billing & subscriptions</Text>
+          <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: 'hidden' }}>
+            <InvoiceNotificationSettings />
+            <View style={styles.divider} />
             <TouchableOpacity
-              style={[styles.settingItem]}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Push notification settings will be available in the next update.",
-                )
-              }
+              style={[styles.settingItem, styles.lastSettingItem]}
+              onPress={() => router.push('/screens/manage-subscription')}
             >
               <View style={styles.settingLeft}>
-                <Ionicons
-                  name="notifications"
-                  size={24}
-                  color={theme.textSecondary}
-                  style={styles.settingIcon}
-                />
+                <Ionicons name="card" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>{t('settings.pushNotifications')}</Text>
-                  <Text style={styles.settingSubtitle}>{t('settings.manageAlerts')}</Text>
+                  <Text style={styles.settingTitle}>Manage subscription</Text>
+                  <Text style={styles.settingSubtitle}>Open billing management (RevenueCat)</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
+          </View>
+        </View>
 
+        {/* Feedback test actions */}
+        <View style={styles.section}>
+          <View style={styles.settingsCard}>
             <TouchableOpacity
               style={[styles.settingItem, styles.lastSettingItem]}
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Email notification preferences will be available in the next update.",
-                )
-              }
+              onPress={() => {
+                Alert.alert('Feedback', 'Haptics and sound feedback are temporarily disabled.');
+              }}
             >
               <View style={styles.settingLeft}>
-                <Ionicons
-                  name="mail"
-                  size={24}
-                  color={theme.textSecondary}
-                  style={styles.settingIcon}
-                />
+                <Ionicons name="play" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>{t('settings.emailNotifications')}</Text>
-                  <Text style={styles.settingSubtitle}>{t('settings.configureEmails')}</Text>
+                  <Text style={styles.settingTitle}>Test vibration & sound</Text>
+                  <Text style={styles.settingSubtitle}>Quickly test your feedback preferences</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -486,7 +598,201 @@ export default function SettingsScreen() {
           <ThemeLanguageSettings />
         </View>
 
-        
+        {/* School Settings - Enhanced Overview */}
+        {(profile?.role === 'principal' || profile?.role === 'principal_admin' || profile?.role === 'super_admin') && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t('settings.schoolOverview')}</Text>
+          
+          {/* Loading state */}
+          {schoolSettingsQuery.isLoading && (
+            <View style={styles.settingsCard}>
+              <View style={[styles.settingItem, { justifyContent: 'center', paddingVertical: 24 }]}>
+                <ActivityIndicator color={theme.primary} />
+                <Text style={[styles.settingSubtitle, { marginTop: 8, textAlign: 'center' }]}>
+                  {t('settings.loadingSchoolSettings')}
+                </Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Settings snapshot */}
+          {!schoolSettingsQuery.isLoading && schoolSettingsQuery.data && (
+          <View style={styles.settingsCard}>
+            {/* School Name */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="business" size={24} color={theme.primary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.schoolName')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {schoolSettingsQuery.data.schoolName || t('dashboard.your_school')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* Regional Settings */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="globe" size={24} color={theme.textSecondary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.regionalSettings')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {schoolSettingsQuery.data.timezone || '—'} • {schoolSettingsQuery.data.currency || '—'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* WhatsApp Integration */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons 
+                  name="logo-whatsapp" 
+                  size={24} 
+                  color={schoolSettingsQuery.data.whatsapp_number ? '#25D366' : theme.textSecondary} 
+                  style={styles.settingIcon} 
+                />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.whatsappIntegration')}</Text>
+                  <Text style={[styles.settingSubtitle, schoolSettingsQuery.data.whatsapp_number && { color: theme.success }]}>
+                    {schoolSettingsQuery.data.whatsapp_number ? t('settings.whatsappConfigured') : t('settings.whatsappNotConfigured')}
+                  </Text>
+                </View>
+              </View>
+              {schoolSettingsQuery.data.whatsapp_number && (
+                <View style={[styles.settingRight, { backgroundColor: theme.successLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }]}>
+                  <Text style={{ fontSize: 11, color: theme.success, fontWeight: '600' }}>✓ {t('settings.active')}</Text>
+                </View>
+              )}
+            </View>
+            
+            {/* Active Features Summary */}
+            <View style={styles.settingItem}>
+              <View style={styles.settingLeft}>
+                <Ionicons name="checkmark-circle" size={24} color={theme.accent} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{t('settings.activeFeatures')}</Text>
+                  <Text style={styles.settingSubtitle}>
+                    {[
+                      schoolSettingsQuery.data.features?.activityFeed?.enabled && t('settings.feature.activityFeed'),
+                      schoolSettingsQuery.data.features?.financialReports?.enabled && t('settings.feature.financials'),
+                      schoolSettingsQuery.data.features?.pettyCash?.enabled && t('settings.feature.pettyCash'),
+                    ].filter(Boolean).join(' • ') || t('settings.noFeaturesEnabled')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            
+            {/* Edit Full Settings CTA */}
+            <TouchableOpacity 
+              style={[styles.settingItem, styles.lastSettingItem, { backgroundColor: theme.primaryLight }]}
+              onPress={() => router.push('/screens/admin/school-settings')}
+            >
+              <View style={styles.settingLeft}>
+                <Ionicons name="settings" size={24} color={theme.primary} style={styles.settingIcon} />
+                <View style={styles.settingContent}>
+                  <Text style={[styles.settingTitle, { color: theme.primary, fontWeight: '600' }]}>
+                    {t('settings.editFullSettings')}
+                  </Text>
+                  <Text style={[styles.settingSubtitle, { color: theme.primary, opacity: 0.8 }]}>
+                    {t('settings.configureAllSchoolSettings')}
+                  </Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
+          )}
+          
+          {/* Error state */}
+          {schoolSettingsQuery.isError && (
+            <View style={styles.settingsCard}>
+              <View style={[styles.settingItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                  <Ionicons name="warning" size={24} color={theme.error} style={styles.settingIcon} />
+                  <Text style={[styles.settingTitle, { color: theme.error }]}>
+                    {t('settings.failedToLoadSettings')}
+                  </Text>
+                </View>
+                <TouchableOpacity 
+                  onPress={() => schoolSettingsQuery.refetch()}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: theme.primary, borderRadius: 8, marginTop: 8 }}
+                >
+                  <Text style={{ color: theme.onPrimary, fontSize: 14, fontWeight: '600' }}>
+                    {t('common.retry')}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+        )}
+
+        {/* Updates */}
+        {Platform.OS !== 'web' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Updates</Text>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity
+                style={[styles.settingItem, styles.lastSettingItem]}
+                onPress={async () => {
+                  if (isUpdateDownloaded) {
+                    Alert.alert(
+                      t('updates.Restart App'),
+                      t('updates.The app will restart to apply the update. Any unsaved changes will be lost.'),
+                      [
+                        { text: t('cancel'), style: 'cancel' },
+                        { text: t('updates.Restart Now'), onPress: applyUpdate }
+                      ]
+                    );
+                  } else {
+                    try {
+                      const downloaded = await checkForUpdates();
+                      Alert.alert(
+                        'Updates',
+                        downloaded
+                          ? 'Update downloaded! Use the banner at the top to restart.'
+                          : 'You are up to date. No updates available.'
+                      );
+                    } catch {
+                      Alert.alert('Error', 'Failed to check for updates. Please try again.');
+                    }
+                  }
+                }}
+                disabled={isDownloading}
+              >
+                <View style={styles.settingLeft}>
+                  <Ionicons
+                    name="cloud-download"
+                    size={24}
+                    color={theme.textSecondary}
+                    style={styles.settingIcon}
+                  />
+                  <View style={styles.settingContent}>
+                    <Text style={styles.settingTitle}>Check for updates</Text>
+                    <Text style={styles.settingSubtitle}>
+                      {isDownloading 
+                        ? 'Downloading update…' 
+                        : isUpdateDownloaded 
+                        ? 'Update ready to install' 
+                        : updateError 
+                        ? 'Check failed - tap to retry' 
+                        : `Current version: ${Constants.expoConfig?.version ?? 'n/a'}`}
+                    </Text>
+                  </View>
+                </View>
+                {isDownloading ? (
+                  <ActivityIndicator color={theme.primary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
+                )}
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        )}
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>{t('settings.aboutSupport')}</Text>
           
@@ -496,7 +802,7 @@ export default function SettingsScreen() {
               onPress={() =>
                 Alert.alert(
                   "EduDash Pro",
-                  "Version 1.0.0\nBuilt with ❤️ for educators and parents",
+                  "Version 1.0.2\nBuilt with ❤️ for educators and parents\n\nWhat's New:\n• WhatsApp notifications integration\n• Enhanced superadmin controls\n• Improved mobile-first responsive design\n• Push notifications system",
                   [{ text: "OK" }]
                 )
               }
@@ -521,7 +827,7 @@ export default function SettingsScreen() {
               onPress={() =>
                 Alert.alert(
                   "Help & Support",
-                  "For support, please contact us at support@edudashrpo.com",
+                  "For support, please contact us at support@edudashpro.com",
                   [{ text: "OK" }]
                 )
               }

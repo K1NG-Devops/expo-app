@@ -6,16 +6,16 @@ BEGIN;
 
 -- Add scope (who owns the subscription record)
 ALTER TABLE public.subscription_plans
-  ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'school'
-  CHECK (scope IN ('school','user'));
+ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT 'school'
+CHECK (scope IN ('school', 'user'));
 
 -- Add audience (who the plan is intended for)
 ALTER TABLE public.subscription_plans
-  ADD COLUMN IF NOT EXISTS audience text[] NOT NULL DEFAULT ARRAY['school']::text[];
+ADD COLUMN IF NOT EXISTS audience text [] NOT NULL DEFAULT ARRAY['school']::text [];
 
 -- Add visibility flag for web catalogs
 ALTER TABLE public.subscription_plans
-  ADD COLUMN IF NOT EXISTS visible_on_web boolean NOT NULL DEFAULT true;
+ADD COLUMN IF NOT EXISTS visible_on_web boolean NOT NULL DEFAULT TRUE;
 
 -- Helpful indexes (safe if they already exist)
 DO $$

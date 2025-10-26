@@ -4,20 +4,33 @@ import { Stack, router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { TenantService } from '@/lib/services/tenant';
 import { TeacherInviteService } from '@/lib/services/teacherInviteService';
+import { assertSupabase } from '@/lib/supabase';
+import { track } from '@/lib/analytics';
 
 // Best-effort local persistence (works in native; silently no-ops on web if not available)
 let AsyncStorage: any = null;
 try { AsyncStorage = require('@react-native-async-storage/async-storage').default; } catch (e) { console.debug('AsyncStorage unavailable', e); }
 
- type Step = 'details' | 'invites' | 'templates' | 'review';
+type Step = 'type_selection' | 'details' | 'invites' | 'templates' | 'subscription' | 'review';
 
 export default function PrincipalOnboardingScreen() {
   const { user, profile, refreshProfile } = useAuth();
 
+  // Guard: if user is not authenticated, never show onboarding
+  useEffect(() => {
+    if (!user) {
+      try { router.replace('/(auth)/sign-in'); } catch { /* Intentional: non-fatal */ }
+    }
+  }, [user]);
+
   // Wizard state
-  const [step, setStep] = useState<Step>('details');
+  const [step, setStep] = useState<Step>('type_selection');
   const [creating, setCreating] = useState(false);
   const [schoolId, setSchoolId] = useState<string | null>(profile?.organization_id || null);
+  
+  // School type selection
+  const [schoolType, setSchoolType] = useState<'preschool' | 'k12_school' | 'hybrid'>('preschool');
+  const [showSubscriptionStep, setShowSubscriptionStep] = useState(true);
 
   // Details
   const [schoolName, setSchoolName] = useState(profile?.organization_name || '');
@@ -48,6 +61,7 @@ export default function PrincipalOnboardingScreen() {
         if (raw) {
           const saved = JSON.parse(raw);
           if (saved.step) setStep(saved.step);
+          if (saved.schoolType) setSchoolType(saved.schoolType);
           if (saved.schoolName) setSchoolName(saved.schoolName);
           if (saved.adminName) setAdminName(saved.adminName);
           if (saved.phone) setPhone(saved.phone);
@@ -55,6 +69,7 @@ export default function PrincipalOnboardingScreen() {
           if (saved.emails) setEmails(saved.emails);
           if (saved.selectedTemplates) setSelectedTemplates(saved.selectedTemplates);
           if (saved.schoolId) setSchoolId(saved.schoolId);
+          if (saved.showSubscriptionStep !== undefined) setShowSubscriptionStep(saved.showSubscriptionStep);
         }
       } catch (e) { console.debug('Load onboarding state failed', e); }
     })();
@@ -66,6 +81,7 @@ export default function PrincipalOnboardingScreen() {
     try {
       const state = {
         step,
+        schoolType,
         schoolName,
         adminName,
         phone,
@@ -73,6 +89,7 @@ export default function PrincipalOnboardingScreen() {
         emails,
         selectedTemplates,
         schoolId,
+        showSubscriptionStep,
         ...(next || {}),
       };
       await AsyncStorage.setItem('onboarding_principal_state', JSON.stringify(state));
@@ -85,25 +102,75 @@ export default function PrincipalOnboardingScreen() {
     if (!canCreate || creating) return;
     try {
       setCreating(true);
-      // Create school now so we can send invites on next step
-      const id = await TenantService.createSchool({
-        schoolName: schoolName.trim(),
-        adminName: adminName.trim() || null,
-        phone: phone.trim() || null,
-        planTier,
+      
+      // Use the new register_new_school RPC function to properly handle school types
+      const { data, error } = await assertSupabase().rpc('register_new_school', {
+        p_school_name: schoolName.trim(),
+        p_principal_email: user?.email || profile?.email || '',
+        p_principal_name: adminName.trim() || `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        p_school_type: schoolType,
+        p_grade_levels: schoolType === 'preschool' ? ['pre_k'] : schoolType === 'k12_school' ? ['foundation'] : ['pre_k', 'foundation'], // Default grade levels
+        p_contact_email: profile?.email || user?.email,
+        p_contact_phone: phone.trim() || null,
+        p_physical_address: null,
+        p_selected_plan_id: null // Will be handled in subscription step if enabled
       });
-      setSchoolId(id);
-      try { await refreshProfile(); } catch (e) { console.debug('refreshProfile failed', e); }
-      Alert.alert('School created', 'Next: invite your teachers');
+      
+      if (error) {
+        throw error;
+      }
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
+      const schoolId = data.school_id;
+      setSchoolId(schoolId);
+      
+      // Track the creation
+      track('school_created_via_principal_onboarding', {
+        school_type: schoolType,
+        has_phone: !!phone.trim(),
+        school_id: schoolId
+      });
+      
+      try { 
+        await refreshProfile(); 
+      } catch (e) { 
+        console.debug('refreshProfile failed', e); 
+      }
+      
+      Alert.alert(
+        'School Created!', 
+        `${schoolName} has been registered successfully. ${data.next_step === 'email_verification' ? 'You may receive an email verification shortly. ' : ''}Let's invite your teachers next.`
+      );
+      
       setStep('invites');
-      persist({ step: 'invites', schoolId: id });
+      persist({ step: 'invites', schoolId });
+      
     } catch (e: any) {
       console.error('Create school failed', e);
-      Alert.alert('Error', e?.message || 'Failed to create school');
+      
+      // Enhanced error messages
+      let errorMessage = 'Failed to create school';
+      if (e.message?.includes('already exists')) {
+        errorMessage = 'A school with this name already exists. Please choose a different name.';
+      } else if (e.message?.includes('email already registered')) {
+        errorMessage = 'This email is already registered. Please use a different email address.';
+      } else if (e.message) {
+        errorMessage = e.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+      
+      track('school_creation_failed_principal_onboarding', {
+        error: e.message,
+        school_type: schoolType
+      });
     } finally {
       setCreating(false);
     }
-  }, [canCreate, creating, schoolName, adminName, phone, planTier, refreshProfile, persist]);
+  }, [canCreate, creating, schoolName, adminName, phone, schoolType, user, profile, refreshProfile, persist]);
 
   const addEmail = useCallback(() => {
     const trimmed = emailInput.trim().toLowerCase();
@@ -176,25 +243,87 @@ export default function PrincipalOnboardingScreen() {
     router.replace('/screens/principal-dashboard');
   }, []);
 
-  const StepIndicator = () => (
-    <View style={styles.stepper}>
-      {(['details', 'invites', 'templates', 'review'] as Step[]).map((s, idx) => (
-        <View key={s} style={styles.stepItem}>
-          <View style={[styles.stepDot, step === s ? styles.stepDotActive : styles.stepDotInactive]} />
-          <Text style={[styles.stepLabel, step === s && styles.stepLabelActive]}>{idx + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}</Text>
-        </View>
-      ))}
-    </View>
-  );
+  const StepIndicator = () => {
+    const steps = showSubscriptionStep 
+      ? ['type_selection', 'details', 'invites', 'templates', 'subscription', 'review'] as Step[]
+      : ['type_selection', 'details', 'invites', 'templates', 'review'] as Step[];
+      
+    return (
+      <View style={styles.stepper}>
+        {steps.map((s, idx) => {
+          const stepNames: Record<Step, string> = {
+            'type_selection': 'Type',
+            'details': 'School',
+            'invites': 'Teachers', 
+            'templates': 'Setup',
+            'subscription': 'Plan',
+            'review': 'Review'
+          };
+          
+          return (
+            <View key={s} style={styles.stepItem}>
+              <View style={[styles.stepDot, step === s ? styles.stepDotActive : styles.stepDotInactive]} />
+              <Text style={[styles.stepLabel, step === s && styles.stepLabelActive]}>
+                {idx + 1}. {stepNames[s]}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Principal Onboarding' }} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.heading}>Welcome, {adminName || profile?.first_name || 'Principal'}</Text>
-        <Text style={styles.subheading}>Let’s set up your preschool in a few quick steps.</Text>
+        <Text style={styles.subheading}>
+          {step === 'type_selection' 
+            ? 'First, tell us what type of educational institution you run.'
+            : `Let's set up your ${schoolType === 'preschool' ? 'preschool' : schoolType === 'k12_school' ? 'school' : 'educational institution'} in a few quick steps.`}
+        </Text>
 
         <StepIndicator />
+
+        {step === 'type_selection' && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.label}>What type of educational institution do you run?</Text>
+            
+            <View style={styles.typeContainer}>
+              {[{id: 'preschool', name: 'Preschool', desc: 'Early childhood education (ages 0-6)'}, 
+                {id: 'k12_school', name: 'K-12 School', desc: 'Primary & secondary education (grades K-12)'},
+                {id: 'hybrid', name: 'Hybrid Institution', desc: 'Combined preschool and K-12 programs'}].map(type => (
+                <TouchableOpacity 
+                  key={type.id}
+                  style={[styles.typeOption, schoolType === type.id && styles.typeOptionActive]}
+                  onPress={() => { 
+                    setSchoolType(type.id as any); 
+                    persist({ schoolType: type.id });
+                  }}
+                >
+                  <View style={[styles.typeRadio, schoolType === type.id && styles.typeRadioActive]} />
+                  <View style={styles.typeContent}>
+                    <Text style={[styles.typeName, schoolType === type.id && styles.typeNameActive]}>
+                      {type.name}
+                    </Text>
+                    <Text style={styles.typeDesc}>{type.desc}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.button} 
+              onPress={() => {
+                setStep('details');
+                persist({ step: 'details' });
+              }}
+            >
+              <Text style={styles.buttonText}>Continue with {schoolType === 'preschool' ? 'Preschool' : schoolType === 'k12_school' ? 'K-12 School' : 'Hybrid Institution'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {step === 'details' && (
           <View style={{ marginTop: 8 }}>
@@ -203,7 +332,7 @@ export default function PrincipalOnboardingScreen() {
               style={styles.input}
               value={schoolName}
               onChangeText={(v) => { setSchoolName(v); persist({ schoolName: v }); }}
-              placeholder="e.g. Bright Beginnings Preschool"
+              placeholder="e.g. Bright Beginnings School"
               autoCapitalize="words"
             />
 
@@ -299,15 +428,73 @@ export default function PrincipalOnboardingScreen() {
             ))}
 
             <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
-              <TouchableOpacity style={[styles.button, { flex: 1 }]} onPress={goReview}>
+              <TouchableOpacity style={[styles.button, { flex: 1 }]} onPress={() => {
+                const nextStep = showSubscriptionStep ? 'subscription' : 'review';
+                setStep(nextStep);
+                persist({ step: nextStep });
+              }}>
                 <Text style={styles.buttonText}>Continue</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.secondaryButton, { flex: 1 }]} onPress={() => { setSelectedTemplates([]); goReview(); }}>
+              <TouchableOpacity style={[styles.secondaryButton, { flex: 1 }]} onPress={() => { 
+                setSelectedTemplates([]);
+                const nextStep = showSubscriptionStep ? 'subscription' : 'review';
+                setStep(nextStep);
+                persist({ step: nextStep, selectedTemplates: [] });
+              }}>
                 <Text style={styles.secondaryButtonText}>Skip</Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity onPress={() => { setStep('invites'); persist({ step: 'invites' }); }} style={styles.linkBtn}><Text style={styles.linkText}>Back</Text></TouchableOpacity>
+          </View>
+        )}
+
+        {step === 'subscription' && showSubscriptionStep && (
+          <View style={{ marginTop: 8 }}>
+            <Text style={styles.label}>Subscription Plan (Optional)</Text>
+            <Text style={styles.hint}>Choose a plan to unlock premium features and teacher seat management.</Text>
+            
+            <View style={styles.planContainer}>
+              <TouchableOpacity 
+                style={[styles.planOption, !planTier && styles.planOptionActive]}
+                onPress={() => {
+                  setPlanTier('free' as any);
+                  persist({ planTier: 'free' });
+                }}
+              >
+                <View style={[styles.typeRadio, planTier === 'free' && styles.typeRadioActive]} />
+                <View style={styles.typeContent}>
+                  <Text style={[styles.typeName, planTier === 'free' && styles.typeNameActive]}>Free Plan</Text>
+                  <Text style={styles.typeDesc}>Basic features • Limited seats • Community support</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.planOption, planTier === 'starter' && styles.planOptionActive]}
+                onPress={() => {
+                  setPlanTier('starter');
+                  persist({ planTier: 'starter' });
+                }}
+              >
+                <View style={[styles.typeRadio, planTier === 'starter' && styles.typeRadioActive]} />
+                <View style={styles.typeContent}>
+                  <Text style={[styles.typeName, planTier === 'starter' && styles.typeNameActive]}>Starter Plan</Text>
+                  <Text style={styles.typeDesc}>More features • 10 teachers • Email support</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+            
+            <TouchableOpacity 
+              style={styles.button} 
+              onPress={() => {
+                setStep('review');
+                persist({ step: 'review' });
+              }}
+            >
+              <Text style={styles.buttonText}>Continue</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => { setStep('templates'); persist({ step: 'templates' }); }} style={styles.linkBtn}><Text style={styles.linkText}>Back</Text></TouchableOpacity>
           </View>
         )}
 
@@ -323,7 +510,11 @@ export default function PrincipalOnboardingScreen() {
               <Text style={styles.buttonText}>Finish setup & Go to dashboard</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => { setStep('templates'); persist({ step: 'templates' }); }} style={styles.linkBtn}><Text style={styles.linkText}>Back</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => { 
+              const prevStep = showSubscriptionStep ? 'subscription' : 'templates';
+              setStep(prevStep); 
+              persist({ step: prevStep }); 
+            }} style={styles.linkBtn}><Text style={styles.linkText}>Back</Text></TouchableOpacity>
           </View>
         )}
       </ScrollView>
@@ -374,4 +565,45 @@ const styles = StyleSheet.create({
 
   linkBtn: { marginTop: 10, alignSelf: 'flex-start' },
   linkText: { color: '#00f5ff', textDecorationLine: 'underline' },
+  
+  // Type selection styles
+  typeContainer: { gap: 12, marginTop: 12, marginBottom: 16 },
+  typeOption: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#111827', 
+    borderWidth: 1, 
+    borderColor: '#1f2937', 
+    borderRadius: 10, 
+    padding: 12, 
+    gap: 12 
+  },
+  typeOptionActive: { borderColor: '#00f5ff', backgroundColor: '#0b1f26' },
+  typeRadio: { 
+    width: 20, 
+    height: 20, 
+    borderRadius: 10, 
+    borderWidth: 2, 
+    borderColor: '#1f2937' 
+  },
+  typeRadioActive: { backgroundColor: '#00f5ff', borderColor: '#00f5ff' },
+  typeContent: { flex: 1 },
+  typeName: { color: '#E5E7EB', fontSize: 16, fontWeight: '600', marginBottom: 4 },
+  typeNameActive: { color: '#00f5ff' },
+  typeDesc: { color: '#9CA3AF', fontSize: 13, lineHeight: 18 },
+  
+  // Plan selection styles
+  planContainer: { gap: 12, marginTop: 12, marginBottom: 16 },
+  planOption: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    backgroundColor: '#111827', 
+    borderWidth: 1, 
+    borderColor: '#1f2937', 
+    borderRadius: 10, 
+    padding: 12, 
+    gap: 12 
+  },
+  // Alias to match existing usage in component
+  planOptionActive: { borderColor: '#00f5ff', backgroundColor: '#0b1f26' },
 });

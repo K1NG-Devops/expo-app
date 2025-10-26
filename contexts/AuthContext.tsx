@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import * as Sentry from 'sentry-expo';
 import { assertSupabase } from '@/lib/supabase';
@@ -117,75 +118,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user?.id]);
 
-  // Enhanced refresh for visibility handler with debouncing
+  // NO-OP refresh handler for web - prevents infinite loading loops
   const handleVisibilityRefresh = useCallback(async () => {
+    // For web, we completely disable session refresh on visibility changes
+    // This prevents the infinite loading state when switching browser tabs
     const now = Date.now();
-    // Increase debounce time to prevent excessive refreshes
-    if (now - lastRefreshAttempt < 5000) {
-      return;
-    }
     
-    // Skip refresh during dashboard switches to prevent freezing
-    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
-      console.log('Skipping visibility refresh during dashboard switch');
-      return;
-    }
+    // Only log the visibility event, don't do anything else
+    logger.info('[Auth] Tab visibility changed (refresh disabled for web stability)');
     
-    setLastRefreshAttempt(now);
+    // Track for analytics but don't refresh anything
+    track('auth.tab_visibility_change', {
+      platform: Platform.OS,
+      timestamp: new Date().toISOString(),
+    });
     
-    try {
-      // Check if session is still valid
-      const { data: { session: currentSession }, error } = await assertSupabase().auth.getSession();
-      
-      if (error || !currentSession) {
-        console.log('Session invalid on visibility change, clearing auth state');
-        setUser(null);
-        setSession(null);
-        setProfile(null);
-        setPermissions(createPermissionChecker(null));
-        return;
-      }
-      
-      // Update session if it's different
-      if (currentSession && (!session || session.access_token !== currentSession.access_token)) {
-        setSession(currentSession);
-        setUser(currentSession.user);
-      }
-      
-      // Only refresh profile if really necessary and not during navigation
-      if (currentSession.user && !profileLoading && !profile) {
-        console.log('Refreshing profile on visibility change (no existing profile)');
-        
-        // Set a shorter timeout to prevent hanging
-        const timeoutId = setTimeout(() => {
-          setProfileLoading(false);
-          console.warn('Profile loading timeout, clearing loading state');
-        }, 5000); // 5 second timeout
-        
-        try {
-          const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
-          clearTimeout(timeoutId);
-          
-          if (enhancedProfile) {
-            setProfile(enhancedProfile);
-            setPermissions(createPermissionChecker(enhancedProfile));
-          }
-        } catch (profileError) {
-          clearTimeout(timeoutId);
-          console.error('Profile refresh failed:', profileError);
-          // Don't clear existing profile on refresh failure
-        }
-      }
-    } catch (error) {
-      console.error('Visibility refresh failed:', error);
-      // Ensure loading state is cleared on error
-      setProfileLoading(false);
-    }
-  }, [session, lastRefreshAttempt, profileLoading, profile]);
+    // Don't check session, don't refresh profile - just continue where user left off
+  }, []);
 
   // Enhanced sign out
   const handleSignOut = useCallback(async () => {
     try {
+      console.log('[AuthContext] Starting sign-out process...');
+      
       // Security audit for logout
       if (user?.id) {
         securityAuditor.auditAuthenticationEvent(user.id, 'logout', {
@@ -194,13 +149,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
       
-      await signOut();
+      // Clear all state immediately to prevent stale data
+      console.log('[AuthContext] Clearing auth state...');
       setUser(null);
       setSession(null);
       setProfile(null);
       setPermissions(createPermissionChecker(null));
+      setProfileLoading(false);
+      
+      // Call sessionManager sign out (this clears storage and Supabase session)
+      await signOut();
+      
+      // Clear PostHog and Sentry
+      try {
+        await getPostHog()?.reset();
+        console.log('[AuthContext] PostHog reset completed');
+      } catch (e) {
+        console.warn('[AuthContext] PostHog reset failed:', e);
+      }
+      
+      try {
+        Sentry.Native.setUser(null as any);
+        console.log('[AuthContext] Sentry user cleared');
+      } catch (e) {
+        console.warn('[AuthContext] Sentry clear user failed:', e);
+      }
+      
+      console.log('[AuthContext] Sign-out completed successfully');
+      
+      // Navigate to sign-in screen
+      try {
+        router.replace('/(auth)/sign-in');
+      } catch (navErr) {
+        console.error('[AuthContext] Navigation to sign-in failed:', navErr);
+        try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
+      }
     } catch (error) {
-      console.error('Sign out failed:', error);
+      console.error('[AuthContext] Sign out failed:', error);
+      
+      // Even if sign-out fails, clear local state to prevent UI issues
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setPermissions(createPermissionChecker(null));
       
       // Security audit for failed logout
       if (user?.id) {
@@ -208,6 +199,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           action: 'logout',
           error: error instanceof Error ? error.message : 'Unknown error',
         });
+      }
+      
+      // Still try to navigate even if there was an error
+      try {
+        router.replace('/(auth)/sign-in');
+      } catch (navErr) {
+        console.error('[AuthContext] Navigation to sign-in failed:', navErr);
+        try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
       }
     }
   }, [user?.id, profile?.role, session]);
@@ -265,12 +264,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const prefersDark = (globalThis as any).matchMedia('(prefers-color-scheme: dark)')?.matches;
         if (prefersDark) root.classList.add('dark'); else root.classList.remove('dark');
       }
-    } catch {}
+    } catch { /* Intentional: non-fatal */ }
 
     (async () => {
       try {
         // Initialize session from storage first
         const { session: storedSession, profile: storedProfile } = await initializeSession();
+        
+        // Debug session restoration
+        console.log('=== SESSION RESTORATION DEBUG ===');
+        console.log('Stored session exists:', !!storedSession);
+        console.log('Stored profile exists:', !!storedProfile);
+        if (storedSession) {
+          console.log('Session user_id:', storedSession.user_id);
+          console.log('Session email:', storedSession.email);
+          console.log('Session expires_at:', new Date(storedSession.expires_at * 1000).toISOString());
+        }
+        if (storedProfile) {
+          console.log('Profile role:', storedProfile.role);
+          console.log('Profile org_id:', storedProfile.organization_id);
+          console.log('Profile email:', storedProfile.email);
+        }
+        console.log('================================');
         
         if (storedSession && storedProfile && mounted) {
           setSession({ 
@@ -300,7 +315,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const fresh = await fetchProfileLocal(data.session.user.id);
             if (fresh) currentProfile = fresh;
           } catch (e) {
-            console.debug('Initial profile refresh failed', e);
+            logger.debug('Initial profile refresh failed', e);
           }
         }
 
@@ -316,7 +331,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             };
             ph?.identify(data.session.user.id, phProps);
           } catch (e) {
-            console.debug('PostHog identify failed', e);
+            logger.debug('PostHog identify failed', e);
           }
           try {
             Sentry.Native.setUser({ 
@@ -324,7 +339,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: data.session.user.email || undefined 
             } as any);
           } catch (e) {
-            console.debug('Sentry setUser failed', e);
+            logger.debug('Sentry setUser failed', e);
           }
         }
       } finally {
@@ -333,39 +348,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Initialize visibility handler for browser tab focus/blur handling
+      // COMPLETELY DISABLE visibility handler for web to prevent loading loops
+      // The issue is that ANY session check triggers Supabase's internal refresh mechanism
       try {
-        const allowWebFocusRefresh = process.env.EXPO_PUBLIC_WEB_FOCUS_REFRESH === 'true';
         const isWeb = Platform.OS === 'web';
-        if (!isWeb || allowWebFocusRefresh) {
+        
+        if (isWeb) {
+          // For web: ONLY track visibility, never refresh session
+          logger.info('[Visibility] Web visibility tracking enabled (NO auto-refresh)');
           initializeVisibilityHandler({
-            onSessionRefresh: handleVisibilityRefresh,
             onVisibilityChange: (isVisible) => {
               if (isVisible && mounted) {
-                // Get current state at the time of visibility change
-                assertSupabase().auth.getSession().then(({ data: currentSessionData }) => {
-                  track('auth.tab_focused', {
-                    has_session: !!currentSessionData.session,
-                    has_profile: !!profile,
-                    timestamp: new Date().toISOString(),
-                  });
-                }).catch(() => {
-                  // Fallback tracking if session check fails
-                  track('auth.tab_focused', {
-                    has_session: false,
-                    has_profile: !!profile,
-                    timestamp: new Date().toISOString(),
-                  });
+                // Just track, don't check session
+                track('auth.tab_focused', {
+                  platform: 'web',
+                  timestamp: new Date().toISOString(),
                 });
               }
             },
-            refreshDelay: 1000, // 1 second delay for superadmin dashboard
+            // No onSessionRefresh - this is the key fix
           });
         } else {
-          console.log('[Visibility] Web focus refresh disabled by EXPO_PUBLIC_WEB_FOCUS_REFRESH');
+          // Mobile platforms can use full refresh logic
+          logger.info('[Visibility] Initializing visibility handler for mobile platform');
+          initializeVisibilityHandler({
+            onSessionRefresh: async () => {
+              const now = Date.now();
+              if (now - lastRefreshAttempt < 5000) return;
+              
+              setLastRefreshAttempt(now);
+              try {
+                const { data: { session: currentSession } } = await assertSupabase().auth.getSession();
+                if (currentSession && mounted) {
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  
+                  const enhancedProfile = await fetchEnhancedUserProfile(currentSession.user.id);
+                  if (enhancedProfile && mounted) {
+                    setProfile(enhancedProfile);
+                    setPermissions(createPermissionChecker(enhancedProfile));
+                  }
+                }
+              } catch (error) {
+                console.error('[Visibility] Mobile refresh failed:', error);
+              }
+            },
+            onVisibilityChange: (isVisible) => {
+              if (isVisible && mounted) {
+                track('auth.tab_focused', {
+                  platform: 'mobile',
+                  timestamp: new Date().toISOString(),
+                });
+              }
+            },
+            refreshDelay: 1000,
+          });
         }
       } catch (e) {
-        console.debug('Visibility handler initialization failed (mobile platform?)', e);
+        logger.debug('[Visibility] Handler initialization failed', e);
       }
 
       // Subscribe to auth changes
@@ -380,6 +420,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Fetch enhanced profile on sign in
             const enhancedProfile = await fetchProfileLocal(s.user.id);
 
+            // Best-effort: update last_login_at via RPC for OAuth and external flows
+            try {
+              await assertSupabase().rpc('update_user_last_login');
+            } catch (e) {
+              logger.debug('update_user_last_login RPC failed (non-blocking)', e);
+            }
+
             // Register or update push token (best-effort)
             try {
               const { registerPushDevice } = await import('@/lib/notifications');
@@ -387,15 +434,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               
               // Log result for debugging (no sensitive data)
               if (result.status === 'error') {
-                console.debug('Push registration failed:', result.reason);
+                logger.debug('Push registration failed:', result.reason);
               } else if (result.status === 'denied') {
-                console.debug('Push permissions denied');
+                logger.debug('Push permissions denied');
                 // Could surface a non-blocking UI hint here in the future
               } else if (result.status === 'registered') {
-                console.debug('Push registration successful');
+                logger.debug('Push registration successful');
               }
             } catch (e) {
-              console.debug('Push registration exception:', e);
+              logger.debug('Push registration exception:', e);
             }
             
             // Identify in monitoring tools
@@ -410,7 +457,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 };
                 ph?.identify(s.user.id, phProps);
               } catch (e) {
-                console.debug('PostHog identify (auth change) failed', e);
+                logger.debug('PostHog identify (auth change) failed', e);
               }
               try {
                 Sentry.Native.setUser({ 
@@ -418,7 +465,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   email: s.user.email || undefined 
                 } as any);
               } catch (e) {
-                console.debug('Sentry setUser (auth change) failed', e);
+                logger.debug('Sentry setUser (auth change) failed', e);
               }
 
               track('edudash.auth.signed_in', {
@@ -436,24 +483,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (event === 'SIGNED_OUT' && mounted) {
+            console.log('[AuthContext] SIGNED_OUT event received, clearing all auth state');
             setProfile(null);
             setPermissions(createPermissionChecker(null));
+            setUser(null);
+            setSession(null);
+            setProfileLoading(false);
             
             // Deregister push device
             try {
               const { deregisterPushDevice } = await import('@/lib/notifications');
               await deregisterPushDevice(assertSupabase(), { id: s?.user?.id || user?.id });
             } catch (e) {
-              console.debug('Push deregistration failed', e);
+              logger.debug('Push deregistration failed', e);
             }
             
-            try { await getPostHog()?.reset(); } catch (e) { console.debug('PostHog reset failed', e); }
-            try { Sentry.Native.setUser(null as any); } catch (e) { console.debug('Sentry clear user failed', e); }
+            try { await getPostHog()?.reset(); } catch (e) { logger.debug('PostHog reset failed', e); }
+            try { Sentry.Native.setUser(null as any); } catch (e) { logger.debug('Sentry clear user failed', e); }
             
             track('edudash.auth.signed_out', {});
+
+            // Non-blocking toast to confirm sign-out
+            try {
+              const { toast } = await import('@/components/ui/ToastProvider');
+              toast.success('You have been signed out');
+            } catch (e) {
+              logger.debug('Toast on sign-out failed (non-blocking)', e);
+            }
             
-            // Ensure we fall back to the sign-in screen on sign out or session loss
-            try { router.replace('/sign-in'); } catch (navErr) { console.debug('Navigation to sign-in failed', navErr); }
+            // Don't navigate here - let signOutAndRedirect handle navigation
+            // This prevents conflicting navigation calls
+            console.log('[AuthContext] Sign-out cleanup complete, navigation handled by signOutAndRedirect');
           }
         } catch (error) {
           console.error('Auth state change handler error:', error);
@@ -464,8 +524,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
-      try { unsub?.subscription?.unsubscribe(); } catch (e) { console.debug('Auth listener unsubscribe failed', e); }
-      try { destroyVisibilityHandler(); } catch (e) { console.debug('Visibility handler cleanup failed', e); }
+      try { unsub?.subscription?.unsubscribe(); } catch (e) { logger.debug('Auth listener unsubscribe failed', e); }
+      try { destroyVisibilityHandler(); } catch (e) { logger.debug('Visibility handler cleanup failed', e); }
     };
   }, []);
 

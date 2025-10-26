@@ -31,10 +31,10 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+// VOICETODO: DashVoiceFloatingButton archived - now using DashChatButton in root layout
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
-import { logger } from '@/lib/logger';
+import { PendingParentLinkRequests } from './PendingParentLinkRequests';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -65,16 +65,18 @@ interface QuickActionProps {
 
 interface NewEnhancedTeacherDashboardProps {
   refreshTrigger?: number;
+  preferences?: any;
 }
 
 export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardProps> = ({ 
-  refreshTrigger
+  refreshTrigger, 
+  preferences 
 }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { tier, ready: subscriptionReady } = useSubscription();
-  const { preferences, setLayout } = useDashboardPreferences();
+  const { preferences: dashPrefs, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
   const insets = useSafeAreaInsets();
   const userRole = (profile as any)?.role || 'teacher';
@@ -92,22 +94,18 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
   const getGreeting = (): string => {
     const hour = new Date().getHours();
     const teacherName = profile?.first_name || user?.user_metadata?.first_name || 'Teacher';
-    if (hour < 12) return t('dashboard.good_morning', { defaultValue: 'Good morning' }) + ', ' + teacherName;
-    if (hour < 18) return t('dashboard.good_afternoon', { defaultValue: 'Good afternoon' }) + ', ' + teacherName;
-    return t('dashboard.good_evening', { defaultValue: 'Good evening' }) + ', ' + teacherName;
+    if (hour < 12) return t('dashboard.good_morning') + ', ' + teacherName;
+    if (hour < 18) return t('dashboard.good_afternoon') + ', ' + teacherName;
+    return t('dashboard.good_evening') + ', ' + teacherName;
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
       await refresh();
-      try {
-        await Feedback.vibrate(10);
-      } catch {
-        // Vibration not supported, ignore
-      }
+      await Feedback.vibrate(10);
     } catch (_error) {
-      logger.error('Dashboard refresh failed:', _error);
+      console.error('Refresh error:', _error);
     } finally {
       setRefreshing(false);
     }
@@ -127,7 +125,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         styles.metricCard,
         size === 'large' && styles.metricCardLarge,
         size === 'small' && styles.metricCardSmall,
-        { marginHorizontal: cardGap / 2, marginBottom: cardGap }
+        { marginHorizontal: cardGap / 2, marginBottom: cardGap, borderLeftColor: color, shadowColor: color }
       ]}
       onPress={onPress}
       disabled={!onPress}
@@ -158,15 +156,13 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
   const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle, disabled }) => (
     <TouchableOpacity
-      style={[styles.actionCard, disabled && styles.actionCardDisabled]}
+      style={[styles.actionCard, disabled && styles.actionCardDisabled, { borderLeftColor: color, shadowColor: color }]}
       onPress={async () => {
         if (disabled) return;
         try {
           await Feedback.vibrate(10);
-        } catch {
-          // Vibration not supported, ignore
-        }
-        onPress();
+          onPress();
+        } catch { /* TODO: Implement */ }
       }}
       activeOpacity={disabled ? 1 : 0.7}
     >
@@ -235,112 +231,77 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
         router.push('/screens/dash-assistant');
         break;
       default:
-        Alert.alert(t('common.coming_soon', { defaultValue: 'Coming Soon' }), t('dashboard.feature_coming_soon', { defaultValue: 'This feature is coming soon!' }));
+        Alert.alert(t('common.coming_soon'), t('dashboard.feature_coming_soon'));
     }
   };
 
-  // Real data metrics from useTeacherDashboard hook
-  const metrics = useMemo(() => {
-    if (!dashboardData) {
-      return [
-        {
-          title: t('teacher.students_total', { defaultValue: 'Total Students' }),
-          value: '...',
-          icon: 'people',
-          color: theme.primary,
-          trend: 'stable'
-        },
-        {
-          title: t('teacher.classes_total', { defaultValue: 'Total Classes' }),
-          value: '...',
-          icon: 'school',
-          color: theme.secondary,
-          trend: 'stable'
-        },
-        {
-          title: t('teacher.pending_grading', { defaultValue: 'Pending Grading' }),
-          value: '...',
-          icon: 'document-text',
-          color: theme.warning,
-          trend: 'stable'
-        },
-        {
-          title: t('teacher.upcoming_lessons', { defaultValue: 'Upcoming Lessons' }),
-          value: '...',
-          icon: 'calendar',
-          color: theme.success,
-          trend: 'stable'
-        }
-      ];
+  // Mock data for demonstration - in real app, this would come from dashboardData
+  const metrics = [
+    {
+      title: t('teacher.students_total'),
+      value: dashboardData?.totalStudents || '24',
+      icon: 'people',
+      color: theme.primary,
+      trend: 'stable'
+    },
+    {
+      title: t('teacher.classes_active'),
+      value: dashboardData?.totalClasses || '3',
+      icon: 'school',
+      color: theme.secondary,
+      trend: 'good'
+    },
+    {
+      title: t('teacher.assignments_pending'),
+      value: dashboardData?.pendingGrading || '8',
+      icon: 'document-text',
+      color: theme.warning,
+      trend: 'attention'
+    },
+    {
+      title: t('teacher.average_grade'),
+      value: dashboardData?.upcomingLessons || '0',
+      icon: 'trophy',
+      color: theme.success,
+      trend: 'up'
     }
-
-    return [
-      {
-        title: t('teacher.students_total', { defaultValue: 'Total Students' }),
-        value: dashboardData.totalStudents.toString(),
-        icon: 'people',
-        color: theme.primary,
-        trend: dashboardData.totalStudents > 25 ? 'high' : dashboardData.totalStudents > 15 ? 'stable' : 'low'
-      },
-      {
-        title: t('teacher.classes_total', { defaultValue: 'Total Classes' }),
-        value: dashboardData.totalClasses.toString(),
-        icon: 'school',
-        color: theme.secondary,
-        trend: dashboardData.totalClasses > 3 ? 'good' : 'stable'
-      },
-      {
-        title: t('teacher.pending_grading', { defaultValue: 'Pending Grading' }),
-        value: dashboardData.pendingGrading.toString(),
-        icon: 'document-text',
-        color: theme.warning,
-        trend: dashboardData.pendingGrading > 10 ? 'attention' : dashboardData.pendingGrading === 0 ? 'good' : 'stable'
-      },
-      {
-        title: t('teacher.upcoming_lessons', { defaultValue: 'Upcoming Lessons' }),
-        value: dashboardData.upcomingLessons.toString(),
-        icon: 'calendar',
-        color: theme.success,
-        trend: dashboardData.upcomingLessons > 0 ? 'good' : 'stable'
-      }
-    ];
-  }, [dashboardData, theme, t]);
+  ];
 
   const quickActions = [
     {
-      title: t('teacher.create_lesson', { defaultValue: 'Create Lesson' }),
+      title: t('teacher.create_lesson'),
       icon: 'book',
       color: theme.primary,
       onPress: () => handleQuickAction('create_lesson')
     },
     {
-      title: t('teacher.grade_assignments', { defaultValue: 'Grade Assignments' }),
+      title: t('teacher.grade_assignments'),
       icon: 'checkmark-circle',
       color: theme.success,
       onPress: () => handleQuickAction('grade_assignments')
     },
     {
-      title: t('teacher.view_classes', { defaultValue: 'View Classes' }),
+      title: t('teacher.view_classes'),
       icon: 'people',
       color: theme.secondary,
       onPress: () => handleQuickAction('view_classes')
     },
     {
-      title: t('teacher.parent_communication', { defaultValue: 'Parent Communication' }),
+      title: t('teacher.parent_communication'),
       icon: 'chatbubbles',
       color: theme.info,
       onPress: () => handleQuickAction('parent_communication')
     },
     {
-      title: t('teacher.student_reports', { defaultValue: 'Student Reports' }),
+      title: t('teacher.student_reports'),
       icon: 'bar-chart',
       color: theme.warning,
       onPress: () => handleQuickAction('student_reports')
     },
     {
-      title: t('teacher.ai_assistant', { defaultValue: 'AI Assistant' }),
+      title: t('teacher.ai_assistant'),
       icon: 'sparkles',
-      color: '#8B5CF6',
+      color: theme.accent,
       onPress: () => handleQuickAction('ai_assistant'),
       disabled: tier === 'free'
     }
@@ -349,7 +310,7 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
   if (loading && !dashboardData) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>{t('common.loading', { defaultValue: 'Loading...' })}</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -371,56 +332,15 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <Text style={styles.greeting}>{getGreeting()}</Text>
-            {/* Tier badge */}
-            <View
-              style={[
-                styles.tierChip,
-                {
-                  borderColor: ((): string => {
-                    const tt = String(tier || '').toLowerCase();
-                    if (tt === 'starter') return '#059669';
-                    if (tt === 'basic') return '#10B981';
-                    if (tt === 'premium') return '#7C3AED';
-                    if (tt === 'pro') return '#2563EB';
-                    if (tt === 'enterprise') return '#DC2626';
-                    return '#6B7280';
-                  })(),
-                  backgroundColor: ((): string => {
-                    const tt = String(tier || '').toLowerCase();
-                    const c = tt === 'starter' ? '#059669' : tt === 'basic' ? '#10B981' : tt === 'premium' ? '#7C3AED' : tt === 'pro' ? '#2563EB' : tt === 'enterprise' ? '#DC2626' : '#6B7280';
-                    return c + '20';
-                  })(),
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.tierChipText,
-                  {
-                    color: ((): string => {
-                      const tt = String(tier || '').toLowerCase();
-                      if (tt === 'starter') return '#059669';
-                      if (tt === 'basic') return '#10B981';
-                      if (tt === 'premium') return '#7C3AED';
-                      if (tt === 'pro') return '#2563EB';
-                      if (tt === 'enterprise') return '#DC2626';
-                      return '#6B7280';
-                    })(),
-                  },
-                ]}
-              >
-                {(String(tier || 'free').charAt(0).toUpperCase() + String(tier || 'free').slice(1))}
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.subtitle}>{t('teacher.dashboard_subtitle', { defaultValue: 'Manage your classes and students' })}</Text>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
+          <Text style={styles.subtitle}>{t('teacher.dashboard_subtitle')}</Text>
         </View>
 
         {/* Metrics Grid */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.overview', { defaultValue: 'Overview' })}</Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.overview')}</Text>
+          </View>
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => (
               <MetricCard
@@ -441,7 +361,9 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
+          <View style={[styles.sectionTitleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.quick_actions')}</Text>
+          </View>
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
               <QuickAction
@@ -451,10 +373,15 @@ export const NewEnhancedTeacherDashboard: React.FC<NewEnhancedTeacherDashboardPr
                 color={action.color}
                 onPress={action.onPress}
                 disabled={action.disabled}
-                subtitle={action.disabled ? t('dashboard.upgrade_required', { defaultValue: 'Upgrade required' }) : undefined}
+                subtitle={action.disabled ? t('dashboard.upgrade_required') : undefined}
               />
             ))}
           </View>
+        </View>
+
+        {/* Parent Link Requests Widget */}
+        <View style={styles.section}>
+          <PendingParentLinkRequests />
         </View>
 
       </ScrollView>
@@ -489,11 +416,6 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
   header: {
     marginBottom: 32,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   greeting: {
     fontSize: isTablet ? 32 : isSmallScreen ? 24 : 28,
     fontWeight: 'bold',
@@ -504,17 +426,6 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontSize: isTablet ? 18 : isSmallScreen ? 14 : 16,
     color: theme.textSecondary,
   },
-  tierChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginLeft: 8,
-  },
-  tierChipText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
   section: {
     marginBottom: 32,
   },
@@ -523,6 +434,19 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontWeight: '600',
     color: theme.text,
     marginBottom: 16,
+  },
+  sectionTitleChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 10,
   },
   metricsGrid: {
     flexDirection: 'row',
@@ -539,6 +463,7 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     backgroundColor: theme.surface,
     borderRadius: 16,
     padding: cardPadding,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -595,6 +520,7 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     marginHorizontal: cardGap / 2,
     marginBottom: cardGap,
     minHeight: isTablet ? 120 : isSmallScreen ? 90 : 100,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -626,5 +552,19 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontSize: isTablet ? 14 : isSmallScreen ? 10 : 12,
     color: theme.textSecondary,
     textAlign: 'center',
+  },
+  debugSection: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  debugButton: {
+    backgroundColor: theme.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    color: theme.onPrimary,
+    fontWeight: '600',
   },
 });

@@ -155,7 +155,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
             )}
           </View>
           
-          <Text style={[styles.featuredTitle, { color: theme.text }]} numberOfLines={2}>
+          <Text style={[styles.featuredTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={2} accessibilityRole="link">
             {lesson.title}
           </Text>
           
@@ -227,7 +227,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
             )}
           </View>
           
-          <Text style={[styles.compactTitle, { color: theme.text }]} numberOfLines={2}>
+          <Text style={[styles.compactTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={2} accessibilityRole="link">
             {lesson.title}
           </Text>
           
@@ -265,7 +265,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
         
         <View style={styles.listContent}>
           <View style={styles.listHeader}>
-            <Text style={[styles.listTitle, { color: theme.text }]} numberOfLines={1}>
+            <Text style={[styles.listTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={1} accessibilityRole="link">
               {lesson.title}
             </Text>
             {lesson.is_premium && (
@@ -321,7 +321,7 @@ export const LessonCard: React.FC<LessonCardProps> = ({
       )}
       
       <View style={styles.gridContent}>
-        <Text style={[styles.gridTitle, { color: theme.text }]} numberOfLines={2}>
+        <Text style={[styles.gridTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={2} accessibilityRole="link">
           {lesson.title}
         </Text>
         
@@ -569,6 +569,9 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 10,
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
   },
   tagsContainer: {
     flexDirection: 'row',

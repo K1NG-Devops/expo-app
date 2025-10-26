@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { track } from '@/lib/analytics';
+import { useTranslation } from 'react-i18next';
 
 interface InlineUpgradeBannerProps {
   /**
@@ -87,6 +88,7 @@ export default function InlineUpgradeBanner({
 }: InlineUpgradeBannerProps) {
   const { theme } = useTheme();
   const { tier } = useSubscription();
+  const { t } = useTranslation();
 
   // Don't show if user already has premium
   if (tier === 'premium' || !visible) {
@@ -120,12 +122,12 @@ export default function InlineUpgradeBanner({
         onPress={handleUpgradePress}
         activeOpacity={0.8}
         accessibilityRole="button"
-        accessibilityLabel={`Upgrade to unlock ${feature}`}
+accessibilityLabel={`${t('quick_actions.upgrade_to_unlock', { defaultValue: 'Upgrade to unlock' })} ${feature}`}
       >
         <View style={styles.minimalContent}>
           <Ionicons name={icon} size={16} color={theme.primary} />
-          <Text style={[styles.minimalText, { color: theme.primary }]}>
-            Upgrade to Premium
+          <Text style={[styles.minimalText, { color: theme.primary }]}> 
+            {t('subscription.upgrade', { defaultValue: 'Upgrade Plan' })}
           </Text>
           <Ionicons name="chevron-forward" size={14} color={theme.primary} />
         </View>
@@ -151,7 +153,7 @@ export default function InlineUpgradeBanner({
             accessibilityRole="button"
             accessibilityLabel={`Upgrade to unlock ${feature}`}
           >
-            <Text style={styles.compactButtonText}>Upgrade</Text>
+            <Text style={styles.compactButtonText}>{t('common.upgrade', { defaultValue: 'Upgrade' })}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -182,7 +184,7 @@ export default function InlineUpgradeBanner({
           accessibilityLabel={`Upgrade to unlock ${feature}`}
         >
           <Ionicons name="rocket" size={16} color="white" style={{ marginRight: 6 }} />
-          <Text style={styles.defaultButtonText}>Upgrade</Text>
+          <Text style={styles.defaultButtonText}>{t('common.upgrade', { defaultValue: 'Upgrade' })}</Text>
         </TouchableOpacity>
       </View>
       
@@ -201,9 +203,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
     overflow: 'hidden',
   },
   defaultContent: {
@@ -296,6 +298,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 1,
   },
   compactButtonText: {
     color: 'white',

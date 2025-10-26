@@ -82,9 +82,10 @@ class VisibilityHandler {
     }
   };
 
-  private handlePageShow = (event: PageTransitionEvent) => {
-    // Handle browser back/forward navigation
-    if (event.persisted && this.options.onSessionRefresh) {
+  private handlePageShow = (event: unknown) => {
+    // Handle browser back/forward navigation (web-only). We avoid DOM types in RN tsconfig.
+    const e = event as { persisted?: boolean } | null;
+    if (e?.persisted && this.options.onSessionRefresh) {
       this.scheduleSessionRefresh();
     }
   };
@@ -146,14 +147,14 @@ class VisibilityHandler {
       clearTimeout(this.refreshTimeout);
     }
 
-    if (typeof document !== 'undefined' && typeof (document as any).removeEventListener === 'function') {
+    if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     }
 
-    if (typeof window !== 'undefined' && typeof (window as any).removeEventListener === 'function') {
-      window.removeEventListener('focus', this.handleWindowFocus as any);
-      window.removeEventListener('blur', this.handleWindowBlur as any);
-      window.removeEventListener('pageshow', this.handlePageShow as any);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.handleWindowFocus);
+      window.removeEventListener('blur', this.handleWindowBlur);
+      window.removeEventListener('pageshow', this.handlePageShow);
     }
   }
 }

@@ -38,24 +38,28 @@ $$;
 -- Set seat_status to 'active' for teachers with active seats
 UPDATE public.profiles p
 SET seat_status = 'active'
-WHERE p.role = 'teacher'
+WHERE
+  p.role = 'teacher'
   AND EXISTS (
-    SELECT 1 
-    FROM public.subscription_seats ss
-    JOIN public.users u ON u.id = ss.user_id
-    WHERE u.auth_user_id = p.id
+    SELECT 1
+    FROM public.subscription_seats AS ss
+    INNER JOIN public.users AS u ON ss.user_id = u.id
+    WHERE
+      u.auth_user_id = p.id
       AND ss.revoked_at IS NULL
   );
 
 -- Set seat_status to 'inactive' for teachers without active seats
 UPDATE public.profiles p
 SET seat_status = 'inactive'
-WHERE p.role = 'teacher'
+WHERE
+  p.role = 'teacher'
   AND NOT EXISTS (
-    SELECT 1 
-    FROM public.subscription_seats ss
-    JOIN public.users u ON u.id = ss.user_id
-    WHERE u.auth_user_id = p.id
+    SELECT 1
+    FROM public.subscription_seats AS ss
+    INNER JOIN public.users AS u ON ss.user_id = u.id
+    WHERE
+      u.auth_user_id = p.id
       AND ss.revoked_at IS NULL
   );
 
@@ -125,8 +129,8 @@ EXECUTE FUNCTION public.sync_profile_seat_status();
 -- ====================================================================
 
 -- Add index on seat_status for faster queries
-CREATE INDEX IF NOT EXISTS idx_profiles_seat_status 
-ON public.profiles(seat_status) 
+CREATE INDEX IF NOT EXISTS idx_profiles_seat_status
+ON public.profiles (seat_status)
 WHERE role = 'teacher';
 
 -- ====================================================================
@@ -173,8 +177,8 @@ VALUES (
   'Added seat_status column to profiles table',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 -- ====================================================================
 -- SUCCESS MESSAGE

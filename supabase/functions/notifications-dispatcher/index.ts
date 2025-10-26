@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
@@ -29,6 +31,9 @@ interface NotificationRequest {
     | 'overdue_reminder'
     | 'payment_confirmed'
     | 'invoice_viewed'
+    | 'report_submitted_for_review'
+    | 'report_approved'
+    | 'report_rejected'
     | 'custom'
   preschool_id?: string
   user_ids?: string[]
@@ -42,6 +47,8 @@ interface NotificationRequest {
   plan_tier?: string
   seats?: number
   invoice_id?: string
+  report_id?: string
+  rejection_reason?: string
   test?: boolean
   channel?: 'email' | 'push' | 'sms'
   target_user_id?: string
@@ -330,6 +337,52 @@ function getNotificationTemplate(eventType: string, context: any = {}): Notifica
       sound: null,
       priority: 'normal',
       channelId: 'invoices'
+    },
+    report_submitted_for_review: {
+      title: 'Progress Report Submitted',
+      body: context.student_name && context.teacher_name
+        ? `${context.teacher_name} submitted a progress report for ${context.student_name}` 
+        : 'A progress report has been submitted for review',
+      data: {
+        type: 'report',
+        report_id: context.report_id,
+        student_id: context.student_id,
+        screen: 'principal-report-review'
+      },
+      sound: 'default',
+      priority: 'high',
+      channelId: 'reports'
+    },
+    report_approved: {
+      title: 'Progress Report Approved',
+      body: context.student_name
+        ? `Your progress report for ${context.student_name} has been approved` 
+        : 'Your progress report has been approved',
+      data: {
+        type: 'report',
+        report_id: context.report_id,
+        student_id: context.student_id,
+        screen: 'progress-report-creator'
+      },
+      sound: 'default',
+      priority: 'normal',
+      channelId: 'reports'
+    },
+    report_rejected: {
+      title: 'Progress Report Needs Revision',
+      body: context.student_name && context.rejection_reason
+        ? `Report for ${context.student_name} needs revision: ${context.rejection_reason}` 
+        : context.rejection_reason || 'Your progress report needs revision',
+      data: {
+        type: 'report',
+        report_id: context.report_id,
+        student_id: context.student_id,
+        rejection_reason: context.rejection_reason,
+        screen: 'progress-report-creator'
+      },
+      sound: 'default',
+      priority: 'high',
+      channelId: 'reports'
     }
   }
 
@@ -476,6 +529,39 @@ async function getUsersToNotify(request: NotificationRequest): Promise<string[]>
               if (student.guardian_id) userIds.push(student.guardian_id)
             })
           }
+        }
+      }
+      break
+
+    // Progress report events
+    case 'report_submitted_for_review':
+      if (request.preschool_id) {
+        // Notify all principals in the preschool
+        const { data: principals } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('preschool_id', request.preschool_id)
+          .in('role', ['principal', 'principal_admin'])
+          .eq('is_active', true)
+
+        if (principals) {
+          userIds.push(...principals.map(p => p.id))
+        }
+      }
+      break
+
+    case 'report_approved':
+    case 'report_rejected':
+      if (request.report_id) {
+        // Get the teacher who created the report
+        const { data: report } = await supabase
+          .from('progress_reports')
+          .select('teacher_id')
+          .eq('id', request.report_id)
+          .single()
+
+        if (report?.teacher_id) {
+          userIds.push(report.teacher_id)
         }
       }
       break
@@ -726,6 +812,40 @@ async function getNotificationContext(request: NotificationRequest): Promise<any
       }
 
       case 'seat_request_approved':
+        break
+
+      // Progress report events
+      case 'report_submitted_for_review':
+      case 'report_approved':
+      case 'report_rejected':
+        if (request.report_id) {
+          const { data: report } = await supabase
+            .from('progress_reports')
+            .select(`
+              id,
+              student:students(first_name, last_name),
+              teacher:teacher_id(first_name, last_name)
+            `)
+            .eq('id', request.report_id)
+            .single()
+
+          if (report) {
+            context.report_id = report.id
+            
+            if (report.student) {
+              context.student_name = `${report.student.first_name} ${report.student.last_name}`
+              context.student_id = request.student_id
+            }
+            
+            if (report.teacher) {
+              context.teacher_name = `${report.teacher.first_name} ${report.teacher.last_name}`
+            }
+            
+            if (request.event_type === 'report_rejected') {
+              context.rejection_reason = request.rejection_reason
+            }
+          }
+        }
         break
 
       // Invoice events

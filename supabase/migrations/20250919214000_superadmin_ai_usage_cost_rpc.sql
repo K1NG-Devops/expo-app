@@ -172,7 +172,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_superadmin_ai_usage_cost(INTEGER) TO authenticated;
 
 -- Add function documentation
-COMMENT ON FUNCTION public.get_superadmin_ai_usage_cost(INTEGER) IS 
+COMMENT ON FUNCTION public.get_superadmin_ai_usage_cost(INTEGER) IS
 'Calculate AI usage costs for superadmin dashboard. Returns total costs, usage stats, and service breakdown. Super admin access required.';
 
 -- ============================================================================
@@ -185,14 +185,14 @@ VALUES (
   'superadmin_ai_usage_cost_rpc_created',
   json_build_object(
     'version', '1.0.0',
-    'created_at', now()::text,
+    'created_at', now()::TEXT,
     'function_name', 'get_superadmin_ai_usage_cost',
     'purpose', 'Real AI cost data for superadmin dashboard'
   ),
   'Superadmin AI usage cost RPC function created',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 COMMIT;

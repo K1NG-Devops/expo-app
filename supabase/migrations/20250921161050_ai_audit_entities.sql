@@ -19,104 +19,104 @@ END $$;
 
 -- AI Model Tiers Table (Configuration)
 CREATE TABLE IF NOT EXISTS public.ai_model_tiers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Tier information
-    tier ai_model_tier NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    description TEXT,
-    
-    -- Available models
-    allowed_models JSONB NOT NULL DEFAULT '[]'::jsonb,
-    
-    -- Usage limits
-    max_requests_per_minute INTEGER NOT NULL DEFAULT 0,
-    max_requests_per_day INTEGER NOT NULL DEFAULT 0,
-    max_requests_per_month INTEGER NOT NULL DEFAULT 0,
-    max_tokens_per_request INTEGER DEFAULT NULL, -- NULL means no limit
-    
-    -- Features
-    features JSONB NOT NULL DEFAULT '{}'::jsonb,
-    restrictions JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Status
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Tier information
+  tier AI_MODEL_TIER NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  description TEXT,
+
+  -- Available models
+  allowed_models JSONB NOT NULL DEFAULT '[]'::JSONB,
+
+  -- Usage limits
+  max_requests_per_minute INTEGER NOT NULL DEFAULT 0,
+  max_requests_per_day INTEGER NOT NULL DEFAULT 0,
+  max_requests_per_month INTEGER NOT NULL DEFAULT 0,
+  max_tokens_per_request INTEGER DEFAULT NULL, -- NULL means no limit
+
+  -- Features
+  features JSONB NOT NULL DEFAULT '{}'::JSONB,
+  restrictions JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Status
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- User AI Model Tier Assignments
 CREATE TABLE IF NOT EXISTS public.user_ai_tiers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Relationships
-    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    tier ai_model_tier NOT NULL DEFAULT 'free',
-    
-    -- Assignment details
-    assigned_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
-    assigned_reason TEXT,
-    
-    -- Override limits (NULL means use tier defaults)
-    override_daily_limit INTEGER,
-    override_monthly_limit INTEGER,
-    override_rpm_limit INTEGER,
-    
-    -- Status
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    expires_at TIMESTAMPTZ,
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    
-    -- Constraints
-    UNIQUE(user_id) -- One active tier per user
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  user_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+  tier AI_MODEL_TIER NOT NULL DEFAULT 'free',
+
+  -- Assignment details
+  assigned_by UUID REFERENCES profiles (id) ON DELETE SET NULL,
+  assigned_reason TEXT,
+
+  -- Override limits (NULL means use tier defaults)
+  override_daily_limit INTEGER,
+  override_monthly_limit INTEGER,
+  override_rpm_limit INTEGER,
+
+  -- Status
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  expires_at TIMESTAMPTZ,
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  -- Constraints
+  UNIQUE (user_id) -- One active tier per user
 );
 
 -- AI Usage Tracking
 CREATE TABLE IF NOT EXISTS public.ai_usage (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
-    -- Relationships
-    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-    organization_id UUID REFERENCES preschools(id) ON DELETE CASCADE,
-    
-    -- Request details
-    model_used TEXT NOT NULL,
-    feature_used TEXT NOT NULL, -- 'lesson_generation', 'homework_help', 'grading', etc.
-    request_type TEXT NOT NULL DEFAULT 'completion', -- 'completion', 'chat', 'embedding'
-    
-    -- Usage metrics
-    tokens_used INTEGER,
-    request_tokens INTEGER,
-    response_tokens INTEGER,
-    processing_time_ms INTEGER,
-    
-    -- Request metadata (no sensitive content)
-    request_id TEXT, -- For tracing/debugging
-    model_parameters JSONB DEFAULT '{}'::jsonb,
-    success BOOLEAN NOT NULL DEFAULT true,
-    error_message TEXT,
-    
-    -- Time aggregation helpers
-    usage_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    usage_hour INTEGER NOT NULL DEFAULT EXTRACT(hour FROM now()),
-    
-    -- Metadata
-    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    
-    -- Audit fields
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Relationships
+  user_id UUID NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES preschools (id) ON DELETE CASCADE,
+
+  -- Request details
+  model_used TEXT NOT NULL,
+  feature_used TEXT NOT NULL, -- 'lesson_generation', 'homework_help', 'grading', etc.
+  request_type TEXT NOT NULL DEFAULT 'completion', -- 'completion', 'chat', 'embedding'
+
+  -- Usage metrics
+  tokens_used INTEGER,
+  request_tokens INTEGER,
+  response_tokens INTEGER,
+  processing_time_ms INTEGER,
+
+  -- Request metadata (no sensitive content)
+  request_id TEXT, -- For tracing/debugging
+  model_parameters JSONB DEFAULT '{}'::JSONB,
+  success BOOLEAN NOT NULL DEFAULT TRUE,
+  error_message TEXT,
+
+  -- Time aggregation helpers
+  usage_date DATE NOT NULL DEFAULT current_date,
+  usage_hour INTEGER NOT NULL DEFAULT extract(HOUR FROM now()),
+
+  -- Metadata
+  metadata JSONB NOT NULL DEFAULT '{}'::JSONB,
+
+  -- Audit fields
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- ====================================================================
@@ -279,40 +279,40 @@ END $$;
 -- ====================================================================
 
 -- AI Model Tiers indexes
-CREATE INDEX IF NOT EXISTS idx_ai_model_tiers_tier ON ai_model_tiers(tier);
-CREATE INDEX IF NOT EXISTS idx_ai_model_tiers_active ON ai_model_tiers(is_active, sort_order);
+CREATE INDEX IF NOT EXISTS idx_ai_model_tiers_tier ON ai_model_tiers (tier);
+CREATE INDEX IF NOT EXISTS idx_ai_model_tiers_active ON ai_model_tiers (is_active, sort_order);
 
 -- User AI Tiers indexes
-CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_user_id ON user_ai_tiers(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_tier ON user_ai_tiers(tier);
-CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_active ON user_ai_tiers(is_active);
-CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_expires ON user_ai_tiers(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_user_id ON user_ai_tiers (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_tier ON user_ai_tiers (tier);
+CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_active ON user_ai_tiers (is_active);
+CREATE INDEX IF NOT EXISTS idx_user_ai_tiers_expires ON user_ai_tiers (expires_at) WHERE expires_at IS NOT NULL;
 
 -- AI Usage indexes
-CREATE INDEX IF NOT EXISTS idx_ai_usage_user_id ON ai_usage(user_id);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_organization_id ON ai_usage(organization_id);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage(usage_date);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_model ON ai_usage(model_used);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_feature ON ai_usage(feature_used);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_success ON ai_usage(success);
-CREATE INDEX IF NOT EXISTS idx_ai_usage_created_at ON ai_usage(created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_id ON ai_usage (user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_organization_id ON ai_usage (organization_id);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_date ON ai_usage (usage_date);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_model ON ai_usage (model_used);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_feature ON ai_usage (feature_used);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_success ON ai_usage (success);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_created_at ON ai_usage (created_at);
 
 -- Composite index for usage aggregation
-CREATE INDEX IF NOT EXISTS idx_ai_usage_user_date_feature ON ai_usage(user_id, usage_date, feature_used);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_user_date_feature ON ai_usage (user_id, usage_date, feature_used);
 
 -- Audit Logs indexes
-CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs(actor_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs(target_id, target_type);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_at ON audit_logs(occurred_at);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_org ON audit_logs(actor_organization_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_ip_address ON audit_logs(ip_address);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_session_id ON audit_logs(session_id);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_correlation_id ON audit_logs(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_id ON audit_logs (actor_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs (target_id, target_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type ON audit_logs (event_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_occurred_at ON audit_logs (occurred_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_org ON audit_logs (actor_organization_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_ip_address ON audit_logs (ip_address);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_session_id ON audit_logs (session_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_correlation_id ON audit_logs (correlation_id);
 
 -- Composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_time ON audit_logs(actor_id, occurred_at DESC);
-CREATE INDEX IF NOT EXISTS idx_audit_logs_target_time ON audit_logs(target_id, target_type, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_time ON audit_logs (actor_id, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target_time ON audit_logs (target_id, target_type, occurred_at DESC);
 
 -- ====================================================================
 -- PART 4: UTILITY FUNCTIONS
@@ -320,7 +320,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_target_time ON audit_logs(target_id, t
 
 -- Function to get user's current AI tier
 CREATE OR REPLACE FUNCTION public.get_user_ai_tier(p_user_id UUID)
-RETURNS ai_model_tier
+RETURNS AI_MODEL_TIER
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
@@ -342,16 +342,16 @@ $$;
 
 -- Function to record AI usage
 CREATE OR REPLACE FUNCTION public.record_ai_usage(
-    p_user_id UUID,
-    p_model_used TEXT,
-    p_feature_used TEXT,
-    p_tokens_used INTEGER DEFAULT NULL,
-    p_request_tokens INTEGER DEFAULT NULL,
-    p_response_tokens INTEGER DEFAULT NULL,
-    p_processing_time_ms INTEGER DEFAULT NULL,
-    p_success BOOLEAN DEFAULT true,
-    p_error_message TEXT DEFAULT NULL,
-    p_metadata JSONB DEFAULT '{}'::jsonb
+  p_user_id UUID,
+  p_model_used TEXT,
+  p_feature_used TEXT,
+  p_tokens_used INTEGER DEFAULT NULL,
+  p_request_tokens INTEGER DEFAULT NULL,
+  p_response_tokens INTEGER DEFAULT NULL,
+  p_processing_time_ms INTEGER DEFAULT NULL,
+  p_success BOOLEAN DEFAULT TRUE,
+  p_error_message TEXT DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::JSONB
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -381,15 +381,15 @@ $$;
 
 -- Function to create audit log entry
 CREATE OR REPLACE FUNCTION public.create_audit_log(
-    p_event_type audit_event_type,
-    p_event_name TEXT,
-    p_actor_id UUID DEFAULT NULL,
-    p_target_id UUID DEFAULT NULL,
-    p_target_type TEXT DEFAULT NULL,
-    p_ip_address INET DEFAULT NULL,
-    p_metadata JSONB DEFAULT '{}'::jsonb,
-    p_success BOOLEAN DEFAULT true,
-    p_error_message TEXT DEFAULT NULL
+  p_event_type AUDIT_EVENT_TYPE,
+  p_event_name TEXT,
+  p_actor_id UUID DEFAULT NULL,
+  p_target_id UUID DEFAULT NULL,
+  p_target_type TEXT DEFAULT NULL,
+  p_ip_address INET DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::JSONB,
+  p_success BOOLEAN DEFAULT TRUE,
+  p_error_message TEXT DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -425,56 +425,65 @@ $$;
 -- ====================================================================
 
 CREATE TRIGGER ai_model_tiers_updated_at BEFORE UPDATE ON ai_model_tiers
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER user_ai_tiers_updated_at BEFORE UPDATE ON user_ai_tiers
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ====================================================================
 -- PART 6: INSERT DEFAULT AI MODEL TIERS
 -- ====================================================================
 
 -- Insert default AI model tiers based on Phase 1 requirements
-INSERT INTO ai_model_tiers (tier, name, description, allowed_models, max_requests_per_minute, max_requests_per_day, max_requests_per_month, features) VALUES
+INSERT INTO ai_model_tiers (
+  tier,
+  name,
+  description,
+  allowed_models,
+  max_requests_per_minute,
+  max_requests_per_day,
+  max_requests_per_month,
+  features
+) VALUES
 (
-    'free',
-    'Free Tier',
-    'Basic AI features for trial users',
-    '["claude-3-haiku"]'::jsonb,
-    5,
-    50,
-    150,
-    '{"ai_homework_helper": true, "ai_lesson_generation": false, "ai_grading_assistance": false}'::jsonb
+  'free',
+  'Free Tier',
+  'Basic AI features for trial users',
+  '["claude-3-haiku"]'::JSONB,
+  5,
+  50,
+  150,
+  '{"ai_homework_helper": true, "ai_lesson_generation": false, "ai_grading_assistance": false}'::JSONB
 ),
 (
-    'starter', 
-    'Starter Tier',
-    'Enhanced AI capabilities for small schools',
-    '["claude-3-haiku", "claude-3-sonnet"]'::jsonb,
-    15,
-    500,
-    1500,
-    '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": false}'::jsonb
+  'starter',
+  'Starter Tier',
+  'Enhanced AI capabilities for small schools',
+  '["claude-3-haiku", "claude-3-sonnet"]'::JSONB,
+  15,
+  500,
+  1500,
+  '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": false}'::JSONB
 ),
 (
-    'premium',
-    'Premium Tier', 
-    'Full AI suite for comprehensive educational use',
-    '["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]'::jsonb,
-    30,
-    1000,
-    2500,
-    '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": true, "ai_progress_analysis": true}'::jsonb
+  'premium',
+  'Premium Tier',
+  'Full AI suite for comprehensive educational use',
+  '["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]'::JSONB,
+  30,
+  1000,
+  2500,
+  '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": true, "ai_progress_analysis": true}'::JSONB
 ),
 (
-    'enterprise',
-    'Enterprise Tier',
-    'Unlimited AI access with priority support',
-    '["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]'::jsonb,
-    60,
-    -1, -- Unlimited
-    -1, -- Unlimited
-    '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": true, "ai_progress_analysis": true, "ai_quota_management": true}'::jsonb
+  'enterprise',
+  'Enterprise Tier',
+  'Unlimited AI access with priority support',
+  '["claude-3-haiku", "claude-3-sonnet", "claude-3-opus"]'::JSONB,
+  60,
+  -1, -- Unlimited
+  -1, -- Unlimited
+  '{"ai_homework_helper": true, "ai_lesson_generation": true, "ai_grading_assistance": true, "ai_stem_activities": true, "ai_progress_analysis": true, "ai_quota_management": true}'::JSONB
 )
 ON CONFLICT (tier) DO NOTHING; -- Don't overwrite existing tiers
 

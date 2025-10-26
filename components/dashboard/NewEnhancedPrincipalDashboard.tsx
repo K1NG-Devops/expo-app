@@ -11,7 +11,7 @@
  * - Optimized for touch interfaces and accessibility
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -32,11 +32,13 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { Avatar } from '@/components/ui/Avatar';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import TierBadge from '@/components/ui/TierBadge';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { PendingParentLinkRequests } from './PendingParentLinkRequests';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
 const isSmallScreen = width < 380;
 const cardPadding = isTablet ? 20 : isSmallScreen ? 10 : 14;
@@ -66,7 +68,7 @@ interface NewEnhancedPrincipalDashboardProps {
   refreshTrigger?: number;
 }
 
-export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = () => {
+export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboardProps> = ({ refreshTrigger }) => {
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -74,8 +76,14 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
   const { preferences, setLayout } = useDashboardPreferences();
   const [refreshing, setRefreshing] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const insets = useSafeAreaInsets();
-  // const userRole = (profile as any)?.role || 'principal'; // Currently unused
+  const userRole = (profile as any)?.role || 'principal';
+  // Prefer explicit tenant slug when available
+  const tenantSlug = (profile as any)?.organization_membership?.tenant_slug 
+    || (profile as any)?.organization_membership?.organization_slug 
+    || (profile as any)?.organization_membership?.slug 
+    || '';
   
   const styles = useMemo(() => createStyles(theme, insets.top, insets.bottom), [theme, insets.top, insets.bottom]);
   
@@ -96,6 +104,50 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     if (hour < 18) return t('dashboard.good_afternoon');
     return t('dashboard.good_evening');
   };
+
+  const toggleSection = useCallback((sectionId: string) => {
+    console.log('🔄 Toggling section:', sectionId);
+    setCollapsedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(sectionId)) {
+        console.log('✅ Expanding:', sectionId);
+        newSet.delete(sectionId);
+      } else {
+        console.log('❌ Collapsing:', sectionId);
+        newSet.add(sectionId);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const SectionHeader: React.FC<{ title: string; sectionId: string; icon?: string }> = useCallback(({ title, sectionId, icon }) => {
+    const isCollapsed = collapsedSections.has(sectionId);
+    console.log(`📋 Rendering SectionHeader: ${title} (${sectionId}) - collapsed: ${isCollapsed}`);
+    return (
+      <TouchableOpacity
+        style={styles.sectionHeader}
+        onPress={() => {
+          console.log('👆 SectionHeader tapped:', sectionId);
+          toggleSection(sectionId);
+          try { Feedback.vibrate(5); } catch { /* non-fatal */ }
+        }}
+        activeOpacity={0.7}
+        accessible={true}
+        accessibilityRole="button"
+        accessibilityLabel={`${isCollapsed ? 'Expand' : 'Collapse'} ${title}`}
+      >
+        {icon && <Text style={styles.sectionHeaderIcon}>{icon}</Text>}
+        <View style={[styles.sectionHeaderChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+          <Text style={styles.sectionHeaderTitleText}>{title}</Text>
+        </View>
+        <Ionicons
+          name={isCollapsed ? 'chevron-down' : 'chevron-up'}
+          size={20}
+          color={theme.textSecondary}
+        />
+      </TouchableOpacity>
+    );
+  }, [collapsedSections, styles, theme, toggleSection]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -152,28 +204,24 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     </TouchableOpacity>
   );
 
-  // QuickAction component - currently unused but kept for future use
-  // const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle }) => (
-  //   <TouchableOpacity
-  //     style={styles.actionCard}
-  //     onPress={async () => {
-  //       try {
-  //         await Feedback.vibrate(10);
-  //         onPress();
-  //       } catch (error) {
-  //         // Vibration may not be available on all platforms
-  //         console.log('Vibration not available:', error);
-  //       }
-  //     }}
-  //     activeOpacity={0.7}
-  //   >
-  //     <View style={[styles.actionIcon, { backgroundColor: color + '15' }]}>
-  //       <Ionicons name={icon as any} size={isSmallScreen ? 20 : 24} color={color} />
-  //     </View>
-  //     <Text style={styles.actionTitle}>{title}</Text>
-  //     {subtitle && <Text style={styles.actionSubtitle}>{subtitle}</Text>}
-  //   </TouchableOpacity>
-  // );
+  const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle }) => (
+    <TouchableOpacity
+      style={styles.actionCard}
+      onPress={async () => {
+        try {
+          await Feedback.vibrate(10);
+          onPress();
+        } catch { /* TODO: Implement */ }
+      }}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.actionIcon, { backgroundColor: color + '15' }]}>
+        <Ionicons name={icon as any} size={isSmallScreen ? 20 : 24} color={color} />
+      </View>
+      <Text style={styles.actionTitle}>{title}</Text>
+      {subtitle && <Text style={styles.actionSubtitle}>{subtitle}</Text>}
+    </TouchableOpacity>
+  );
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
@@ -209,12 +257,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <LoadingSkeleton />
-      </View>
-    );
+  if (loading && isEmpty) {
+    return <LoadingScreen message="Loading your dashboard..." />;
   }
 
   if (error && isEmpty) {
@@ -237,6 +281,13 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   // Quick actions with modern grouping
   const primaryActions = [
     {
+      title: t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' }),
+      icon: 'chatbubbles',
+      color: '#6366F1',
+      onPress: () => router.push('/screens/dash-assistant'),
+      subtitle: t('quick_actions.ai_assistant', { defaultValue: 'Your AI teaching assistant' })
+    },
+    {
       title: t('quick_actions.enroll_student'),
       icon: 'person-add',
       color: theme.primary,
@@ -257,6 +308,20 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       },
     },
     {
+      title: 'Review Progress Reports',
+      icon: 'document-text',
+      color: '#8B5CF6',
+      onPress: () => router.push('/screens/principal-report-review'),
+      subtitle: 'Approve and review reports'
+    },
+    {
+      title: 'Student Management',
+      icon: 'school',
+      color: '#3B82F6',
+      onPress: () => router.push('/screens/student-management'),
+      subtitle: 'View and manage students'
+    },
+    {
       title: t('quick_actions.view_finances'),
       icon: 'analytics',
       color: '#059669',
@@ -269,25 +334,34 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       {/* Fixed App Header */}
       <View style={styles.appHeader}>
         <View style={styles.appHeaderContent}>
-          {/* Left side - Tenant/School name */}
+          {/* Left side - Avatar + Tenant/School name */}
           <View style={styles.headerLeft}>
-            <Text style={styles.tenantName}>
-              {(profile as any)?.organization_membership?.organization_slug ||
-               (profile as any)?.organization_membership?.tenant_slug ||
-               (profile as any)?.organization_membership?.slug ||
-               data.schoolName || t('dashboard.your_school')}
+            <TouchableOpacity 
+              style={{ borderRadius: 18, overflow: 'hidden', marginRight: 10 }}
+              onPress={() => router.push('/screens/account')}
+              activeOpacity={0.7}
+              accessibilityLabel={t('common.account')}
+            >
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
+            </TouchableOpacity>
+            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
+              {tenantSlug || data.schoolName || t('dashboard.your_school')}
             </Text>
           </View>
           
-          {/* Right side - Dashboard Toggle, Settings & Avatar */}
+          {/* Right side - Dashboard Toggle + Settings */}
           <View style={styles.headerRight}>
-            {/* Dashboard Layout Toggle (first) */}
+            {/* Dashboard Layout Toggle */}
             <TouchableOpacity
               style={styles.dashboardToggle}
               onPress={() => {
                 const newLayout = preferences.layout === 'enhanced' ? 'classic' : 'enhanced';
                 setLayout(newLayout);
-                try { Feedback.vibrate(15); } catch {}
+                try { Feedback.vibrate(15); } catch { /* Intentional: non-fatal */ }
               }}
               activeOpacity={0.7}
             >
@@ -298,24 +372,13 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               />
             </TouchableOpacity>
             
-            {/* Settings Icon (now second) */}
+            {/* Settings Icon */}
             <TouchableOpacity 
               style={styles.settingsButton}
               onPress={() => router.push('/screens/settings')}
               activeOpacity={0.7}
             >
               <Ionicons name="settings-outline" size={20} color={theme.text} />
-            </TouchableOpacity>
-            
-            {/* User Avatar (now second) */}
-            <TouchableOpacity 
-              style={styles.userAvatar}
-              onPress={() => router.push('/screens/account')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.userAvatarText}>
-                {user?.user_metadata?.first_name?.[0] || '?'}
-              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -372,12 +435,10 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         </View>
       </View>
 
-      {/* ┌────────── ────────── ────────── ──────────┐ */}
-      {/* │ Students │ Teachers │ Classes │ Budget  │ */}
-      {/* │  1,234  │   56    │   42    │ $125K   │ */}
-      {/* │   +5%   │   +2    │   +3    │  -12%   │ */}
-      {/* └────────── ────────── ────────── ──────────┘ */}
+      {/* School Overview Metrics - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('dashboard.school_overview')} sectionId="school-metrics" icon="📊" />
+        {!collapsedSections.has('school-metrics') && (
         <View style={styles.metricsGrid}>
           {allMetrics.slice(0, 4).map((metric, index) => (
             <MetricCard
@@ -406,18 +467,14 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             />
           ))}
         </View>
+        )}
       </View>
 
-      {/* ┌───────────────────┐ ┌────────────────────────┐ */}
-      {/* │  Quick Actions     │ │  Performance Chart     │ */}
-      {/* │ • Add Teacher      │ │  [📈 Line Graph]       │ */}
-      {/* │ • Schedule Meeting │ │                        │ */}
-      {/* │ • View Reports     │ │                        │ */}
-      {/* │ • Announcements    │ │                        │ */}
-      {/* └───────────────────┘ └────────────────────────┘ */}
+      {/* Quick Actions & Statistics - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('dashboard.quick_actions_stats')} sectionId="quick-actions" icon="⚡" />
+        {!collapsedSections.has('quick-actions') && (
         <View style={styles.twoColumnLayout}>
-          {/* Quick Actions Column */}
           <View style={styles.leftColumn}>
             <View style={styles.quickActionsCard}>
               <Text style={styles.cardTitle}>{t('dashboard.quick_actions')}</Text>
@@ -460,15 +517,21 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             </View>
           </View>
         </View>
+        )}
       </View>
 
-      {/* ┌────────────────────────────────────────────── ┐ */}
-      {/* │  Recent Activity                              │ */}
-      {/* │  • New enrollment: John Doe (Grade 5)         │ */}
-      {/* │  • Teacher leave request: Ms. Smith           │ */}
-      {/* │  • Budget approval pending                    │ */}
-      {/* └────────────────────────────────────────────── ┘ */}
+      {/* Parent Link Requests Widget - Collapsible */}
       <View style={styles.section}>
+        <SectionHeader title={t('dashboard.parent_requests')} sectionId="parent-requests" icon="👨‍👩‍👧" />
+        {!collapsedSections.has('parent-requests') && (
+          <PendingParentLinkRequests />
+        )}
+      </View>
+
+      {/* Recent Activity - Collapsible */}
+      <View style={styles.section}>
+        <SectionHeader title={t('activity.recent_activity')} sectionId="recent-activity" icon="🔔" />
+        {!collapsedSections.has('recent-activity') && (
         <View style={styles.recentActivityCard}>
           <Text style={styles.cardTitle}>{t('activity.recent_activity')}</Text>
           {data.recentActivities && data.recentActivities.length > 0 ? (
@@ -499,12 +562,14 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             </TouchableOpacity>
           )}
         </View>
+        )}
       </View>
 
-      {/* Financial Summary */}
+      {/* Financial Summary - Collapsible */}
       {data.financialSummary && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.financial_overview')}</Text>
+          <SectionHeader title={t('dashboard.financial_overview')} sectionId="financials" icon="💰" />
+          {!collapsedSections.has('financials') && (
           <View style={styles.financialGrid}>
             <View style={styles.financialCard}>
               <Text style={styles.financialLabel}>{t('dashboard.monthly_revenue')}</Text>
@@ -521,46 +586,42 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
               </Text>
             </View>
           </View>
+          )}
         </View>
       )}
       </ScrollView>
 
-      {/* Dash AI Floating Button */}
-      <DashFloatingButton
-        position="bottom-right"
-        showWelcomeMessage={true}
-        onPress={() => router.push('/screens/dash-assistant')}
-      />
+      {/* Dash AI Floating Button removed - global FAB is used from _layout.tsx */}
     </View>
   );
 };
 
-// Teacher Card Component - currently unused but kept for future use
-// const TeacherCard: React.FC<{ teacher: any }> = ({ teacher }) => {
-//   const { theme } = useTheme();
-//   const cardStyles = useMemo(() => createStyles(theme), [theme]);
-//   
-//   return (
-//     <TouchableOpacity style={[cardStyles.teacherCard, { backgroundColor: theme.cardBackground }]}>
-//       <View style={cardStyles.teacherHeader}>
-//         <View style={[cardStyles.teacherAvatar, { backgroundColor: theme.primary }]}>
-//           <Text style={[cardStyles.teacherInitials, { color: theme.onPrimary }]}>
-//             {teacher.first_name?.[0]}{teacher.last_name?.[0]}
-//           </Text>
-//         </View>
-//         <View style={cardStyles.teacherInfo}>
-//           <Text style={[cardStyles.teacherName, { color: theme.text }]}>{teacher.full_name}</Text>
-//           <Text style={[cardStyles.teacherSpecialty, { color: theme.textSecondary }]}>
-//             {teacher.subject_specialization || 'General'}
-//           </Text>
-//         </View>
-//       </View>
-//       <Text style={[cardStyles.teacherStats, { color: theme.textSecondary }]}>
-//         {teacher.classes_assigned} classes • {teacher.students_count} students
-//       </Text>
-//     </TouchableOpacity>
-//   );
-// };
+// Teacher Card Component
+const TeacherCard: React.FC<{ teacher: any }> = ({ teacher }) => {
+  const { theme } = useTheme();
+  const cardStyles = useMemo(() => createStyles(theme), [theme]);
+  
+  return (
+    <TouchableOpacity style={[cardStyles.teacherCard, { backgroundColor: theme.cardBackground }]}>
+      <View style={cardStyles.teacherHeader}>
+        <View style={[cardStyles.teacherAvatar, { backgroundColor: theme.primary }]}>
+          <Text style={[cardStyles.teacherInitials, { color: theme.onPrimary }]}>
+            {teacher.first_name?.[0]}{teacher.last_name?.[0]}
+          </Text>
+        </View>
+        <View style={cardStyles.teacherInfo}>
+          <Text style={[cardStyles.teacherName, { color: theme.text }]}>{teacher.full_name}</Text>
+          <Text style={[cardStyles.teacherSpecialty, { color: theme.textSecondary }]}>
+            {teacher.subject_specialization || 'General'}
+          </Text>
+        </View>
+      </View>
+      <Text style={[cardStyles.teacherStats, { color: theme.textSecondary }]}>
+        {teacher.classes_assigned} classes • {teacher.students_count} students
+      </Text>
+    </TouchableOpacity>
+  );
+};
 
 // Loading Skeleton Component
 const LoadingSkeleton: React.FC = () => {
@@ -606,8 +667,10 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     scrollContainer: {
       flex: 1,
-      // Space below the fixed header including safe area inset (reduced for tighter layout)
-      marginTop: (isSmallScreen ? 32 : 38) + insetTop,
+      // Space below the fixed header including safe area inset and header content height
+      // Header height = insetTop + top padding + content + bottom padding + border
+      // Increased to prevent the welcome card from being hidden under the header
+      marginTop: (isSmallScreen ? 104 : 124) + insetTop,
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),
@@ -619,6 +682,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     headerLeft: {
       flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
     },
     headerRight: {
       flexDirection: 'row',
@@ -630,6 +695,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       fontWeight: '700',
       color: theme.text,
       marginBottom: 2,
+      flexShrink: 1,
+      minWidth: 0,
     },
     titleRow: {
       flexDirection: 'row',
@@ -642,6 +709,45 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+    },
+    sectionHeaderSurface: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: isSmallScreen ? 12 : 14,
+      paddingHorizontal: cardPadding,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    sectionHeaderIcon: {
+      fontSize: 18,
+      marginRight: 8,
+    },
+    sectionHeaderTitle: {
+      flex: 1,
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    sectionHeaderChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 2,
+      alignSelf: 'flex-start',
+      marginRight: 8,
+    },
+    sectionHeaderTitleText: {
+      fontSize: isSmallScreen ? 16 : 18,
+      fontWeight: '700',
+      color: theme.text,
     },
     headerIcon: {
       fontSize: 24,
@@ -716,25 +822,6 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     welcomeSubtitle: {
       fontSize: isSmallScreen ? 14 : 16,
       color: theme.textSecondary,
-    },
-    tierBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: isSmallScreen ? 8 : 10,
-      paddingVertical: isSmallScreen ? 3 : 4,
-      borderRadius: isSmallScreen ? 12 : 14,
-      gap: 4,
-    },
-    freeTierBadge: {
-      backgroundColor: '#F59E0B',
-    },
-    premiumTierBadge: {
-      backgroundColor: '#8B5CF6',
-    },
-    tierBadgeText: {
-      fontSize: 11,
-      fontWeight: '700',
-      color: '#FFFFFF',
     },
     upgradePrompt: {
       flexDirection: 'row',

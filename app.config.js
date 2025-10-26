@@ -1,125 +1,47 @@
-// app.config.js
-// Use a dynamic config so we can disable expo-dev-client for preview/production (OTA compatibility)
-const fs = require('fs');
-const path = require('path');
-
 /**
+ * app.config.js - Minimal Dynamic Configuration
+ * 
+ * This file handles ONLY truly dynamic configuration that cannot be static.
+ * All static configuration is in app.json (primary source of truth).
+ * 
+ * Dynamic behaviors:
+ * 1. Conditionally include expo-dev-client (only for development builds)
+ * 2. Dynamic AdMob IDs from environment variables (for different environments)
+ * 
  * @param {import('@expo/config').ConfigContext} ctx
  */
 module.exports = ({ config }) => {
-  const profile = process.env.EAS_BUILD_PROFILE || process.env.NODE_ENV || '';
-  const isDevBuild = profile === 'development' || profile === 'dev';
+  const profile = process.env.EAS_BUILD_PROFILE || '';
+  const isDevBuild = profile === 'development';
   const isWeb = process.env.EXPO_PUBLIC_PLATFORM === 'web';
 
-  const plugins = [
-    'expo-router',
-    'sentry-expo',
-    [
-      'react-native-google-mobile-ads',
-      {
-        androidAppId: process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
-        iosAppId: process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || 'ca-app-pub-3940256099942544~1458002511',
-        androidManifestApplicationMetaData: {
-          'com.google.android.gms.ads.APPLICATION_ID': process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713',
+  // Get AdMob IDs from environment (fallback to test IDs)
+  const androidAdMobId = process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID || 'ca-app-pub-3940256099942544~3347511713';
+  const iosAdMobId = process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID || 'ca-app-pub-3940256099942544~1458002511';
+
+  // Build plugins array with dynamic AdMob config
+  const plugins = config.plugins.map((plugin) => {
+    // Update AdMob plugin with environment-specific IDs
+    if (Array.isArray(plugin) && plugin[0] === 'react-native-google-mobile-ads') {
+      return [
+        'react-native-google-mobile-ads',
+        {
+          androidAppId: androidAdMobId,
+          iosAppId: iosAdMobId,
         },
-      },
-    ],
-    'expo-localization',
-    'expo-secure-store',
-    'expo-notifications',
-  ];
+      ];
+    }
+    return plugin;
+  });
 
-  // Include expo-dev-client for mobile development only, not for web
-  // Only exclude for production EAS builds or web platform
-  if (!isWeb && (isDevBuild || !process.env.EAS_BUILD_PLATFORM)) plugins.push('expo-dev-client');
-
-  // In bare workflow, runtimeVersion policies are not supported.
-  // Use a static runtimeVersion string to match the native build.
-  const runtimeVersion = '1.0.2';
+  // Conditionally add expo-dev-client for development builds only
+  // This is required for OTA updates to work correctly in production
+  if (!isWeb && (isDevBuild || !process.env.EAS_BUILD_PLATFORM)) {
+    plugins.push('expo-dev-client');
+  }
 
   return {
     ...config,
-    name: 'EduDashPro',
-    slug: 'dashpro',
-    owner: 'edudashprotest',
-    version: '1.0.2',
-    runtimeVersion,
-    orientation: 'portrait',
-    icon: './assets/icon.png',
-    userInterfaceStyle: 'light',
-    scheme: 'edudashpro',
-    newArchEnabled: true,
-    splash: {
-      image: './assets/splash-icon.png',
-      resizeMode: 'contain',
-      backgroundColor: '#ffffff',
-    },
-    ios: {
-      supportsTablet: true,
-      bundleIdentifier: 'com.k1ngdevops.edudashpro',
-    },
-    android: {
-      edgeToEdgeEnabled: true,
-      package: 'com.edudashpro',
-      googleServicesFile: fs.existsSync(path.resolve(__dirname, 'app/google-services.json')) 
-        ? './app/google-services.json' 
-        : fs.existsSync(path.resolve(__dirname, 'android/app/google-services.json'))
-          ? './android/app/google-services.json'
-          : fs.existsSync(path.resolve(__dirname, 'google-services.json'))
-            ? './google-services.json'
-            : undefined,
-      adaptiveIcon: {
-        foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#ffffff',
-      },
-    },
     plugins,
-    experiments: {
-      typedRoutes: false,
-    },
-    developmentClient: {
-      silentLaunch: true,
-    },
-    web: {
-      favicon: './assets/favicon.png',
-      name: 'EduDash Pro - AI-Powered Educational Platform',
-      shortName: 'EduDash Pro',
-      lang: 'en',
-      scope: '/',
-      themeColor: '#00f5ff',
-      backgroundColor: '#0a0a0f',
-      description:
-        'Revolutionary AI-powered educational platform for preschools. Trusted by educators worldwide for next-generation learning experiences with Society 5.0 technology.',
-      keywords: [
-        'education',
-        'preschool',
-        'AI',
-        'learning',
-        'teachers',
-        'parents',
-        'lessons',
-        'artificial intelligence',
-        'educational technology',
-        'edtech',
-      ],
-      author: 'EduDash Pro Team',
-      viewport: 'width=device-width, initial-scale=1, shrink-to-fit=no',
-      startUrl: '/',
-      display: 'standalone',
-      orientation: 'any',
-      bundler: 'metro',
-    },
-    updates: {
-      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
-    },
-    updates: {
-      url: 'https://u.expo.dev/eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
-    },
-    extra: {
-      router: {},
-      eas: {
-        projectId: 'eaf53603-ff2f-4a95-a2e6-28faa4b2ece8',
-      },
-    },
   };
 };

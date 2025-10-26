@@ -7,7 +7,7 @@
  * - Parents see only their children with read-only access
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,11 +19,12 @@ import {
   RefreshControl,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
 import { CacheIndicator } from '@/components/ui/CacheIndicator';
 import { EmptyStudentsState } from '@/components/ui/EmptyState';
@@ -68,15 +69,16 @@ interface FilterOptions {
 }
 
 export default function StudentsDetailScreen() {
-  const { t } = useTranslation(); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const { t } = useTranslation();  
   const { user, profile } = useAuth();
+  const { theme } = useTheme();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [showStudentModal, setShowStudentModal] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [showStudentModal, setShowStudentModal] = useState(false);  
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);  
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
@@ -328,7 +330,7 @@ const { data: studentsData, error: studentsError } = await assertSupabase()
     return profile?.role === 'principal_admin';
   };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const canEditStudent = (_student: Student): boolean => {
     const userRole = profile?.role || 'parent';
     if (userRole === 'principal_admin') return true;
@@ -397,7 +399,7 @@ const canEditStudent = (_student: Student): boolean => {
               <Image source={{ uri: item.profilePhoto }} style={styles.studentPhoto} />
             ) : (
               <View style={styles.studentPhotoPlaceholder}>
-                <Ionicons name="person" size={24} color={Colors.light.tabIconDefault} />
+                <Ionicons name="person" size={24} color={theme.colors.text} />
               </View>
             )}
           </View>
@@ -454,7 +456,7 @@ const canEditStudent = (_student: Student): boolean => {
                 <Ionicons 
                   name={item.status === 'active' ? 'pause' : 'play'} 
                   size={16} 
-                  color={Colors.light.tabIconDefault} 
+                  color={theme.colors.text} 
                 />
               </TouchableOpacity>
               <TouchableOpacity 
@@ -477,7 +479,7 @@ const canEditStudent = (_student: Student): boolean => {
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Filter Students</Text>
             <TouchableOpacity onPress={() => setShowFilters(false)}>
-              <Ionicons name="close" size={24} color={Colors.light.text} />
+              <Ionicons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -564,7 +566,7 @@ const canEditStudent = (_student: Student): boolean => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color={Colors.light.text} />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Students Directory</Text>
         <View style={styles.headerActions}>
@@ -572,13 +574,13 @@ const canEditStudent = (_student: Student): boolean => {
             style={styles.viewToggle}
             onPress={() => setViewMode(viewMode === 'list' ? 'grid' : 'list')}
           >
-            <Ionicons name={viewMode === 'list' ? 'grid' : 'list'} size={20} color={Colors.light.tint} />
+            <Ionicons name={viewMode === 'list' ? 'grid' : 'list'} size={20} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.filterButton}
             onPress={() => setShowFilters(true)}
           >
-            <Ionicons name="filter" size={20} color={Colors.light.tint} />
+            <Ionicons name="filter" size={20} color={theme.colors.primary} />
             {getActiveFiltersCount() > 0 && (
               <View style={styles.filterBadge}>
                 <Text style={styles.filterBadgeText}>{getActiveFiltersCount()}</Text>
@@ -597,13 +599,13 @@ const canEditStudent = (_student: Student): boolean => {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={Colors.light.tabIconDefault} />
+        <Ionicons name="search" size={20} color={theme.colors.textSecondary} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search students..."
           value={filters.search}
           onChangeText={(text) => setFilters(prev => ({ ...prev, search: text }))}
-          placeholderTextColor={Colors.light.tabIconDefault}
+          placeholderTextColor={theme.colors.textSecondary}
         />
       </View>
 
@@ -614,7 +616,7 @@ const canEditStudent = (_student: Student): boolean => {
         </Text>
         {canManageStudent() && (
           <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="person-add" size={16} color={Colors.light.tint} />
+            <Ionicons name="person-add" size={16} color={theme.colors.primary} />
             <Text style={styles.addButtonText}>Add Student</Text>
           </TouchableOpacity>
         )}
@@ -660,7 +662,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme.colors.text,
     flex: 1,
     textAlign: 'center',
   },
@@ -708,7 +710,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 16,
-    color: Colors.light.text,
+    color: theme.colors.text,
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -719,7 +721,7 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme.colors.textSecondary,
   },
   addButton: {
     flexDirection: 'row',
@@ -728,11 +730,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: Colors.light.tint + '20',
+    backgroundColor: theme.colors.primary + '20',
   },
   addButtonText: {
     fontSize: 14,
-    color: Colors.light.tint,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   listContent: {
@@ -781,7 +783,7 @@ const styles = StyleSheet.create({
   studentName: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme.colors.text,
     flex: 1,
   },
   statusBadge: {
@@ -797,7 +799,7 @@ const styles = StyleSheet.create({
   },
   studentDetails: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme.colors.textSecondary,
     marginBottom: 2,
   },
   studentMetrics: {
@@ -814,7 +816,7 @@ const styles = StyleSheet.create({
   },
   metricText: {
     fontSize: 12,
-    color: Colors.light.tabIconDefault,
+    color: theme.colors.textSecondary,
     marginLeft: 4,
   },
   outstandingFees: {
@@ -851,7 +853,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme.colors.text,
   },
   filterSection: {
     padding: 20,
@@ -859,7 +861,7 @@ const styles = StyleSheet.create({
   filterSectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.text,
+    color: theme.colors.text,
     marginBottom: 12,
   },
   filterOptions: {
@@ -876,15 +878,15 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   filterOptionSelected: {
-    backgroundColor: Colors.light.tint + '20',
-    borderColor: Colors.light.tint,
+    backgroundColor: theme.colors.primary + '20',
+    borderColor: theme.colors.primary,
   },
   filterOptionText: {
     fontSize: 14,
-    color: Colors.light.tabIconDefault,
+    color: theme.colors.textSecondary,
   },
   filterOptionTextSelected: {
-    color: Colors.light.tint,
+    color: theme.colors.primary,
     fontWeight: '600',
   },
   modalActions: {
@@ -899,11 +901,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.light.tabIconDefault,
+    borderColor: theme.colors.textSecondary,
     alignItems: 'center',
   },
   clearFiltersText: {
-    color: Colors.light.tabIconDefault,
+    color: theme.colors.textSecondary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -911,7 +913,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: Colors.light.tint,
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
   },
   applyFiltersText: {

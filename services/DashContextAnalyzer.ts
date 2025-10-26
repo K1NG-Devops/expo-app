@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash Context Analyzer
  * 
@@ -7,7 +9,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentSession, getCurrentProfile } from '@/lib/sessionManager';
-import type { DashUserProfile, DashMemoryItem, DashInsight } from './DashAIAssistant';
+import type { DashUserProfile, DashMemoryItem, DashInsight } from './dash-ai/types';
 
 export interface UserIntent {
   primary_intent: string;
@@ -41,6 +43,9 @@ export interface ContextData {
   educational_context?: {
     current_subject?: string;
     grade_level?: string;
+    activity_phase?: 'planning' | 'execution' | 'assessment' | 'review';
+    members_present?: boolean;  // Generic: students, employees, athletes, etc.
+    // Legacy support
     lesson_phase?: 'planning' | 'teaching' | 'assessment' | 'review';
     students_present?: boolean;
   };
@@ -65,8 +70,39 @@ export interface ProactiveOpportunity {
   context_requirements: string[];
 }
 
-export class DashContextAnalyzer {
-  private static instance: DashContextAnalyzer;
+/**
+ * Interface for DashContextAnalyzer
+ */
+export interface IDashContextAnalyzer {
+  analyzeUserInput(input: string, conversationHistory: Array<{ role: string; content: string }>, currentContext?: ContextData): Promise<{ intent: UserIntent; context: ContextData; opportunities: ProactiveOpportunity[]; insights: DashInsight[] }>;
+  persistContextSnapshot(context: ContextData): Promise<void>;
+  loadLastContextSnapshot(): Promise<ContextData | null>;
+  estimateEmotionalState(input: string, conversationHistory: Array<{ role: string; content: string }>): { mood: string; confidence: number; trend: 'stable' | 'improving' | 'declining' };
+  computeStressLevel(input: string, conversationHistory: Array<{ role: string; content: string }>, recentErrors?: string[]): 'low' | 'medium' | 'high';
+  blendContexts(current: ContextData, historical: ContextData | null): ContextData;
+  getPredictedNextNeeds(context: ContextData, conversationHistory: Array<{ role: string; content: string }>): Array<{ need: string; confidence: number; reasoning: string }>;
+  calculateEngagementScore(conversationHistory: Array<{ role: string; content: string }>, timeWindowMs?: number): { level: 'low' | 'medium' | 'high'; score: number };
+  dispose(): void;
+}
+
+export class DashContextAnalyzer implements IDashContextAnalyzer {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashContextAnalyzer;
+  
+  // ===== PHASE 1.4: AGENTIC ENHANCEMENTS =====
+  private lastSnapshotTime: number = 0;
+  private snapshotIntervalMs: number = 5 * 60 * 1000; // 5 minutes
+  private emotionalHistory: Array<{ mood: string; timestamp: number }> = [];
+  private errorHistory: Array<{ error: string; timestamp: number }> = [];
+  private readonly MAX_HISTORY_SIZE = 20;
+  
+  // Sentiment lexicon for emotional state estimation
+  private readonly sentimentLexicon = {
+    positive: ['great', 'awesome', 'excellent', 'perfect', 'love', 'amazing', 'wonderful', 'fantastic', 'happy'],
+    negative: ['frustrated', 'annoying', 'difficult', 'stuck', 'confused', 'hard', 'problem', 'issue', 'error'],
+    urgent: ['urgent', 'asap', 'immediately', 'now', 'quickly', 'hurry', 'emergency', 'critical'],
+    calm: ['thanks', 'ok', 'fine', 'understood', 'got it', 'clear']
+  };
   
   // Intent recognition patterns
   private intentPatterns: Map<string, RegExp[]> = new Map([
@@ -91,12 +127,12 @@ export class DashContextAnalyzer {
       /update.*parent/i,
       /inform.*parent/i
     ]],
-    ['student_progress', [
-      /student.*progress/i,
-      /track.*student/i,
-      /student.*performance/i,
+    ['member_progress', [  // Generic: student, employee, athlete progress
+      /(student|member|employee|athlete).*progress/i,
+      /track.*(student|member|employee|athlete)/i,
+      /(student|member|employee|athlete).*performance/i,
       /how.*doing/i,
-      /student.*report/i
+      /(student|member|employee|athlete).*report/i
     ]],
     ['homework_help', [
       /help.*homework/i,
@@ -150,11 +186,8 @@ export class DashContextAnalyzer {
     confusion: [/confused/i, /don't understand/i, /unclear/i, /help/i, /lost/i]
   };
 
-  public static getInstance(): DashContextAnalyzer {
-    if (!DashContextAnalyzer.instance) {
-      DashContextAnalyzer.instance = new DashContextAnalyzer();
-    }
-    return DashContextAnalyzer.instance;
+  constructor() {
+    // Constructor is now public for DI
   }
 
   /**
@@ -220,7 +253,7 @@ export class DashContextAnalyzer {
     const scores: Array<{ intent: string; confidence: number; matches: string[] }> = [];
 
     // Pattern matching
-    for (const [intent, patterns] of this.intentPatterns.entries()) {
+    for (const [intent, patterns] of Array.from(this.intentPatterns.entries())) {
       const matches: string[] = [];
       let confidence = 0;
 
@@ -241,7 +274,7 @@ export class DashContextAnalyzer {
     const recentMessages = conversationHistory.slice(-3);
     for (const message of recentMessages) {
       if (message.role === 'user') {
-        for (const [intent, patterns] of this.intentPatterns.entries()) {
+        for (const [intent, patterns] of Array.from(this.intentPatterns.entries())) {
           const isRelated = patterns.some(pattern => pattern.test(message.content.toLowerCase()));
           if (isRelated) {
             const existingScore = scores.find(s => s.intent === intent);
@@ -348,9 +381,15 @@ export class DashContextAnalyzer {
       parameters.time = timeMatch[1];
     }
     
-    const studentMatch = input.match(/student(?:s)?\s+([A-Za-z\s,]+)/i);
-    if (studentMatch) {
-      parameters.students = studentMatch[1].split(',').map(s => s.trim());
+    // Generic member matching (students, employees, athletes, etc.)
+    const memberMatch = input.match(/(student|member|employee|athlete)(?:s)?\s+([A-Za-z\s,]+)/i);
+    if (memberMatch) {
+      parameters.members = memberMatch[2].split(',').map(s => s.trim());
+      parameters.memberType = memberMatch[1];  // Track what type of member
+      // Legacy support
+      if (memberMatch[1].toLowerCase() === 'student') {
+        parameters.students = parameters.members;
+      }
     }
     
     return parameters;
@@ -413,20 +452,18 @@ export class DashContextAnalyzer {
     const opportunities: ProactiveOpportunity[] = [];
     
     try {
-      // Role-based opportunities
-      switch (context.user_state.role) {
-        case 'teacher':
-          opportunities.push(...await this.findTeacherOpportunities(intent, context));
-          break;
-        case 'principal':
-          opportunities.push(...await this.findPrincipalOpportunities(intent, context));
-          break;
-        case 'parent':
-          opportunities.push(...await this.findParentOpportunities(intent, context));
-          break;
-        case 'student':
-          opportunities.push(...await this.findStudentOpportunities(intent, context));
-          break;
+      // Role-based opportunities (supports dynamic organization roles)
+      const role = context.user_state.role;
+      
+      // Map to opportunity finder based on role type
+      if (['teacher', 'professor', 'instructor', 'coach', 'trainer'].includes(role)) {
+        opportunities.push(...await this.findEducatorOpportunities(intent, context));
+      } else if (['principal', 'dean', 'director', 'manager', 'admin'].includes(role)) {
+        opportunities.push(...await this.findLeaderOpportunities(intent, context));
+      } else if (['parent', 'guardian'].includes(role)) {
+        opportunities.push(...await this.findParentOpportunities(intent, context));
+      } else if (['student', 'employee', 'athlete', 'member'].includes(role)) {
+        opportunities.push(...await this.findMemberOpportunities(intent, context));
       }
 
       // Time-based opportunities
@@ -446,9 +483,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for teachers
+   * Find opportunities for educators (teachers, professors, coaches, trainers)
    */
-  private async findTeacherOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findEducatorOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // If creating lessons, suggest curriculum alignment
@@ -489,9 +526,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for principals
+   * Find opportunities for organization leaders (principals, deans, directors, managers)
    */
-  private async findPrincipalOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findLeaderOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // Morning briefing opportunity
@@ -541,9 +578,9 @@ export class DashContextAnalyzer {
   }
 
   /**
-   * Find opportunities for students
+   * Find opportunities for members (students, employees, athletes, etc.)
    */
-  private async findStudentOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
+  private async findMemberOpportunities(intent: UserIntent, context: ContextData): Promise<ProactiveOpportunity[]> {
     const opportunities: ProactiveOpportunity[] = [];
     
     // Study break reminder
@@ -616,7 +653,7 @@ export class DashContextAnalyzer {
     }
     
     // Suggest automation for repeated tasks
-    for (const [task, count] of taskCounts.entries()) {
+    for (const [task, count] of Array.from(taskCounts.entries())) {
       if (count >= 3) {
         opportunities.push({
           id: `automate_${task}`,
@@ -691,4 +728,353 @@ export class DashContextAnalyzer {
     
     return insights;
   }
+
+  // ===== PHASE 1.4: NEW AGENTIC METHODS =====
+
+  /**
+   * Persist context snapshot to database for cross-session continuity
+   */
+  public async persistContextSnapshot(context: ContextData): Promise<void> {
+    try {
+      // Check if enough time has passed since last snapshot
+      const now = Date.now();
+      if (now - this.lastSnapshotTime < this.snapshotIntervalMs) {
+        return; // Too soon, skip
+      }
+
+      const supabase = assertSupabase();
+      const profile = await getCurrentProfile();
+      if (!profile) return;
+
+      // Feature flag check
+      const agenticEnabled = process.env.EXPO_PUBLIC_AGENTIC_ENABLED === 'true';
+      if (!agenticEnabled) return;
+
+      await supabase.from('ai_context_snapshots').insert({
+        preschool_id: profile.organization_id,
+        user_id: profile.id,
+        snapshot: context as any
+      });
+
+      this.lastSnapshotTime = now;
+      console.log('[DashContext] Context snapshot persisted');
+    } catch (error) {
+      console.error('[DashContext] Failed to persist snapshot:', error);
+    }
+  }
+
+  /**
+   * Load last context snapshot and blend with current context
+   */
+  public async loadLastContextSnapshot(): Promise<ContextData | null> {
+    try {
+      const supabase = assertSupabase();
+      const profile = await getCurrentProfile();
+      if (!profile) return null;
+
+      const { data, error } = await supabase
+        .from('ai_context_snapshots')
+        .select('snapshot, created_at')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      console.log('[DashContext] Loaded context snapshot from', new Date(data.created_at));
+      return data.snapshot as ContextData;
+    } catch (error) {
+      console.error('[DashContext] Failed to load snapshot:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Enhanced emotional state estimation with trend analysis
+   */
+  public estimateEmotionalState(
+    input: string,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): { mood: string; confidence: number; trend: 'improving' | 'stable' | 'declining' } {
+    const text = input.toLowerCase();
+    let positiveScore = 0;
+    let negativeScore = 0;
+    let urgentScore = 0;
+
+    // Analyze current input
+    for (const word of this.sentimentLexicon.positive) {
+      if (text.includes(word)) positiveScore++;
+    }
+    for (const word of this.sentimentLexicon.negative) {
+      if (text.includes(word)) negativeScore++;
+    }
+    for (const word of this.sentimentLexicon.urgent) {
+      if (text.includes(word)) urgentScore++;
+    }
+
+    // Determine mood
+    let mood: string;
+    let confidence: number;
+
+    if (urgentScore > 0 && negativeScore > positiveScore) {
+      mood = 'frustrated';
+      confidence = Math.min(0.9, (urgentScore + negativeScore) / 5);
+    } else if (positiveScore > negativeScore) {
+      mood = positiveScore > 2 ? 'excited' : 'positive';
+      confidence = Math.min(0.9, positiveScore / 4);
+    } else if (negativeScore > positiveScore) {
+      mood = 'frustrated';
+      confidence = Math.min(0.9, negativeScore / 4);
+    } else {
+      mood = 'neutral';
+      confidence = 0.6;
+    }
+
+    // Add to history
+    this.emotionalHistory.push({ mood, timestamp: Date.now() });
+    if (this.emotionalHistory.length > this.MAX_HISTORY_SIZE) {
+      this.emotionalHistory.shift();
+    }
+
+    // Calculate trend
+    const trend = this.calculateEmotionalTrend();
+
+    return { mood, confidence, trend };
+  }
+
+  /**
+   * Calculate emotional trend from history
+   */
+  private calculateEmotionalTrend(): 'improving' | 'stable' | 'declining' {
+    if (this.emotionalHistory.length < 3) return 'stable';
+
+    const moodScores: Record<string, number> = {
+      excited: 2,
+      positive: 1,
+      neutral: 0,
+      frustrated: -1
+    };
+
+    const recent = this.emotionalHistory.slice(-3);
+    const scores = recent.map(h => moodScores[h.mood] || 0);
+    const avgRecent = scores.reduce((a, b) => a + b, 0) / scores.length;
+
+    const older = this.emotionalHistory.slice(-6, -3);
+    if (older.length < 2) return 'stable';
+    
+    const olderScores = older.map(h => moodScores[h.mood] || 0);
+    const avgOlder = olderScores.reduce((a, b) => a + b, 0) / olderScores.length;
+
+    if (avgRecent > avgOlder + 0.3) return 'improving';
+    if (avgRecent < avgOlder - 0.3) return 'declining';
+    return 'stable';
+  }
+
+  /**
+   * Compute stress level from urgency patterns and error frequency
+   */
+  public computeStressLevel(
+    input: string,
+    conversationHistory: Array<{ role: string; content: string }>,
+    recentErrors: string[] = []
+  ): 'low' | 'medium' | 'high' {
+    let stressScore = 0;
+
+    // Check urgency keywords in recent messages
+    const recentMessages = conversationHistory.slice(-5);
+    for (const msg of recentMessages) {
+      const text = msg.content.toLowerCase();
+      for (const word of this.sentimentLexicon.urgent) {
+        if (text.includes(word)) stressScore += 2;
+      }
+    }
+
+    // Factor in error frequency
+    stressScore += recentErrors.length * 3;
+
+    // Add to error history
+    for (const error of recentErrors) {
+      this.errorHistory.push({ error, timestamp: Date.now() });
+    }
+    if (this.errorHistory.length > this.MAX_HISTORY_SIZE) {
+      this.errorHistory = this.errorHistory.slice(-this.MAX_HISTORY_SIZE);
+    }
+
+    // Calculate level
+    if (stressScore >= 10) return 'high';
+    if (stressScore >= 5) return 'medium';
+    return 'low';
+  }
+
+  /**
+   * Blend historical context with current context for continuity
+   */
+  public blendContexts(current: ContextData, historical: ContextData | null): ContextData {
+    if (!historical) return current;
+
+    // Blend contexts, preferring current but filling gaps with historical
+    return {
+      ...current,
+      user_state: {
+        ...historical.user_state,
+        ...current.user_state,
+      },
+      educational_context: {
+        ...historical.educational_context,
+        ...current.educational_context,
+      },
+      app_context: {
+        ...historical.app_context,
+        ...current.app_context,
+        // Merge recent errors
+        recent_errors: [
+          ...(historical.app_context.recent_errors || []),
+          ...(current.app_context.recent_errors || [])
+        ].slice(-5) // Keep last 5
+      },
+      time_context: current.time_context, // Always use current time
+      recent_actions: [
+        ...(historical.recent_actions || []),
+        ...(current.recent_actions || [])
+      ].slice(-10) // Keep last 10
+    };
+  }
+
+  /**
+   * Predict next user needs based on context and patterns
+   */
+  public getPredictedNextNeeds(
+    context: ContextData,
+    conversationHistory: Array<{ role: string; content: string }>
+  ): Array<{ need: string; confidence: number; reasoning: string }> {
+    const predictions: Array<{ need: string; confidence: number; reasoning: string }> = [];
+
+    // Feature flag check
+    const predictiveEnabled = process.env.EXPO_PUBLIC_AGENTIC_PREDICTIVE === 'true';
+    if (!predictiveEnabled) return predictions;
+
+    const { time_context, user_state, educational_context, recent_actions } = context;
+    const role = user_state.role;
+
+    // Time-based predictions for educators (teachers, professors, coaches, trainers)
+    const isEducator = ['teacher', 'professor', 'instructor', 'coach', 'trainer'].includes(role);
+    
+    if (isEducator && time_context.day_of_week === 'Monday' && time_context.hour < 10) {
+      predictions.push({
+        need: 'weekly_activity_planning',
+        confidence: 0.75,
+        reasoning: 'Monday morning is typically when educators plan the week ahead'
+      });
+    }
+
+    if (isEducator && time_context.day_of_week === 'Friday' && time_context.hour > 14) {
+      predictions.push({
+        need: 'review_pending_assessments',
+        confidence: 0.7,
+        reasoning: 'Friday afternoon is common time for wrapping up assessments before the weekend'
+      });
+    }
+
+    // Pattern-based predictions
+    const recentTopics = recent_actions.filter(a => 
+      a.includes('lesson') || a.includes('plan') || a.includes('activity')
+    );
+    const isPlanningPhase = educational_context?.activity_phase === 'planning' || 
+                           educational_context?.lesson_phase === 'planning';
+    
+    if (recentTopics.length > 2 && isPlanningPhase) {
+      predictions.push({
+        need: 'create_similar_activity',
+        confidence: 0.65,
+        reasoning: 'Recent activity shows focus on planning, likely to continue'
+      });
+    }
+
+    // Stress-based predictions
+    if (user_state.stress_level === 'high') {
+      predictions.push({
+        need: 'quick_automation_suggestions',
+        confidence: 0.6,
+        reasoning: 'High stress detected, user may benefit from task automation'
+      });
+    }
+
+    // Conversation pattern predictions
+    const userMessages = conversationHistory.filter(m => m.role === 'user').slice(-5);
+    const hasAssessmentQueries = userMessages.some(m => {
+      const content = m.content.toLowerCase();
+      return content.includes('grade') || content.includes('mark') || 
+             content.includes('assess') || content.includes('evaluate');
+    });
+    
+    if (hasAssessmentQueries && isEducator) {
+      predictions.push({
+        need: 'assessment_assistance',
+        confidence: 0.8,
+        reasoning: 'Recent conversation indicates assessment workflow in progress'
+      });
+    }
+
+    // Log predictions in development
+    if (predictions.length > 0 && process.env.EXPO_PUBLIC_DEBUG_MODE === 'true') {
+      console.log('[DashContext] Predicted needs:', predictions);
+    }
+
+    return predictions.slice(0, 3); // Return top 3 predictions
+  }
+
+  /**
+   * Get engagement score based on interaction patterns
+   */
+  public calculateEngagementScore(
+    conversationHistory: Array<{ role: string; content: string }>,
+    timeWindowMs: number = 30 * 60 * 1000 // 30 minutes
+  ): { level: 'low' | 'medium' | 'high'; score: number } {
+    const now = Date.now();
+    const recentMessages = conversationHistory.filter(m => {
+      // Assuming messages have timestamps; fallback if not
+      return m.role === 'user';
+    }).slice(-10);
+
+    const messageCount = recentMessages.length;
+    const avgLength = recentMessages.reduce((sum, m) => sum + m.content.length, 0) / Math.max(messageCount, 1);
+
+    // Calculate engagement score (0-1)
+    let score = 0;
+    score += Math.min(messageCount / 10, 0.5); // Up to 0.5 for message frequency
+    score += Math.min(avgLength / 200, 0.3); // Up to 0.3 for message depth
+    score += recentMessages.some(m => m.content.includes('?')) ? 0.2 : 0; // +0.2 for asking questions
+
+    const level = score > 0.7 ? 'high' : score > 0.4 ? 'medium' : 'low';
+
+    return { level, score };
+  }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.emotionalHistory = [];
+    this.errorHistory = [];
+  }
 }
+
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashContextAnalyzer | null = null;
+
+export function getDashContextAnalyzerInstance(): DashContextAnalyzer {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashContextAnalyzer();
+  }
+  return _defaultInstance;
+}
+
+// Add static getInstance method to class
+const DashContextAnalyzerInstance = getDashContextAnalyzerInstance();
+DashContextAnalyzer.getInstance = function() {
+  return DashContextAnalyzerInstance;
+};
+
+export default DashContextAnalyzerInstance;

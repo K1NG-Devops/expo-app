@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 // 🔐 Enhanced Authentication Service
 // Multi-role registration, invitation system, and advanced security features
 
@@ -144,6 +146,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,
@@ -229,6 +232,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,
@@ -303,6 +307,7 @@ const { data, error } = await assertSupabase().auth.signUp({
       email: registration.email.toLowerCase(),
       password: registration.password,
       options: {
+        emailRedirectTo: 'https://www.edudashpro.org.za/landing?flow=email-confirm',
         data: {
           first_name: registration.firstName,
           last_name: registration.lastName,

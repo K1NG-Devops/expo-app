@@ -2,36 +2,31 @@
  * Navigation utilities for consistent back button behavior across the app
  */
 
-import { router } from 'expo-router';
+import { safeRouter } from '@/lib/navigation/safeRouter';
 
 /**
  * Smart back navigation that handles different scenarios:
- * - Uses router.back() if can go back
+ * - Uses back if can go back
  * - Falls back to appropriate main screen based on user context
  */
 export function navigateBack(fallbackRoute?: string) {
   try {
-    // Check if we can go back in the navigation stack
-    // Note: router.canGoBack is a function, not a property
-    const canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+    const canGoBack = safeRouter.canGoBack();
     
     if (canGoBack) {
-      router.back();
+      safeRouter.back();
       return;
     }
     
-    // If we can't go back and have a fallback, use it
     if (fallbackRoute) {
-      router.replace(fallbackRoute as any);
+      safeRouter.replace(fallbackRoute as any);
       return;
     }
     
-    // Default fallback to main landing/dashboard
-    router.replace('/');
+    safeRouter.replace('/');
   } catch (error) {
     console.error('Navigation back failed:', error);
-    // Last resort - go to root
-    router.replace('/');
+    safeRouter.replace('/');
   }
 }
 
@@ -41,7 +36,7 @@ export function navigateBack(fallbackRoute?: string) {
 export function navigateToMainDashboard() {
   try {
     // For now, navigate to root - this will be enhanced with role-based routing
-    router.replace('/');
+    safeRouter.replace('/');
   } catch (error) {
     console.error('Navigation to main dashboard failed:', error);
     // Try alternative approach
@@ -57,23 +52,38 @@ export function navigateToMainDashboard() {
 export const navigateTo = {
   back: (fallbackRoute?: string) => navigateBack(fallbackRoute),
   dashboard: () => navigateToMainDashboard(),
-  teacherManagement: () => router.push('/screens/teacher-management' as any),
-  studentManagement: () => router.push('/screens/student-management' as any),
-  account: () => router.push('/screens/account' as any),
-  settings: () => router.push('/screens/settings' as any),
+  teacherManagement: () => safeRouter.push('/screens/teacher-management' as any),
+  studentManagement: () => safeRouter.push('/screens/student-management' as any),
+  account: () => safeRouter.push('/screens/account' as any),
+  settings: () => safeRouter.push('/screens/settings' as any),
   
   // Detail screens
-  studentDetail: (id: string) => router.push(`/screens/student-detail?id=${id}` as any),
-  teacherDetail: (id: string) => router.push(`/screens/teachers-detail?id=${id}` as any),
-  activityDetail: (id: string) => router.push(`/screens/activity-detail?id=${id}` as any),
+  studentDetail: (id: string) => safeRouter.push(`/screens/student-detail?id=${id}` as any),
+  teacherDetail: (id: string) => safeRouter.push(`/screens/teachers-detail?id=${id}` as any),
+  activityDetail: (id: string) => safeRouter.push(`/screens/activity-detail?id=${id}` as any),
   
   // Financial screens
-  financialDashboard: () => router.push('/screens/financial-dashboard' as any),
-  financialReports: () => router.push('/screens/financial-reports' as any),
-  pettyCash: () => router.push('/screens/petty-cash' as any),
+  financialDashboard: () => safeRouter.push('/screens/financial-dashboard' as any),
+  financialReports: () => safeRouter.push('/screens/financial-reports' as any),
+  pettyCash: () => safeRouter.push('/screens/petty-cash' as any),
   
   // Admin screens
-  schoolSettings: () => router.push('/screens/admin/school-settings' as any),
+  schoolSettings: () => safeRouter.push('/screens/admin/school-settings' as any),
+  
+  // PDF Generator
+  pdfGenerator: (params?: { tab?: 'prompt' | 'template' | 'structured'; templateId?: string; documentType?: string }) => {
+    let url = '/screens/pdf-generator';
+    if (params) {
+      const searchParams = new URLSearchParams();
+      if (params.tab) searchParams.set('initialTab', params.tab);
+      if (params.templateId) searchParams.set('templateId', params.templateId);
+      if (params.documentType) searchParams.set('documentType', params.documentType);
+      if (searchParams.toString()) {
+        url += `?${searchParams.toString()}`;
+      }
+    }
+    safeRouter.push(url as any);
+  },
 };
 
 /**
@@ -155,10 +165,9 @@ export function shouldShowBackButton(routeName: string, isUserSignedIn: boolean)
   }
   
   // Always check if we can go back first
-  // Ensure router.canGoBack is called correctly as a function
   let canGoBack = false;
   try {
-    canGoBack = typeof router.canGoBack === 'function' ? router.canGoBack() : false;
+    canGoBack = safeRouter.canGoBack();
   } catch (error) {
     // If there's an error checking canGoBack, assume we can't
     console.debug('Error checking canGoBack:', error);

@@ -79,7 +79,7 @@ async function inspectDatabase(): Promise<InspectionReport> {
     ] = await Promise.allSettled([
       supabase.from('preschools').select('*', { count: 'exact', head: true }),
       supabase.from('users').select('*', { count: 'exact', head: true }),
-      supabase.from('students').select('*', { count: 'exact', head: true }),
+      supabase.from('students').select('*,age_groups!students_age_group_id_fkey(*)', { count: 'exact', head: true }),
       supabase.from('classes').select('*', { count: 'exact', head: true }),
       supabase.from('assignments').select('*', { count: 'exact', head: true })
     ]);

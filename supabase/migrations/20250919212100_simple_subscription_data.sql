@@ -12,14 +12,34 @@ BEGIN;
 -- Insert basic plans into existing subscription_plans table (minimal required fields only)
 -- Only insert if no plans exist yet
 INSERT INTO subscription_plans (name, price_monthly, price_annual)
-SELECT 'Starter', 99.00, 990.00
-WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE name = 'Starter')
+SELECT
+  'Starter',
+  99.00,
+  990.00
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM subscription_plans
+    WHERE name = 'Starter'
+  )
 UNION ALL
-SELECT 'Professional', 299.00, 2990.00
-WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE name = 'Professional')
+SELECT
+  'Professional',
+  299.00,
+  2990.00
+WHERE
+  NOT EXISTS (
+    SELECT 1 FROM subscription_plans
+    WHERE name = 'Professional'
+  )
 UNION ALL
-SELECT 'Enterprise', 799.00, 7990.00
-WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE name = 'Enterprise');
+SELECT
+  'Enterprise',
+  799.00,
+  7990.00
+WHERE NOT EXISTS (
+  SELECT 1 FROM subscription_plans
+  WHERE name = 'Enterprise'
+);
 
 -- ============================================================================
 -- PART 2: ADD BASIC SAMPLE DATA (IF NEEDED)
@@ -54,9 +74,9 @@ VALUES (
     'migration_file', '20250919212100_simple_subscription_data.sql'
   ),
   'Simple subscription data migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'SIMPLE SUBSCRIPTION DATA ADDED' AS status;

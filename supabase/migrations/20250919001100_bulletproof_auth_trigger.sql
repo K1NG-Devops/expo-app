@@ -61,13 +61,13 @@ $$;
 
 -- Create the trigger on auth.users
 CREATE TRIGGER on_auth_user_created_bulletproof
-    AFTER INSERT ON auth.users
-    FOR EACH ROW
-    EXECUTE FUNCTION public.handle_auth_signup_bulletproof();
+AFTER INSERT ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_auth_signup_bulletproof();
 
 -- Test with a mock user creation (this won't actually create an auth user)
 -- Just testing that our function can be called
-SELECT 'Bulletproof auth trigger created successfully' as status;
+SELECT 'Bulletproof auth trigger created successfully' AS status;
 
 -- Verify we can access auth.users (should show our test user we just created)
-SELECT COUNT(*) as user_count FROM auth.users;
+SELECT COUNT(*) AS user_count FROM auth.users;

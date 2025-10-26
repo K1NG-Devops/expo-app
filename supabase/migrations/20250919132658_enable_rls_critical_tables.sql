@@ -72,7 +72,7 @@ VALUES (
     'next_phase', 'Apply generated RLS policies'
   ),
   'RLS enabled on critical tables for policy implementation',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();
@@ -80,7 +80,7 @@ VALUES (
 COMMIT;
 
 -- Final status message
-SELECT 
-    'RLS Enabled on Critical Tables' AS status,
-    'Ready for policy application' AS message,
-    now() AS enabled_at;
+SELECT
+  'RLS Enabled on Critical Tables' AS status,
+  'Ready for policy application' AS message,
+  now() AS enabled_at;

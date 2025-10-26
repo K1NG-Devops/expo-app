@@ -9,7 +9,7 @@
  * - Simple announcement creation
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,19 +28,22 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useAds } from '@/contexts/AdsContext';
 import { useTranslation } from 'react-i18next';
 import { usePrincipalHub } from '@/hooks/usePrincipalHub';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import AnnouncementService from '@/lib/services/announcementService';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
 import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import { useSchoolSettings } from '@/lib/hooks/useSchoolSettings';
 import WhatsAppOptInModal from '@/components/whatsapp/WhatsAppOptInModal';
 import WhatsAppStatusChip from '@/components/whatsapp/WhatsAppStatusChip';
 import Feedback from '@/lib/feedback';
 import AdBannerWithUpgrade from '@/components/ui/AdBannerWithUpgrade';
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import TierBadge from '@/components/ui/TierBadge';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -60,16 +63,76 @@ interface TeacherCardProps {
 }
 
 export const EnhancedPrincipalDashboard: React.FC = () => {
+  // ALL HOOKS MUST BE AT THE TOP IN CONSISTENT ORDER
   const { user, profile } = useAuth();
   const { t } = useTranslation();
   const { theme, toggleTheme, isDark } = useTheme();
   const { tier, ready: subscriptionReady, refresh: refreshSubscription } = useSubscription();
   const { preferences, setLayout } = useDashboardPreferences();
   const { maybeShowInterstitial } = useAds();
-  const insets = useSafeAreaInsets();
   const { metricCards: pettyCashCards } = usePettyCashMetricCards();
+  const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
+  const schoolSettingsQuery = useSchoolSettings((profile as any)?.organization_id);
+  const { refetch: refetchSchoolSettings } = schoolSettingsQuery;
+  
+  // Real-time school settings from database
+  const schoolSettings = schoolSettingsQuery.data;
+  const isWAConfigured = !!schoolSettings?.whatsapp_number;
+  const isWAEnabled = isWhatsAppEnabled() || isWAConfigured;
+  
+  // Derived state from centralized settings
+  const financialsEnabled = schoolSettings?.features?.financialReports?.enabled ?? true;
+  const pettyCashEnabled = schoolSettings?.features?.pettyCash?.enabled ?? true;
+  const insets = useSafeAreaInsets();
+  const {
+    data,
+    loading,
+    error,
+    refresh,
+    getMetrics,
+    getTeachersWithStatus,
+    formatCurrency,
+    isEmpty
+  } = usePrincipalHub();
+  
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  // Prefer explicit tenant slug where available
+  const tenantSlug = (profile as any)?.organization_membership?.tenant_slug 
+    || (profile as any)?.organization_membership?.organization_slug 
+    || (profile as any)?.organization_membership?.slug 
+    || '';
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const hasRefreshedOnFocus = useRef(false);
+  
+  // Collapsible sections (start with long sections collapsed)
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set([
+    'financial-tools', 'ai-analytics', 'quick-actions',
+  ]));
+  const toggleSection = useCallback((id: string) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+    try { Feedback.vibrate(8); } catch { /* no-op */ }
+  }, []);
+  
+  // Refresh on focus
+  useFocusEffect(
+    useCallback(() => {
+      if (hasRefreshedOnFocus.current) {
+        refresh();
+        // Also refresh school settings to ensure latest config
+        refetchSchoolSettings?.();
+      } else {
+        hasRefreshedOnFocus.current = true;
+      }
+    }, [refresh, refetchSchoolSettings])
+  );
+  
+  // Theme-aware styles
+  const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
   
   // Ad gating logic
   const showAds = subscriptionReady && tier === 'free';
@@ -123,39 +186,43 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     action();
   };
   
-  // WhatsApp integration
-  const { isWhatsAppEnabled, getWhatsAppDeepLink } = useWhatsAppConnection();
-  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
-
   // Open WhatsApp using school deep link if available; fallback to support line
   const openWhatsAppWithFallback = async () => {
-    // Prefer the school's configured WhatsApp number via deep link helper
-    const configuredLink = getWhatsAppDeepLink?.();
-    if (configuredLink) {
+    // Prefer the school's configured WhatsApp number from centralized settings
+    const configuredNumber = schoolSettings?.whatsapp_number;
+    if (configuredNumber) {
+      const message = encodeURIComponent(
+        `Hello! This is ${user?.user_metadata?.first_name || 'Principal'} from ${data.schoolName || 'school'}. Reaching out via EduDash Pro.`
+      );
+      const waLink = `https://wa.me/${configuredNumber.replace(/[^\d]/g, '')}?text=${message}`;
       try {
-        await Linking.openURL(configuredLink);
+        await Linking.openURL(waLink);
         return;
-      } catch (error) {
-        // Fallback if WhatsApp deep link fails
-        console.log('WhatsApp link failed:', error);
+      } catch (err: unknown) {
+        console.error('Failed to open WhatsApp link:', err);
       }
     }
-    Alert.alert(t('quick_actions.whatsapp_setup'), t('dashboard.whatsapp_not_configured'));
+    
+    // Fallback to deep link helper (legacy)
+    const fallbackLink = getWhatsAppDeepLink?.();
+    if (fallbackLink) {
+      try {
+        await Linking.openURL(fallbackLink);
+        return;
+      } catch (err: unknown) {
+        console.error('Failed to open fallback WhatsApp link:', err);
+      }
+    }
+    
+    Alert.alert(
+      t('quick_actions.whatsapp_setup'), 
+      t('dashboard.whatsapp_not_configured') + '\n\n' + t('quick_actions.configure_in_settings'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('quick_actions.go_to_settings'), onPress: () => router.push('/screens/admin/school-settings') }
+      ]
+    );
   };
-
-  // Create theme-aware styles
-  const styles = React.useMemo(() => createStyles(theme, preferences), [theme, preferences]);
-  
-  const {
-    data,
-    loading,
-    error,
-    refresh,
-    getMetrics,
-    getTeachersWithStatus,
-    formatCurrency,
-    isEmpty
-  } = usePrincipalHub();
 
   const getGreeting = (): string => {
     const hour = new Date().getHours();
@@ -163,7 +230,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     if (hour < 18) return t('dashboard.good_afternoon');
     return t('dashboard.good_evening');
   };
-
   const handleCreateAnnouncement = () => {
     setShowAnnouncementModal(true);
   };
@@ -179,7 +245,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     }
     
     try {
-      console.log('📢 Sending announcement via database:', announcement);
       
       const result = await AnnouncementService.createAnnouncement(
         preschoolId,
@@ -188,14 +253,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       );
       
       if (result.success) {
-        try { await Feedback.vibrate(40); } catch (error) {
-          // Vibration not available on platform
-          console.log('Vibration not available:', error);
-        }
-        try { await Feedback.playSuccess(); } catch (error) {
-          // Sound not available on platform
-          console.log('Sound feedback not available:', error);
-        }
+        try { await Feedback.vibrate(40); } catch { /* Haptics unavailable */ }
+        try { await Feedback.playSuccess(); } catch { /* Audio unavailable */ }
         Alert.alert(
           t('dashboard.announcement_send_success'),
           t('dashboard.announcement_send_details', {
@@ -226,7 +285,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, color, trend, onPress }) => (
     <TouchableOpacity
-      style={[styles.metricCard, { borderLeftColor: color }]}
+      style={[styles.metricCard, { borderLeftColor: color, shadowColor: color }]}
       onPress={onPress}
       disabled={!onPress}
     >
@@ -272,10 +331,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
-      case 'good': case 'excellent': case 'up': return { color: '#059669' };
-      case 'warning': case 'attention': return { color: '#F59E0B' };
-      case 'low': case 'needs_attention': return { color: '#DC2626' };
-      default: return { color: '#6B7280' };
+      case 'good': case 'excellent': case 'up': return { color: theme.success };
+      case 'warning': case 'attention': return { color: theme.warning };
+      case 'low': case 'needs_attention': return { color: theme.error };
+      default: return { color: theme.textSecondary };
     }
   };
 
@@ -291,10 +350,10 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'excellent': return { backgroundColor: '#059669' };
-      case 'good': return { backgroundColor: '#7C3AED' };
-      case 'needs_attention': return { backgroundColor: '#DC2626' };
-      default: return { backgroundColor: '#6B7280' };
+      case 'excellent': return { backgroundColor: theme.success };
+      case 'good': return { backgroundColor: theme.accent };
+      case 'needs_attention': return { backgroundColor: theme.error };
+      default: return { backgroundColor: theme.textSecondary };
     }
   };
 
@@ -307,20 +366,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <View style={styles.loadingSkeleton}>
-          <View style={styles.skeletonHeader} />
-          <View style={styles.skeletonMetrics}>
-            {[1, 2, 3].map(i => (
-              <View key={i} style={styles.skeletonMetric} />
-            ))}
-          </View>
-          <View style={styles.skeletonSection} />
-        </View>
-      </View>
-    );
+  if (loading && isEmpty) {
+    return <LoadingScreen message="Loading your dashboard..." />;
   }
 
   if (error && isEmpty) {
@@ -348,11 +395,21 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
           <View style={styles.headerLeft}>
-            <Text style={styles.tenantName}>
-              {(profile as any)?.organization_membership?.organization_slug ||
-               (profile as any)?.organization_membership?.tenant_slug ||
-               (profile as any)?.organization_membership?.slug ||
-               data.schoolName ||
+            <TouchableOpacity
+              style={{ borderRadius: 18, overflow: 'hidden', marginRight: 10 }}
+              onPress={() => router.push('/screens/account')}
+              activeOpacity={0.7}
+            >
+              <Avatar 
+                name={`${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || (user?.email || 'User')}
+                imageUri={(profile as any)?.avatar_url || (user?.user_metadata as any)?.avatar_url || null}
+                size={36}
+              />
+            </TouchableOpacity>
+            <Text style={styles.tenantName} numberOfLines={1} ellipsizeMode="tail">
+              {data.schoolName ||
+               (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : undefined) ||
+               tenantSlug ||
                (profile as any)?.organization_membership?.organization_name ||
                t('dashboard.your_school')}
             </Text>
@@ -364,7 +421,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               onPress={() => {
                 const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
                 setLayout(newLayout);
-                try { Feedback.vibrate(15); } catch {}
+                try { Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
               }}
               activeOpacity={0.7}
             >
@@ -382,17 +439,6 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               activeOpacity={0.7}
             >
               <Ionicons name="settings-outline" size={20} color={theme.text} />
-            </TouchableOpacity>
-
-            {/* Avatar (initials) */}
-            <TouchableOpacity
-              style={styles.userAvatar}
-              onPress={() => router.push('/screens/account')}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.userAvatarText}>
-                {user?.user_metadata?.first_name?.[0] || '?'}
-              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -413,38 +459,21 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}! 👋
               </Text>
               <Text style={styles.welcomeSubtitle}>
-                {t('dashboard.managing_school', { schoolName: data.schoolName || t('dashboard.your_school') })} • {t('dashboard.school_overview')}
+                {t('dashboard.managing_school', { schoolName: data.schoolName || (schoolSettings?.schoolName && schoolSettings.schoolName !== 'My School' ? schoolSettings.schoolName : t('dashboard.your_school')) })} • {t('dashboard.school_overview')}
               </Text>
+              {/* Tier Badge - moved from header */}
+              <View style={{ marginTop: 8 }}>
+                <TierBadge size="sm" showManageButton={true} />
+              </View>
             </View>
             <View style={styles.headerActions}>
-              {/* Subscription Badge */}
-              {subscriptionReady && (
-                <View style={styles.subscriptionBadgeContainer}>
-                  <View style={[
-                    styles.subscriptionBadge, 
-                    hasAdvancedFeatures ? styles.premiumSubscriptionBadge : styles.basicSubscriptionBadge
-                  ]}>
-                    <Ionicons 
-                      name={hasAdvancedFeatures ? "diamond" : "flash"} 
-                      size={12} 
-                      color={hasAdvancedFeatures ? "#8B5CF6" : "#F59E0B"} 
-                    />
-                    <Text style={[
-                      styles.subscriptionBadgeText,
-                      hasAdvancedFeatures ? styles.premiumBadgeText : styles.basicBadgeText
-                    ]}>
-                      {tier.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-              )}
               {/* Theme Toggle */}
               <TouchableOpacity
                 style={styles.themeToggle}
-                onPress={async () => {
-                  await toggleTheme();
-                  try { Feedback.vibrate(15); } catch {}
-                }}
+              onPress={async () => {
+                await toggleTheme();
+                try { Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
+              }}
               >
                 <Ionicons 
                   name={isDark ? 'sunny' : 'moon'} 
@@ -453,9 +482,14 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                 />
               </TouchableOpacity>
               {/* WhatsApp Status */}
-              {isWhatsAppEnabled() && (
+              {isWAEnabled && (
                 <TouchableOpacity onPress={() => setShowWhatsAppModal(true)}>
                   <WhatsAppStatusChip size="small" showText={false} />
+                </TouchableOpacity>
+              )}
+              {!isWAEnabled && (
+                <TouchableOpacity onPress={() => router.push('/screens/school-settings')} style={{ marginLeft: 8 }}>
+                  <Ionicons name="settings" size={18} color={theme.textSecondary} />
                 </TouchableOpacity>
               )}
             </View>
@@ -483,8 +517,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                   onPress={() => {
                     // Minimal navigation: no haptics, no delays, no fallbacks
                     const route = `/screens/subscription-upgrade-post?currentTier=${encodeURIComponent(tier || 'free')}&reason=manual_upgrade`;
-                    if (__DEV__) console.log('🧪 Minimal nav to upgrade screen:', route);
-                    try { router.push(route); } catch {}
+                    try { router.push(route); } catch { /* Haptics unavailable */ }
                   }}
                 >
                   <View style={styles.upgradeBannerButtonGlow}>
@@ -512,7 +545,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               color={metric.color}
               trend={metric.trend}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 
                 // Show interstitial ad before navigating (free tier only)
                 await maybeShowInterstitial('principal_metrics_nav');
@@ -657,8 +690,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         )}
       </View>
 
-      {/* Financial Summary */}
-      {data.financialSummary && (
+      {/* Financial Summary - Respects backend settings */}
+      {financialsEnabled && data.financialSummary && (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('dashboard.financial_overview')}</Text>
@@ -688,16 +721,16 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
             </View>
           </View>
           
-          {/* Real Petty Cash Balance - Only show when meaningful */}
-          {data.financialSummary.pettyCashBalance > 50 && (
+          {/* Real Petty Cash Balance - Only show when enabled and meaningful */}
+          {pettyCashEnabled && data.financialSummary.pettyCashBalance > 50 && (
             <View style={styles.financialGrid}>
-              <View style={styles.financialCard}>
+              <View style={[styles.financialCard, { borderLeftColor: '#F59E0B', shadowColor: '#F59E0B' }]}>
                 <Text style={styles.financialLabel}>{t('dashboard.petty_cash_balance')}</Text>
                 <Text style={[styles.financialValue, { color: '#F59E0B' }]}>
                   {formatCurrency(data.financialSummary.pettyCashBalance)}
                 </Text>
               </View>
-              <View style={styles.financialCard}>
+              <View style={[styles.financialCard, { borderLeftColor: '#DC2626', shadowColor: '#DC2626' }]}>
                 <Text style={styles.financialLabel}>{t('dashboard.monthly_expenses')}</Text>
                 <Text style={[styles.financialValue, { color: '#DC2626' }]}>
                   {formatCurrency(data.financialSummary.pettyCashExpenses || 0)}
@@ -714,16 +747,15 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         <TouchableOpacity 
           style={[styles.aiInsightsBanner, (subscriptionReady && !hasPremiumOrHigher) ? styles.disabledCard : null]}
           onPress={gate(async () => {
-            console.log('🚀 AI Analytics button pressed!');
-            try { await Feedback.vibrate(15); } catch {}
+            try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
             router.push('/screens/principal-analytics');
           }, { needs: 'premium' })}
           disabled={subscriptionReady && !hasPremiumOrHigher}
-        >
-          <View style={styles.aiInsightsHeader}>
-            <View style={styles.aiInsightsIcon}>
-              <Ionicons name="sparkles" size={20} color={'#7C3AED'} />
-            </View>
+          >
+            <View style={styles.aiInsightsHeader}>
+              <View style={styles.aiInsightsIcon}>
+                <Ionicons name="sparkles" size={20} color={'#7C3AED'} />
+              </View>
             <View style={styles.aiInsightsContent}>
               <Text style={styles.aiInsightsTitle}>{t('dashboard.ai_insights')}</Text>
               <Text style={styles.aiInsightsSubtitle}>{t('dashboard.smart_analytics_recommendations')}</Text>
@@ -759,13 +791,20 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Financial Management Tools */}
+      {/* Financial Management Tools - Collapsible */}
+      {financialsEnabled && (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('financial-tools')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.financial_management')}</Text>
+          </View>
+          <Ionicons name={collapsedSections.has('financial-tools') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('financial-tools') && (
         <View style={styles.toolsGrid}>
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#4F46E5' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-dashboard') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-dashboard') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#4F46E5' }]}>
               <Ionicons name="analytics" size={20} color="white" />
@@ -779,7 +818,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#059669' + '10' }]}
-onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-transactions') }}
+onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-transactions') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#059669' }]}>
               <Ionicons name="list" size={20} color="white" />
@@ -793,7 +832,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#DC2626' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/financial-reports') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/financial-reports') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#DC2626' }]}>
               <Ionicons name="bar-chart" size={20} color="white" />
@@ -805,9 +844,10 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
           
+          {pettyCashEnabled && (
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/petty-cash') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/petty-cash') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
               <Ionicons name="wallet" size={20} color="white" />
@@ -818,10 +858,11 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             </View>
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
+          )}
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#10B981' + '10' }]}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/class-teacher-management') }}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/class-teacher-management') }}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#10B981' }]}>
               <Ionicons name="school" size={20} color="white" />
@@ -833,11 +874,19 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
+        )}
       </View>
+      )}
 
-      {/* AI & Analytics Tools */}
+      {/* AI & Analytics Tools - Collapsible */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('ai-analytics')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.ai_analytics')}</Text>
+          </View>
+          <Ionicons name={collapsedSections.has('ai-analytics') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('ai-analytics') && (
         <View style={styles.toolsGrid}>
           {/* Active Tools First - Available with starter subscription */}
           <TouchableOpacity 
@@ -866,7 +915,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#F59E0B' + '10' }, (subscriptionReady && !hasStarterAIFeatures) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin-ai-allocation') }, { needs: 'starter' })}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/admin-ai-allocation') }, { needs: 'starter' })}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#F59E0B' }]}>
               <Ionicons name="settings" size={20} color="white" />
@@ -918,7 +967,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
           
           <TouchableOpacity 
             style={[styles.toolCard, { backgroundColor: '#0891B2' + '10' }, (subscriptionReady && !hasAdvancedAnalytics) ? styles.disabledCard : null]}
-            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-analytics') }, { needs: 'advanced' })}
+            onPress={gate(async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-analytics') }, { needs: 'advanced' })}
             disabled={subscriptionReady && !hasAdvancedAnalytics}
           >
             <View style={[styles.toolIcon, { backgroundColor: '#0891B2' }]}>
@@ -940,73 +989,96 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             )}
           </TouchableOpacity>
         </View>
+        )}
       </View>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Collapsible */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+        <TouchableOpacity style={styles.collapsibleHeader} onPress={() => toggleSection('quick-actions')} activeOpacity={0.7} accessibilityRole="button">
+          <View style={[styles.titleChip, { borderColor: theme.primary, backgroundColor: theme.surface }]}>
+            <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
+          </View>
+          <Ionicons name={collapsedSections.has('quick-actions') ? 'chevron-down' : 'chevron-up'} size={18} color={theme.textSecondary} />
+        </TouchableOpacity>
+        {!collapsedSections.has('quick-actions') && (
         <View style={styles.actionsGrid}>
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/student-enrollment') }}
+            style={[styles.actionCard, { borderLeftColor: '#6366F1', shadowColor: '#6366F1' }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/dash-assistant') }}
+          >
+            <Ionicons name="chatbubbles" size={24} color="#6366F1" />
+            <Text style={styles.actionText}>{t('quick_actions.dash_chat', { defaultValue: 'Chat with Dash' })}</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/student-enrollment') }}
           >
             <Ionicons name="person-add" size={24} color={theme.primary} />
             <Text style={styles.actionText}>{t('quick_actions.enroll_student')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/teacher-management') }}
+            style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/teacher-management') }}
           >
             <Ionicons name="people" size={24} color={theme.success} />
             <Text style={styles.actionText}>{t('quick_actions.manage_teachers')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; handleCreateAnnouncement(); }}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; handleCreateAnnouncement(); }}
           >
             <Ionicons name="megaphone" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.send_announcement')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-requests') }}
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-parent-requests') }}
           >
             <Ionicons name="people-circle" size={24} color={theme.primary} />
             <Text style={styles.actionText}>{t('quick_actions.parent_requests')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-seat-management') }}
+            style={[styles.actionCard, { borderLeftColor: theme.success, shadowColor: theme.success }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-seat-management') }}
           >
             <Ionicons name="id-card" size={24} color={theme.success} />
             <Text style={styles.actionText}>{t('quick_actions.seat_management')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/principal-parent-invite-code') }}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/principal-parent-invite-code') }}
           >
             <Ionicons name="key" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.invite_parents')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
-            onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push('/screens/admin/data-export') }}
+            style={[styles.actionCard, { borderLeftColor: theme.accent, shadowColor: theme.accent }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/admin/data-export') }}
           >
             <Ionicons name="cloud-download" size={24} color={theme.accent} />
             <Text style={styles.actionText}>{t('quick_actions.export_data')}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.actionCard}
+            style={[styles.actionCard, { borderLeftColor: '#8B5CF6', shadowColor: '#8B5CF6' }]}
+            onPress={async () => { try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }; router.push('/screens/student-management') }}
+          >
+            <Ionicons name="school" size={24} color="#8B5CF6" />
+            <Text style={styles.actionText}>Progress Reports</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionCard, { borderLeftColor: theme.primary, shadowColor: theme.primary }]}
             onPress={async () => {
               // Quick school stats action
-              try { await Feedback.vibrate(15); } catch {}
+              try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
               const content = t('common.school_stats_content', {
                 studentsPresent: 87,
                 totalStudents: 92,
@@ -1032,11 +1104,11 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             <Text style={styles.actionText}>{t('quick_actions.todays_stats')}</Text>
           </TouchableOpacity>
           
-          {isWhatsAppEnabled() && (
+          {isWAEnabled && (
             <TouchableOpacity 
-              style={styles.actionCard}
+              style={[styles.actionCard, { borderLeftColor: '#25D366', shadowColor: '#25D366' }]}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 setShowWhatsAppModal(true);
               }}
             >
@@ -1045,11 +1117,11 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             </TouchableOpacity>
           )}
           
-          {!isWhatsAppEnabled() && (
+          {!isWAEnabled && (
             <TouchableOpacity 
-              style={styles.actionCard}
+              style={[styles.actionCard, { borderLeftColor: theme.textSecondary, shadowColor: theme.textSecondary }]}
               onPress={async () => {
-                try { await Feedback.vibrate(15); } catch {}
+                try { await Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
                 Alert.alert(
                   t('common.quick_settings_content'),
                   t('common.quick_settings_description'),
@@ -1065,6 +1137,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
             </TouchableOpacity>
           )}
         </View>
+        )}
       </View>
 
       </ScrollView>
@@ -1177,11 +1250,7 @@ onPress={async () => { try { await Feedback.vibrate(15); } catch {}; router.push
         }}
       />
 
-      {/* Dash AI Floating Button for legacy dashboard */}
-      <DashFloatingButton
-        position="bottom-right"
-        onPress={() => router.push('/screens/dash-assistant')}
-      />
+      {/* Dash AI Floating Button removed - using global voice FAB */}
     </View>
   );
 };
@@ -1238,6 +1307,63 @@ const createStyles = (theme: any, preferences: any = {}) => {
     // Reduced top margin for classic layout, more space for enhanced layout
     marginTop: isClassicLayout ? 36 : 62,
   },
+  appHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: theme.surface,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  appHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap', minWidth: 0 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tenantName: { fontSize: 18, fontWeight: '700', color: theme.text, flexShrink: 1, minWidth: 0, overflow: 'hidden' },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: { color: theme.onPrimary, fontSize: 14, fontWeight: '700' },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: theme.surfaceVariant,
+    borderWidth: 1,
+    borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  scrollContainer: {
+    flex: 1,
+    // Increased top margin to ensure greeting section is visible below fixed header
+    // Accounts for header height including safe area insets and content
+    // Add a bit of space between the header and greetings card
+    marginTop: isClassicLayout ? 104 : 120,
+  },
   welcomeSection: {
     backgroundColor: theme.surface,
     paddingHorizontal: 20,
@@ -1280,6 +1406,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   themeToggle: {
     width: 36,
@@ -1290,6 +1421,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: theme.border,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
   },
   section: {
     paddingHorizontal: 20,
@@ -1301,11 +1437,33 @@ const createStyles = (theme: any, preferences: any = {}) => {
     color: theme.text,
     marginBottom: 12,
   },
+  clickableTitle: {
+    textDecorationLine: 'underline',
+  },
+  titleChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    alignSelf: 'flex-start',
+    marginRight: 8,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
   },
   viewAllButton: {
     flexDirection: 'row',
@@ -1328,11 +1486,13 @@ const createStyles = (theme: any, preferences: any = {}) => {
     marginBottom: 12,
     width: cardWidth,
     borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   metricHeader: {
     flexDirection: 'row',
@@ -1367,9 +1527,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 12,
     marginRight: 12,
     width: 200,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -1483,6 +1645,7 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     flex: 1,
     marginHorizontal: 4,
+    borderLeftWidth: 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -1511,9 +1674,12 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     alignItems: 'center',
     width: '30%',
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -1738,9 +1904,11 @@ const createStyles = (theme: any, preferences: any = {}) => {
     padding: 16,
     borderRadius: 12,
     backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.borderLight,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },

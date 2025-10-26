@@ -4,6 +4,8 @@
  * Provides cryptographic functions that work across different React Native environments
  */
 
+import { logger } from '@/lib/logger';
+
 /**
  * Generate cryptographically secure random bytes
  */
@@ -30,12 +32,12 @@ export async function getRandomBytes(length: number = 32): Promise<Uint8Array> {
         const randomBytes = await ExpoCrypto.getRandomBytesAsync(length);
         return new Uint8Array(randomBytes);
       }
-    } catch (cryptoError) {
-      console.debug('expo-crypto not available');
+    } catch {
+      logger.debug('expo-crypto not available');
     }
     
     // React Native fallback: use multiple entropy sources
-    console.warn('Using fallback random byte generation for React Native');
+    logger.warn('Using fallback random byte generation for React Native');
     return generateFallbackRandomBytes(length);
     
   } catch (error) {
@@ -144,7 +146,7 @@ export function getCryptoInfo(): {
   try {
     const ExpoCrypto = require('expo-crypto');
     hasExpoCrypto = !!ExpoCrypto?.getRandomBytesAsync;
-  } catch (e) {
+  } catch {
     hasExpoCrypto = false;
   }
   

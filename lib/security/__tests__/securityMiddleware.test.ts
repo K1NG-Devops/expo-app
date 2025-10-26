@@ -20,9 +20,9 @@ import { validateRequestBody, ValidationSchemas } from '../validation';
 
 // Mock the config and auth service
 jest.mock('../../config', () => ({
-  AppConfiguration: {
+  getAppConfiguration: jest.fn(() => ({
     environment: 'test',
-  },
+  })),
 }));
 
 jest.mock('../../auth/AuthService', () => ({
@@ -86,7 +86,7 @@ describe('Security Middleware', () => {
 
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.response).toBeInstanceOf(Response);
+        expect((result as { valid: false; response: Response }).response).toBeInstanceOf(Response);
       }
     });
 

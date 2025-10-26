@@ -4,19 +4,19 @@
 export function getPaymentsBaseUrl(): string {
   const bridge = process.env.EXPO_PUBLIC_PAYMENTS_BRIDGE_URL;
   if (bridge && /^https?:\/\//i.test(bridge)) return bridge.replace(/\/$/, '');
-  // Fallback to new bridge domain (Vercel)
-  return 'https://bridge-edudashpro-g2818dbtv-k1ng-devops-projects.vercel.app/payments';
+  // Fallback to Supabase Functions base (works in all envs)
+  const supa = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  if (supa && /^https?:\/\//i.test(supa)) return supa.replace(/\/$/, '') + '/functions/v1';
+  // Final fallback: production domain (avoid Vercel bridge to prevent 404s)
+  return 'https://lvvvjywrmpcqrpvuptdi.supabase.co/functions/v1';
 }
 
 export function getReturnUrl(): string {
   const base = getPaymentsBaseUrl();
-  // Allow both styles: if base already includes /payments, keep it consistent
-  if (/\/payments\b/.test(base)) return `${base}/return`;
-  return `${base}/payments/return`;
+  return `${base}/payments-webhook`;
 }
 
 export function getCancelUrl(): string {
   const base = getPaymentsBaseUrl();
-  if (/\/payments\b/.test(base)) return `${base}/cancel`;
-  return `${base}/payments/cancel`;
+  return `${base}/payments-webhook`;
 }

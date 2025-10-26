@@ -15,9 +15,9 @@ CREATE SCHEMA IF NOT EXISTS app_auth;
 -- ============================================
 
 -- Check if teacher can access specific student
-CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_student(p_student_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_student(p_student_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     -- Direct class assignment approach
@@ -56,9 +56,9 @@ AS $$
 $$;
 
 -- Check if teacher can access specific class
-CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_class(p_class_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.teacher_can_access_class(p_class_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -81,9 +81,9 @@ AS $$
 $$;
 
 -- Get all student IDs accessible to current teacher
-CREATE OR REPLACE FUNCTION app_auth.teacher_accessible_students() 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.teacher_accessible_students()
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT COALESCE(
     ARRAY(
@@ -125,9 +125,9 @@ $$;
 -- ============================================
 
 -- Check if parent can access specific student (their child)
-CREATE OR REPLACE FUNCTION app_auth.parent_can_access_student(p_student_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.parent_can_access_student(p_student_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT EXISTS (
     -- Via parent_child_links table
@@ -157,9 +157,9 @@ AS $$
 $$;
 
 -- Get all student IDs accessible to current parent
-CREATE OR REPLACE FUNCTION app_auth.parent_accessible_students() 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.parent_accessible_students()
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT COALESCE(
     ARRAY(
@@ -196,9 +196,9 @@ $$;
 -- ============================================
 
 -- Check if user can access specific assignment
-CREATE OR REPLACE FUNCTION app_auth.can_access_assignment(p_assignment_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_access_assignment(p_assignment_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     app_auth.is_super_admin()
@@ -235,9 +235,9 @@ AS $$
 $$;
 
 -- Check if user can participate in conversation/message thread
-CREATE OR REPLACE FUNCTION app_auth.can_access_conversation(p_conversation_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_access_conversation(p_conversation_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     app_auth.is_super_admin()
@@ -264,9 +264,9 @@ $$;
 -- ============================================
 
 -- Enhanced organization access with role-specific logic
-CREATE OR REPLACE FUNCTION app_auth.can_access_org_advanced(p_org UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_access_org_advanced(p_org UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     -- Super admin can access any org
@@ -291,9 +291,9 @@ AS $$
 $$;
 
 -- Check if user can manage specific user profile
-CREATE OR REPLACE FUNCTION app_auth.can_manage_user(p_target_user_id UUID) 
+CREATE OR REPLACE FUNCTION app_auth.can_manage_user(p_target_user_id UUID)
 RETURNS BOOLEAN
-LANGUAGE SQL STABLE
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     app_auth.is_super_admin()
@@ -334,9 +334,9 @@ $$;
 -- ============================================
 
 -- Batch check for student access (for performance)
-CREATE OR REPLACE FUNCTION app_auth.filter_accessible_students(p_student_ids UUID[]) 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.filter_accessible_students(p_student_ids UUID [])
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     CASE 
@@ -368,9 +368,9 @@ AS $$
 $$;
 
 -- Get accessible organization IDs for current user
-CREATE OR REPLACE FUNCTION app_auth.accessible_org_ids() 
-RETURNS UUID[]
-LANGUAGE SQL STABLE
+CREATE OR REPLACE FUNCTION app_auth.accessible_org_ids()
+RETURNS UUID []
+LANGUAGE sql STABLE
 AS $$
   SELECT 
     CASE 
@@ -395,16 +395,28 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA app_auth TO authenticated;
 -- Comments for Documentation
 -- ============================================
 
-COMMENT ON FUNCTION app_auth.teacher_can_access_student(UUID) IS 'Returns true if teacher can access specific student through class assignments';
+COMMENT ON FUNCTION app_auth.teacher_can_access_student(
+  UUID
+) IS 'Returns true if teacher can access specific student through class assignments';
 COMMENT ON FUNCTION app_auth.teacher_can_access_class(UUID) IS 'Returns true if teacher is assigned to specific class';
 COMMENT ON FUNCTION app_auth.teacher_accessible_students() IS 'Returns array of all student IDs accessible to current teacher';
-COMMENT ON FUNCTION app_auth.parent_can_access_student(UUID) IS 'Returns true if parent can access specific student (their child)';
+COMMENT ON FUNCTION app_auth.parent_can_access_student(
+  UUID
+) IS 'Returns true if parent can access specific student (their child)';
 COMMENT ON FUNCTION app_auth.parent_accessible_students() IS 'Returns array of all student IDs accessible to current parent';
-COMMENT ON FUNCTION app_auth.can_access_assignment(UUID) IS 'Returns true if user can access specific assignment based on role and relationships';
-COMMENT ON FUNCTION app_auth.can_access_conversation(UUID) IS 'Returns true if user can participate in conversation based on participants and role';
-COMMENT ON FUNCTION app_auth.can_access_org_advanced(UUID) IS 'Enhanced organization access check with partnership support';
+COMMENT ON FUNCTION app_auth.can_access_assignment(
+  UUID
+) IS 'Returns true if user can access specific assignment based on role and relationships';
+COMMENT ON FUNCTION app_auth.can_access_conversation(
+  UUID
+) IS 'Returns true if user can participate in conversation based on participants and role';
+COMMENT ON FUNCTION app_auth.can_access_org_advanced(
+  UUID
+) IS 'Enhanced organization access check with partnership support';
 COMMENT ON FUNCTION app_auth.can_manage_user(UUID) IS 'Returns true if user can manage/edit specific user profile';
-COMMENT ON FUNCTION app_auth.filter_accessible_students(UUID[]) IS 'Filters array of student IDs to only those accessible by current user';
+COMMENT ON FUNCTION app_auth.filter_accessible_students(
+  UUID []
+) IS 'Filters array of student IDs to only those accessible by current user';
 COMMENT ON FUNCTION app_auth.accessible_org_ids() IS 'Returns array of organization IDs accessible to current user';
 
 -- ============================================
@@ -431,9 +443,9 @@ BEGIN
 END $$;
 
 -- Final status message
-SELECT 
-  '🎯 RLS RELATIONSHIP HELPERS MIGRATION COMPLETE' as status,
-  'All relationship access helper functions ready for RLS policies' as summary;
+SELECT
+  '🎯 RLS RELATIONSHIP HELPERS MIGRATION COMPLETE' AS status,
+  'All relationship access helper functions ready for RLS policies' AS summary;
 
 -- ============================================
 -- Test Data Validation Queries (Optional)
@@ -444,7 +456,7 @@ SELECT
 -- Test teacher access (will return false without proper JWT claims)
 SELECT app_auth.teacher_can_access_student('00000000-0000-0000-0000-000000000000'::uuid) as teacher_test;
 
--- Test parent access (will return false without proper JWT claims)  
+-- Test parent access (will return false without proper JWT claims)
 SELECT app_auth.parent_can_access_student('00000000-0000-0000-0000-000000000000'::uuid) as parent_test;
 
 -- Test accessible students arrays (will return empty without JWT claims)

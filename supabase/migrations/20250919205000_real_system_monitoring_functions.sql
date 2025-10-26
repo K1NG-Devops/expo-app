@@ -237,18 +237,18 @@ $$;
 -- Create error_logs table if it doesn't exist
 CREATE TABLE IF NOT EXISTS error_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  timestamp TIMESTAMPTZ DEFAULT NOW(),
+  timestamp TIMESTAMPTZ DEFAULT now(),
   level TEXT NOT NULL CHECK (level IN ('error', 'warning', 'info')),
   message TEXT NOT NULL,
   source TEXT NOT NULL,
-  user_id UUID REFERENCES auth.users(id),
+  user_id UUID REFERENCES auth.users (id),
   details JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT now()
 );
 
 -- Create index on timestamp for efficient querying
-CREATE INDEX IF NOT EXISTS idx_error_logs_timestamp ON error_logs(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_error_logs_level ON error_logs(level);
+CREATE INDEX IF NOT EXISTS idx_error_logs_timestamp ON error_logs (timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_error_logs_level ON error_logs (level);
 
 -- Function to get recent error logs
 CREATE OR REPLACE FUNCTION get_recent_error_logs(hours_back INTEGER DEFAULT 24)
@@ -465,7 +465,7 @@ $$;
 
 -- Grant execute permissions to authenticated users for monitoring functions
 GRANT EXECUTE ON FUNCTION get_system_health_metrics() TO authenticated;
-GRANT EXECUTE ON FUNCTION get_system_performance_metrics() TO authenticated;  
+GRANT EXECUTE ON FUNCTION get_system_performance_metrics() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_migration_status() TO authenticated;
 GRANT EXECUTE ON FUNCTION get_recent_error_logs(INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION log_system_error(TEXT, TEXT, TEXT, JSONB) TO authenticated;
@@ -486,14 +486,14 @@ VALUES (
   'real_system_monitoring_20250919205000',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'functions_created', 8,
     'migration_file', '20250919205000_real_system_monitoring_functions.sql'
   ),
   'Real system monitoring functions migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'REAL SYSTEM MONITORING FUNCTIONS CREATED' AS status;

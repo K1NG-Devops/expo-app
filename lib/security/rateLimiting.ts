@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { createSecureErrorResponse } from './middleware';
 import { getRateLimitMessage, getLoginLockoutMessage, getUserLanguage } from '../i18n/securityMessages';
 

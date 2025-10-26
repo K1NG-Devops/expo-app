@@ -110,7 +110,7 @@ export const TwoFactorAuth: React.FC<TwoFactorAuthProps> = ({
 
   // Generate backup codes
   const generateBackupCodes = () => {
-    const codes: string[] = [];
+    const codes = [];
     for (let i = 0; i < 10; i++) {
       // Generate 8-digit backup codes
       const code = Math.random().toString(36).substring(2, 10).toUpperCase();

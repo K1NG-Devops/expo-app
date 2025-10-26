@@ -1,3 +1,26 @@
+/**
+ * DEPRECATION NOTICE:
+ * This batch transcription Edge Function is now LEGACY and maintained only for fallback.
+ * 
+ * PREFERRED APPROACH: Use real-time streaming transcription via WebSocket/WebRTC.
+ * - Faster user experience (transcription as you speak)
+ * - Lower latency for AI responses
+ * - Better language detection
+ * 
+ * This function remains as a graceful fallback when streaming is unavailable or fails.
+ * See: hooks/useRealtimeVoice.ts and hooks/useVoiceController.ts for streaming implementation.
+ */
+
+/**
+ * [TESTING MODE - 2025-01-16]
+ * OpenAI Whisper-1 temporarily disabled to validate Deepgram Nova-2 performance.
+ * Current routing:
+ * - SA languages (zu, af, xh) → Azure Speech Service
+ * - English → Deepgram Nova-2 only (no Whisper fallback)
+ * 
+ * TODO: Re-enable Whisper as fallback after Deepgram validation complete
+ */
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0"
 
@@ -6,7 +29,10 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY')
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
-const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'deepgram' // 'deepgram' or 'openai'
+const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY')
+const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION')
+const TRANSCRIPTION_PROVIDER = Deno.env.get('TRANSCRIPTION_PROVIDER') || 'auto' // 'azure', 'openai', 'deepgram', or 'auto'
+const OPENAI_TRANSCRIPTION_MODEL = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'whisper-1'
 
 // Create Supabase client with service role for bypassing RLS
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -117,6 +143,71 @@ async function transcribeWithDeepgram(audioUrl: string, language?: string): Prom
 }
 
 /**
+ * Transcribe audio using Azure Speech Services (Best for Afrikaans, isiZulu, isiXhosa)
+ */
+async function transcribeWithAzure(audioUrl: string, language?: string): Promise<TranscriptionResponse> {
+  if (!AZURE_SPEECH_KEY || !AZURE_SPEECH_REGION) {
+    throw new Error('Azure Speech API key or region not configured')
+  }
+
+  // Map language codes to Azure language codes
+  const languageMap: { [key: string]: string } = {
+    'en': 'en-ZA',  // English South Africa
+    'af': 'af-ZA',  // Afrikaans South Africa
+    'zu': 'zu-ZA',  // isiZulu South Africa
+    'xh': 'xh-ZA',  // isiXhosa South Africa
+    'st': 'en-ZA'   // Sesotho -> fallback to English SA
+  }
+
+  const azureLanguage = language ? (languageMap[language] || 'en-ZA') : 'en-ZA'
+
+  console.log('Transcribing with Azure Speech:', { audioUrl, language: azureLanguage })
+
+  // Download audio file first
+  const audioResponse = await fetch(audioUrl)
+  if (!audioResponse.ok) {
+    throw new Error(`Failed to download audio file: ${audioResponse.status}`)
+  }
+
+  const audioBlob = await audioResponse.blob()
+  const audioBuffer = await audioBlob.arrayBuffer()
+
+  // Call Azure Speech-to-Text API
+  const response = await fetch(
+    `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=${azureLanguage}`,
+    {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Type': 'audio/wav', // Azure accepts various formats
+      },
+      body: audioBuffer,
+    }
+  )
+
+  if (!response.ok) {
+    const error = await response.text()
+    console.error('Azure Speech API error:', error)
+    throw new Error(`Azure Speech API error: ${response.status} ${error}`)
+  }
+
+  const result = await response.json()
+  console.log('Azure Speech result:', result)
+
+  // Azure returns: { RecognitionStatus, DisplayText, Offset, Duration, NBest: [{Confidence, Lexical, ITN, MaskedITN, Display}] }
+  const transcript = result.DisplayText || ''
+  const confidence = result.NBest?.[0]?.Confidence || 0
+  const wordCount = transcript.split(/\s+/).filter(word => word.length > 0).length
+
+  return {
+    transcript,
+    language: azureLanguage,
+    confidence,
+    word_count: wordCount
+  }
+}
+
+/**
  * Transcribe audio using OpenAI Whisper API
  */
 async function transcribeWithOpenAI(audioUrl: string, language?: string): Promise<TranscriptionResponse> {
@@ -137,7 +228,7 @@ async function transcribeWithOpenAI(audioUrl: string, language?: string): Promis
   
   // Create a file from blob
   formData.append('file', audioBlob, 'audio.m4a')
-  formData.append('model', 'whisper-1')
+  formData.append('model', OPENAI_TRANSCRIPTION_MODEL)
   
   if (language) {
     // Map our language codes to OpenAI language codes
@@ -176,6 +267,27 @@ async function transcribeWithOpenAI(audioUrl: string, language?: string): Promis
     transcript,
     language: language || 'en', // OpenAI doesn't return detected language in basic response
     word_count: wordCount
+  }
+}
+
+/**
+ * Check transcription quota for user
+ */
+async function checkTranscriptionQuota(userId: string, preschoolId?: string): Promise<{ allowed: boolean; reason?: string; remaining?: number }> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-usage', {
+      body: { action: 'check_quota', feature: 'transcription', userId, preschoolId }
+    })
+    
+    if (error) {
+      console.warn('Quota check failed, allowing by default:', error)
+      return { allowed: true }
+    }
+    
+    return data || { allowed: true }
+  } catch (error) {
+    console.warn('Quota check error, allowing by default:', error)
+    return { allowed: true }
   }
 }
 
@@ -235,6 +347,23 @@ async function trackTranscriptionEvent(voiceNote: any, transcription: Transcript
           provider: TRANSCRIPTION_PROVIDER
         }
       })
+
+    // Also log usage for quota tracking
+    await supabase.from('ai_usage_logs').insert({
+      preschool_id: voiceNote.preschool_id,
+      user_id: voiceNote.created_by,
+      feature: 'transcription',
+      tier: 'batch',
+      provider: TRANSCRIPTION_PROVIDER,
+      metadata: {
+        voice_note_id: voiceNote.id,
+        transcript_length: transcription.transcript.length,
+        word_count: transcription.word_count,
+        language: transcription.language,
+        session_id: `batch_transcription_${Date.now()}`,
+      },
+      created_at: new Date().toISOString(),
+    })
   } catch (error) {
     console.error('Error tracking transcription event:', error)
   }
@@ -251,16 +380,47 @@ async function transcribeAudio(request: Request): Promise<Response> {
     let voiceNote: any
     let audioUrl: string
 
+    // Check transcription quota before processing
+    if (transcriptionRequest.voice_note_id) {
+      // Get voice note to check user
+      const { data: voiceNoteData } = await supabase
+        .from('voice_notes')
+        .select('created_by, preschool_id')
+        .eq('id', transcriptionRequest.voice_note_id)
+        .maybeSingle()
+      
+      if (voiceNoteData?.created_by) {
+        const quotaCheck = await checkTranscriptionQuota(voiceNoteData.created_by, voiceNoteData.preschool_id)
+        if (!quotaCheck.allowed) {
+          return new Response(JSON.stringify({ 
+            error: 'Transcription quota exceeded',
+            reason: quotaCheck.reason,
+            remaining: quotaCheck.remaining || 0
+          }), {
+            status: 429,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+      }
+    }
+
     // Get voice note information
     if (transcriptionRequest.voice_note_id) {
       const { data, error } = await supabase
         .from('voice_notes')
         .select('*')
         .eq('id', transcriptionRequest.voice_note_id)
-        .single()
+        .maybeSingle()
 
       if (error) {
-        return new Response(JSON.stringify({ error: `Voice note not found: ${error.message}` }), {
+        return new Response(JSON.stringify({ error: `Voice note query error: ${error.message}` }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Voice note not found' }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         })
@@ -277,7 +437,7 @@ async function transcribeAudio(request: Request): Promise<Response> {
         .from('voice_notes')
         .select('*')
         .eq('storage_path', transcriptionRequest.storage_path)
-        .single()
+        .maybeSingle()
       
       voiceNote = data // May be null if this is just a file transcription
       
@@ -291,39 +451,67 @@ async function transcribeAudio(request: Request): Promise<Response> {
     // Determine language for transcription
     const language = transcriptionRequest.language || voiceNote?.language
 
-    // Perform transcription based on configured provider
+    // [TEST MODE] Whisper-1 disabled - Azure for SA languages, Deepgram for English only
+    console.log('[TEST MODE] Whisper-1 disabled - Azure for SA languages, Deepgram for English only')
+    
+    // Perform transcription based on language and provider availability
     let transcription: TranscriptionResponse
+    let providerUsed = TRANSCRIPTION_PROVIDER
+    let usedFallback = false
 
-    if (TRANSCRIPTION_PROVIDER === 'openai' && OPENAI_API_KEY) {
-      transcription = await transcribeWithOpenAI(audioUrl, language)
-    } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && DEEPGRAM_API_KEY) {
-      transcription = await transcribeWithDeepgram(audioUrl, language)
-    } else {
-      // Fallback: try OpenAI first, then Deepgram
-      try {
-        if (OPENAI_API_KEY) {
-          transcription = await transcribeWithOpenAI(audioUrl, language)
+    try {
+      // SMART ROUTING: Use Azure for SA languages (af, zu, xh) as they have best support
+      const saLanguages = ['af', 'zu', 'xh']
+      const useAzure = (TRANSCRIPTION_PROVIDER === 'auto' || TRANSCRIPTION_PROVIDER === 'azure' || TRANSCRIPTION_PROVIDER === 'deepgram') && 
+                       saLanguages.includes(language || '') && 
+                       AZURE_SPEECH_KEY && 
+                       AZURE_SPEECH_REGION
+
+      if (useAzure) {
+        console.log(`Using Azure Speech for SA language: ${language}`)
+        transcription = await transcribeWithAzure(audioUrl, language)
+        providerUsed = 'azure'
+      } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && DEEPGRAM_API_KEY) {
+        console.log('Using Deepgram for English transcription')
+        transcription = await transcribeWithDeepgram(audioUrl, language)
+        providerUsed = 'deepgram'
+      } else {
+        // Auto-select: Azure for SA languages, Deepgram for everything else
+        if (AZURE_SPEECH_KEY && saLanguages.includes(language || '')) {
+          console.log('Auto-selecting Azure for SA language')
+          transcription = await transcribeWithAzure(audioUrl, language)
+          providerUsed = 'azure'
         } else if (DEEPGRAM_API_KEY) {
+          console.log('Auto-selecting Deepgram for English')
           transcription = await transcribeWithDeepgram(audioUrl, language)
+          providerUsed = 'deepgram'
         } else {
-          throw new Error('No transcription provider configured')
+          throw new Error('No transcription provider configured. Please set AZURE_SPEECH_KEY or DEEPGRAM_API_KEY.')
         }
-      } catch (primaryError) {
-        console.error('Primary transcription provider failed:', primaryError)
-        
-        // Try fallback provider
-        try {
-          if (TRANSCRIPTION_PROVIDER === 'openai' && DEEPGRAM_API_KEY) {
-            transcription = await transcribeWithDeepgram(audioUrl, language)
-          } else if (TRANSCRIPTION_PROVIDER === 'deepgram' && OPENAI_API_KEY) {
-            transcription = await transcribeWithOpenAI(audioUrl, language)
-          } else {
-            throw primaryError
-          }
-        } catch (fallbackError) {
-          console.error('Fallback transcription provider also failed:', fallbackError)
+      }
+    } catch (primaryError) {
+      console.error(`[TEST MODE] Primary transcription provider (${providerUsed}) failed:`, primaryError)
+      
+      // [DISABLED FOR TESTING] Whisper fallback commented out
+      // Intelligent fallback: Azure <-> Deepgram only (no Whisper)
+      try {
+        if (providerUsed === 'azure' && DEEPGRAM_API_KEY) {
+          console.log('[TEST MODE] Azure failed, falling back to Deepgram')
+          transcription = await transcribeWithDeepgram(audioUrl, language)
+          providerUsed = 'deepgram'
+          usedFallback = true
+        } else if (providerUsed === 'deepgram' && AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+          console.log('[TEST MODE] Deepgram failed, falling back to Azure')
+          transcription = await transcribeWithAzure(audioUrl, language)
+          providerUsed = 'azure'
+          usedFallback = true
+        } else {
+          console.error('[TEST MODE] No fallback available, Whisper-1 is disabled')
           throw primaryError
         }
+      } catch (fallbackError) {
+        console.error('[TEST MODE] Fallback transcription provider also failed:', fallbackError)
+        throw primaryError
       }
     }
 
@@ -342,7 +530,8 @@ async function transcribeAudio(request: Request): Promise<Response> {
       language: transcription.language,
       word_count: transcription.word_count,
       confidence: transcription.confidence,
-      provider: TRANSCRIPTION_PROVIDER
+      provider: providerUsed,
+      used_fallback: usedFallback
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

@@ -77,116 +77,60 @@ export default function SuperAdminModerationScreen() {
     try {
       setLoading(true);
 
-      // In a real implementation, this would fetch from moderation_queue table
-      // For now, we'll create mock data that represents different types of flagged content
-      const mockItems: ModerationItem[] = [
-        {
-          id: '1',
-          type: 'lesson',
-          title: 'Introduction to Numbers',
-          content: 'This lesson teaches children basic counting and number recognition. We will explore numbers 1-10 through interactive activities...',
-          author_id: 'teacher1',
-          author_name: 'Sarah Johnson',
-          author_email: 'sarah@brightminds.edu',
-          school_id: 'school1',
-          school_name: 'Bright Minds Preschool',
-          status: 'flagged',
-          flags: ['inappropriate_language', 'auto_flagged'],
-          report_count: 2,
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-          flagged_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'medium',
-          auto_flagged: true,
-        },
-        {
-          id: '2',
-          type: 'message',
-          title: 'Parent-Teacher Communication',
-          content: 'I am very concerned about my child\'s progress and would like to schedule an urgent meeting...',
-          author_id: 'parent1',
-          author_name: 'Michael Smith',
-          author_email: 'michael@email.com',
-          school_id: 'school2',
-          school_name: 'Little Learners Academy',
-          status: 'pending',
-          flags: ['urgent_request'],
-          report_count: 0,
-          created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-          flagged_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-          severity: 'low',
-          auto_flagged: false,
-        },
-        {
-          id: '3',
-          type: 'homework',
-          title: 'Math Practice Sheet',
-          content: 'Complete the following addition problems: 1+1=?, 2+2=?, etc...',
-          author_id: 'teacher2',
-          author_name: 'Emma Davis',
-          author_email: 'emma@sunnydays.edu',
-          school_id: 'school3',
-          school_name: 'Sunny Days Nursery',
-          status: 'flagged',
-          flags: ['copyright_concern', 'reported_by_parent'],
-          report_count: 3,
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          flagged_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'high',
-          auto_flagged: false,
-        },
-        {
-          id: '4',
-          type: 'announcement',
-          title: 'School Closure Notice',
-          content: 'Due to unexpected circumstances, the school will be closed tomorrow...',
-          author_id: 'principal1',
-          author_name: 'Dr. Jennifer Wilson',
-          author_email: 'principal@creativekids.edu',
-          school_id: 'school4',
-          school_name: 'Creative Kids Center',
-          status: 'approved',
-          flags: [],
-          report_count: 0,
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          flagged_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'low',
-          auto_flagged: false,
-          reviewed_by: profile?.id,
-          reviewed_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-          review_notes: 'Legitimate school communication - approved',
-        },
-        {
-          id: '5',
-          type: 'comment',
-          title: 'Feedback on Lesson Plan',
-          content: 'This lesson plan seems inappropriate for the age group and contains questionable content...',
-          author_id: 'teacher3',
-          author_name: 'Robert Brown',
-          author_email: 'robert@happykids.edu',
-          school_id: 'school5',
-          school_name: 'Happy Kids Preschool',
-          status: 'rejected',
-          flags: ['inappropriate_content', 'violation_of_guidelines'],
-          report_count: 5,
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          flagged_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-          severity: 'critical',
-          auto_flagged: true,
-          reviewed_by: profile?.id,
-          reviewed_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          review_notes: 'Content violates community guidelines - rejected and user warned',
-        },
-      ];
+      // Fetch real moderation items from the database
+      const { data: moderationData, error: moderationError } = await assertSupabase()
+        .rpc('get_moderation_items', {
+          p_status: filters.status === 'all' ? null : filters.status,
+          p_severity: filters.severity === 'all' ? null : filters.severity,
+          p_content_type: filters.type === 'all' ? null : filters.type,
+          p_limit: 100
+        });
 
-      setModerationItems(mockItems);
+      if (moderationError) {
+        console.error('Moderation items fetch error:', moderationError);
+        throw new Error('Failed to fetch moderation items');
+      }
+
+      if (moderationData) {
+        // Transform the data to match our interface
+        const items: ModerationItem[] = moderationData.map((item: any) => ({
+          id: item.id,
+          type: item.content_type,
+          title: item.title,
+          content: item.content,
+          author_id: item.author_id,
+          author_name: item.author_name,
+          author_email: item.author_email,
+          school_id: item.school_id,
+          school_name: item.school_name,
+          status: item.status,
+          flags: item.flags || [],
+          report_count: item.report_count || 0,
+          created_at: item.created_at,
+          flagged_at: item.flagged_at,
+          severity: item.severity,
+          auto_flagged: item.auto_flagged || false,
+          reviewed_by: item.reviewed_by,
+          reviewed_at: item.reviewed_at,
+          review_notes: item.review_notes,
+        }));
+
+        setModerationItems(items);
+        console.log(`Loaded ${items.length} moderation items from database`);
+      } else {
+        setModerationItems([]);
+        console.log('No moderation items found in database');
+      }
 
     } catch (error) {
       console.error('Failed to fetch moderation items:', error);
       Alert.alert('Error', 'Failed to load moderation items');
+      // Set empty array on error to avoid crash
+      setModerationItems([]);
     } finally {
       setLoading(false);
     }
-  }, [profile?.role, profile?.id]);
+  }, [profile?.role, filters.status, filters.severity, filters.type]);
 
   useEffect(() => {
     fetchModerationItems();
@@ -243,7 +187,24 @@ export default function SuperAdminModerationScreen() {
     try {
       setProcessing(true);
 
-      // Update in database (mock for now)
+      // Use the real moderation RPC function
+      const { data: moderationResult, error: moderationError } = await assertSupabase()
+        .rpc('moderate_content', {
+          p_queue_item_id: item.id,
+          p_action: action,
+          p_notes: reviewNotes || `Content ${action}ed by super admin`
+        });
+
+      if (moderationError) {
+        console.error('Moderation RPC error:', moderationError);
+        throw new Error('Failed to moderate content');
+      }
+
+      if (moderationResult?.error) {
+        throw new Error(moderationResult.error);
+      }
+
+      // Update local state
       const updatedItem: ModerationItem = {
         ...item,
         status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'flagged',
@@ -252,7 +213,6 @@ export default function SuperAdminModerationScreen() {
         review_notes: reviewNotes || `Content ${action}ed by super admin`,
       };
 
-      // Update local state
       setModerationItems(prev => prev.map(i => 
         i.id === item.id ? updatedItem : i
       ));
@@ -267,33 +227,6 @@ export default function SuperAdminModerationScreen() {
         author_id: item.author_id,
       });
 
-      // Log the action
-      const { error: logError } = await assertSupabase()
-        .from('audit_logs')
-        .insert({
-          admin_user_id: profile?.id,
-          action: `content_${action}ed`,
-          target_user_id: item.author_id,
-          details: {
-            content_id: item.id,
-            content_type: item.type,
-            content_title: item.title,
-            school_name: item.school_name,
-            review_notes: reviewNotes,
-            severity: item.severity,
-          },
-        });
-
-      if (logError) {
-        console.error('Failed to log moderation action:', logError);
-      }
-
-      // Send notification to content author
-      if (action === 'reject') {
-        // In a real app, this would trigger an email/push notification
-        console.log(`Notification sent to ${item.author_email} about rejected content`);
-      }
-
       Alert.alert(
         'Success',
         `Content ${action}ed successfully. ${action === 'reject' ? 'Author has been notified.' : ''}`
@@ -302,6 +235,9 @@ export default function SuperAdminModerationScreen() {
       setShowDetailModal(false);
       setSelectedItem(null);
       setReviewNotes('');
+
+      // Refresh the moderation queue to get latest data
+      await fetchModerationItems();
 
     } catch (error) {
       console.error('Failed to moderate content:', error);

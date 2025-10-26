@@ -231,9 +231,9 @@ $$;
 -- ====================================================================
 
 CREATE OR REPLACE FUNCTION public.rpc_list_teacher_seats()
-RETURNS TABLE(
-  user_id uuid, 
-  assigned_at timestamptz, 
+RETURNS TABLE (
+  user_id uuid,
+  assigned_at timestamptz,
   revoked_at timestamptz,
   assigned_by uuid,
   revoked_by uuid
@@ -332,8 +332,8 @@ VALUES (
   'Fix for subscription seats preschool_id constraint violation',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 -- ====================================================================
 -- SUCCESS MESSAGE

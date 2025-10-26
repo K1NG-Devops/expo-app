@@ -20,18 +20,18 @@ DROP POLICY IF EXISTS users_superadmin_function_check ON public.users;
 CREATE POLICY users_service_role_full_access ON public.users
 FOR ALL
 TO service_role
-USING (true)
-WITH CHECK (true);
+USING (TRUE)
+WITH CHECK (TRUE);
 
 -- 2. Direct UUID bypass for known superadmin (EMERGENCY FIX)
 CREATE POLICY users_superadmin_emergency_access ON public.users
 FOR ALL
 TO authenticated
 USING (
-    auth.uid() = 'd2df36d4-74bc-4ffb-883b-036754764265'::uuid
+  auth.uid() = 'd2df36d4-74bc-4ffb-883b-036754764265'::uuid
 )
 WITH CHECK (
-    auth.uid() = 'd2df36d4-74bc-4ffb-883b-036754764265'::uuid
+  auth.uid() = 'd2df36d4-74bc-4ffb-883b-036754764265'::uuid
 );
 
 -- 3. Self access for all users (their own record)
@@ -39,10 +39,10 @@ CREATE POLICY users_self_record_access ON public.users
 FOR ALL
 TO authenticated
 USING (
-    id = auth.uid() OR auth_user_id = auth.uid()
+  id = auth.uid() OR auth_user_id = auth.uid()
 )
 WITH CHECK (
-    id = auth.uid() OR auth_user_id = auth.uid()
+  id = auth.uid() OR auth_user_id = auth.uid()
 );
 
 -- 4. Basic read access for users to see minimal info about others in their preschool
@@ -50,12 +50,12 @@ CREATE POLICY users_preschool_read_only ON public.users
 FOR SELECT
 TO authenticated
 USING (
-    -- Allow reading users in the same preschool as the current user's profile
-    preschool_id IN (
-        SELECT p.preschool_id
-        FROM public.profiles AS p
-        WHERE p.id = auth.uid()
-    )
+  -- Allow reading users in the same preschool as the current user's profile
+  preschool_id IN (
+    SELECT p.preschool_id
+    FROM public.profiles AS p
+    WHERE p.id = auth.uid()
+  )
 );
 
 -- Temporary comment on table to indicate emergency state

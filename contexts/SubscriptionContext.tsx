@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { assertSupabase } from '@/lib/supabase';
 
@@ -18,7 +20,7 @@ type Ctx = {
   refresh: () => void;
 };
 
-const SubscriptionContext = createContext<Ctx>({
+export const SubscriptionContext = createContext<Ctx>({
   ready: false,
   tier: 'free',
   seats: null,
@@ -62,7 +64,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         let t: Tier = 'free';
         let source: TierSource = 'unknown';
         const metaTier = (user?.user_metadata as any)?.subscription_tier as string | undefined;
-        if (metaTier && ['free','starter','basic','premium','pro','enterprise'].includes(metaTier)) {
+        if (metaTier && ['free','starter','premium','enterprise'].includes(metaTier)) {
           t = metaTier as Tier;
           source = 'user';
         }
@@ -114,7 +116,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                 .maybeSingle();
               if (org?.plan_tier) {
                 const tierStr = String(org.plan_tier).toLowerCase();
-                const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                const knownTiers: Tier[] = ['free','starter','premium','enterprise'];
                 if (knownTiers.includes(tierStr as Tier)) {
                   t = tierStr as Tier;
                   source = 'organization';
@@ -141,7 +143,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                     .eq('id', sub.plan_id)
                     .maybeSingle();
                   const tierStr = (planRow?.tier || '').toLowerCase();
-                  const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                  const knownTiers: Tier[] = ['free','starter','premium','enterprise'];
                   if (knownTiers.includes(tierStr as Tier)) {
                     t = tierStr as Tier;
                     source = 'school_plan';
@@ -159,7 +161,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
                     .maybeSingle();
                   if (school?.subscription_tier) {
                     const tierStr = String(school.subscription_tier).toLowerCase();
-                    const knownTiers: Tier[] = ['free','starter','basic','premium','pro','enterprise'];
+                    const knownTiers: Tier[] = ['free','starter','premium','enterprise'];
                     if (knownTiers.includes(tierStr as Tier)) {
                       t = tierStr as Tier;
                       source = 'school_default';

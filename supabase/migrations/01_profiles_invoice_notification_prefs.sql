@@ -49,7 +49,7 @@ ADD COLUMN IF NOT EXISTS signature_public_id TEXT,
 ADD COLUMN IF NOT EXISTS signature_updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3) Create index for JSONB queries (future-proofing)
-CREATE INDEX IF NOT EXISTS idx_profiles_invoice_prefs 
+CREATE INDEX IF NOT EXISTS idx_profiles_invoice_prefs
 ON profiles USING gin (invoice_notification_preferences);
 
 -- 4) Update RLS policies to ensure users can update only their own preferences/signature
@@ -64,7 +64,7 @@ USING (auth.uid() = id)
 WITH CHECK (auth.uid() = id);
 
 -- 5) Backfill existing users with default preferences (if any don't have it)
-UPDATE profiles 
+UPDATE profiles
 SET invoice_notification_preferences = '{
   "channels": {
     "email": true,

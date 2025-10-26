@@ -45,7 +45,7 @@ class ProfileImageService {
 
       // Step 1: Validate user authentication
       const { data: { user }, error: authError } = await assertSupabase().auth.getUser();
-      if (authError || !user || user.id !== userId) {
+      if (authError || !user) {
         return {
           success: false,
           error: 'Unauthorized: User authentication failed'
@@ -61,10 +61,11 @@ class ProfileImageService {
         };
       }
 
-      // Step 3: Generate unique filename
+      // Step 3: Generate unique filename using auth UID (for RLS compliance)
       const fileExtension = finalOptions.format === 'jpeg' ? 'jpg' : finalOptions.format;
       const timestamp = Date.now();
-      const finalFilename = `profile_${userId}_${timestamp}.${fileExtension}`;
+      const authUid = user.id; // This is the auth UUID that RLS policies check against
+      const finalFilename = `profile_${authUid}_${timestamp}.${fileExtension}`;
 
       // Step 4: Convert image to a binary body for upload (robust on native)
       const body = await this.createBodyFromUri(processedImageUri, finalOptions.format);
@@ -114,22 +115,27 @@ class ProfileImageService {
         };
       }
 
-      // Step 7: Update user profile with new avatar URL
+      // Step 7: Update user profile with new avatar URL (profiles table)
       const { error: profileError } = await assertSupabase()
         .from('profiles')
         .update({ avatar_url: publicUrl })
-        .eq('id', userId);
+        .eq('id', user.id);
 
       if (profileError) {
         console.warn('Profile update error:', profileError);
         // Still consider successful since image was uploaded
       }
 
+      // Step 7b: Skip updating public.users to avoid 409 conflicts and rely on profiles + auth metadata
+      // Avatar is already stored in profiles.avatar_url and auth user metadata.
+      // If a users-table sync is needed in future, implement a server-side RPC to handle it safely.
+
       // Step 8: Update user metadata for consistency
       try {
         await assertSupabase().auth.updateUser({
           data: { avatar_url: publicUrl }
         });
+        console.log('✓ Avatar URL updated in auth metadata');
       } catch (metaError) {
         console.warn('User metadata update failed:', metaError);
         // Not critical, continue

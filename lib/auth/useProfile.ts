@@ -69,10 +69,14 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
           is_active,
           created_at,
           updated_at,
-          preschool:preschools(
+          preschool:preschools!left(
             id,
             name,
             subscription_tier
+          ),
+          organization:organizations!left(
+            id,
+            plan_tier
           )
         `)
         .eq('auth_user_id', user.id)
@@ -104,10 +108,14 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
             is_active,
             created_at,
             updated_at,
-            preschool:preschools(
+            preschool:preschools!left(
               id,
               name,
               subscription_tier
+            ),
+            organization:organizations!left(
+              id,
+              plan_tier
             )
           `)
           .eq('id', user.id)
@@ -131,14 +139,20 @@ async function fetchUserProfile(): Promise<UserProfile | null> {
     }
     
     if (profile) {
+      // Resolve tier from organization or preschool with fallback
+      const tier = profile.organization?.plan_tier || 
+                   profile.preschool?.subscription_tier || 
+                   'free';
+      
       // Normalize the profile data
       const normalizedProfile = {
         ...profile,
-        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || null,
-        auth_user_id: profile.id, // Use id as auth_user_id
-        preschool: Array.isArray(profile.preschool) && profile.preschool.length > 0 
-          ? profile.preschool[0] 
-          : null,
+        name: profile.name || `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || null,
+        auth_user_id: profile.auth_user_id || profile.id,
+        preschool: profile.preschool ? {
+          ...profile.preschool,
+          subscription_tier: tier  // Use resolved tier
+        } : null,
       };
       
       return normalizedProfile as UserProfile;

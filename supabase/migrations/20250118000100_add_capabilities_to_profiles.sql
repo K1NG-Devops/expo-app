@@ -37,18 +37,22 @@ BEGIN
 END $$;
 
 -- Update existing profiles to have capabilities if they don't
-UPDATE profiles 
-SET capabilities = CASE 
-    WHEN LOWER(role) = 'super_admin' THEN 
+UPDATE profiles
+SET
+  capabilities = CASE
+    WHEN LOWER(role) = 'super_admin'
+      THEN
         '["access_mobile_app", "view_all_organizations", "manage_organizations", "view_billing", "manage_subscriptions", "access_admin_tools"]'::jsonb
-    WHEN LOWER(role) IN ('principal_admin', 'principal') THEN 
+    WHEN LOWER(role) IN ('principal_admin', 'principal')
+      THEN
         '["access_mobile_app", "view_school_metrics", "manage_teachers", "manage_students", "access_principal_hub", "generate_reports"]'::jsonb
-    WHEN LOWER(role) = 'teacher' THEN 
+    WHEN LOWER(role) = 'teacher'
+      THEN
         '["access_mobile_app", "manage_classes", "create_assignments", "grade_assignments", "view_class_analytics"]'::jsonb
-    ELSE 
-        '["access_mobile_app", "view_child_progress", "communicate_with_teachers", "access_homework_help"]'::jsonb
-END,
-updated_at = now()
+    ELSE
+      '["access_mobile_app", "view_child_progress", "communicate_with_teachers", "access_homework_help"]'::jsonb
+  END,
+  updated_at = NOW()
 WHERE capabilities IS NULL OR capabilities = '[]'::jsonb;
 
 COMMIT;

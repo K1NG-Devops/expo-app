@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   author_id UUID NOT NULL,
   target_audience TEXT NOT NULL CHECK (target_audience IN ('all', 'teachers', 'parents', 'students')),
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  is_published BOOLEAN NOT NULL DEFAULT true,
+  is_published BOOLEAN NOT NULL DEFAULT TRUE,
   published_at TIMESTAMPTZ,
   expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -31,12 +31,17 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
+  try {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  } catch (error) {
+    // New Architecture no-op; ignore
+    console.debug('[ThemeLanguageSettings] LayoutAnimation not available in New Architecture');
+  }
 }
 
 export function ThemeLanguageSettings() {
   const { theme, mode, setMode, isDark } = useTheme();
-  const { t } = useTranslation();
+  const { t } = useTranslation('common');
   const { preferences, setLayout } = useDashboardPreferences();
   const currentLanguage = getCurrentLanguage();
   const availableLanguages = getAvailableLanguages();

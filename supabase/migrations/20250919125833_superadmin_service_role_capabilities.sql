@@ -57,89 +57,89 @@ $$;
 -- This allows superadmins to bypass RLS when needed
 
 -- Users table - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.users;
-CREATE POLICY "superadmin_service_role_access" ON public.users
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.users;
+CREATE POLICY superadmin_service_role_access ON public.users
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Students table - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.students;
-CREATE POLICY "superadmin_service_role_access" ON public.students
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.students;
+CREATE POLICY superadmin_service_role_access ON public.students
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Organizations (Preschools) table - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.organizations;
-CREATE POLICY "superadmin_service_role_access" ON public.organizations
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.organizations;
+CREATE POLICY superadmin_service_role_access ON public.organizations
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Lessons table - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.lessons;
-CREATE POLICY "superadmin_service_role_access" ON public.lessons
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.lessons;
+CREATE POLICY superadmin_service_role_access ON public.lessons
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Homework assignments - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.homework_assignments;
-CREATE POLICY "superadmin_service_role_access" ON public.homework_assignments
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.homework_assignments;
+CREATE POLICY superadmin_service_role_access ON public.homework_assignments
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Financial transactions - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.financial_transactions;
-CREATE POLICY "superadmin_service_role_access" ON public.financial_transactions
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.financial_transactions;
+CREATE POLICY superadmin_service_role_access ON public.financial_transactions
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Petty cash transactions - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.petty_cash_transactions;
-CREATE POLICY "superadmin_service_role_access" ON public.petty_cash_transactions
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.petty_cash_transactions;
+CREATE POLICY superadmin_service_role_access ON public.petty_cash_transactions
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Invoices - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.invoices;
-CREATE POLICY "superadmin_service_role_access" ON public.invoices
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.invoices;
+CREATE POLICY superadmin_service_role_access ON public.invoices
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Attendance records - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.attendance_records;
-CREATE POLICY "superadmin_service_role_access" ON public.attendance_records
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.attendance_records;
+CREATE POLICY superadmin_service_role_access ON public.attendance_records
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- AI usage logs - Full access for superadmins
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.ai_usage_logs;
-CREATE POLICY "superadmin_service_role_access" ON public.ai_usage_logs
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.ai_usage_logs;
+CREATE POLICY superadmin_service_role_access ON public.ai_usage_logs
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Push notifications - Full access for superadmins  
-DROP POLICY IF EXISTS "superadmin_service_role_access" ON public.push_notifications;
-CREATE POLICY "superadmin_service_role_access" ON public.push_notifications
-FOR ALL 
+DROP POLICY IF EXISTS superadmin_service_role_access ON public.push_notifications;
+CREATE POLICY superadmin_service_role_access ON public.push_notifications
+FOR ALL
 TO authenticated
 USING (app_auth.is_service_role_superadmin())
 WITH CHECK (app_auth.is_service_role_superadmin());
@@ -150,24 +150,24 @@ WITH CHECK (app_auth.is_service_role_superadmin());
 
 -- Create superadmin action audit log
 CREATE TABLE IF NOT EXISTS public.superadmin_audit_log (
-    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    superadmin_user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-    superadmin_email text NOT NULL,
-    action text NOT NULL, -- 'SELECT', 'INSERT', 'UPDATE', 'DELETE'
-    table_name text NOT NULL,
-    record_id uuid,
-    old_values jsonb,
-    new_values jsonb,
-    ip_address inet,
-    user_agent text,
-    created_at timestamptz DEFAULT now() NOT NULL
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  superadmin_user_id uuid REFERENCES auth.users (id) ON DELETE CASCADE,
+  superadmin_email text NOT NULL,
+  action text NOT NULL, -- 'SELECT', 'INSERT', 'UPDATE', 'DELETE'
+  table_name text NOT NULL,
+  record_id uuid,
+  old_values jsonb,
+  new_values jsonb,
+  ip_address inet,
+  user_agent text,
+  created_at timestamptz DEFAULT now() NOT NULL
 );
 
 -- Enable RLS on audit log (only superadmins can see their own logs)
 ALTER TABLE public.superadmin_audit_log ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "superadmin_audit_own_logs" ON public.superadmin_audit_log
-FOR ALL 
+CREATE POLICY superadmin_audit_own_logs ON public.superadmin_audit_log
+FOR ALL
 TO authenticated
 USING (superadmin_user_id = auth.uid() AND app_auth.is_service_role_superadmin())
 WITH CHECK (superadmin_user_id = auth.uid() AND app_auth.is_service_role_superadmin());
@@ -182,9 +182,9 @@ GRANT ALL ON public.superadmin_audit_log TO authenticated;
 
 -- Function to safely execute superadmin operations with logging
 CREATE OR REPLACE FUNCTION app_auth.execute_as_superadmin(
-    operation_type text,
-    target_table text,
-    record_data jsonb DEFAULT NULL
+  operation_type text,
+  target_table text,
+  record_data jsonb DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -290,16 +290,16 @@ GRANT EXECUTE ON FUNCTION app_auth.check_superadmin_capabilities() TO authentica
 DO $$
 BEGIN
     RAISE NOTICE '‚úÖ Superadmin Service Role Capabilities Migration Complete';
-    RAISE NOTICE 'üîê Created service role detection function: app_auth.is_service_role_superadmin()';
+    RAISE NOTICE 'üî\x90 Created service role detection function: app_auth.is_service_role_superadmin()';
     RAISE NOTICE 'üìä Added superadmin policies to all critical tables';
-    RAISE NOTICE 'üìù Created audit logging table: superadmin_audit_log';
-    RAISE NOTICE 'üõ†Ô∏è Created helper function: app_auth.execute_as_superadmin()';
-    RAISE NOTICE 'üîç Created status function: app_auth.check_superadmin_capabilities()';
+    RAISE NOTICE 'üì\x9d Created audit logging table: superadmin_audit_log';
+    RAISE NOTICE 'üõ†Ô∏\x8f Created helper function: app_auth.execute_as_superadmin()';
+    RAISE NOTICE 'üî\x8d Created status function: app_auth.check_superadmin_capabilities()';
     RAISE NOTICE 'üëë Verified superadmin emails:';
     RAISE NOTICE '   - superadmin@edudashpro.org.za';
     RAISE NOTICE '   - admin@edudashpro.com';
     RAISE NOTICE '';
-    RAISE NOTICE 'üéØ USAGE EXAMPLES:';
+    RAISE NOTICE 'ü\x8eØ USAGE EXAMPLES:';
     RAISE NOTICE '   SELECT app_auth.check_superadmin_capabilities(); -- Check status';
     RAISE NOTICE '   SELECT app_auth.execute_as_superadmin(''SELECT'', ''users''); -- Log operation';
     RAISE NOTICE '';
@@ -315,8 +315,8 @@ $$;
 COMMIT;
 
 -- Final verification
-SELECT 
-    'Superadmin Service Role Capabilities' AS feature,
-    'ACTIVE' AS status,
-    'Service role capabilities granted to verified superadmin users' AS description,
-    now() AS implemented_at;
+SELECT
+  'Superadmin Service Role Capabilities' AS feature,
+  'ACTIVE' AS status,
+  'Service role capabilities granted to verified superadmin users' AS description,
+  now() AS implemented_at;

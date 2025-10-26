@@ -2,7 +2,8 @@ import { assertSupabase } from '@/lib/supabase'
 
 export type OrgType = 'preschool' | 'k12' | 'individual'
 export type Tier = 'free' | 'starter' | 'premium' | 'enterprise'
-export type LegacyTier = 'parent_starter' | 'parent_plus' | 'private_teacher' | 'pro'
+// Legacy tier names kept for backward compatibility during migration only
+export type LegacyTier = 'parent_starter' | 'parent_plus' | 'private_teacher' | 'pro' | 'basic'
 
 /**
  * Determine organization type for the current user.
@@ -35,6 +36,7 @@ export async function getOrgType(): Promise<OrgType> {
 
 /**
  * Normalize legacy tier names to new tier system
+ * Maps old tier names to production tiers: free, starter, premium, enterprise
  */
 export function normalizeTier(tier: string): Tier {
   const normalized = tier.toLowerCase()
@@ -43,8 +45,9 @@ export function normalizeTier(tier: string): Tier {
     case 'starter':
       return 'starter'
     case 'parent_plus':
-    case 'premium':
+    case 'basic':
     case 'pro':
+    case 'premium':
       return 'premium'
     case 'enterprise':
       return 'enterprise'

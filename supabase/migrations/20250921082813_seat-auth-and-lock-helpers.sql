@@ -77,7 +77,9 @@ $$;
 -- Add comprehensive comments
 COMMENT ON FUNCTION public.util_is_service_role() IS 'Detects if current call is from service_role (for admin operations)';
 COMMENT ON FUNCTION public.util_caller_principal_school() IS 'Returns preschool_id if caller is a principal, NULL otherwise';
-COMMENT ON FUNCTION public.util_acquire_school_lock(uuid) IS 'Acquires advisory lock per school for concurrency control';
+COMMENT ON FUNCTION public.util_acquire_school_lock(
+  uuid
+) IS 'Acquires advisory lock per school for concurrency control';
 COMMENT ON FUNCTION public.util_caller_school() IS 'Returns caller preschool_id regardless of role';
 
 -- Grant execution to authenticated users (needed for SECURITY DEFINER RPCs)
@@ -104,7 +106,7 @@ VALUES (
     'completed_at', now(),
     'functions_created', ARRAY[
       'util_is_service_role',
-      'util_caller_principal_school', 
+      'util_caller_principal_school',
       'util_acquire_school_lock',
       'util_caller_school'
     ],
@@ -114,20 +116,20 @@ VALUES (
   'Seat management auth helpers completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SEAT AUTH AND LOCK HELPERS CREATED' AS status;
 
 -- Test the functions (basic smoke test)
-SELECT 
+SELECT
   'util_is_service_role' AS function_name,
   public.util_is_service_role()::text AS result
 UNION ALL
-SELECT 
+SELECT
   'util_caller_principal_school' AS function_name,
-  COALESCE(public.util_caller_principal_school()::text, 'NULL') AS result
+  coalesce(public.util_caller_principal_school()::text, 'NULL') AS result
 UNION ALL
-SELECT 
+SELECT
   'util_caller_school' AS function_name,
-  COALESCE(public.util_caller_school()::text, 'NULL') AS result;
+  coalesce(public.util_caller_school()::text, 'NULL') AS result;

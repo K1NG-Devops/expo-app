@@ -19,7 +19,8 @@
     "add": "Adicionar",
     "search": "Pesquisar",
     "retry": "Tentar Novamente",
-    "close": "Fechar"
+    "close": "Fechar",
+    "switch_account": "Trocar de conta"
   },
   "auth": {
     "signIn": "Entrar",
@@ -37,7 +38,41 @@
     "signingUp": "Criando conta...",
     "invalidCredentials": "E-mail ou senha inválidos",
     "accountCreated": "Conta criada com sucesso",
-    "passwordResetSent": "Link de redefinição enviado para seu e-mail"
+    "passwordResetSent": "Link de redefinição enviado para seu e-mail",
+    "remember_me": "Lembrar de mim",
+    "dont_have_account": "Não tem uma conta?",
+    "sign_in": {
+      "enter_email_password": "Por favor, insira e-mail e senha",
+      "failed": "Falha no Login",
+      "signing_in": "Entrando...",
+      "cta": "Entrar",
+      "no_saved_credentials": "Nenhuma credencial salva encontrada. Por favor, entre com sua senha."
+    },
+    "biometric": {
+      "prompt": "Entrar no EduDash Pro",
+      "use_face_id": "Usar Face ID",
+      "use_fingerprint": "Usar Impressão Digital",
+      "use_biometric": "Usar Biometria",
+      "enabled_for": "Login biométrico ativado"
+    },
+    "biometric_not_available": {
+      "title": "Biometria Não Disponível",
+      "desc": "Por favor, use sua senha para entrar."
+    },
+    "biometric_failed": {
+      "title": "Autenticação Falhou",
+      "desc": "A autenticação biométrica falhou",
+      "unexpected": "Ocorreu um erro durante a autenticação biométrica"
+    },
+    "oauth": {
+      "failed_start": "Falha ao iniciar login social",
+      "config_error": "Erro de configuração OAuth. Entre em contato com o suporte.",
+      "unavailable": "Login Indisponível",
+      "error": "Erro de Login"
+    },
+    "sign_up_parent": "Cadastrar como Pai/Mãe",
+    "sign_up_teacher": "Cadastrar como Professor(a)",
+    "school_register_q": "Deseja registrar uma escola?"
   },
   "ai": {
     "homework": {
@@ -67,6 +102,16 @@
     "profile": "Configurações do Perfil",
     "notifications": "Notificações",
     "privacy": "Privacidade",
+    "biometric": {
+      "title": "Autenticação biométrica",
+      "not_available_desc": "A autenticação biométrica não está disponível neste dispositivo. Requer hardware de impressão digital ou reconhecimento facial."
+    },
+    "privacy_security": {
+      "title": "Privacidade e Segurança",
+      "info": "Informações de proteção de dados"
+    },
+    "manage_alerts": "Gerencie seus alertas",
+    "notifications_coming_soon_desc": "As configurações de notificação estarão disponíveis na próxima atualização.",
     "language": {
       "title": "Idioma",
       "comingSoon": "Em Breve",
@@ -111,10 +156,31 @@
     "info": "Informação",
     "email": "Email",
     "status": "Status",
-    "go_now": "Go now"
+    "go_now": "Go now",
+    "not_set": "Não definido",
+    "enabled": "Ativado",
+    "disabled": "Desativado",
+    "not_available": "Indisponível",
+    "coming_soon": "Em breve"
   },
   "quick_actions": {
     "seat_management_subtitle": "Assign or revoke teacher seats"
+  },
+  "account": {
+    "info": {
+      "title": "Informações da Conta",
+      "full_name": "Nome completo",
+      "role": "Função",
+      "school_id": "ID da Escola"
+    },
+    "edit": {
+      "title": "Editar Perfil",
+      "personal_information": "Informações Pessoais"
+    },
+    "placeholders": {
+      "first_name": "Digite seu nome",
+      "last_name": "Digite seu sobrenome"
+    }
   },
   "subscription": {
     "choose_your_plan": "Choose Your Plan"
@@ -144,5 +210,17 @@
       "user": "Configuração do usuário",
       "unknown": "Desconhecido"
     }
+  },
+  "trends": {
+    "up": "em alta",
+    "down": "em baixa",
+    "stable": "estável",
+    "good": "bom",
+    "excellent": "excelente",
+    "warning": "alerta",
+    "attention": "atenção",
+    "needs_attention": "precisa de atenção",
+    "low": "baixo",
+    "high": "alto"
   }
 }

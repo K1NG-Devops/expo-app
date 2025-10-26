@@ -7,9 +7,9 @@ DROP FUNCTION IF EXISTS public.rpc_list_teacher_seats();
 
 -- Recreate with auth_user_id mapping
 CREATE OR REPLACE FUNCTION public.rpc_list_teacher_seats()
-RETURNS TABLE(
+RETURNS TABLE (
   user_id uuid,  -- This will now contain auth_user_id for proper comparison
-  assigned_at timestamptz, 
+  assigned_at timestamptz,
   revoked_at timestamptz,
   assigned_by uuid,
   revoked_by uuid
@@ -80,11 +80,11 @@ GRANT EXECUTE ON FUNCTION public.rpc_list_teacher_seats() TO authenticated, serv
 
 -- Create a simple view for debugging seat assignments
 CREATE OR REPLACE VIEW public.v_active_teacher_seats AS
-SELECT 
-  ss.id as seat_id,
+SELECT
+  ss.id AS seat_id,
   ss.subscription_id,
   ss.preschool_id,
-  ss.user_id as users_table_id,
+  ss.user_id AS users_table_id,
   u.auth_user_id,
   u.email,
   p.first_name,
@@ -93,11 +93,11 @@ SELECT
   ss.assigned_at,
   ss.assigned_by,
   s.plan_id,
-  s.status as subscription_status
-FROM public.subscription_seats ss
-JOIN public.users u ON u.id = ss.user_id
-LEFT JOIN public.profiles p ON p.id = u.auth_user_id
-LEFT JOIN public.subscriptions s ON s.id = ss.subscription_id
+  s.status AS subscription_status
+FROM public.subscription_seats AS ss
+INNER JOIN public.users AS u ON ss.user_id = u.id
+LEFT JOIN public.profiles AS p ON u.auth_user_id = p.id
+LEFT JOIN public.subscriptions AS s ON ss.subscription_id = s.id
 WHERE ss.revoked_at IS NULL;
 
 -- Grant select permission on the view
@@ -124,8 +124,8 @@ VALUES (
   'Fix for teacher seat ID comparison issue',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 -- ====================================================================
 -- SUCCESS MESSAGE

@@ -599,31 +599,67 @@ export function createPermissionChecker(profile: EnhancedUserProfile | null): Pe
  */
 export async function fetchEnhancedUserProfile(userId: string): Promise<EnhancedUserProfile | null> {
   try {
-    log('Attempting to fetch profile for authenticated user');
+    log('Attempting to fetch profile for authenticated user:', userId);
     
     // SECURITY: Validate the requester identity as best as possible
     // Try multiple sources for current authenticated identity
-    const { data: { session } } = await assertSupabase().auth.getSession();
-    let sessionUserId: string | null = session?.user?.id ?? null;
-
+    let session: any = null;
+    let sessionUserId: string | null = null;
+    let storedSession: import('@/lib/sessionManager').UserSession | null = null;
+    
+    // Try stored session first (faster and more reliable after sign-in)
+    log('[Profile] Checking stored session first...');
+    try {
+      storedSession = await getCurrentSession();
+      if (storedSession?.user_id) {
+        sessionUserId = storedSession.user_id;
+        log('[Profile] Stored session result: SUCCESS, user:', sessionUserId);
+        // Construct a minimal session object from stored data
+        session = {
+          user: { id: storedSession.user_id, email: storedSession.email },
+          access_token: storedSession.access_token
+        };
+      } else {
+        log('[Profile] Stored session exists but no user_id');
+      }
+    } catch (e) {
+      log('[Profile] getCurrentSession() failed:', e);
+    }
+    
+    // Then try getUser() if no stored session
     if (!sessionUserId) {
-      // Fallback to getUser()
+      log('[Profile] No stored session, trying getUser()...');
       try {
-        const { data: { user } } = await assertSupabase().auth.getUser();
-        if (user?.id) sessionUserId = user.id;
+        const getUserPromise = assertSupabase().auth.getUser();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('getUser timeout')), 3000)
+        );
+        const { data: { user } } = await Promise.race([getUserPromise, timeoutPromise]) as any;
+        if (user?.id) {
+          sessionUserId = user.id;
+          log('[Profile] getUser() result: SUCCESS, user:', sessionUserId);
+          // Construct a minimal session object for later use
+          session = { user };
+        }
       } catch (e) {
-        debug('auth.getUser() failed while fetching profile', e);
+        log('[Profile] getUser() failed or timed out:', e);
       }
     }
-
-    // Also try stored session if needed
-    let storedSession: import('@/lib/sessionManager').UserSession | null = null;
-    if (!sessionUserId) {
+    
+    // Only try getSession as last resort (can be slow/locked after sign-out)
+    if (!sessionUserId && !session) {
+      log('[Profile] Trying getSession() as last resort...');
       try {
-        storedSession = await getCurrentSession();
-        if (storedSession?.user_id) sessionUserId = storedSession.user_id;
+        const sessionPromise = assertSupabase().auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Session fetch timeout')), 3000)
+        );
+        const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+        session = result?.data?.session;
+        sessionUserId = session?.user?.id ?? null;
+        log('[Profile] getSession() result:', sessionUserId ? 'SUCCESS' : 'FAILED');
       } catch (e) {
-        debug('getCurrentSession() failed while fetching profile', e);
+        log('[Profile] getSession() failed or timed out:', e);
       }
     }
 
@@ -637,6 +673,13 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
       return null;
     }
     
+    // If we couldn't get sessionUserId due to lock contention, trust the provided userId
+    // This happens when user signs in immediately after sign-out
+    if (!sessionUserId && userId) {
+      log('[Profile] Could not validate session, trusting provided userId:', userId);
+      sessionUserId = userId;
+    }
+    
     // Try to get the profile with a more permissive approach
     // First, let's try without RLS constraints by using a function call
     let profile = null;
@@ -645,9 +688,18 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     // Production: Use secure profile fetching without debug logging
 
     // Preferred: Use secure RPC that returns the caller's profile (bypasses RLS safely)
-    const { data: rpcProfile, error: rpcError } = await assertSupabase()
+    log('[Profile] Calling get_my_profile RPC...');
+    const rpcPromise = assertSupabase()
       .rpc('get_my_profile')
       .maybeSingle();
+    const rpcTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('RPC timeout')), 5000)
+    );
+    
+    const { data: rpcProfile, error: rpcError } = await Promise.race([rpcPromise, rpcTimeout]).catch(err => {
+      log('[Profile] RPC call failed or timed out:', err.message);
+      return { data: null, error: err };
+    }) as any;
 
     if (rpcProfile && (rpcProfile as any).id) {
       profile = rpcProfile as any;

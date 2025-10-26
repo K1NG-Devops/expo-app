@@ -114,14 +114,14 @@ VALUES (
   'missing_user_role_update_20250919210000',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', now()::text,
+    'completed_at', now()::TEXT,
     'functions_created', 1,
     'migration_file', '20250919210000_add_missing_user_role_update_function.sql'
   ),
   'Missing user role update function migration completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
+  value = excluded.value,
   updated_at = now();
 
 SELECT 'MISSING USER ROLE UPDATE FUNCTION ADDED' AS status;

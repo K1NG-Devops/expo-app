@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Payment Complete • EduDash Pro</title>
+  <style>
+    html,body{height:100%}
+    body{margin:0;background:#0b1220;color:#e5e7eb;font-family:system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"}
+    .wrap{min-height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{max-width:640px;width:100%;background:#111827;border:1px solid #1f2937;border-radius:12px;padding:24px;text-align:center;box-shadow:0 10px 32px rgba(0,0,0,.35)}
+    h1{margin:0 0 8px;font-size:24px}
+    p{margin:0 0 12px;line-height:1.5}
+    .btn{display:inline-block;margin-top:12px;background:#00f5ff;color:#000;padding:12px 16px;border-radius:10px;text-decoration:none;font-weight:800}
+    .hint{opacity:.8;margin-top:8px;font-size:14px}
+    .muted{color:#9CA3AF}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Payment Successful</h1>
+      <p class="muted">We’re taking you back to EduDash Pro to finalize your subscription.</p>
+      <a id="open" class="btn" href="#">Open in app</a>
+      <div class="hint">If nothing happens automatically, tap “Open in app”.</div>
+    </div>
+  </div>
+  <script>
+    // Preserve PayFast query params (status, pf_payment_id, etc.)
+    var qs = window.location.search || '';
+    
+    // Detect if user came from web or mobile
+    var referrer = document.referrer || '';
+    var userAgent = navigator.userAgent || '';
+    var isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent);
+    var isWebApp = referrer.includes('localhost:8081') || referrer.includes('expo.dev');
+    
+    var redirectUrl;
+    if (isWebApp || (!isMobile && referrer.includes('http'))) {
+      // User came from web version - redirect back to web
+      redirectUrl = 'http://localhost:8081/screens/payments/return' + qs;
+      // For production web, you might use your web domain
+      // redirectUrl = 'https://your-web-domain.com/screens/payments/return' + qs;
+    } else {
+      // User came from mobile app - use deep link
+      redirectUrl = 'edudashpro://screens/payments/return' + qs;
+    }
+    
+    document.getElementById('open').href = redirectUrl;
+    
+    // Update button text based on platform
+    if (isWebApp || (!isMobile && referrer.includes('http'))) {
+      document.getElementById('open').textContent = 'Continue in web';
+    }
+    
+    // Try auto-redirect shortly after load
+    setTimeout(function(){ 
+      if (isWebApp || (!isMobile && referrer.includes('http'))) {
+        // For web, redirect in the same window
+        window.location.href = redirectUrl;
+      } else {
+        // For mobile, try deep link
+        window.location.href = redirectUrl;
+      }
+    }, 1000); // Slightly longer delay for web
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { router } from 'expo-router'
 import TierBadge from '@/components/ui/TierBadge'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 // Colors import removed - now using theme colors
 
 interface EnhancedHeaderProps {
@@ -30,6 +31,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   const { profile } = useAuth()
   const effectiveTier = (tier || ctxTier || 'free') as 'free' | 'pro' | 'enterprise' | 'starter' | 'basic' | 'premium'
   const { theme, isDark } = useTheme()
+  const insets = useSafeAreaInsets()
   const { t } = useTranslation()
   const [currentTime, setCurrentTime] = useState(new Date())
   const [weatherGreeting, setWeatherGreeting] = useState('')
@@ -80,7 +82,7 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
   // Removed unused isAndroid variable
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(insets.top, 8) }]}>
       <LinearGradient
         colors={isDark 
           ? ['#1a1a1a', '#2a2a2a', '#1a1a1a']
@@ -114,13 +116,6 @@ export const EnhancedHeader: React.FC<EnhancedHeaderProps> = ({
             <Text style={[styles.welcomeText, { color: theme.text }]}>
               {t('dashboard.welcome', { name: userName })} 👨‍👩‍👧‍👦
             </Text>
-            
-            {/* Tier and Role Info */}
-            <View style={styles.infoRow}>
-              {/* Unified Tier Badge component */}
-              {/* Manage plan button displayed for principal/super_admin via TierBadge */}
-              <TierBadge showManageButton size="md" />
-            </View>
 
             {/* Children Count */}
             {childrenCount > 0 && (
@@ -263,7 +258,7 @@ const styles = StyleSheet.create({
   bottomRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   statusSection: {
     flex: 1,
@@ -273,7 +268,7 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   syncStatus: {
     flexDirection: 'row',

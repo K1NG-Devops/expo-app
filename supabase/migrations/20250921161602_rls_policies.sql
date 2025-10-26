@@ -112,45 +112,46 @@ $$;
 
 -- Courses: Read policies
 CREATE POLICY "Super admins can view all courses" ON courses
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 CREATE POLICY "Instructors can view courses in their organization" ON courses
-    FOR SELECT USING (
-        public.is_instructor_level() AND 
-        public.can_access_organization(organization_id) AND
-        deleted_at IS NULL
-    );
+FOR SELECT USING (
+  public.is_instructor_level()
+  AND public.can_access_organization(organization_id)
+  AND deleted_at IS NULL
+);
 
 CREATE POLICY "Students can view courses they are enrolled in" ON courses
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM enrollments e
-            WHERE e.course_id = courses.id
-            AND e.student_id = auth.uid()
-            AND e.is_active = true
-        ) AND deleted_at IS NULL
-    );
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM enrollments AS e
+    WHERE
+      e.course_id = courses.id
+      AND e.student_id = auth.uid()
+      AND e.is_active = TRUE
+  ) AND deleted_at IS NULL
+);
 
 -- Courses: Write policies
 CREATE POLICY "Instructors can create courses in their organization" ON courses
-    FOR INSERT WITH CHECK (
-        public.is_instructor_level() AND
-        public.can_access_organization(organization_id) AND
-        instructor_id = auth.uid()
-    );
+FOR INSERT WITH CHECK (
+  public.is_instructor_level()
+  AND public.can_access_organization(organization_id)
+  AND instructor_id = auth.uid()
+);
 
 CREATE POLICY "Course instructors and admins can update their courses" ON courses
-    FOR UPDATE USING (
-        (instructor_id = auth.uid() OR public.is_admin_level()) AND
-        public.can_access_organization(organization_id) AND
-        deleted_at IS NULL
-    );
+FOR UPDATE USING (
+  (instructor_id = auth.uid() OR public.is_admin_level())
+  AND public.can_access_organization(organization_id)
+  AND deleted_at IS NULL
+);
 
 CREATE POLICY "Course instructors and admins can delete their courses" ON courses
-    FOR DELETE USING (
-        (instructor_id = auth.uid() OR public.is_admin_level()) AND
-        public.can_access_organization(organization_id)
-    );
+FOR DELETE USING (
+  (instructor_id = auth.uid() OR public.is_admin_level())
+  AND public.can_access_organization(organization_id)
+);
 
 -- ====================================================================
 -- PART 4: ENROLLMENTS TABLE POLICIES
@@ -158,42 +159,45 @@ CREATE POLICY "Course instructors and admins can delete their courses" ON course
 
 -- Enrollments: Read policies
 CREATE POLICY "Super admins can view all enrollments" ON enrollments
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 CREATE POLICY "Instructors can view enrollments for their courses" ON enrollments
-    FOR SELECT USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM courses c
-            WHERE c.id = enrollments.course_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-        )
-    );
+FOR SELECT USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM courses AS c
+    WHERE
+      c.id = enrollments.course_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+  )
+);
 
 CREATE POLICY "Students can view their own enrollments" ON enrollments
-    FOR SELECT USING (student_id = auth.uid());
+FOR SELECT USING (student_id = auth.uid());
 
 -- Enrollments: Write policies  
 CREATE POLICY "Instructors and admins can manage enrollments for their courses" ON enrollments
-    FOR ALL USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM courses c
-            WHERE c.id = enrollments.course_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-        )
-    );
+FOR ALL USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM courses AS c
+    WHERE
+      c.id = enrollments.course_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+  )
+);
 
 CREATE POLICY "Students can enroll themselves in courses" ON enrollments
-    FOR INSERT WITH CHECK (
-        student_id = auth.uid() AND
-        EXISTS (
-            SELECT 1 FROM courses c
-            WHERE c.id = course_id
-            AND c.is_active = true
-            AND c.deleted_at IS NULL
-        )
-    );
+FOR INSERT WITH CHECK (
+  student_id = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM courses AS c
+    WHERE
+      c.id = c.course_id
+      AND c.is_active = TRUE
+      AND c.deleted_at IS NULL
+  )
+);
 
 -- ====================================================================
 -- PART 5: ASSIGNMENTS TABLE POLICIES
@@ -201,41 +205,44 @@ CREATE POLICY "Students can enroll themselves in courses" ON enrollments
 
 -- Assignments: Read policies
 CREATE POLICY "Super admins can view all assignments" ON assignments
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 CREATE POLICY "Course instructors can view their assignments" ON assignments
-    FOR SELECT USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM courses c
-            WHERE c.id = assignments.course_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-        ) AND deleted_at IS NULL
-    );
+FOR SELECT USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM courses AS c
+    WHERE
+      c.id = assignments.course_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+  ) AND deleted_at IS NULL
+);
 
 CREATE POLICY "Students can view assignments for enrolled courses" ON assignments
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM enrollments e
-            JOIN courses c ON c.id = e.course_id
-            WHERE e.student_id = auth.uid()
-            AND e.course_id = assignments.course_id
-            AND e.is_active = true
-            AND c.deleted_at IS NULL
-        ) AND deleted_at IS NULL
-        AND (available_from IS NULL OR available_from <= now())
-    );
+FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM enrollments AS e
+    INNER JOIN courses AS c ON e.course_id = c.id
+    WHERE
+      e.student_id = auth.uid()
+      AND e.course_id = assignments.course_id
+      AND e.is_active = TRUE
+      AND c.deleted_at IS NULL
+  ) AND deleted_at IS NULL
+  AND (available_from IS NULL OR available_from <= now())
+);
 
 -- Assignments: Write policies
 CREATE POLICY "Course instructors can manage their assignments" ON assignments
-    FOR ALL USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM courses c
-            WHERE c.id = assignments.course_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-        )
-    );
+FOR ALL USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM courses AS c
+    WHERE
+      c.id = assignments.course_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+  )
+);
 
 -- ====================================================================
 -- PART 6: SUBMISSIONS TABLE POLICIES
@@ -243,40 +250,42 @@ CREATE POLICY "Course instructors can manage their assignments" ON assignments
 
 -- Submissions: Read policies
 CREATE POLICY "Super admins can view all submissions" ON submissions
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 CREATE POLICY "Course instructors can view submissions for their assignments" ON submissions
-    FOR SELECT USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM assignments a
-            JOIN courses c ON c.id = a.course_id
-            WHERE a.id = submissions.assignment_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-            AND a.deleted_at IS NULL
-            AND c.deleted_at IS NULL
-        )
-    );
+FOR SELECT USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM assignments AS a
+    INNER JOIN courses AS c ON a.course_id = c.id
+    WHERE
+      a.id = submissions.assignment_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+      AND a.deleted_at IS NULL
+      AND c.deleted_at IS NULL
+  )
+);
 
 CREATE POLICY "Students can view their own submissions" ON submissions
-    FOR SELECT USING (student_id = auth.uid());
+FOR SELECT USING (student_id = auth.uid());
 
 -- Submissions: Write policies
 CREATE POLICY "Students can create and update their own submissions" ON submissions
-    FOR ALL USING (
-        student_id = auth.uid() AND
-        EXISTS (
-            SELECT 1 FROM assignments a
-            JOIN courses c ON c.id = a.course_id
-            JOIN enrollments e ON e.course_id = c.id
-            WHERE a.id = submissions.assignment_id
-            AND e.student_id = auth.uid()
-            AND e.is_active = true
-            AND a.deleted_at IS NULL
-            AND c.deleted_at IS NULL
-            AND (a.available_until IS NULL OR a.available_until > now())
-        )
-    );
+FOR ALL USING (
+  student_id = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM assignments AS a
+    INNER JOIN courses AS c ON a.course_id = c.id
+    INNER JOIN enrollments AS e ON c.id = e.course_id
+    WHERE
+      a.id = submissions.assignment_id
+      AND e.student_id = auth.uid()
+      AND e.is_active = TRUE
+      AND a.deleted_at IS NULL
+      AND c.deleted_at IS NULL
+      AND (a.available_until IS NULL OR a.available_until > now())
+  )
+);
 
 -- ====================================================================
 -- PART 7: GRADES TABLE POLICIES  
@@ -284,46 +293,49 @@ CREATE POLICY "Students can create and update their own submissions" ON submissi
 
 -- Grades: Read policies
 CREATE POLICY "Super admins can view all grades" ON grades
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 CREATE POLICY "Course instructors can view grades for their assignments" ON grades
-    FOR SELECT USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM submissions s
-            JOIN assignments a ON a.id = s.assignment_id
-            JOIN courses c ON c.id = a.course_id
-            WHERE s.id = grades.submission_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-            AND a.deleted_at IS NULL
-            AND c.deleted_at IS NULL
-        )
-    );
+FOR SELECT USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM submissions AS s
+    INNER JOIN assignments AS a ON s.assignment_id = a.id
+    INNER JOIN courses AS c ON a.course_id = c.id
+    WHERE
+      s.id = grades.submission_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+      AND a.deleted_at IS NULL
+      AND c.deleted_at IS NULL
+  )
+);
 
 CREATE POLICY "Students can view their own published grades" ON grades
-    FOR SELECT USING (
-        is_published = true AND
-        EXISTS (
-            SELECT 1 FROM submissions s
-            WHERE s.id = grades.submission_id
-            AND s.student_id = auth.uid()
-        )
-    );
+FOR SELECT USING (
+  is_published = TRUE
+  AND EXISTS (
+    SELECT 1 FROM submissions AS s
+    WHERE
+      s.id = grades.submission_id
+      AND s.student_id = auth.uid()
+  )
+);
 
 -- Grades: Write policies
 CREATE POLICY "Course instructors can manage grades for their assignments" ON grades
-    FOR ALL USING (
-        public.is_instructor_level() AND
-        EXISTS (
-            SELECT 1 FROM submissions s
-            JOIN assignments a ON a.id = s.assignment_id
-            JOIN courses c ON c.id = a.course_id
-            WHERE s.id = grades.submission_id
-            AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
-            AND a.deleted_at IS NULL
-            AND c.deleted_at IS NULL
-        )
-    );
+FOR ALL USING (
+  public.is_instructor_level()
+  AND EXISTS (
+    SELECT 1 FROM submissions AS s
+    INNER JOIN assignments AS a ON s.assignment_id = a.id
+    INNER JOIN courses AS c ON a.course_id = c.id
+    WHERE
+      s.id = grades.submission_id
+      AND (c.instructor_id = auth.uid() OR public.can_access_organization(c.organization_id))
+      AND a.deleted_at IS NULL
+      AND c.deleted_at IS NULL
+  )
+);
 
 -- ====================================================================
 -- PART 8: AI MODEL TIERS POLICIES
@@ -331,10 +343,10 @@ CREATE POLICY "Course instructors can manage grades for their assignments" ON gr
 
 -- AI Model Tiers: Read-only for most users, manage for super admins
 CREATE POLICY "Anyone can view active AI model tiers" ON ai_model_tiers
-    FOR SELECT USING (is_active = true);
+FOR SELECT USING (is_active = TRUE);
 
 CREATE POLICY "Super admins can manage AI model tiers" ON ai_model_tiers
-    FOR ALL USING (public.is_super_admin());
+FOR ALL USING (public.is_super_admin());
 
 -- ====================================================================
 -- PART 9: USER AI TIERS POLICIES
@@ -342,10 +354,10 @@ CREATE POLICY "Super admins can manage AI model tiers" ON ai_model_tiers
 
 -- User AI Tiers: Users can view their own, admins can manage
 CREATE POLICY "Users can view their own AI tier" ON user_ai_tiers
-    FOR SELECT USING (user_id = auth.uid() OR public.is_admin_level());
+FOR SELECT USING (user_id = auth.uid() OR public.is_admin_level());
 
 CREATE POLICY "Admins can manage user AI tiers" ON user_ai_tiers
-    FOR ALL USING (public.is_admin_level());
+FOR ALL USING (public.is_admin_level());
 
 -- ====================================================================
 -- PART 10: AI USAGE POLICIES
@@ -353,16 +365,16 @@ CREATE POLICY "Admins can manage user AI tiers" ON user_ai_tiers
 
 -- AI Usage: Users can view their own, organization admins can view their org
 CREATE POLICY "Users can view their own AI usage" ON ai_usage
-    FOR SELECT USING (user_id = auth.uid());
+FOR SELECT USING (user_id = auth.uid());
 
 CREATE POLICY "Organization admins can view their organization's AI usage" ON ai_usage
-    FOR SELECT USING (
-        public.is_admin_level() AND
-        public.can_access_organization(organization_id)
-    );
+FOR SELECT USING (
+  public.is_admin_level()
+  AND public.can_access_organization(organization_id)
+);
 
 CREATE POLICY "Super admins can view all AI usage" ON ai_usage
-    FOR SELECT USING (public.is_super_admin());
+FOR SELECT USING (public.is_super_admin());
 
 -- AI Usage: Only system functions can write (service role)
 -- No INSERT/UPDATE/DELETE policies for regular users
@@ -373,13 +385,13 @@ CREATE POLICY "Super admins can view all AI usage" ON ai_usage
 
 -- Audit Logs: Read-only, admin access only
 CREATE POLICY "Organization admins can view their organization's audit logs" ON audit_logs
-    FOR SELECT USING (
-        public.is_admin_level() AND
-        (
-            public.is_super_admin() OR
-            public.can_access_organization(actor_organization_id)
-        )
-    );
+FOR SELECT USING (
+  public.is_admin_level()
+  AND (
+    public.is_super_admin()
+    OR public.can_access_organization(actor_organization_id)
+  )
+);
 
 -- Audit Logs: Only system functions can write (service role)
 -- No INSERT/UPDATE/DELETE policies for regular users

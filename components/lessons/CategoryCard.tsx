@@ -59,7 +59,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
           />
         </View>
         
-        <Text style={[styles.compactTitle, { color: theme.text }]} numberOfLines={2}>
+        <Text style={[styles.compactTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={2} accessibilityRole="link">
           {category.name}
         </Text>
         
@@ -99,7 +99,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
         </View>
         
         <View style={styles.largeContent}>
-          <Text style={[styles.largeTitle, { color: theme.text }]}>
+          <Text style={[styles.largeTitle, styles.clickableTitle, { color: theme.primary }]} accessibilityRole="link">
             {category.name}
           </Text>
           
@@ -146,7 +146,7 @@ export const CategoryCard: React.FC<CategoryCardProps> = ({
       </View>
       
       <View style={styles.defaultContent}>
-        <Text style={[styles.defaultTitle, { color: theme.text }]} numberOfLines={1}>
+        <Text style={[styles.defaultTitle, styles.clickableTitle, { color: theme.primary }]} numberOfLines={1} accessibilityRole="link">
           {category.name}
         </Text>
         
@@ -193,6 +193,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
     lineHeight: 20,
+  },
+  clickableTitle: {
+    textDecorationLine: 'underline',
   },
   defaultDescription: {
     fontSize: 12,

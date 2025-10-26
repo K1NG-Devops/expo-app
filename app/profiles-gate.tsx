@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOnboarding } from '@/contexts/OnboardingContext';
 import { validateUserAccess, routeAfterLogin } from '@/lib/routeAfterLogin';
 import { fetchEnhancedUserProfile, type Role } from '@/lib/rbac';
 import { track } from '@/lib/analytics';
@@ -49,16 +50,28 @@ const ROLES = [
  */
 export default function ProfilesGateScreen() {
   const { user, profile, refreshProfile, loading, signOut } = useAuth();
+  const { isOnboardingComplete } = useOnboarding();
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [accessValidation, setAccessValidation] = useState<ReturnType<typeof validateUserAccess> | null>(null);
+  const navigationInProgressRef = useRef(false);
 
   useEffect(() => {
-    // Prevent multiple routing attempts
-    const routingLock = 'profiles_gate_routing_' + (user?.id || 'anonymous');
-    if (typeof window !== 'undefined' && (window as any)[routingLock]) {
-      return; // Already routing, prevent duplicate
-    }
+    // Check if user needs onboarding (missing DOB, org type, etc.)
+    const checkOnboardingNeeded = async () => {
+      if (!profile || !user) return;
+
+      // Check if user has completed basic onboarding requirements
+      const needsOnboarding = !profile.date_of_birth;
+
+      if (needsOnboarding && !isOnboardingComplete && !navigationInProgressRef.current) {
+        console.log('Profiles-gate: User needs onboarding, redirecting...');
+        navigationInProgressRef.current = true;
+        router.replace('/onboarding');
+        return true;
+      }
+      return false;
+    };
 
     // Special case: If user came from biometric login and has no profile data,
     // they might be an existing user - try to detect their role
@@ -75,8 +88,9 @@ export default function ProfilesGateScreen() {
           const { detectRoleAndSchool } = await import('@/lib/routeAfterLogin');
           const { role } = await detectRoleAndSchool(user);
           
-          if (role) {
+          if (role && !navigationInProgressRef.current) {
             console.log('Profiles-gate: Found existing user role:', role);
+            navigationInProgressRef.current = true;
             // Route based on detected role
             const routes = {
               'parent': '/screens/parent-dashboard',
@@ -106,30 +120,21 @@ export default function ProfilesGateScreen() {
     };
 
     if (profile) {
-      const validation = validateUserAccess(profile);
-      setAccessValidation(validation);
-      
-      // If user has valid access, route them appropriately
-      if (validation.hasAccess) {
-        // Set routing lock
-        if (typeof window !== 'undefined') {
-          (window as any)[routingLock] = true;
-        }
+      // Check onboarding first
+      checkOnboardingNeeded().then(needsOnboarding => {
+        if (needsOnboarding) return; // Already redirected
+
+        const validation = validateUserAccess(profile);
+        setAccessValidation(validation);
         
-        // Use timeout to prevent blocking UI
-        setTimeout(() => {
-          routeAfterLogin(user, profile).catch(console.error).finally(() => {
-            // Clear routing lock after delay
-            setTimeout(() => {
-              if (typeof window !== 'undefined') {
-                delete (window as any)[routingLock];
-              }
-            }, 2000);
-          });
-        }, 100);
-      }
-    } else if (user && !loading) {
-      // Only try to handle existing users if we're not still loading
+        // If user has valid access, route them appropriately
+        if (validation.hasAccess && !navigationInProgressRef.current) {
+          navigationInProgressRef.current = true;
+          routeAfterLogin(user, profile).catch(console.error);
+        }
+      });
+    } else {
+      // Try to handle existing users who may not have proper profile data
       handleExistingUser();
     }
   }, [profile, user, loading]);
@@ -172,10 +177,7 @@ export default function ProfilesGateScreen() {
           } else {
             console.log('Successfully updated user metadata with role:', selectedRole);
           }
-        } catch (error) {
-          // Silently handle metadata update errors - not critical for routing
-          console.debug('Metadata update failed (non-critical):', error);
-        }
+        } catch { /* Intentional: non-fatal */ }
 
       } catch (metadataError) {
         console.error('Error updating user metadata:', metadataError);
@@ -209,13 +211,17 @@ export default function ProfilesGateScreen() {
       };
       
       const targetRoute = routes[selectedRole as keyof typeof routes];
-      if (targetRoute) {
+      if (targetRoute && !navigationInProgressRef.current) {
         console.log('Profile gate: Routing to:', targetRoute);
+        navigationInProgressRef.current = true;
         router.replace(targetRoute as any);
         return;
       }
       // Default fallback to sign-in
-      router.replace('/(auth)/sign-in' as any);
+      if (!navigationInProgressRef.current) {
+        navigationInProgressRef.current = true;
+        router.replace('/(auth)/sign-in' as any);
+      }
       return;
     } catch (error) {
       console.error('Profile gate: Continue failed:', error);
@@ -251,7 +257,8 @@ export default function ProfilesGateScreen() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      router.replace('/landing');
+      // Ensure we land on the auth screen immediately after sign-out
+      router.replace('/(auth)/sign-in');
     } catch (error) {
       console.error('Sign out failed:', error);
     }

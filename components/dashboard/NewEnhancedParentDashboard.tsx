@@ -30,13 +30,19 @@ import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import Feedback from '@/lib/feedback';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { DashFloatingButton } from '@/components/ai/DashFloatingButton';
+// VOICETODO: DashVoiceFloatingButton archived - now using DashChatButton in root layout
 import { useDashboardPreferences } from '@/contexts/DashboardPreferencesContext';
 import { track } from '@/lib/analytics';
 import { useUnreadMessageCount } from '@/hooks/useParentMessaging';
 import { usePOPStats } from '@/hooks/usePOPUploads';
 import { useParentDashboard } from '@/hooks/useDashboardData';
 import { logger } from '@/lib/logger';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming,
+  interpolate
+} from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -68,6 +74,91 @@ interface QuickActionProps {
 interface NewEnhancedParentDashboardProps {
   refreshTrigger?: number;
 }
+
+// Collapseable Section Component
+interface CollapseableSectionProps {
+  title: string;
+  children: React.ReactNode;
+  defaultCollapsed?: boolean;
+  icon?: string;
+}
+
+const CollapsableSection: React.FC<CollapseableSectionProps> = ({ 
+  title, 
+  children, 
+  defaultCollapsed = false,
+  icon
+}) => {
+  const { theme } = useTheme();
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const rotation = useSharedValue(defaultCollapsed ? 0 : 1);
+  const height = useSharedValue(defaultCollapsed ? 0 : 1);
+
+  const toggleCollapse = () => {
+    const newCollapsed = !collapsed;
+    setCollapsed(newCollapsed);
+    rotation.value = withTiming(newCollapsed ? 0 : 1, { duration: 200 });
+    height.value = withTiming(newCollapsed ? 0 : 1, { duration: 200 });
+  };
+
+  const animatedChevronStyle = useAnimatedStyle(() => {
+    const rotate = interpolate(rotation.value, [0, 1], [0, 90]);
+    return {
+      transform: [{ rotate: `${rotate}deg` }],
+    };
+  });
+
+  const animatedContentStyle = useAnimatedStyle(() => {
+    return {
+      opacity: height.value,
+      maxHeight: height.value === 0 ? 0 : undefined,
+      overflow: 'hidden' as const,
+    };
+  });
+
+  return (
+    <View style={{ marginBottom: 24 }}>
+      <TouchableOpacity
+        onPress={toggleCollapse}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 12,
+          paddingHorizontal: 4,
+        }}
+        activeOpacity={0.7}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {icon && (
+            <Ionicons 
+              name={icon as any} 
+              size={20} 
+              color={theme.primary} 
+            />
+          )}
+          <Text style={{
+            fontSize: isTablet ? 22 : isSmallScreen ? 18 : 20,
+            fontWeight: '600',
+            color: theme.text,
+          }}>
+            {title}
+          </Text>
+        </View>
+        <Animated.View style={animatedChevronStyle}>
+          <Ionicons 
+            name="chevron-forward" 
+            size={20} 
+            color={theme.textSecondary} 
+          />
+        </Animated.View>
+      </TouchableOpacity>
+      <Animated.View style={animatedContentStyle}>
+        {!collapsed && children}
+      </Animated.View>
+    </View>
+  );
+};
 
 // Child Switcher Component
 interface ChildSwitcherProps {
@@ -482,9 +573,12 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
           onChildChange={setActiveChildId}
         />
 
-        {/* Metrics Grid */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.overview', { defaultValue: 'Overview' })}</Text>
+        {/* Metrics Grid - Collapseable */}
+        <CollapsableSection 
+          title={t('dashboard.overview', { defaultValue: 'Overview' })}
+          icon="stats-chart"
+          defaultCollapsed={false}
+        >
           <View style={styles.metricsGrid}>
             {metrics.map((metric, index) => (
               <MetricCard
@@ -500,11 +594,14 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
               />
             ))}
           </View>
-        </View>
+        </CollapsableSection>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('dashboard.quick_actions', { defaultValue: 'Quick Actions' })}</Text>
+        {/* Quick Actions - Collapseable */}
+        <CollapsableSection 
+          title={t('dashboard.quick_actions', { defaultValue: 'Quick Actions' })}
+          icon="flash"
+          defaultCollapsed={false}
+        >
           <View style={styles.actionsGrid}>
             {quickActions.map((action, index) => (
               <QuickAction
@@ -518,9 +615,25 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
               />
             ))}
           </View>
-        </View>
+        </CollapsableSection>
 
+        {/* Layout Toggle for Testing */}
+        {process.env.NODE_ENV === 'development' && (
+          <View style={styles.debugSection}>
+            <TouchableOpacity
+              style={styles.debugButton}
+              onPress={() => setLayout(preferences.layout === 'enhanced' ? 'classic' : 'enhanced')}
+            >
+              <Text style={styles.debugButtonText}>
+                Switch to {preferences.layout === 'enhanced' ? 'Classic' : 'Enhanced'} Layout
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
+
+      {/* AI Assistant Floating Button */}
+      <DashVoiceFloatingButton />
     </View>
   );
 };
@@ -673,5 +786,19 @@ const createStyles = (theme: any, topInset: number, bottomInset: number) => Styl
     fontSize: isTablet ? 14 : isSmallScreen ? 10 : 12,
     color: theme.textSecondary,
     textAlign: 'center',
+  },
+  debugSection: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  debugButton: {
+    backgroundColor: theme.primary,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    color: theme.onPrimary,
+    fontWeight: '600',
   },
 });

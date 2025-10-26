@@ -80,4 +80,6 @@ GRANT EXECUTE ON FUNCTION public.debug_get_profile_direct(uuid) TO service_role;
 
 -- Add a comment explaining the function
 COMMENT ON FUNCTION public.get_my_profile() IS 'Returns the profile of the currently authenticated user. Used by fetchEnhancedUserProfile in the app.';
-COMMENT ON FUNCTION public.debug_get_profile_direct(uuid) IS 'Debug function to get any user profile directly. For development/testing only.';
+COMMENT ON FUNCTION public.debug_get_profile_direct(
+  uuid
+) IS 'Debug function to get any user profile directly. For development/testing only.';

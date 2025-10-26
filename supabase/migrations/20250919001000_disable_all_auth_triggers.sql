@@ -23,4 +23,4 @@ EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Error accessing auth.users: %', SQLERRM;
 END $$;
 
-SELECT 'All auth triggers disabled - ready for isolated testing' as status;
+SELECT 'All auth triggers disabled - ready for isolated testing' AS status;

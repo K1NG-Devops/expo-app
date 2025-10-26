@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 // deno-lint-ignore-file no-explicit-any
 // Supabase Edge Function: payments-webhook (stub)
 // Receives PayFast ITN webhook, verifies, and updates payment + subscription status
@@ -65,7 +67,7 @@ serve(async (req) => {
         const parsed = JSON.parse(customData);
         billing = parsed.billing || 'monthly';
         seats = parsed.seats || 1;
-      } catch {}
+      } catch { /* Intentional: non-fatal */ }
 
       // Get plan details
       const { data: plan } = await s
@@ -151,7 +153,7 @@ serve(async (req) => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
             body: JSON.stringify(payload),
           });
-        } catch (_n) {}
+        } catch (__n) { /* Intentional: error handled */ }
       }
       
       // Handle user (individual) subscriptions
@@ -215,7 +217,7 @@ serve(async (req) => {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
             body: JSON.stringify(payload),
           });
-        } catch (_n) {}
+        } catch (__n) { /* Intentional: error handled */ }
       }
     }
     

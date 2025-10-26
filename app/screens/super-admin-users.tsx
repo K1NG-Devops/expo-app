@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
+import ThemedStatusBar from '@/components/ui/ThemedStatusBar';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { assertSupabase } from '@/lib/supabase';
@@ -252,46 +252,48 @@ export default function SuperAdminUsersScreen() {
           style: user.is_active ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              const newStatus = !user.is_active;
-              
-              // Update user status
-              const { error: updateError } = await assertSupabase()
-                .from('user_profiles')
-                .update({ is_active: newStatus })
-                .eq('id', user.id);
+              if (user.is_active) {
+                // Suspend user using RPC function
+                const { data: suspendResult, error: suspendError } = await assertSupabase()
+                  .rpc('superadmin_suspend_user', {
+target_user_id: (user as any).auth_user_id,
+                    reason: 'Administrative suspension by super admin'
+                  });
 
-              if (updateError) {
-                throw updateError;
+                if (suspendError) {
+                  throw suspendError;
+                }
+
+                if (!suspendResult?.success) {
+                  throw new Error(suspendResult?.error || 'Failed to suspend user');
+                }
+              } else {
+                // Reactivate user using RPC function
+                const { data: reactivateResult, error: reactivateError } = await assertSupabase()
+                  .rpc('superadmin_reactivate_user', {
+target_user_id: (user as any).auth_user_id,
+                    reason: 'Administrative reactivation by super admin'
+                  });
+
+                if (reactivateError) {
+                  throw reactivateError;
+                }
+
+                if (!reactivateResult?.success) {
+                  throw new Error(reactivateResult?.error || 'Failed to reactivate user');
+                }
               }
 
               // Track the action
               track('superadmin_user_status_changed', {
                 user_id: user.id,
                 user_email: user.email,
-                new_status: newStatus ? 'active' : 'suspended',
+                new_status: user.is_active ? 'suspended' : 'active',
               });
-
-              // Log the action
-              const { error: logError } = await assertSupabase()
-                .from('audit_logs')
-                .insert({
-                  admin_user_id: profile?.id,
-                  action: newStatus ? 'user_reactivated' : 'user_suspended',
-                  target_user_id: user.id,
-                  details: {
-                    user_email: user.email,
-                    user_role: user.role,
-                    school_name: user.school_name,
-                  },
-                });
-
-              if (logError) {
-                console.error('Failed to log user status change:', logError);
-              }
 
               Alert.alert(
                 'Success',
-                `User ${newStatus ? 'reactivated' : 'suspended'} successfully`
+                `User ${user.is_active ? 'suspended' : 'reactivated'} successfully`
               );
 
               // Refresh the list
@@ -300,6 +302,103 @@ export default function SuperAdminUsersScreen() {
             } catch (error) {
               console.error('Failed to update user status:', error);
               Alert.alert('Error', 'Failed to update user status');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const updateUserRole = async (user: UserRecord, newRole: string) => {
+    Alert.alert(
+      'Update User Role',
+      `Change ${user.email}'s role from ${user.role} to ${newRole}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Update Role',
+          onPress: async () => {
+            try {
+              // Update user role using RPC function
+              const { data: updateResult, error: updateError } = await assertSupabase()
+                .rpc('superadmin_update_user_role', {
+target_user_id: (user as any).auth_user_id,
+                  new_role: newRole,
+                  reason: 'Administrative role change by super admin'
+                });
+
+              if (updateError) {
+                throw updateError;
+              }
+
+              if (!updateResult?.success) {
+                throw new Error(updateResult?.error || 'Failed to update user role');
+              }
+
+              // Track the action
+              track('superadmin_user_role_updated', {
+                user_id: user.id,
+                user_email: user.email,
+                old_role: user.role,
+                new_role: newRole,
+              });
+
+              Alert.alert('Success', `User role updated to ${newRole} successfully`);
+
+              // Refresh the list
+              fetchUsers();
+
+            } catch (error) {
+              console.error('Failed to update user role:', error);
+              Alert.alert('Error', 'Failed to update user role');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const requestUserDeletion = async (user: UserRecord) => {
+    Alert.alert(
+      'Request User Deletion',
+      `Request deletion of ${user.email}? This will schedule the user for deletion in 7 days.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Request Deletion',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Request user deletion using RPC function
+              const { data: deleteResult, error: deleteError } = await assertSupabase()
+                .rpc('superadmin_request_user_deletion', {
+target_user_id: (user as any).auth_user_id,
+                  deletion_reason: 'Administrative deletion request by super admin'
+                });
+
+              if (deleteError) {
+                throw deleteError;
+              }
+
+              if (!deleteResult?.success) {
+                throw new Error(deleteResult?.error || 'Failed to request user deletion');
+              }
+
+              // Track the action
+              track('superadmin_user_deletion_requested', {
+                user_id: user.id,
+                user_email: user.email,
+                request_id: deleteResult?.request_id,
+              });
+
+              Alert.alert('Success', 'User deletion request submitted successfully');
+
+              // Refresh the list
+              fetchUsers();
+
+            } catch (error) {
+              console.error('Failed to request user deletion:', error);
+              Alert.alert('Error', 'Failed to request user deletion');
             }
           }
         }
@@ -393,7 +492,7 @@ export default function SuperAdminUsersScreen() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'User Management', headerShown: false }} />
-        <StatusBar style="light" />
+        <ThemedStatusBar />
         <SafeAreaView style={styles.deniedContainer}>
           <Text style={styles.deniedText}>Access Denied - Super Admin Only</Text>
         </SafeAreaView>
@@ -404,17 +503,20 @@ export default function SuperAdminUsersScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'User Management', headerShown: false }} />
-      <StatusBar style="light" />
+      <ThemedStatusBar />
       
       {/* Header */}
       <SafeAreaView style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.primary} />
+          <TouchableOpacity 
+            onPress={() => router.canGoBack() ? router.back() : router.push('/screens/super-admin-dashboard')} 
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#00f5ff" />
           </TouchableOpacity>
           <Text style={styles.title}>User Management</Text>
           <TouchableOpacity onPress={() => setShowFilters(!showFilters)} style={styles.filterButton}>
-            <Ionicons name="filter" size={24} color={theme.primary} />
+            <Ionicons name="filter" size={24} color="#00f5ff" />
           </TouchableOpacity>
         </View>
         
@@ -645,6 +747,33 @@ export default function SuperAdminUsersScreen() {
                   <Text style={[styles.modalActionText, { color: selectedUser.is_active ? "#ef4444" : "#10b981" }]}>
                     {selectedUser.is_active ? 'Suspend User' : 'Reactivate User'}
                   </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalActionButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Update User Role',
+                      'Select new role for this user:',
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Principal', onPress: () => updateUserRole(selectedUser, 'principal') },
+                        { text: 'Teacher', onPress: () => updateUserRole(selectedUser, 'teacher') },
+                        { text: 'Parent', onPress: () => updateUserRole(selectedUser, 'parent') },
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="person-add" size={20} color="#8b5cf6" />
+                  <Text style={[styles.modalActionText, { color: '#8b5cf6' }]}>Update Role</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalActionButton}
+                  onPress={() => requestUserDeletion(selectedUser)}
+                >
+                  <Ionicons name="trash" size={20} color="#dc2626" />
+                  <Text style={[styles.modalActionText, { color: '#dc2626' }]}>Request Deletion</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>

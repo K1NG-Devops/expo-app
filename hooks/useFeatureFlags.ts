@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import { useState, useEffect } from 'react'
 import { getFeatureFlags, getFeatureFlagsSync, FeatureFlags } from '../lib/featureFlags'
 import { useAuth } from '../contexts/AuthContext'
@@ -23,7 +24,7 @@ export function useFeatureFlags() {
         const freshFlags = await getFeatureFlags(user.id)
         setFlags(freshFlags)
       } catch (err) {
-        console.warn('Failed to fetch feature flags:', err)
+        logger.warn('Failed to fetch feature flags:', err)
         setError(err instanceof Error ? err : new Error('Unknown error'))
         // Fall back to sync flags on error
         setFlags(getFeatureFlagsSync())

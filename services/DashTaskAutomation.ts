@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash Task Automation System
  * Handles complex multi-step tasks and workflow automation
  */
 
-import { DashTask, DashTaskStep, DashAction, DashReminder } from './DashAIAssistant';
+import { DashTask, DashTaskStep, DashAction, DashReminder } from './dash-ai/types';
 
 export interface TaskTemplate {
   id: string;
@@ -16,18 +18,27 @@ export interface TaskTemplate {
   triggerConditions?: string[];
 }
 
-export class DashTaskAutomation {
-  private static instance: DashTaskAutomation;
+/**
+ * DashTaskAutomation interface for dependency injection
+ */
+export interface IDashTaskAutomation {
+  createTask(templateId?: string, customParams?: Partial<DashTask>, userRole?: string): Promise<any>;
+  executeTaskStep(taskId: string, stepId: string, userInput?: any): Promise<{ success: boolean; result?: any; nextStep?: string; error?: string }>;
+  getTaskTemplates(userRole?: string): TaskTemplate[];
+  getTask(taskId: string): DashTask | undefined;
+  getActiveTask(): DashTask | undefined;
+  getActiveTasks(): DashTask[];
+  cancelTask(taskId: string): { success: boolean; error?: string };
+  dispose(): void;
+}
+
+export class DashTaskAutomation implements IDashTaskAutomation {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashTaskAutomation;
+  
   private activeTasks: Map<string, DashTask> = new Map();
   private taskTemplates: Map<string, TaskTemplate> = new Map();
   private automationRules: Map<string, any> = new Map();
-
-  static getInstance(): DashTaskAutomation {
-    if (!DashTaskAutomation.instance) {
-      DashTaskAutomation.instance = new DashTaskAutomation();
-    }
-    return DashTaskAutomation.instance;
-  }
 
   constructor() {
     this.initializeTaskTemplates();
@@ -512,6 +523,13 @@ export class DashTaskAutomation {
   }
 
   /**
+   * Get the current active task (first non-completed task)
+   */
+  public getActiveTask(): DashTask | undefined {
+    return Array.from(this.activeTasks.values()).find(t => t.status !== 'completed' && t.status !== 'failed');
+  }
+
+  /**
    * Get active tasks
    */
   public getActiveTasks(): DashTask[] {
@@ -562,4 +580,32 @@ export class DashTaskAutomation {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  dispose(): void {
+    this.activeTasks.clear();
+    this.taskTemplates.clear();
+    this.automationRules.clear();
+  }
 }
+
+// Backward compatibility: Export default instance
+// Note: Prefer using DI container to resolve this service
+let _defaultInstance: DashTaskAutomation | null = null;
+
+export function getDashTaskAutomationInstance(): DashTaskAutomation {
+  if (!_defaultInstance) {
+    _defaultInstance = new DashTaskAutomation();
+  }
+  return _defaultInstance;
+}
+
+// Add static getInstance method to class
+const DashTaskAutomationInstance = getDashTaskAutomationInstance();
+DashTaskAutomation.getInstance = function() {
+  return DashTaskAutomationInstance;
+};
+
+export default DashTaskAutomationInstance;

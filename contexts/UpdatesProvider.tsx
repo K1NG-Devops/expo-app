@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import * as Updates from 'expo-updates';
 import { AppState } from 'react-native';
@@ -42,34 +43,27 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Check for updates manually
   const checkForUpdates = async (): Promise<boolean> => {
     if (!Updates.isEnabled) {
-      console.log('[Updates] Updates are disabled - skipping check');
-      return false;
-    }
-
-    // Skip in development unless explicitly enabled
-    const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
-    if (__DEV__ && !enableOTAUpdates) {
-      console.log('[Updates] Skipping manual update check in development');
+      logger.info('[Updates] Updates are disabled - skipping check');
       return false;
     }
     
-    console.log('[Updates] Manual update check initiated');
+    logger.info('[Updates] Manual update check initiated');
 
     try {
       updateState({ isDownloading: true, updateError: null });
-      console.log('[Updates] Checking for updates...');
+      logger.info('[Updates] Checking for updates...');
       
       const update = await Updates.checkForUpdateAsync();
-      console.log('[Updates] Update check result:', { isAvailable: update.isAvailable, manifest: update.manifest?.id });
+      logger.info('[Updates] Update check result:', { isAvailable: update.isAvailable, manifest: update.manifest?.id });
       
       // Track update check
       trackOTAUpdateCheck(update);
       
       if (update.isAvailable) {
-        console.log('[Updates] Update available, starting download...');
+        logger.info('[Updates] Update available, starting download...');
         // Start downloading
         const result = await Updates.fetchUpdateAsync();
-        console.log('[Updates] Update downloaded:', { isNew: result.isNew });
+        logger.info('[Updates] Update downloaded:', { isNew: result.isNew });
         
         // Track update fetch
         trackOTAUpdateFetch(result);
@@ -77,13 +71,13 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
         updateState({ isDownloading: false, isUpdateDownloaded: true });
         return true;
       } else {
-        console.log('[Updates] No update available');
+        logger.info('[Updates] No update available');
         updateState({ isDownloading: false, lastCheckTime: new Date() });
         return false;
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to check for updates';
-      console.warn('[Updates] Update check failed:', errorMessage, error);
+      logger.warn('[Updates] Update check failed:', errorMessage, error);
       
       // Track error
       if (error instanceof Error) {
@@ -119,7 +113,7 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       }
       
       if (__DEV__) {
-        console.warn('Update apply failed:', errorMessage);
+        logger.warn('Update apply failed:', errorMessage);
       }
     }
   };
@@ -137,29 +131,23 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Background update checking
   const backgroundCheck = useCallback(async () => {
     if (!Updates.isEnabled) {
-      console.log('[Updates] Updates disabled - skipping background check');
-      return;
-    }
-
-    // Skip in development unless explicitly enabled
-    const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
-    if (__DEV__ && !enableOTAUpdates) {
+      logger.info('[Updates] Updates disabled - skipping background check');
       return;
     }
 
     try {
-      console.log('[Updates] Background check for updates...');
+      logger.info('[Updates] Background check for updates...');
       const update = await Updates.checkForUpdateAsync();
-      console.log('[Updates] Background check result:', { isAvailable: update.isAvailable });
+      logger.info('[Updates] Background check result:', { isAvailable: update.isAvailable });
       
       // Track background update check
       trackOTAUpdateCheck(update);
       
       if (update.isAvailable) {
-        console.log('[Updates] Background update available, downloading...');
+        logger.info('[Updates] Background update available, downloading...');
         updateState({ isDownloading: true, updateError: null });
         const result = await Updates.fetchUpdateAsync();
-        console.log('[Updates] Background update downloaded:', { isNew: result.isNew });
+        logger.info('[Updates] Background update downloaded:', { isNew: result.isNew });
         
         // Track background update fetch
         trackOTAUpdateFetch(result);
@@ -169,7 +157,7 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
           lastCheckTime: new Date()
         });
       } else {
-        console.log('[Updates] No background update available');
+        logger.info('[Updates] No background update available');
         updateState({ 
           isDownloading: false, 
           lastCheckTime: new Date()
@@ -177,7 +165,7 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Background update check failed';
-      console.warn('[Updates] Background update check failed:', errorMessage);
+      logger.warn('[Updates] Background update check failed:', errorMessage);
       
       // Don't set error state for background checks to avoid spam
       updateState({ 
@@ -190,22 +178,22 @@ export function UpdatesProvider({ children }: UpdatesProviderProps) {
   // Set up background checking on app state changes
   useEffect(() => {
     if (!Updates.isEnabled) {
-      console.log('[Updates] Updates disabled - skipping background setup');
+      logger.info('[Updates] Updates disabled - skipping background setup');
       return;
     }
 
-    // Skip automatic background checks in development unless explicitly enabled
+    // Skip automatic background checks in development (but allow preview/production)
     const environment = process.env.EXPO_PUBLIC_ENVIRONMENT;
     const enableOTAUpdates = process.env.EXPO_PUBLIC_ENABLE_OTA_UPDATES === 'true';
     
-    if (__DEV__ && !enableOTAUpdates) {
-      console.log('[Updates] Skipping automatic background checks in development');
+    if (__DEV__ && environment === 'development' && !enableOTAUpdates) {
+      logger.info('[Updates] Skipping automatic background checks in development');
       return;
     }
     
-    console.log(`[Updates] Environment: ${environment}, OTA enabled: ${enableOTAUpdates}, DEV: ${__DEV__}`);
+    logger.info(`[Updates] Environment: ${environment}, OTA enabled: ${enableOTAUpdates}, DEV: ${__DEV__}`);
 
-    // Initial background check
+    // Initial background check (only in production)
     backgroundCheck();
     
     // Check on app state changes

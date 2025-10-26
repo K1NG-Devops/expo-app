@@ -27,8 +27,8 @@ VALUES (
   'Backup of teacher seat limits before normalization',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 -- ====================================================================
 -- PART 2: NORMALIZE TEACHER SEAT LIMITS PER PRODUCT REQUIREMENTS
@@ -38,14 +38,14 @@ VALUES (
 UPDATE public.subscription_plans
 SET
   max_teachers = 2,
-  updated_at = NOW()
+  updated_at = now()
 WHERE tier = 'free' AND is_active = TRUE;
 
 -- Update Starter plan: 5 teacher seats
 UPDATE public.subscription_plans
 SET
   max_teachers = 5,
-  updated_at = NOW()
+  updated_at = now()
 WHERE tier = 'starter' AND is_active = TRUE;
 
 -- Premium plan already has 15 teacher seats (no update needed)
@@ -61,7 +61,7 @@ WHERE tier = 'starter' AND is_active = TRUE;
 UPDATE public.subscription_plans
 SET
   max_teachers = 100,
-  updated_at = NOW()
+  updated_at = now()
 WHERE tier = 'enterprise' AND is_active = TRUE;
 
 -- ====================================================================
@@ -73,10 +73,11 @@ WHERE tier = 'enterprise' AND is_active = TRUE;
 UPDATE public.subscriptions
 SET
   seats_total = subscription_plans.max_teachers,
-  updated_at = NOW()
+  updated_at = now()
 FROM
   public.subscription_plans
-WHERE subscriptions.plan_id = subscription_plans.id
+WHERE
+  subscriptions.plan_id = subscription_plans.id
   AND subscription_plans.is_active = TRUE
   AND subscriptions.status IN ('active', 'trialing')
   -- Only update if current seats_total differs from plan limit
@@ -94,7 +95,7 @@ VALUES (
     SELECT
       jsonb_build_object(
         'completed_at',
-        NOW(),
+        now(),
         'updated_plans',
         (
           SELECT
@@ -110,11 +111,10 @@ VALUES (
         ),
         'affected_subscriptions',
         (
-          SELECT
-            COUNT(*)
+          SELECT count(*)
           FROM public.subscriptions AS subscriptions
           INNER JOIN public.subscription_plans AS subscription_plans
-            ON subscription_plans.id = subscriptions.plan_id
+            ON subscriptions.plan_id = subscription_plans.id
           WHERE subscription_plans.is_active = TRUE
         )
       )
@@ -122,8 +122,8 @@ VALUES (
   'Teacher seat limits normalization completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'TEACHER SEAT LIMITS NORMALIZED' AS status;
 

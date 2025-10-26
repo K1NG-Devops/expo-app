@@ -1,4 +1,5 @@
 import { assertSupabase } from '@/lib/supabase';
+import { extractOrganizationId } from '@/lib/tenant/compat';
 
 export type CreateSchoolParams = {
   schoolName: string;
@@ -7,7 +8,16 @@ export type CreateSchoolParams = {
   planTier?: 'free' | 'starter' | 'premium' | 'enterprise';
 };
 
+/**
+ * @deprecated Use CreateOrganizationParams instead
+ */
+export type CreateOrganizationParams = CreateSchoolParams;
+
 export class TenantService {
+  /**
+   * Create a new organization (school)
+   * @deprecated Method name will change to createOrganization in future
+   */
   static async createSchool(params: CreateSchoolParams): Promise<string> {
     const { data, error } = await assertSupabase().rpc('principal_create_school', {
       p_school_name: params.schoolName,
@@ -19,12 +29,23 @@ export class TenantService {
     return String(data);
   }
 
-  static async getMySchoolId(): Promise<string | null> {
-    // Try profile first
+  /**
+   * Get current user's organization ID
+   * Uses organization_id with fallback to preschool_id
+   */
+  static async getMyOrganizationId(): Promise<string | null> {
     const { data: prof } = await assertSupabase()
       .from('profiles')
-      .select('preschool_id')
+      .select('organization_id, preschool_id')
       .maybeSingle();
-    return (prof as any)?.preschool_id || null;
+    
+    return extractOrganizationId(prof);
+  }
+
+  /**
+   * @deprecated Use getMyOrganizationId instead
+   */
+  static async getMySchoolId(): Promise<string | null> {
+    return this.getMyOrganizationId();
   }
 }

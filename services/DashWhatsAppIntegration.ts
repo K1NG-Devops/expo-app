@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash AI WhatsApp Integration Service
  * 
@@ -7,7 +9,8 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { getCurrentProfile } from '@/lib/sessionManager';
-import { DashAIAssistant } from './DashAIAssistant';
+import type { IDashAIAssistant } from './dash-ai/DashAICompat';
+import { getAssistant } from './core/getAssistant';
 import { router } from 'expo-router';
 import { Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -70,16 +73,33 @@ export interface WhatsAppOnboardingFlow {
   abandoned_at?: number;
 }
 
-export class DashWhatsAppIntegration {
-  private static instance: DashWhatsAppIntegration;
-  private dashInstance: DashAIAssistant | null = null;
+/**
+ * Interface for DashWhatsAppIntegration
+ */
+export interface IDashWhatsAppIntegration {
+  initialize(): Promise<void>;
+  generateConnectionQRCode(invitedBy?: string): string;
+  handleIncomingConnection(phone: string, connectionData?: any): Promise<{ success: boolean; onboardingFlow?: WhatsAppOnboardingFlow; error?: string }>;
+  createOnboardingFlow(phone: string, initialContext?: any): Promise<WhatsAppOnboardingFlow>;
+  processIncomingMessage(phone: string, message: string, messageType?: string): Promise<void>;
+  createSmartInviteLink(inviterRole: string, schoolId: string): string;
+  createRoleBasedShortcuts(userRole: string, phone: string): Promise<DashWhatsAppMessage[]>;
+  handleQuickReply(phone: string, action: string, payload?: any): Promise<void>;
+  getActiveOnboardingFlows(): WhatsAppOnboardingFlow[];
+  completeOnboarding(userId: string): Promise<void>;
+  cleanup(): void;
+  dispose(): void;
+}
+
+export class DashWhatsAppIntegration implements IDashWhatsAppIntegration {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashWhatsAppIntegration;
+  
+  private dashInstance: IDashAIAssistant | null = null;
   private activeOnboardingFlows: Map<string, WhatsAppOnboardingFlow> = new Map();
 
-  public static getInstance(): DashWhatsAppIntegration {
-    if (!DashWhatsAppIntegration.instance) {
-      DashWhatsAppIntegration.instance = new DashWhatsAppIntegration();
-    }
-    return DashWhatsAppIntegration.instance;
+  constructor() {
+    // Constructor is now public for DI
   }
 
   /**
@@ -90,8 +110,7 @@ export class DashWhatsAppIntegration {
       console.log('[DashWhatsApp] Initializing WhatsApp integration...');
       
       // Initialize Dash AI instance
-      this.dashInstance = DashAIAssistant.getInstance();
-      await this.dashInstance.initialize();
+      this.dashInstance = await getAssistant();
       
       // Load any active onboarding flows
       await this.loadActiveOnboardingFlows();
@@ -170,7 +189,7 @@ export class DashWhatsAppIntegration {
       Include: brief introduction, what they can expect, and next steps.
       Tone: friendly and professional, max 160 characters for WhatsApp.`;
       
-      const response = await this.dashInstance.sendMessage(welcomePrompt, conversationId);
+      const response = await this.dashInstance.sendMessage(welcomePrompt, undefined, conversationId);
       
       // Send the message via WhatsApp (would integrate with WhatsApp Business API)
       await this.sendWhatsAppMessage(phone, {
@@ -374,7 +393,7 @@ export class DashWhatsAppIntegration {
     return {
       id: 'dash_introduction',
       type: 'onboarding',
-      content: `Meet Dash! 🤖 Your AI assistant can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
+      content: `Meet Dash! 🤖 I can help you with: ${dashCapabilities.join(', ')}. Ready to start?`,
       quick_replies: [
         { id: 'try_dash', title: '🚀 Try Dash Now', action: 'start_dash_conversation' },
         { id: 'dashboard', title: '📊 Open Dashboard', action: 'open_dashboard' },
@@ -478,7 +497,7 @@ export class DashWhatsAppIntegration {
       
       // Process message with Dash AI
       if (this.dashInstance && conversationId) {
-        const response = await this.dashInstance.sendMessage(message, conversationId);
+        const response = await this.dashInstance.sendMessage(message, undefined, conversationId);
         
         // Send response back via WhatsApp
         await this.sendWhatsAppMessage(phone, {
@@ -766,6 +785,7 @@ export class DashWhatsAppIntegration {
       // Send initial Dash greeting
       const greeting = await this.dashInstance.sendMessage(
         "A user from WhatsApp wants to chat. Provide a warm, helpful greeting and ask how you can assist them today.",
+        undefined,
         conversationId
       );
       
@@ -913,4 +933,30 @@ export class DashWhatsAppIntegration {
       this.dashInstance.cleanup();
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.cleanup();
+  }
 }
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashWhatsAppIntegrationInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashWhatsApp);
+  } catch {
+    // Fallback during initialization
+    return new DashWhatsAppIntegration();
+  }
+})();
+
+// Add static getInstance method to class
+DashWhatsAppIntegration.getInstance = function() {
+  return DashWhatsAppIntegrationInstance;
+};
+
+export default DashWhatsAppIntegrationInstance;

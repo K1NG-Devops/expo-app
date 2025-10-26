@@ -643,7 +643,7 @@ export class ApprovalWorkflowService {
    */
   static async logApprovalAction(
     preschoolId: string,
-    entityType: 'proof_of_payment' | 'petty_cash_request' | 'expense' | 'payment',
+    entityType: 'proof_of_payment' | 'petty_cash_request' | 'expense' | 'payment' | 'progress_report',
     entityId: string,
     performedBy: string,
     performerName: string,
@@ -707,6 +707,30 @@ export class ApprovalWorkflowService {
   static async notifyTeacherPettyCashRejected(request: any): Promise<void> {
     // TODO: Implement notification to teacher about petty cash rejection
     console.log(`❌ NOTIFICATION: Petty cash rejected for ${request.requestor_name} - reason: ${request.rejection_reason}`);
+  }
+
+  // ============================================================================
+  // PROGRESS REPORT NOTIFICATIONS
+  // ============================================================================
+
+  static async notifyPrincipalOfNewReport(report: any): Promise<void> {
+    // TODO: Implement notification to principal about new report submission
+    console.log(`📋 NOTIFICATION: New progress report submitted for review - Report ID: ${report.id}`);
+  }
+
+  static async notifyTeacherReportApproved(report: any): Promise<void> {
+    // TODO: Implement notification to teacher about report approval
+    console.log(`✅ NOTIFICATION: Progress report approved - Report ID: ${report.id}`);
+  }
+
+  static async notifyTeacherReportRejected(report: any): Promise<void> {
+    // TODO: Implement notification to teacher about report rejection
+    console.log(`❌ NOTIFICATION: Progress report rejected - Report ID: ${report.id} - Reason: ${report.rejection_reason}`);
+  }
+
+  static async notifyTeacherReportSent(report: any): Promise<void> {
+    // TODO: Implement notification to teacher about report sent to parent
+    console.log(`📧 NOTIFICATION: Progress report sent to parent - Report ID: ${report.id}`);
   }
 
   // ============================================================================

@@ -1,11 +1,30 @@
-import { useState, useEffect, useCallback } from 'react';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
+import { logger } from '@/lib/logger';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { assertSupabase } from '@/lib/supabase';
 import { usePettyCashDashboard } from './usePettyCashDashboard';
 import { useTranslation } from 'react-i18next';
 
+// Polyfill for Promise.allSettled (for older JavaScript engines)
+if (!Promise.allSettled) {
+  Promise.allSettled = function <T>(promises: Array<Promise<T>>): Promise<Array<PromiseSettledResult<T>>> {
+    return Promise.all(
+      promises.map((promise) =>
+        Promise.resolve(promise)
+          .then((value) => ({ status: 'fulfilled' as const, value }))
+          .catch((reason) => ({ status: 'rejected' as const, reason }))
+      )
+    );
+  };
+}
+
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const PRINCIPAL_HUB_API = `${SUPABASE_URL}/functions/v1/principal-hub-api`;
+
+// Global fetch guard to avoid duplicate initial fetches in dev (React StrictMode double-mount)
+const __FETCH_GUARD: Record<string, number> = ((global as any).__EDUDASH_FETCH_GUARD__ ??= {});
 
 export interface SchoolStats {
   students: { total: number; trend: string };
@@ -95,7 +114,7 @@ const apiCall = async (endpoint: string, user?: any) => {
     const { data: { session }, error } = await assertSupabase().auth.getSession();
     
     if (error) {
-      console.warn('Session error:', error);
+      logger.warn('Session error:', error);
     }
     
     if (session?.access_token) {
@@ -173,53 +192,77 @@ export const usePrincipalHub = () => {
     }
   };
 
-  const getPreschoolId = useCallback((): string | null => {
-    // Try from profile (assuming it has organization_id that can be used as preschool_id)
+  const userId = user?.id ?? null;
+
+  const preschoolId = useMemo((): string | null => {
     if (profile?.organization_id) {
       return profile.organization_id as string;
     }
-    
-    // Try from user metadata
     const userMetaPreschoolId = user?.user_metadata?.preschool_id;
-    if (userMetaPreschoolId) {
-      return userMetaPreschoolId;
-    }
+    return userMetaPreschoolId ?? null;
+  }, [profile?.organization_id, user?.user_metadata?.preschool_id]);
 
-    return null;
-  }, [profile, user]);
+  const isMountedRef = useRef(true);
+  const inFlightRef = useRef(false);
+  // Additional guard: track if initial fetch completed
+  const initialFetchComplete = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
-    const preschoolId = getPreschoolId();
-    
-    console.log('📊 Principal Hub Debug:', {
+    const fetchId = `${preschoolId}-${Date.now()}`;
+    logger.info('📊 [PrincipalHub] Fetch initiated:', {
+      fetchId,
       preschoolId,
-      userId: user?.id,
+      userId,
+      forceRefresh,
+      inFlight: inFlightRef.current,
+      initialFetchComplete: initialFetchComplete.current,
       profileOrgId: profile?.organization_id,
       userMetadata: user?.user_metadata
     });
     
     if (!preschoolId) {
-      console.warn('No preschool ID available for Principal Hub');
+      logger.warn('[PrincipalHub] No preschool ID available');
       setError('School not assigned');
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
       return;
     }
 
-    if (!user?.id) {
+    if (!userId) {
+      logger.warn('[PrincipalHub] User not authenticated');
       setError('User not authenticated');
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
       return;
     }
+
+    // Prevent duplicate fetches unless forced or initial fetch incomplete
+    if (inFlightRef.current && !forceRefresh) {
+      logger.info('[PrincipalHub] Fetch already in flight, skipping', fetchId);
+      return;
+    }
+    
+    // Prevent multiple initial fetches (React StrictMode guard)
+    if (initialFetchComplete.current && !forceRefresh) {
+      logger.info('[PrincipalHub] Initial fetch already completed, skipping', fetchId);
+      return;
+    }
+    
+    inFlightRef.current = true;
 
     try {
-      setLoading(true);
+      if (isMountedRef.current) setLoading(true);
       setError(null);
       setLastRefresh(new Date());
 
-      console.log('🏫 Loading REAL Principal Hub data from database for preschool:', preschoolId);
+      logger.info('🏫 Loading REAL Principal Hub data from database for preschool:', preschoolId);
 
       // **FETCH REAL DATA FROM DATABASE INSTEAD OF API/MOCK**
-      console.log('📊 Fetching real data from Supabase tables...');
+      logger.info('📊 Fetching real data from Supabase tables...');
       
       const [
         studentsResult,
@@ -256,7 +299,7 @@ export const usePrincipalHub = () => {
             created_at
           `)
           .eq('preschool_id', preschoolId)
-          .eq('is_active', true),
+          .or('is_active.eq.true,is_active.is.null'),
           
         // Get classes count
         assertSupabase()
@@ -324,7 +367,7 @@ export const usePrincipalHub = () => {
       const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
       const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
       
-      console.log('📊 REAL DATA FETCHED:', {
+      logger.info('📊 REAL DATA FETCHED:', {
         studentsCount,
         teachersCount: teachersData.length,
         classesCount,
@@ -340,27 +383,93 @@ export const usePrincipalHub = () => {
         attendanceRate = Math.round((presentCount / attendanceData.length) * 100);
       }
       
-      // Process teachers data with real database information
+      // Preload secure per-teacher stats from view (tenant-isolated)
+      let overviewByEmail: Map<string, { class_count: number; student_count: number }> = new Map();
+      try {
+        const { data: overviewRows } = await assertSupabase()
+          .from('vw_teacher_overview')
+          .select('email, class_count, student_count');
+        (overviewRows || []).forEach((row: any) => {
+          if (row?.email) overviewByEmail.set(String(row.email).toLowerCase(), {
+            class_count: Number(row.class_count || 0),
+            student_count: Number(row.student_count || 0)
+          });
+        });
+      } catch (e) {
+        logger.warn('[PrincipalHub] vw_teacher_overview fetch failed, falling back to per-teacher queries:', e);
+      }
+
+      // Process teachers data with database information (using view when available)
       const processedTeachers = await Promise.all(
         teachersData.map(async (teacher: any) => {
-          // Get classes assigned to this teacher
-          const { count: teacherClassesCount } = await assertSupabase()
-            .from('classes')
-            .select('id', { count: 'exact', head: true })
-            .eq('teacher_id', teacher.user_id)
-            .eq('is_active', true) || { count: 0 };
-            
-          // Get students count for teacher's classes
-          const { data: teacherClasses } = await assertSupabase()
-            .from('classes')
-            .select('id')
-            .eq('teacher_id', teacher.user_id)
-            .eq('is_active', true) || { data: [] };
+          // Determine the effective user ID for this teacher.
+          // classes.teacher_id references users.id. Some teacher rows may not yet have user_id linked.
+          let effectiveUserId: string | null = teacher.user_id || null;
+          if (!effectiveUserId && teacher.email) {
+            // Fallback: try resolve users.id by teacher email within the same preschool
+            try {
+              const { data: fallbackUser } = await assertSupabase()
+                .from('users')
+                .select('id')
+                .eq('email', teacher.email)
+                .eq('preschool_id', preschoolId)
+                .maybeSingle();
+              if (fallbackUser?.id) effectiveUserId = fallbackUser.id;
+            } catch { /* Intentional: non-fatal */ }
+          }
+
+          // Get classes assigned to this teacher (by effective user id)
+          let teacherClassesCount = 0;
+          let teacherClasses: any[] = [];
+
+          // Prefer view-provided counts
+          const viewStats = overviewByEmail.get(String(teacher.email || '').toLowerCase());
+          if (viewStats) {
+            teacherClassesCount = viewStats.class_count || 0;
+            // We don't have per-class IDs in the view; only counts. We'll keep teacherClasses empty and use counts.
+          } else if (effectiveUserId) {
+            const classesCountRes = await assertSupabase()
+              .from('classes')
+              .select('id', { count: 'exact', head: true })
+              .eq('teacher_id', effectiveUserId)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            teacherClassesCount = classesCountRes?.count || 0;
+
+            const classesRes = await assertSupabase()
+              .from('classes')
+              .select('id')
+              .eq('teacher_id', effectiveUserId)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            teacherClasses = classesRes?.data || [];
+          }
+
+          // Fallback: if there is only one active teacher in the school and
+          // this teacher has zero classes assigned, attribute currently unassigned
+          // active classes to this teacher for dashboard context. This matches
+          // School Overview which counts all active classes regardless of assignment.
+          if ((teacherClassesCount === 0) && (teachersData?.length === 1)) {
+            const unassignedRes = await assertSupabase()
+              .from('classes')
+              .select('id')
+              .is('teacher_id', null)
+              .or('is_active.eq.true,is_active.is.null')
+              .eq('preschool_id', preschoolId);
+            const unassigned = unassignedRes?.data || [];
+            if (unassigned.length > 0) {
+              teacherClasses = unassigned;
+              teacherClassesCount = unassigned.length;
+            }
+          }
             
           const classIds = (teacherClasses || []).map((c: any) => c.id);
           let studentsInClasses = 0;
           
-          if (classIds.length > 0) {
+          // Prefer view-provided student count
+          if (viewStats) {
+            studentsInClasses = viewStats.student_count || 0;
+          } else if (classIds.length > 0) {
             const { count: studentsCount } = await assertSupabase()
               .from('students')
               .select('id', { count: 'exact', head: true })
@@ -483,27 +592,27 @@ export const usePrincipalHub = () => {
       const stats = {
         students: { 
           total: studentsCount, 
-          trend: studentsCount > 20 ? 'up' : studentsCount > 10 ? 'stable' : 'low' 
+          trend: studentsCount > 20 ? t('trends.up') : studentsCount > 10 ? t('trends.stable') : t('trends.low') 
         },
         staff: { 
           total: teachersData.length, 
-          trend: teachersData.length >= 5 ? 'stable' : 'needs_attention' 
+          trend: teachersData.length >= 5 ? t('trends.stable') : t('trends.needs_attention') 
         },
         classes: { 
           total: classesCount, 
-          trend: classesCount >= studentsCount / 8 ? 'stable' : 'up' 
+          trend: classesCount >= studentsCount / 8 ? t('trends.stable') : t('trends.up') 
         },
         pendingApplications: { 
           total: applicationsCount, 
-          trend: applicationsCount > 5 ? 'high' : applicationsCount > 2 ? 'up' : 'stable' 
+          trend: applicationsCount > 5 ? t('trends.high') : applicationsCount > 2 ? t('trends.up') : t('trends.stable') 
         },
         monthlyRevenue: { 
           total: monthlyRevenueTotal, 
-          trend: monthlyRevenueTotal > finalPreviousRevenue ? 'up' : monthlyRevenueTotal < finalPreviousRevenue ? 'down' : 'stable' 
+          trend: monthlyRevenueTotal > finalPreviousRevenue ? t('trends.up') : monthlyRevenueTotal < finalPreviousRevenue ? t('trends.down') : t('trends.stable') 
         },
         attendanceRate: { 
           percentage: attendanceRate || 0, 
-          trend: attendanceRate >= 90 ? 'excellent' : attendanceRate >= 80 ? 'good' : 'needs_attention' 
+          trend: attendanceRate >= 90 ? t('trends.excellent') : attendanceRate >= 80 ? t('trends.good') : t('trends.needs_attention') 
         },
         timestamp: new Date().toISOString()
       };
@@ -602,7 +711,7 @@ export const usePrincipalHub = () => {
         }
       ];
       
-      console.log('✅ REAL DATABASE DATA PROCESSED:', {
+      logger.info('✅ REAL DATABASE DATA PROCESSED:', {
         totalStudents: stats.students.total,
         totalTeachers: stats.staff.total,
         totalClasses: stats.classes.total,
@@ -614,19 +723,22 @@ export const usePrincipalHub = () => {
       // Get real school name from database
       const schoolName = preschoolInfo.name || preschoolCapacity.name || user?.user_metadata?.school_name || t('dashboard.your_school');
 
-      setData({
-        stats,
-        teachers,
-        financialSummary,
-        enrollmentPipeline,
-        capacityMetrics,
-        recentActivities,
-        schoolId: preschoolId,
-        schoolName
-      });
+      if (isMountedRef.current) {
+        setData({
+          stats,
+          teachers,
+          financialSummary,
+          enrollmentPipeline,
+          capacityMetrics,
+          recentActivities,
+          schoolId: preschoolId,
+          schoolName
+        });
+      }
 
-      console.log('✅ REAL Principal Hub data loaded successfully from database');
-      console.log('🎯 Final dashboard summary:', {
+      logger.info('✅ [PrincipalHub] REAL data loaded successfully from database');
+      logger.info('🎯 [PrincipalHub] Final dashboard summary:', {
+        fetchId,
         school: schoolName,
         students: stats.students.total,
         teachers: stats.staff.total,
@@ -634,17 +746,59 @@ export const usePrincipalHub = () => {
         revenue: formatCurrency(stats.monthlyRevenue.total),
         attendance: stats.attendanceRate.percentage + '%'
       });
+      
+      // Mark initial fetch as complete
+      if (!initialFetchComplete.current) {
+        initialFetchComplete.current = true;
+        logger.info('[PrincipalHub] Initial fetch completed successfully');
+      }
     } catch (err) {
-      console.error('Failed to fetch Principal Hub data:', err);
+      logger.error('[PrincipalHub] Failed to fetch data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
+      inFlightRef.current = false;
+      logger.info('[PrincipalHub] Fetch complete', { fetchId, success: !error });
     }
-  }, [user, profile, getPreschoolId]);
+  }, [userId, preschoolId, t]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+useEffect(() => {
+    logger.info('[PrincipalHub] useEffect triggered:', {
+      userId,
+      preschoolId,
+      initialFetchComplete: initialFetchComplete.current,
+      timestamp: Date.now()
+    });
+    
+    if (!userId || !preschoolId) {
+      logger.warn('[PrincipalHub] Missing userId or preschoolId, skipping fetch');
+      return;
+    }
+    
+    // Guard 1: Skip if initial fetch already completed (React StrictMode protection)
+    if (initialFetchComplete.current) {
+      logger.info('[PrincipalHub] Initial fetch already complete, skipping duplicate mount');
+      return;
+    }
+    
+    // Guard 2: Global fetch guard with time-based deduplication
+    const key = `${userId}:${preschoolId}`;
+    const now = Date.now();
+    const last = __FETCH_GUARD[key] || 0;
+    if (now - last < 2000) {
+      logger.info('[PrincipalHub] Fetch guard: Too soon since last fetch (${now - last}ms), skipping');
+      return;
+    }
+    __FETCH_GUARD[key] = now;
+    
+    logger.info('[PrincipalHub] Starting initial fetch...');
+    // Mark as complete after successful fetch
+    fetchData().then(() => {
+      logger.info('[PrincipalHub] Initial fetch promise resolved');
+    }).catch((err) => {
+      logger.error('[PrincipalHub] Initial fetch promise rejected:', err);
+    });
+  }, [userId, preschoolId, fetchData]);
 
   const refresh = useCallback(() => {
     fetchData(true);

@@ -9,7 +9,7 @@
  * - Reconciliation approval
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,9 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
+import { navigateBack } from '@/lib/navigation';
+import { useTranslation } from 'react-i18next';
 
 interface CashCount {
   denomination: number;
@@ -58,6 +61,9 @@ const CASH_DENOMINATIONS = [
 export default function PettyCashReconcileScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { theme } = useTheme();
+  const { t } = useTranslation('common');
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -80,7 +86,7 @@ export default function PettyCashReconcileScreen() {
   const [notes, setNotes] = useState('');
   const [isReconciling, setIsReconciling] = useState(false);
 
-  const loadReconciliationData = async () => {
+  const loadReconciliationData = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -94,7 +100,7 @@ export default function PettyCashReconcileScreen() {
         .single();
 
       if (!userProfile?.preschool_id) {
-        Alert.alert('Error', 'No school assigned to your account');
+        Alert.alert(t('common.error'), t('petty_cash.error_no_school'));
         return;
       }
 
@@ -107,7 +113,7 @@ export default function PettyCashReconcileScreen() {
       const { data: transactions } = await assertSupabase()
         .from('petty_cash_transactions')
         .select('amount, type')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
         .eq('status', 'approved')
         .gte('created_at', currentMonth.toISOString());
 
@@ -119,15 +125,20 @@ export default function PettyCashReconcileScreen() {
         .filter(t => t.type === 'replenishment')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      // Get opening balance from school settings
-      const { data: settings } = await assertSupabase()
-        .from('school_settings')
+      const adjustments = (transactions || [])
+        .filter(t => t.type === 'adjustment')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      // Get opening balance from petty cash account
+      const { data: account } = await assertSupabase()
+        .from('petty_cash_accounts')
         .select('opening_balance')
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('school_id', userProfile.preschool_id)
+        .eq('is_active', true)
         .single();
 
-      const openingBalance = settings?.opening_balance || 5000;
-      const systemBalance = openingBalance + replenishments - expenses;
+      const openingBalance = Number(account?.opening_balance || 0);
+      const systemBalance = openingBalance + replenishments - expenses - adjustments;
 
       // Get last reconciliation
       const { data: lastRecon } = await assertSupabase()
@@ -136,7 +147,7 @@ export default function PettyCashReconcileScreen() {
         .eq('preschool_id', userProfile.preschool_id)
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       setReconciliationData({
         systemBalance,
@@ -148,12 +159,12 @@ export default function PettyCashReconcileScreen() {
 
     } catch (error) {
       console.error('Error loading reconciliation data:', error);
-      Alert.alert('Error', 'Failed to load reconciliation data');
+      Alert.alert(t('common.error'), t('petty_cash_reconcile.load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user, t]);
 
   const updateCashCount = (index: number, count: string) => {
     const parsedCount = parseInt(count) || 0;
@@ -209,17 +220,17 @@ export default function PettyCashReconcileScreen() {
       }
 
       Alert.alert(
-        'Reconciliation Complete',
-        `Cash reconciliation has been recorded.\n\nVariance: ${formatCurrency(reconciliationData.variance)}`,
+        t('petty_cash_reconcile.save_success_title'),
+        t('petty_cash_reconcile.save_success_message', { variance: formatCurrency(reconciliationData.variance) }),
         [
-{ text: 'View History', onPress: () => router.push('/screens/petty-cash') },
-          { text: 'Done', onPress: () => router.back() },
+          { text: t('petty_cash_reconcile.view_history'), onPress: () => router.push('/screens/petty-cash') },
+          { text: t('common.done'), onPress: () => navigateBack('/screens/petty-cash') },
         ]
       );
 
     } catch (error) {
       console.error('Error performing reconciliation:', error);
-      Alert.alert('Error', 'Failed to save reconciliation');
+      Alert.alert(t('common.error'), t('petty_cash_reconcile.save_error'));
     } finally {
       setIsReconciling(false);
     }
@@ -233,9 +244,9 @@ export default function PettyCashReconcileScreen() {
   };
 
   const getVarianceColor = (variance: number) => {
-    if (variance === 0) return '#10B981'; // Perfect match
-    if (Math.abs(variance) <= 5) return '#F59E0B'; // Small variance
-    return '#EF4444'; // Large variance
+    if (variance === 0) return theme?.success || '#10B981'; // Perfect match
+    if (Math.abs(variance) <= 5) return theme?.warning || '#F59E0B'; // Small variance
+    return theme?.error || '#EF4444'; // Large variance
   };
 
   const getVarianceIcon = (variance: number) => {
@@ -246,7 +257,7 @@ export default function PettyCashReconcileScreen() {
 
   useEffect(() => {
     loadReconciliationData();
-  }, [user]);
+  }, [loadReconciliationData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -257,8 +268,8 @@ export default function PettyCashReconcileScreen() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Ionicons name="calculator-outline" size={48} color="#6B7280" />
-          <Text style={styles.loadingText}>Loading reconciliation data...</Text>
+          <Ionicons name="calculator-outline" size={48} color={theme?.textSecondary || '#6B7280'} />
+          <Text style={styles.loadingText}>{t('petty_cash_reconcile.loading_data')}</Text>
         </View>
       </SafeAreaView>
     );
@@ -268,15 +279,15 @@ export default function PettyCashReconcileScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={() => navigateBack('/screens/petty-cash')}>
+          <Ionicons name="arrow-back" size={24} color={theme?.text || '#333'} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Cash Reconciliation</Text>
+        <Text style={styles.headerTitle}>{t('petty_cash_reconcile.title')}</Text>
         <TouchableOpacity 
 onPress={() => router.push('/screens/petty-cash')}
           disabled={loading}
         >
-          <Ionicons name="time-outline" size={24} color="#007AFF" />
+          <Ionicons name="time-outline" size={24} color={theme?.primary || '#007AFF'} />
         </TouchableOpacity>
       </View>
 
@@ -286,18 +297,18 @@ onPress={() => router.push('/screens/petty-cash')}
       >
         {/* Balance Summary */}
         <View style={styles.summaryCard}>
-          <Text style={styles.cardTitle}>Balance Comparison</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.balance_comparison')}</Text>
           
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>System Balance</Text>
+              <Text style={styles.balanceLabel}>{t('petty_cash_reconcile.system_balance')}</Text>
               <Text style={styles.systemBalance}>
                 {formatCurrency(reconciliationData.systemBalance)}
               </Text>
             </View>
             
             <View style={styles.balanceItem}>
-              <Text style={styles.balanceLabel}>Physical Cash</Text>
+              <Text style={styles.balanceLabel}>{t('petty_cash_reconcile.physical_cash')}</Text>
               <Text style={styles.physicalBalance}>
                 {formatCurrency(reconciliationData.physicalCash)}
               </Text>
@@ -312,13 +323,15 @@ onPress={() => router.push('/screens/petty-cash')}
                 color={getVarianceColor(reconciliationData.variance)} 
               />
               <Text style={[styles.varianceLabel, { color: getVarianceColor(reconciliationData.variance) }]}>
-                Variance: {formatCurrency(reconciliationData.variance)}
+                {t('petty_cash_reconcile.variance')}: {formatCurrency(reconciliationData.variance)}
               </Text>
             </View>
             
             {reconciliationData.variance !== 0 && (
               <Text style={styles.varianceNote}>
-                {reconciliationData.variance > 0 ? 'Physical cash exceeds system balance' : 'System balance exceeds physical cash'}
+                {reconciliationData.variance > 0 
+                  ? t('petty_cash_reconcile.variance_physical_exceeds') 
+                  : t('petty_cash_reconcile.variance_system_exceeds')}
               </Text>
             )}
           </View>
@@ -326,9 +339,9 @@ onPress={() => router.push('/screens/petty-cash')}
 
         {/* Cash Counting */}
         <View style={styles.countingCard}>
-          <Text style={styles.cardTitle}>Count Physical Cash</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.count_physical_cash')}</Text>
           <Text style={styles.countingInstructions}>
-            Count each denomination and enter the quantity below:
+            {t('petty_cash_reconcile.counting_instructions')}
           </Text>
           
           {cashCounts.map((cashCount, index) => {
@@ -347,7 +360,7 @@ onPress={() => router.push('/screens/petty-cash')}
                     value={cashCount.count.toString()}
                     onChangeText={(text) => updateCashCount(index, text)}
                     keyboardType="number-pad"
-                    placeholder="0"
+                    placeholder={t('petty_cash_reconcile.enter_quantity_placeholder', { defaultValue: '0' })}
                   />
                   <Text style={styles.multiplySign}>×</Text>
                   <Text style={styles.denominationValue}>
@@ -365,12 +378,12 @@ onPress={() => router.push('/screens/petty-cash')}
 
         {/* Notes */}
         <View style={styles.notesCard}>
-          <Text style={styles.cardTitle}>Reconciliation Notes</Text>
+          <Text style={styles.cardTitle}>{t('petty_cash_reconcile.notes_title')}</Text>
           <TextInput
             style={styles.notesInput}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Add any notes about discrepancies or observations..."
+            placeholder={t('petty_cash_reconcile.notes_placeholder')}
             multiline
             numberOfLines={4}
           />
@@ -379,7 +392,7 @@ onPress={() => router.push('/screens/petty-cash')}
         {/* Info */}
         {reconciliationData.lastReconciliation && (
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Last Reconciliation</Text>
+            <Text style={styles.infoTitle}>{t('petty_cash_reconcile.last_reconciliation')}</Text>
             <Text style={styles.infoText}>
               {new Date(reconciliationData.lastReconciliation).toLocaleDateString('en-ZA', {
                 year: 'numeric',
@@ -401,17 +414,17 @@ onPress={() => router.push('/screens/petty-cash')}
           >
             <Ionicons name="checkmark-circle" size={20} color="#fff" />
             <Text style={styles.actionButtonText}>
-              {isReconciling ? 'Reconciling...' : 'Complete Reconciliation'}
+              {isReconciling ? t('petty_cash_reconcile.reconciling') : t('petty_cash_reconcile.complete_reconciliation')}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelButton]}
-            onPress={() => router.back()}
+            onPress={() => navigateBack('/screens/petty-cash')}
           >
-            <Ionicons name="close-circle" size={20} color="#666" />
-            <Text style={[styles.actionButtonText, { color: '#666' }]}>
-              Cancel
+            <Ionicons name="close-circle" size={20} color={theme?.textSecondary || '#666'} />
+            <Text style={[styles.actionButtonText, { color: theme?.textSecondary || '#666' }]}>
+              {t('common.cancel')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -422,10 +435,10 @@ onPress={() => router.push('/screens/petty-cash')}
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.background || '#f8f9fa',
   },
   loadingContainer: {
     flex: 1,
@@ -435,7 +448,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: theme?.textSecondary || '#666',
   },
   header: {
     flexDirection: 'row',
@@ -443,24 +456,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.surface || '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme?.border || '#e1e5e9',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
   },
   scrollView: {
     flex: 1,
   },
   summaryCard: {
     margin: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -469,7 +482,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 16,
   },
   balanceRow: {
@@ -482,22 +495,22 @@ const styles = StyleSheet.create({
   },
   balanceLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 4,
   },
   systemBalance: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#4F46E5',
+    color: theme?.primary || '#4F46E5',
   },
   physicalBalance: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#059669',
+    color: theme?.success || '#059669',
   },
   varianceSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    borderTopColor: theme?.border || '#f3f4f6',
     paddingTop: 16,
   },
   varianceHeader: {
@@ -512,17 +525,17 @@ const styles = StyleSheet.create({
   },
   varianceNote: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     textAlign: 'center',
     marginTop: 4,
   },
   countingCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -530,7 +543,7 @@ const styles = StyleSheet.create({
   },
   countingInstructions: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginBottom: 16,
   },
   denominationRow: {
@@ -539,7 +552,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme?.border || '#f3f4f6',
   },
   denominationChip: {
     paddingHorizontal: 12,
@@ -560,37 +573,38 @@ const styles = StyleSheet.create({
   },
   countInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 6,
     padding: 8,
     minWidth: 50,
     textAlign: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
+    color: theme?.inputText || '#333',
   },
   multiplySign: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
     marginHorizontal: 8,
   },
   denominationValue: {
     fontSize: 14,
-    color: '#333',
+    color: theme?.text || '#333',
     flex: 1,
   },
   lineTotal: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     minWidth: 80,
     textAlign: 'right',
   },
   notesCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.cardBackground || '#fff',
     borderRadius: 12,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme?.shadow || '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -598,29 +612,30 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme?.inputBorder || '#e1e5e9',
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme?.inputBackground || '#fff',
+    color: theme?.inputText || '#333',
     textAlignVertical: 'top',
   },
   infoCard: {
     margin: 16,
     marginTop: 0,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme?.surfaceVariant || '#f8f9fa',
     borderRadius: 12,
     padding: 16,
   },
   infoTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: theme?.text || '#333',
     marginBottom: 4,
   },
   infoText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme?.textSecondary || '#6B7280',
   },
   actionsSection: {
     margin: 16,
@@ -635,10 +650,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   reconcileButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: theme?.success || '#10B981',
   },
   cancelButton: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme?.surfaceVariant || '#f3f4f6',
   },
   actionButtonText: {
     fontSize: 16,

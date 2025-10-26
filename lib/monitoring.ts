@@ -126,6 +126,43 @@ function configurePostHogForAndroid() {
   };
 }
 
+/**
+ * Simple monitoring initialization for production use
+ */
+export function initMonitoring(config?: { enableInDevelopment?: boolean; environment?: string }) {
+  if (started) return;
+  started = true;
+
+  const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+  const looksValidDsn = !!dsn && /https?:\/\/.+@.+/i.test(dsn);
+  if (!looksValidDsn) {
+    if (__DEV__) {
+      console.log('Monitoring: No valid Sentry DSN, skipping initialization');
+    }
+    return;
+  }
+
+  try {
+    Sentry.init({
+      dsn,
+      enableInExpoDevelopment: config?.enableInDevelopment ?? __DEV__,
+      debug: __DEV__,
+      environment: config?.environment || process.env.EXPO_PUBLIC_ENVIRONMENT || 'production',
+      tracesSampleRate: __DEV__ ? 1.0 : 0.2,
+      beforeSend: (event) => {
+        // Enhanced PII scrubbing
+        return scrubPII(event);
+      },
+    });
+
+    if (__DEV__) {
+      console.log('Monitoring: Sentry initialized successfully');
+    }
+  } catch (error) {
+    console.warn('Monitoring: Failed to initialize Sentry', error);
+  }
+}
+
 export function startMonitoring() {
   if (started) return;
   started = true;
@@ -141,8 +178,9 @@ export function startMonitoring() {
   const SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN;
   const telemetryDisabled = process.env.EXPO_PUBLIC_TELEMETRY_DISABLED === 'true';
   const sentryExplicitlyDisabled = process.env.EXPO_PUBLIC_SENTRY_ENABLED === 'false' || process.env.EXPO_PUBLIC_ENABLE_SENTRY === 'false';
-  const SENTRY_ENABLED = !telemetryDisabled && !sentryExplicitlyDisabled;
-  if (SENTRY_ENABLED && SENTRY_DSN) {
+  const looksValidDsn = !!SENTRY_DSN && /https?:\/\/.+@.+/i.test(SENTRY_DSN);
+  const SENTRY_ENABLED = !telemetryDisabled && !sentryExplicitlyDisabled && looksValidDsn;
+  if (SENTRY_ENABLED) {
     try {
       const sentryConfig = configureSentryForAndroid();
       Sentry.init(sentryConfig);

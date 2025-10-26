@@ -251,7 +251,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email
 ON public.users (email);
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_preschool_active
-ON public.users (preschool_id, is_active) WHERE is_active = true;
+ON public.users (preschool_id, is_active) WHERE is_active = TRUE;
 
 -- ============================================================================
 -- PART 3: ENABLE RLS AND CREATE POLICIES
@@ -407,7 +407,7 @@ VALUES (
     'total_columns_added', 25
   ),
   'Complete users table schema fix completion log',
-  false
+  FALSE
 ) ON CONFLICT (key) DO UPDATE SET
   value = excluded.value,
   updated_at = now();

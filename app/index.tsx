@@ -24,6 +24,7 @@ import { featuresContent } from '@/constants/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 import { setPageMetadata, landingPageSEO } from '@/lib/webSEO';
+import AppSplashScreen from '@/components/ui/AppSplashScreen';
 
 const { width, height } = Dimensions.get('window');
 const isSmall = width < 400;
@@ -63,7 +64,24 @@ export default function Landing() {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [webOptimized, setWebOptimized] = useState(false);
-  const [authCheckComplete, setAuthCheckComplete] = useState(false);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Web-only: if a raw ?code=XYZ arrives at the root URL, redirect to the invite entry handler
+  useEffect(() => {
+    if (isWeb) {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const rawCode = sp.get('code') || sp.get('invitationCode');
+        if (rawCode) {
+          router.replace(`/invite?code=${encodeURIComponent(rawCode)}` as any);
+        }
+      } catch (e) {
+        console.warn('[Landing] Failed to parse query for invite code:', e);
+      }
+    }
+     
+  }, []);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
@@ -82,62 +100,39 @@ export default function Landing() {
       setWebOptimized(true);
     }
 
-    // Check if user is authenticated and route to dashboard if so
-    // Unauthenticated users remain on the landing page
-    checkAuthAndRoute();
-  }, []);
+    // Simulate app initialization
+    const initializeApp = async () => {
+      // Add any app initialization logic here
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate loading time
+      setIsAppLoading(false);
+    };
 
-  const checkAuthAndRoute = async () => {
-    try {
-      console.log('🔍 [INDEX] Starting auth check...');
-      
-      // Import here to avoid circular dependency
-      const { assertSupabase } = await import('@/lib/supabase');
-      const { routeAfterLogin } = await import('@/lib/routeAfterLogin');
-      
-      console.log('🔍 [INDEX] Checking session...');
-      // Check current session
-      const { data: { session }, error } = await assertSupabase().auth.getSession();
-      
-      if (error) {
-        console.warn('🔍 [INDEX] Session check failed:', error.message);
-        // Don't redirect on error - let users stay on landing page
-        setAuthCheckComplete(true);
-        return;
-      }
-      
-      if (session?.user) {
-        // User is authenticated, route them to appropriate screen
-        console.log('🔍 [INDEX] Authenticated user detected, routing to dashboard...');
-        console.log('🔍 [INDEX] User ID:', session.user.id);
-        await routeAfterLogin(session.user, null);
-        console.log('🔍 [INDEX] Route after login completed');
-        // Don't set authCheckComplete here - we're routing away
-        return;
-      } else {
-        console.log('🔍 [INDEX] No session found, staying on landing page');
-      }
-      
-      // If no session, do nothing - let users stay on landing page
-      setAuthCheckComplete(true);
-      
-    } catch (error) {
-      console.error('🔍 [INDEX] Error checking authentication:', error);
-      // Don't redirect on error - let users stay on landing page
-      setAuthCheckComplete(true);
+    initializeApp();
+
+    // Default routing behavior:
+    // - Native (iOS/Android): go straight to sign-in for faster access
+    // - Web: keep the marketing landing page
+    if (Platform.OS !== 'web') {
+      // Delay navigation until splash is complete
+      const timer = setTimeout(() => {
+        if (!showSplash) {
+          router.replace('/(auth)/sign-in');
+        }
+      }, 2500);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [showSplash]);
 
 
-  // Show loading screen while checking authentication
-  if (!authCheckComplete) {
+  // Show splash screen on mobile
+  if (showSplash && Platform.OS !== 'web') {
     return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <StatusBar style="light" translucent />
-        <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={styles.loadingText}>🔍 Checking authentication...</Text>
-        </SafeAreaView>
-      </View>
+      <AppSplashScreen
+        isLoading={isAppLoading}
+        onLoadingComplete={() => setShowSplash(false)}
+        minimumDisplayTime={2000}
+        message="Initializing Neural Network..."
+      />
     );
   }
 
@@ -231,6 +226,9 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
                 <LinearGradient colors={['#00f5ff', '#0080ff', '#8000ff']} style={styles.ctaGradient}>
                   <IconSymbol name="bolt" size={20} color="#000000" />
                   <Text style={styles.ctaText}>ACTIVATE NEURAL LINK</Text>
+                  {process.env.EXPO_PUBLIC_ENVIRONMENT === 'preview' && (
+                    <Text style={{ fontSize: 10, color: '#000000', marginLeft: 4 }}>OTA✓</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -462,7 +460,7 @@ const styles = StyleSheet.create({
   tertiaryCTA: { borderRadius: 30, overflow: 'hidden', width: 'auto', marginTop: 12 },
   tertiaryGradient: { paddingHorizontal: isSmall ? 20 : 28, paddingVertical: isSmall ? 12 : 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#ff8000', borderRadius: 30, backgroundColor: 'rgba(255,128,0,0.06)' },
   tertiaryCtaText: { fontSize: isSmall ? 14 : 15, fontWeight: '700', color: '#ff8000', marginRight: 8 },
-  featuresContainer: {},
+  featuresContainer: { /* TODO: Implement */ },
   featuresGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 36, justifyContent: 'center' },
   sectionTitle: { fontSize: isSmall ? 26 : 32, fontWeight: '900', color: DesignSystem.colors.text.primary, textAlign: 'center', marginBottom: 12, letterSpacing: 1 },
   sectionSubtitle: { fontSize: 14, color: DesignSystem.colors.text.quantum, textAlign: 'center', marginBottom: isSmall ? 18 : 24, fontWeight: '600' },
@@ -474,7 +472,7 @@ const styles = StyleSheet.create({
   featureDescription: { fontSize: 13, color: '#4B5563', lineHeight: 18, marginBottom: 10 },
   featureTech: { marginTop: 'auto' },
   featureTechText: { fontSize: 12, color: '#6B7280', fontWeight: '600', fontStyle: 'italic' },
-  testimonialsContainer: {},
+  testimonialsContainer: { /* TODO: Implement */ },
   testimonialsGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 36, justifyContent: 'center' },
   testimonialCard: { marginHorizontal: isSmall ? 16 : 20, borderRadius: 20, overflow: 'hidden' },
   testimonialGradient: { padding: isSmall ? 18 : 22 },
@@ -488,7 +486,7 @@ const styles = StyleSheet.create({
   testimonialDots: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#D1D5DB' },
   activeDot: { backgroundColor: DesignSystem.colors.text.quantum },
-  qaContainer: {},
+  qaContainer: { /* TODO: Implement */ },
   qaGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 32, justifyContent: 'center' },
   qaList: { gap: isSmall ? 8 : 12 },
   qaItem: { borderRadius: 15, overflow: 'hidden' },

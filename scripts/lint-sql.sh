@@ -26,7 +26,7 @@ case $ACTION in
         ;;
     "fix"|"format")
         echo -e "${YELLOW}🔧 Formatting SQL files...${NC}"
-        sqlfluff format $TARGET --force
+        sqlfluff format $TARGET --nocolor --dialect postgres
         echo -e "${GREEN}✅ SQL files formatted${NC}"
         ;;
     "rules")

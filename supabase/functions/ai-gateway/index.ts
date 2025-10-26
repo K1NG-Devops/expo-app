@@ -29,6 +29,13 @@ const TIER_QUOTAS: Record<SubscriptionTier, { ai_requests: number; rpm_limit: nu
   'enterprise': { ai_requests: -1, rpm_limit: 60 }, // -1 = unlimited
 }
 
+// Development mode bypass (set DEVELOPMENT_MODE=true in Edge Function secrets)
+const isDevelopmentMode = (globalThis as any).Deno?.env?.get("DEVELOPMENT_MODE") === 'true';
+if (isDevelopmentMode) {
+  console.log('[AI Gateway] Development mode active - using relaxed rate limits');
+  TIER_QUOTAS['free'] = { ai_requests: 10000, rpm_limit: 100 };
+}
+
 function canAccessModel(userTier: SubscriptionTier, modelId: string): boolean {
   const normalizedModel = normalizeModelId(modelId)
   if (!normalizedModel) return false
@@ -112,6 +119,13 @@ function encodeSSE(data: any) {
 async function callClaudeMessages(apiKey: string, payload: Record<string, any>, stream = false) {
   const url = "https://api.anthropic.com/v1/messages";
   const body = { ...payload, stream };
+  
+  // Add tool support if tools are provided
+  if (payload.tools && Array.isArray(payload.tools) && payload.tools.length > 0) {
+    body.tools = payload.tools;
+    body.tool_choice = payload.tool_choice || { type: "auto" };
+  }
+  
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -124,17 +138,39 @@ async function callClaudeMessages(apiKey: string, payload: Record<string, any>, 
   return res;
 }
 
+function smartStyle(): string {
+  return (
+    "You are a smart, professional colleague.\n" +
+    "- Mirror the language of the user's last message.\n" +
+    "- Keep answers concise (1–3 sentences) unless more detail is explicitly requested.\n" +
+    "- Be non‑theatrical: no stage directions, no roleplay, no emojis, no filler like ‘let me’.\n" +
+    "- State actionable facts directly and avoid unnecessary preamble."
+  );
+}
+
 function toSystemPrompt(kind: "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance"): string {
   if (kind === "lesson_generation") {
-    return "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment.";
+    return (
+      "You are an expert educational curriculum planner. Create structured, age-appropriate lessons with objectives, activities, and assessment." +
+      "\n\n" + smartStyle()
+    );
   }
   if (kind === "homework_help") {
-    return "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers.";
+    return (
+      "You are a child-safe educational assistant. Provide step-by-step explanations and encourage understanding; do not give only final answers." +
+      "\n\n" + smartStyle()
+    );
   }
   if (kind === "general_assistance") {
-    return "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice.";
+    return (
+      "You are Dash, an AI Teaching Assistant specialized in early childhood education and preschool management. Provide concise, practical, and actionable advice for educators. Focus on specific solutions rather than generic educational advice." +
+      "\n\n" + smartStyle()
+    );
   }
-  return "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate.";
+  return (
+    "You are an AI grading assistant. Provide constructive feedback and a concise score when appropriate." +
+    "\n\n" + smartStyle()
+  );
 }
 
 function buildMessagesFromInputs(kind: string, body: any) {
@@ -426,8 +462,10 @@ serve(async (req: Request) => {
     }, { status: 429 });
   }
 
-  // STREAMING: grading_assistance_stream
-  if (action === "grading_assistance_stream") {
+  // STREAMING: grading_assistance_stream OR general_assistance with stream=true
+  const shouldStream = (action === "grading_assistance_stream") || (action === "general_assistance" && body.stream === true);
+  
+  if (shouldStream) {
     if (!apiKey) {
       // Fall back to mock streaming if no key configured
       const stream = new ReadableStream({
@@ -456,17 +494,27 @@ serve(async (req: Request) => {
       return new Response(stream, { headers: sseHeaders({ "Access-Control-Allow-Origin": origin }) });
     }
 
-    const messages = buildMessagesFromInputs("grading_assistance", body);
-    const system = toSystemPrompt("grading_assistance");
+    // Determine action type for streaming (grading vs general assistance)
+    const streamActionType = action === "grading_assistance_stream" ? "grading_assistance" : "general_assistance";
+    const messages = buildMessagesFromInputs(streamActionType, body);
+    const system = body.system || toSystemPrompt(streamActionType);
     const model = modelToUse; // Use tier-enforced model
-
-    const res = await callClaudeMessages(apiKey, {
+    
+    // Add tool support for general_assistance streaming if provided
+    const claudeStreamParams: Record<string, any> = {
       model,
       system,
-      max_tokens: 1000,
-      temperature: 0.4,
+      max_tokens: body.maxTokens || body.max_tokens || (action === "grading_assistance_stream" ? 1000 : 1500),
+      temperature: body.temperature || 0.4,
       messages,
-    }, true);
+    };
+    
+    if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
+      claudeStreamParams.tools = body.tools;
+      claudeStreamParams.tool_choice = body.tool_choice || { type: "auto" };
+    }
+
+    const res = await callClaudeMessages(apiKey, claudeStreamParams, true);
 
     if (!res.ok || !res.body) {
       return json({ error: `Claude stream error: ${res.status}` }, { status: 500 });
@@ -484,7 +532,10 @@ serve(async (req: Request) => {
         if (done) {
           // Emit a final summary event with accumulated text
           controller.enqueue(new TextEncoder().encode(encodeSSE({ type: "final", feedback: accumulated })));
-          try { await logUsage({ serviceType: 'grading_assistance', model: streamModel, system: streamSystem, input: (body.submission || ''), output: accumulated, inputTokens: null, outputTokens: null, totalCost: null, status: 'success' }); } catch {}
+          // Log usage with appropriate service type
+          const logServiceType = action === "grading_assistance_stream" ? 'grading_assistance' : 'general_assistance';
+          const logInput = action === "grading_assistance_stream" ? (body.submission || '') : JSON.stringify(body.messages || body.content || '');
+          try { await logUsage({ serviceType: logServiceType, model: streamModel, system: streamSystem, input: logInput, output: accumulated, inputTokens: null, outputTokens: null, totalCost: null, status: 'success' }); } catch { /* Intentional: non-fatal */ }
           controller.enqueue(new TextEncoder().encode(encodeSSE("[DONE]")));
           controller.close();
           return;
@@ -511,7 +562,7 @@ serve(async (req: Request) => {
         }
       },
       cancel() {
-        try { reader.cancel(); } catch {}
+        try { reader.cancel(); } catch { /* Intentional: non-fatal */ }
       },
     });
 
@@ -519,7 +570,7 @@ serve(async (req: Request) => {
   }
 
   // Non-streaming handlers
-  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance") {
+  if (action === "lesson_generation" || action === "homework_help" || action === "grading_assistance" || action === "general_assistance" || action === "chat") {
     if (!apiKey) {
       // Fallback mock if no key
       let content = "";
@@ -527,7 +578,7 @@ serve(async (req: Request) => {
         content = `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`;
       } else if (action === "homework_help") {
         content = `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding, not just final answer.`;
-      } else if (action === "general_assistance") {
+      } else if (action === "general_assistance" || action === "chat") {
         content = `I'm here to help with your educational needs. Whether it's lesson planning, student management, or administrative tasks, let me know what you'd like to work on.`;
       } else {
         content = `Automated feedback: solid effort. Suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
@@ -535,38 +586,109 @@ serve(async (req: Request) => {
       return json({ content, usage: { input_tokens: 200, output_tokens: 600 }, cost: 0 });
     }
 
-    const kind = action as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
-    const messages = buildMessagesFromInputs(kind, body);
-    const system = toSystemPrompt(kind);
+    const kind = (action === "chat" ? "general_assistance" : action) as "lesson_generation" | "homework_help" | "grading_assistance" | "general_assistance";
+    let messages = buildMessagesFromInputs(kind, body);
+
+    // If client is returning tool results for a prior tool_use, construct proper messages
+    if (Array.isArray(body.tool_results) && body.assistant_raw_content) {
+      try {
+        const base = Array.isArray(body.messages)
+          ? (body.messages as any[]).filter((m) => m && m.role !== 'system')
+          : messages;
+
+        const assistantBlocks = Array.isArray(body.assistant_raw_content)
+          ? body.assistant_raw_content
+          : [{ type: 'text', text: String(body.assistant_raw_content || '') }];
+
+        const toolResultBlocks = (body.tool_results as any[]).map((tr) => ({
+          type: 'tool_result',
+          tool_use_id: tr.tool_use_id,
+          content: tr.content,
+          is_error: Boolean(tr.is_error),
+        }));
+
+        messages = [
+          ...base,
+          { role: 'assistant', content: assistantBlocks },
+          { role: 'user', content: toolResultBlocks },
+        ];
+      } catch {
+        // fall back to original messages
+      }
+    }
+
+    const system = body.system || toSystemPrompt(kind);
     const model = modelToUse; // Use tier-enforced model
 
-    const res = await callClaudeMessages(apiKey, {
+    const claudeParams: Record<string, any> = {
       model,
       system,
-      max_tokens: 1500,
-      temperature: 0.6,
+      max_tokens: body.maxTokens || body.max_tokens || 1500,
+      temperature: body.temperature || 0.6,
       messages,
-    }, false);
+    };
+    
+    // Add tool support if provided
+    if (body.tools && Array.isArray(body.tools) && body.tools.length > 0) {
+      claudeParams.tools = body.tools;
+      claudeParams.tool_choice = body.tool_choice || { type: "auto" };
+    }
+
+    const res = await callClaudeMessages(apiKey, claudeParams, false);
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch {}
+      try { await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: errText, inputTokens: null, outputTokens: null, totalCost: null, status: 'provider_error' }); } catch { /* Intentional: non-fatal */ }
       // Graceful fallback: return a basic, safe message instead of 500
+      console.error('[AI Gateway] Provider error - status:', res.status, 'action:', action);
+      console.error('[AI Gateway] Anthropic error details:', errText);
+      console.error('[AI Gateway] Request had tools:', body.tools ? body.tools.length : 0);
       const fallback = action === 'lesson_generation'
         ? `Generated lesson on ${body.topic || 'Topic'} for Grade ${body.gradeLevel || 'N'}. Include objectives and activities.`
         : action === 'homework_help'
           ? `Step-by-step explanation for: ${body.question || 'your question'}. Focus on understanding.`
-          : `Automated feedback: suggested improvements around ${(body.rubric && body.rubric[0]) || 'criteria'}.`;
+          : action === 'general_assistance' || action === 'chat'
+            ? `I'm here to help! I encountered a temporary issue connecting to my AI service. Please try your request again, or ask me something else I can help with.`
+            : `I encountered an issue processing your request. Please try again or rephrase your question.`;
       return json({ content: fallback, usage: null, cost: null, provider_error: { status: res.status, details: errText } });
     }
 
     const data = await res.json();
     const content = extractTextFromClaudeMessage(data);
+    
+    // Extract tool calls from response if present
+    const toolCalls = [];
+    if (data.content && Array.isArray(data.content)) {
+      for (const block of data.content) {
+        if (block.type === 'tool_use') {
+          toolCalls.push({
+            id: block.id,
+            name: block.name,
+            input: block.input
+          });
+        }
+      }
+    }
+    
+    // If AI only returned tool calls with no text content, this is expected
+    // The client (DashAIAssistant) will handle tool execution and get final response
+    if (toolCalls.length > 0 && !content.trim()) {
+      console.log('[AI Gateway] AI returned tool calls only, client will execute and get final response');
+    }
+    
     try {
       const usage = (data && (data.usage || null)) || null;
       await logUsage({ serviceType: feature, model, system, input: JSON.stringify(messages), output: content, inputTokens: usage?.input_tokens ?? null, outputTokens: usage?.output_tokens ?? null, totalCost: null, status: 'success' });
-    } catch {}
-    return json({ content, usage: data.usage || null, cost: null });
+    } catch { /* Intentional: non-fatal */ }
+    
+    return json({ 
+      content, 
+      usage: data.usage || null, 
+      cost: null,
+      stop_reason: data.stop_reason,
+      tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      raw_content: data.content // Include full content array for debugging
+    });
   }
 
   return json({ error: "Unknown action" }, { status: 400 });

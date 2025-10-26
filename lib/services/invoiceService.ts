@@ -6,6 +6,7 @@
 
 import { assertSupabase } from '@/lib/supabase';
 import { track } from '@/lib/analytics';
+import { extractOrganizationId } from '@/lib/tenant/compat';
 import type {
   Invoice,
   InvoiceItem,
@@ -73,15 +74,16 @@ export class InvoiceService {
 
       const { data: profile } = await this.supabase
         .from('profiles')
-        .select('preschool_id')
+        .select('organization_id, preschool_id')
         .eq('id', user.user.id)
         .single();
 
-      if (!profile?.preschool_id) throw new Error('User not associated with a preschool');
+      const organizationId = extractOrganizationId(profile);
+      if (!organizationId) throw new Error('User not associated with an organization');
 
       // Generate invoice number using the database function
       const { data: invoiceNumber } = await this.supabase
-        .rpc('generate_invoice_number', { p_preschool_id: profile.preschool_id });
+        .rpc('generate_invoice_number', { p_preschool_id: organizationId });
 
       if (!invoiceNumber) throw new Error('Failed to generate invoice number');
 
@@ -89,7 +91,7 @@ export class InvoiceService {
       const invoiceData = {
         ...data,
         invoice_number: invoiceNumber,
-        preschool_id: profile.preschool_id,
+        preschool_id: organizationId, // Database field still named preschool_id
         created_by: user.user.id,
         tax_rate: data.tax_rate || 0,
         discount_amount: data.discount_amount || 0,

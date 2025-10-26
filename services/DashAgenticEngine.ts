@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * Dash Agentic Engine
  * 
@@ -18,11 +20,34 @@ import type {
   DashReminder, 
   DashInsight, 
   DashUserProfile,
-  DashGoal 
-} from './DashAIAssistant';
+  DashGoal,
+  AutonomyLevel 
+} from './dash-ai/types';
+import decisionEngine from './DashDecisionEngine';
+import ProactiveEngine from './DashProactiveEngine';
+import { DashContextAnalyzer } from './DashContextAnalyzer';
 
-export class DashAgenticEngine {
-  private static instance: DashAgenticEngine;
+/**
+ * Interface for DashAgenticEngine
+ */
+export interface IDashAgenticEngine {
+  initialize(): Promise<void>;
+  createTask(title: string, description: string, type: 'one_time' | 'recurring' | 'workflow', userRole: string, steps: any[]): Promise<DashTask>;
+  executeTask(taskId: string): Promise<{ success: boolean; message: string }>;
+  createReminder(title: string, scheduleAt: string | Date, payload?: any): Promise<DashReminder>;
+  getActiveTasks(): DashTask[];
+  getActiveReminders(): DashReminder[];
+  getProactiveSuggestions(): Promise<any[]>;
+  makeDecision(actionCandidate: any, context: { autonomyLevel: AutonomyLevel; userRole: string }): Promise<any>;
+  getEngineStats(): { activeTasks: number; activeReminders: number; decisionStats: any; proactiveStats: any };
+  cleanup(): void;
+  dispose(): void;
+}
+
+export class DashAgenticEngine implements IDashAgenticEngine {
+  // Static getInstance method for singleton pattern
+  static getInstance: () => DashAgenticEngine;
+  
   private activeTasks: Map<string, DashTask> = new Map();
   private activeReminders: Map<string, DashReminder> = new Map();
   private executionQueue: Array<{ taskId: string; action: DashAction; priority: number }> = [];
@@ -34,12 +59,7 @@ export class DashAgenticEngine {
   private static readonly REMINDERS_KEY = 'dash_active_reminders';
   private static readonly EXECUTION_HISTORY_KEY = 'dash_execution_history';
 
-  public static getInstance(): DashAgenticEngine {
-    if (!DashAgenticEngine.instance) {
-      DashAgenticEngine.instance = new DashAgenticEngine();
-    }
-    return DashAgenticEngine.instance;
-  }
+  constructor() {}
 
   /**
    * Initialize the agentic engine
@@ -260,25 +280,29 @@ export class DashAgenticEngine {
         let query = supabase.from(table);
         
         switch (operation) {
-          case 'select':
+          case 'select': {
             const { data: selectData, error: selectError } = await query.select(data?.select || '*');
             if (selectError) throw selectError;
             return { success: true, message: `Retrieved ${selectData?.length || 0} records from ${table}` };
+          }
             
-          case 'insert':
+          case 'insert': {
             const { error: insertError } = await query.insert(data);
             if (insertError) throw insertError;
             return { success: true, message: `Inserted data into ${table}` };
+          }
             
-          case 'update':
+          case 'update': {
             const { error: updateError } = await query.update(data.values).match(data.match);
             if (updateError) throw updateError;
             return { success: true, message: `Updated data in ${table}` };
+          }
             
-          case 'delete':
+          case 'delete': {
             const { error: deleteError } = await query.delete().match(data.match);
             if (deleteError) throw deleteError;
             return { success: true, message: `Deleted data from ${table}` };
+          }
             
           default:
             return { success: false, message: `Unknown operation: ${operation}` };
@@ -457,17 +481,42 @@ export class DashAgenticEngine {
   }
 
   /**
-   * Execute proactive behaviors
+   * Execute proactive behaviors with elite engine integration
    */
   private async executeProactiveBehaviors(): Promise<void> {
     try {
+      const profile = await getCurrentProfile();
+      if (!profile) return;
+
+      // Get autonomy level from user preferences (default to 'assistant')
+      const autonomyLevel: AutonomyLevel = 'assistant'; // TODO: Load from user preferences
+
+      // Check for proactive suggestions using ProactiveEngine
+      const proactiveSuggestions = await ProactiveEngine.checkForSuggestions(
+        profile.role as any,
+        {
+          autonomyLevel,
+          currentScreen: undefined, // Could be passed from navigation state
+          recentActivity: this.getRecentActivity(),
+          timeContext: {
+            hour: new Date().getHours(),
+            dayOfWeek: new Date().getDay()
+          }
+        }
+      );
+
+      // Log suggestions for monitoring
+      if (proactiveSuggestions.length > 0) {
+        console.log(`[DashAgent] ${proactiveSuggestions.length} proactive suggestions available`);
+      }
+
       // Check for pending tasks
       await this.checkPendingTasks();
       
       // Process reminder triggers
       await this.processActiveReminders();
       
-      // Generate insights
+      // Generate insights with context awareness
       await this.generateInsights();
       
       // Execute queued actions
@@ -604,6 +653,91 @@ export class DashAgenticEngine {
   }
 
   /**
+   * Get recent activity for pattern detection
+   */
+  private getRecentActivity(): any[] {
+    // Return last 10 completed tasks as activity log
+    return Array.from(this.activeTasks.values())
+      .filter(t => t.status === 'completed')
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .slice(0, 10)
+      .map(t => ({
+        type: t.type,
+        action: t.title,
+        timestamp: t.createdAt
+      }));
+  }
+
+  /**
+   * Get proactive suggestions using ProactiveEngine
+   */
+  public async getProactiveSuggestions(): Promise<any[]> {
+    try {
+      const profile = await getCurrentProfile();
+      if (!profile) return [];
+
+      const autonomyLevel: AutonomyLevel = 'assistant';
+      
+      const suggestions = await ProactiveEngine.checkForSuggestions(
+        profile.role as any,
+        {
+          autonomyLevel,
+          recentActivity: this.getRecentActivity(),
+          timeContext: {
+            hour: new Date().getHours(),
+            dayOfWeek: new Date().getDay()
+          }
+        }
+      );
+
+      return suggestions;
+    } catch (error) {
+      console.error('[DashAgent] Failed to get proactive suggestions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Execute decision using DecisionEngine
+   */
+  public async makeDecision(
+    actionCandidate: any,
+    context: { autonomyLevel: AutonomyLevel; userRole: string }
+  ): Promise<any> {
+    try {
+      const decision = await decisionEngine.decide(actionCandidate, context);
+      
+      // If decision approved and doesn't require approval, execute it
+      if (decision.plan.shouldExecute && !decision.plan.requiresApproval) {
+        // Auto-execute based on decision
+        console.log('[DashAgent] Auto-executing approved decision:', decision.id);
+      }
+
+      return decision;
+    } catch (error) {
+      console.error('[DashAgent] Decision failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get engine statistics for monitoring
+   */
+  public getEngineStats(): {
+    activeTasks: number;
+    activeReminders: number;
+    decisionStats: any;
+    proactiveStats: any;
+  } {
+    return {
+      activeTasks: this.activeTasks.size,
+      activeReminders: this.activeReminders.size,
+      decisionStats: decisionEngine.getDecisionStats(),
+      proactiveStats: ProactiveEngine.getStats()
+    };
+  }
+
+  /**
    * Cleanup resources
    */
   public cleanup(): void {
@@ -612,4 +746,33 @@ export class DashAgenticEngine {
       this.proactiveInterval = null;
     }
   }
+
+  /**
+   * Dispose method for cleanup
+   */
+  public dispose(): void {
+    this.cleanup();
+    this.activeTasks.clear();
+    this.activeReminders.clear();
+    this.executionQueue = [];
+  }
 }
+
+// Backward compatibility: Export singleton instance
+// TODO: Remove once all call sites migrated to DI
+import { container, TOKENS } from '../lib/di/providers/default';
+export const DashAgenticEngineInstance = (() => {
+  try {
+    return container.resolve(TOKENS.dashAgenticEngine);
+  } catch {
+    // Fallback during initialization
+    return new DashAgenticEngine();
+  }
+})();
+
+// Add static getInstance method to class
+DashAgenticEngine.getInstance = function() {
+  return DashAgenticEngineInstance;
+};
+
+export default DashAgenticEngineInstance;

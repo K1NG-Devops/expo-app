@@ -404,7 +404,7 @@ VALUES (
   'superadmin_dashboard_functions_20250919231112',
   json_build_object(
     'version', '1.0.0',
-    'completed_at', NOW()::TEXT,
+    'completed_at', now()::TEXT,
     'functions_created', json_build_array(
       'get_all_users_for_superadmin',
       'get_platform_stats_for_superadmin',
@@ -416,8 +416,8 @@ VALUES (
   'SuperAdmin dashboard functions completion log',
   FALSE
 ) ON CONFLICT (key) DO UPDATE SET
-  value = EXCLUDED.value,
-  updated_at = NOW();
+  value = excluded.value,
+  updated_at = now();
 
 SELECT 'SUPERADMIN DASHBOARD FUNCTIONS COMPLETED' AS status;
 

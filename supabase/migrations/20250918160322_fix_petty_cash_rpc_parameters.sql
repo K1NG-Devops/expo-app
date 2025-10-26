@@ -12,7 +12,7 @@ DROP FUNCTION IF EXISTS get_petty_cash_summary(UUID, TIMESTAMPTZ, TIMESTAMPTZ);
 -- Uses school_uuid parameter to match what the app is calling
 CREATE OR REPLACE FUNCTION ensure_petty_cash_account(school_uuid UUID)
 RETURNS UUID
-LANGUAGE PLPGSQL
+LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
@@ -49,8 +49,8 @@ $$;
 
 -- Get petty cash balance for a school
 CREATE OR REPLACE FUNCTION get_petty_cash_balance(school_uuid UUID)
-RETURNS NUMERIC(12,2)
-LANGUAGE SQL
+RETURNS NUMERIC(12, 2)
+LANGUAGE sql
 SECURITY DEFINER
 AS $$
   SELECT COALESCE(
@@ -77,14 +77,14 @@ CREATE OR REPLACE FUNCTION get_petty_cash_summary(
   start_date TIMESTAMPTZ DEFAULT NULL,
   end_date TIMESTAMPTZ DEFAULT NULL
 )
-RETURNS TABLE(
-  total_expenses NUMERIC(12,2),
-  total_replenishments NUMERIC(12,2),
-  total_adjustments NUMERIC(12,2),
+RETURNS TABLE (
+  total_expenses NUMERIC(12, 2),
+  total_replenishments NUMERIC(12, 2),
+  total_adjustments NUMERIC(12, 2),
   transaction_count BIGINT,
   pending_count BIGINT
 )
-LANGUAGE SQL
+LANGUAGE sql
 SECURITY DEFINER
 AS $$
   SELECT 
@@ -102,4 +102,6 @@ $$;
 -- Comments for documentation
 COMMENT ON FUNCTION ensure_petty_cash_account(UUID) IS 'Create petty cash account if it does not exist for school';
 COMMENT ON FUNCTION get_petty_cash_balance(UUID) IS 'Get current petty cash balance for a school';
-COMMENT ON FUNCTION get_petty_cash_summary(UUID, TIMESTAMPTZ, TIMESTAMPTZ) IS 'Get petty cash summary statistics for date range';
+COMMENT ON FUNCTION get_petty_cash_summary(
+  UUID, TIMESTAMPTZ, TIMESTAMPTZ
+) IS 'Get petty cash summary statistics for date range';

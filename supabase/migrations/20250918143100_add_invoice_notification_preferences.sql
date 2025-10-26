@@ -4,8 +4,8 @@
 -- ================================================
 
 -- 1) Add invoice notification preferences JSONB column with comprehensive defaults
-ALTER TABLE profiles 
-  ADD COLUMN IF NOT EXISTS invoice_notification_preferences JSONB NOT NULL DEFAULT '{
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS invoice_notification_preferences JSONB NOT NULL DEFAULT '{
     "channels": { 
       "email": true, 
       "push": false, 
@@ -43,22 +43,22 @@ ALTER TABLE profiles
   }';
 
 -- 2) Add digital signature metadata columns
-ALTER TABLE profiles 
-  ADD COLUMN IF NOT EXISTS signature_url TEXT,
-  ADD COLUMN IF NOT EXISTS signature_public_id TEXT,
-  ADD COLUMN IF NOT EXISTS signature_updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE profiles
+ADD COLUMN IF NOT EXISTS signature_url TEXT,
+ADD COLUMN IF NOT EXISTS signature_public_id TEXT,
+ADD COLUMN IF NOT EXISTS signature_updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3) Add GIN index for efficient JSONB queries on notification preferences
-CREATE INDEX IF NOT EXISTS idx_profiles_invoice_notification_prefs 
-  ON profiles USING GIN (invoice_notification_preferences);
+CREATE INDEX IF NOT EXISTS idx_profiles_invoice_notification_prefs
+ON profiles USING gin (invoice_notification_preferences);
 
 -- 4) Update RLS policy to allow users to update their own notification preferences and signature
 DROP POLICY IF EXISTS "Users can update own notification preferences" ON profiles;
 CREATE POLICY "Users can update own notification preferences"
-  ON profiles FOR UPDATE
-  TO authenticated
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+ON profiles FOR UPDATE
+TO authenticated
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
 
 -- 5) Comment the new columns for documentation
 COMMENT ON COLUMN profiles.invoice_notification_preferences IS 'User preferences for invoice notification events and channels';

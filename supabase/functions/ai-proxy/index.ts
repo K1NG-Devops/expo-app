@@ -23,12 +23,18 @@ const corsHeaders = {
 
 interface AIProxyRequest {
   scope: 'teacher' | 'principal' | 'parent'
-  service_type: 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'progress_analysis' | 'insights'
+  service_type: 'lesson_generation' | 'grading_assistance' | 'homework_help' | 'progress_analysis' | 'insights' | 'transcription'
   payload: {
-    prompt: string
+    prompt?: string
     context?: string
+    audio_url?: string  // For transcription requests
+    images?: Array<{
+      data: string  // base64-encoded image
+      media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
+    }>
     metadata?: Record<string, any>
   }
+  stream?: boolean  // Enable Server-Sent Events streaming
   metadata?: {
     student_id?: string
     class_id?: string
@@ -114,14 +120,81 @@ async function checkQuota(
   }
 }
 
-async function callClaude(prompt: string): Promise<{
+type ClaudeModel = 'claude-3-haiku-20240307' | 'claude-3-5-sonnet-20241022'
+type SubscriptionTier = 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise'
+
+// Model pricing per million tokens
+const MODEL_PRICING = {
+  'claude-3-haiku-20240307': {
+    input: 0.00000025,   // $0.25/1M
+    output: 0.00000125,  // $1.25/1M
+  },
+  'claude-3-5-sonnet-20241022': {
+    input: 0.000003,     // $3.00/1M
+    output: 0.000015,    // $15.00/1M
+  }
+}
+
+// Tier-based model selection
+function selectModelForTier(tier: SubscriptionTier, hasImages: boolean): ClaudeModel {
+  // Vision requires Sonnet 3.5
+  if (hasImages) {
+    // Only Basic tier (R299) and above get vision
+    if (['basic', 'premium', 'pro', 'enterprise'].includes(tier)) {
+      return 'claude-3-5-sonnet-20241022'
+    }
+    throw new Error('Vision features require Basic subscription (R299) or higher')
+  }
+  
+  // For text-only, use Haiku for lower tiers, Sonnet for premium
+  if (['pro', 'enterprise'].includes(tier)) {
+    return 'claude-3-5-sonnet-20241022'
+  }
+  
+  return 'claude-3-haiku-20240307'
+}
+
+async function callClaude(
+  prompt: string,
+  tier: SubscriptionTier,
+  images?: Array<{ data: string; media_type: string }>,
+  stream?: boolean
+): Promise<{
   content: string
   tokensIn: number
   tokensOut: number
   cost: number
+  model: string
+  response?: Response  // Raw response for streaming
 }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('Anthropic API key not configured')
+  }
+
+  const hasImages = images && images.length > 0
+  const model = selectModelForTier(tier, hasImages)
+  
+  // Build message content
+  let messageContent: any
+  if (hasImages) {
+    // Multi-modal message with images
+    messageContent = [
+      ...images.map(img => ({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.media_type,
+          data: img.data,
+        }
+      })),
+      {
+        type: 'text',
+        text: prompt
+      }
+    ]
+  } else {
+    // Text-only message
+    messageContent = prompt
   }
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -132,15 +205,44 @@ async function callClaude(prompt: string): Promise<{
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-haiku-20240307', // Using Haiku for cost efficiency
+      model,
       max_tokens: 4096,
+      stream: stream || false,  // Enable streaming if requested
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: messageContent
         }
       ],
-      system: 'You are an AI assistant helping with educational content. Always provide age-appropriate, safe, and helpful responses. Focus on learning outcomes and educational value.'
+      system: `You are Dash, a smart colleague helping with EduDash Pro.
+
+🌍 MULTILINGUAL CONVERSATION RULES:
+- If user speaks Zulu → respond naturally in Zulu
+- If user speaks Afrikaans → respond naturally in Afrikaans  
+- If user speaks English → respond naturally in English
+- DO NOT explain what the user said or translate
+- DO NOT teach language unless explicitly asked
+- Just have a normal conversation in their language
+
+EXAMPLES:
+❌ BAD: "'Unjani' means 'How are you' in Zulu. It's a common greeting..."
+✅ GOOD: "Ngiyaphila, ngiyabonga! Wena unjani?" (if they spoke Zulu)
+
+❌ BAD: "You asked 'How are you' in Zulu. Let me explain the counting song 'Onjani desh'..."
+✅ GOOD: "Ngiyaphila kahle, ngiyabonga ukubuza. Ungisiza kanjani namuhla?"
+
+RESPONSE STYLE:
+- Natural, conversational (like a smart colleague)
+- Answer in 1-3 sentences for greetings
+- Match the user's language WITHOUT commenting on it
+- State facts only - if you don't know, say "I don't have that information"
+- NO educational lectures unless teaching is requested
+
+CRITICAL:
+- NEVER make up data (student counts, assignments, etc)
+- If you don't have specific data, say "I need to check the database"
+- NO theatrical narration (*clears throat*, *smiles*, etc.)
+- Focus on being helpful, not educational by default`
     })
   })
 
@@ -148,22 +250,35 @@ async function callClaude(prompt: string): Promise<{
     const error = await response.text()
     throw new Error(`Claude API error: ${response.status} ${error}`)
   }
+  
+  // If streaming, return raw response for processing
+  if (stream) {
+    return {
+      content: '',  // Will be streamed
+      tokensIn: 0,  // Will be calculated after stream completes
+      tokensOut: 0,
+      cost: 0,
+      model,
+      response  // Pass through raw response
+    }
+  }
 
+  // Non-streaming: parse full response
   const result = await response.json()
   
   const tokensIn = result.usage?.input_tokens || 0
   const tokensOut = result.usage?.output_tokens || 0
   
-  // Claude 3 Haiku pricing
-  const costPerInputToken = 0.00000025  // $0.25/1M tokens
-  const costPerOutputToken = 0.00000125 // $1.25/1M tokens
-  const cost = (tokensIn * costPerInputToken) + (tokensOut * costPerOutputToken)
+  // Calculate cost based on model
+  const pricing = MODEL_PRICING[model]
+  const cost = (tokensIn * pricing.input) + (tokensOut * pricing.output)
 
   return {
     content: result.content[0]?.text || '',
     tokensIn,
     tokensOut,
-    cost
+    cost,
+    model
   }
 }
 
@@ -183,7 +298,21 @@ serve(async (req: Request): Promise<Response> => {
   try {
     // Parse request
     const requestBody: AIProxyRequest = await req.json()
-    const { scope, service_type, payload, metadata = {} } = requestBody
+    const { scope, payload, metadata = {}, stream = false } = requestBody
+    
+    // Validate and normalize service_type with safe default
+    const VALID_SERVICE_TYPES = [
+      'lesson_generation',
+      'homework_help',
+      'grading_assistance',
+      'general',
+      'dash_conversation',
+      'conversation'
+    ]
+    const rawServiceType = requestBody.service_type
+    const service_type = rawServiceType && VALID_SERVICE_TYPES.includes(rawServiceType as string)
+      ? rawServiceType
+      : 'dash_conversation' // Safe default for Dash AI chat sessions
 
     // Validate request
     if (!scope || !service_type || !payload?.prompt) {
@@ -228,14 +357,15 @@ serve(async (req: Request): Promise<Response> => {
       )
     }
 
-    // Get user profile for preschool_id
+    // Get user profile for preschool_id and subscription tier
     const { data: profile } = await supabaseAdmin
       .from('users')
-      .select('preschool_id')
+      .select('preschool_id, subscription_tier')
       .eq('auth_user_id', user.id)
       .single()
 
     const preschoolId = profile?.preschool_id || null
+    const tier: SubscriptionTier = (profile?.subscription_tier?.toLowerCase() || 'free') as SubscriptionTier
     const startTime = Date.now()
 
     // Check quota before proceeding
@@ -265,33 +395,160 @@ serve(async (req: Request): Promise<Response> => {
     // Redact PII from prompt per WARP.md
     const { redactedText, redactionCount } = redactPII(payload.prompt)
     
+    // Extract images if present
+    const images = payload.images
+    
     // Call Claude API
     try {
-      const aiResult = await callClaude(redactedText)
+      const aiResult = await callClaude(redactedText, tier, images, stream)
       
-      // Log successful usage
+      // Handle streaming response
+      if (stream && aiResult.response) {
+        const encoder = new TextEncoder()
+        let fullContent = ''
+        let tokensIn = 0
+        let tokensOut = 0
+        
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              const reader = aiResult.response!.body!.getReader()
+              const decoder = new TextDecoder()
+              
+              while (true) {
+                const { done, value } = await reader.read()
+                if (done) break
+                
+                const chunk = decoder.decode(value)
+                const lines = chunk.split('\n').filter(line => line.trim())
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6)
+                    
+                    if (data === '[DONE]') {
+                      // Send final event
+                      controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+                      controller.close()
+                      break
+                    }
+                    
+                    try {
+                      const event = JSON.parse(data)
+                      
+                      // Track tokens from usage events
+                      if (event.type === 'message_start' && event.message?.usage) {
+                        tokensIn = event.message.usage.input_tokens || 0
+                      }
+                      
+                      if (event.type === 'message_delta' && event.usage) {
+                        tokensOut = event.usage.output_tokens || 0
+                      }
+                      
+                      // Extract content deltas
+                      if (event.type === 'content_block_delta' && event.delta?.text) {
+                        fullContent += event.delta.text
+                        
+                        // Forward chunk to client
+                        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                          type: 'content_block_delta',
+                          delta: { text: event.delta.text }
+                        })}\n\n`))
+                      }
+                      
+                    } catch (e) {
+                      console.error('Failed to parse SSE event:', e)
+                    }
+                  }
+                }
+              }
+              
+              // Log streaming usage after completion
+              const pricing = MODEL_PRICING[aiResult.model as ClaudeModel]
+              const cost = (tokensIn * pricing.input) + (tokensOut * pricing.output)
+              
+              // Safe logging - never fail the request due to logging errors
+              const { error: logError } = await supabaseAdmin
+                .from('ai_usage_logs')
+                .insert({
+                  user_id: user.id,
+                  preschool_id: preschoolId,
+                  organization_id: preschoolId,
+                  service_type: service_type,
+                  ai_model_used: aiResult.model,
+                  status: 'success',
+                  input_tokens: tokensIn,
+                  output_tokens: tokensOut,
+                  total_cost: cost,
+                  processing_time_ms: Date.now() - startTime,
+                  input_text: redactedText,
+                  output_text: fullContent,
+                  metadata: {
+                    ...metadata,
+                    scope,
+                    tier,
+                    streaming: true,
+                    has_images: images && images.length > 0,
+                    image_count: images?.length || 0,
+                    redaction_count: redactionCount
+                  }
+                })
+              
+              if (logError) {
+                console.error('[ai-proxy] Failed to log streaming usage:', logError)
+              }
+              
+            } catch (error) {
+              console.error('Streaming error:', error)
+              controller.error(error)
+            }
+          }
+        })
+        
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
+        })
+      }
+      
+      // Log successful usage (safe - never fail request on logging errors)
       const { data: logData, error: logError } = await supabaseAdmin
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
           preschool_id: preschoolId,
+          organization_id: preschoolId,
           service_type: service_type,
+          ai_model_used: aiResult.model,
           status: 'success',
           input_tokens: aiResult.tokensIn,
           output_tokens: aiResult.tokensOut,
-          input_cost: aiResult.tokensIn * 0.00000025,
-          output_cost: aiResult.tokensOut * 0.00000125,
           total_cost: aiResult.cost,
-          response_time_ms: Date.now() - startTime,
+          processing_time_ms: Date.now() - startTime,
+          input_text: redactedText,
+          output_text: aiResult.content,
           metadata: {
             ...metadata,
             scope,
+            tier,
+            has_images: images && images.length > 0,
+            image_count: images?.length || 0,
             redaction_count: redactionCount,
-            model: 'claude-3-haiku-20240307'
+            input_cost: aiResult.cost - (aiResult.tokensOut * MODEL_PRICING[aiResult.model as ClaudeModel].output),
+            output_cost: aiResult.tokensOut * MODEL_PRICING[aiResult.model as ClaudeModel].output
           }
         })
         .select('id')
         .single()
+      
+      if (logError) {
+        console.error('[ai-proxy] Failed to log usage:', logError)
+      }
 
       const usageId = logData?.id || 'unknown'
 
@@ -313,20 +570,22 @@ serve(async (req: Request): Promise<Response> => {
       )
 
     } catch (aiError) {
-      // Log failed usage
-      await supabaseAdmin
+      // Log failed usage (safe - never fail on logging errors)
+      const { error: logError } = await supabaseAdmin
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
           preschool_id: preschoolId,
+          organization_id: preschoolId,
           service_type: service_type,
+          ai_model_used: tier === 'free' || tier === 'starter' ? 'claude-3-haiku-20240307' : 'claude-3-5-sonnet-20241022',
           status: 'error',
           input_tokens: 0,
           output_tokens: 0,
-          input_cost: 0,
-          output_cost: 0,
           total_cost: 0,
-          response_time_ms: Date.now() - startTime,
+          processing_time_ms: Date.now() - startTime,
+          error_message: (aiError as Error).message,
+          input_text: redactedText,
           metadata: {
             ...metadata,
             scope,
@@ -334,6 +593,10 @@ serve(async (req: Request): Promise<Response> => {
             redaction_count: redactionCount
           }
         })
+      
+      if (logError) {
+        console.error('[ai-proxy] Failed to log error usage:', logError)
+      }
 
       return new Response(
         JSON.stringify({

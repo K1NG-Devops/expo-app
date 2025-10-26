@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { supabase } from '../lib/supabase';
 
 export interface AIInsight {

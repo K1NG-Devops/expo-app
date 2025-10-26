@@ -263,14 +263,12 @@ export const PasswordRecovery: React.FC<PasswordRecoveryProps> = ({
           }
           break;
         }
-          
         case 'security-questions': {
           const questions = await loadSecurityQuestions(formData.email);
           setUserSecurityQuestions(questions);
           setCurrentStep('security-questions');
           break;
         }
-          
         case 'admin-reset':
           Alert.alert(
             'Admin Reset Requested',

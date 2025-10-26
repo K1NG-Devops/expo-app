@@ -9,6 +9,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { router } from 'expo-router';
 import { ScrollView, View, Alert } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { detectRoleAndSchool } from '@/lib/routeAfterLogin';
@@ -38,6 +39,7 @@ const safeDisplay = (value: any, fallback: string = '—'): string => {
  * Shows real leads and platform metrics from enterprise_leads and preschools tables
  */
 export const SuperAdminDashboardDatabase: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [role, setRole] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
       <NavigationShell role="superadmin" activeTab={activeTab} onTabPress={setActiveTab}>
         <WireframeEmptyState
           icon="🚫"
-          title="Access Denied"
+title={t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}
           description="Super admin access required to view this dashboard"
         />
       </NavigationShell>
@@ -98,7 +100,7 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
 
   const renderDashboard = () => (
     <ScrollView style={{ flex: 1 }}>
-      <WireframeCard title="Global Platform Overview">
+<WireframeCard title={t('wireframes.global_overview', { defaultValue: 'Global Platform Overview' })}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
           <WireframeMetric 
             label="Schools" 
@@ -125,13 +127,13 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
         {loading ? (
           <WireframeListItem 
             icon="⏳" 
-            title="Loading leads..." 
-            subtitle="Fetching from database"
+title={t('screens.loading', { defaultValue: 'Loading...' })}
+subtitle={t('common.loading', { defaultValue: 'Loading...' })}
           />
         ) : leads.length === 0 ? (
           <WireframeEmptyState
             icon="📊"
-            title="No Leads Yet"
+title={t('wireframes.no_leads_yet', { defaultValue: 'No Leads Yet' })}
             description="Enterprise leads will appear here when submitted from the contact form"
             actionLabel="View Lead Form"
             onActionPress={() => Alert.alert('Navigate to Contact Sales Form')}
@@ -151,17 +153,17 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
         {leads.length > 3 && (
           <WireframeListItem
             icon="➕"
-            title={`View ${leads.length - 3} more leads`}
+title={t('wireframes.view_more_leads', { count: leads.length - 3, defaultValue: 'View {{count}} more leads' })}
             onPress={() => setActiveTab('sales')}
           />
         )}
       </WireframeCard>
 
-      <WireframeCard title="Schools by Region">
+<WireframeCard title={t('wireframes.schools_by_region', { defaultValue: 'Schools by Region' })}>
         {orgs.length === 0 ? (
           <WireframeListItem
             icon="🌍"
-            title="No schools registered yet"
+title={t('wireframes.no_schools_yet', { defaultValue: 'No schools registered yet' })}
             subtitle="Schools will appear here after lead conversion"
           />
         ) : (
@@ -270,6 +272,7 @@ export const SuperAdminDashboardDatabase: React.FC = () => {
  * Shows real school metrics from teachers, students, and classes tables
  */
 export const PrincipalDashboardDatabase: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [role, setRole] = useState<string | null>(null);
@@ -333,7 +336,7 @@ export const PrincipalDashboardDatabase: React.FC = () => {
       <NavigationShell role="principal" activeTab={activeTab} onTabPress={setActiveTab}>
         <WireframeEmptyState
           icon="🚫"
-          title="Access Denied"
+title={t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}
           description="Principal or admin access required to view this dashboard"
         />
       </NavigationShell>
@@ -342,11 +345,11 @@ export const PrincipalDashboardDatabase: React.FC = () => {
 
   const renderDashboard = () => (
     <ScrollView style={{ flex: 1 }}>
-      <WireframeCard title={schoolId ? "School Overview" : "No School Selected"}>
+<WireframeCard title={schoolId ? t('dashboard.school_overview', { defaultValue: 'School Overview' }) : t('wireframes.no_school_selected', { defaultValue: 'No School Selected' })}>
         {loading ? (
           <WireframeListItem 
             icon="⏳" 
-            title="Loading school metrics..." 
+title={t('dashboard.loading', { defaultValue: 'Loading dashboard...' })}
             subtitle="Fetching from database"
           />
         ) : (
@@ -503,6 +506,7 @@ export const PrincipalDashboardDatabase: React.FC = () => {
  * Shows realistic teacher interface with profile data from database
  */
 export const TeacherDashboardDatabase: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [role, setRole] = useState<string | null>(null);
@@ -539,7 +543,7 @@ export const TeacherDashboardDatabase: React.FC = () => {
       <NavigationShell role="teacher" activeTab={activeTab} onTabPress={setActiveTab}>
         <WireframeEmptyState
           icon="🚫"
-          title="Access Denied"
+title={t('dashboard.accessDenied', { defaultValue: 'Access Denied' })}
           description="Teacher access required to view this dashboard"
         />
       </NavigationShell>

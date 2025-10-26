@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS message_threads (
   subject TEXT NOT NULL,
   created_by UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   last_message_at TIMESTAMPTZ DEFAULT now(),
-  is_archived BOOLEAN DEFAULT false,
+  is_archived BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS message_participants (
   user_id UUID NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('parent', 'teacher', 'principal', 'admin')),
   joined_at TIMESTAMPTZ DEFAULT now(),
-  is_muted BOOLEAN DEFAULT false,
+  is_muted BOOLEAN DEFAULT FALSE,
   last_read_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (thread_id, user_id)
 );
@@ -142,7 +142,7 @@ FOR INSERT WITH CHECK (
 CREATE POLICY messages_update_policy ON messages
 FOR UPDATE USING (
   sender_id = auth.uid()
-  AND deleted_at IS null
+  AND deleted_at IS NULL
 );
 
 -- Triggers to maintain last_message_at

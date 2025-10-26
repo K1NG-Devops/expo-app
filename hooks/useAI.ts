@@ -1,3 +1,4 @@
+import { logger } from '@/lib/logger';
 /**
  * AI TanStack Query Hooks
  * 
@@ -235,7 +236,7 @@ export function useAIRequest() {
       track('edudash.ai.request.succeeded', {
         service_type: variables.service_type,
         duration_ms: 0,
-        tokens_used: (data.usage?.tokens_in || 0) + (data.usage?.tokens_out || 0),
+        tokens_used: data.usage?.tokens_in + data.usage?.tokens_out || 0,
         cost_cents: 0,
       } as any);
     },
@@ -305,7 +306,7 @@ export function useAICacheClear() {
           await AsyncStorage.multiRemove(aiKeys);
         }
       } catch (error) {
-        console.warn('Failed to clear AI cache from AsyncStorage:', error);
+        logger.warn('Failed to clear AI cache from AsyncStorage:', error);
       }
     },
     
@@ -318,7 +319,7 @@ export function useAICacheClear() {
       try {
         await AsyncStorage.removeItem(CACHE_KEYS.USER_LIMITS + userId);
       } catch (error) {
-        console.warn('Failed to clear user AI cache:', error);
+        logger.warn('Failed to clear user AI cache:', error);
       }
     },
   };

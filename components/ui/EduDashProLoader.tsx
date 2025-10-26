@@ -106,9 +106,7 @@ export function EduDashProLoader({
   const containerStyle = variant === 'splash' ? styles.splashContainer : 
                         fullScreen ? styles.fullScreenContainer : styles.inlineContainer;
 
-  const iconSource = Platform.OS === 'web' 
-    ? require('@/assets/favicon.png')
-    : require('@/assets/icon.png');
+  const iconSource = require('@/assets/branding/png/icon-512.png');
 
   return (
     <Animated.View 
@@ -151,7 +149,7 @@ export function EduDashProLoader({
                   borderRadius: iconSize / 2, // Make it perfectly round
                 },
               ]}
-              contentFit="cover"
+              contentFit="contain"
               transition={200}
             />
             

@@ -17,13 +17,12 @@ import {
   TextInput,
   Dimensions,
   Image,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashWhatsAppIntegration } from '@/services/DashWhatsAppIntegration';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
+import { DashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import QRCode from 'react-native-qrcode-svg';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';

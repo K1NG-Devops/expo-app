@@ -1,30 +1,30 @@
 -- Minimal parent portal tables for PoP upload and child registration (RLS-enabled)
 -- Date: 2025-09-17
 
-begin;
+BEGIN;
 
 -- Ensure required extension is available (on Supabase it usually is)
 -- create extension if not exists pgcrypto;
 
 -- 1) Parent Payments (Proof of Payment uploads)
-create table if not exists public.parent_payments (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  parent_id uuid null references auth.users(id) on delete set null,
-  reference text not null,
-  amount numeric(12,2) not null check (amount >= 0),
-  status text not null default 'pending_review' check (status in ('pending_review','approved','rejected')),
-  notes text null
+CREATE TABLE IF NOT EXISTS public.parent_payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  parent_id uuid NULL REFERENCES auth.users (id) ON DELETE SET NULL,
+  reference text NOT NULL,
+  amount numeric(12, 2) NOT NULL CHECK (amount >= 0),
+  status text NOT NULL DEFAULT 'pending_review' CHECK (status IN ('pending_review', 'approved', 'rejected')),
+  notes text NULL
 );
 
-alter table public.parent_payments enable row level security;
+ALTER TABLE public.parent_payments ENABLE ROW LEVEL SECURITY;
 
 -- Function to set parent_id from auth.uid() when not provided
-create or replace function public.set_parent_payments_parent_id()
-returns trigger
-language plpgsql
-security definer
-as $$
+CREATE OR REPLACE FUNCTION public.set_parent_payments_parent_id()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 begin
   if new.parent_id is null then
     new.parent_id := auth.uid();
@@ -32,17 +32,17 @@ begin
   return new;
 end;$$;
 
-drop trigger if exists trg_set_parent_payments_parent_id on public.parent_payments;
-create trigger trg_set_parent_payments_parent_id
-before insert on public.parent_payments
-for each row execute function public.set_parent_payments_parent_id();
+DROP TRIGGER IF EXISTS trg_set_parent_payments_parent_id ON public.parent_payments;
+CREATE TRIGGER trg_set_parent_payments_parent_id
+BEFORE INSERT ON public.parent_payments
+FOR EACH ROW EXECUTE FUNCTION public.set_parent_payments_parent_id();
 
 -- Super admin helper (if not present)
-create or replace function public.app_is_super_admin()
-returns boolean
-language sql
-stable
-as $$
+CREATE OR REPLACE FUNCTION public.app_is_super_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
   select exists (
     select 1 from public.profiles p 
     where p.id = auth.uid() and lower(p.role) in ('super_admin','superadmin')
@@ -51,53 +51,53 @@ $$;
 
 -- Policies (drop if exist to avoid IF NOT EXISTS incompatibilities)
 -- SELECT own or super admin
-drop policy if exists parent_payments_select_own_or_admin on public.parent_payments;
-create policy parent_payments_select_own_or_admin
-on public.parent_payments for select
-using (
-  parent_id = auth.uid() or public.app_is_super_admin()
+DROP POLICY IF EXISTS parent_payments_select_own_or_admin ON public.parent_payments;
+CREATE POLICY parent_payments_select_own_or_admin
+ON public.parent_payments FOR SELECT
+USING (
+  parent_id = auth.uid() OR public.app_is_super_admin()
 );
 
 -- INSERT self
-drop policy if exists parent_payments_insert_self on public.parent_payments;
-create policy parent_payments_insert_self
-on public.parent_payments for insert to authenticated
-with check (
-  parent_id is null or parent_id = auth.uid()
+DROP POLICY IF EXISTS parent_payments_insert_self ON public.parent_payments;
+CREATE POLICY parent_payments_insert_self
+ON public.parent_payments FOR INSERT TO authenticated
+WITH CHECK (
+  parent_id IS NULL OR parent_id = auth.uid()
 );
 
 -- UPDATE pending (own)
-drop policy if exists parent_payments_update_pending_own on public.parent_payments;
-create policy parent_payments_update_pending_own
-on public.parent_payments for update to authenticated
-using (
-  parent_id = auth.uid() and status = 'pending_review'
+DROP POLICY IF EXISTS parent_payments_update_pending_own ON public.parent_payments;
+CREATE POLICY parent_payments_update_pending_own
+ON public.parent_payments FOR UPDATE TO authenticated
+USING (
+  parent_id = auth.uid() AND status = 'pending_review'
 )
-with check (
-  parent_id = auth.uid() and status = 'pending_review'
+WITH CHECK (
+  parent_id = auth.uid() AND status = 'pending_review'
 );
 
 -- 2) Child Registration Requests
-create table if not exists public.child_registration_requests (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  parent_id uuid null references auth.users(id) on delete set null,
-  first_name text not null,
-  last_name text not null,
-  date_of_birth date null,
-  status text not null default 'pending' check (status in ('pending','approved','rejected')),
-  reviewed_by uuid null references auth.users(id),
-  reviewed_at timestamptz null,
-  notes text null
+CREATE TABLE IF NOT EXISTS public.child_registration_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  parent_id uuid NULL REFERENCES auth.users (id) ON DELETE SET NULL,
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  date_of_birth date NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by uuid NULL REFERENCES auth.users (id),
+  reviewed_at timestamptz NULL,
+  notes text NULL
 );
 
-alter table public.child_registration_requests enable row level security;
+ALTER TABLE public.child_registration_requests ENABLE ROW LEVEL SECURITY;
 
-create or replace function public.set_child_reg_parent_id()
-returns trigger
-language plpgsql
-security definer
-as $$
+CREATE OR REPLACE FUNCTION public.set_child_reg_parent_id()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 begin
   if new.parent_id is null then
     new.parent_id := auth.uid();
@@ -105,35 +105,35 @@ begin
   return new;
 end;$$;
 
-drop trigger if exists trg_set_child_reg_parent_id on public.child_registration_requests;
-create trigger trg_set_child_reg_parent_id
-before insert on public.child_registration_requests
-for each row execute function public.set_child_reg_parent_id();
+DROP TRIGGER IF EXISTS trg_set_child_reg_parent_id ON public.child_registration_requests;
+CREATE TRIGGER trg_set_child_reg_parent_id
+BEFORE INSERT ON public.child_registration_requests
+FOR EACH ROW EXECUTE FUNCTION public.set_child_reg_parent_id();
 
-drop policy if exists child_reg_select_own_or_admin on public.child_registration_requests;
-create policy child_reg_select_own_or_admin
-on public.child_registration_requests for select
-using (
-  parent_id = auth.uid() or public.app_is_super_admin()
+DROP POLICY IF EXISTS child_reg_select_own_or_admin ON public.child_registration_requests;
+CREATE POLICY child_reg_select_own_or_admin
+ON public.child_registration_requests FOR SELECT
+USING (
+  parent_id = auth.uid() OR public.app_is_super_admin()
 );
 
 -- INSERT self
-drop policy if exists child_reg_insert_self on public.child_registration_requests;
-create policy child_reg_insert_self
-on public.child_registration_requests for insert to authenticated
-with check (
-  parent_id is null or parent_id = auth.uid()
+DROP POLICY IF EXISTS child_reg_insert_self ON public.child_registration_requests;
+CREATE POLICY child_reg_insert_self
+ON public.child_registration_requests FOR INSERT TO authenticated
+WITH CHECK (
+  parent_id IS NULL OR parent_id = auth.uid()
 );
 
 -- UPDATE pending (own)
-drop policy if exists child_reg_update_pending_own on public.child_registration_requests;
-create policy child_reg_update_pending_own
-on public.child_registration_requests for update to authenticated
-using (
-  parent_id = auth.uid() and status = 'pending'
+DROP POLICY IF EXISTS child_reg_update_pending_own ON public.child_registration_requests;
+CREATE POLICY child_reg_update_pending_own
+ON public.child_registration_requests FOR UPDATE TO authenticated
+USING (
+  parent_id = auth.uid() AND status = 'pending'
 )
-with check (
-  parent_id = auth.uid() and status = 'pending'
+WITH CHECK (
+  parent_id = auth.uid() AND status = 'pending'
 );
 
-commit;
+COMMIT;

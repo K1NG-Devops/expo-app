@@ -17,9 +17,7 @@ function getTierMeta(t?: string) {
   const tt = String(t || 'free').toLowerCase()
   switch (tt) {
     case 'starter': return { label: 'Starter', color: '#059669' }
-    case 'basic': return { label: 'Basic', color: '#10B981' }
     case 'premium': return { label: 'Premium', color: '#7C3AED' }
-    case 'pro': return { label: 'Pro', color: '#2563EB' }
     case 'enterprise': return { label: 'Enterprise', color: '#DC2626' }
     case 'free':
     default: return { label: 'Free', color: '#6B7280' }
@@ -41,9 +39,11 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
   const tierKey = String(effectiveTier || 'free').toLowerCase()
   const label = t(`subscription.tiers.${tierKey}`, { defaultValue: meta.label })
 
+  // Only show source info if we have a valid source
+  const hasValidSource = tierSource && tierSource !== 'unknown'
   const tierSourceKey = `subscription.tierSource.${tierSource || 'unknown'}`
-  const tierSourceText = t(tierSourceKey, { defaultValue: t('subscription.tierSource.unknown', { defaultValue: 'Unknown' }) })
-  const sourceCaption = t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` })
+  const tierSourceText = hasValidSource ? t(tierSourceKey, { defaultValue: tierSource }) : null
+  const sourceCaption = tierSourceText ? t('subscription.tierSource.caption', { source: tierSourceText, defaultValue: `Source: ${tierSourceText}` }) : null
 
   const [showTip, setShowTip] = useState(false)
 
@@ -62,8 +62,12 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
         <TouchableOpacity
           style={[styles.manageBtn, { borderColor: meta.color, height }]}
           onPress={() => {
-            if (profile?.role === 'super_admin') router.push('/screens/super-admin-subscriptions')
-            else router.push('/pricing')
+            if (profile?.role === 'super_admin') {
+              router.push('/screens/super-admin-subscriptions')
+            } else {
+              // Principals/admins go to subscription setup to manage/upgrade
+              router.push('/screens/subscription-setup')
+            }
           }}
           accessibilityLabel={t('subscription.managePlan', { defaultValue: 'Manage plan' })}
         >
@@ -71,7 +75,7 @@ export const TierBadge: React.FC<TierBadgeProps> = ({ tier, showManageButton = f
           <Text style={[styles.manageText, { color: meta.color, fontSize: fontSize - 1 }]}>{t('subscription.managePlan', { defaultValue: 'Manage plan' })}</Text>
         </TouchableOpacity>
       )}
-      {canManage && (
+      {canManage && hasValidSource && sourceCaption && (
         <View style={styles.sourceWrap}>
           <TouchableOpacity
             onPress={() => setShowTip(prev => !prev)}

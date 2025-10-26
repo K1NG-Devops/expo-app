@@ -8,7 +8,7 @@
  * - Teacher workload and ratios
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,13 +20,15 @@ import {
   Modal,
   TextInput,
   Switch,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { navigateBack } from '@/lib/navigation';
 import { navigateTo } from '@/lib/navigation/router-utils';
 import { Ionicons } from '@expo/vector-icons';
 import { assertSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Picker } from '@react-native-picker/picker';
 
 interface ClassInfo {
@@ -57,6 +59,7 @@ interface Teacher {
 
 export default function ClassTeacherManagementScreen() {
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
 // useRouter not needed; using router singleton from expo-router
   
   const [classes, setClasses] = useState<ClassInfo[]>([]);
@@ -79,83 +82,155 @@ export default function ClassTeacherManagementScreen() {
     teacher_id: '',
   });
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (!user) return;
 
     try {
       setLoading(true);
 
-      // Get user's preschool
-      const { data: userProfile } = await assertSupabase()
-        .from('users')
-        .select('preschool_id')
-        .eq('auth_user_id', user.id)
-        .single();
+      // Resolve preschool (school) ID and organization ID robustly across schemas
+      let schoolId: string | null = (user.user_metadata as any)?.preschool_id || null;
+      let orgId: string | null = (user.user_metadata as any)?.organization_id || null;
+      if (!schoolId || !orgId) {
+        try {
+          const { data: prof } = await assertSupabase()
+            .from('profiles')
+            .select('preschool_id, organization_id')
+            .eq('id', user.id)
+            .maybeSingle();
+          schoolId = schoolId || (prof as any)?.preschool_id || null;
+          orgId = orgId || (prof as any)?.organization_id || null;
+        } catch { /* Intentional: non-fatal */ }
+      }
+      if (!schoolId) {
+        try {
+          const { data: userRow } = await assertSupabase()
+            .from('users')
+            .select('preschool_id')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+          schoolId = (userRow as any)?.preschool_id || null;
+        } catch { /* Intentional: non-fatal */ }
+      }
 
-      if (!userProfile?.preschool_id) {
-        Alert.alert('Error', 'No school assigned to your account');
+      if (!schoolId && !orgId) {
+        Alert.alert('Error', 'No school or organization assigned to your account');
         return;
       }
 
-      // Load classes with teacher and enrollment information
-      const { data: classesData } = await assertSupabase()
+      // Load classes with teacher and enrollment information using the same pattern as TeacherDashboard
+      const { data: classesData, error: classesError } = await assertSupabase()
         .from('classes')
         .select(`
-          *,
+          id,
+          name,
+          grade_level,
+          capacity,
+          teacher_id,
+          is_active,
+          room_number,
+          schedule,
+          created_at,
           users!classes_teacher_id_fkey (
             id,
+            first_name,
+            last_name,
             name
           ),
-          students!inner (
-            id
-          )
+          students(id)
         `)
-        .eq('preschool_id', userProfile.preschool_id)
+        .eq('preschool_id', schoolId)
         .order('name');
 
-      const processedClasses = classesData?.map(cls => ({
-        id: cls.id,
-        name: cls.name,
-        grade_level: cls.grade_level,
-        capacity: cls.capacity || 25,
-        current_enrollment: cls.students?.length || 0,
-        teacher_id: cls.teacher_id,
-        teacher_name: cls.users?.name,
-        is_active: cls.is_active,
-        room_number: cls.room_number,
-        schedule: cls.schedule,
-        created_at: cls.created_at,
-      })) || [];
+      if (classesError) {
+        console.error('Error loading classes:', classesError);
+      }
+
+      // Compute student counts per class from the joined students array (avoids N+1 queries)
+      const processedClasses = (classesData || []).map((cls: any) => {
+        const teacher = cls.users || null;
+        const teacherName = teacher
+          ? ((teacher.first_name && teacher.last_name)
+              ? `${teacher.first_name} ${teacher.last_name}`
+              : (teacher.name || null))
+          : null;
+        const studentCount = Array.isArray(cls.students) ? cls.students.length : 0;
+        return {
+          id: cls.id,
+          name: cls.name,
+          grade_level: cls.grade_level,
+          capacity: cls.capacity || 25,
+          current_enrollment: studentCount || 0,
+          teacher_id: cls.teacher_id,
+          teacher_name: teacherName || undefined,
+          is_active: cls.is_active,
+          room_number: cls.room_number,
+          schedule: cls.schedule,
+          created_at: cls.created_at,
+        } as ClassInfo;
+      });
 
       setClasses(processedClasses);
 
-      // Load teachers with their class assignments from users table
-      const { data: teachersData } = await assertSupabase()
-        .from('users')
-        .select(`
-          *,
-          classes!classes_teacher_id_fkey (
-            id
-          ),
-          students!inner (
-            id
-          )
-        `)
-        .eq('preschool_id', userProfile.preschool_id)
-        .eq('role', 'teacher')
-        .order('name');
+      // Load teachers based on organization membership + users (aligns with TeacherDashboard)
+      const { data: teacherMembers, error: teacherMembersError } = await assertSupabase()
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', orgId || schoolId)
+        .ilike('role', '%teacher%');
 
-      const processedTeachers = teachersData?.map(teacher => ({
-        id: teacher.id,
-        full_name: teacher.name,
-        email: teacher.email,
-        phone: teacher.phone,
-        specialization: teacher.subject_specialization || '',
-        status: (teacher.is_active !== false ? 'active' : 'inactive') as 'active' | 'inactive',
-        hire_date: teacher.created_at,
-        classes_assigned: teacher.classes?.length || 0,
-        students_count: teacher.students?.length || 0,
-      })) || [];
+      if (teacherMembersError) {
+        console.error('Error loading teacher memberships:', teacherMembersError);
+      }
+
+      const teacherAuthIds: string[] = (teacherMembers || [])
+        .map((m: any) => m.user_id)
+        .filter((v: any) => !!v);
+
+      let teacherUsers: any[] = [];
+      if (teacherAuthIds.length > 0) {
+        const { data: usersData } = await assertSupabase()
+          .from('users')
+          .select('id, auth_user_id, email, first_name, last_name, name, role, created_at')
+          .in('auth_user_id', teacherAuthIds);
+        teacherUsers = usersData || [];
+      }
+
+      // Fallback: if membership is empty, try users table by preschool and role
+      if (teacherUsers.length === 0) {
+        const { data: fallbackUsers } = await assertSupabase()
+          .from('users')
+          .select('id, auth_user_id, email, first_name, last_name, name, role, created_at')
+          .eq('preschool_id', schoolId)
+          .ilike('role', '%teacher%');
+        teacherUsers = fallbackUsers || [];
+      }
+
+      // Aggregate classes and student counts per teacher from processedClasses
+      const classesByTeacher: Record<string, ClassInfo[]> = {};
+      for (const cls of processedClasses) {
+        if (!cls.teacher_id) continue;
+        if (!classesByTeacher[cls.teacher_id]) classesByTeacher[cls.teacher_id] = [];
+        classesByTeacher[cls.teacher_id].push(cls);
+      }
+
+      const processedTeachers: Teacher[] = (teacherUsers || []).map((u: any) => {
+        const tClasses = classesByTeacher[u.id] || [];
+        const classes_assigned = tClasses.length;
+        const students_count = tClasses.reduce((sum, c) => sum + (c.current_enrollment || 0), 0);
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.name || u.email;
+        return {
+          id: u.id,
+          full_name: fullName,
+          email: u.email,
+          phone: undefined,
+          specialization: '',
+          status: 'active',
+          hire_date: u.created_at || new Date().toISOString(),
+          classes_assigned,
+          students_count,
+        } as Teacher;
+      });
 
       setTeachers(processedTeachers);
 
@@ -166,7 +241,18 @@ export default function ClassTeacherManagementScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user]);
+
+  // Memoize filtered lists for better performance
+  const activeTeachers = useMemo(() => 
+    teachers.filter(t => t.status === 'active'),
+    [teachers]
+  );
+
+  const activeClasses = useMemo(() => 
+    classes.filter(c => c.is_active),
+    [classes]
+  );
 
   const handleCreateClass = async () => {
     if (!classForm.name.trim() || !classForm.grade_level.trim()) {
@@ -175,11 +261,16 @@ export default function ClassTeacherManagementScreen() {
     }
 
     try {
-      const { data: userProfile } = await assertSupabase()
-        .from('users')
-        .select('preschool_id')
-        .eq('auth_user_id', user?.id)
-        .single();
+      // Resolve school again to be safe
+      let schoolId: string | null = (user?.user_metadata as any)?.preschool_id || null;
+      if (!schoolId && user?.id) {
+        const { data: prof } = await assertSupabase()
+          .from('profiles')
+          .select('preschool_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        schoolId = (prof as any)?.preschool_id || null;
+      }
 
       const { error } = await assertSupabase()
         .from('classes')
@@ -189,7 +280,7 @@ export default function ClassTeacherManagementScreen() {
           capacity: classForm.capacity,
           room_number: classForm.room_number.trim() || null,
           teacher_id: classForm.teacher_id || null,
-          preschool_id: userProfile?.preschool_id,
+          preschool_id: schoolId,
           is_active: true,
         });
 
@@ -288,16 +379,16 @@ export default function ClassTeacherManagementScreen() {
   };
 
   const getClassStatusColor = (classInfo: ClassInfo) => {
-    if (!classInfo.is_active) return '#9CA3AF';
-    if (classInfo.current_enrollment >= classInfo.capacity) return '#EF4444';
-    if (classInfo.current_enrollment >= classInfo.capacity * 0.8) return '#F59E0B';
-    return '#10B981';
+    if (!classInfo.is_active) return theme.textSecondary;
+    if (classInfo.current_enrollment >= classInfo.capacity) return theme.error;
+    if (classInfo.current_enrollment >= classInfo.capacity * 0.8) return theme.warning;
+    return theme.success;
   };
 
   const getTeacherWorkloadColor = (teacher: Teacher) => {
-    if (teacher.students_count > 30) return '#EF4444';
-    if (teacher.students_count > 20) return '#F59E0B';
-    return '#10B981';
+    if (teacher.students_count > 30) return theme.error;
+    if (teacher.students_count > 20) return theme.warning;
+    return theme.success;
   };
 
   useEffect(() => {
@@ -309,11 +400,14 @@ export default function ClassTeacherManagementScreen() {
     loadData();
   };
 
+  const styles = getStyles(theme);
+
   if (loading && !refreshing) {
     return (
       <SafeAreaView style={styles.container}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
         <View style={styles.loadingContainer}>
-          <Ionicons name="school-outline" size={48} color="#6B7280" />
+          <Ionicons name="school-outline" size={48} color={theme.textSecondary} />
           <Text style={styles.loadingText}>Loading class and teacher data...</Text>
         </View>
       </SafeAreaView>
@@ -322,14 +416,15 @@ export default function ClassTeacherManagementScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
+        <TouchableOpacity onPress={() => navigateBack('/screens/principal-dashboard')}>
+          <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Class & Teacher Management</Text>
         <TouchableOpacity onPress={() => setShowClassModal(true)}>
-          <Ionicons name="add" size={24} color="#007AFF" />
+          <Ionicons name="add" size={24} color={theme.primary} />
         </TouchableOpacity>
       </View>
 
@@ -362,11 +457,11 @@ export default function ClassTeacherManagementScreen() {
           <View style={styles.content}>
             {classes.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="school-outline" size={64} color="#9CA3AF" />
+                <Ionicons name="school-outline" size={64} color={theme.textSecondary} />
                 <Text style={styles.emptyTitle}>No Classes Created</Text>
                 <Text style={styles.emptySubtitle}>Create your first class to start organizing students</Text>
                 <TouchableOpacity style={styles.addButton} onPress={() => setShowClassModal(true)}>
-                  <Ionicons name="add" size={20} color="#fff" />
+                  <Ionicons name="add" size={20} color={theme.onPrimary} />
                   <Text style={styles.addButtonText}>Create Class</Text>
                 </TouchableOpacity>
               </View>
@@ -385,8 +480,8 @@ export default function ClassTeacherManagementScreen() {
                       <Switch
                         value={classInfo.is_active}
                         onValueChange={() => handleToggleClassStatus(classInfo)}
-                        trackColor={{ false: '#E5E7EB', true: '#10B981' }}
-                        thumbColor={classInfo.is_active ? '#fff' : '#9CA3AF'}
+                        trackColor={{ false: theme.border, true: theme.success }}
+                        thumbColor={classInfo.is_active ? theme.onPrimary : theme.textSecondary}
                       />
                     </View>
                   </View>
@@ -408,7 +503,7 @@ export default function ClassTeacherManagementScreen() {
                           <Text style={styles.teacherLabel}>Teacher</Text>
                           <Text style={styles.teacherName}>{classInfo.teacher_name}</Text>
                           <TouchableOpacity onPress={() => handleRemoveTeacher(classInfo)}>
-                            <Ionicons name="close-circle" size={20} color="#EF4444" />
+                            <Ionicons name="close-circle" size={20} color={theme.error} />
                           </TouchableOpacity>
                         </View>
                       ) : (
@@ -419,7 +514,7 @@ export default function ClassTeacherManagementScreen() {
                             setShowTeacherAssignment(true);
                           }}
                         >
-                          <Ionicons name="person-add" size={16} color="#007AFF" />
+                          <Ionicons name="person-add" size={16} color={theme.primary} />
                           <Text style={styles.assignTeacherText}>Assign Teacher</Text>
                         </TouchableOpacity>
                       )}
@@ -431,7 +526,7 @@ export default function ClassTeacherManagementScreen() {
                       style={styles.viewStudentsButton}
                       onPress={() => navigateTo.classStudents(classInfo.id)}
                     >
-                      <Ionicons name="people" size={16} color="#8B5CF6" />
+                      <Ionicons name="people" size={16} color={theme.accent} />
                       <Text style={styles.viewStudentsText}>View Students</Text>
                     </TouchableOpacity>
                     
@@ -439,7 +534,7 @@ export default function ClassTeacherManagementScreen() {
                       style={styles.editClassButton}
                       onPress={() => navigateTo.editClass(classInfo.id)}
                     >
-                      <Ionicons name="create" size={16} color="#6B7280" />
+                      <Ionicons name="create" size={16} color={theme.textSecondary} />
                       <Text style={styles.editClassText}>Edit</Text>
                     </TouchableOpacity>
                   </View>
@@ -452,14 +547,14 @@ export default function ClassTeacherManagementScreen() {
           <View style={styles.content}>
             {teachers.length === 0 ? (
               <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={64} color="#9CA3AF" />
+                <Ionicons name="people-outline" size={64} color={theme.textSecondary} />
                 <Text style={styles.emptyTitle}>No Teachers Added</Text>
                 <Text style={styles.emptySubtitle}>Add teachers to assign them to classes</Text>
                 <TouchableOpacity 
                   style={styles.addButton} 
                   onPress={() => navigateTo.addTeacher()}
                 >
-                  <Ionicons name="person-add" size={20} color="#fff" />
+                  <Ionicons name="person-add" size={20} color={theme.onPrimary} />
                   <Text style={styles.addButtonText}>Add Teacher</Text>
                 </TouchableOpacity>
               </View>
@@ -476,7 +571,7 @@ export default function ClassTeacherManagementScreen() {
                     </View>
                     <View style={[
                       styles.statusBadge,
-                      { backgroundColor: teacher.status === 'active' ? '#10B981' : '#EF4444' }
+                      { backgroundColor: teacher.status === 'active' ? theme.success : theme.error }
                     ]}>
                       <Text style={styles.statusText}>{teacher.status.toUpperCase()}</Text>
                     </View>
@@ -516,7 +611,7 @@ export default function ClassTeacherManagementScreen() {
                       style={styles.editTeacherButton}
                       onPress={() => navigateTo.editTeacher(teacher.id)}
                     >
-                      <Ionicons name="create" size={16} color="#6B7280" />
+                      <Ionicons name="create" size={16} color={theme.textSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -639,7 +734,7 @@ export default function ClassTeacherManagementScreen() {
             >
               <Text style={[
                 styles.modalSave,
-                { color: classForm.teacher_id ? '#007AFF' : '#ccc' }
+                { color: classForm.teacher_id ? theme.primary : theme.textSecondary }
               ]}>
                 Assign
               </Text>
@@ -671,10 +766,10 @@ export default function ClassTeacherManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
@@ -684,7 +779,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
   },
   header: {
     flexDirection: 'row',
@@ -692,20 +787,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   tab: {
     flex: 1,
@@ -715,14 +810,14 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
+    borderBottomColor: theme.primary,
   },
   tabText: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   activeTabText: {
-    color: '#007AFF',
+    color: theme.primary,
     fontWeight: '600',
   },
   scrollView: {
@@ -738,12 +833,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 24,
@@ -751,23 +846,23 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
   },
   addButtonText: {
-    color: '#fff',
+    color: theme.onPrimary,
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
   },
   classCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -785,17 +880,17 @@ const styles = StyleSheet.create({
   className: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 4,
   },
   gradeLevel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 2,
   },
   roomNumber: {
     fontSize: 12,
-    color: '#8B5CF6',
+    color: theme.accent,
   },
   classActions: {
     alignItems: 'flex-end',
@@ -810,7 +905,7 @@ const styles = StyleSheet.create({
   },
   enrollmentLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   enrollmentValue: {
@@ -826,24 +921,24 @@ const styles = StyleSheet.create({
   },
   teacherLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   teacherName: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#333',
+    color: theme.text,
   },
   assignTeacherButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.elevated,
     borderRadius: 6,
   },
   assignTeacherText: {
     fontSize: 12,
-    color: '#007AFF',
+    color: theme.primary,
     marginLeft: 4,
   },
   classFooter: {
@@ -857,7 +952,7 @@ const styles = StyleSheet.create({
   },
   viewStudentsText: {
     fontSize: 14,
-    color: '#8B5CF6',
+    color: theme.accent,
     marginLeft: 4,
   },
   editClassButton: {
@@ -867,15 +962,15 @@ const styles = StyleSheet.create({
   },
   editClassText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginLeft: 4,
   },
   teacherCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -893,17 +988,17 @@ const styles = StyleSheet.create({
   teacherCardName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
     marginBottom: 4,
   },
   teacherEmail: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 2,
   },
   teacherSpecialization: {
     fontSize: 12,
-    color: '#8B5CF6',
+    color: theme.accent,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -912,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 10,
-    color: '#fff',
+    color: theme.onPrimary,
     fontWeight: '500',
   },
   teacherStats: {
@@ -926,11 +1021,11 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   teacherActions: {
@@ -940,7 +1035,7 @@ const styles = StyleSheet.create({
   },
   viewClassesButton: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.elevated,
     padding: 12,
     borderRadius: 6,
     alignItems: 'center',
@@ -948,40 +1043,40 @@ const styles = StyleSheet.create({
   },
   viewClassesText: {
     fontSize: 14,
-    color: '#007AFF',
+    color: theme.primary,
     fontWeight: '500',
   },
   editTeacherButton: {
     padding: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.elevated,
     borderRadius: 6,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: theme.text,
   },
   modalCancel: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   modalSave: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#007AFF',
+    color: theme.primary,
   },
   modalContent: {
     flex: 1,
@@ -993,28 +1088,31 @@ const styles = StyleSheet.create({
   formLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
+    color: theme.text,
     marginBottom: 8,
   },
   formInput: {
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
+    color: theme.text,
   },
   formPicker: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 8,
+    color: theme.text,
   },
   pickerLabel: {
     fontSize: 16,
-    color: '#333',
+    color: theme.text,
     marginBottom: 16,
   },
   picker: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 8,
+    color: theme.text,
   },
 });
