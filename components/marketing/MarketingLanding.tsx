@@ -13,9 +13,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable } from 'react-native';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { DesignSystem } from '@/constants/DesignSystem';
 import { Avatar } from '@/components/ui/Avatar';
@@ -175,12 +176,6 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
               <Text style={styles.logoText}>EduDash Pro</Text>
               <Text style={styles.logoSubtext}>Society 5.0</Text>
             </View>
-<TouchableOpacity style={[styles.accessButton, webOptimized && styles.accessButtonWeb]} onPress={() => router.push('/sign-in')}>
-              <LinearGradient colors={['#00f5ff', '#0080ff']} style={[styles.accessGradient, webOptimized && styles.accessGradientWeb]}>
-                <Text style={[styles.accessButtonText, webOptimized && styles.accessButtonTextWeb]}>Sign In</Text>
-                <IconSymbol name="arrow.right" size={16} color="#000000" />
-              </LinearGradient>
-            </TouchableOpacity>
           </View>
 
           <View style={[styles.heroTextContainer, webOptimized && styles.heroTextContainerWeb]}>
@@ -211,13 +206,6 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
                   {process.env.EXPO_PUBLIC_ENVIRONMENT === 'preview' && (
                     <Text style={{ fontSize: 10, color: '#000000', marginLeft: 4 }}>OTA✓</Text>
                   )}
-                </LinearGradient>
-              </TouchableOpacity>
-
-<TouchableOpacity style={styles.secondaryCTA} onPress={() => router.push('/sign-in')}>
-                <LinearGradient colors={['rgba(0,245,255,0.1)', 'rgba(0,128,255,0.1)']} style={styles.secondaryGradient}>
-                  <Text style={styles.secondaryCtaText}>Access Portal</Text>
-                  <IconSymbol name="arrow.right" size={16} color="#00f5ff" />
                 </LinearGradient>
               </TouchableOpacity>
 
@@ -379,21 +367,65 @@ const FeatureModal: React.FC<FeatureModalProps> = ({ selectedFeature, setSelecte
   );
 };
 
-const FooterSection = () => (
-  <View style={styles.footerContainer}>
-    <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.footerGradient}>
-      <View style={styles.footerContent}>
-        <View style={styles.footerLogo}>
-          <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.footerLogoGradient}>
-            <IconSymbol name="help-circle" size={32} color="#000000" />
-          </LinearGradient>
-          <Text style={styles.footerLogoText}>EduDash Pro</Text>
-          <Text style={styles.footerLogoSubtext}>AI-Powered Education Platform</Text>
+const FooterSection = () => {
+  const handleLegalNavigation = (path: string) => {
+    router.push(path);
+  };
+
+  return (
+    <View style={styles.footerContainer}>
+      <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.footerGradient}>
+        <View style={styles.footerContent}>
+          <View style={styles.footerLogo}>
+            <LinearGradient colors={['#00f5ff', '#8000ff']} style={styles.footerLogoGradient}>
+              <IconSymbol name="help-circle" size={32} color="#000000" />
+            </LinearGradient>
+            <Text style={styles.footerLogoText}>EduDash Pro</Text>
+            <Text style={styles.footerLogoSubtext}>AI-Powered Education Platform</Text>
+          </View>
+
+          {/* Legal Links */}
+          <View style={styles.footerLinks}>
+            <Link href="/privacy-policy" asChild>
+              <Pressable
+                onPress={() => handleLegalNavigation('/privacy-policy')}
+                style={({ pressed }) => [
+                  styles.footerLink,
+                  pressed && styles.footerLinkPressed,
+                ]}
+                accessibilityRole="link"
+                accessibilityLabel="Privacy Policy"
+              >
+                <Text style={styles.footerLinkText}>Privacy Policy</Text>
+              </Pressable>
+            </Link>
+
+            <View style={styles.footerLinkDivider} />
+
+            <Link href="/terms-of-service" asChild>
+              <Pressable
+                onPress={() => handleLegalNavigation('/terms-of-service')}
+                style={({ pressed }) => [
+                  styles.footerLink,
+                  pressed && styles.footerLinkPressed,
+                ]}
+                accessibilityRole="link"
+                accessibilityLabel="Terms of Service"
+              >
+                <Text style={styles.footerLinkText}>Terms of Service</Text>
+              </Pressable>
+            </Link>
+          </View>
+
+          {/* Copyright */}
+          <Text style={styles.footerCopyright}>
+            © 2025 EduDash Pro. All rights reserved.
+          </Text>
         </View>
-      </View>
-    </LinearGradient>
-  </View>
-);
+      </LinearGradient>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: DesignSystem.colors.background },
@@ -493,6 +525,48 @@ const styles = StyleSheet.create({
   footerLogoGradient: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
   footerLogoText: { fontSize: 26, fontWeight: '900', color: DesignSystem.colors.text.primary, marginBottom: 4 },
   footerLogoSubtext: { fontSize: 13, color: DesignSystem.colors.text.quantum, fontWeight: '600' },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    gap: 16,
+  },
+  footerLink: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    ...(Platform.OS === 'web' && {
+      cursor: 'pointer',
+      transition: 'opacity 0.2s',
+    }),
+  },
+  footerLinkPressed: {
+    opacity: 0.6,
+  },
+  footerLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: DesignSystem.colors.text.secondary,
+    textDecorationLine: 'underline',
+    ...(Platform.OS === 'web' && {
+      ':hover': {
+        color: DesignSystem.colors.text.primary,
+      },
+    }),
+  },
+  footerLinkDivider: {
+    width: 1,
+    height: 16,
+    backgroundColor: DesignSystem.colors.text.secondary,
+    opacity: 0.3,
+  },
+  footerCopyright: {
+    fontSize: 12,
+    color: DesignSystem.colors.text.secondary,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
   // Web-specific styles
   accessButtonWeb: { borderRadius: 8 },
   accessGradientWeb: { paddingHorizontal: 24, paddingVertical: 14 },
