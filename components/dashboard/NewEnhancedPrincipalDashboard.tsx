@@ -21,6 +21,7 @@ import {
   Dimensions,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -331,7 +332,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
 
   return (
     <View style={styles.container}>
-      {/* Fixed App Header */}
+      {/* Fixed App Header - Hidden on web (DesktopLayout provides navigation) */}
+      {Platform.OS !== 'web' && (
       <View style={styles.appHeader}>
         <View style={styles.appHeaderContent}>
           {/* Left side - Avatar + Tenant/School name */}
@@ -383,10 +385,11 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
           </View>
         </View>
       </View>
+      )}
 
       {/* Scrollable content */}
       <ScrollView
-        style={styles.scrollContainer}
+        style={[styles.scrollContainer, Platform.OS === 'web' && styles.scrollContainerWeb]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -395,7 +398,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       >
 
         {/* Welcome Card - Separate from header */}
-        <View style={[styles.section, styles.firstSection]}>
+        <View style={[styles.section, styles.firstSection, Platform.OS === 'web' && styles.firstSectionWeb]}>
           <View style={styles.welcomeCard}>
             <View style={styles.welcomeContent}>
               <View style={styles.titleRow}>
@@ -655,8 +658,8 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       zIndex: 100,
       backgroundColor: theme.surface,
       paddingHorizontal: cardPadding,
-      paddingTop: insetTop + (isSmallScreen ? 12 : 16),
-      paddingBottom: isSmallScreen ? 12 : 16,
+      paddingTop: insetTop + (isSmallScreen ? 8 : 10),
+      paddingBottom: isSmallScreen ? 8 : 10,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
       shadowColor: theme.shadow,
@@ -667,10 +670,12 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     scrollContainer: {
       flex: 1,
-      // Space below the fixed header including safe area inset and header content height
-      // Header height = insetTop + top padding + content + bottom padding + border
-      // Increased to prevent the welcome card from being hidden under the header
-      marginTop: (isSmallScreen ? 104 : 124) + insetTop,
+      // Reduced spacing - header height calculation:
+      // insetTop + top padding (10) + avatar height (36) + bottom padding (10) + border (1) = ~57 + insetTop
+      marginTop: (isSmallScreen ? 65 : 70) + insetTop,
+    },
+    scrollContainerWeb: {
+      marginTop: 0, // No header on web, DesktopLayout handles it
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),
@@ -876,6 +881,9 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
     },
     firstSection: {
       paddingTop: isSmallScreen ? 6 : 8,
+    },
+    firstSectionWeb: {
+      paddingTop: 16, // Compact spacing for web with DesktopLayout
     },
     sectionTitle: {
       fontSize: isSmallScreen ? 18 : isTablet ? 22 : 20,
