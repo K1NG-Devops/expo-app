@@ -111,7 +111,7 @@ export default function Landing() {
 
     // Default routing behavior:
     // - Native (iOS/Android): go straight to sign-in for faster access
-    // - Web: keep the marketing landing page
+    // - Web: show the marketing landing page first
     if (Platform.OS !== 'web') {
       // Delay navigation until splash is complete
       const timer = setTimeout(() => {
