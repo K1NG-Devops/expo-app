@@ -2,11 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ActivityIndicator, ScrollView, KeyboardAvoidingView } from "react-native";
 import { Stack, router } from "expo-router";
 import { useTheme } from "@/contexts/ThemeContext";
-import { assertSupabase } from "@/lib/supabase";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import * as Linking from 'expo-linking';
-import { SocialLoginButtons } from '@/components/ui/SocialLoginButtons';
 import { Ionicons } from '@expo/vector-icons';
 import { storage } from '@/lib/storage';
 import { secureStore } from '@/lib/secure-store';
@@ -150,51 +147,6 @@ console.log('[SignIn] Component rendering, theme:', theme);
   };
 
 
-  const handleSocialLogin = async (provider: string) => {
-    try {
-      const supabase = assertSupabase();
-      const redirectTo = Linking.createURL('/auth-callback');
-      // Map UI provider name to Supabase provider id
-      const mapped = provider === 'microsoft' ? 'azure' : provider; // 'azure' for Microsoft
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: mapped as any,
-        options: {
-          redirectTo,
-          skipBrowserRedirect: Platform.OS !== 'web' ? false : undefined,
-        },
-      });
-      
-      if (error) {
-        console.error('OAuth Error:', error);
-        let errorMessage = t('auth.oauth.failed_start', { defaultValue: 'Failed to start social login' });
-        
-        if (error.message?.includes('provider is not enabled') || 
-            error.message?.includes('Unsupported provider')) {
-          errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
-        } else if (error.message?.includes('redirect_uri')) {
-          errorMessage = t('auth.oauth.config_error', { defaultValue: 'OAuth configuration error. Please contact support.' });
-        } else {
-          errorMessage = error.message;
-        }
-        
-        Alert.alert(t('auth.oauth.unavailable', { defaultValue: 'Sign-in Unavailable' }), errorMessage);
-        return;
-      }
-    } catch (e: any) {
-      console.error('OAuth Exception:', e);
-      let errorMessage = t('auth.oauth.failed_start', { defaultValue: 'Failed to start social login' });
-      
-      if (e?.message?.includes('provider is not enabled') || 
-          e?.message?.includes('Unsupported provider')) {
-        errorMessage = `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not available yet. Please use email/password sign-in or contact support.`;
-      } else {
-        errorMessage = e?.message || t('common.unexpected_error', { defaultValue: 'An unexpected error occurred' });
-      }
-      
-      Alert.alert(t('auth.oauth.error', { defaultValue: 'Sign-in Error' }), errorMessage);
-    }
-  };
 
 
   const styles = StyleSheet.create({
@@ -562,9 +514,6 @@ return (
               size="lg"
             />
           </View>
-
-
-          <SocialLoginButtons onSocialLogin={handleSocialLogin} />
 
           {/* Sign-up options for parents and teachers */}
           <View style={styles.signupPrompt}>
