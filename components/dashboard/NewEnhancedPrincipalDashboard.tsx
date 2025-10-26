@@ -436,10 +436,10 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
             )}
           </View>
         </View>
-      </View>
+        </View>
 
-      {/* School Overview Metrics - Collapsible */}
-      <View style={styles.section}>
+        {/* School Overview Metrics - Collapsible */}
+        <View style={styles.section}>
         <SectionHeader title={t('dashboard.school_overview')} sectionId="school-metrics" icon="📊" />
         {!collapsedSections.has('school-metrics') && (
         <View style={styles.metricsGrid}>
