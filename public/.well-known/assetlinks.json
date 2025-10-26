@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.edudashpro",
+      "sha256_cert_fingerprints": [
+        "7F:4A:DC:62:BC:60:F2:68:DA:C6:04:5D:DD:99:41:ED:06:AD:42:88"
+      ]
+    }
+  }
+]

@@ -49,6 +49,22 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       };
     }
 
+    // 1.5. Block RevenueCat on web
+    if (moduleName === 'react-native-purchases') {
+      return {
+        filePath: require.resolve('./lib/stubs/revenuecat-stub.js'),
+        type: 'sourceFile',
+      };
+    }
+
+    // 1.6. Block Voice recognition on web
+    if (moduleName === '@react-native-voice/voice') {
+      return {
+        filePath: require.resolve('./lib/stubs/voice-stub.js'),
+        type: 'sourceFile',
+      };
+    }
+
     // 2. Block native-only modules
     const nativeOnlyModules = [
       '@picovoice/porcupine-react-native',
@@ -88,6 +104,8 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       'DeviceEventEmitter': './lib/stubs/DeviceEventEmitter-stub.js',
       'NativeEventEmitter': './lib/stubs/NativeEventEmitter-stub.js',
       '/EventEmitter/': './lib/stubs/NativeEventEmitter-stub.js',
+      'HMRClient': './lib/stubs/HMRClient-stub.js',
+      '/HMRClient': './lib/stubs/HMRClient-stub.js',
     };
 
     for (const [pattern, stubPath] of Object.entries(stubMappings)) {
