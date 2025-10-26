@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
@@ -6,12 +6,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ParentJoinService, type SearchedStudent } from '@/lib/services/parentJoinService';
+import { useQueryClient } from '@tanstack/react-query';
 
 type Step = 'search' | 'confirm';
 
 export default function ParentClaimChildScreen() {
   const { user, profile } = useAuth();
   const { theme } = useTheme();
+  const queryClient = useQueryClient();
 
   // State
   const [step, setStep] = useState<Step>('search');
@@ -21,25 +23,36 @@ export default function ParentClaimChildScreen() {
   const [relationship, setRelationship] = useState<'mother' | 'father' | 'guardian' | 'other'>('mother');
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get preschool ID
   const preschoolId = profile?.organization_id || profile?.preschool_id;
-
   // Search for child
-  const handleSearch = async () => {
-    if (!searchQuery.trim() || !preschoolId) {
+  const handleSearch = async (query?: string) => {
+    const searchText = query !== undefined ? query : searchQuery;
+    
+    if (!searchText.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    if (!preschoolId) {
+      Alert.alert(
+        'School not linked',
+        "Your account isn't linked to a school yet. Use your invite link to join your school, or contact the school to send a new invite."
+      );
       return;
     }
 
     setSearching(true);
     try {
-      const results = await ParentJoinService.searchChild(preschoolId, searchQuery.trim());
+      const results = await ParentJoinService.searchChild(preschoolId, searchText.trim());
       setSearchResults(results);
       
-      if (results.length === 0) {
+      // Only show alert when manually triggered, not for live search
+      if (results.length === 0 && query === undefined) {
         Alert.alert(
           'No Results',
-          `No children found matching "${searchQuery}". Please check the spelling or try registering a new child.`,
+          `No children found matching "${searchText}". Please check the spelling or try registering a new child.`,
           [
             { text: 'Try Again', style: 'cancel' },
             { text: 'Register New Child', onPress: () => router.push('/screens/parent-child-registration') }
@@ -47,11 +60,41 @@ export default function ParentClaimChildScreen() {
         );
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to search for child');
+      console.error('Search error:', error);
+      // Only show alert for manual search
+      if (query === undefined) {
+        Alert.alert('Error', error.message || 'Failed to search for child');
+      }
     } finally {
       setSearching(false);
     }
   };
+
+  // Live search effect with debouncing
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Don't search if query is empty
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    // Set new timeout for debounced search (500ms delay)
+    searchTimeoutRef.current = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, 500);
+
+    // Cleanup on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, preschoolId]);
 
   // Select child and go to confirmation
   const handleSelectChild = (child: SearchedStudent) => {
@@ -61,14 +104,14 @@ export default function ParentClaimChildScreen() {
 
   // Submit claim request
   const handleSubmit = async () => {
-    if (!selectedChild || !user || !preschoolId) {
+    if (!selectedChild || !user) {
       return;
     }
 
     setSubmitting(true);
     try {
       await ParentJoinService.requestLink({
-        schoolId: preschoolId,
+        schoolId: selectedChild.preschool_id || preschoolId || null,
         parentAuthId: user.id,
         parentEmail: user.email || null,
         studentId: selectedChild.id,
@@ -76,6 +119,11 @@ export default function ParentClaimChildScreen() {
         childClass: selectedChild.age_group?.name || null,
         relationship,
       });
+
+      // Refresh pending requests on dashboard
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ['guardian-requests', user.id] });
+      }
 
       Alert.alert(
         'Request Submitted!',
@@ -85,7 +133,11 @@ export default function ParentClaimChildScreen() {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit request');
+      const msg = typeof error?.message === 'string' ? error.message : '';
+      const friendly = msg.includes('pending request')
+        ? 'You already have a pending request for this child.'
+        : (msg || 'Failed to submit request');
+      Alert.alert('Error', friendly);
     } finally {
       setSubmitting(false);
     }
@@ -106,6 +158,25 @@ export default function ParentClaimChildScreen() {
   // Render search step
   const renderSearchStep = () => (
     <>
+      {!preschoolId && (
+        <View style={[styles.helpCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Ionicons name="school" size={24} color={theme.primary} />
+          <View style={styles.helpContent}>
+            <Text style={[styles.helpTitle, { color: theme.text }]}>Link your school first</Text>
+            <Text style={[styles.helpText, { color: theme.textSecondary }]}>
+              Enter your school's invitation code to link your account, then search for your child.
+            </Text>
+            <TouchableOpacity
+              style={[styles.linkButton, { backgroundColor: theme.background }]}
+              onPress={() => router.push('/screens/parent-join-by-code')}
+            >
+              <Text style={[styles.linkButtonText, { color: theme.primary }]}>Join School by Code</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Find Your Child</Text>
         <Text style={[styles.cardSubtitle, { color: theme.textSecondary }]}>
