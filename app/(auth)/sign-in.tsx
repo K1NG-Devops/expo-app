@@ -563,8 +563,9 @@ return (
             />
           </View>
 
-
-          <SocialLoginButtons onSocialLogin={handleSocialLogin} />
+          {/* TODO: Enable social login once OAuth providers are configured in Supabase Dashboard */}
+          {/* Social login temporarily disabled to prevent "provider is not enabled" errors */}
+          {/* <SocialLoginButtons onSocialLogin={handleSocialLogin} /> */}
 
           {/* Sign-up options for parents and teachers */}
           <View style={styles.signupPrompt}>
