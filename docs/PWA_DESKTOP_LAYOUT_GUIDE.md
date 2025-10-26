@@ -9,6 +9,7 @@ Location: `components/layout/DesktopLayout.tsx`
 
 ### Features
 - ✅ **Collapsible side navigation** (240px expanded, 64px collapsed)
+- ✅ **Responsive mobile support** (sidebar auto-hides < 768px)
 - ✅ **Role-based menu items** (principal, teacher, parent, super_admin)
 - ✅ **Active route highlighting**
 - ✅ **User profile footer** with avatar and role
@@ -16,6 +17,7 @@ Location: `components/layout/DesktopLayout.tsx`
 - ✅ **Web-only** (auto-disabled on native)
 - ✅ **Smooth transitions** (CSS transitions)
 - ✅ **Touch/click optimized** (hover states, cursor pointers)
+- ✅ **PWA-optimized** (works on desktop, tablet, and mobile web)
 
 ### Usage
 
@@ -180,9 +182,15 @@ Your dashboard content should work with the sidebar:
 ### Responsive Breakpoints
 
 ```typescript
-// Mobile: < 768px - sidebar hidden, full-width content
-// Tablet: 768-1024px - collapsed sidebar (64px)
-// Desktop: > 1024px - expanded sidebar (240px)
+// Mobile: < 768px - sidebar hidden via CSS, content takes full width
+// Tablet: 768-1024px - sidebar visible, can be collapsed (64px or 240px)
+// Desktop: > 1024px - sidebar expanded by default (240px)
+
+// CSS Media Query (automatically applied):
+@media (max-width: 767px) {
+  sidebar { display: none; }
+  mainContent { width: 100%; }
+}
 ```
 
 ### Header Adjustments

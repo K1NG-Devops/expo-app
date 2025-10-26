@@ -91,14 +91,14 @@ export function DesktopLayout({ children, role }: DesktopLayoutProps) {
 
   const styles = React.useMemo(() => createStyles(theme, sidebarCollapsed, insets), [theme, sidebarCollapsed, insets]);
 
-  // Only render desktop layout on web and wider screens
+  // Only render desktop layout on web
   if (Platform.OS !== 'web') {
     return <>{children}</>;
   }
 
   return (
     <View style={styles.container}>
-      {/* Side Navigation */}
+      {/* Side Navigation - Hidden on mobile via CSS */}
       <View style={styles.sidebar}>
         {/* Logo & Toggle */}
         <View style={styles.sidebarHeader}>
@@ -207,6 +207,10 @@ const createStyles = (theme: any, collapsed: boolean, insets: any) =>
       borderRightColor: theme.border,
       flexDirection: 'column',
       transition: 'width 0.3s ease' as any,
+      // Hide on mobile screens
+      ['@media (max-width: 767px)' as any]: {
+        display: 'none' as any,
+      },
     },
     sidebarHeader: {
       flexDirection: 'row',
@@ -304,5 +308,9 @@ const createStyles = (theme: any, collapsed: boolean, insets: any) =>
     mainContent: {
       flex: 1,
       overflow: 'hidden' as any,
+      // Full width on mobile
+      ['@media (max-width: 767px)' as any]: {
+        width: '100%' as any,
+      },
     },
   });
