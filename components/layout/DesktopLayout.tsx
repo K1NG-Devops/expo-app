@@ -68,7 +68,7 @@ const NAV_ITEMS: NavItem[] = [
  *   <YourScreenContent />
  * </DesktopLayout>
  */
-export default function DesktopLayout({ children, role }: DesktopLayoutProps) {
+export function DesktopLayout({ children, role }: DesktopLayoutProps) {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
   const router = useRouter();
