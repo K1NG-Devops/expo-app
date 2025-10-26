@@ -806,14 +806,9 @@ case 'homework':
   }
 
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <View style={styles.container}>
-        {/* Offline Banner */}
-        <OfflineBanner />
+    <View style={styles.container}>
+      {/* Offline Banner */}
+      <OfflineBanner />
 
       {/* Fixed Header - Hidden for cleaner UI */}
       
