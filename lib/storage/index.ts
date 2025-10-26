@@ -15,4 +15,5 @@
  * ```
  */
 
+// Platform-specific exports (Metro resolves .web.ts or .native.ts automatically)
 export { storage } from './crossPlatform';
