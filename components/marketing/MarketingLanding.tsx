@@ -25,21 +25,12 @@ import { featuresContent } from '@/constants/marketing';
 import { useAuth } from '@/contexts/AuthContext';
 import { normalizeRole } from '@/lib/rbac';
 import { setPageMetadata, landingPageSEO } from '@/lib/webSEO';
-import AppSplashScreen from '@/components/ui/AppSplashScreen';
-import WebBasicSignInForm from '@/components/auth/WebBasicSignInForm';
 
 const { width, height } = Dimensions.get('window');
 const isSmall = width < 400;
 const isWeb = Platform.OS === 'web';
 const isTablet = width >= 768;
 const isDesktop = width >= 1024;
-
-interface HoloStatCardProps {
-  icon: string;
-  number: string;
-  label: string;
-  color: readonly ColorValue[];
-}
 
 interface FeaturesSectionProps {
   setSelectedFeature: (feature: any) => void;
@@ -130,7 +121,6 @@ export default function MarketingLanding() {
       <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1 }}>
         <View style={{ flex: 1 }}>
           <HeroSection webOptimized={webOptimized} />
-          <WebBasicSignInForm />
           <FeaturesSection setSelectedFeature={setSelectedFeature} webOptimized={webOptimized} />
           <TestimonialsSection activeTestimonial={activeTestimonial} setActiveTestimonial={setActiveTestimonial} webOptimized={webOptimized} />
           <QASection webOptimized={webOptimized} />
@@ -174,51 +164,49 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
                 <IconSymbol name="help-circle" size={28} color="#FFFFFF" />
               </LinearGradient>
               <Text style={styles.logoText}>EduDash Pro</Text>
-              <Text style={styles.logoSubtext}>Society 5.0</Text>
             </View>
           </View>
 
           <View style={[styles.heroTextContainer, webOptimized && styles.heroTextContainerWeb]}>
             <Animated.View style={[styles.heroTitle, { transform: [{ translateY: floatingY }] }, webOptimized && styles.heroTitleWeb]}>
               <Text style={[styles.heroMainTitle, webOptimized && styles.heroMainTitleWeb]}>
-                <Text style={styles.gradientTextPrimary}>NEURAL</Text> EDUCATION{String.fromCharCode(10)}
-                <Text style={styles.gradientTextSecondary}>REVOLUTION</Text>
+                Empower Your Preschool with{String.fromCharCode(10)}
+                <Text style={styles.gradientTextPrimary}>AI-Powered Education</Text>
               </Text>
-              <Text style={[styles.heroTagline, webOptimized && styles.heroTaglineWeb]}>🚀 Society 5.0 • AI • Robotics • Virtual Reality • Quantum Learning</Text>
               <Text style={[styles.heroSubtitle, webOptimized && styles.heroSubtitleWeb]}>
-                The convergence of artificial intelligence, quantum computing, and neural networks creates the ultimate
-                educational ecosystem for the super-human digital age.
-                {webOptimized && " Trusted by educational institutions worldwide for next-generation learning experiences."}
+                A comprehensive platform for preschools, teachers, and parents. Streamline classroom management, track student progress, and enhance learning outcomes with intelligent tools designed for early childhood education.
+                {webOptimized && " Trusted by educational institutions across South Africa."}
               </Text>
             </Animated.View>
 
-            <View style={styles.holoStats}>
-              <HoloStatCard icon="cpu" number="∞" label="AI Neurons" color={['#00f5ff', '#0080ff']} />
-              <HoloStatCard icon="help-circle" number="5.0" label="Society" color={['#8000ff', '#ff0080']} />
-              <HoloStatCard icon="sparkles" number="∞²" label="Possibilities" color={['#ff0080', '#ff8000']} />
+            <View style={styles.statsContainer}>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>3-6</Text>
+                <Text style={styles.statLabel}>Years Old</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>AI</Text>
+                <Text style={styles.statLabel}>Powered</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>100%</Text>
+                <Text style={styles.statLabel}>COPPA Safe</Text>
+              </View>
             </View>
 
           <View style={styles.heroActions}>
               <TouchableOpacity style={styles.primaryCTA} onPress={() => router.push('/(auth)/sign-up')}>
-                <LinearGradient colors={['#00f5ff', '#0080ff', '#8000ff']} style={styles.ctaGradient}>
-                  <IconSymbol name="bolt" size={20} color="#000000" />
-                  <Text style={styles.ctaText}>ACTIVATE NEURAL LINK</Text>
-                  {process.env.EXPO_PUBLIC_ENVIRONMENT === 'preview' && (
-                    <Text style={{ fontSize: 10, color: '#000000', marginLeft: 4 }}>OTA✓</Text>
-                  )}
+                <LinearGradient colors={['#00f5ff', '#0080ff']} style={styles.ctaGradient}>
+                  <Text style={styles.ctaText}>Get Started Free</Text>
+                  <IconSymbol name="arrow.right" size={20} color="#000000" />
                 </LinearGradient>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.tertiaryCTA}
-                onPress={() => {
-                  router.push('/pricing' as any);
-                }}
+                style={styles.secondaryCTANew}
+                onPress={() => router.push('/(auth)/sign-in')}
               >
-                <LinearGradient colors={['rgba(255,128,0,0.12)', 'rgba(255,0,128,0.08)']} style={styles.tertiaryGradient}>
-                  <Text style={styles.tertiaryCtaText}>{('principal_admin' === 'principal_admin' || 'super_admin' === 'super_admin') ? 'Contact Sales' : 'See Pricing'}</Text>
-                  <IconSymbol name="arrow.right" size={16} color="#ff8000" />
-                </LinearGradient>
+                <Text style={styles.secondaryCtaTextNew}>Already have an account? Sign In</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -228,23 +216,14 @@ const HeroSection = ({ webOptimized = false }: { webOptimized?: boolean }) => {
   );
 };
 
-const HoloStatCard: React.FC<HoloStatCardProps> = ({ icon, number, label, color }) => (
-  <View style={styles.holoCard}>
-    <LinearGradient colors={color as readonly [string, string, ...string[]]} style={styles.holoCardGradient}>
-      <IconSymbol name={icon} size={24} color="#000000" />
-      <Text style={styles.holoNumber}>{number}</Text>
-      <Text style={styles.holoLabel}>{label}</Text>
-    </LinearGradient>
-  </View>
-);
 
 const FeaturesSection: React.FC<FeaturesSectionProps> = ({ setSelectedFeature }) => {
   const features = featuresContent;
   return (
     <View style={styles.featuresContainer}>
       <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.featuresGradient}>
-        <Text style={styles.sectionTitle}>Revolutionary Tech</Text>
-        <Text style={styles.sectionSubtitle}>Powered by Society 5.0 • AI • Neural Networks</Text>
+        <Text style={styles.sectionTitle}>Key Features</Text>
+        <Text style={styles.sectionSubtitle}>Everything you need to run your preschool efficiently</Text>
         <View style={styles.featuresGrid}>
           {features.map((feature) => (
             <TouchableOpacity key={feature.id} style={styles.featureCard} onPress={() => setSelectedFeature(feature)}>
@@ -299,8 +278,8 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
   return (
     <View style={styles.testimonialsContainer}>
       <LinearGradient colors={DesignSystem.gradients.professionalSubtle as [ColorValue, ColorValue]} style={styles.testimonialsGradient}>
-        <Text style={styles.sectionTitle}>Neural Testimonials</Text>
-        <Text style={styles.sectionSubtitle}>From the educators using tomorrow's technology today</Text>
+        <Text style={styles.sectionTitle}>What Educators Say</Text>
+        <Text style={styles.sectionSubtitle}>Trusted by preschools across South Africa</Text>
         <View style={{ flex: 1 }}>
           <TestimonialCard index={activeTestimonial} />
           <View style={styles.testimonialDots}>
@@ -317,14 +296,15 @@ const TestimonialsSection: React.FC<TestimonialsSectionProps> = ({ activeTestimo
 const QASection: React.FC<QASectionProps> = () => {
   const [selectedQuestion, setSelectedQuestion] = useState<number | null>(null);
   const qaData = [
-    { question: 'How does the Quantum AI Brain work?', answer: 'Server-side AI with strict privacy and compliance.' },
-    { question: 'Is the Neural Interface safe for children?', answer: 'Yes — child safety and privacy first.' },
+    { question: 'How does the AI assistance work?', answer: 'Our AI tools run securely on the server with strict privacy and COPPA compliance. No child data is used for AI training.' },
+    { question: 'Is it safe for preschool children?', answer: 'Yes. EduDash Pro is designed specifically for ages 3-6 with parental consent, data minimization, and child-directed advertising restrictions.' },
+    { question: 'Do I need technical skills to use it?', answer: 'No technical skills required. Our platform is designed to be intuitive for teachers, parents, and administrators with no prior tech experience.' },
   ];
   return (
     <View style={styles.qaContainer}>
       <LinearGradient colors={['#0f3460', '#533a71']} style={styles.qaGradient}>
-        <Text style={styles.sectionTitle}>NEURAL Q&A</Text>
-        <Text style={styles.sectionSubtitle}>Quantum answers to key questions</Text>
+        <Text style={styles.sectionTitle}>Frequently Asked Questions</Text>
+        <Text style={styles.sectionSubtitle}>Common questions about EduDash Pro</Text>
         <View style={styles.qaList}>
           {qaData.map((item, index) => (
             <TouchableOpacity key={index} style={styles.qaItem} onPress={() => setSelectedQuestion(selectedQuestion === index ? null : index)}>
@@ -457,23 +437,46 @@ const styles = StyleSheet.create({
   heroMainTitle: { fontSize: isSmall ? 28 : 36, fontWeight: '900', textAlign: 'center', color: DesignSystem.colors.text.primary, marginBottom: 12, lineHeight: isSmall ? 32 : 42 },
   gradientTextPrimary: { color: DesignSystem.colors.text.quantum },
   gradientTextSecondary: { color: DesignSystem.colors.secondary },
-  heroTagline: { fontSize: 13, color: DesignSystem.colors.text.quantum, textAlign: 'center', marginBottom: 12, fontWeight: '600', letterSpacing: 0.5 },
   heroSubtitle: { fontSize: isSmall ? 15 : 17, color: DesignSystem.colors.text.secondary, textAlign: 'center', lineHeight: isSmall ? 21 : 24, maxWidth: 420, marginTop: 6 },
-  holoStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: isSmall ? 18 : 28, width: '100%' },
-  holoCard: { alignItems: 'center', flex: 1 },
-  holoCardGradient: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 15, alignItems: 'center', minWidth: 80 },
-  holoNumber: { fontSize: 22, fontWeight: '900', color: '#000000', marginVertical: 4 },
-  holoLabel: { fontSize: 12, color: '#000000', fontWeight: '600', textAlign: 'center' },
+  statsContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
+    marginBottom: isSmall ? 24 : 32, 
+    width: '100%',
+    paddingHorizontal: DesignSystem.spacing.md,
+  },
+  statCard: { 
+    alignItems: 'center', 
+    flex: 1,
+    paddingVertical: 16,
+  },
+  statNumber: { 
+    fontSize: 28, 
+    fontWeight: '800', 
+    color: DesignSystem.colors.text.primary, 
+    marginBottom: 4 
+  },
+  statLabel: { 
+    fontSize: 12, 
+    color: DesignSystem.colors.text.secondary, 
+    fontWeight: '600', 
+    textAlign: 'center' 
+  },
   heroActions: { width: '100%', alignItems: 'center' },
   primaryCTA: { borderRadius: 30, overflow: 'hidden', marginBottom: 14, width: 'auto' },
   ctaGradient: { paddingHorizontal: isSmall ? 20 : 28, paddingVertical: isSmall ? 12 : 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ctaText: { fontSize: isSmall ? 15 : 16, fontWeight: '800', color: '#000000', marginLeft: 8, letterSpacing: 0.5 },
-  secondaryCTA: { borderRadius: 30, overflow: 'hidden', width: 'auto' },
-  secondaryGradient: { paddingHorizontal: isSmall ? 20 : 28, paddingVertical: isSmall ? 12 : 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#00e5ff', borderRadius: 30, backgroundColor: 'rgba(0,229,255,0.05)' },
-  secondaryCtaText: { fontSize: isSmall ? 14 : 15, fontWeight: '700', color: '#00e5ff', marginRight: 8 },
-  tertiaryCTA: { borderRadius: 30, overflow: 'hidden', width: 'auto', marginTop: 12 },
-  tertiaryGradient: { paddingHorizontal: isSmall ? 20 : 28, paddingVertical: isSmall ? 12 : 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#ff8000', borderRadius: 30, backgroundColor: 'rgba(255,128,0,0.06)' },
-  tertiaryCtaText: { fontSize: isSmall ? 14 : 15, fontWeight: '700', color: '#ff8000', marginRight: 8 },
+  secondaryCTANew: { 
+    marginTop: 16, 
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  secondaryCtaTextNew: { 
+    fontSize: 14, 
+    fontWeight: '600', 
+    color: DesignSystem.colors.text.secondary,
+    textDecorationLine: 'underline',
+  },
   featuresContainer: { },
   featuresGradient: { paddingHorizontal: isSmall ? DesignSystem.spacing.md : DesignSystem.spacing.lg, paddingVertical: isSmall ? 24 : 36, justifyContent: 'center' },
   sectionTitle: { fontSize: isSmall ? 26 : 32, fontWeight: '900', color: DesignSystem.colors.text.primary, textAlign: 'center', marginBottom: 12, letterSpacing: 1 },
