@@ -186,7 +186,7 @@ console.log('[SignIn] Component rendering, theme:', theme);
       flex: 1,
       ...(Platform.OS === 'web' && {
         width: '100%',
-        maxWidth: 600,
+        maxWidth: 480,
         alignSelf: 'center',
       }),
     },
