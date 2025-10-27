@@ -39,7 +39,12 @@
     },
     {
       "src": "/(manifest\\.json|sw\\.js|assetmap\\.json|metadata\\.json)",
-      "dest": "/$1"
+      "dest": "/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
     },
     {
       "src": "/favicon\\.(ico|png)",
