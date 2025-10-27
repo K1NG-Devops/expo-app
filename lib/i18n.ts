@@ -184,8 +184,8 @@ export const changeLanguage = async (language: SupportedLanguage): Promise<void>
 
     // Persist language selection
     try {
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-      await AsyncStorage.setItem('@edudash_language', language);
+      const { storage } = await import('@/lib/storage');
+      await storage.setItem('@edudash_language', language);
       if (__DEV__) console.log('[i18n] Persisted language:', language);
     } catch (e) {
       console.warn('[i18n] Failed to persist language', e);
@@ -203,10 +203,16 @@ export const changeLanguage = async (language: SupportedLanguage): Promise<void>
       console.debug('[i18n] Analytics not available for language tracking');
     }
 
-    // Best-effort: sync Dash user context
+    // Best-effort: sync Dash user context (only if authenticated)
     try {
-      const { syncDashContext } = await import('@/lib/agent/dashContextSync');
-      await syncDashContext({ language });
+      const { assertSupabase } = await import('@/lib/supabase');
+      const supabase = assertSupabase();
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        const { syncDashContext } = await import('@/lib/agent/dashContextSync');
+        await syncDashContext({ language });
+      }
     } catch (e) {
       console.debug('[i18n] dash-context-sync skipped:', e);
     }

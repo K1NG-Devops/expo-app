@@ -71,7 +71,7 @@ interface FilterOptions {
 export default function StudentsDetailScreen() {
   const { t } = useTranslation();  
   const { user, profile } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -561,6 +561,9 @@ const canEditStudent = (_student: Student): boolean => {
            (filters.search ? 1 : 0);
   };
 
+  // Create dynamic styles with theme
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -643,7 +646,8 @@ const canEditStudent = (_student: Student): boolean => {
   );
 }
 
-const styles = StyleSheet.create({
+// Create styles function that takes theme parameter
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',

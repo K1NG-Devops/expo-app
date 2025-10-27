@@ -14,9 +14,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useServiceHealthSummary } from "./hooks/useServiceHealthData";
-import { ServiceStatusGrid } from "./components/ServiceStatusGrid";
-import type { ServiceHealth } from "./hooks/useServiceHealthData";
+import { useServiceHealthSummary } from "@/hooks/superadmin/useServiceHealthData";
+import { ServiceStatusGrid } from "@/components/superadmin/ServiceStatusGrid";
+import type { ServiceHealth } from "@/hooks/superadmin/useServiceHealthData";
 
 export default function ServiceMonitoringScreen() {
   const { data: services, summary, isLoading, refetch, isRefetching } = useServiceHealthSummary();

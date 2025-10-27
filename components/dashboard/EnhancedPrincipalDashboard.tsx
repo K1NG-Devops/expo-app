@@ -21,6 +21,7 @@ import {
   Alert,
   Modal,
   Linking,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
@@ -390,7 +391,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const allMetrics = [...metrics, ...pettyCashCards];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, Platform.OS === 'web' && { minHeight: '100vh' }]}>
       {/* Fixed top header to match enhanced dashboard */}
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
@@ -446,6 +447,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
       <ScrollView
         style={styles.scrollContainer}
+        contentContainerStyle={Platform.OS === 'web' ? { minHeight: '100vh', paddingBottom: 40 } : undefined}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={refresh} />
@@ -1262,7 +1264,50 @@ const createStyles = (theme: any, preferences: any = {}) => {
   return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: '#0f1419',
+  },
+  appHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: '#0f1419',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1f2937',
+  },
+  appHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerLeft: { flex: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tenantName: { fontSize: 18, fontWeight: '700', color: '#e5e7eb' },
+  userAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#00f5ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarText: { color: '#000', fontSize: 14, fontWeight: '700' },
+  settingsButton: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+
+  scrollContainer: {
+    flex: 1,
+    // Reduced top margin for classic layout, more space for enhanced layout
+    marginTop: isClassicLayout ? 36 : 62,
   },
   appHeader: {
     position: 'absolute',

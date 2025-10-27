@@ -4,6 +4,7 @@ import { track } from '@/lib/analytics';
 import { reportError } from '@/lib/monitoring';
 import { fetchEnhancedUserProfile, type EnhancedUserProfile, type Role } from '@/lib/rbac';
 import type { User } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 // Optional AsyncStorage for bridging plan selection across auth (no-op on web)
 let AsyncStorage: any = null;
@@ -165,18 +166,65 @@ export async function routeAfterLogin(user?: User | null, profile?: EnhancedUser
       has_params: !!route.params,
     });
 
+    // Prevent concurrent navigation attempts
+    const navLock = 'route_after_login_' + userId;
+    if (typeof window !== 'undefined' && (window as any)[navLock]) {
+      console.log('🚦 [ROUTE] Navigation already in progress, skipping');
+      return;
+    }
+    
+    // Set navigation lock and dashboard switching flag
+    if (typeof window !== 'undefined') {
+      (window as any)[navLock] = true;
+      (window as any).dashboardSwitching = true;
+    }
+    
     // Navigate to determined route (with params if needed)
-    console.log('Navigating to route:', route);
+    if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+      console.log('🚦 [ROUTE] Navigating to route:', route);
+    }
+    
     try {
-      if (route.params) {
-        router.replace({ pathname: route.path as any, params: route.params } as any);
-      } else {
-        router.replace(route.path as any);
+      // Use setTimeout to prevent blocking the UI thread
+      setTimeout(() => {
+        try {
+          if (route.params) {
+            if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+              console.log('🚦 [ROUTE] Using router.replace with params:', { pathname: route.path, params: route.params });
+            }
+            router.replace({ pathname: route.path as any, params: route.params } as any);
+          } else {
+            if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+              console.log('🚦 [ROUTE] Using router.replace without params:', route.path);
+            }
+            router.replace(route.path as any);
+          }
+          
+          if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+            console.log('🚦 [ROUTE] router.replace call completed successfully');
+          }
+        } catch (navigationError) {
+          console.error('🚦 [ROUTE] Navigation failed, falling back to profiles-gate:', navigationError);
+          // Fallback to profile gate to ensure user can access the app
+          router.replace('/profiles-gate');
+        } finally {
+          // Clear locks after navigation
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              delete (window as any)[navLock];
+              delete (window as any).dashboardSwitching;
+            }
+          }, 1000);
+        }
+      }, 50);
+    } catch (error) {
+      console.error('🚦 [ROUTE] Unexpected error during navigation setup:', error);
+      // Clear locks on error
+      if (typeof window !== 'undefined') {
+        delete (window as any)[navLock];
+        delete (window as any).dashboardSwitching;
       }
-    } catch (navigationError) {
-      console.error('Navigation failed, falling back to profiles-gate:', navigationError);
-      // Fallback to profile gate to ensure user can access the app
-      router.replace('/profiles-gate');
+      throw error;
     }
   } catch (error) {
     reportError(new Error('Post-login routing failed'), {
@@ -208,6 +256,15 @@ function determineUserRoute(profile: EnhancedUserProfile): { path: string; param
     || (profile as any)?.tenant_kind
     || 'school'; // default
   const isSkillsLike = ['skills', 'tertiary', 'org'].includes(String(orgKind).toLowerCase());
+  
+  if (process.env.EXPO_PUBLIC_ENABLE_CONSOLE === 'true') {
+    console.log('[ROUTE DEBUG] ==> Determining route for user');
+    console.log('[ROUTE DEBUG] Original role:', profile.role, '-> normalized:', role);
+    console.log('[ROUTE DEBUG] Profile organization_id:', profile.organization_id);
+    console.log('[ROUTE DEBUG] Profile seat_status:', profile.seat_status);
+    console.log('[ROUTE DEBUG] Profile capabilities:', profile.capabilities);
+    console.log('[ROUTE DEBUG] Profile hasCapability(access_mobile_app):', profile.hasCapability('access_mobile_app'));
+  }
   
   // Safeguard: If role is null/undefined, route to sign-in/profile setup
   if (!role || role === null) {

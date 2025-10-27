@@ -45,7 +45,7 @@ export default function ParentChildrenScreen() {
           .from('users')
           .select('id, preschool_id')
           .eq('auth_user_id', user.id)
-          .single();
+          .maybeSingle();
         
         if (me?.id) {
           const { data: studentsData } = await client

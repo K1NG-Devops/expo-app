@@ -45,9 +45,9 @@ export function ComparisonTable({
       case 'free':
         return annual ? 'R0 / year' : 'R0 / month'
       case 'parent-starter':
-        return annual ? `R${Math.round(49 * 12 * 0.9)} / year` : 'R49 / month'
+        return annual ? `R${Math.round(49.99 * 12 * 0.9)} / year` : 'R49.99 / month'
       case 'parent-plus':
-        return annual ? `R${Math.round(149 * 12 * 0.9)} / year` : 'R149 / month'
+        return annual ? `R${Math.round(149.99 * 12 * 0.9)} / year` : 'R149.99 / month'
       case 'private-teacher':
         return annual ? `R${Math.round(299 * 12 * 0.9)} / year` : 'R299 / month'
       case 'pro':
@@ -55,12 +55,16 @@ export function ComparisonTable({
       case 'preschool-pro':
         return annual ? 'Custom (annual)' : 'Custom'
       case 'enterprise':
-        return annual ? 'Special pricing (annual)' : 'Special pricing'
+        return 'Custom pricing'
       default:
         return ''
     }
   }
 
+  // Group plans: Parents, then Schools/Organizations
+  const parentPlans: PlanId[] = ['free', 'parent-starter', 'parent-plus'];
+  const schoolPlans: PlanId[] = ['free', 'private-teacher', 'pro', 'enterprise'];
+  
   const defaultPlans: PlanId[] = [
     'free',
     'parent-starter',
@@ -78,10 +82,10 @@ export function ComparisonTable({
     'free': 'Free',
     'parent-starter': 'Parent Starter',
     'parent-plus': 'Parent Plus',
-    'private-teacher': 'Private Teacher',
-    'pro': 'Pro',
+    'private-teacher': 'Starter',
+    'pro': 'Premium',
     'preschool-pro': 'Preschool Pro',
-    'enterprise': 'Enterprise (K-12)',
+    'enterprise': 'Enterprise',
   }
 
   // Monthly quotas (marketing display) integrated into featureValues below
@@ -317,11 +321,14 @@ export function ComparisonTable({
             <View style={[styles.cell, styles.featureCol]}>
               <Text style={[styles.headerText, styles.featureText]}>Feature</Text>
             </View>
-            {plans.map((p) => (
+              {plans.map((p) => (
               <View key={p} style={[styles.cell, styles.planCol]}>
                 <Text style={styles.headerText}>{planName[p]}</Text>
+                {p === 'parent-starter' && (
+                  <View style={styles.badge}><Text style={styles.badgeText}>MOST POPULAR</Text></View>
+                )}
                 {p === 'pro' && (
-                  <View style={styles.badge}><Text style={styles.badgeText}>Most popular</Text></View>
+                  <View style={styles.badge}><Text style={styles.badgeText}>BEST FOR SCHOOLS</Text></View>
                 )}
                 <Text style={styles.priceText}>{priceStr(p)}</Text>
               </View>
@@ -417,7 +424,7 @@ export function ComparisonTable({
 }
 
 const styles = StyleSheet.create({
-  wrapper: { marginTop: 16, gap: 8 },
+  wrapper: { marginTop: 16, gap: 8, width: '100%' },
   
   // Header and controls
   viewModeToggle: {

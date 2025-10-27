@@ -7,7 +7,7 @@
  */
 
 const isDevelopment = typeof __DEV__ !== 'undefined' && __DEV__;
-const isTest = process.env.NODE_ENV === 'test';
+const isTest = typeof process !== 'undefined' && process.env?.NODE_ENV === 'test';
 
 /**
  * Log levels for controlling output
@@ -48,6 +48,15 @@ export const logger = {
   info: (message: string, ...args: any[]) => {
     if (currentLogLevel <= LogLevel.INFO && isDevelopment) {
       console.log(`[INFO] ${message}`, ...args);
+    }
+  },
+
+  /**
+   * Log alias for info (for compatibility)
+   */
+  log: (message: string, ...args: any[]) => {
+    if (currentLogLevel <= LogLevel.INFO && isDevelopment) {
+      console.log(`[LOG] ${message}`, ...args);
     }
   },
 

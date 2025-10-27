@@ -192,7 +192,7 @@ export default function ParentClaimChildScreen() {
               placeholderTextColor={theme.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              onSubmitEditing={handleSearch}
+              onSubmitEditing={() => handleSearch()}
               autoCapitalize="words"
               returnKeyType="search"
             />
@@ -200,7 +200,7 @@ export default function ParentClaimChildScreen() {
 
           <TouchableOpacity
             style={[styles.searchButton, { backgroundColor: theme.primary }]}
-            onPress={handleSearch}
+            onPress={() => handleSearch()}
             disabled={searching || !searchQuery.trim()}
           >
             {searching ? (

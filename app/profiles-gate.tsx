@@ -79,6 +79,11 @@ export default function ProfilesGateScreen() {
       if (!profile && user) {
         console.log('Profiles-gate: No profile found, checking if existing user...');
         try {
+          // Set routing lock
+          if (typeof window !== 'undefined') {
+            (window as any)[routingLock] = true;
+          }
+          
           // Try to detect user role from legacy methods
           const { detectRoleAndSchool } = await import('@/lib/routeAfterLogin');
           const { role } = await detectRoleAndSchool(user);
@@ -94,11 +99,22 @@ export default function ProfilesGateScreen() {
               'super_admin': '/screens/super-admin-dashboard'
             };
             const targetRoute = routes[role as keyof typeof routes] || '/(auth)/sign-in';
-            router.replace(targetRoute as any);
+            
+            // Use timeout to prevent blocking UI
+            setTimeout(() => {
+              router.replace(targetRoute as any);
+            }, 100);
             return;
           }
         } catch (error) {
           console.error('Error detecting existing user role:', error);
+        } finally {
+          // Clear routing lock after delay
+          setTimeout(() => {
+            if (typeof window !== 'undefined') {
+              delete (window as any)[routingLock];
+            }
+          }, 2000);
         }
       }
     };
@@ -121,7 +137,7 @@ export default function ProfilesGateScreen() {
       // Try to handle existing users who may not have proper profile data
       handleExistingUser();
     }
-  }, [profile, user]);
+  }, [profile, user, loading]);
 
   const handleRoleSelection = (role: Role) => {
     setSelectedRole(role);

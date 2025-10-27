@@ -1,0 +1,201 @@
+--------- beginning of main
+09-20 12:54:00.107 I/mtkpower_client( 1317): ret_hdl:250229
+09-20 12:54:00.108 I/libPowerHal( 1238): [perfLockAcq] idx:1 hdl:250229 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250229
+09-20 12:54:00.108 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:00.108 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:00.109 I/mtkpower_client( 1317): ret_hdl:250230
+09-20 12:54:00.110 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:00.110 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:00.110 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:250230 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250230
+09-20 12:54:00.111 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:00.111 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:00.111 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:00.112 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:00.240 I/mtkpower_client( 1317): perf_lock_rel, hdl:250229, tid:1317
+09-20 12:54:00.242 I/mtkpower_client( 1317): perf_lock_rel, hdl:250230, tid:1317
+09-20 12:54:00.242 I/libPowerHal( 1238): [perfLockRel] hdl:250229, idx:1
+09-20 12:54:00.243 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:00.245 I/libPowerHal( 1238): [perfLockRel] hdl:250230, idx:2
+09-20 12:54:00.246 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:00.246 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:00.246 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:00.246 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:00.299 I/libPowerHal( 1238): [updateFPS] pid(3121) : 60 => -1
+09-20 12:54:00.300 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.hihonor.android.launcher, act:com.hihonor.android.launcher.unihome.UniHomeLauncher, state:5, pid:3121, uid:10094, fps:-1
+09-20 12:54:00.301 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:54:01.485 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:54:01.486 I/mtkpower_client( 1317): ret_hdl:250231
+09-20 12:54:01.487 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:01.487 I/libPowerHal( 1238): [perfLockAcq] idx:1 hdl:250231 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250231
+09-20 12:54:01.487 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:01.488 I/mtkpower_client( 1317): ret_hdl:250232
+09-20 12:54:01.489 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:01.489 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:01.489 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:250232 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250232
+09-20 12:54:01.489 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:01.490 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:01.490 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:01.490 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:01.519 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:30000, num:2, tid:1317
+09-20 12:54:01.520 I/mtkpower_client( 1317): ret_hdl:250233
+09-20 12:54:01.520 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:250233 hint:-1 pid:1317 duration:30000 lock_user:fpsgo => ret_hdl:250233
+09-20 12:54:01.522 I/libPowerHal( 1238): [PE] fpsgo update cmd:1408300, param:100
+09-20 12:54:02.378 I/mtkpower_client( 1317): perf_lock_rel, hdl:250233, tid:1317
+09-20 12:54:02.380 I/libPowerHal( 1238): [perfLockRel] hdl:250233, idx:4
+09-20 12:54:02.381 I/libPowerHal( 1238): [PD] fpsgo update cmd:1408300 param:0
+09-20 12:54:02.546 I/mtkpower_client( 1317): perf_lock_rel, hdl:250231, tid:1317
+09-20 12:54:02.547 I/mtkpower_client( 1317): perf_lock_rel, hdl:250232, tid:1317
+09-20 12:54:02.548 I/libPowerHal( 1238): [perfLockRel] hdl:250231, idx:1
+09-20 12:54:02.549 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:02.552 I/libPowerHal( 1238): [perfLockRel] hdl:250232, idx:2
+09-20 12:54:02.553 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:02.553 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:02.554 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:02.554 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:07.164 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:54:07.164 I/libPowerHal( 1238): [perfLockAcq] idx:1 hdl:250234 hint:-1 pid:1221 duration:7000 lock_user:iawareperf@1.0- => ret_hdl:250234
+09-20 12:54:07.165 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:54:07.165 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:54:07.166 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:54:07.166 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:54:07.166 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:54:07.167 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:54:07.168 I/libPowerHal( 1238): [setClusterFreq] iawareperf@1.0-: sysfs_freq set cpu freq: 2200000 -1 1600000 -1
+09-20 12:54:07.169 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1408300, param:50
+09-20 12:54:07.169 I/libPowerHal( 1238): [PE] iawareperf@1.0- update cmd:1000000 param:1
+09-20 12:54:07.183 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.hihonor.android.launcher/com.hihonor.android.launcher.unihome.UniHomeLauncher pid=3121 state:0
+09-20 12:54:07.183 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.hihonor.android.launcher, act:com.hihonor.android.launcher.unihome.UniHomeLauncher, state:0, pid:3121, uid:10094, fps:-1
+09-20 12:54:07.185 I/mtkpower@impl( 1238): [setMode] type:5, enabled:1
+09-20 12:54:07.214 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=24869 state:1
+09-20 12:54:07.214 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:24869, uid:10458, fps:-1
+09-20 12:54:07.214 I/libPowerHal( 1238): [perfNotifyAppState] foreground:com.edudashpro, pid:24869, uid:10458
+09-20 12:54:07.215 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:54:07.215 I/mtkpower@impl( 1238): [notifyAppState] pc:0, com.hihonor.android.launcher => com.edudashpro
+09-20 12:54:07.226 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.hihonor.android.launcher/com.hihonor.android.launcher.unihome.UniHomeLauncher pid=3121 state:0
+09-20 12:54:07.227 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.hihonor.android.launcher, act:com.hihonor.android.launcher.unihome.UniHomeLauncher, state:0, pid:3121, uid:10094, fps:-1
+09-20 12:54:07.328 I/libPowerHal( 1238): cmdSetting - unknown cmd:1c3c000, scmd:(null) ,param_1:1
+09-20 12:54:07.328 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:250235 hint:-1 pid:1221 duration:400 lock_user:iawareperf@1.0- => ret_hdl:250235
+09-20 12:54:07.329 I/libPowerHal( 1238): [setGPUFreq] iawareperf@1.0- user set gpu freq min:2, max:-1
+09-20 12:54:07.329 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:54:07.329 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:54:07.329 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:54:07.329 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:54:07.329 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:54:07.412 I/mtkpower@impl( 1238): [setMode] type:6, enabled:1
+09-20 12:54:07.412 E/mtkpower@impl( 1238): [setMode] unknown type
+09-20 12:54:07.511 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:54:07.513 I/mtkpower_client( 1317): ret_hdl:250236
+09-20 12:54:07.513 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:07.514 I/mtkpower_client( 1317): ret_hdl:250237
+09-20 12:54:07.520 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:250236 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250236
+09-20 12:54:07.520 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:07.522 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:07.522 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:07.531 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:250237 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250237
+09-20 12:54:07.532 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:07.533 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:07.534 I/mtkpower@impl( 1238): [setMode] type:5, enabled:0
+09-20 12:54:07.534 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:07.534 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:07.535 I/mtkpower_client( 1317): perf_lock_rel, hdl:250236, tid:1317
+09-20 12:54:07.541 I/mtkpower_client( 1317): perf_lock_rel, hdl:250237, tid:1317
+09-20 12:54:07.542 I/libPowerHal( 1238): [perfLockRel] hdl:250236, idx:4
+09-20 12:54:07.545 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:07.548 I/libPowerHal( 1238): [perfLockRel] hdl:250237, idx:5
+09-20 12:54:07.548 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:07.549 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:07.549 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:07.549 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:07.678 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:54:07.680 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:250238 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250238
+09-20 12:54:07.680 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:07.680 I/mtkpower_client( 1317): ret_hdl:250238
+09-20 12:54:07.680 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:07.681 I/mtkpower_client( 1317): ret_hdl:250239
+09-20 12:54:07.681 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:07.681 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:07.681 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:250239 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250239
+09-20 12:54:07.681 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:07.682 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:07.682 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:07.682 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:07.694 I/mtkpower_client( 1317): perf_lock_rel, hdl:250238, tid:1317
+09-20 12:54:07.695 I/mtkpower_client( 1317): perf_lock_rel, hdl:250239, tid:1317
+09-20 12:54:07.696 I/libPowerHal( 1238): [perfLockRel] hdl:250238, idx:4
+09-20 12:54:07.696 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:07.708 I/libPowerHal( 1238): [perfLockRel] hdl:250239, idx:5
+09-20 12:54:07.709 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:07.709 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:07.709 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:07.709 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:07.730 I/mtkpower@impl( 1238): [powerd_req] TIMER_MSG_PERF_LOCK_TIMEOUT hdl:250235
+09-20 12:54:07.730 I/libPowerHal( 1238): [perfLockRel] hdl:250235, idx:2
+09-20 12:54:07.730 I/libPowerHal( 1238): [unsetGPUFreq] current min:2, max:0; scn_gpu_min:2, scn_gpu_max:-1; scn_gpu_min(HL):-1, scn_gpu_max(HL):-1
+09-20 12:54:07.730 I/libPowerHal( 1238): [setGPUFreq] Soft min/max = (2, 0); Hard min/max = (2, 0)
+09-20 12:54:07.731 I/libPowerHal( 1238): [setGPUFreq] final min/max = (2, 0)
+09-20 12:54:07.731 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level: 2
+09-20 12:54:07.731 I/libPowerHal( 1238): iawareperf@1.0-: set gpu opp level max: 0
+09-20 12:54:07.750 I/mtkpower@impl( 1238): [setMode] type:6, enabled:0
+09-20 12:54:07.750 E/mtkpower@impl( 1238): [setMode] unknown type
+09-20 12:54:07.761 I/mtkpower_client( 1630): [Legacy][PowerHal_Wrap_notifyAppState] com.hihonor.android.launcher/com.hihonor.android.launcher.unihome.UniHomeLauncher pid=3121 state:0
+09-20 12:54:07.762 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.hihonor.android.launcher, act:com.hihonor.android.launcher.unihome.UniHomeLauncher, state:0, pid:3121, uid:10094, fps:-1
+09-20 12:54:08.292 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:54:08.293 I/mtkpower_client( 1317): ret_hdl:250240
+09-20 12:54:08.293 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:08.293 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:250240 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250240
+09-20 12:54:08.293 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:08.294 I/mtkpower_client( 1317): ret_hdl:250241
+09-20 12:54:08.294 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:08.294 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:08.294 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:250241 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250241
+09-20 12:54:08.294 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:08.294 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:08.294 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:08.295 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:08.301 I/libPowerHal( 1238): [updateFPS] pid(24869) : -1 => 60
+09-20 12:54:08.302 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24869, uid:10458, fps:60
+09-20 12:54:08.302 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:54:08.406 I/mtkpower_client( 1317): perf_lock_rel, hdl:250240, tid:1317
+09-20 12:54:08.407 I/mtkpower_client( 1317): perf_lock_rel, hdl:250241, tid:1317
+09-20 12:54:08.407 I/libPowerHal( 1238): [perfLockRel] hdl:250240, idx:2
+09-20 12:54:08.408 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:08.409 I/libPowerHal( 1238): [perfLockRel] hdl:250241, idx:4
+09-20 12:54:08.409 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:08.409 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:08.409 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:08.410 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:09.301 I/libPowerHal( 1238): [updateFPS] pid(24869) : 60 => 90
+09-20 12:54:09.302 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24869, uid:10458, fps:90
+09-20 12:54:09.302 E/UxUtility( 1238): notifyAppState error = NULL
+09-20 12:54:09.925 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:2, tid:1317
+09-20 12:54:09.926 I/mtkpower_client( 1317): ret_hdl:250242
+09-20 12:54:09.926 I/libPowerHal( 1238): [perfLockAcq] idx:2 hdl:250242 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250242
+09-20 12:54:09.926 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:0, num:12, tid:1317
+09-20 12:54:09.926 I/libPowerHal( 1238): [PE] fpsgo update cmd:1404500 param:1
+09-20 12:54:09.927 I/mtkpower_client( 1317): ret_hdl:250243
+09-20 12:54:09.927 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438500, scmd:(null) ,param_1:0
+09-20 12:54:09.927 I/libPowerHal( 1238): cmdSetting - unknown cmd:1438800, scmd:(null) ,param_1:0
+09-20 12:54:09.927 I/libPowerHal( 1238): [perfLockAcq] idx:4 hdl:250243 hint:-1 pid:1317 duration:0 lock_user:fpsgo => ret_hdl:250243
+09-20 12:54:09.927 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438300, param:0
+09-20 12:54:09.928 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438400, param:0
+09-20 12:54:09.928 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438600, param:0
+09-20 12:54:09.928 I/libPowerHal( 1238): [PE] fpsgo update cmd:1438700, param:0
+09-20 12:54:09.978 I/mtkpower_client( 1317): perf_lock_acq, hdl:0, dur:30000, num:2, tid:1317
+09-20 12:54:09.979 I/mtkpower_client( 1317): ret_hdl:250244
+09-20 12:54:09.980 I/libPowerHal( 1238): [perfLockAcq] idx:5 hdl:250244 hint:-1 pid:1317 duration:30000 lock_user:fpsgo => ret_hdl:250244
+09-20 12:54:09.981 I/libPowerHal( 1238): [PE] fpsgo update cmd:1408300, param:100
+09-20 12:54:09.990 I/mtkpower_client( 1317): perf_lock_rel, hdl:250244, tid:1317
+09-20 12:54:09.991 I/libPowerHal( 1238): [perfLockRel] hdl:250244, idx:5
+09-20 12:54:09.991 I/libPowerHal( 1238): [PD] fpsgo update cmd:1408300 param:50
+09-20 12:54:10.057 I/mtkpower_client( 1317): perf_lock_rel, hdl:250242, tid:1317
+09-20 12:54:10.058 I/mtkpower_client( 1317): perf_lock_rel, hdl:250243, tid:1317
+09-20 12:54:10.058 I/libPowerHal( 1238): [perfLockRel] hdl:250242, idx:2
+09-20 12:54:10.058 I/libPowerHal( 1238): [PD] fpsgo update cmd:1404500 param:0
+09-20 12:54:10.060 I/libPowerHal( 1238): [perfLockRel] hdl:250243, idx:4
+09-20 12:54:10.060 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438300, param:1000
+09-20 12:54:10.060 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438400, param:1000
+09-20 12:54:10.060 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438600 param:1000
+09-20 12:54:10.060 I/libPowerHal( 1238): [PD] fpsgo update cmd:1438700 param:1000
+09-20 12:54:10.301 I/libPowerHal( 1238): [updateFPS] pid(24869) : 90 => 60
+09-20 12:54:10.302 I/libPowerHal( 1238): [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24869, uid:10458, fps:60
+09-20 12:54:10.302 E/UxUtility( 1238): notifyAppState error = NULL

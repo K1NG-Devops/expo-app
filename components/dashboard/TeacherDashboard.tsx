@@ -42,7 +42,7 @@ import { getStyles } from "./teacher/styles";
 
 export const TeacherDashboard: React.FC = () => {
   const { t } = useTranslation();
-  const { theme, isDark } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const styles = getStyles(theme, isDark);
   const { maybeShowInterstitial } = useAds();
   const { connectionStatus, isWhatsAppEnabled } = useWhatsAppConnection();

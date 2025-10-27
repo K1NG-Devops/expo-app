@@ -250,6 +250,13 @@ export const usePrincipalDashboard = () => {
 
   const fetchData = useCallback(async (forceRefresh = false) => {
     const startTime = Date.now();
+    
+    // Prevent data fetching during dashboard switches
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('🏫 Skipping principal dashboard data fetch during switch');
+      return;
+    }
+    
     log('🏫 Loading Principal Dashboard data...');
     
     try {
@@ -867,6 +874,12 @@ export const useTeacherDashboard = () => {
   const [isLoadingFromCache, setIsLoadingFromCache] = useState(false);
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    // Prevent data fetching during dashboard switches
+    if (typeof window !== 'undefined' && (window as any).dashboardSwitching) {
+      console.log('👨‍🏫 Skipping teacher dashboard data fetch during switch');
+      return;
+    }
+    
     try {
       setLoading(true);
       setError(null);
@@ -1440,99 +1453,3 @@ await offlineCacheService.cacheParentDashboard(
   return { data, loading, error, refresh, isLoadingFromCache };
 };
 
-/**
- * Hook for fetching common dashboard analytics
- */
-export const useDashboardAnalytics = (role: 'principal' | 'teacher') => {
-  const { user } = useAuth();
-  const [analytics, setAnalytics] = useState<{
-    aiUsage: { current: number; limit: number };
-    subscriptionStatus: string;
-    recentLogins: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchAnalytics = useCallback(async () => {
-    try {
-      setLoading(true);
-
-if (!user?.id) {
-        throw new Error('User not authenticated or Supabase not available');
-      }
-
-      // Get user's organization/school for analytics
-const { data: userProfile } = await assertSupabase()
-        .from('users')
-        .select('preschool_id, role')
-        .eq('auth_user_id', user.id)
-        .single();
-
-      let aiUsageData = { current: 0, limit: 100 };
-      let subscriptionStatus = 'active';
-      let recentLogins = 0;
-
-      if (userProfile?.preschool_id) {
-        // Get AI usage data if available
-        try {
-const { data: aiUsage } = await assertSupabase()
-            .from('ai_usage_logs')
-            .select('id')
-            .eq('organization_id', userProfile.preschool_id)
-            .gte('created_at', new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString());
-          
-          aiUsageData.current = aiUsage?.length || 0;
-        } catch (error) {
-          warn('AI usage data not available:', error);
-        }
-
-        // Get subscription status from school data
-        try {
-const { data: schoolData } = await assertSupabase()
-            .from('preschools')
-            .select('subscription_status')
-            .eq('id', userProfile.preschool_id)
-            .single();
-          
-          subscriptionStatus = schoolData?.subscription_status || 'active';
-        } catch (error) {
-          warn('Subscription status not available:', error);
-        }
-
-        // Get recent login activity (approximate)
-        try {
-const { data: activityLogs } = await assertSupabase()
-            .from('activity_logs')
-            .select('id')
-            .eq('organization_id', userProfile.preschool_id)
-            .gte('created_at', new Date(new Date().setDate(new Date().getDate() - 7)).toISOString());
-          
-          recentLogins = activityLogs?.length || 0;
-        } catch (error) {
-          warn('Activity logs not available:', error);
-        }
-      }
-      
-      setAnalytics({
-        aiUsage: aiUsageData,
-        subscriptionStatus,
-        recentLogins
-      });
-    } catch (err) {
-      logError('Failed to fetch dashboard analytics:', err);
-      // Set default analytics on error
-      setAnalytics({
-        aiUsage: { current: 0, limit: 100 },
-        subscriptionStatus: 'unknown',
-        recentLogins: 0
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [user, role]);
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, [fetchAnalytics]);
-
-  return { analytics, loading, refresh: fetchAnalytics };
-};

@@ -377,8 +377,8 @@ $$;
 -- Get petty cash summary for a date range
 CREATE OR REPLACE FUNCTION get_petty_cash_summary(
   school_uuid UUID,
-  start_date TIMESTAMPTZ DEFAULT NULL,
-  end_date TIMESTAMPTZ DEFAULT NULL
+  start_date TIMESTAMPTZ DEFAULT null,
+  end_date TIMESTAMPTZ DEFAULT null
 )
 RETURNS TABLE (
   total_expenses NUMERIC(12, 2),

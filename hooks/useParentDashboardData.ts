@@ -175,22 +175,9 @@ export function useParentDashboardData() {
 
           if (directChildrenList.length > 0) {
             studentsData = directChildrenList;
-          } else if (profile?.role === 'parent' && mySchoolId) {
-            const { data: preschoolChildren } = await client
-              .from('students')
-              .select(`
-                id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id,
-                classes!left(id, name, grade_level)
-              `)
-              .eq('preschool_id', mySchoolId)
-              .eq('is_active', true)
-              .is('parent_id', null)
-              .limit(5);
-            
-            if (preschoolChildren && preschoolChildren.length > 0) {
-              studentsData = preschoolChildren;
-            }
           }
+          // Removed: Don't show unclaimed children from school
+          // Parents must use "Claim Child" search to find and request linking
         } catch (error) {
           console.error('Error loading children:', error);
         }

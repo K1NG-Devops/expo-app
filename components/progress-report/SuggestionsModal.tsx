@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { createProgressReportStyles } from '@/app/screens/progress-report-creator.styles';
+import { createProgressReportStyles } from '@/styles/progress-report/creator.styles';
 
 /**
  * SuggestionsModal Component

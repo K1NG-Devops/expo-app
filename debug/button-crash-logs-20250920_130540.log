@@ -1,0 +1,29 @@
+----------------------------------------
+13:06:14 | 09-20 13:05:44.957  1630  1695 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32054 state:0
+13:06:14 | 09-20 13:05:44.962  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:32054, uid:10458, fps:-1
+13:06:14 | 09-20 13:05:44.985  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.hihonor.android.launcher
+13:06:14 | 09-20 13:05:46.111  1630  1994 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32054 state:0
+13:06:14 | 09-20 13:05:46.111  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:32054, uid:10458, fps:60
+13:06:14 | 09-20 13:05:46.935  1630  5650 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro pid=32054 state:3
+13:06:14 | 09-20 13:05:46.936  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro, state:3, pid:32054, uid:10458, fps:60
+13:06:14 | 09-20 13:05:46.936  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, pid:32054, STATE_DEAD
+13:06:14 | 09-20 13:05:48.369  1630  5650 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32469 state:1
+13:06:14 | 09-20 13:05:48.370  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:32469, uid:10458, fps:60
+13:06:14 | 09-20 13:05:48.370  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:32469, uid:10458
+13:06:14 | 09-20 13:05:48.373  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.hihonor.android.launcher => com.edudashpro
+13:06:14 | 09-20 13:05:48.968  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:05:55.972  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:60
+13:06:14 | 09-20 13:05:57.971  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:05:58.972  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:60
+13:06:14 | 09-20 13:05:59.974  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:06:05.432  1630  4789 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32469 state:0
+13:06:14 | 09-20 13:06:05.434  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:06:05.477  1630  4785 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32469 state:0
+13:06:14 | 09-20 13:06:05.478  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.google.android.gms
+13:06:14 | 09-20 13:06:05.479  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:06:05.647  1630  5650 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=32469 state:1
+13:06:14 | 09-20 13:06:05.648  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:32469, uid:10458, fps:-1
+13:06:14 | 09-20 13:06:05.648  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:32469, uid:10458
+13:06:14 | 09-20 13:06:05.649  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.google.android.gms => com.edudashpro
+13:06:14 | 09-20 13:06:06.975  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:90
+13:06:14 | 09-20 13:06:10.976  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:32469, uid:10458, fps:-1

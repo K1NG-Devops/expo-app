@@ -1,0 +1,12 @@
+{
+  "audit_timestamp": "",
+  "device_id": "",
+  "app_package": "",
+  "results": {
+    "installation": {},
+    "permissions": {},
+    "performance": {},
+    "functionality": {},
+    "security": {}
+  }
+}

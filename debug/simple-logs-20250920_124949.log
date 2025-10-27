@@ -1,0 +1,102 @@
+----------------------------------------
+12:50:04 | 09-20 12:49:51.016  1630  3612 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23326 state:0
+12:50:04 | 09-20 12:49:51.018  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23326, uid:10458, fps:-1
+12:50:04 | 09-20 12:49:51.042  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:51.042  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.hihonor.android.launcher
+12:50:04 | 09-20 12:49:52.084  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23326 state:1
+12:50:04 | 09-20 12:49:52.085  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:23326, uid:10458, fps:-1
+12:50:04 | 09-20 12:49:52.085  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:23326, uid:10458
+12:50:04 | 09-20 12:49:52.086  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:52.086  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.hihonor.android.launcher => com.edudashpro
+12:50:04 | 09-20 12:49:52.499  1630  2050 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23326 state:0
+12:50:04 | 09-20 12:49:52.500  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23326, uid:10458, fps:-1
+12:50:04 | 09-20 12:49:52.522  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:52.522  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.hihonor.android.launcher
+12:50:04 | 09-20 12:49:53.127  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:53.463  1630  1994 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23326 state:0
+12:50:04 | 09-20 12:49:53.465  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23326, uid:10458, fps:60
+12:50:04 | 09-20 12:49:54.210  1630  3612 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro pid=23326 state:3
+12:50:04 | 09-20 12:49:54.211  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro, state:3, pid:23326, uid:10458, fps:60
+12:50:04 | 09-20 12:49:54.211  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, pid:23326, STATE_DEAD
+12:50:04 | 09-20 12:49:55.366  1630  2050 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:1
+12:50:04 | 09-20 12:49:55.380  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:23648, uid:10458, fps:60
+12:50:04 | 09-20 12:49:55.380  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:23648, uid:10458
+12:50:04 | 09-20 12:49:55.386  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:55.386  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.hihonor.android.launcher => com.edudashpro
+12:50:04 | 09-20 12:49:56.128  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+12:50:04 | 09-20 12:49:56.128  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:49:59.129  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+12:50:04 | 09-20 12:49:59.129  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:50:02.129  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+12:50:04 | 09-20 12:50:02.132  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:04 | 09-20 12:50:03.507  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+12:50:04 | 09-20 12:50:03.508  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:-1
+12:50:04 | 09-20 12:50:03.551  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:03.552  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.google.android.gms
+12:50:37 | 09-20 12:50:03.562  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+12:50:37 | 09-20 12:50:03.564  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:03.630  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:1
+12:50:37 | 09-20 12:50:03.636  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:03.636  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:23648, uid:10458
+12:50:37 | 09-20 12:50:03.637  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:03.637  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.google.android.gms => com.edudashpro
+12:50:37 | 09-20 12:50:06.130  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:90
+12:50:37 | 09-20 12:50:06.131  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:09.132  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+12:50:37 | 09-20 12:50:09.133  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:10.132  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:10.132  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:12.134  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+12:50:37 | 09-20 12:50:12.135  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:13.134  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:13.134  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:18.135  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:60
+12:50:37 | 09-20 12:50:18.136  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:20.137  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:20.138  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:33.193  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+12:50:37 | 09-20 12:50:33.198  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:-1
+12:50:37 | 09-20 12:50:33.215  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:33.215  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.hihonor.android.launcher
+12:50:37 | 09-20 12:50:34.128  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:37 | 09-20 12:50:34.181  1630  1994 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=23648 state:0
+12:50:37 | 09-20 12:50:34.188  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:23648, uid:10458, fps:60
+12:50:37 | 09-20 12:50:34.997  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro, state:3, pid:23648, uid:10458, fps:60
+12:50:37 | 09-20 12:50:34.997  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, pid:23648, STATE_DEAD
+12:50:37 | 09-20 12:50:34.998  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro pid=23648 state:3
+12:50:37 | 09-20 12:50:36.099  1630  3674 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=24042 state:1
+12:50:55 | 09-20 12:50:36.113  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:24042, uid:10458, fps:60
+12:50:55 | 09-20 12:50:36.114  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:24042, uid:10458
+12:50:55 | 09-20 12:50:36.115  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:36.115  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.hihonor.android.launcher => com.edudashpro
+12:50:55 | 09-20 12:50:37.132  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:37.132  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:39.130  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:60
+12:50:55 | 09-20 12:50:39.130  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:41.130  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:41.133  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:42.132  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:60
+12:50:55 | 09-20 12:50:42.133  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:43.132  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:43.134  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:44.128  1630  2050 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=24042 state:0
+12:50:55 | 09-20 12:50:44.129  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:44.171  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:44.171  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.edudashpro => com.google.android.gms
+12:50:55 | 09-20 12:50:44.177  1630  2050 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=24042 state:0
+12:50:55 | 09-20 12:50:44.178  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:0, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:44.255  1630  5650 I mtkpower_client: [Legacy][PowerHal_Wrap_notifyAppState] com.edudashpro/com.edudashpro.MainActivity pid=24042 state:1
+12:50:55 | 09-20 12:50:44.256  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:1, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:44.256  1238  1301 I libPowerHal: [perfNotifyAppState] foreground:com.edudashpro, pid:24042, uid:10458
+12:50:55 | 09-20 12:50:44.256  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:44.257  1238  1262 I mtkpower@impl: [notifyAppState] pc:0, com.google.android.gms => com.edudashpro
+12:50:55 | 09-20 12:50:46.133  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:60
+12:50:55 | 09-20 12:50:46.134  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:47.133  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:90
+12:50:55 | 09-20 12:50:47.134  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:47.577  1238  1301 E libPowerHal: error : 2, No such file or directory
+12:50:55 | 09-20 12:50:47.651  1238  1301 E libPowerHal: error : 2, No such file or directory
+12:50:55 | 09-20 12:50:51.135  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:-1
+12:50:55 | 09-20 12:50:51.136  1238  1301 E UxUtility: notifyAppState error = NULL
+12:50:55 | 09-20 12:50:53.137  1238  1301 I libPowerHal: [perfNotifyAppState] pack:com.edudashpro, act:com.edudashpro.MainActivity, state:5, pid:24042, uid:10458, fps:60
+12:50:55 | 09-20 12:50:53.137  1238  1301 E UxUtility: notifyAppState error = NULL

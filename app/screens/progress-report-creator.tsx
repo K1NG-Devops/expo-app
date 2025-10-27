@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { createProgressReportStyles } from './progress-report-creator.styles';
+import { createProgressReportStyles } from '@/styles/progress-report/creator.styles';
 import { 
   SuggestionsModal, 
   StudentInfoEditor, 

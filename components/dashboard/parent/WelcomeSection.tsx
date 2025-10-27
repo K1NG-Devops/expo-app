@@ -23,7 +23,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
   onThemeToggle,
   showTierBadge = true,
   tierBadgePlacement = 'subtitle-inline',
-  tierBadgeSize = 'sm'
+          tierBadgeSize="md"
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
