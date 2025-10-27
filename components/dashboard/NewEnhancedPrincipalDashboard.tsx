@@ -284,7 +284,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
   
-  // Add pending reports metric
+  // Add pending reports metric BEFORE other metrics (high priority)
   const reportsMetric = {
     id: 'pending_reports',
     title: 'Reports to Review',
@@ -294,7 +294,9 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     trend: getPendingReportCount(data) > 0 ? 'attention' : 'stable'
   };
   
-  const allMetrics = [...metrics, reportsMetric, ...pettyCashCards].slice(0, 6);
+  // Place reports card first, then base metrics, then petty cash (limit to 6 total)
+  // But show first 4 in main grid (including reports card as #1)
+  const allMetrics = [reportsMetric, ...metrics, ...pettyCashCards].slice(0, 8);
 
   // Quick actions with modern grouping
   const primaryActions = [
@@ -461,6 +463,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         <SectionHeader title={t('dashboard.school_overview')} sectionId="school-metrics" icon="📊" />
         {!collapsedSections.has('school-metrics') && (
         <View style={styles.metricsGrid}>
+          {/* Show first 4 metrics (reports card + 3 key metrics) */}
           {allMetrics.slice(0, 4).map((metric, index) => (
             <MetricCard
               key={index}

@@ -1910,6 +1910,26 @@
     "email_verified": "Email verified. Opening app...",
     "email_verification_failed": "Email verification failed."
   },
+  "metrics": {
+    "total_students": "Total Students",
+    "teaching_staff": "Teaching Staff",
+    "active_classes": "Active Classes",
+    "attendance_rate": "Attendance Rate",
+    "monthly_revenue": "Monthly Revenue",
+    "pending_applications": "Pending Applications"
+  },
+  "trends": {
+    "up": "Up",
+    "down": "Down",
+    "good": "Good",
+    "excellent": "Excellent",
+    "warning": "Warning",
+    "attention": "Attention",
+    "needs_attention": "Needs attention",
+    "low": "Low",
+    "stable": "Stable",
+    "high": "High"
+  },
   "demo": {
     "header": {
       "title": "🚀 EduDash Pro Demo",
