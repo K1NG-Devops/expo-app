@@ -28,7 +28,7 @@ interface RequestWithDetails {
 }
 
 export function PendingParentLinkRequests() {
-  const { user, session } = useAuth();
+  const { user, session, profile } = useAuth();
   const { theme } = useTheme();
   const queryClient = useQueryClient();
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -36,14 +36,17 @@ export function PendingParentLinkRequests() {
   const [selectedRequest, setSelectedRequest] = useState<RequestWithDetails | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  // Get organization/preschool ID from profile
+  const organizationId = profile?.organization_id || (profile as any)?.preschool_id;
+
   // Fetch pending requests for school
   const { data: requests, isLoading } = useQuery({
-    queryKey: ['pending-parent-link-requests', user?.preschool_id],
+    queryKey: ['pending-parent-link-requests', organizationId],
     queryFn: async () => {
-      if (!user?.preschool_id) return [];
-      return await ParentJoinService.listPendingForSchoolWithDetails(user.preschool_id);
+      if (!organizationId) return [];
+      return await ParentJoinService.listPendingForSchoolWithDetails(organizationId);
     },
-    enabled: !!user?.preschool_id,
+    enabled: !!organizationId,
     staleTime: 30 * 1000, // 30 seconds (more frequent refresh for staff)
     refetchInterval: 60 * 1000, // Auto-refresh every minute
   });
@@ -70,7 +73,7 @@ export function PendingParentLinkRequests() {
               await ParentJoinService.approve(request.id, user.id);
               
               // Invalidate queries to refresh
-              queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', user.preschool_id] });
+              queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', organizationId] });
               
               Alert.alert('Approved', `${request.parent_email} can now access ${childName.split(' ')[0]}'s information.`);
             } catch (error: any) {
@@ -106,7 +109,7 @@ export function PendingParentLinkRequests() {
       await ParentJoinService.reject(selectedRequest.id, user.id, rejectionReason.trim() || undefined);
       
       // Invalidate queries to refresh
-      queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', user.preschool_id] });
+      queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', organizationId] });
       
       Alert.alert('Request Rejected', `${selectedRequest.parent_email}'s request for ${childName} has been rejected.`);
     } catch (error: any) {

@@ -216,15 +216,17 @@ export class ProgressReportService {
     principalId: string
   ): Promise<ProgressReport[]> {
     try {
-      const { data, error } = await supabase
+      // Use explicit FK-qualified embeds to avoid PostgREST 300 (ambiguous relationship)
+      // progress_reports has two FKs to users (teacher_id, reviewed_by), so we must disambiguate
+      const { data, error, status } = await supabase
         .from('progress_reports')
         .select(`
           *,
-          students:student_id (
+          students:students!progress_reports_student_id_fkey(
             first_name,
             last_name
           ),
-          users:teacher_id (
+          users:users!progress_reports_teacher_id_fkey(
             first_name,
             last_name
           )
@@ -233,18 +235,45 @@ export class ProgressReportService {
         .eq('status', 'pending_review')
         .order('teacher_signed_at', { ascending: false });
       
+      // If ambiguous relationship persists (HTTP 300 / PGRST302), retry without embeds as safe fallback
+      if (error && (status === 300 || (error as any)?.code === 'PGRST302')) {
+        const retry = await supabase
+          .from('progress_reports')
+          .select('id, status, preschool_id, teacher_signed_at, student_id, teacher_id')
+          .eq('preschool_id', preschoolId)
+          .eq('status', 'pending_review')
+          .order('teacher_signed_at', { ascending: false });
+        if (retry.error) {
+          console.error('[ProgressReportService] Error fetching reports for review (retry):', retry.error);
+          return [];
+        }
+
+        // Optionally enrich names separately (best-effort)
+        const rows = retry.data || [];
+        return rows.map((report: any) => ({
+          ...report,
+          student_name: 'Pending student',
+          teacher_name: 'Pending teacher',
+        })) as any;
+      }
+      
       if (error) {
         console.error('[ProgressReportService] Error fetching reports for review:', error);
         return [];
       }
       
+      const buildName = (first?: string | null, last?: string | null) => {
+        const parts = [first, last].filter((p) => !!p && String(p).toLowerCase() !== 'null');
+        return parts.length > 0 ? parts.join(' ') : undefined;
+      };
+
       return (data || []).map((report: any) => ({
         ...report,
         student_name: report.students 
-          ? `${report.students.first_name} ${report.students.last_name}` 
+          ? buildName(report.students.first_name, report.students.last_name) || 'Unknown Student'
           : 'Unknown Student',
         teacher_name: report.users 
-          ? `${report.users.first_name} ${report.users.last_name}` 
+          ? buildName(report.users.first_name, report.users.last_name) || 'Unknown Teacher'
           : 'Unknown Teacher',
       }));
     } catch (error) {

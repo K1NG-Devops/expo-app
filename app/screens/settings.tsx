@@ -245,9 +245,9 @@ export default function SettingsScreen() {
   const toggleBiometric = async () => {
     if (!biometricEnrolled) {
       Alert.alert(
-        "Biometric Setup Required",
-        "Please set up fingerprint or face recognition in your device settings first.",
-        [{ text: "OK" }],
+        t('settings.biometric_alerts.setup_required_title'),
+        t('settings.biometric_alerts.setup_required_message'),
+        [{ text: t('common.ok') }],
       );
       return;
     }
@@ -257,7 +257,7 @@ export default function SettingsScreen() {
       const user = data.user;
 
       if (!user) {
-        Alert.alert("Error", "User not found");
+        Alert.alert(t('common.error'), t('settings.biometric_alerts.user_not_found'));
         return;
       }
 
@@ -266,8 +266,8 @@ export default function SettingsScreen() {
         await BiometricAuthService.disableBiometric();
         setBiometricEnabled(false);
         Alert.alert(
-          "Biometric Login Disabled",
-          "You will need to use your password to sign in.",
+          t('settings.biometric_alerts.disabled_title'),
+          t('settings.biometric_alerts.disabled_message'),
         );
       } else {
         // Enable biometric authentication
@@ -278,14 +278,14 @@ export default function SettingsScreen() {
         if (success) {
           setBiometricEnabled(true);
           Alert.alert(
-            "Biometric Login Enabled",
-            "You can now use biometric authentication to sign in quickly.",
+            t('settings.biometric_alerts.enabled_title'),
+            t('settings.biometric_alerts.enabled_message'),
           );
         }
       }
     } catch (error) {
       console.error("Error toggling biometric:", error);
-      Alert.alert("Error", "Failed to update biometric settings.");
+      Alert.alert(t('common.error'), t('settings.biometric_alerts.update_failed'));
     }
   };
 
@@ -336,7 +336,7 @@ export default function SettingsScreen() {
         <RoleBasedHeader title="Settings" />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>Loading settings...</Text>
+          <Text style={styles.loadingText}>{t('settings.loading.settings')}</Text>
         </View>
       </View>
     );
@@ -400,7 +400,7 @@ export default function SettingsScreen() {
                   </Text>
                   {biometricEnabled && biometricLastUsed && (
                     <Text style={[styles.settingSubtitle, { fontSize: 12, marginTop: 2 }]}>
-                      Last used: {new Date(biometricLastUsed).toLocaleDateString()}
+                      {t('settings.biometric_info.last_used', { date: new Date(biometricLastUsed).toLocaleDateString() })}
                     </Text>
                   )}
                 </View>
@@ -416,8 +416,8 @@ export default function SettingsScreen() {
                 ) : biometricSupported && !biometricEnrolled ? (
                   <TouchableOpacity onPress={() => {
                     Alert.alert(
-                      t('settings.biometric.setupRequired'),
-                      "Please set up fingerprint or face recognition in your device settings.",
+                      t('settings.biometric_alerts.setup_required_title'),
+                      t('settings.biometric_alerts.setup_required_message'),
                       [{ text: t('common.ok') }]
                     );
                   }}>
@@ -442,8 +442,8 @@ export default function SettingsScreen() {
               style={[styles.settingItem, styles.lastSettingItem]}
               onPress={() =>
                 Alert.alert(
-                  "Privacy & Security",
-                  "Your data is encrypted and stored securely. Biometric data never leaves your device.",
+                  t('settings.privacy_alert.title'),
+                  t('settings.privacy_alert.message'),
                 )
               }
             >
@@ -469,17 +469,17 @@ export default function SettingsScreen() {
           {biometricSupported && (
             <View style={styles.biometricInfo}>
               <Text style={styles.biometricInfoText}>
-                🔒 Your biometric data is processed locally on your device and never transmitted or stored on our servers.
+                🔒 {t('settings.biometric_info.data_local')}
                 {biometricTypes.length > 0 && (
                   biometricTypes.includes('Fingerprint') 
-                    ? ' Your fingerprint data remains secure on your device.'
+                    ? ' ' + t('settings.biometric_info.fingerprint_secure')
                     : biometricTypes.includes('Face ID')
-                    ? ' Your facial recognition data remains secure on your device.'
-                    : ` Available methods: ${biometricTypes.join(', ')}.`
+                    ? ' ' + t('settings.biometric_info.face_secure')
+                    : ' ' + t('settings.biometric_info.available_methods', { methods: biometricTypes.join(', ') })
                 )}
-                {hasBackupMethods && ' Device passcode is available as a backup method.'}
+                {hasBackupMethods && ' ' + t('settings.biometric_info.backup_available')}
                 {biometricEnabled && biometricLastUsed && (
-                  ` Last authenticated: ${new Date(biometricLastUsed).toLocaleDateString()}.`
+                  ' ' + t('settings.biometric_info.last_authenticated', { date: new Date(biometricLastUsed).toLocaleDateString() })
                 )}
               </Text>
             </View>
@@ -497,8 +497,8 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
 <Ionicons name="pulse" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Vibration on actions</Text>
-                  <Text style={styles.settingSubtitle}>Use vibration feedback on important actions</Text>
+                  <Text style={styles.settingTitle}>{t('settings.feedback.vibration_title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.feedback.vibration_subtitle')}</Text>
                 </View>
               </View>
               <Switch
@@ -514,8 +514,8 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <Ionicons name="volume-high" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Sound alerts</Text>
-                  <Text style={styles.settingSubtitle}>Play a short sound on success or important alerts</Text>
+                  <Text style={styles.settingTitle}>{t('settings.feedback.sound_title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.feedback.sound_subtitle')}</Text>
                 </View>
               </View>
               <Switch
@@ -535,8 +535,8 @@ export default function SettingsScreen() {
                 <View style={styles.settingLeft}>
                   <Ionicons name="musical-notes" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                   <View style={styles.settingContent}>
-                    <Text style={styles.settingTitle}>Advanced Sound Settings</Text>
-                    <Text style={styles.settingSubtitle}>Configure sounds for different alert types</Text>
+                    <Text style={styles.settingTitle}>{t('settings.feedback.advanced_sound_title')}</Text>
+                    <Text style={styles.settingSubtitle}>{t('settings.feedback.advanced_sound_subtitle')}</Text>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -547,7 +547,7 @@ export default function SettingsScreen() {
 
         {/* Billing & Subscriptions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Billing & subscriptions</Text>
+          <Text style={styles.sectionTitle}>{t('settings.billing.title')}</Text>
           <View style={{ backgroundColor: theme.surface, borderRadius: 12, overflow: 'hidden' }}>
             <InvoiceNotificationSettings />
             <View style={styles.divider} />
@@ -558,8 +558,8 @@ export default function SettingsScreen() {
               <View style={styles.settingLeft}>
                 <Ionicons name="card" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Manage subscription</Text>
-                  <Text style={styles.settingSubtitle}>Open billing management (RevenueCat)</Text>
+                  <Text style={styles.settingTitle}>{t('settings.billing.manage_subscription')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.billing.manage_subscription_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -573,14 +573,14 @@ export default function SettingsScreen() {
             <TouchableOpacity
               style={[styles.settingItem, styles.lastSettingItem]}
               onPress={() => {
-                Alert.alert('Feedback', 'Haptics and sound feedback are temporarily disabled.');
+                Alert.alert(t('settings.feedback_test_alert.title'), t('settings.feedback_test_alert.message'));
               }}
             >
               <View style={styles.settingLeft}>
                 <Ionicons name="play" size={24} color={theme.textSecondary} style={styles.settingIcon} />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Test vibration & sound</Text>
-                  <Text style={styles.settingSubtitle}>Quickly test your feedback preferences</Text>
+                  <Text style={styles.settingTitle}>{t('settings.feedback.test_title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.feedback.test_subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -732,7 +732,7 @@ export default function SettingsScreen() {
         {/* Updates */}
         {Platform.OS !== 'web' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Updates</Text>
+            <Text style={styles.sectionTitle}>{t('settings.updates.title')}</Text>
             <View style={styles.settingsCard}>
               <TouchableOpacity
                 style={[styles.settingItem, styles.lastSettingItem]}
@@ -750,13 +750,13 @@ export default function SettingsScreen() {
                     try {
                       const downloaded = await checkForUpdates();
                       Alert.alert(
-                        'Updates',
+                        t('settings.updates.title'),
                         downloaded
-                          ? 'Update downloaded! Use the banner at the top to restart.'
-                          : 'You are up to date. No updates available.'
+                          ? t('settings.updates.update_downloaded_message')
+                          : t('settings.updates.no_updates_message')
                       );
                     } catch {
-                      Alert.alert('Error', 'Failed to check for updates. Please try again.');
+                      Alert.alert(t('common.error'), t('settings.updates.check_failed_message'));
                     }
                   }
                 }}
@@ -770,15 +770,15 @@ export default function SettingsScreen() {
                     style={styles.settingIcon}
                   />
                   <View style={styles.settingContent}>
-                    <Text style={styles.settingTitle}>Check for updates</Text>
+                    <Text style={styles.settingTitle}>{t('settings.updates.check_for_updates')}</Text>
                     <Text style={styles.settingSubtitle}>
                       {isDownloading 
-                        ? 'Downloading update…' 
+                        ? t('settings.updates.downloading') 
                         : isUpdateDownloaded 
-                        ? 'Update ready to install' 
+                        ? t('settings.updates.ready_to_install') 
                         : updateError 
-                        ? 'Check failed - tap to retry' 
-                        : `Current version: ${Constants.expoConfig?.version ?? 'n/a'}`}
+                        ? t('settings.updates.check_failed') 
+                        : t('settings.updates.current_version', { version: Constants.expoConfig?.version ?? 'n/a' })}
                     </Text>
                   </View>
                 </View>
@@ -801,9 +801,9 @@ export default function SettingsScreen() {
               style={[styles.settingItem]}
               onPress={() =>
                 Alert.alert(
-                  "EduDash Pro",
-                  "Version 1.0.2\nBuilt with ❤️ for educators and parents\n\nWhat's New:\n• WhatsApp notifications integration\n• Enhanced superadmin controls\n• Improved mobile-first responsive design\n• Push notifications system",
-                  [{ text: "OK" }]
+                  t('settings.about_alert.title'),
+                  t('settings.about_alert.message'),
+                  [{ text: t('common.ok') }]
                 )
               }
             >
@@ -815,8 +815,8 @@ export default function SettingsScreen() {
                   style={styles.settingIcon}
                 />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>About EduDash Pro</Text>
-                  <Text style={styles.settingSubtitle}>Version and app information</Text>
+                  <Text style={styles.settingTitle}>{t('settings.about_app.title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.about_app.subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -826,9 +826,9 @@ export default function SettingsScreen() {
               style={[styles.settingItem]}
               onPress={() =>
                 Alert.alert(
-                  "Help & Support",
-                  "For support, please contact us at support@edudashpro.com",
-                  [{ text: "OK" }]
+                  t('settings.help_alert.title'),
+                  t('settings.help_alert.message'),
+                  [{ text: t('common.ok') }]
                 )
               }
             >
@@ -840,8 +840,8 @@ export default function SettingsScreen() {
                   style={styles.settingIcon}
                 />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Help & Support</Text>
-                  <Text style={styles.settingSubtitle}>Get help and contact support</Text>
+                  <Text style={styles.settingTitle}>{t('settings.help_support.title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.help_support.subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />
@@ -859,8 +859,8 @@ export default function SettingsScreen() {
                   style={styles.settingIcon}
                 />
                 <View style={styles.settingContent}>
-                  <Text style={styles.settingTitle}>Account Settings</Text>
-                  <Text style={styles.settingSubtitle}>Manage your profile and account</Text>
+                  <Text style={styles.settingTitle}>{t('settings.account_settings.title')}</Text>
+                  <Text style={styles.settingSubtitle}>{t('settings.account_settings.subtitle')}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={20} color={theme.textSecondary} />

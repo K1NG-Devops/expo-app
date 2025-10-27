@@ -426,10 +426,33 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
                   <Text style={styles.headerIcon}>🏫</Text>
                   <Text style={styles.welcomeTitle}>{t('dashboard.school_overview')}</Text>
                 </View>
-                {/* Tier Badge - unified component */}
-                {subscriptionReady && (
-                  <TierBadge size="md" showManageButton />
-                )}
+                <View style={styles.titleRight}>
+                  {/* Dashboard Layout Toggle - Web Only */}
+                  {Platform.OS === 'web' && (
+                    <TouchableOpacity
+                      style={styles.webLayoutToggle}
+                      onPress={() => {
+                        const newLayout = preferences.layout === 'enhanced' ? 'classic' : 'enhanced';
+                        setLayout(newLayout);
+                        try { Feedback.vibrate(15); } catch { /* Intentional: non-fatal */ }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons 
+                        name={preferences.layout === 'classic' ? 'grid' : 'apps'} 
+                        size={18} 
+                        color={theme.primary} 
+                      />
+                      <Text style={styles.webLayoutToggleText}>
+                        {preferences.layout === 'enhanced' ? 'Classic' : 'Enhanced'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {/* Tier Badge - unified component */}
+                  {subscriptionReady && (
+                    <TierBadge size="md" showManageButton />
+                  )}
+                </View>
               </View>
             <Text style={styles.welcomeGreeting}>
               {getGreeting()}, {user?.user_metadata?.first_name || t('roles.principal')}!
@@ -555,42 +578,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         )}
       </View>
 
-      {/* Recent Activity - Collapsible */}
-      <View style={styles.section}>
-        <SectionHeader title={t('activity.recent_activity')} sectionId="recent-activity" icon="🔔" />
-        {!collapsedSections.has('recent-activity') && (
-        <View style={styles.recentActivityCard}>
-          <Text style={styles.cardTitle}>{t('activity.recent_activity')}</Text>
-          {data.recentActivities && data.recentActivities.length > 0 ? (
-            <View style={styles.activityList}>
-              {data.recentActivities.slice(0, 4).map((activity: any, index: number) => (
-                <View key={index} style={styles.activityItem}>
-                  <Text style={styles.activityBullet}>•</Text>
-                  <Text style={styles.activityText}>{activity.title}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.activityEmpty}>
-              <Ionicons name="time-outline" size={28} color={theme.textSecondary} />
-              <Text style={styles.activityText}>{t('activity.no_recent_activity')}</Text>
-              <Text style={[styles.activityText, { color: theme.textSecondary }]}>{t('activity.empty_description')}</Text>
-            </View>
-          )}
-          
-          {/* Show Teachers Link */}
-          {teachersWithStatus.length > 2 && (
-            <TouchableOpacity
-              style={styles.viewAllActivity}
-              onPress={() => router.push('/screens/teacher-management')}
-            >
-              <Text style={styles.viewAllActivityText}>{t('dashboard.teaching_staff')} ({teachersWithStatus.length})</Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
-        )}
-      </View>
+      {/* Recent Activity - Collapsible - HIDDEN: Shows superadmin/system-wide data instead of school-specific */}
+      {/* Temporarily disabled - shows system-wide data */}
 
       {/* Financial Summary - Collapsible */}
       {data.financialSummary && (
@@ -696,10 +685,10 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       flex: 1,
       // Reduced spacing - header height calculation:
       // insetTop + top padding (10) + avatar height (36) + bottom padding (10) + border (1) = ~57 + insetTop
-      marginTop: (isSmallScreen ? 65 : 70) + insetTop,
+      marginTop: (isSmallScreen ? 165 : 170) + insetTop,
     },
     scrollContainerWeb: {
-      marginTop: 0, // No header on web, DesktopLayout handles it
+      marginTop: 40, // No header on web, DesktopLayout handles it
     },
     scrollContent: {
       paddingBottom: insetBottom + (isSmallScreen ? 56 : 72),
@@ -738,6 +727,27 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+    },
+    titleRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    webLayoutToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: theme.primaryLight,
+      borderWidth: 1,
+      borderColor: theme.primary,
+    },
+    webLayoutToggleText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.primary,
     },
     sectionHeaderSurface: {
       flexDirection: 'row',
@@ -907,7 +917,7 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       paddingTop: isSmallScreen ? 6 : 8,
     },
     firstSectionWeb: {
-      paddingTop: 16, // Compact spacing for web with DesktopLayout
+      paddingTop: 12, // Balanced spacing for web with DesktopLayout (was 16, then 4)
     },
     sectionTitle: {
       fontSize: isSmallScreen ? 18 : isTablet ? 22 : 20,

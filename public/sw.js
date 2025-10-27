@@ -1,26 +1,24 @@
 /**
- * Service Worker for EduDash Pro PWA
+ * Service Worker for EduDash Pro PWA - Mobile Web Gating
  * 
- * SECURITY CRITICAL: This SW explicitly excludes protected routes from caching.
- * - Protected routes (dashboards, student data, etc.) are NEVER cached
- * - Only public marketing pages and static assets are cached
- * - Supabase endpoints are NEVER cached (always network-first)
+ * CRITICAL: Only caches manifest + icons for PWA installation.
+ * The app shell ("/") is NOT cached, allowing the mobile-web gating to run.
  * 
  * Cache Strategy:
- * - Static assets (manifest, icons): cache-first
- * - Marketing pages: stale-while-revalidate
- * - Protected routes: network-only (no caching)
- * - Cross-origin (Supabase, APIs): network-only (no caching)
+ * - Manifest + Icons ONLY: cache-first
+ * - All other requests: network-only (no caching)
+ * - Protected routes: network-only (never cached)
+ * - Cross-origin (Supabase, APIs): network-only (never cached)
  */
 
-const CACHE_NAME = 'edudash-static-v1';
+const CACHE_NAME = 'edudash-static-v3'; // Bumped to v3 for mobile-web gating
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/maskable-512.png',
 ];
+// NOTE: "/" NOT included to allow gating logic to run
 
 // Install: Pre-cache minimal shell
 self.addEventListener('install', (event) => {
@@ -135,33 +133,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy 2: Stale-while-revalidate for marketing pages
-  // Returns cached version immediately while fetching fresh copy in background
-  event.respondWith(
-    caches.match(event.request)
-      .then((cached) => {
-        const fetchPromise = fetch(event.request)
-          .then((response) => {
-            // Only cache successful responses
-            if (response && response.status === 200) {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME)
-                .then((cache) => cache.put(event.request, responseClone))
-                .catch((error) => console.warn('[SW] Cache put failed:', error));
-            }
-            return response;
-          })
-          .catch((error) => {
-            console.warn('[SW] Network fetch failed, using cache:', url.pathname);
-            // If network fails and we have cache, return it
-            if (cached) return cached;
-            throw error;
-          });
-
-        // Return cached immediately, but update in background
-        return cached || fetchPromise;
-      })
-  );
+  // All other routes: network-only (no caching)
+  // This includes marketing pages, landing pages, etc.
+  // Mobile web gating logic runs fresh every time.
+  console.log('[SW] Network-only:', url.pathname);
+  return; // Let browser fetch handle it
 });
 
 // Message handler for cache management (optional, for future use)

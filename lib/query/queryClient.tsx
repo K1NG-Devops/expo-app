@@ -15,8 +15,8 @@ const asyncStoragePersister = createAsyncStoragePersister({
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 24 * 60 * 60 * 1000,
-      gcTime: 24 * 60 * 60 * 1000,
+      staleTime: 5 * 60 * 1000, // 5 minutes - refetch when data is stale
+      gcTime: 10 * 60 * 1000,   // 10 minutes - keep in cache for quick nav
       retry: (failureCount, error: any) => {
         if (error?.response?.status >= 400 && error?.response?.status < 500) {
           return false
@@ -25,6 +25,8 @@ export const queryClient = new QueryClient({
       },
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
       networkMode: 'always',
+      refetchOnMount: true,      // Always check for fresh data on component mount
+      refetchOnWindowFocus: false, // Disable for mobile (not applicable)
     },
     mutations: {
       retry: (failureCount, error: any) => {
@@ -60,8 +62,8 @@ export const QueryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       client={queryClient}
       persistOptions={{
         persister: asyncStoragePersister,
-        maxAge: 24 * 60 * 60 * 1000,
-        buster: 'edudash-v1.0.0',
+        maxAge: 30 * 60 * 1000, // 30 minutes persistence (reduced from 24 hours)
+        buster: 'edudash-v1.1.0', // Bump to invalidate old cache
       }}
     >
       {children}

@@ -260,18 +260,31 @@ export class ParentJoinService {
    * List pending requests for school with parent and student details
    */
   static async listPendingForSchoolWithDetails(schoolId: string): Promise<any[]> {
-    const { data, error } = await assertSupabase()
+    // Use explicit FK embed for students; parent_auth_id doesn't have an FK, so we rely on parent_email column
+    const { data, error, status } = await assertSupabase()
       .from('guardian_requests')
       .select(`
         *,
-        student:students(first_name, last_name, date_of_birth, avatar_url),
-        parent:users!guardian_requests_parent_auth_id_fkey(email, first_name, last_name)
+        student:students!guardian_requests_student_id_fkey(first_name, last_name, date_of_birth, avatar_url)
       `)
       .eq('school_id', schoolId)
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     
-    if (error) throw error;
+    if (error) {
+      // If embeds fail (e.g., schema drift), fall back to base columns only
+      if (status === 300 || (error as any)?.code === 'PGRST302') {
+        const retry = await assertSupabase()
+          .from('guardian_requests')
+          .select('*')
+          .eq('school_id', schoolId)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: true });
+        if (retry.error) throw retry.error;
+        return retry.data || [];
+      }
+      throw error;
+    }
     return data || [];
   }
 }

@@ -402,7 +402,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
 
   return (
     <View style={[styles.container, Platform.OS === 'web' && { minHeight: '100vh' }]}>
-      {/* Fixed top header to match enhanced dashboard */}
+      {/* Fixed top header to match enhanced dashboard - Hidden on web */}
+      {Platform.OS !== 'web' && (
       <View style={[styles.appHeader, { paddingTop: insets.top + 12 }]}>
         <View style={styles.appHeaderContent}>
           <View style={styles.headerLeft}>
@@ -454,6 +455,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           </View>
         </View>
       </View>
+      )}
 
       <ScrollView
         style={styles.scrollContainer}
@@ -479,6 +481,24 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
               </View>
             </View>
             <View style={styles.headerActions}>
+              {/* Dashboard Layout Toggle - Web Only */}
+              {Platform.OS === 'web' && (
+                <TouchableOpacity
+                  style={[styles.themeToggle, { backgroundColor: theme.primaryLight, borderColor: theme.primary, borderWidth: 1 }]}
+                  onPress={() => {
+                    const newLayout = preferences.layout === 'classic' ? 'enhanced' : 'classic';
+                    setLayout(newLayout);
+                    try { Feedback.vibrate(15); } catch { /* Haptics unavailable */ }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={preferences.layout === 'classic' ? 'grid' : 'apps'}
+                    size={18}
+                    color={theme.primary}
+                  />
+                </TouchableOpacity>
+              )}
               {/* Theme Toggle */}
               <TouchableOpacity
                 style={styles.themeToggle}
@@ -1285,49 +1305,6 @@ const createStyles = (theme: any, preferences: any = {}) => {
     left: 0,
     right: 0,
     zIndex: 100,
-    backgroundColor: '#0f1419',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1f2937',
-  },
-  appHeaderContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: { flex: 1 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tenantName: { fontSize: 18, fontWeight: '700', color: '#e5e7eb' },
-  userAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#00f5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  userAvatarText: { color: '#000', fontSize: 14, fontWeight: '700' },
-  settingsButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-
-  scrollContainer: {
-    flex: 1,
-    // Reduced top margin for classic layout, more space for enhanced layout
-    marginTop: isClassicLayout ? 36 : 62,
-  },
-  appHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 100,
     backgroundColor: theme.surface,
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -1377,7 +1354,8 @@ const createStyles = (theme: any, preferences: any = {}) => {
     // Increased top margin to ensure greeting section is visible below fixed header
     // Accounts for header height including safe area insets and content
     // Add a bit of space between the header and greetings card
-    marginTop: isClassicLayout ? 104 : 120,
+    // On web, DesktopLayout provides the header, so we need minimal spacing
+    marginTop: Platform.OS === 'web' ? 12 : (isClassicLayout ? 104 : 120),
   },
   welcomeSection: {
     backgroundColor: theme.surface,
@@ -1444,7 +1422,7 @@ const createStyles = (theme: any, preferences: any = {}) => {
   },
   section: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 20,
   },
   sectionTitle: {
     fontSize: 18,

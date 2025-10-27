@@ -266,6 +266,9 @@
     "principal_tools": "Principal Tools",
     "todays_overview": "📊 Today's Overview",
     "quick_actions_section": "⚡ Quick Actions",
+    "quick_actions_stats": "Quick Actions & Statistics",
+    "quick_actions": "Quick Actions",
+    "parent_requests": "Parent Link Requests",
     "ai_teaching_tools": "🤖 AI Teaching Tools",
     "my_classes": "📚 My Classes",
     "recent_assignments": "📝 Recent Homework Assignments",
@@ -1010,8 +1013,14 @@
     "aboutSupport": "About & Support",
     "pushNotifications": "Push Notifications",
     "manageAlerts": "Manage your alerts and reminders",
+    "manage_alerts": "Manage your alerts",
+    "notifications_coming_soon_desc": "Notification settings will be available in the next update.",
     "emailNotifications": "Email Notifications",
     "configureEmails": "Configure email alerts",
+    "privacy_security": {
+      "title": "Privacy & Security",
+      "info": "Data protection info"
+    },
     "biometric": {
       "title": "Biometric Authentication",
       "fingerprint": "Fingerprint Authentication",
@@ -1097,7 +1106,83 @@
       "financials": "Financials",
       "pettyCash": "Petty Cash"
     },
-    "noFeaturesEnabled": "No features enabled"
+    "noFeaturesEnabled": "No features enabled",
+    "feedback": {
+      "vibration_title": "Vibration on actions",
+      "vibration_subtitle": "Use vibration feedback on important actions",
+      "sound_title": "Sound alerts",
+      "sound_subtitle": "Play a short sound on success or important alerts",
+      "advanced_sound_title": "Advanced Sound Settings",
+      "advanced_sound_subtitle": "Configure sounds for different alert types",
+      "test_title": "Test vibration & sound",
+      "test_subtitle": "Quickly test your feedback preferences"
+    },
+    "billing": {
+      "title": "Billing & subscriptions",
+      "manage_subscription": "Manage subscription",
+      "manage_subscription_subtitle": "Open billing management (RevenueCat)"
+    },
+    "about_app": {
+      "title": "About EduDash Pro",
+      "subtitle": "Version and app information"
+    },
+    "help_support": {
+      "title": "Help & Support",
+      "subtitle": "Get help and contact support"
+    },
+    "account_settings": {
+      "title": "Account Settings",
+      "subtitle": "Manage your profile and account"
+    },
+    "updates": {
+      "title": "Updates",
+      "check_for_updates": "Check for updates",
+      "downloading": "Downloading update…",
+      "ready_to_install": "Update ready to install",
+      "check_failed": "Check failed - tap to retry",
+      "current_version": "Current version: {{version}}",
+      "update_downloaded_message": "Update downloaded! Use the banner at the top to restart.",
+      "no_updates_message": "You are up to date. No updates available.",
+      "check_failed_message": "Failed to check for updates. Please try again."
+    },
+    "loading": {
+      "settings": "Loading settings..."
+    },
+    "biometric_alerts": {
+      "setup_required_title": "Biometric Setup Required",
+      "setup_required_message": "Please set up fingerprint or face recognition in your device settings first.",
+      "user_not_found": "User not found",
+      "disabled_title": "Biometric Login Disabled",
+      "disabled_message": "You will need to use your password to sign in.",
+      "enabled_title": "Biometric Login Enabled",
+      "enabled_message": "You can now use biometric authentication to sign in quickly.",
+      "update_failed": "Failed to update biometric settings."
+    },
+    "privacy_alert": {
+      "title": "Privacy & Security",
+      "message": "Your data is encrypted and stored securely. Biometric data never leaves your device."
+    },
+    "biometric_info": {
+      "data_local": "Your biometric data is processed locally on your device and never transmitted or stored on our servers.",
+      "fingerprint_secure": "Your fingerprint data remains secure on your device.",
+      "face_secure": "Your facial recognition data remains secure on your device.",
+      "available_methods": "Available methods: {{methods}}.",
+      "backup_available": "Device passcode is available as a backup method.",
+      "last_authenticated": "Last authenticated: {{date}}.",
+      "last_used": "Last used: {{date}}"
+    },
+    "about_alert": {
+      "title": "EduDash Pro",
+      "message": "Version 1.0.2\nBuilt with ❤️ for educators and parents\n\nWhat's New:\n• WhatsApp notifications integration\n• Enhanced superadmin controls\n• Improved mobile-first responsive design\n• Push notifications system"
+    },
+    "help_alert": {
+      "title": "Help & Support",
+      "message": "For support, please contact us at support@edudashpro.com"
+    },
+    "feedback_test_alert": {
+      "title": "Feedback",
+      "message": "Haptics and sound feedback are temporarily disabled."
+    }
 },
   "trends": {
     "up": "up",
@@ -1840,8 +1925,41 @@
   },
   "loading": {
     "default": "Loading...",
-    "please_wait": "Please wait...",
-    "fetching_data": "Fetching data...",
+    "please_wait": "Please wait..."
+  },
+  "pwa_install": {
+    "page_title": "Install EduDash Pro",
+    "install_app": "Install App",
+    "or": "or",
+    "open_app": "Open App",
+    "loading": "Loading...",
+    "fallback_warning": "If automatic detection fails, use the deep link:",
+    "deep_link_label": "Open edudashpro://",
+    "android": {
+      "title": "Install EduDash Pro",
+      "description": "For the best experience, install EduDash Pro on your home screen.",
+      "install_button": "Install App",
+      "installing": "Installing..."
+    },
+    "ios": {
+      "title": "Install EduDash Pro on iOS",
+      "description": "Install the app for quick access and a better experience.",
+      "step_1": "1. Tap the Share button",
+      "step_1_icon": "⬆️",
+      "step_2": "2. Scroll and tap \"Add to Home Screen\"",
+      "step_2_icon": "➕",
+      "step_3": "3. Tap \"Add\" in the top right",
+      "step_3_icon": "✅",
+      "note": "Note: The Share button is in Safari's toolbar (bottom or top)."
+    },
+    "standalone": {
+      "title": "Already Installed",
+      "description": "EduDash Pro is already installed as an app on this device.",
+      "open_button": "Open App",
+      "redirect_info": "You'll be redirected to the app shortly."
+    }
+  },
+  "status": {
     "processing": "Processing...",
     "saving": "Saving...",
     "uploading": "Uploading...",
@@ -1935,6 +2053,77 @@
     "low": "Low",
     "stable": "Stable",
     "high": "High"
+  },
+  "settings": {
+    "securityPrivacy": "Security & Privacy",
+    "appearanceLanguage": "Appearance & Language",
+    "schoolOverview": "School Overview",
+    "loadingSchoolSettings": "Loading school settings...",
+    "schoolName": "School Name",
+    "regionalSettings": "Regional Settings",
+    "whatsappIntegration": "WhatsApp Integration",
+    "whatsappConfigured": "Configured",
+    "whatsappNotConfigured": "Not configured",
+    "active": "Active",
+    "activeFeatures": "Active Features",
+    "noFeaturesEnabled": "No features enabled",
+    "editFullSettings": "Edit Full Settings",
+    "configureAllSchoolSettings": "Configure all school settings",
+    "failedToLoadSettings": "Failed to load settings",
+    "feature": {
+      "activityFeed": "Activity Feed",
+      "financials": "Financial Reports",
+      "pettyCash": "Petty Cash"
+    },
+    "biometric": {
+      "title": "Biometric Login",
+      "fingerprint": "Fingerprint Login",
+      "faceId": "Face ID Login",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "notAvailable": "Not available on this device",
+      "setupRequired": "Setup required in device settings"
+    },
+    "dashboard": {
+      "title": "Dashboard Layout",
+      "classic": "Classic",
+      "classicDesc": "Classic dashboard layout",
+      "enhanced": "Enhanced",
+      "enhancedDesc": "Modern enhanced dashboard",
+      "current": "Current Layout",
+      "available": "Available Layouts"
+    },
+    "preferences": {
+      "title": "Preferences",
+      "autoTheme": "Auto Theme",
+      "autoThemeDesc": "Match system theme"
+    },
+    "language": {
+      "current": "Current Language"
+    },
+    "theme": {
+      "title": "Theme",
+      "preview": "Theme Preview",
+      "primary": "Primary",
+      "secondary": "Secondary",
+      "accent": "Accent",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "aboutSupport": "About & Support",
+    "language": {
+      "title": "Language",
+      "current": "Current Language",
+      "available": "Available Languages",
+      "comingSoon": "Coming Soon",
+      "soon": "Soon"
+    }
+  },
+  "activity": {
+    "recent_activity": "Recent Activity",
+    "no_recent_activity": "No recent activity",
+    "empty_description": "Activity from your school will appear here"
   },
   "demo": {
     "header": {

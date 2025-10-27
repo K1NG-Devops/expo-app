@@ -82,8 +82,8 @@ export const ReportApprovalCard = ({ report, onPress }: ReportApprovalCardProps)
       style={[
         styles.card,
         {
-          backgroundColor: theme.colors.cardBackground,
-          borderColor: theme.colors.border,
+          backgroundColor: theme.cardBackground,
+          borderColor: theme.border,
         },
       ]}
       activeOpacity={0.7}
@@ -94,10 +94,10 @@ export const ReportApprovalCard = ({ report, onPress }: ReportApprovalCardProps)
       {/* Header Row */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.studentName, { color: theme.colors.text }]} numberOfLines={1}>
+          <Text style={[styles.studentName, { color: theme.text }]} numberOfLines={1}>
             {report.student_name || 'Unknown Student'}
           </Text>
-          <Text style={[styles.teacherName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+          <Text style={[styles.teacherName, { color: theme.textSecondary }]} numberOfLines={1}>
             by {report.teacher_name || 'Unknown Teacher'}
           </Text>
         </View>
@@ -109,14 +109,14 @@ export const ReportApprovalCard = ({ report, onPress }: ReportApprovalCardProps)
       </View>
 
       {/* Report Type */}
-      <Text style={[styles.reportType, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+      <Text style={[styles.reportType, { color: theme.textSecondary }]} numberOfLines={1}>
         {getReportTypeLabel()}
       </Text>
 
       {/* Footer Row */}
       <View style={styles.footer}>
         <View style={styles.footerLeft}>
-          <Text style={[styles.timestamp, { color: theme.colors.textSecondary }]}>
+          <Text style={[styles.timestamp, { color: theme.textSecondary }]}>
             {relativeTime}
           </Text>
           {isResubmission && (

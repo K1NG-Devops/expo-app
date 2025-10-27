@@ -60,6 +60,9 @@ export default function PrincipalReportReviewScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // Derive preschool/school ID robustly (profiles may use organization_id on web)
+  const schoolId = (profile as any)?.preschool_id || profile?.organization_id || (user as any)?.user_metadata?.preschool_id || null;
+
   // State
   const [selectedReport, setSelectedReport] = useState<ProgressReport | null>(null);
   const [showApproveModal, setShowApproveModal] = useState(false);
@@ -71,22 +74,22 @@ export default function PrincipalReportReviewScreen() {
 
   // Fetch pending reports
   const { data: reports = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['pending-reports', profile?.preschool_id],
+    queryKey: ['pending-reports', schoolId],
     queryFn: async () => {
-      if (!profile?.preschool_id || !user?.id) return [];
+      if (!schoolId || !user?.id) return [];
       return ProgressReportService.getReportsForReview(
-        profile.preschool_id,
+        schoolId as string,
         user.id
       );
     },
-    enabled: !!profile?.preschool_id && !!user?.id,
+    enabled: !!schoolId && !!user?.id,
     staleTime: 30 * 1000, // 30 seconds
     refetchInterval: 60 * 1000, // Poll every minute as backup
   });
 
   // Real-time subscription for instant updates
   useEffect(() => {
-    if (!profile?.preschool_id) return;
+    if (!schoolId) return;
 
     const channel = supabase
       .channel('progress_reports_changes')
@@ -96,12 +99,12 @@ export default function PrincipalReportReviewScreen() {
           event: '*',
           schema: 'public',
           table: 'progress_reports',
-          filter: `preschool_id=eq.${profile.preschool_id}`,
+          filter: `preschool_id=eq.${schoolId}`,
         },
         (payload) => {
           console.log('[PrincipalReview] Real-time update:', payload);
           // Refetch reports when any change occurs
-          queryClient.invalidateQueries({ queryKey: ['pending-reports'] });
+          queryClient.invalidateQueries({ queryKey: ['pending-reports', schoolId] });
         }
       )
       .subscribe();
@@ -109,7 +112,7 @@ export default function PrincipalReportReviewScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.preschool_id, queryClient]);
+  }, [schoolId, queryClient]);
 
   // Approve mutation
   const approveMutation = useMutation({
@@ -119,7 +122,7 @@ export default function PrincipalReportReviewScreen() {
       }
       const success = await ProgressReportService.approveReport(
         selectedReport.id,
-        profile.preschool_id,
+        schoolId as string,
         user.id,
         principalSignature,
         approvalNotes || undefined
@@ -127,15 +130,15 @@ export default function PrincipalReportReviewScreen() {
       if (!success) throw new Error('Failed to approve report');
     },
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-reports', schoolId] });
       
       // Send notification to teacher
-      if (selectedReport && profile?.preschool_id) {
+      if (selectedReport && schoolId) {
         try {
           await notifyReportApproved(
             selectedReport.id,
             selectedReport.student_id,
-            profile.preschool_id
+            schoolId as string
           );
           console.log('Approval notification sent to teacher');
         } catch (notifError: any) {
@@ -165,7 +168,7 @@ export default function PrincipalReportReviewScreen() {
       }
       const success = await ProgressReportService.rejectReport(
         selectedReport.id,
-        profile.preschool_id,
+        schoolId as string,
         user.id,
         rejectionReason,
         approvalNotes || undefined
@@ -173,15 +176,15 @@ export default function PrincipalReportReviewScreen() {
       if (!success) throw new Error('Failed to reject report');
     },
     onSuccess: async () => {
-      queryClient.invalidateQueries({ queryKey: ['pending-reports'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-reports', schoolId] });
       
       // Send notification to teacher
-      if (selectedReport && profile?.preschool_id && rejectionReason) {
+      if (selectedReport && schoolId && rejectionReason) {
         try {
           await notifyReportRejected(
             selectedReport.id,
             selectedReport.student_id,
-            profile.preschool_id,
+            schoolId as string,
             rejectionReason
           );
           console.log('Rejection notification sent to teacher');
