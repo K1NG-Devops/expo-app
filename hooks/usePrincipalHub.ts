@@ -101,6 +101,7 @@ export interface PrincipalHubData {
   enrollmentPipeline: EnrollmentPipeline | null;
   capacityMetrics: CapacityMetrics | null;
   recentActivities: ActivitySummary[] | null;
+  pendingReportApprovals: number;
   schoolId: string | null;
   schoolName: string;
 }
@@ -173,6 +174,7 @@ export const usePrincipalHub = () => {
     enrollmentPipeline: null,
     capacityMetrics: null,
     recentActivities: null,
+    pendingReportApprovals: 0,
     schoolId: null,
     schoolName: t('dashboard.no_school_assigned_text')
   });
@@ -274,7 +276,8 @@ export const usePrincipalHub = () => {
         waitlistedAppsResult,
         attendanceResult,
         capacityResult,
-        preschoolResult
+        preschoolResult,
+        pendingReportsResult
       ] = await Promise.allSettled([
         // Get students count
         assertSupabase()
@@ -352,7 +355,14 @@ export const usePrincipalHub = () => {
           .from('preschools')
           .select('name')
           .eq('id', preschoolId)
-          .single()
+          .single(),
+          
+        // Get pending progress report approvals (compatibility: both status fields)
+        assertSupabase()
+          .from('progress_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('preschool_id', preschoolId)
+          .or('approval_status.eq.pending_review,status.eq.pending_review')
       ]);
       
       // Extract data with error handling
@@ -366,12 +376,14 @@ export const usePrincipalHub = () => {
       const attendanceData = attendanceResult.status === 'fulfilled' ? (attendanceResult.value.data || []) : [];
       const preschoolCapacity = capacityResult.status === 'fulfilled' ? (capacityResult.value.data || {}) : {} as any;
       const preschoolInfo = preschoolResult.status === 'fulfilled' ? (preschoolResult.value.data || {}) : {} as any;
+      const pendingReportsCount = pendingReportsResult.status === 'fulfilled' ? (pendingReportsResult.value.count || 0) : 0;
       
       logger.info('📊 REAL DATA FETCHED:', {
         studentsCount,
         teachersCount: teachersData.length,
         classesCount,
         applicationsCount,
+        pendingReportsCount,
         attendanceRecords: attendanceData.length,
         preschoolName: preschoolInfo.name
       });
@@ -731,6 +743,7 @@ export const usePrincipalHub = () => {
           enrollmentPipeline,
           capacityMetrics,
           recentActivities,
+          pendingReportApprovals: pendingReportsCount,
           schoolId: preschoolId,
           schoolName
         });
@@ -775,29 +788,29 @@ useEffect(() => {
       return;
     }
     
-    // Guard 1: Skip if initial fetch already completed (React StrictMode protection)
-    if (initialFetchComplete.current) {
-      logger.info('[PrincipalHub] Initial fetch already complete, skipping duplicate mount');
-      return;
-    }
-    
     // Guard 2: Global fetch guard with time-based deduplication
     const key = `${userId}:${preschoolId}`;
     const now = Date.now();
     const last = __FETCH_GUARD[key] || 0;
     if (now - last < 2000) {
-      logger.info('[PrincipalHub] Fetch guard: Too soon since last fetch (${now - last}ms), skipping');
+      logger.info(`[PrincipalHub] Fetch guard: Too soon since last fetch (${now - last}ms), skipping`);
       return;
     }
     __FETCH_GUARD[key] = now;
     
-    logger.info('[PrincipalHub] Starting initial fetch...');
-    // Mark as complete after successful fetch
+    logger.info('[PrincipalHub] Starting fetch...');
     fetchData().then(() => {
-      logger.info('[PrincipalHub] Initial fetch promise resolved');
+      initialFetchComplete.current = true;
+      logger.info('[PrincipalHub] Fetch promise resolved');
     }).catch((err) => {
-      logger.error('[PrincipalHub] Initial fetch promise rejected:', err);
+      logger.error('[PrincipalHub] Fetch promise rejected:', err);
     });
+    
+    // Cleanup: Reset on unmount to allow refetch on remount
+    return () => {
+      logger.info('[PrincipalHub] Component unmounting, resetting fetch guard');
+      initialFetchComplete.current = false;
+    };
   }, [userId, preschoolId, fetchData]);
 
   const refresh = useCallback(() => {
@@ -881,4 +894,12 @@ useEffect(() => {
     isReady: !loading && !error && !!data.stats,
     isEmpty: !loading && !data.stats
   };
+};
+
+/**
+ * Helper function to get pending report approvals count
+ * Safe to use even if data is undefined
+ */
+export const getPendingReportCount = (data?: PrincipalHubData | null): number => {
+  return data?.pendingReportApprovals ?? 0;
 };

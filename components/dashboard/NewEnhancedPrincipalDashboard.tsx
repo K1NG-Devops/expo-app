@@ -27,7 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTranslation } from 'react-i18next';
-import { usePrincipalHub } from '@/hooks/usePrincipalHub';
+import { usePrincipalHub, getPendingReportCount } from '@/hooks/usePrincipalHub';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { usePettyCashMetricCards } from '@/hooks/usePettyCashDashboard';
@@ -63,6 +63,7 @@ interface QuickActionProps {
   color: string;
   onPress: () => void;
   subtitle?: string;
+  badgeCount?: number;
 }
 
 interface NewEnhancedPrincipalDashboardProps {
@@ -205,7 +206,7 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     </TouchableOpacity>
   );
 
-  const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle }) => (
+  const QuickAction: React.FC<QuickActionProps> = ({ title, icon, color, onPress, subtitle, badgeCount }) => (
     <TouchableOpacity
       style={styles.actionCard}
       onPress={async () => {
@@ -218,6 +219,11 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
     >
       <View style={[styles.actionIcon, { backgroundColor: color + '15' }]}>
         <Ionicons name={icon as any} size={isSmallScreen ? 20 : 24} color={color} />
+        {badgeCount !== undefined && badgeCount > 0 && (
+          <View style={[styles.badge, { backgroundColor: theme.error }]}>
+            <Text style={styles.badgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.actionTitle}>{title}</Text>
       {subtitle && <Text style={styles.actionSubtitle}>{subtitle}</Text>}
@@ -277,7 +283,18 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
 
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
-  const allMetrics = [...metrics, ...pettyCashCards].slice(0, 6);
+  
+  // Add pending reports metric
+  const reportsMetric = {
+    id: 'pending_reports',
+    title: 'Reports to Review',
+    value: getPendingReportCount(data),
+    icon: 'document-text-outline',
+    color: '#F59E0B',
+    trend: getPendingReportCount(data) > 0 ? 'attention' : 'stable'
+  };
+  
+  const allMetrics = [...metrics, reportsMetric, ...pettyCashCards].slice(0, 6);
 
   // Quick actions with modern grouping
   const primaryActions = [
@@ -313,7 +330,8 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
       icon: 'document-text',
       color: '#8B5CF6',
       onPress: () => router.push('/screens/principal-report-review'),
-      subtitle: 'Approve and review reports'
+      subtitle: 'Approve and review reports',
+      badgeCount: getPendingReportCount(data)
     },
     {
       title: 'Student Management',
@@ -461,6 +479,9 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
                     break;
                   case 'revenue':
                     router.push('/screens/financial-dashboard');
+                    break;
+                  case 'pending_reports':
+                    router.push('/screens/principal-report-review');
                     break;
                   default:
                     // Handle other metrics
@@ -1003,6 +1024,26 @@ const createStyles = (theme: any, insetTop = 0, insetBottom = 0) => {
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: isSmallScreen ? 8 : 12,
+      position: 'relative',
+    },
+    badge: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+      minWidth: 20,
+      height: 20,
+      borderRadius: 10,
+      paddingHorizontal: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 2,
+      borderColor: theme.cardBackground,
+    },
+    badgeText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '700',
+      lineHeight: 13,
     },
     actionTitle: {
       fontSize: isSmallScreen ? 12 : 14,

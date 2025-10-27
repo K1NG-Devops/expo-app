@@ -28,7 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useAds } from '@/contexts/AdsContext';
 import { useTranslation } from 'react-i18next';
-import { usePrincipalHub } from '@/hooks/usePrincipalHub';
+import { usePrincipalHub, getPendingReportCount } from '@/hooks/usePrincipalHub';
 import { router, useFocusEffect } from 'expo-router';
 import { AnnouncementModal, AnnouncementData } from '@/components/modals/AnnouncementModal';
 import AnnouncementService from '@/lib/services/announcementService';
@@ -387,8 +387,18 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
   
+  // Add pending reports metric
+  const reportsMetric = {
+    id: 'pending_reports',
+    title: 'Reports to Review',
+    value: getPendingReportCount(data),
+    icon: 'document-text-outline',
+    color: '#F59E0B',
+    trend: getPendingReportCount(data) > 0 ? 'attention' : 'stable'
+  };
+  
   // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
-  const allMetrics = [...metrics, ...pettyCashCards];
+  const allMetrics = [...metrics, reportsMetric, ...pettyCashCards];
 
   return (
     <View style={[styles.container, Platform.OS === 'web' && { minHeight: '100vh' }]}>
@@ -568,6 +578,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
                     return;
                   case 'classes':
                     router.push('/screens/class-teacher-management');
+                    return;
+                  case 'pending_reports':
+                    router.push('/screens/principal-report-review');
                     return;
                   case 'petty_cash_balance':
                   case 'monthly_expenses':
