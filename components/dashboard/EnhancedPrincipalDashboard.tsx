@@ -387,7 +387,7 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
   const metrics = getMetrics();
   const teachersWithStatus = getTeachersWithStatus();
   
-  // Add pending reports metric
+  // Add pending reports metric BEFORE other metrics (high priority)
   const reportsMetric = {
     id: 'pending_reports',
     title: 'Reports to Review',
@@ -397,8 +397,8 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
     trend: getPendingReportCount(data) > 0 ? 'attention' : 'stable'
   };
   
-  // Combine standard metrics with petty cash metrics (hook already filters for meaningful data)
-  const allMetrics = [...metrics, reportsMetric, ...pettyCashCards];
+  // Place reports card first for visibility (classic dashboard shows up to 6)
+  const allMetrics = [reportsMetric, ...metrics, ...pettyCashCards];
 
   return (
     <View style={[styles.container, Platform.OS === 'web' && { minHeight: '100vh' }]}>
