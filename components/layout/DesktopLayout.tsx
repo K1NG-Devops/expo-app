@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform, ScrollView } from '
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, usePermissions } from '@/contexts/AuthContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -71,6 +71,7 @@ const NAV_ITEMS: NavItem[] = [
 export function DesktopLayout({ children, role }: DesktopLayoutProps) {
   const { theme } = useTheme();
   const { user, profile } = useAuth();
+  const permissions = usePermissions();
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -91,6 +92,10 @@ export function DesktopLayout({ children, role }: DesktopLayoutProps) {
 
   const styles = React.useMemo(() => createStyles(theme, sidebarCollapsed, insets), [theme, sidebarCollapsed, insets]);
 
+  // Resolve tenant slug from enhanced profile (organization membership)
+  const org: any = (permissions as any)?.enhancedProfile?.organization_membership || {};
+  const tenantSlug: string = org?.organization_slug || org?.tenant_slug || org?.slug || org?.organization_name || 'EduDash Pro';
+
   // Only render desktop layout on web
   if (Platform.OS !== 'web') {
     return <>{children}</>;
@@ -105,7 +110,7 @@ export function DesktopLayout({ children, role }: DesktopLayoutProps) {
           {!sidebarCollapsed && (
             <View style={styles.logoContainer}>
               <Ionicons name="school" size={28} color={theme.primary} />
-              <Text style={styles.logoText}>EduDash Pro</Text>
+              <Text style={styles.logoText} numberOfLines={1}>{tenantSlug}</Text>
             </View>
           )}
           <TouchableOpacity
@@ -158,6 +163,13 @@ export function DesktopLayout({ children, role }: DesktopLayoutProps) {
             ))}
           </View>
         </ScrollView>
+
+        {/* Powered by (above separator line) */}
+        {!sidebarCollapsed && (
+          <View style={styles.poweredByBar}>
+            <Text style={styles.poweredBy} numberOfLines={1}>Powered by EduDash Pro</Text>
+          </View>
+        )}
 
         {/* User Profile Footer */}
         <View style={styles.sidebarFooter}>
@@ -282,6 +294,15 @@ const createStyles = (theme: any, collapsed: boolean, insets: any) =>
       borderTopWidth: 1,
       borderTopColor: theme.border,
       padding: 12,
+    },
+    poweredByBar: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    poweredBy: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      textAlign: 'center' as any,
     },
     profileButton: {
       flexDirection: 'row',

@@ -689,17 +689,30 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
 
     // Preferred: Use secure RPC that returns the caller's profile (bypasses RLS safely)
     log('[Profile] Calling get_my_profile RPC...');
-    const rpcPromise = assertSupabase()
-      .rpc('get_my_profile')
-      .maybeSingle();
+    const rpcCall = () => assertSupabase().rpc('get_my_profile').maybeSingle();
+    const rpcTimeoutMs = 8000; // allow a bit more time on slow networks
     const rpcTimeout = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('RPC timeout')), 5000)
+      setTimeout(() => reject(new Error('RPC timeout')), rpcTimeoutMs)
     );
+
+    let rpcProfile: any = null;
+    let rpcError: any = null;
     
-    const { data: rpcProfile, error: rpcError } = await Promise.race([rpcPromise, rpcTimeout]).catch(err => {
+    // First attempt
+    ({ data: rpcProfile, error: rpcError } = await Promise.race([rpcCall(), rpcTimeout]).catch(err => {
       log('[Profile] RPC call failed or timed out:', err.message);
       return { data: null, error: err };
-    }) as any;
+    }) as any);
+
+    // Quick, single retry on timeout
+    if ((!rpcProfile || !(rpcProfile as any).id) && rpcError && String(rpcError.message || '').includes('timeout')) {
+      debug('Retrying get_my_profile RPC once after timeout...');
+      await new Promise(res => setTimeout(res, 300));
+      ({ data: rpcProfile, error: rpcError } = await Promise.race([rpcCall(), rpcTimeout]).catch(err => {
+        log('[Profile] RPC retry failed or timed out:', err.message);
+        return { data: null, error: err };
+      }) as any);
+    }
 
     if (rpcProfile && (rpcProfile as any).id) {
       profile = rpcProfile as any;
@@ -707,19 +720,36 @@ export async function fetchEnhancedUserProfile(userId: string): Promise<Enhanced
     } else {
       profileError = rpcError;
       debug('RPC get_my_profile failed or returned null');
-      
-      // Try the direct bypass function as a test
+
+      // Fallback 1: Try direct table read of own profile (should be allowed by RLS)
       try {
-        const { data: directProfile } = await assertSupabase()
-          .rpc('debug_get_profile_direct', { target_auth_id: userId })
+        const { data: selfProfile } = await assertSupabase()
+          .from('profiles')
+          .select('id,email,role,first_name,last_name,avatar_url,created_at,preschool_id')
+          .eq('id', userId)
           .maybeSingle();
-        debug('Direct profile fetch completed');
-        if (directProfile && (directProfile as any).id) {
-          profile = directProfile as any;
-          debug('Using direct profile as fallback');
+        if (selfProfile && (selfProfile as any).id) {
+          profile = selfProfile as any;
+          debug('Using direct profiles table read as fallback');
         }
-      } catch (directError) {
-        debug('Direct profile fetch failed:', directError);
+      } catch (selfReadErr) {
+        debug('Direct profiles read failed (non-fatal):', selfReadErr);
+      }
+      
+      // Fallback 2: Try the debug RPC (SECURITY DEFINER)
+      if (!profile) {
+        try {
+          const { data: directProfile } = await assertSupabase()
+            .rpc('debug_get_profile_direct', { target_auth_id: userId })
+            .maybeSingle();
+          debug('Direct profile fetch completed');
+          if (directProfile && (directProfile as any).id) {
+            profile = directProfile as any;
+            debug('Using direct profile as fallback');
+          }
+        } catch (directError) {
+          debug('Direct profile fetch failed:', directError);
+        }
       }
     }
     

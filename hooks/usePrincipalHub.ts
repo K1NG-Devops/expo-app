@@ -678,13 +678,16 @@ export const usePrincipalHub = () => {
       // Get real recent activities from database
       const { data: recentDBActivities } = await assertSupabase()
         .from('activity_logs')
-        .select('activity_type, description, created_at, user_name')
+        .select('activity_type, description, created_at, user_name, organization_id')
         .eq('organization_id', preschoolId)
         .order('created_at', { ascending: false })
         .limit(8) || { data: [] };
       
+      // Extra client-side guard to prevent any cross-tenant leakage
+      const scopedActivities = (recentDBActivities || []).filter((a: any) => a?.organization_id === preschoolId);
+      
       // Process activities with meaningful information
-      const processedActivities = (recentDBActivities || []).map((activity: any) => {
+      const processedActivities = (scopedActivities || []).map((activity: any) => {
         const activityType = activity.activity_type;
         let type: 'enrollment' | 'application' = 'enrollment';
         let icon = 'information-circle';

@@ -71,8 +71,9 @@ export function RoleBasedHeader({
   // Dashboard layout preferences (used for grid/apps toggle)
   const { preferences: dashboardPreferences, setLayout: setDashboardLayout } = useDashboardPreferences();
   
-  // Get role labels based on organization type
-  const getRoleLabelFn = useRoleLabel;
+  // Get role label for current role (hook must be called at top-level)
+  const currentRole = permissions?.enhancedProfile?.role || 'teacher';
+  const currentRoleLabel = useRoleLabel(currentRole);
 
   // Load avatar URL from user metadata, profiles, or users table
   useEffect(() => {
@@ -182,7 +183,8 @@ export function RoleBasedHeader({
       // Use terminology system for role-specific dashboard titles
       if (role === 'super_admin') return 'SuperAdmin Dashboard';
       
-      const roleLabel = getRoleLabelFn(role);
+      // role label derived via hook at top-level
+      const roleLabel = currentRoleLabel;
       return `${roleLabel} Dashboard`;
     }
     

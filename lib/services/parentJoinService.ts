@@ -260,7 +260,7 @@ export class ParentJoinService {
    * List pending requests for school with parent and student details
    */
   static async listPendingForSchoolWithDetails(schoolId: string): Promise<any[]> {
-    // Use explicit FK embed for students; parent_auth_id doesn't have an FK, so we rely on parent_email column
+    // Fetch requests + student details
     const { data, error, status } = await assertSupabase()
       .from('guardian_requests')
       .select(`
@@ -271,6 +271,7 @@ export class ParentJoinService {
       .eq('status', 'pending')
       .order('created_at', { ascending: true });
     
+    let base = data || [];
     if (error) {
       // If embeds fail (e.g., schema drift), fall back to base columns only
       if (status === 300 || (error as any)?.code === 'PGRST302') {
@@ -281,10 +282,26 @@ export class ParentJoinService {
           .eq('status', 'pending')
           .order('created_at', { ascending: true });
         if (retry.error) throw retry.error;
-        return retry.data || [];
+        base = retry.data || [];
+      } else {
+        throw error;
       }
-      throw error;
     }
-    return data || [];
+
+    // Enrich with parent profile details (name, phone) in a second query
+    const parentIds = Array.from(new Set((base || []).map((r: any) => r.parent_auth_id).filter(Boolean)));
+    if (parentIds.length === 0) return base;
+
+    const { data: parents } = await assertSupabase()
+      .from('profiles')
+      .select('id, first_name, last_name, phone, avatar_url')
+      .in('id', parentIds);
+
+    const parentMap = new Map<string, any>((parents || []).map((p: any) => [p.id, p]));
+
+    return (base || []).map((r: any) => ({
+      ...r,
+      parent_profile: parentMap.get(r.parent_auth_id) || null,
+    }));
   }
 }

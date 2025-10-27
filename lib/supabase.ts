@@ -44,7 +44,8 @@ if (url && anon) {
   client = createClient(url, anon, {
     auth: {
       storage: storageAdapter as any,
-      autoRefreshToken: true,
+      // Disable Supabase's internal autoRefresh on web to avoid lock contention with our session manager
+      autoRefreshToken: !isWeb,
       persistSession: true,
       detectSessionInUrl: isWeb, // Allow URL detection on web for OAuth callbacks
       storageKey: 'edudash-auth-session',

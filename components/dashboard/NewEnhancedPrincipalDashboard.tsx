@@ -578,8 +578,42 @@ export const NewEnhancedPrincipalDashboard: React.FC<NewEnhancedPrincipalDashboa
         )}
       </View>
 
-      {/* Recent Activity - Collapsible - HIDDEN: Shows superadmin/system-wide data instead of school-specific */}
-      {/* Temporarily disabled - shows system-wide data */}
+      {/* Recent Activity - Collapsible */}
+      <View style={styles.section}>
+        <SectionHeader title={t('activity.recent_activity')} sectionId="recent-activity" icon="🔔" />
+        {!collapsedSections.has('recent-activity') && (
+        <View style={styles.recentActivityCard}>
+          <Text style={styles.cardTitle}>{t('activity.recent_activity')}</Text>
+          {data.recentActivities && data.recentActivities.length > 0 ? (
+            <View style={styles.activityList}>
+              {data.recentActivities.slice(0, 4).map((activity: any, index: number) => (
+                <View key={index} style={styles.activityItem}>
+                  <Text style={styles.activityBullet}>•</Text>
+                  <Text style={styles.activityText}>{activity.title}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.activityEmpty}>
+              <Ionicons name="time-outline" size={28} color={theme.textSecondary} />
+              <Text style={styles.activityText}>{t('activity.no_recent_activity')}</Text>
+              <Text style={[styles.activityText, { color: theme.textSecondary }]}>{t('activity.empty_description')}</Text>
+            </View>
+          )}
+          
+          {/* Show Teachers Link */}
+          {teachersWithStatus.length > 2 && (
+            <TouchableOpacity
+              style={styles.viewAllActivity}
+              onPress={() => router.push('/screens/teacher-management')}
+            >
+              <Text style={styles.viewAllActivityText}>{t('dashboard.teaching_staff')} ({teachersWithStatus.length})</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
+        )}
+      </View>
 
       {/* Financial Summary - Collapsible */}
       {data.financialSummary && (

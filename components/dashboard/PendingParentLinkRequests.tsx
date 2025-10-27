@@ -18,6 +18,12 @@ interface RequestWithDetails {
   child_class?: string;
   created_at: string;
   parent_email: string;
+  parent_profile?: {
+    first_name?: string;
+    last_name?: string;
+    phone?: string;
+    avatar_url?: string | null;
+  } | null;
   student?: {
     id: string;
     first_name: string;
@@ -150,7 +156,10 @@ export function PendingParentLinkRequests() {
         <View style={styles.requestHeader}>
           <View style={styles.requestInfo}>
             <Text style={[styles.parentEmail, { color: theme.text }]}>
-              👤 {request.parent_email}
+              👤 {request.parent_profile?.first_name || ''} {request.parent_profile?.last_name || ''}
+            </Text>
+            <Text style={[styles.parentSub, { color: theme.textSecondary }]}>
+              {request.parent_email}{request.parent_profile?.phone ? ` • 📞 ${request.parent_profile.phone}` : ''}
             </Text>
             <Text style={[styles.childName, { color: theme.primary }]}>
               wants to link: {childName}
@@ -357,7 +366,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#3B82F6',
-    marginTop: 4,
+    marginTop: 6,
+  },
+  parentSub: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
   relationship: {
     fontSize: 12,
