@@ -18,7 +18,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { router } from 'expo-router';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
 import * as Haptics from 'expo-haptics';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');

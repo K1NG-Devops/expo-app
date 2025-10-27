@@ -45,6 +45,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import TierBadge from '@/components/ui/TierBadge';
+import { PendingParentLinkRequests } from '@/components/dashboard/PendingParentLinkRequests';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 48) / 3;
@@ -724,6 +725,9 @@ export const EnhancedPrincipalDashboard: React.FC = () => {
           </View>
         )}
       </View>
+
+      {/* Parent Link Requests */}
+      <PendingParentLinkRequests />
 
       {/* Financial Summary - Respects backend settings */}
       {financialsEnabled && data.financialSummary && (

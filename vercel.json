@@ -5,25 +5,56 @@
   "framework": null,
   "installCommand": "npm ci",
   "devCommand": "npx expo start --web",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/.well-known/assetlinks.json",
-      "destination": "/.well-known/assetlinks.json"
+      "src": "/_expo/static/(.*)",
+      "dest": "/_expo/static/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/icons/(.*)",
+      "dest": "/icons/$1"
+    },
+    {
+      "src": "/legal/(.*)",
+      "dest": "/legal/$1"
+    },
+    {
+      "src": "/.well-known/(.*)",
+      "dest": "/.well-known/$1",
+      "headers": {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=3600",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/(manifest\\.json|sw\\.js|assetmap\\.json|metadata\\.json)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/favicon\\.(ico|png)",
+      "dest": "/$0"
+    },
+    {
+      "src": "/(.*)\\.html$",
+      "dest": "/$1.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
-    {
-      "source": "/.well-known/assetlinks.json",
-      "headers": [
-        { "key": "Content-Type", "value": "application/json" },
-        { "key": "Cache-Control", "value": "public, max-age=3600" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" }
-      ]
-    },
     {
       "source": "/(.*)",
       "headers": [
@@ -36,6 +67,18 @@
       "source": "/_expo/static/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(manifest\\.json|sw\\.js)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
   ]

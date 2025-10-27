@@ -25,7 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
-import { DashAIAssistant } from '@/services/DashAIAssistant';
+import { DashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import * as Haptics from 'expo-haptics';
 import { DashCommandPalette } from '@/components/ai/DashCommandPalette';
 
