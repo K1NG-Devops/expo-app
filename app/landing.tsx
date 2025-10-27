@@ -70,22 +70,19 @@ export default function LandingHandler() {
             setMessage(t('landing.email_verified', { defaultValue: 'Email verified! Redirecting to app...' }));
             setStatus('done');
             
-            // On native, route to sign-in with success message
+            // On native, route to dashboard
             if (!isWeb) {
               // Small delay to show success message
               setTimeout(() => {
-                router.replace({
-                  pathname: '/(auth)/sign-in',
-                  params: { emailVerified: 'true' }
-                } as any);
+                router.replace('/' as any); // AuthContext will redirect to dashboard
               }, 1500);
               return;
             }
             
-            // On web, try to open app with verified context
-            // Use immediate redirect for better mobile browser support
+            // On web/PWA, redirect to dashboard
+            // User is already authenticated after verifyOtp
             setTimeout(() => {
-              tryOpenApp('(auth)/sign-in?emailVerified=true');
+              window.location.href = '/';
             }, 1000);
             return;
           } catch (e: any) {

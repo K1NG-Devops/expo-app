@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
+import { signOut } from '@/lib/sessionManager';
+import { Platform } from 'react-native';
 
 // Prevent duplicate sign-out calls
 let isSigningOut = false;
 
 /**
- * Simplified sign-out: just navigate to sign-in screen
- * The sign-in process will handle clearing the old session when user signs in again
- * This avoids lock contention and makes the flow more reliable
+ * Complete sign-out: clears session, storage, and navigates to sign-in
+ * This ensures all auth state is properly cleaned up
  */
 export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: boolean; redirectTo?: string } | any): Promise<void> {
   if (isSigningOut) {
@@ -23,20 +24,59 @@ export async function signOutAndRedirect(optionsOrEvent?: { clearBiometrics?: bo
 
   const targetRoute = options?.redirectTo ?? '/(auth)/sign-in';
   
-  // Simply navigate to sign-in - that's it!
-  console.log('[authActions] Sign-out: navigating to sign-in screen');
   try {
-    router.replace(targetRoute);
-  } catch (navError) {
-    console.error('[authActions] Navigation failed:', navError);
-    // Try fallback routes
-    try { router.replace('/(auth)/sign-in'); } catch { /* Intentional: non-fatal */ }
-    try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
+    // First, perform complete sign-out (clears Supabase session + storage)
+    console.log('[authActions] Performing complete sign-out...');
+    await signOut();
+    console.log('[authActions] Sign-out successful');
+    
+    // Then navigate to sign-in
+    console.log('[authActions] Navigating to:', targetRoute);
+    
+    // Web-specific: use location.replace to clear history
+    if (Platform.OS === 'web') {
+      try {
+        const w = globalThis as any;
+        if (w?.location) {
+          w.location.replace(targetRoute);
+          console.log('[authActions] Browser history cleared and navigated');
+        } else {
+          router.replace(targetRoute);
+        }
+      } catch (historyErr) {
+        console.warn('[authActions] Browser history clear failed:', historyErr);
+        router.replace(targetRoute);
+      }
+    } else {
+      // Mobile: use router.replace
+      router.replace(targetRoute);
+    }
+  } catch (error) {
+    console.error('[authActions] Sign-out failed:', error);
+    
+    // Even on error, try to navigate to sign-in
+    try {
+      if (Platform.OS === 'web') {
+        const w = globalThis as any;
+        if (w?.location) {
+          w.location.replace(targetRoute);
+        } else {
+          router.replace(targetRoute);
+        }
+      } else {
+        router.replace(targetRoute);
+      }
+    } catch (navError) {
+      console.error('[authActions] Navigation failed:', navError);
+      // Try fallback routes
+      try { router.replace('/(auth)/sign-in'); } catch { /* Intentional: non-fatal */ }
+      try { router.replace('/sign-in'); } catch { /* Intentional: non-fatal */ }
+    }
+  } finally {
+    // Reset flag after a short delay
+    setTimeout(() => {
+      isSigningOut = false;
+    }, 100);
   }
-  
-  // Reset flag immediately
-  setTimeout(() => {
-    isSigningOut = false;
-  }, 100);
 }
 
