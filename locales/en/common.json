@@ -1916,7 +1916,13 @@
     "active_classes": "Active Classes",
     "attendance_rate": "Attendance Rate",
     "monthly_revenue": "Monthly Revenue",
-    "pending_applications": "Pending Applications"
+    "pending_applications": "Pending Applications",
+    "my_students": "My Students",
+    "pending_grading": "Pending Grading",
+    "lessons_today": "Lessons Today",
+    "across_classes": "across {{count}} classes",
+    "assignments_to_review": "assignments to review",
+    "scheduled_classes": "scheduled classes"
   },
   "trends": {
     "up": "Up",
