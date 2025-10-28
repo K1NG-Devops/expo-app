@@ -66,16 +66,16 @@ const baseResources: Record<string, any> = {
   en: { common: en, whatsapp: enWhatsApp },
 };
 
-// Dynamic loaders for other languages - ensures Metro bundles these files
-const LANGUAGE_LOADERS: Record<SupportedLanguage, () => Promise<any>> = {
-  en: async () => ({ common: (await import('../locales/en/common.json')).default || en }),
-  es: async () => ({ common: (await import('../locales/es/common.json')).default }),
-  fr: async () => ({ common: (await import('../locales/fr/common.json')).default }),
-  pt: async () => ({ common: (await import('../locales/pt/common.json')).default }),
-  de: async () => ({ common: (await import('../locales/de/common.json')).default }),
-  af: async () => ({ common: (await import('../locales/af/common.json')).default }),
-  zu: async () => ({ common: (await import('../locales/zu/common.json')).default }),
-  st: async () => ({ common: (await import('../locales/st/common.json')).default }),
+// Synchronous loaders for all languages - bundled at build time
+const LANGUAGE_LOADERS: Record<SupportedLanguage, () => any> = {
+  en: () => ({ common: require('../locales/en/common.json') }),
+  es: () => ({ common: require('../locales/es/common.json') }),
+  fr: () => ({ common: require('../locales/fr/common.json') }),
+  pt: () => ({ common: require('../locales/pt/common.json') }),
+  de: () => ({ common: require('../locales/de/common.json') }),
+  af: () => ({ common: require('../locales/af/common.json') }),
+  zu: () => ({ common: require('../locales/zu/common.json') }),
+  st: () => ({ common: require('../locales/st/common.json') }),
 };
 
 // Detect user's preferred language
@@ -142,7 +142,8 @@ export const lazyLoadLanguage = async (language: SupportedLanguage) => {
   if (!SUPPORTED_LANGUAGES[language]) return;
   if ((i18n.options?.resources as any)?.[language]) return; // already added
   try {
-    const bundle = await LANGUAGE_LOADERS[language]();
+    // Synchronous load - no await needed
+    const bundle = LANGUAGE_LOADERS[language]();
     // Add as resource bundle
     Object.keys(bundle).forEach((ns) => {
       i18n.addResourceBundle(language, ns, (bundle as any)[ns], true, true);

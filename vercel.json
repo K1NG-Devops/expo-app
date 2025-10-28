@@ -1,14 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx expo export --platform web --output-dir dist && bash scripts/copy-locales.sh",
+  "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "npm ci",
   "devCommand": "npx expo start --web",
+  "git": {
+    "deploymentEnabled": {
+      "web": true
+    }
+  },
   "routes": [
     {
       "src": "/manifest.json",
-      "dest": "/manifest.json",
       "headers": {
         "Cache-Control": "public, max-age=0, must-revalidate",
         "Content-Type": "application/json",
@@ -17,7 +21,6 @@
     },
     {
       "src": "/sw.js",
-      "dest": "/sw.js",
       "headers": {
         "Cache-Control": "public, max-age=0, must-revalidate",
         "Content-Type": "application/javascript",
@@ -26,7 +29,6 @@
     },
     {
       "src": "/metadata.json",
-      "dest": "/metadata.json",
       "headers": {
         "Cache-Control": "public, max-age=0, must-revalidate",
         "Content-Type": "application/json",
@@ -35,7 +37,6 @@
     },
     {
       "src": "/locales/(.*)",
-      "dest": "/locales/$1",
       "headers": {
         "Cache-Control": "public, max-age=3600",
         "Content-Type": "application/json",
