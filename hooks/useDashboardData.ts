@@ -1184,6 +1184,35 @@ const upcomingEvents = (eventsData || []).map((event: any) => {
     fetchData(true); // Force refresh from server
   }, [fetchData]);
 
+  // Refetch on window focus/visibility change (for web)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleVisibilityChange = () => {
+      // Only refetch if page becomes visible and we have existing data
+      if (!document.hidden && data && !loading) {
+        log('👁️ Page visible again, refreshing teacher dashboard...');
+        fetchData(false); // Soft refresh (will use cache first if available)
+      }
+    };
+
+    const handleFocus = () => {
+      // Refetch when window regains focus
+      if (data && !loading) {
+        log('🎯 Window focused, refreshing teacher dashboard...');
+        fetchData(false);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [data, loading, fetchData]);
+
   return { data, loading, error, refresh, isLoadingFromCache };
 };
 
