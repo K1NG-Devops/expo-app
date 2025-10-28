@@ -7,8 +7,26 @@
   "devCommand": "npx expo start --web",
   "routes": [
     {
-      "src": "/(manifest\\.json|sw\\.js|assetmap\\.json|metadata\\.json)",
-      "dest": "/$1",
+      "src": "/manifest.json",
+      "dest": "/manifest.json",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/sw.js",
+      "dest": "/sw.js",
+      "headers": {
+        "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "application/javascript",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/metadata.json",
+      "dest": "/metadata.json",
       "headers": {
         "Cache-Control": "public, max-age=0, must-revalidate",
         "Content-Type": "application/json",
