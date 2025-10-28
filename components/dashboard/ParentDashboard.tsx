@@ -33,6 +33,7 @@ import { WelcomeSection } from './parent/WelcomeSection';
 import { ParentInsightsCard } from '@/components/parent/ParentInsightsCard';
 import { InteractiveLessonsWidget } from '@/components/parent/InteractiveLessonsWidget';
 import { PendingLinkRequests } from './PendingLinkRequests';
+import { PendingParentLinkRequests } from './PendingParentLinkRequests';
 
 // Extracted helpers
 import { 
@@ -957,6 +958,13 @@ case 'homework':
         <View style={styles.section}>
           <PendingLinkRequests />
         </View>
+
+        {/* Staff View: Parent Link Requests (Principal/Teacher Approval) */}
+        {(profile?.role === 'principal' || profile?.role === 'teacher') && (
+          <View style={styles.section}>
+            <PendingParentLinkRequests />
+          </View>
+        )}
 
         {/* AI-Powered Proactive Insights */}
         {activeChildId && (

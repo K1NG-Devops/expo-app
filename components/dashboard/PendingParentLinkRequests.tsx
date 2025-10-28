@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Modal, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -39,6 +39,7 @@ export function PendingParentLinkRequests() {
   const queryClient = useQueryClient();
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [approveModalVisible, setApproveModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<RequestWithDetails | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
@@ -57,40 +58,42 @@ export function PendingParentLinkRequests() {
     refetchInterval: 60 * 1000, // Auto-refresh every minute
   });
 
-  // Approve a link request
-  const handleApprove = async (request: RequestWithDetails) => {
-    const childName = request.student 
-      ? `${request.student.first_name} ${request.student.last_name}`
-      : request.child_full_name || 'Unknown Child';
+  // Show approve confirmation modal
+  const handleApprovePress = (request: RequestWithDetails) => {
+    setSelectedRequest(request);
+    setApproveModalVisible(true);
+  };
 
-    Alert.alert(
-      'Approve Link Request?',
-      `Are you sure you want to approve ${request.parent_email} as ${request.relationship || 'guardian'} for ${childName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Approve',
-          style: 'default',
-          onPress: async () => {
-            if (!user?.id) return;
-            
-            setProcessingId(request.id);
-            try {
-              await ParentJoinService.approve(request.id, user.id);
-              
-              // Invalidate queries to refresh
-              queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', organizationId] });
-              
-              Alert.alert('Approved', `${request.parent_email} can now access ${childName.split(' ')[0]}'s information.`);
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to approve request');
-            } finally {
-              setProcessingId(null);
-            }
-          },
-        },
-      ]
-    );
+  // Approve a link request
+  const handleApprove = async () => {
+    if (!selectedRequest || !user?.id) return;
+    
+    const childName = selectedRequest.student 
+      ? `${selectedRequest.student.first_name} ${selectedRequest.student.last_name}`
+      : selectedRequest.child_full_name || 'Unknown Child';
+    
+    setProcessingId(selectedRequest.id);
+    setApproveModalVisible(false);
+    
+    try {
+      await ParentJoinService.approve(selectedRequest.id, user.id);
+      
+      // Invalidate queries to refresh
+      queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', organizationId] });
+      
+      // Show success (web-compatible)
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`✅ Approved: ${selectedRequest.parent_email} can now access ${childName.split(' ')[0]}'s information.`);
+      }
+    } catch (error: any) {
+      // Show error (web-compatible)
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`❌ Error: ${error.message || 'Failed to approve request'}`);
+      }
+    } finally {
+      setProcessingId(null);
+      setSelectedRequest(null);
+    }
   };
 
   // Open rejection modal
@@ -117,9 +120,15 @@ export function PendingParentLinkRequests() {
       // Invalidate queries to refresh
       queryClient.invalidateQueries({ queryKey: ['pending-parent-link-requests', organizationId] });
       
-      Alert.alert('Request Rejected', `${selectedRequest.parent_email}'s request for ${childName} has been rejected.`);
+      // Show success (web-compatible)
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`❌ Request Rejected: ${selectedRequest.parent_email}'s request for ${childName} has been rejected.`);
+      }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to reject request');
+      // Show error (web-compatible)
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`❌ Error: ${error.message || 'Failed to reject request'}`);
+      }
     } finally {
       setProcessingId(null);
       setSelectedRequest(null);
@@ -197,7 +206,7 @@ export function PendingParentLinkRequests() {
 
           <TouchableOpacity
             style={[styles.actionButton, styles.approveButton, { backgroundColor: '#059669' }]}
-            onPress={() => handleApprove(request)}
+            onPress={() => handleApprovePress(request)}
             disabled={isProcessing}
           >
             {isProcessing ? (
@@ -245,6 +254,45 @@ export function PendingParentLinkRequests() {
           </Text>
         </View>
       </View>
+
+      {/* Approve Confirmation Modal */}
+      <Modal
+        visible={approveModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setApproveModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Approve Link Request?</Text>
+            
+            {selectedRequest && (
+              <Text style={[styles.modalDescription, { color: theme.textSecondary }]}>
+                Are you sure you want to approve {selectedRequest.parent_email} as {selectedRequest.relationship || 'guardian'} for{' '}
+                {selectedRequest.student 
+                  ? `${selectedRequest.student.first_name} ${selectedRequest.student.last_name}`
+                  : selectedRequest.child_full_name || 'this child'}?
+              </Text>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancelButton, { borderColor: theme.border }]}
+                onPress={() => setApproveModalVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalApproveButton, { backgroundColor: '#059669' }]}
+                onPress={handleApprove}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff' }]}>✓ Approve</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Rejection Modal */}
       <Modal
@@ -489,6 +537,9 @@ const styles = StyleSheet.create({
   },
   modalRejectButton: {
     backgroundColor: '#DC2626',
+  },
+  modalApproveButton: {
+    backgroundColor: '#059669',
   },
   modalButtonText: {
     fontSize: 14,

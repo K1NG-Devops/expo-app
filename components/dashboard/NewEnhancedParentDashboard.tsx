@@ -631,9 +631,6 @@ export const NewEnhancedParentDashboard: React.FC<NewEnhancedParentDashboardProp
           </View>
         )}
       </ScrollView>
-
-      {/* AI Assistant Floating Button */}
-      <DashVoiceFloatingButton />
     </View>
   );
 };

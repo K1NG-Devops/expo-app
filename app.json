@@ -137,7 +137,16 @@
       "startUrl": "/",
       "display": "standalone",
       "orientation": "any",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "build": {
+        "babel": {
+          "include": ["@expo/vector-icons"]
+        }
+      },
+      "serviceWorker": {
+        "enabled": true
+      }
     },
     "extra": {
       "router": {},

@@ -40,6 +40,7 @@ import {
 import { TeacherModals } from "./teacher/TeacherModals";
 import { buildAITools, buildQuickActions } from "./teacher/actionBuilders";
 import { getStyles } from "./teacher/styles";
+import { PendingParentLinkRequests } from "./PendingParentLinkRequests";
 
 export const TeacherDashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -310,6 +311,11 @@ export const TeacherDashboard: React.FC = () => {
         <TeacherAssignments
           recentAssignments={dashboardData?.recentAssignments || []}
         />
+
+        {/* Parent Link Requests (Teacher Approval) */}
+        <View style={styles.section}>
+          <PendingParentLinkRequests />
+        </View>
 
         {/* Upcoming Events */}
         <TeacherEvents upcomingEvents={dashboardData?.upcomingEvents || []} />

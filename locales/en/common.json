@@ -28,7 +28,9 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "not_available": "Not available",
-    "coming_soon": "Coming Soon"
+    "coming_soon": "Coming Soon",
+    "manage": "Manage",
+    "viewAll": "View All"
   },
   "navigation": {
     "dashboard": "Dashboard",
@@ -1185,14 +1187,22 @@
     }
 },
   "trends": {
-    "up": "up",
-    "down": "down",
-    "stable": "stable",
-    "high": "high",
-    "low": "low",
-    "needs_attention": "needs attention",
-    "excellent": "excellent",
-    "good": "good"
+    "up": "Up",
+    "down": "Down",
+    "stable": "Stable",
+    "high": "High",
+    "low": "Low",
+    "needs_attention": "Needs attention",
+    "excellent": "Excellent",
+    "good": "Good",
+    "warning": "Warning",
+    "attention": "Attention"
+  },
+  "parent": {
+    "selectChild": "Select Child",
+    "myChildren": "My Children",
+    "noChildrenFound": "No children found",
+    "registerChild": "Register New Child"
   },
   "teacher": {
     "performance": {
