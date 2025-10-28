@@ -887,7 +887,7 @@ export const useTeacherDashboard = () => {
       // Wait for auth to complete loading before proceeding
       if (authLoading) {
         log('🔄 Waiting for auth to complete...');
-        setLoading(false);
+        // Keep loading state true until auth resolves to avoid premature empty UI
         return;
       }
 
@@ -916,8 +916,7 @@ export const useTeacherDashboard = () => {
           // Auth has completed but no user - this is a real auth error
           throw new Error('User not authenticated');
         }
-        // Auth still loading, just return
-        setLoading(false);
+        // Auth still loading, just return and keep loading=true
         return;
       }
       

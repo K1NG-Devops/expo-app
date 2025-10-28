@@ -15,6 +15,7 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
@@ -79,8 +80,12 @@ export const TeacherDashboard: React.FC = () => {
     setShowWhatsAppModal,
   });
 
-  // Real-time seat status subscription
+  // Real-time seat status subscription (disabled on web unless explicitly enabled)
   React.useEffect(() => {
+    if (Platform.OS === 'web' && process.env.EXPO_PUBLIC_ENABLE_REALTIME_WEB !== 'true') {
+      return; // Avoid WebSocket errors on PWA/web by default
+    }
+
     let channelProfile: any;
     let channelSeats: any;
     (async () => {
