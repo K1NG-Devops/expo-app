@@ -46,7 +46,7 @@
     "web:dev": "cross-env WEB_PORT=8082 expo start --web --port 8082",
     "web:clear": "node -e \"['8081','19000','19001','19006','8082'].forEach(p=>{try{require('child_process').execSync('fuser -k '+p+'/tcp',{stdio:'ignore'})}catch(e){}});\" && rm -rf .expo .cache && find /tmp -maxdepth 1 -type d -name 'metro-*' -exec rm -rf {} + 2>/dev/null || true",
     "web:build": "expo export --platform web --output-dir dist --clear",
-    "vercel-build": "npm run web:build && bash scripts/copy-locales.sh",
+    "vercel-build": "npm run web:build && bash scripts/copy-locales.sh && node scripts/patch-manifest-link.js",
     "web:preview": "serve -s dist -l 4173",
     "web:prod": "expo start --web --no-dev --minify",
     "test": "jest",
