@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx expo export --platform web --output-dir dist",
+  "buildCommand": "npx expo export --platform web --output-dir dist && bash scripts/copy-locales.sh",
   "outputDirectory": "dist",
   "framework": null,
   "installCommand": "npm ci",
@@ -29,6 +29,15 @@
       "dest": "/metadata.json",
       "headers": {
         "Cache-Control": "public, max-age=0, must-revalidate",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/locales/(.*)",
+      "dest": "/locales/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=3600",
         "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
       }
