@@ -82,6 +82,32 @@ export const isStandalonePWA = (): boolean => {
 export const isPublicRoute = (pathname: string | null): boolean => {
   if (!pathname) return true;
 
+  // Allow static assets and API resources (PWA, icons, locales, service worker)
+  const staticAssetPatterns = [
+    '/manifest.json',
+    '/sw.js',
+    '/icons/',
+    '/locales/',
+    '/assets/',
+    '/_expo/',
+    '/fonts/',
+    '/images/',
+    '.json',  // Allow any JSON file (locale files, etc.)
+    '.png',
+    '.jpg',
+    '.svg',
+    '.woff',
+    '.woff2',
+    '.ttf',
+  ];
+
+  // Check if pathname is a static asset
+  const isStaticAsset = staticAssetPatterns.some((pattern) =>
+    pathname.includes(pattern)
+  );
+
+  if (isStaticAsset) return true;
+
   // Public route prefixes allowed on mobile web without PWA
   const publicPrefixes = [
     '/',
