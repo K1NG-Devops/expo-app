@@ -36,35 +36,12 @@ export function useTenantSlug(userId: string | undefined): TenantSlugResult {
 
       const supabase = createClient();
 
-      // Prefer organizations if linked
+      // Get preschool_id from profiles (organization columns don't exist)
       const { data: prof } = await supabase
         .from("profiles")
-        .select("organization_id, organization_name, organization_slug, preschool_id")
+        .select("preschool_id")
         .eq("id", userId)
         .maybeSingle();
-
-      // Direct organization slug on profile
-      if (prof?.organization_slug) {
-        setSlug(prof.organization_slug);
-        setName(prof.organization_name);
-        return;
-      }
-
-      if (prof?.organization_id) {
-        const { data: org } = await supabase
-          .from("organizations")
-          .select("name, slug")
-          .eq("id", prof.organization_id)
-          .maybeSingle();
-
-        const orgName = org?.name || prof.organization_name;
-        const orgSlug = org?.slug || (orgName ? slugify(orgName) : "");
-        if (orgSlug) {
-          setSlug(orgSlug);
-          setName(orgName);
-          return;
-        }
-      }
 
       // Fallback to preschool
       let preschoolId = prof?.preschool_id as string | undefined;
@@ -72,25 +49,9 @@ export function useTenantSlug(userId: string | undefined): TenantSlugResult {
         // Try users table to find internal mapping
         const { data: me } = await supabase
           .from("users")
-          .select("preschool_id, organization_id, organization_name")
+          .select("preschool_id")
           .eq("auth_user_id", userId)
           .maybeSingle();
-
-        // If organization exists on users, prefer that
-        if (me?.organization_id) {
-          const { data: org } = await supabase
-            .from("organizations")
-            .select("name, slug")
-            .eq("id", me.organization_id)
-            .maybeSingle();
-          const orgName = org?.name || me.organization_name;
-          const orgSlug = org?.slug || (orgName ? slugify(orgName) : "");
-          if (orgSlug) {
-            setSlug(orgSlug);
-            setName(orgName);
-            return;
-          }
-        }
 
         preschoolId = me?.preschool_id;
       }
@@ -98,12 +59,12 @@ export function useTenantSlug(userId: string | undefined): TenantSlugResult {
       if (preschoolId) {
         const { data: school } = await supabase
           .from("preschools")
-          .select("name, slug")
+          .select("name")
           .eq("id", preschoolId)
           .maybeSingle();
 
         const schoolName = school?.name;
-        const schoolSlug = school?.slug || (schoolName ? slugify(schoolName) : "");
+        const schoolSlug = schoolName ? slugify(schoolName) : "";
         if (schoolSlug) {
           setSlug(schoolSlug);
           setName(schoolName);

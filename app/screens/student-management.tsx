@@ -347,7 +347,6 @@ export default function StudentManagementScreen() {
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color={theme.textSecondary} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search students..."
@@ -356,10 +355,11 @@ export default function StudentManagementScreen() {
           onChangeText={(text) => setFilters({...filters, searchTerm: text})}
         />
         {filters.searchTerm ? (
-          <TouchableOpacity onPress={() => setFilters({...filters, searchTerm: ''})}>
-            <Ionicons name="close" size={20} color={theme.textSecondary} />
+          <TouchableOpacity onPress={() => setFilters({...filters, searchTerm: ''})} style={styles.searchIcon}>
+            <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
           </TouchableOpacity>
         ) : null}
+        <Ionicons name="search-outline" size={20} color={theme.textSecondary} style={styles.searchIcon} />
       </View>
 
       {/* Age Group Overview for Preschools */}

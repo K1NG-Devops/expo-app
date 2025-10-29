@@ -29,6 +29,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import DashWakeWordListener from '@/components/ai/DashWakeWordListener';
 import type { IDashAIAssistant } from '@/services/dash-ai/DashAICompat';
 import { DashChatButton } from '@/components/ui/DashChatButton';
+import { BottomTabBar } from '@/components/navigation/BottomTabBar';
 
 // Extracted utilities and hooks (WARP.md refactoring)
 import { useAuthGuard, useMobileWebGuard } from '@/hooks/useRouteGuard';
@@ -80,20 +81,27 @@ function LayoutContent() {
     <View style={styles.container}>
       <StatusBar key={statusBarKey} style={isDark ? 'light' : 'dark'} animated />
       {Platform.OS !== 'web' && <DashWakeWordListener />}
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          presentation: 'card',
-          animationTypeForReplace: 'push',
-        }}
-      >
-        {/* Let Expo Router auto-discover screens */}
-      </Stack>
+      
+      {/* Main content area - leave space for bottom nav */}
+      <View style={styles.contentContainer}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            presentation: 'card',
+            animationTypeForReplace: 'push',
+          }}
+        >
+          {/* Let Expo Router auto-discover screens */}
+        </Stack>
+      </View>
       
       {/* Dash Chat FAB - temporarily hidden per user request */}
       {/* {showFAB && !shouldHideFAB && (
         <DashChatButton />
       )} */}
+      
+      {/* Persistent Bottom Navigation - positioned at bottom */}
+      <BottomTabBar />
     </View>
   );
 }
@@ -215,5 +223,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
+  },
+  contentContainer: {
+    flex: 1,
   },
 });

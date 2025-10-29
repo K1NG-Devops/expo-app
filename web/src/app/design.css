@@ -11,6 +11,8 @@
   --warning: #f59e0b;
   --danger: #ef4444;
   --border: #263043;
+  --cyan: #00f5ff;          /* landing accent */
+  --cyan-800: #00bcd4;
 
   --topbar-h: 56px;
   --bottomnav-h: 60px;
@@ -50,13 +52,13 @@ ul{list-style:none;padding:0;margin:0}
 .tenant{font-size:12px;color:var(--muted)}
 .chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(124,58,237,.4);background:rgba(124,58,237,.12);color:#c7a6ff;font-weight:600}
 .rightGroup{display:flex;align-items:center;gap:var(--space-3)}
-.content{flex:1;padding-block:var(--space-4);padding-bottom:calc(var(--bottomnav-h) + var(--space-4) + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.content{flex:1;padding-block:var(--space-4);padding-bottom:calc(var(--bottomnav-h) + var(--space-4) + env(safe-area-inset-bottom));overflow-y:auto;max-height:calc(100dvh - var(--topbar-h));-webkit-overflow-scrolling:touch}
 .h1{font-size:20px;font-weight:700;margin:var(--space-2) 0 var(--space-3)}
 .section{margin-top:var(--space-4)}
 .card{background:linear-gradient(180deg, rgba(18,24,38,.96), rgba(18,24,38,.9));border:1px solid var(--border);border-radius:var(--radius-2);padding:var(--space-4);box-shadow:0 6px 16px rgba(0,0,0,.25)}
 .tile{min-height:84px;display:flex;flex-direction:column;justify-content:center}
 .titleRow{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-3)}
-.sectionTitle{font-size:14px;color:var(--muted);margin-bottom:var(--space-3);font-weight:600}
+.sectionTitle{font-size:15px;color:var(--text);margin-bottom:var(--space-4);font-weight:700;letter-spacing:-0.01em;display:flex;align-items:center;gap:var(--space-2)}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}
 @media(min-width:768px){.container{max-width:960px}.grid2{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1200px){.container{max-width:1280px}.grid2{grid-template-columns:repeat(4,minmax(0,1fr))}}
@@ -81,7 +83,7 @@ ul{list-style:none;padding:0;margin:0}
 /* Left sidebar */
 .sidenav{display:none}
 @media(min-width:1024px){.sidenav{display:block}}
-.sidenavCol{display:flex;flex-direction:column;gap:var(--space-4);height:calc(100dvh - var(--topbar-h) - var(--space-4))}
+.sidenavCol{display:flex;flex-direction:column;gap:var(--space-4);height:calc(100dvh - var(--topbar-h) - var(--space-4));overflow:hidden}
 .nav{display:grid;gap:6px}
 .navItem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);color:var(--muted)}
 .sidenavFooter{margin-top:auto;display:grid;gap:8px}
@@ -111,3 +113,51 @@ ul{list-style:none;padding:0;margin:0}
 
 .icon16{width:16px;height:16px}
 .icon20{width:20px;height:20px}
+
+/* ------------------------------ */
+/* Landing page styles            */
+/* ------------------------------ */
+.landingHero{position:relative;padding:96px 0 80px;background:
+  radial-gradient(1100px 520px at 50% -200px, rgba(0,245,255,.18), transparent 60%),
+  radial-gradient(900px 480px at 100% 40%, rgba(124,58,237,.12), transparent 60%);
+}
+@media(min-width:768px){.landingHero{padding:120px 0 96px}}
+.heroTitle{font-size:clamp(32px,6vw,64px);font-weight:800;line-height:1.1;letter-spacing:-.02em;margin:12px 0}
+.heroTitle .accent{background:linear-gradient(90deg,var(--cyan), var(--cyan-800));-webkit-background-clip:text;background-clip:text;color:transparent}
+.heroLead{max-width:720px;margin:16px auto 0;color:var(--muted);font-size:clamp(16px,2vw,20px);line-height:1.6}
+.heroCtas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:24px}
+
+.kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:#b8c2d3}
+.sectionHeader{text-align:center;margin-bottom:36px}
+
+.btnCyan{background:linear-gradient(135deg,var(--cyan), var(--cyan-800));color:#0a0a0f;border-color:transparent}
+.btnOutlineCyan{border:1.5px solid var(--cyan);background:rgba(0,245,255,.08);color:var(--cyan)}
+.pillCyan{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(0,245,255,.4);background:rgba(0,245,255,.12);color:#c6fdff;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+
+.lp-section{padding:64px 0}
+@media(min-width:768px){.lp-section{padding:80px 0}}
+.lp-section.alt{background:var(--surface)}
+.lp-section.dark{background:var(--surface-2)}
+
+.featureGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.featureCard{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg, rgba(18,24,38,.96), rgba(18,24,38,.88));padding:20px;transition:transform .2s ease, border-color .2s ease}
+.featureCard:hover{transform:translateY(-2px);border-color:rgba(0,245,255,.5)}
+.featureIcon{font-size:28px;margin-bottom:8px}
+.muted{color:var(--muted)}
+
+.aiGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.aiCard{border:1px solid var(--border);border-radius:16px;background:var(--surface-2);padding:20px}
+
+.testimonialsGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+.testimonialCard{border:1px solid var(--border);border-radius:16px;background:var(--surface-2);padding:24px}
+
+.pricingGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:1000px;margin:0 auto}
+.pricingCard{border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:24px}
+.pricingCard.highlight{border:2px solid var(--cyan);background:linear-gradient(135deg,var(--cyan), var(--cyan-800));color:#0a0a0f}
+
+.faqGroup details{border:1px solid var(--border);border-radius:16px;background:var(--surface-2);padding:16px}
+.faqGroup summary{cursor:pointer;font-weight:700}
+
+.cta{position:relative;padding:80px 0;background:linear-gradient(135deg,var(--cyan), var(--cyan-800));text-align:center;overflow:hidden}
+.cta .inner{position:relative;z-index:1}
+.cta .dots{position:absolute;inset:0;background:radial-gradient(circle at 20% 20%, rgba(255,255,255,.12), transparent 35%),radial-gradient(circle at 80% 80%, rgba(0,0,0,.12), transparent 40%)}

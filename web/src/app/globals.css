@@ -1,4 +1,9 @@
-@import 'tailwindcss';
+@import "tailwindcss";
+
+@theme {
+  --color-gray-750: #1a1f2e;
+  --color-slate-750: #293548;
+}
 
 :root {
   --background: #0a0a0f;
@@ -15,7 +20,9 @@
 html,
 body {
   max-width: 100vw;
-  overflow: hidden;
+  /* Allow vertical scrolling while preventing horizontal overflow */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {
@@ -100,5 +107,21 @@ button {
     transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     transition-duration: 200ms;
   }
+}
+
+/* PWA Install Prompt Animations */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

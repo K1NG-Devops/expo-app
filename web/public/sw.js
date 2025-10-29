@@ -1,64 +1,125 @@
-/*  Minimal service worker for EduDash Pro PWA */
-const CACHE_NAME = 'edudash-pro-v1';
+/* EduDash Pro Service Worker - PWA Support */
+const CACHE_NAME = 'edudash-pro-v1.0.0';
 const OFFLINE_URL = '/offline.html';
+const STATIC_CACHE = 'edudash-static-v1';
+const RUNTIME_CACHE = 'edudash-runtime-v1';
 
+// Install event - cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([OFFLINE_URL]))
+    caches.open(STATIC_CACHE)
+      .then((cache) => {
+        return cache.addAll([
+          OFFLINE_URL,
+          '/manifest.json',
+          '/manifest.webmanifest',
+          '/icon-192.png',
+          '/icon-512.png',
+        ]);
+      })
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
+// Activate event - cleanup old caches
 self.addEventListener('activate', (event) => {
+  const currentCaches = [STATIC_CACHE, RUNTIME_CACHE];
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((k) => (k === CACHE_NAME ? undefined : caches.delete(k))))
-    )
+    caches.keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((cacheName) => !currentCaches.includes(cacheName))
+            .map((cacheName) => caches.delete(cacheName))
+        );
+      })
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
+// Fetch event - network strategies based on request type
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  
+  // Only handle GET requests
   if (request.method !== 'GET') return;
 
-  // App shell-style navigation fallback
+  // Skip Chrome extension and devtools requests
+  if (request.url.startsWith('chrome-extension://') || request.url.includes('chrome-devtools://')) {
+    return;
+  }
+
+  // Network-first for HTML navigation (app shell pattern)
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(async () => {
-        const cache = await caches.open(CACHE_NAME);
-        const cached = await cache.match(OFFLINE_URL);
-        return cached || Response.error();
-      })
-    );
-    return;
-  }
-
-  // Cache-first for images, stale-while-revalidate for scripts/styles
-  const dest = request.destination;
-  if (dest === 'image') {
-    event.respondWith(
-      caches.match(request).then((cached) =>
-        cached || fetch(request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return res;
+      fetch(request)
+        .then((response) => {
+          // Cache successful HTML responses
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
         })
-      )
+        .catch(() => {
+          // Offline - try cache, then offline page
+          return caches.match(request)
+            .then((cached) => cached || caches.match(OFFLINE_URL))
+            .then((response) => response || Response.error());
+        })
     );
     return;
   }
 
-  if (dest === 'script' || dest === 'style' || dest === 'font') {
+  const url = new URL(request.url);
+  const dest = request.destination;
+
+  // Cache-first for static assets (images, fonts)
+  if (dest === 'image' || dest === 'font') {
     event.respondWith(
       caches.match(request).then((cached) => {
-        const network = fetch(request).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          return res;
+        return cached || fetch(request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
         });
-        return cached || network;
       })
     );
+    return;
+  }
+
+  // Stale-while-revalidate for scripts, styles
+  if (dest === 'script' || dest === 'style') {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(request, responseClone);
+            });
+          }
+          return response;
+        });
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  // Network-first for API calls and other requests
+  if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) {
+    event.respondWith(
+      fetch(request)
+        .catch(() => caches.match(request))
+        .then((response) => response || Response.error())
+    );
+    return;
   }
 });

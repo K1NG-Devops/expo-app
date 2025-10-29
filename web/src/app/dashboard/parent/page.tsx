@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useChildrenData } from '@/lib/hooks/parent/useChildrenData';
 import { useChildMetrics } from '@/lib/hooks/parent/useChildMetrics';
 import { useTenantSlug } from '@/lib/tenant/useTenantSlug';
+import { useUserProfile } from '@/lib/hooks/useUserProfile';
+import { useUnreadMessages } from '@/lib/hooks/parent/useUnreadMessages';
 import {
   MessageCircle,
   Calendar,
@@ -18,28 +20,39 @@ import {
   Settings as SettingsIcon,
   Bell,
   LogOut,
+  BarChart3,
+  Zap,
+  Clock,
 } from 'lucide-react';
 
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
+import { TierBadge } from '@/components/ui/TierBadge';
+import { CAPSActivitiesWidget } from '@/components/dashboard/parent/CAPSActivitiesWidget';
 
 export default function ParentDashboard() {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
   const [userId, setUserId] = useState<string>();
-  const [userEmail, setUserEmail] = useState<string>();
-  const avatarLetter = (userEmail?.[0] || 'U').toUpperCase();
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [greeting, setGreeting] = useState('');
+  const [showAskAI, setShowAskAI] = useState(false);
+  const [aiPrompt, setAIPrompt] = useState('');
+  
+  // Fetch user profile with preschool data
+  const { profile, loading: profileLoading } = useUserProfile(userId);
   const { slug: tenantSlug } = useTenantSlug(userId);
-  // Demo data - will be replaced with real data from database
+  
+  const userEmail = profile?.email;
+  const userName = profile?.firstName || userEmail?.split('@')[0] || 'User';
+  const preschoolName = profile?.preschoolName;
+  const avatarLetter = (userName[0] || 'U').toUpperCase();
+  // Pending requests - real data from database
   const [pendingRequests, setPendingRequests] = useState<{
     childName: string;
     requestedDate: string;
     status: string;
-  }[]>([
-    { childName: 'Thabo Malema', requestedDate: '2 days ago', status: 'pending' },
-  ]);
+  }[]>([]);
   const [, setParentLinkRequests] = useState<{
     id: string;
     parentName: string;
@@ -61,7 +74,6 @@ export default function ParentDashboard() {
       }
 
       setUserId(session.user.id);
-      setUserEmail(session.user.email);
 
       // Set greeting based on time of day
       const hour = new Date().getHours();
@@ -69,7 +81,7 @@ export default function ParentDashboard() {
       else if (hour < 18) setGreeting('Good Afternoon');
       else setGreeting('Good Evening');
 
-      setLoading(false);
+      setAuthLoading(false);
     };
 
     initAuth();
@@ -83,12 +95,15 @@ export default function ParentDashboard() {
         const sb = createClient();
 
         // My pending requests
+        const userPreschoolData = await sb.from('users').select('preschool_id').eq('auth_user_id', userId).single();
+        const userPreschoolId = userPreschoolData.data?.preschool_id;
+        
         const { data: myReq } = await sb
           .from('guardian_requests')
-          .select('id, child_full_name, created_at, status, preschool_id')
+          .select('id, child_full_name, created_at, status, school_id')
           .eq('parent_auth_id', userId)
           .eq('status', 'pending')
-          .eq('preschool_id', (await sb.from('users').select('preschool_id').eq('auth_user_id', userId).single()).data?.preschool_id)
+          .eq('school_id', userPreschoolId)
           .order('created_at', { ascending: false });
 
         if (myReq && myReq.length > 0) {
@@ -127,10 +142,10 @@ export default function ParentDashboard() {
           if (studentIds.length > 0) {
             const { data: incoming } = await sb
               .from('guardian_requests')
-              .select('id, parent_auth_id, child_full_name, relationship, created_at, preschool_id')
+              .select('id, parent_auth_id, child_full_name, relationship, created_at, school_id')
               .in('student_id', studentIds)
               .eq('status', 'pending')
-              .eq('preschool_id', preschoolId)
+              .eq('school_id', preschoolId)
               .order('created_at', { ascending: true });
 
             const parentIds = Array.from(new Set((incoming || []).map((r: {
@@ -193,12 +208,15 @@ export default function ParentDashboard() {
   } = useChildrenData(userId);
 
   const { metrics } = useChildMetrics(activeChildId);
+  const { unreadCount } = useUnreadMessages(userId, activeChildId);
 
   const handleRefresh = async () => {
     await refetchChildren();
   };
 
-  if (loading || childrenLoading) {
+  const loading = authLoading || profileLoading || childrenLoading;
+  
+  if (loading) {
     return (
       <div className="app">
         <header className="topbar">
@@ -215,27 +233,35 @@ export default function ParentDashboard() {
   }
 
   const activeChild = childrenCards.find((c) => c.id === activeChildId);
-  const unreadCount = activeChild ? metrics.unreadMessages : 0;
 
   return (
     <div className="app">
       <header className="topbar">
         <div className="topbarRow topbarEdge">
-            <div className="leftGroup">
-            <div className="chip">{tenantSlug ? `/${tenantSlug}` : ''}</div>
+          <div className="leftGroup">
+            {preschoolName ? (
+              <div className="chip" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 16 }}>🎓</span>
+                <span style={{ fontWeight: 600 }}>{preschoolName}</span>
+              </div>
+            ) : (
+              <div className="chip">{tenantSlug || 'EduDash Pro'}</div>
+            )}
           </div>
           <div className="searchGroup">
-            <Search className="searchIcon icon16" />
             <input
               className="searchInput"
               placeholder="Search..."
+              style={{ paddingRight: '2.5rem' }}
               onKeyDown={(e) => {
                 const t = e.target as HTMLInputElement;
                 if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/parent/search?q=${encodeURIComponent(t.value.trim())}`);
               }}
             />
+            <Search className="searchIcon icon16" style={{ right: '0.75rem', left: 'auto' }} />
           </div>
           <div className="rightGroup">
+            <TierBadge userId={userId} size="sm" showUpgrade />
             <button className="iconBtn" aria-label="Notifications">
               <Bell className="icon20" />
             </button>
@@ -283,9 +309,24 @@ export default function ParentDashboard() {
 
         {/* Main column */}
         <main className="content">
-          <h1 className="h1">{greeting}, Olivia</h1>
+          {/* Page Header with Preschool Name */}
+          <div className="section" style={{ marginBottom: 0 }}>
+            {preschoolName && (
+              <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ fontSize: 32 }}>🎓</div>
+                  <div>
+                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{preschoolName}</h2>
+                    <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>Preschool Dashboard</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <h1 className="h1">{greeting}, {userName}</h1>
 
-            {childrenCards.length === 0 && (
+            {!childrenLoading && childrenCards.length === 0 && pendingRequests.length === 0 && (
               <div className="section">
                 <div className="card" style={{ textAlign: 'center' }}>
                   <h3 style={{ marginBottom: 8 }}>No children linked yet</h3>
@@ -307,7 +348,10 @@ export default function ParentDashboard() {
             {pendingRequests.length > 0 && (
               <div className="section">
                 <div className="card">
-                  <div className="sectionTitle">Pending child link requests ({pendingRequests.length})</div>
+                  <div className="sectionTitle">
+                    <Clock className="w-4 h-4 text-orange-400" />
+                    Pending Child Link Requests ({pendingRequests.length})
+                  </div>
                   <ul style={{ display: 'grid', gap: 8 }}>
                     {pendingRequests.map((req, idx) => (
                       <li key={idx} className="listItem">
@@ -324,10 +368,13 @@ export default function ParentDashboard() {
             )}
 
             <div className="section">
-              <div className="sectionTitle">Overview</div>
+              <div className="sectionTitle">
+                <BarChart3 className="w-4 h-4 text-blue-400" />
+                Overview
+              </div>
               <div className="grid2">
                 <div className="card tile">
-                  <div className="metricValue">{activeChild ? metrics.unreadMessages : 0}</div>
+                  <div className="metricValue">{unreadCount}</div>
                   <div className="metricLabel">Unread Messages</div>
                 </div>
                 <div className="card tile">
@@ -346,7 +393,10 @@ export default function ParentDashboard() {
             </div>
 
             <div className="section">
-              <div className="sectionTitle">Quick actions</div>
+              <div className="sectionTitle">
+                <Zap className="w-4 h-4 text-yellow-400" />
+                Quick Actions
+              </div>
               <div className="grid2">
                 <button className="qa" onClick={() => router.push('/dashboard/parent/homework')}>
                   <FileText className="icon20" />
@@ -366,18 +416,37 @@ export default function ParentDashboard() {
                 </button>
               </div>
             </div>
+
+            {/* CAPS Curriculum Activities */}
+            {activeChild && (
+              <div className="section">
+                <CAPSActivitiesWidget
+                  childAge={activeChild.progressScore > 80 ? 6 : 5} 
+                  childName={activeChild.firstName}
+                  onAskDashAI={(prompt) => {
+                    setAIPrompt(prompt);
+                    setShowAskAI(true);
+                  }}
+                />
+              </div>
+            )}
         </main>
 
         <aside className="right sticky" aria-label="At a glance">
-          <div className="card">
-              <div className="sectionTitle">At a glance</div>
-              <ul style={{ display: 'grid', gap: 8 }}>
-                <li className="listItem"><span>Upcoming events</span><span className="badge">0</span></li>
-                <li className="listItem"><span>Unread messages</span><span className="badge">{activeChild ? metrics.unreadMessages : 0}</span></li>
-                <li className="listItem"><span>Fees due</span><span className="badge">{activeChild && metrics.feesDue ? 'R ' + metrics.feesDue.amount.toLocaleString() : 'None'}</span></li>
-              </ul>
+          <div style={{ overflowY: 'auto', height: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+            <div className="card">
+                <div className="sectionTitle">
+                  <Clock className="w-4 h-4 text-purple-400" />
+                  At a Glance
+                </div>
+                <ul style={{ display: 'grid', gap: 8 }}>
+                  <li className="listItem"><span>Upcoming events</span><span className="badge">{activeChild ? metrics.upcomingEvents : 0}</span></li>
+                  <li className="listItem"><span>Unread messages</span><span className="badge">{unreadCount}</span></li>
+                  <li className="listItem"><span>Fees due</span><span className="badge">{activeChild && metrics.feesDue ? 'R ' + metrics.feesDue.amount.toLocaleString() : 'None'}</span></li>
+                </ul>
+            </div>
+            <AskAIWidget inline />
           </div>
-          <AskAIWidget inline />
         </aside>
       </div>
 

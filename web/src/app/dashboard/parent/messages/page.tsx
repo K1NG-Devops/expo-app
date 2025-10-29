@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTenantSlug } from '@/lib/tenant/useTenantSlug';
+import { useUserProfile } from '@/lib/hooks/useUserProfile';
 import { ParentShell } from '@/components/dashboard/parent/ParentShell';
 import { MessageSquare, Send, Search } from 'lucide-react';
 
@@ -13,6 +14,7 @@ export default function MessagesPage() {
   const [userEmail, setUserEmail] = useState<string>();
   const [userId, setUserId] = useState<string>();
   const { slug } = useTenantSlug(userId);
+  const { profile, loading: profileLoading } = useUserProfile(userId);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +36,7 @@ export default function MessagesPage() {
     initAuth();
   }, [router, supabase]);
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
@@ -43,7 +45,13 @@ export default function MessagesPage() {
   }
 
   return (
-    <ParentShell tenantSlug={slug} userEmail={userEmail} unreadCount={0}>
+    <ParentShell 
+      tenantSlug={slug} 
+      userEmail={userEmail} 
+      userName={profile?.firstName}
+      preschoolName={profile?.preschoolName}
+      unreadCount={0}
+    >
       <div className="container">
         <div className="section">
           <h1 className="h1">Messages</h1>
@@ -52,12 +60,12 @@ export default function MessagesPage() {
         <div className="section">
           <div className="card p-md">
             <div className="relative mb-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search messages..."
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-10 pr-2 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-4 pr-10 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             </div>
             <div className="text-center py-lg">
               <MessageSquare className="w-16 h-16 text-gray-600 mx-auto mb-4" />

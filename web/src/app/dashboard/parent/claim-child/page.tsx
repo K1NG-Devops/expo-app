@@ -5,13 +5,18 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useTenantSlug } from '@/lib/tenant/useTenantSlug';
 import { ParentShell } from '@/components/dashboard/parent/ParentShell';
-import { Search } from 'lucide-react';
+import { Search, Loader2, UserPlus } from 'lucide-react';
 
 export default function ClaimChildPage() {
   const router = useRouter();
   const supabase = createClient();
   const [email, setEmail] = useState<string>('');
   const [userId, setUserId] = useState<string>();
+  const [preschoolId, setPreschoolId] = useState<string>();
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState<string | null>(null);
   const { slug } = useTenantSlug(userId);
 
   useEffect(() => {
@@ -20,8 +25,77 @@ export default function ClaimChildPage() {
       if (!session) { router.push('/sign-in'); return; }
       setEmail(session.user.email || '');
       setUserId(session.user.id);
+      
+      // Get user's preschool_id
+      const { data: userData } = await supabase
+        .from('users')
+        .select('preschool_id')
+        .eq('auth_user_id', session.user.id)
+        .single();
+      
+      if (userData?.preschool_id) {
+        setPreschoolId(userData.preschool_id);
+      }
     })();
   }, [router, supabase]);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim() || !preschoolId) return;
+    
+    setLoading(true);
+    try {
+      const { data: students, error } = await supabase
+        .from('students')
+        .select('id, first_name, last_name, date_of_birth, class_id, classes(name, grade_level)')
+        .eq('preschool_id', preschoolId)
+        .eq('is_active', true)
+        .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
+        .limit(10);
+      
+      if (error) throw error;
+      setSearchResults(students || []);
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleClaimChild = async (studentId: string, childName: string) => {
+    if (!userId || !preschoolId) return;
+    
+    setSubmitting(studentId);
+    try {
+      // Insert guardian request
+      const { error } = await supabase
+        .from('guardian_requests')
+        .insert({
+          parent_auth_id: userId,
+          student_id: studentId,
+          child_full_name: childName,
+          status: 'pending',
+          school_id: preschoolId,
+          created_at: new Date().toISOString(),
+        });
+      
+      if (error) {
+        if (error.code === '23505') {
+          alert('You have already sent a request for this child.');
+        } else {
+          throw error;
+        }
+      } else {
+        alert(`Request sent for ${childName}! Awaiting school approval.`);
+        setSearchResults(searchResults.filter(s => s.id !== studentId));
+      }
+    } catch (err) {
+      console.error('Claim error:', err);
+      alert('Failed to send request. Please try again.');
+    } finally {
+      setSubmitting(null);
+    }
+  };
 
   return (
     <ParentShell tenantSlug={slug} userEmail={email}>
@@ -31,15 +105,109 @@ export default function ClaimChildPage() {
           <p className="muted">Search for your child and send a link request to the school.</p>
         </div>
         <div className="section">
-          <div className="card p-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="card p-md" style={{ paddingBottom: '2rem' }}>
+            <div className="flex gap-3">
               <input
-                placeholder="Enter child's name..."
-                className="w-full bg-gray-900/60 border border-gray-700 rounded-lg pl-10 pr-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                type="text"
+                placeholder="Enter child's first or last name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="flex-1 px-4 py-3 bg-gray-900/80 border border-gray-700/60 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
+                disabled={loading}
               />
+              <button
+                onClick={handleSearch}
+                disabled={loading || !searchQuery.trim()}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-semibold shadow-lg hover:shadow-blue-600/30 disabled:shadow-none"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="hidden sm:inline">Searching...</span>
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-5 h-5" />
+                    <span className="hidden sm:inline">Search</span>
+                  </>
+                )}
+              </button>
             </div>
-            <div className="muted mt-sm">Search functionality coming soon</div>
+            
+            {searchResults.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-4 px-1">
+                  <h3 className="font-bold text-white text-lg">Search Results</h3>
+                  <span className="text-sm text-gray-400 font-medium">{searchResults.length} found</span>
+                </div>
+                <div className="space-y-3">
+                  {searchResults.map((student) => (
+                    <div
+                      key={student.id}
+                      className="group relative p-4 bg-gradient-to-br from-gray-900/80 to-gray-900/60 border border-gray-700/60 rounded-xl hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-200"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                          {student.first_name[0]}{student.last_name[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-white text-base mb-1 group-hover:text-blue-400 transition-colors">
+                            {student.first_name} {student.last_name}
+                          </div>
+                          <div className="flex flex-wrap gap-2 text-xs text-gray-400">
+                            <span className="px-2 py-1 bg-gray-800/60 rounded-md border border-gray-700/40">
+                              {student.classes?.grade_level || 'Preschool'}
+                            </span>
+                            <span className="px-2 py-1 bg-gray-800/60 rounded-md border border-gray-700/40">
+                              {student.classes?.name || 'Unassigned'}
+                            </span>
+                            {student.date_of_birth && (
+                              <span className="px-2 py-1 bg-gray-800/60 rounded-md border border-gray-700/40">
+                                Born {new Date(student.date_of_birth).toLocaleDateString('en-ZA')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => handleClaimChild(student.id, `${student.first_name} ${student.last_name}`)}
+                          disabled={submitting === student.id}
+                          className="flex-shrink-0 px-4 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-lg transition-all duration-200 flex items-center gap-2 disabled:cursor-not-allowed shadow-lg hover:shadow-purple-600/30 disabled:shadow-none font-semibold text-sm"
+                        >
+                          {submitting === student.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span className="hidden sm:inline">Sending...</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-4 h-4" />
+                              <span className="hidden sm:inline">Claim Child</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {searchQuery && !loading && searchResults.length === 0 && (
+              <div className="mt-4 text-center text-gray-400 py-8">
+                <p>No children found matching &quot;{searchQuery}&quot;</p>
+                <p className="text-sm mt-2">Try a different name or check the spelling</p>
+              </div>
+            )}
+            
+            {!searchQuery && (
+              <div className="mt-16 p-4 bg-blue-900/20 border border-blue-700/30 rounded-xl">
+                <p className="text-blue-300 text-sm flex items-start gap-2">
+                  <span className="text-lg">💡</span>
+                  <span><strong className="font-semibold">Tip:</strong> Enter your child&apos;s first or last name to search for them in the school registry.</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

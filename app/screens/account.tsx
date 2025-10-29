@@ -199,12 +199,18 @@ export default function AccountScreen() {
       paddingVertical: 16,
       backgroundColor: theme.error,
       borderRadius: 12,
+      shadowColor: theme.error,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 6,
     },
     signOutText: {
-      fontSize: 16,
-      fontWeight: "600",
+      fontSize: 17,
+      fontWeight: "700",
       color: theme.onError,
       marginLeft: 8,
+      letterSpacing: 0.5,
     },
     modalOverlay: {
       flex: 1,
@@ -815,21 +821,32 @@ export default function AccountScreen() {
         </View>
 
         {/* Switch Account and Sign Out Buttons */}
-        <TouchableOpacity
-          onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in?switch=1' })}
-          style={[styles.signOutButton, { backgroundColor: theme.surfaceVariant, borderColor: theme.border }]}
-        >
-          <SafeIcon name="swap-horizontal" size={20} color={theme.primary} fallback="🔄" />
-          <Text style={[styles.signOutText, { color: theme.primary }]}>{t('navigation.switch_account', { defaultValue: 'Switch account' })}</Text>
-        </TouchableOpacity>
+        <View style={styles.infoSection}>
+          <Text style={styles.sectionTitle}>{t('account.account_actions', { defaultValue: 'Account Actions' })}</Text>
+          
+          <TouchableOpacity
+            onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in?switch=1' })}
+            style={[styles.signOutButton, { 
+              backgroundColor: theme.surfaceVariant, 
+              borderWidth: 2,
+              borderColor: theme.primary,
+              shadowColor: theme.primary,
+            }]}
+            activeOpacity={0.7}
+          >
+            <SafeIcon name="swap-horizontal" size={22} color={theme.primary} fallback="🔄" />
+            <Text style={[styles.signOutText, { color: theme.primary }]}>{t('navigation.switch_account', { defaultValue: 'Switch Account' })}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}
-          style={styles.signOutButton}
-        >
-          <SafeIcon name="log-out-outline" size={20} color={theme.onError} fallback="🚪" />
-          <Text style={styles.signOutText}>{t('navigation.logout')}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => signOutAndRedirect({ clearBiometrics: false, redirectTo: '/(auth)/sign-in' })}
+            style={styles.signOutButton}
+            activeOpacity={0.7}
+          >
+            <SafeIcon name="log-out-outline" size={22} color={theme.onError} fallback="🚪" />
+            <Text style={styles.signOutText}>{t('navigation.logout', { defaultValue: 'Sign Out' })}</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Settings Modal */}

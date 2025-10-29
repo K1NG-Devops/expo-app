@@ -97,8 +97,13 @@ export function DesktopLayout({ children, role }: DesktopLayoutProps) {
   const tenantSlug: string = org?.organization_slug || org?.tenant_slug || org?.slug || org?.organization_name || 'EduDash Pro';
 
   // Only render desktop layout on web
+  // On mobile, wrap in flex container to ensure bottom nav is visible
   if (Platform.OS !== 'web') {
-    return <>{children}</>;
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        {children}
+      </View>
+    );
   }
 
   return (

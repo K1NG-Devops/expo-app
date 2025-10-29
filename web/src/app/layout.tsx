@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import "./globals.css";
 import "./design.css";
 import { PWARegister } from "@/components/PWARegister";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <PWARegister />
+        <PWAInstallPrompt />
         <ErrorBoundary>{children}</ErrorBoundary>
       </body>
     </html>

@@ -58,12 +58,31 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
         throw new Error('Student not found');
       }
 
-      // Mock fees (will be real when payments table exists)
-      const feesDue = {
-        amount: Math.random() > 0.7 ? Math.floor(Math.random() * 5000) + 500 : 0,
-        dueDate: Math.random() > 0.5 ? thirtyDaysFromNow : null,
-        overdue: Math.random() > 0.8,
-      };
+      // Fetch outstanding fees from payments table
+      let feesDue: { amount: number; dueDate: string | null; overdue: boolean } | null = null;
+      try {
+        const { data: payments } = await supabase
+          .from('payments')
+          .select('amount, due_date, status')
+          .eq('student_id', childId)
+          .in('status', ['pending', 'overdue'])
+          .order('due_date', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (payments && payments.amount > 0) {
+          const dueDate = payments.due_date;
+          const isOverdue = dueDate ? new Date(dueDate) < new Date() : false;
+          feesDue = {
+            amount: payments.amount,
+            dueDate: dueDate || null,
+            overdue: isOverdue || payments.status === 'overdue',
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching payments:', err);
+        // If payments table doesn't exist or query fails, feesDue remains null
+      }
 
       // Pending homework
       let pendingHomework = 0;
@@ -126,7 +145,7 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
       }
 
       setMetrics({
-        feesDue: feesDue.amount > 0 ? feesDue : null,
+        feesDue,
         unreadMessages: 0, // Set by parent component or separate hook
         pendingHomework,
         todayAttendance,
