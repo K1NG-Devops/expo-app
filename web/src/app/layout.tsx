@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "EduDash Pro",
   description: "Educational dashboard for South African preschools",
-  manifest: "/manifest.json",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -43,7 +43,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#111111" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
