@@ -15,6 +15,7 @@ export interface ChildCard {
   upcomingEvents: number;
   progressScore: number;
   status: 'active' | 'absent' | 'late';
+  avatarUrl?: string | null;
 }
 
 interface UseChildrenDataReturn {
@@ -50,14 +51,14 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
     try {
       const { data: att } = await supabase
         .from('attendance_records')
-        .select('status, check_in_time')
+        .select('status')
         .eq('student_id', child.id)
-        .eq('date', today)
+        .eq('preschool_id', child.preschool_id)
+        .eq('attendance_date', today)
         .maybeSingle();
       if (att) {
         const s = String(att.status).toLowerCase();
         status = ['present', 'absent', 'late'].includes(s) ? (s as any) : 'active';
-        if (att.check_in_time) lastActivity = new Date(att.check_in_time);
       }
     } catch {}
 
@@ -70,6 +71,7 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
           .from('homework_assignments')
           .select('*', { count: 'exact', head: true })
           .eq('class_id', child.class_id)
+          .eq('preschool_id', child.preschool_id)
           .gte('due_date', today);
         homeworkPending = hwCount || 0;
       } catch {}
@@ -78,6 +80,7 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
           .from('class_events')
           .select('*', { count: 'exact', head: true })
           .eq('class_id', child.class_id)
+          .eq('preschool_id', child.preschool_id)
           .gte('start_time', new Date().toISOString());
         upcomingEvents = evCount || 0;
       } catch {}
@@ -95,6 +98,7 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
       upcomingEvents,
       progressScore: 75,
       status,
+      avatarUrl: child.avatar_url || child.profile_picture_url || null,
     };
   }, []);
 
@@ -128,7 +132,7 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
       const { data: directChildren } = await supabase
         .from('students')
         .select(`
-          id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id,
+          id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id, avatar_url,
           classes!left(id, name, grade_level)
         `)
         .or(`parent_id.eq.${internalUserId},guardian_id.eq.${internalUserId}`)

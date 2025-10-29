@@ -78,18 +78,7 @@ export function PrincipalShell({
               <div className="chip">{tenantSlug ? `/${tenantSlug}` : 'EduDash Pro'}</div>
             )}
           </div>
-          <div className="searchGroup">
-            <Search className="searchIcon icon16" />
-            <input
-              className="searchInput"
-              placeholder="Search students, teachers, reports..."
-              onKeyDown={(e) => {
-                const t = e.target as HTMLInputElement;
-                if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/principal/search?q=${encodeURIComponent(t.value.trim())}`);
-              }}
-            />
-          </div>
-          <div className="rightGroup">
+          <div className="rightGroup" style={{ marginLeft: 'auto' }}>
             <TierBadge preschoolId={preschoolId} size="sm" showUpgrade />
             <button className="iconBtn" aria-label="Notifications">
               <Bell className="icon20" />

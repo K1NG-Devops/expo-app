@@ -59,19 +59,7 @@ export function ParentShell({ tenantSlug, userEmail, userName, preschoolName, un
               <div className="chip">{tenantSlug || 'EduDash Pro'}</div>
             )}
           </div>
-          <div className="searchGroup">
-            <input
-              className="searchInput"
-              placeholder="Search..."
-              style={{ paddingRight: '2.5rem' }}
-              onKeyDown={(e) => {
-                const t = e.target as HTMLInputElement;
-                if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/parent/search?q=${encodeURIComponent(t.value.trim())}`);
-              }}
-            />
-            <Search className="searchIcon icon16" style={{ right: '0.75rem', left: 'auto' }} />
-          </div>
-          <div className="rightGroup">
+          <div className="rightGroup" style={{ marginLeft: 'auto' }}>
             <button className="iconBtn" aria-label="Notifications">
               <Bell className="icon20" />
             </button>

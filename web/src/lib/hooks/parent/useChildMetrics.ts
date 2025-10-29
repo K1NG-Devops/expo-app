@@ -61,27 +61,26 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
       // Fetch outstanding fees from payments table
       let feesDue: { amount: number; dueDate: string | null; overdue: boolean } | null = null;
       try {
-        const { data: payments } = await supabase
+        const { data: payments, error: paymentsError } = await supabase
           .from('payments')
-          .select('amount, due_date, status')
+          .select('amount, created_at, status')
           .eq('student_id', childId)
+          .eq('preschool_id', studentData.preschool_id)
           .in('status', ['pending', 'overdue'])
-          .order('due_date', { ascending: true })
+          .order('created_at', { ascending: true })
           .limit(1)
           .maybeSingle();
 
-        if (payments && payments.amount > 0) {
-          const dueDate = payments.due_date;
-          const isOverdue = dueDate ? new Date(dueDate) < new Date() : false;
+        if (!paymentsError && payments && payments.amount > 0) {
+          const isOverdue = payments.status === 'overdue';
           feesDue = {
             amount: payments.amount,
-            dueDate: dueDate || null,
-            overdue: isOverdue || payments.status === 'overdue',
+            dueDate: null,
+            overdue: isOverdue,
           };
         }
       } catch (err) {
-        console.error('Error fetching payments:', err);
-        // If payments table doesn't exist or query fails, feesDue remains null
+        // Silently handle - payments table may not exist yet
       }
 
       // Pending homework
@@ -91,6 +90,7 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
           .from('homework_assignments')
           .select('id')
           .eq('class_id', studentData.class_id)
+          .eq('preschool_id', studentData.preschool_id)
           .gte('due_date', today)
           .limit(10);
 
@@ -100,6 +100,7 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
             .from('homework_submissions')
             .select('assignment_id')
             .eq('student_id', childId)
+            .eq('preschool_id', studentData.preschool_id)
             .in('assignment_id', assignmentIds);
 
           const submittedIds = new Set(submissions?.map((s) => s.assignment_id) || []);
@@ -110,21 +111,22 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
       // Today's attendance
       let todayAttendance: 'present' | 'absent' | 'late' | 'unknown' = 'unknown';
       try {
-        const { data: attendanceData } = await supabase
+        const { data: attendanceData, error: attendanceError } = await supabase
           .from('attendance_records')
-          .select('status')
+          .select('status, attendance_date')
           .eq('student_id', childId)
-          .eq('date', today)
+          .eq('preschool_id', studentData.preschool_id)
+          .eq('attendance_date', today)
           .maybeSingle();
 
-        if (attendanceData) {
+        if (!attendanceError && attendanceData) {
           const status = String(attendanceData.status).toLowerCase();
           todayAttendance = ['present', 'absent', 'late'].includes(status)
             ? (status as 'present' | 'absent' | 'late')
             : 'unknown';
         }
       } catch (err) {
-        console.error('Error fetching attendance:', err);
+        // Silently handle - attendance_records table may not exist yet
       }
 
       // Upcoming events (next 7 days)
@@ -135,6 +137,7 @@ export function useChildMetrics(childId: string | null): UseChildMetricsReturn {
             .from('class_events')
             .select('id', { count: 'exact', head: true })
             .eq('class_id', studentData.class_id)
+            .eq('preschool_id', studentData.preschool_id)
             .gte('start_time', new Date().toISOString())
             .lte('start_time', new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
 

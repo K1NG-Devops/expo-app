@@ -3,64 +3,112 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const preschoolId = searchParams.get('preschoolId');
-
-  if (!preschoolId) {
-    return NextResponse.json({ error: 'Missing preschoolId' }, { status: 400 });
-  }
-
-  // Get session from cookies
-  const cookieStore = cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name: string) {
-        return cookieStore.get(name)?.value;
-      },
-      set(name: string, value: string, options: any) {
-        cookieStore.set({ name, value, ...options });
-      },
-      remove(name: string, options: any) {
-        cookieStore.set({ name, value: '', ...options });
-      },
-    },
-  });
-
-  // Verify user is authenticated and is a principal
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    // Fetch teachers
-    const { data: teachers, error: teachersError } = await supabase
-      .from('users')
-      .select('id, first_name, last_name, email, phone, preschool_id, organization_id, role')
-      .or(`organization_id.eq.${preschoolId},preschool_id.eq.${preschoolId}`)
-      .eq('role', 'teacher')
-      .order('first_name', { ascending: true });
+    const { searchParams } = new URL(request.url);
+    const preschoolId = searchParams.get('preschoolId');
 
-    // Normalize teacher shape
-    const normalized = (teachers || []).map((t: any) => ({
-      id: t.id,
-      first_name: t.first_name,
-      last_name: t.last_name,
-      email: t.email,
-      phone_number: t.phone,
-      status: 'active',
-    }));
-
-    const teachersList = normalized;
-
-    if (teachersError) {
-      console.error('Error fetching teachers:', teachersError);
-      return NextResponse.json({ error: teachersError.message }, { status: 400 });
+    if (!preschoolId) {
+      return NextResponse.json({ error: 'Missing preschoolId' }, { status: 400 });
     }
+
+    // Get session from cookies
+    const cookieStore = await cookies();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase environment variables');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Handle errors from set operations
+          }
+        },
+      },
+      auth: {
+        storageKey: 'edudash-auth-session', // Match client storage key
+        flowType: 'pkce',
+      },
+    });
+
+    // Verify user is authenticated and is a principal
+    const allCookies = cookieStore.getAll();
+    console.log('[Teachers API] Cookies received:', allCookies.map(c => c.name));
+    
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('[Teachers API] Session error:', sessionError);
+      return NextResponse.json({ 
+        error: 'Authentication error', 
+        details: sessionError.message 
+      }, { status: 401 });
+    }
+
+    if (!session) {
+      console.error('[Teachers API] No session found');
+      console.error('[Teachers API] Available cookies:', allCookies.map(c => c.name).join(', '));
+      return NextResponse.json({ 
+        error: 'Unauthorized', 
+        details: 'No session found in cookies',
+        cookies: allCookies.map(c => c.name)
+      }, { status: 401 });
+    }
+    
+    console.log('[Teachers API] Session found for user:', session.user.id);
+
+    // Fetch teachers from users table (which has role column)
+    const { data: usersData, error: usersError } = await supabase
+      .from('users')
+      .select('auth_user_id, preschool_id, role')
+      .eq('preschool_id', preschoolId)
+      .eq('role', 'teacher');
+
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return NextResponse.json({ error: usersError.message }, { status: 400 });
+    }
+
+    if (!usersData || usersData.length === 0) {
+      return NextResponse.json({ teachers: [] });
+    }
+
+    // Get profile data for these users
+    const authUserIds = usersData.map(u => u.auth_user_id);
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name')
+      .in('id', authUserIds);
+
+    if (profilesError) {
+      console.error('[Teachers API] Error fetching profiles:', profilesError);
+      return NextResponse.json({ error: profilesError.message }, { status: 400 });
+    }
+
+    // Merge users and profiles data
+    const profilesMap = new Map(profilesData?.map(p => [p.id, p]));
+    const teachersList = usersData.map((u: any) => {
+      const profile = profilesMap.get(u.auth_user_id);
+      return {
+        id: u.auth_user_id,
+        first_name: profile?.first_name || 'Unknown',
+        last_name: profile?.last_name || '',
+        email: '', // Email not available in profiles table
+        phone_number: '', // Phone not available in profiles table
+        status: 'active',
+      };
+    }).filter(t => t.first_name !== 'Unknown' || t.last_name); // Filter out entries without names
 
     if (!teachersList || teachersList.length === 0) {
       return NextResponse.json({ teachers: [] });
@@ -117,6 +165,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ teachers: teachersWithCounts });
   } catch (error: any) {
     console.error('Error in teachers API:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: error.message || 'Internal server error',
+      details: error.toString()
+    }, { status: 500 });
   }
 }

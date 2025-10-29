@@ -52,7 +52,11 @@ ul{list-style:none;padding:0;margin:0}
 .tenant{font-size:12px;color:var(--muted)}
 .chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;border:1px solid rgba(124,58,237,.4);background:rgba(124,58,237,.12);color:#c7a6ff;font-weight:600}
 .rightGroup{display:flex;align-items:center;gap:var(--space-3)}
-.content{flex:1;padding-block:var(--space-4);padding-bottom:calc(var(--bottomnav-h) + var(--space-4) + env(safe-area-inset-bottom));overflow-y:auto;max-height:calc(100dvh - var(--topbar-h));-webkit-overflow-scrolling:touch}
+.content{flex:1;padding:0 var(--space-4);padding-bottom:calc(var(--bottomnav-h) + var(--space-4) + env(safe-area-inset-bottom));overflow-y:auto;overflow-x:hidden;max-height:calc(100dvh - var(--topbar-h));-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none}
+.content::-webkit-scrollbar{display:none}
+@media(min-width:1024px){
+  .content{padding-left:var(--space-4);padding-right:var(--space-4);padding-top:var(--space-3)}
+}
 .h1{font-size:20px;font-weight:700;margin:var(--space-2) 0 var(--space-3)}
 .section{margin-top:var(--space-4)}
 .card{background:linear-gradient(180deg, rgba(18,24,38,.96), rgba(18,24,38,.9));border:1px solid var(--border);border-radius:var(--radius-2);padding:var(--space-4);box-shadow:0 6px 16px rgba(0,0,0,.25)}
@@ -76,9 +80,11 @@ ul{list-style:none;padding:0;margin:0}
 .accentText{color:var(--accent-start)}
 
 /* Full-bleed layout frame (uses entire screen width) */
-.frame{display:grid;grid-template-columns:1fr;gap:var(--space-4);width:100%;padding:var(--space-4)}
+.frame{display:grid;grid-template-columns:1fr;gap:var(--space-4);width:100%;max-width:100vw;padding:var(--space-3) var(--space-4) var(--space-4);overflow:hidden}
 @media(min-width:1024px){.frame{grid-template-columns:260px minmax(0,1fr) 320px}}
-.sticky{position:sticky;top:calc(var(--topbar-h) + var(--space-4))}
+@media(min-width:1440px){.frame{grid-template-columns:280px minmax(0,1fr) 360px}}
+.sticky{position:sticky;top:calc(var(--topbar-h) + var(--space-3))}
+.right.sticky{top:calc(var(--topbar-h) + var(--space-3) - 2px)}
 
 /* Left sidebar */
 .sidenav{display:none}

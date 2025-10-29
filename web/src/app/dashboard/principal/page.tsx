@@ -19,9 +19,11 @@ import {
   CheckCircle,
   Clock,
   Activity,
+  Search,
 } from 'lucide-react';
 import { ParentApprovalWidget } from '@/components/dashboard/principal/ParentApprovalWidget';
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
+import { TierBadge } from '@/components/ui/TierBadge';
 
 interface PrincipalMetrics {
   totalStudents: number;
@@ -60,6 +62,8 @@ export default function PrincipalDashboard() {
   const userName = profile?.firstName || userEmail?.split('@')[0] || 'Principal';
   const preschoolName = profile?.preschoolName;
   const preschoolId = profile?.preschoolId;
+  const userRole = profile?.role;
+  const roleDisplay = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'Principal';
 
   // Initialize auth
   useEffect(() => {
@@ -200,23 +204,53 @@ export default function PrincipalDashboard() {
   );
 
   return (
-    <PrincipalShell
-      tenantSlug={tenantSlug}
-      userEmail={userEmail}
-      userName={userName}
-      preschoolName={preschoolName}
-      preschoolId={preschoolId}
-      rightSidebar={rightSidebar}
-    >
+    <>
+      <style jsx global>{`
+        body, html {
+          overflow-x: hidden;
+          max-width: 100vw;
+        }
+        .section, .card, .grid2, .grid3 {
+          max-width: 100%;
+          overflow-x: hidden;
+        }
+      `}</style>
+      <PrincipalShell
+        tenantSlug={tenantSlug}
+        userEmail={userEmail}
+        userName={userName}
+        preschoolName={preschoolName}
+        rightSidebar={rightSidebar}
+      >
+      {/* Search Bar */}
+      <div style={{ marginTop: 0, marginBottom: 'var(--space-3)' }}>
+        <div style={{ position: 'relative' }}>
+          <input
+            className="searchInput"
+            placeholder="Search students, teachers, reports..."
+            style={{ width: '100%', paddingRight: '2.5rem' }}
+            onKeyDown={(e) => {
+              const t = e.target as HTMLInputElement;
+              if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/principal/search?q=${encodeURIComponent(t.value.trim())}`);
+            }}
+          />
+          <Search className="searchIcon icon16" style={{ right: '0.75rem', left: 'auto' }} />
+        </div>
+      </div>
+
       {/* Page Header with Preschool Name */}
       <div className="section" style={{ marginBottom: 0 }}>
         {preschoolName && (
-          <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ fontSize: 32 }}>🏫</div>
-              <div>
+          <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16, cursor: 'pointer' }} onClick={() => router.push('/dashboard/principal/settings')}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 24 }}>🏫</span>
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{preschoolName}</h2>
-                <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>Principal Dashboard</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingLeft: 32 }}>
+                <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>{roleDisplay}</p>
+                <span style={{ opacity: 0.7 }}>•</span>
+                <TierBadge userId={userId} size="sm" showUpgrade />
               </div>
             </div>
           </div>
@@ -333,6 +367,7 @@ export default function PrincipalDashboard() {
           )}
         </div>
       </div>
-    </PrincipalShell>
+      </PrincipalShell>
+    </>
   );
 }

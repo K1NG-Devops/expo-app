@@ -1,21 +1,102 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setMobileMenuOpen(false);
+    }
+  };
+
   return (
     <div style={{minHeight: '100vh', background: '#0a0a0f', color: 'var(--text)'}}>
-      {/* Header */}
-      <header className="topbar">
-        <div className="topbarRow topbarEdge">
-          <div className="brand" style={{fontSize: '20px'}}>🎓 EduDash Pro</div>
-          <nav style={{display: 'flex', alignItems: 'center', gap: '20px'}}>
-            <Link href="/sign-in" style={{color: 'var(--muted)', textDecoration: 'none'}}>Sign in</Link>
-            <Link href="/dashboard" className="btn btnCyan" style={{fontSize: '14px'}}>Dashboard</Link>
+      {/* Sticky Navigation */}
+      <header style={{ position: 'sticky', top: 0, zIndex: 1000, background: 'rgba(10, 10, 15, 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="brand" style={{fontSize: '18px', fontWeight: 700}}>🎓 EduDash Pro</div>
+          
+          {/* Mobile Menu Button */}
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{ display: 'none', background: 'none', border: 0, color: '#fff', cursor: 'pointer', fontSize: '24px', padding: '8px' }}
+            className="mobile-menu-btn"
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+          
+          {/* Desktop Navigation */}
+          <nav style={{display: 'flex', alignItems: 'center', gap: '28px'}} className="desktop-nav">
+            <button onClick={() => scrollToSection('features')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s'}}>Features</button>
+            <button onClick={() => scrollToSection('dash-ai')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s'}}>Dash AI</button>
+            <button onClick={() => scrollToSection('pricing')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s'}}>Pricing</button>
+            <button onClick={() => scrollToSection('faq')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s'}}>FAQ</button>
+            <Link href="/sign-in" style={{color: '#00f5ff', textDecoration: 'none', fontSize: '14px', fontWeight: 600}}>Sign In</Link>
+            <Link href="/sign-in" className="btn btnCyan" style={{fontSize: '14px', padding: '8px 18px', borderRadius: '8px'}}>Get Started</Link>
           </nav>
         </div>
+        
+        {/* Mobile Menu Dropdown */}
+        {mobileMenuOpen && (
+          <div className="mobile-menu" style={{ background: 'rgba(10, 10, 15, 0.98)', borderTop: '1px solid rgba(255, 255, 255, 0.1)', padding: '16px 20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <button onClick={() => scrollToSection('features')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '16px', fontWeight: 500, textAlign: 'left', padding: '8px 0'}}>Features</button>
+              <button onClick={() => scrollToSection('dash-ai')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '16px', fontWeight: 500, textAlign: 'left', padding: '8px 0'}}>Dash AI</button>
+              <button onClick={() => scrollToSection('pricing')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '16px', fontWeight: 500, textAlign: 'left', padding: '8px 0'}}>Pricing</button>
+              <button onClick={() => scrollToSection('faq')} style={{background: 'none', border: 0, color: '#9CA3AF', cursor: 'pointer', fontSize: '16px', fontWeight: 500, textAlign: 'left', padding: '8px 0'}}>FAQ</button>
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <Link href="/sign-in" style={{color: '#00f5ff', textDecoration: 'none', fontSize: '16px', fontWeight: 600, padding: '12px', textAlign: 'center', border: '1px solid #00f5ff', borderRadius: '8px'}}>Sign In</Link>
+                <Link href="/sign-in" className="btn btnCyan" style={{fontSize: '16px', padding: '12px', borderRadius: '8px', textAlign: 'center', display: 'block'}}>Get Started</Link>
+              </div>
+            </div>
+          </div>
+        )}
       </header>
+      
+      <style jsx global>{`
+        /* Prevent horizontal scroll */
+        body, html {
+          overflow-x: hidden;
+          max-width: 100vw;
+        }
+        
+        /* Navigation hover effects */
+        nav button:hover {
+          color: #00f5ff !important;
+        }
+        
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+          .desktop-nav {
+            display: none !important;
+          }
+          .mobile-menu-btn {
+            display: block !important;
+          }
+          .landingHero {
+            padding-top: 40px !important;
+          }
+        }
+        
+        @media (min-width: 769px) {
+          .mobile-menu {
+            display: none !important;
+          }
+        }
+        
+        /* Smooth transitions */
+        header {
+          transition: all 0.3s ease;
+        }
+      `}</style>
 
       {/* Hero */}
-      <section className="landingHero">
+      <section className="landingHero" style={{paddingTop: '60px'}}>
         <div className="container" style={{textAlign: 'center'}}>
           <div style={{marginBottom: '16px'}}>
             <span className="pillCyan" style={{fontSize: '11px'}}>🇿🇦 Built for South Africa</span>
@@ -35,7 +116,7 @@ export default function Home() {
       </section>
 
       {/* Features */}
-      <section className="lp-section alt">
+      <section id="features" className="lp-section alt">
         <div className="container">
           <div className="sectionHeader">
             <span className="kicker" style={{color: 'var(--cyan)'}}>Features</span>
@@ -77,7 +158,7 @@ export default function Home() {
       </section>
 
       {/* Dash AI Section */}
-      <section className="lp-section" style={{background: 'radial-gradient(circle at 50% 50%, rgba(0,245,255,.1), transparent 60%)'}}>
+      <section id="dash-ai" className="lp-section" style={{background: 'radial-gradient(circle at 50% 50%, rgba(0,245,255,.1), transparent 60%)'}}>
         <div className="container" style={{textAlign: 'center', maxWidth: '900px'}}>
           <span className="pillCyan">🤖 Dash AI Assistant</span>
           <h2 style={{fontSize: 'clamp(28px, 4vw, 40px)', fontWeight: 800, margin: '16px 0'}}>Your Intelligent Teaching Partner</h2>
@@ -196,7 +277,7 @@ export default function Home() {
       </section>
 
       {/* Pricing Preview */}
-      <section className="lp-section alt" style={{textAlign: 'center'}}>
+      <section id="pricing" className="lp-section alt" style={{textAlign: 'center'}}>
         <div className="container">
           <div className="sectionHeader">
             <span className="kicker" style={{color: 'var(--cyan)'}}>Pricing</span>
@@ -206,14 +287,14 @@ export default function Home() {
           <div className="pricingGrid">
             <div className="pricingCard">
               <p className="kicker" style={{marginBottom: '12px', fontSize: '11px'}}>Free Plan</p>
-              <h3 style={{fontSize: '36px', fontWeight: 800, marginBottom: '4px'}}>Custom</h3>
-              <p className="muted" style={{fontSize: '13px', marginBottom: '24px'}}>Contact us</p>
+              <h3 style={{fontSize: '36px', fontWeight: 800, marginBottom: '4px'}}>R0</h3>
+              <p className="muted" style={{fontSize: '13px', marginBottom: '24px'}}>forever</p>
               <ul style={{listStyleType: 'disc', paddingLeft: '20px', textAlign: 'left', color: 'var(--muted)', marginBottom: '32px', lineHeight: '2'}}>
                 <li>Basic student management</li>
                 <li>Parent communication</li>
                 <li>Basic reporting</li>
               </ul>
-              <button className="btn btnOutlineCyan" style={{width: '100%', fontSize: '14px'}}>Contact Sales</button>
+              <button className="btn btnOutlineCyan" style={{width: '100%', fontSize: '14px'}}>Get Started</button>
             </div>
             <div className="pricingCard highlight" style={{position: 'relative'}}>
               <div style={{position: 'absolute', top: '-12px', right: '24px', background: '#22c55e', color: '#fff', padding: '4px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: 700}}>POPULAR</div>
@@ -245,7 +326,7 @@ export default function Home() {
       </section>
 
       {/* FAQ */}
-      <section className="lp-section">
+      <section id="faq" className="lp-section">
         <div className="container" style={{maxWidth: '900px'}}>
           <div className="sectionHeader">
             <span className="kicker" style={{color: 'var(--cyan)'}}>FAQ</span>

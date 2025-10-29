@@ -65,8 +65,15 @@ export default function SignInPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0f", padding: 24, fontFamily: "system-ui, sans-serif" }}>
-      <div style={{ width: "100%", maxWidth: 420, background: "#111113", borderRadius: 16, padding: 40, border: "1px solid #1f1f23" }}>
+    <>
+      <style jsx global>{`
+        body {
+          overflow-x: hidden;
+          max-width: 100vw;
+        }
+      `}</style>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0f", fontFamily: "system-ui, sans-serif", overflowX: "hidden" }}>
+        <div style={{ width: "100%", maxWidth: "100vw", background: "#111113", padding: "40px 5%", border: "1px solid #1f1f23", boxSizing: "border-box" }}>
         {/* Header with icon */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ width: 64, height: 64, background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 32 }}>
@@ -150,21 +157,27 @@ export default function SignInPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: 24, textAlign: "center" }}>
-          <p style={{ color: "#6B7280", fontSize: 14 }}>Don't have an account?</p>
-          <div style={{ display: "flex", gap: 12, marginTop: 12, justifyContent: "center" }}>
-            <button style={{ padding: "8px 16px", background: "#374151", color: "#fff", border: 0, borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-              👨‍👩‍👧 Sign up as Parent
-            </button>
-            <button style={{ padding: "8px 16px", background: "#4c1d95", color: "#fff", border: 0, borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-              🎓 Sign up as Teacher
-            </button>
+        <div style={{ marginTop: 28, paddingTop: 24, borderTop: "1px solid #2a2a2f" }}>
+          <p style={{ color: "#9CA3AF", fontSize: 15, marginBottom: 16, textAlign: "center" }}>Don't have an account?</p>
+          <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+            <Link href="/sign-up/parent" style={{ flex: 1, minWidth: "200px", textDecoration: "none" }}>
+              <button style={{ width: "100%", padding: "16px 20px", background: "rgba(99, 102, 241, 0.15)", color: "#fff", border: "2px solid rgba(99, 102, 241, 0.4)", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, transition: "all 0.2s", minHeight: 56 }}>
+                <span style={{ fontSize: 16, fontWeight: 700 }}>Sign Up</span>
+                <span style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>(Parent)</span>
+              </button>
+            </Link>
+            <Link href="/sign-up/teacher" style={{ flex: 1, minWidth: "200px", textDecoration: "none" }}>
+              <button style={{ width: "100%", padding: "16px 20px", background: "rgba(99, 102, 241, 0.15)", color: "#fff", border: "2px solid rgba(99, 102, 241, 0.4)", borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, transition: "all 0.2s", minHeight: 56 }}>
+                <span style={{ fontSize: 16, fontWeight: 700 }}>Sign Up</span>
+                <span style={{ fontSize: 13, color: "#9CA3AF", fontWeight: 500 }}>(Teacher)</span>
+              </button>
+            </Link>
           </div>
         </div>
 
-        <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #2a2a2f", textAlign: "center" }}>
-          <p style={{ color: "#6B7280", fontSize: 12 }}>Looking to register a school? <a href="#" style={{ color: "#00f5ff", textDecoration: "underline" }}>Click here</a></p>
-          <p style={{ color: "#6B7280", fontSize: 12, marginTop: 8 }}>Looking to onboard an organization? <a href="#" style={{ color: "#00f5ff", textDecoration: "underline" }}>Click here</a></p>
+        <div style={{ marginTop: 20, paddingTop: 20, textAlign: "center" }}>
+          <p style={{ color: "#9CA3AF", fontSize: 14, lineHeight: 1.5 }}>Looking to register a school? <a href="#" style={{ color: "#00f5ff", textDecoration: "underline", fontWeight: 600 }}>Click here</a></p>
+          <p style={{ color: "#9CA3AF", fontSize: 14, marginTop: 10, lineHeight: 1.5 }}>Looking to onboard an organization? <a href="#" style={{ color: "#00f5ff", textDecoration: "underline", fontWeight: 600 }}>Click here</a></p>
         </div>
 
         <div style={{ marginTop: 24, textAlign: "center" }}>
@@ -174,5 +187,6 @@ export default function SignInPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

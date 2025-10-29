@@ -23,6 +23,7 @@ import {
   BarChart3,
   Zap,
   Clock,
+  X,
 } from 'lucide-react';
 
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
@@ -38,6 +39,46 @@ export default function ParentDashboard() {
   const [greeting, setGreeting] = useState('');
   const [showAskAI, setShowAskAI] = useState(false);
   const [aiPrompt, setAIPrompt] = useState('');
+  const [aiDisplay, setAIDisplay] = useState('');
+
+  const handleAskFromActivity = async (prompt: string, display: string) => {
+    try {
+      const sb = createClient();
+      // Determine school plan
+      let plan = 'free';
+      const schoolId = profile?.preschoolId;
+      if (schoolId) {
+        const { data } = await sb
+          .from('preschools')
+          .select('subscription_plan')
+          .eq('id', schoolId)
+          .maybeSingle();
+        plan = (data?.subscription_plan as string | null) || 'free';
+      }
+
+      const isFree = String(plan || 'free').toLowerCase() === 'free';
+      const key = `EDUDASH_CAPS_FREE_USED_${userId}`;
+
+      if (isFree) {
+        const used = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
+        if (used === '1') {
+          alert('Free tier limit reached. Upgrade to generate more activities.');
+          return;
+        }
+        // Mark as used immediately to prevent spamming
+        if (typeof window !== 'undefined') localStorage.setItem(key, '1');
+      }
+
+      setAIPrompt(prompt);
+      setAIDisplay(display);
+      setShowAskAI(true);
+    } catch {
+      // Fallback: allow one
+      setAIPrompt(prompt);
+      setAIDisplay(display);
+      setShowAskAI(true);
+    }
+  };
   
   // Fetch user profile with preschool data
   const { profile, loading: profileLoading } = useUserProfile(userId);
@@ -46,6 +87,8 @@ export default function ParentDashboard() {
   const userEmail = profile?.email;
   const userName = profile?.firstName || userEmail?.split('@')[0] || 'User';
   const preschoolName = profile?.preschoolName;
+  const userRole = profile?.role;
+  const roleDisplay = userRole ? userRole.charAt(0).toUpperCase() + userRole.slice(1) : 'User';
   const avatarLetter = (userName[0] || 'U').toUpperCase();
   // Pending requests - real data from database
   const [pendingRequests, setPendingRequests] = useState<{
@@ -248,20 +291,7 @@ export default function ParentDashboard() {
               <div className="chip">{tenantSlug || 'EduDash Pro'}</div>
             )}
           </div>
-          <div className="searchGroup">
-            <input
-              className="searchInput"
-              placeholder="Search..."
-              style={{ paddingRight: '2.5rem' }}
-              onKeyDown={(e) => {
-                const t = e.target as HTMLInputElement;
-                if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/parent/search?q=${encodeURIComponent(t.value.trim())}`);
-              }}
-            />
-            <Search className="searchIcon icon16" style={{ right: '0.75rem', left: 'auto' }} />
-          </div>
           <div className="rightGroup">
-            <TierBadge userId={userId} size="sm" showUpgrade />
             <button className="iconBtn" aria-label="Notifications">
               <Bell className="icon20" />
             </button>
@@ -309,22 +339,141 @@ export default function ParentDashboard() {
 
         {/* Main column */}
         <main className="content">
-          {/* Page Header with Preschool Name */}
+          {/* Search Bar */}
+          <div style={{ marginTop: 0, marginBottom: 'var(--space-3)' }}>
+            <div style={{ position: 'relative' }}>
+              <input
+                className="searchInput"
+                placeholder="Search..."
+                style={{ width: '100%', paddingRight: '2.5rem' }}
+                onKeyDown={(e) => {
+                  const t = e.target as HTMLInputElement;
+                  if (e.key === 'Enter' && t.value.trim()) router.push(`/dashboard/parent/search?q=${encodeURIComponent(t.value.trim())}`);
+                }}
+              />
+              <Search className="searchIcon icon16" style={{ right: '0.75rem', left: 'auto' }} />
+            </div>
+          </div>
+
+          {/* Greeting */}
           <div className="section" style={{ marginBottom: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', gap: 'var(--space-2)' }}>
+              <h1 className="h1" style={{ margin: 0 }}>{greeting}, {userName}</h1>
+            </div>
+
             {preschoolName && (
-              <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ fontSize: 32 }}>🎓</div>
-                  <div>
+              <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16, cursor: 'pointer' }} onClick={() => router.push('/dashboard/parent/preschool')}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 24 }}>🎓</span>
                     <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>{preschoolName}</h2>
-                    <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>Preschool Dashboard</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', paddingLeft: 32 }}>
+                    <p style={{ margin: 0, fontSize: 14, opacity: 0.9 }}>{roleDisplay}</p>
+                    <span style={{ opacity: 0.7 }}>•</span>
+                    <TierBadge userId={userId} size="sm" showUpgrade />
                   </div>
                 </div>
               </div>
             )}
           </div>
-          
-          <h1 className="h1">{greeting}, {userName}</h1>
+
+          {/* Children Cards - Horizontal Scroll */}
+          {childrenCards.length > 0 && (
+            <div className="section">
+              <div className="sectionTitle">
+                <Users className="w-4 h-4 text-purple-400" />
+                My Children
+              </div>
+              <style>{`
+                .child-scroll-container {
+                  display: flex;
+                  gap: var(--space-3);
+                  overflow-x: auto;
+                  overflow-y: hidden;
+                  padding-bottom: var(--space-2);
+                  scrollbar-width: thin;
+                  scrollbar-color: var(--border) transparent;
+                }
+                .child-scroll-container::-webkit-scrollbar {
+                  height: 6px;
+                }
+                .child-scroll-container::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                .child-scroll-container::-webkit-scrollbar-thumb {
+                  background: var(--border);
+                  border-radius: 3px;
+                }
+                .child-scroll-container::-webkit-scrollbar-thumb:hover {
+                  background: var(--muted);
+                }
+              `}</style>
+              <div className="child-scroll-container">
+                {childrenCards.map((child) => (
+                  <div
+                    key={child.id}
+                    className="card"
+                    style={{
+                      padding: 'var(--space-4)',
+                      cursor: 'pointer',
+                      border: activeChildId === child.id ? '2px solid var(--primary)' : undefined,
+                      transition: 'all 0.2s ease',
+                      minWidth: '280px',
+                      maxWidth: '320px',
+                      width: '100%',
+                      flexShrink: 0
+                    }}
+                    onClick={() => setActiveChildId(child.id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+                      <div 
+                        className="avatar" 
+                        style={{ 
+                          width: 48, 
+                          height: 48, 
+                          fontSize: 20, 
+                          flexShrink: 0,
+                          backgroundImage: child.avatarUrl ? `url(${child.avatarUrl})` : undefined,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center'
+                        }}
+                      >
+                        {!child.avatarUrl && `${child.firstName[0]}${child.lastName[0]}`}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
+                          {child.firstName} {child.lastName}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                          {child.grade}{child.className ? ` • ${child.className}` : ''}
+                        </div>
+                      </div>
+                      {activeChildId === child.id && (
+                        <div style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: 'var(--primary)',
+                          flexShrink: 0
+                        }}></div>
+                      )}
+                    </div>
+                    <div className="grid2" style={{ gap: 'var(--space-2)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)' }}>{child.homeworkPending}</div>
+                        Homework
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        <div style={{ fontWeight: 600, fontSize: 16, color: 'var(--text)' }}>{child.upcomingEvents}</div>
+                        Events
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
             {!childrenLoading && childrenCards.length === 0 && pendingRequests.length === 0 && (
               <div className="section">
@@ -420,12 +569,18 @@ export default function ParentDashboard() {
             {/* CAPS Curriculum Activities */}
             {activeChild && (
               <div className="section">
+                <style>{`
+                  @media (max-width: 767px) {
+                    .caps-activities-grid {
+                      grid-template-columns: 1fr !important;
+                    }
+                  }
+                `}</style>
                 <CAPSActivitiesWidget
                   childAge={activeChild.progressScore > 80 ? 6 : 5} 
                   childName={activeChild.firstName}
-                  onAskDashAI={(prompt) => {
-                    setAIPrompt(prompt);
-                    setShowAskAI(true);
+                  onAskDashAI={(prompt, display) => {
+                    handleAskFromActivity(prompt, display);
                   }}
                 />
               </div>
@@ -449,6 +604,46 @@ export default function ParentDashboard() {
           </div>
         </aside>
       </div>
+
+      {/* Ask AI Modal - Fullscreen */}
+      {showAskAI && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(4px)',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            background: 'var(--surface)',
+            borderBottom: '1px solid var(--border)',
+            padding: 'var(--space-4)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexShrink: 0
+          }}>
+            <h2 className="h2" style={{ margin: 0 }}>Ask Dash AI</h2>
+            <button
+              className="iconBtn"
+              onClick={() => setShowAskAI(false)}
+              aria-label="Close"
+            >
+              <X className="icon20" />
+            </button>
+          </div>
+          <div style={{
+            flex: 1,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <AskAIWidget initialPrompt={aiPrompt} displayMessage={aiDisplay} inline fullscreen />
+          </div>
+        </div>
+      )}
 
       <nav className="bottomNav" aria-label="Primary">
         <div className="bottomNavInner">

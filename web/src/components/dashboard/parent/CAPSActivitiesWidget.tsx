@@ -18,7 +18,7 @@ interface ActivityItem {
 interface CAPSActivitiesWidgetProps {
   childAge?: number;
   childName?: string;
-  onAskDashAI?: (prompt: string) => void;
+  onAskDashAI?: (prompt: string, display: string) => void;
 }
 
 export function CAPSActivitiesWidget({ childAge = 5, childName = 'your child', onAskDashAI }: CAPSActivitiesWidgetProps) {
@@ -61,9 +61,58 @@ export function CAPSActivitiesWidget({ childAge = 5, childName = 'your child', o
   const relevantActivities = allActivities.filter(a => a.ageGroup === ageGroup);
 
   const handleStartActivity = (activity: ActivityItem) => {
-    const prompt = `Create a comprehensive ${activity.duration} ${activity.subject} activity for ${childName} (${activity.ageGroup}): ${activity.title}. Skills to develop: ${activity.skillsTarget.join(', ')}. Include learning objectives aligned with CAPS curriculum, materials needed (prefer household items), step-by-step instructions, engagement techniques, assessment methods, extension activities, and parent tips. Make it interactive, fun, and culturally relevant to South Africa.`;
+    const prompt = `You are Dash, a classroom assistant for South African preschools following the CAPS curriculum.
+Generate an interactive ${activity.duration} ${activity.subject} activity for ${childName} (${activity.ageGroup}) titled "${activity.title}".
+Focus skills: ${activity.skillsTarget.join(', ')}.
+
+Requirements:
+- Align explicitly to CAPS outcomes for this age group and subject
+- Use only safe, low-cost household materials where possible
+- Write clear parent guidance and child-facing instructions
+- Make it interactive: include call-and-response lines and checkpoints with [ ] checkboxes
+- Include differentiated options for easier/harder variants
+- Include multilingual cues where helpful (en-ZA primary, plus short af-ZA/zu-ZA words)
+- Add a formative assessment rubric (1–4) and how to observe progress
+- Provide 2–3 extension ideas and a quick clean-up routine
+- Keep tone warm, encouraging, and playful
+
+Output format in Markdown:
+# Activity: ${activity.title}
+- Age Group: ${activity.ageGroup}
+- Subject: ${activity.subject} • Duration: ${activity.duration}
+
+## Learning Objectives (CAPS)
+- ...
+
+## Materials
+- ...
+
+## Warm-up (1–2 min)
+- ...
+
+## Steps (Interactive)
+- [ ] Step 1 — Parent says: "..." Child responds: "..."
+- [ ] Step 2 — ...
+
+## Check for Understanding
+- ...
+
+## Assessment (1–4)
+| Level | What it looks like |
+|---|---|
+| 1 | ... |
+| 2 | ... |
+| 3 | ... |
+| 4 | ... |
+
+## Extensions
+- ...
+
+## Parent Tips & Safety
+- ...`;
     if (onAskDashAI) {
-      onAskDashAI(prompt);
+      const display = `Activity: ${activity.title} • ${activity.ageGroup} • ${activity.subject} (${activity.duration})`;
+      onAskDashAI(prompt, display);
       setSelectedActivity(null);
     }
   };
@@ -77,7 +126,7 @@ export function CAPSActivitiesWidget({ childAge = 5, childName = 'your child', o
       <p className="muted" style={{ fontSize: 13, marginBottom: 'var(--space-4)' }}>
         {ageGroup} • {relevantActivities.length} activities
       </p>
-      <div className="grid2">
+      <div className="grid2 caps-activities-grid">
         {relevantActivities.map((activity) => {
           const Icon = activity.icon;
           return (

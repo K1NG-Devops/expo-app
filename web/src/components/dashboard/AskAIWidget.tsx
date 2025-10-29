@@ -1,24 +1,90 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { X, Send, Bot } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
 
-export function AskAIWidget({ inline = true }: { inline?: boolean }) {
+interface AskAIWidgetProps {
+  inline?: boolean;
+  initialPrompt?: string;
+  displayMessage?: string; // what to show to the user (sanitized)
+  fullscreen?: boolean;
+}
+
+export function AskAIWidget({ inline = true, initialPrompt, displayMessage, fullscreen = false }: AskAIWidgetProps) {
   const [open, setOpen] = useState(inline);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [hasProcessedInitial, setHasProcessedInitial] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-populate and send initial prompt
+  useEffect(() => {
+    const runInitial = async () => {
+      if (!initialPrompt || hasProcessedInitial) return;
+      setInput(initialPrompt);
+      setHasProcessedInitial(true);
+      // Show a short, user-friendly message instead of the internal server prompt
+      const shown = displayMessage || 'Generating activity...';
+      setMessages([{ role: 'user', text: shown }]);
+      setInput('');
+
+      const supabase = createClient();
+      try {
+        const ENABLED = process.env.NEXT_PUBLIC_AI_PROXY_ENABLED === 'true' || process.env.EXPO_PUBLIC_AI_PROXY_ENABLED === 'true';
+        if (!ENABLED) {
+          setMessages((m) => [...m, { role: 'assistant', text: 'Dash AI is not enabled in this environment.' }]);
+          return;
+        }
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        const { data, error } = await supabase.functions.invoke('ai-proxy', {
+          body: {
+            prompt: initialPrompt,
+            context: 'caps_activity',
+            source: 'parent_dashboard',
+          },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (error) throw error;
+        const content = typeof data === 'string' ? data : (data?.content ?? JSON.stringify(data));
+        setMessages((m) => [...m, { role: 'assistant', text: content }]);
+      } catch (err: any) {
+        setMessages((m) => [...m, { role: 'assistant', text: 'Sorry, I could not generate the activity right now.' }]);
+      } finally {
+        scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
+      }
+    };
+    runInitial();
+  }, [initialPrompt, hasProcessedInitial]);
 
   const onSend = async () => {
     const text = input.trim();
     if (!text) return;
     setMessages((m) => [...m, { role: 'user', text }]);
     setInput('');
-    // TODO: Connect to ai-proxy Edge Function
-    setTimeout(() => {
-      setMessages((m) => [...m, { role: 'assistant', text: 'Thanks! AI response coming soon.' }]);
+
+    const supabase = createClient();
+    try {
+      const ENABLED = process.env.NEXT_PUBLIC_AI_PROXY_ENABLED === 'true' || process.env.EXPO_PUBLIC_AI_PROXY_ENABLED === 'true';
+      if (!ENABLED) {
+        setMessages((m) => [...m, { role: 'assistant', text: 'Dash AI is not enabled in this environment.' }]);
+        return;
+      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const { data, error } = await supabase.functions.invoke('ai-proxy', {
+        body: { prompt: text, context: 'general', source: 'dashboard' },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (error) throw error;
+      const content = typeof data === 'string' ? data : (data?.content ?? JSON.stringify(data));
+      setMessages((m) => [...m, { role: 'assistant', text: content }]);
+    } catch (err: any) {
+      setMessages((m) => [...m, { role: 'assistant', text: 'Sorry, I could not process that right now.' }]);
+    } finally {
       scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
-    }, 200);
+    }
   };
 
   // Floating (default)
@@ -70,6 +136,64 @@ export function AskAIWidget({ inline = true }: { inline?: boolean }) {
           <button onClick={onSend} className="p-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-sm font-semibold inline-flex items-center shadow-md">
             <Send className="w-4 h-4" />
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fullscreen mode
+  if (fullscreen) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--background)' }}>
+        {/* Messages area */}
+        <div ref={scrollerRef} style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-6)' }}>
+          {messages.length === 0 && (
+            <div style={{ textAlign: 'center', color: 'var(--muted)', marginTop: 'var(--space-8)' }}>
+              <p style={{ fontSize: 14 }}>Ask anything about your dashboard, child progress, or tasks.</p>
+            </div>
+          )}
+          <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+            {messages.map((m, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div
+                  className="card"
+                  style={{
+                    maxWidth: '75%',
+                    padding: 'var(--space-4)',
+                    background: m.role === 'user' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'var(--card)',
+                    color: m.role === 'user' ? 'white' : 'var(--text)',
+                    border: m.role === 'user' ? 'none' : '1px solid var(--border)'
+                  }}
+                >
+                  <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {m.text}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Input area */}
+        <div style={{
+          borderTop: '1px solid var(--border)',
+          background: 'var(--surface)',
+          padding: 'var(--space-4)',
+          flexShrink: 0
+        }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
+            <input
+              className="searchInput"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), onSend())}
+              placeholder="Type your question here..."
+              style={{ flex: 1 }}
+            />
+            <button className="btn btnPrimary" onClick={onSend} style={{ flexShrink: 0 }}>
+              <Send className="icon16" />
+              Send
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -53,7 +53,12 @@ export default function TeachersPage() {
       try {
         // Fetch teachers and subscription info in parallel
         const [teachersResponse, seatRpc] = await Promise.all([
-          fetch(`/api/principal/teachers?preschoolId=${preschoolId}`),
+          fetch(`/api/principal/teachers?preschoolId=${preschoolId}`, {
+            credentials: 'include', // Include cookies for authentication
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }),
           supabase.rpc('rpc_teacher_seat_limits')
         ]);
 
