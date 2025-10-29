@@ -238,6 +238,7 @@
   },
   "dashboard": {
     "welcome_generic": "Welcome to EduDash Pro",
+    "overview": "Overview",
     "parentDashboard": "Parent Dashboard",
     "accessDenied": "Access Denied",
     "mobileAppAccessRequired": "Mobile app access is required to use this feature. Please contact your administrator.",
@@ -270,6 +271,8 @@
     "quick_actions_section": "⚡ Quick Actions",
     "quick_actions_stats": "Quick Actions & Statistics",
     "quick_actions": "Quick Actions",
+    "upgrade_required": "Upgrade required",
+    "feature_coming_soon": "Feature coming soon",
     "parent_requests": "Parent Link Requests",
     "ai_teaching_tools": "🤖 AI Teaching Tools",
     "my_classes": "📚 My Classes",
@@ -1216,6 +1219,17 @@
     }
   },
   "teacher": {
+    "dashboard_subtitle": "Your classroom hub",
+    "students_total": "Students total",
+    "classes_active": "Active classes",
+    "assignments_pending": "Assignments pending",
+    "average_grade": "Average grade",
+    "create_lesson": "Create lesson",
+    "grade_assignments": "Grade assignments",
+    "view_classes": "View classes",
+    "parent_communication": "Parent communication",
+    "student_reports": "Student reports",
+    "ai_assistant": "AI assistant",
     "performance": {
       "active": "Active teacher",
       "no_classes": "No classes assigned - requires attention",

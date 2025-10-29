@@ -1,6 +1,8 @@
 import 'react-native-get-random-values';
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Platform, LogBox } from 'react-native';
+// Initialize i18n globally (web + native)
+import '@/lib/i18n';
 
 // Suppress known dev warnings
 if (__DEV__) {
