@@ -16,7 +16,7 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }
-  return outputArray;
+  return outputArray as Uint8Array;
 }
 
 export function PushNotificationSubscribe() {
@@ -69,9 +69,10 @@ export function PushNotificationSubscribe() {
       const registration = await navigator.serviceWorker.ready;
 
       // Subscribe to push
+      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
       });
 
       // Get user's preschool_id
