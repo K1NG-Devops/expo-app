@@ -48,24 +48,19 @@ export function useUserProfile(userId: string | undefined): UseUserProfileReturn
       }
 
 
-      // Get user profile from users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, preschool_id, role')
-        .eq('auth_user_id', userId)
-        .maybeSingle();
-
-
-      // Get profile data
+      // Get profile data from profiles table (includes role)
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('first_name, last_name, preschool_id')
+        .select('first_name, last_name, preschool_id, role')
         .eq('id', userId)
         .maybeSingle();
 
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+      }
 
-      // Determine preschool ID (prefer users table, fallback to profiles)
-      const preschoolId = userData?.preschool_id || profileData?.preschool_id;
+      // Use preschool_id from profiles table
+      const preschoolId = profileData?.preschool_id;
       
       
       let preschoolName: string | undefined;
@@ -93,7 +88,7 @@ export function useUserProfile(userId: string | undefined): UseUserProfileReturn
         email: user.email!,
         firstName: profileData?.first_name,
         lastName: profileData?.last_name,
-        role: userData?.role as any || null,
+        role: profileData?.role as any || null,
         preschoolId,
         preschoolName,
         preschoolSlug,
