@@ -1,15 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import OrganizationSelector from "@/components/auth/PreschoolSelector";
 
-// Force dynamic rendering to avoid prerender errors with useSearchParams
-export const dynamic = 'force-dynamic';
-
-export default function ParentSignUpPage() {
+function ParentSignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -311,5 +308,21 @@ export default function ParentSignUpPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function ParentSignUpPage() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0f" }}>
+        <div style={{ textAlign: "center", color: "#fff" }}>
+          <div style={{ width: 40, height: 40, border: "4px solid #00f5ff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto 16px" }} />
+          <p>Loading...</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    }>
+      <ParentSignUpForm />
+    </Suspense>
   );
 }
