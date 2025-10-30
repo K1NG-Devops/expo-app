@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import OrganizationSelector from "@/components/auth/PreschoolSelector";
 
 export default function ParentSignUpPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -15,6 +17,56 @@ export default function ParentSignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedOrganization, setSelectedOrganization] = useState<any>(null);
+  const [invitationCode, setInvitationCode] = useState<string | null>(null);
+  const [hasInvitation, setHasInvitation] = useState(false);
+  const [invitationLoading, setInvitationLoading] = useState(false);
+
+  // Check for invitation code in URL
+  useEffect(() => {
+    const invite = searchParams.get('invite');
+    if (invite) {
+      validateInvitationCode(invite);
+    }
+  }, [searchParams]);
+
+  async function validateInvitationCode(code: string) {
+    setInvitationLoading(true);
+    setInvitationCode(code);
+    
+    try {
+      const supabase = createClient();
+      
+      // Call validation function
+      const { data, error } = await supabase.rpc('validate_invitation_code', {
+        invite_code: code,
+        invite_role: 'parent'
+      });
+
+      if (error) throw error;
+
+      if (data && data.length > 0 && data[0].valid) {
+        // Valid invitation - auto-select organization
+        const orgData = data[0];
+        setSelectedOrganization({
+          id: orgData.organization_id,
+          name: orgData.organization_name,
+          type: null,
+        });
+        setHasInvitation(true);
+        setError(null);
+      } else {
+        setError(data[0]?.error_message || 'Invalid invitation code');
+        setInvitationCode(null);
+      }
+    } catch (err: any) {
+      console.error('Invitation validation error:', err);
+      setError('Failed to validate invitation code');
+      setInvitationCode(null);
+    } finally {
+      setInvitationLoading(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,18 +83,29 @@ export default function ParentSignUpPage() {
       return;
     }
 
+    if (!selectedOrganization && !invitationCode) {
+      setError("Please select an organization or use an invitation code");
+      return;
+    }
+
     setLoading(true);
 
     const supabase = createClient();
 
-    // Create auth user
+    // Create auth user (profile will be auto-created by database trigger)
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || fullName;
+    const lastName = nameParts.slice(1).join(' ') || '';
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          full_name: fullName,
+          first_name: firstName,
+          last_name: lastName,
           role: 'parent',
+          phone: phoneNumber || null,
         },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       }
@@ -60,24 +123,37 @@ export default function ParentSignUpPage() {
       return;
     }
 
-    // Create user profile in database
-    const { error: profileError } = await supabase
-      .from('users')
-      .insert({
-        auth_user_id: authData.user.id,
-        email: email,
-        full_name: fullName,
-        role: 'parent',
-        phone_number: phoneNumber || null,
+    // Profile is automatically created by database trigger (create_profile_for_new_user)
+    
+    // Handle invitation code or join request
+    if (invitationCode) {
+      // Accept invitation - auto-links user to organization
+      const { data: accepted, error: acceptError } = await supabase.rpc('accept_invitation_code', {
+        invite_code: invitationCode,
+        user_id: authData.user.id
       });
+      
+      if (acceptError) {
+        console.error('Invitation acceptance error:', acceptError);
+      }
+    } else if (selectedOrganization) {
+      // Create join request for manual selection
+      const { error: joinError } = await supabase
+        .from('parent_join_requests')
+        .insert({
+          parent_id: authData.user.id,
+          organization_id: selectedOrganization.id,
+          status: 'pending',
+          message: `Parent signup request from ${fullName}`,
+        });
+
+      if (joinError) {
+        console.error('Join request error:', joinError);
+        // Don't fail the signup, just log the error
+      }
+    }
 
     setLoading(false);
-
-    if (profileError) {
-      setError("Account created but profile setup failed. Please contact support.");
-      console.error("Profile creation error:", profileError);
-      return;
-    }
 
     // Success - redirect to email verification notice
     router.push('/sign-up/verify-email');
@@ -100,6 +176,13 @@ export default function ParentSignUpPage() {
             </div>
             <h1 style={{ color: "#fff", fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Parent Sign Up</h1>
             <p style={{ color: "#9CA3AF", fontSize: 14 }}>Create your parent account to track your child's progress</p>
+            {hasInvitation && selectedOrganization && (
+              <div style={{ marginTop: 16, padding: 12, background: "#064e3b", border: "1px solid #047857", borderRadius: 8 }}>
+                <p style={{ color: "#6ee7b7", fontSize: 13, margin: 0 }}>
+                  ✓ Joining: <strong>{selectedOrganization.name}</strong>
+                </p>
+              </div>
+            )}
           </div>
 
           <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 500, margin: "0 auto" }}>
@@ -137,6 +220,14 @@ export default function ParentSignUpPage() {
                 style={{ width: "100%", padding: "12px 14px", background: "#1a1a1f", border: "1px solid #2a2a2f", borderRadius: 8, color: "#fff", fontSize: 14, boxSizing: "border-box" }}
               />
             </div>
+
+            {/* Organization Selection (hidden if has invitation) */}
+            {!hasInvitation && (
+              <OrganizationSelector
+                onSelect={setSelectedOrganization}
+                selectedOrganizationId={selectedOrganization?.id || null}
+              />
+            )}
 
             <div>
               <label style={{ display: "block", color: "#fff", fontSize: 14, fontWeight: 500, marginBottom: 8 }}>Password *</label>

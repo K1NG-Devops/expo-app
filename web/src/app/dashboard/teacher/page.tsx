@@ -21,6 +21,7 @@ import {
   Calendar,
   FileText,
   PlusCircle,
+  Search,
 } from 'lucide-react';
 
 export default function TeacherDashboard() {
