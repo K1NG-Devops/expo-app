@@ -1,12 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { BookOpen, FileText, Brain, Target, Sparkles, GraduationCap, Clock, Award } from 'lucide-react';
+import { BookOpen, FileText, Brain, Target, Sparkles, GraduationCap, Clock, Award, Globe } from 'lucide-react';
 
 interface ExamPrepWidgetProps {
-  onAskDashAI?: (prompt: string, display: string) => void;
+  onAskDashAI?: (prompt: string, display: string, language?: string, enableInteractive?: boolean) => void;
   guestMode?: boolean;
 }
+
+// South African language codes (aligned with lib/voice/language.ts)
+type SouthAfricanLanguage = 'en-ZA' | 'af-ZA' | 'zu-ZA' | 'xh-ZA' | 'nso-ZA';
+
+const LANGUAGE_OPTIONS: Record<SouthAfricanLanguage, string> = {
+  'en-ZA': 'English (South Africa)',
+  'af-ZA': 'Afrikaans',
+  'zu-ZA': 'isiZulu',
+  'xh-ZA': 'isiXhosa',
+  'nso-ZA': 'Sepedi (Northern Sotho)',
+};
 
 const GRADES = [
   { value: 'grade_r', label: 'Grade R', age: '5-6' },
@@ -38,10 +49,132 @@ const EXAM_TYPES = [
   { id: 'flashcards', label: 'Flashcards', description: 'Quick recall questions', icon: Brain, color: 'danger', duration: '15 min' },
 ];
 
+// Grade-level complexity mapping for age-appropriate content
+const GRADE_COMPLEXITY = {
+  'grade_r': {
+    duration: '20 minutes',
+    marks: 10,
+    questionTypes: 'Picture identification, matching, coloring, simple counting',
+    vocabulary: 'Basic colors, shapes, numbers 1-5, simple animals',
+    instructions: 'Use LOTS of visual cues, emojis, and simple one-word answers. NO writing required. Focus on recognition and matching.',
+    calculator: false,
+    decimals: false,
+  },
+  'grade_1': {
+    duration: '30 minutes',
+    marks: 20,
+    questionTypes: 'Fill-in-the-blank with word bank, matching pictures to words, simple multiple choice (2-3 options), basic counting',
+    vocabulary: 'Simple everyday words, numbers 1-10, basic family/animals/food vocabulary',
+    instructions: 'Keep sentences SHORT (3-5 words max). Provide word banks for fill-in-blanks. Use pictures wherever possible. For First Additional Language: assume BEGINNER level.',
+    calculator: false,
+    decimals: false,
+  },
+  'grade_2': {
+    duration: '45 minutes',
+    marks: 30,
+    questionTypes: 'Short answer (1-2 sentences), fill-in-blanks, multiple choice (3-4 options), simple problem solving',
+    vocabulary: 'Expanded vocabulary, numbers 1-20, basic sentence construction',
+    instructions: 'Simple paragraph reading (3-4 sentences). Basic grammar concepts. For Additional Language: elementary conversational level.',
+    calculator: false,
+    decimals: false,
+  },
+  'grade_3': {
+    duration: '60 minutes',
+    marks: 40,
+    questionTypes: 'Short paragraphs, multiple choice, true/false, matching, basic problem solving',
+    vocabulary: 'Age-appropriate vocabulary, numbers 1-100, basic fractions (half, quarter)',
+    instructions: 'Reading comprehension with short stories (1 paragraph). Introduction to simple essays (3-4 sentences). Basic calculator use for checking only.',
+    calculator: false,
+    decimals: false,
+  },
+  'grade_4': {
+    duration: '90 minutes',
+    marks: 50,
+    questionTypes: 'Paragraphs, essays (5-7 sentences), multiple choice, problem solving, data interpretation',
+    vocabulary: 'Grade-appropriate vocabulary, decimals to 1 place, basic fractions',
+    instructions: 'Reading passages (2-3 paragraphs). Essay writing with structure. Basic calculator allowed.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_5': {
+    duration: '90 minutes',
+    marks: 60,
+    questionTypes: 'Extended paragraphs, structured essays, complex problem solving, comprehension',
+    vocabulary: 'Intermediate vocabulary, decimals to 2 places, common fractions',
+    instructions: 'Multi-paragraph reading. Structured essays with introduction and conclusion. Calculator allowed.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_6': {
+    duration: '90 minutes',
+    marks: 75,
+    questionTypes: 'Essays with clear structure, data analysis, multi-step problem solving',
+    vocabulary: 'Advanced intermediate vocabulary, percentages, ratios, algebraic thinking',
+    instructions: 'Complex reading comprehension. Essay writing with planning. Calculator allowed except for mental math sections.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_7': {
+    duration: '2 hours',
+    marks: 75,
+    questionTypes: 'Analytical essays, data interpretation, multi-step problems, reasoning',
+    vocabulary: 'Grade 7 curriculum vocabulary, algebraic expressions, geometry',
+    instructions: 'Extended reading passages. Structured analytical writing. Scientific calculator allowed.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_8': {
+    duration: '2 hours',
+    marks: 100,
+    questionTypes: 'Analytical and creative writing, complex problem solving, research-based questions',
+    vocabulary: 'Grade 8 curriculum, algebra, functions, advanced grammar',
+    instructions: 'Critical thinking required. Extended essays with evidence. Scientific calculator allowed.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_9': {
+    duration: '2 hours',
+    marks: 100,
+    questionTypes: 'Critical analysis, extended essays, complex calculations, abstract reasoning',
+    vocabulary: 'Grade 9 curriculum, quadratics, trigonometry basics, formal language',
+    instructions: 'FET Phase preparation. Formal academic writing. Scientific calculator required.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_10': {
+    duration: '2.5 hours',
+    marks: 100,
+    questionTypes: 'FET formal exam format, extended responses, proofs, investigations',
+    vocabulary: 'Grade 10 curriculum, advanced algebra, trigonometry, analytical writing',
+    instructions: 'NSC preparation format. Extended essay responses. Scientific calculator required.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_11': {
+    duration: '3 hours',
+    marks: 150,
+    questionTypes: 'NSC format, research essays, complex multi-step problems, investigations',
+    vocabulary: 'Grade 11 curriculum, calculus introduction, advanced topics',
+    instructions: 'Full NSC exam format. University preparation. Scientific calculator required.',
+    calculator: true,
+    decimals: true,
+  },
+  'grade_12': {
+    duration: '3 hours',
+    marks: 150,
+    questionTypes: 'Full NSC Matric format, research essays, proofs, investigations, applications',
+    vocabulary: 'Grade 12 curriculum, calculus, statistics, formal academic language',
+    instructions: 'Official NSC Matric format. University-level expectations. Scientific calculator required.',
+    calculator: true,
+    decimals: true,
+  },
+};
+
 export function ExamPrepWidget({ onAskDashAI, guestMode = false }: ExamPrepWidgetProps) {
   const [selectedGrade, setSelectedGrade] = useState<string>('grade_9');
   const [selectedSubject, setSelectedSubject] = useState<string>('Mathematics');
   const [selectedExamType, setSelectedExamType] = useState<string>('practice_test');
+  const [selectedLanguage, setSelectedLanguage] = useState<SouthAfricanLanguage>('en-ZA');
 
   const getPhase = (grade: string): keyof typeof SUBJECTS_BY_PHASE => {
     if (grade === 'grade_r' || grade === 'grade_1' || grade === 'grade_2' || grade === 'grade_3') return 'foundation';
@@ -77,97 +210,135 @@ export function ExamPrepWidget({ onAskDashAI, guestMode = false }: ExamPrepWidge
 
     let prompt = '';
     let display = '';
+    
+    // Get language name and grade complexity
+    const languageName = LANGUAGE_OPTIONS[selectedLanguage];
+    const complexity = GRADE_COMPLEXITY[selectedGrade as keyof typeof GRADE_COMPLEXITY];
+    const isAdditionalLanguage = selectedSubject.includes('Additional');
+    const isFoundationPhase = phase === 'foundation';
 
     if (selectedExamType === 'practice_test') {
       prompt = `You are Dash, a South African education assistant specializing in CAPS (Curriculum and Assessment Policy Statement) curriculum.
 
-Generate a comprehensive practice examination paper for ${gradeInfo?.label} ${selectedSubject} strictly aligned to the CAPS curriculum.
+**IMPORTANT: Generate ALL content in ${languageName} (${selectedLanguage}). Use ONLY this language throughout the entire exam and memorandum. Do NOT switch languages unless the user explicitly requests it.**
 
-**Exam Specifications:**
-- Grade: ${gradeInfo?.label}
+**CRITICAL AGE-APPROPRIATE REQUIREMENTS:**
+- **Student Age**: ${gradeInfo?.age} years old
+- **Exam Duration**: ${complexity.duration} (STRICTLY ENFORCE - this is the attention span for this age group)
+- **Total Marks**: ${complexity.marks} MAXIMUM (do not exceed)
+- **Question Types**: ${complexity.questionTypes}
+- **Vocabulary Level**: ${complexity.vocabulary}
+- **Language Proficiency**: ${isAdditionalLanguage ? 'BEGINNER/ELEMENTARY - This is a FIRST ADDITIONAL LANGUAGE, assume students are just learning this language' : 'Age-appropriate home language proficiency'}
+- **Special Instructions**: ${complexity.instructions}
+- **Calculator Use**: ${complexity.calculator ? 'Allowed' : 'NOT ALLOWED - too young for calculator'}
+- **Decimal Places**: ${complexity.decimals ? 'Use 2 decimal places where needed' : 'NO DECIMALS - too advanced for this grade'}
+
+${isFoundationPhase ? `
+**FOUNDATION PHASE SPECIFIC REQUIREMENTS:**
+- Use EMOJIS and symbols to make it engaging (😊, 🐕, 🏠, 🎈)
+- Provide WORD BANKS for fill-in-the-blank questions
+- Use [PICTURE: description] to indicate where images should be shown
+- Keep ALL sentences under 5 words for Grade R-1
+- NO essay writing - max 1-2 sentences
+- NO abstract concepts
+- Focus on concrete, everyday objects and experiences
+` : ''}
+
+Generate an interactive, age-appropriate practice examination paper for ${gradeInfo?.label} ${selectedSubject} strictly aligned to the CAPS curriculum.
+
+**Exam Format:**
+- Grade: ${gradeInfo?.label} (Ages ${gradeInfo?.age})
 - Subject: ${selectedSubject}
 - Phase: ${phase === 'foundation' ? 'Foundation Phase' : phase === 'intermediate' ? 'Intermediate Phase' : phase === 'senior' ? 'Senior Phase' : 'FET Phase'}
-- Duration: ${gradeInfo?.value === 'grade_12' ? '3 hours' : gradeInfo?.value.includes('1') ? '2 hours' : '90 minutes'}
-- Total Marks: ${gradeInfo?.value === 'grade_12' ? '150' : gradeInfo?.value.includes('1') ? '100' : '75'}
+- Duration: ${complexity.duration}
+- Total Marks: ${complexity.marks}
 
-**CAPS Alignment Requirements:**
-- Strictly follow CAPS curriculum document for ${gradeInfo?.label} ${selectedSubject}
-- Include questions across all cognitive levels:
-  * Knowledge and Understanding (20-30%)
-  * Routine Procedures (30-40%)
-  * Complex Procedures (20-30%)
-  * Problem Solving and Reasoning (15-20%)
-- Cover all major topics from Term 3-4 assessments
-- Use South African context in word problems (ZAR currency, local geography, etc.)
-- Follow official Department of Basic Education exam format
+**CAPS Curriculum Alignment:**
+- Follow ${gradeInfo?.label} CAPS document exactly
+- Use South African context (ZAR currency, local places, culturally relevant examples)
+- ${isFoundationPhase ? 'Focus on play-based learning and visual recognition' : 'Balance knowledge, application, and reasoning'}
 
-**Output Structure:**
+**Output Structure (INTERACTIVE FORMAT):**
 
-# DEPARTMENT OF BASIC EDUCATION
+# 🎓 DEPARTMENT OF BASIC EDUCATION
 # ${gradeInfo?.label} ${selectedSubject}
 # PRACTICE EXAMINATION ${new Date().getFullYear()}
 
 **INSTRUCTIONS:**
+${isFoundationPhase ? `
+1. Listen to your teacher read the questions
+2. Point to or circle the correct answer
+3. Ask for help if you need it
+4. Take your time - there is no rush
+` : `
 1. Answer ALL questions
-2. Show all working clearly
-3. Round off to TWO decimal places where necessary
-4. Write neatly and legibly
-5. You may use an approved calculator (except for ${selectedSubject === 'Mathematics' ? 'Section A' : 'specified sections'})
+2. ${complexity.calculator ? 'You may use a calculator' : 'Work without a calculator'}
+3. ${complexity.decimals ? 'Round to 2 decimal places where needed' : 'Show all your work'}
+4. Write neatly and clearly
+`}
 
-**TIME:** [Duration]  
-**MARKS:** [Total]
+**TIME:** ${complexity.duration}
+**MARKS:** ${complexity.marks}
 
 ---
 
-## SECTION A: [Topic/Type]
-[Questions with clear mark allocation]
+## SECTION A: [Simple topic appropriate for age]
 
-## SECTION B: [Topic/Type]
-[Questions with clear mark allocation]
+**Question 1.** [Simple, clear question with (X marks)]
+${isFoundationPhase ? '[PICTURE: simple everyday object]' : ''}
+${complexity.questionTypes.includes('word bank') ? `
+**Word Bank:** [word1] [word2] [word3]
+` : ''}
 
-[Continue with remaining sections...]
+[Continue with ${complexity.marks / 2} questions max]
+
+---
+
+## SECTION B: [Another age-appropriate topic]
+
+[Continue with remaining questions - keep total under ${complexity.marks} marks]
 
 ---
 
 # MARKING MEMORANDUM
 
 ## SECTION A
-**Question 1:** [Marks]
-- Step 1: [Working] ✓ (1 mark)
-- Step 2: [Working] ✓ (1 mark)
-- Final Answer: [Answer] ✓✓ (2 marks)
-- **Total: X marks**
+**Question 1:** (X marks)
+- Correct answer: [simple, clear answer] ✓
+${isFoundationPhase ? '- Accept phonetic spelling for Foundation Phase' : '- Award marks for method and answer'}
 
-[Complete memorandum with detailed solutions, mark allocation, and assessment rubrics]
+[Complete memo for all questions]
 
 ---
 
 ## PARENT/TEACHER GUIDANCE
 
-**Key Concepts Assessed:**
-- [List main topics covered]
+**Age-Appropriate Expectations for ${gradeInfo?.label} (${gradeInfo?.age} years):**
+- Students at this age can: [realistic capabilities]
+- Common developmental stage: [appropriate level]
 
-**Common Mistakes to Watch For:**
-- [Common errors students make]
+**Key Concepts Assessed:**
+- [Age-appropriate topics]
+
+**Support Tips:**
+- ${isFoundationPhase ? 'Read questions aloud, allow pointing/verbal answers, use lots of encouragement' : 'Provide quiet space, encourage showing work, help with time management'}
+- ${isAdditionalLanguage ? 'Remember: This is a new language for them - focus on basic vocabulary and simple sentences' : 'Age-appropriate language support'}
 
 **Assessment Criteria:**
-- 80-100%: Outstanding achievement
-- 70-79%: Meritorious achievement
-- 60-69%: Substantial achievement
-- 50-59%: Adequate achievement
-- 40-49%: Moderate achievement
-- 0-39%: Not achieved
-
-**Study Tips for This Paper:**
-- [Specific advice for preparation]
+- 80-100%: Outstanding
+- 60-79%: Good progress
+- 40-59%: Developing
+- Below 40%: Needs support
 
 ---
 
-© ${new Date().getFullYear()} EduDash Pro • CAPS-Aligned Educational Resources`;
+© ${new Date().getFullYear()} EduDash Pro • Age-Appropriate CAPS-Aligned Resources`;
 
-      display = `Practice Test: ${gradeInfo?.label} ${selectedSubject} • CAPS-Aligned Exam Paper with Marking Memo`;
+      display = `Practice Test: ${gradeInfo?.label} ${selectedSubject} • CAPS-Aligned Exam Paper with Marking Memo (${languageName})`;
     } else if (selectedExamType === 'revision_notes') {
       prompt = `You are Dash, a South African education assistant specializing in CAPS curriculum.
+
+**IMPORTANT: Generate ALL content in ${languageName} (${selectedLanguage}). Use ONLY this language throughout the entire document. Do NOT switch languages.**
 
 Generate comprehensive revision notes for ${gradeInfo?.label} ${selectedSubject} aligned to CAPS Term 4 assessment topics.
 
@@ -223,9 +394,11 @@ Generate comprehensive revision notes for ${gradeInfo?.label} ${selectedSubject}
 
 © ${new Date().getFullYear()} EduDash Pro • CAPS-Aligned Revision Resources`;
 
-      display = `Revision Notes: ${gradeInfo?.label} ${selectedSubject} • CAPS Term 4 Focus Areas`;
+      display = `Revision Notes: ${gradeInfo?.label} ${selectedSubject} • CAPS Term 4 Focus Areas (${languageName})`;
     } else if (selectedExamType === 'study_guide') {
       prompt = `You are Dash, a South African education assistant specializing in CAPS curriculum.
+
+**IMPORTANT: Generate ALL content in ${languageName} (${selectedLanguage}). Use ONLY this language throughout the entire study guide. Do NOT switch languages.**
 
 Generate a 7-day intensive study schedule for ${gradeInfo?.label} ${selectedSubject} exam preparation aligned to CAPS curriculum.
 
@@ -347,9 +520,11 @@ Generate a 7-day intensive study schedule for ${gradeInfo?.label} ${selectedSubj
 
 © ${new Date().getFullYear()} EduDash Pro • CAPS-Aligned Study Resources`;
 
-      display = `Study Guide: ${gradeInfo?.label} ${selectedSubject} • 7-Day Exam Preparation Plan`;
+      display = `Study Guide: ${gradeInfo?.label} ${selectedSubject} • 7-Day Exam Preparation Plan (${languageName})`;
     } else if (selectedExamType === 'flashcards') {
       prompt = `You are Dash, a South African education assistant specializing in CAPS curriculum.
+
+**IMPORTANT: Generate ALL content in ${languageName} (${selectedLanguage}). Use ONLY this language for all flashcard content. Do NOT switch languages.**
 
 Generate 30 flashcards for ${gradeInfo?.label} ${selectedSubject} covering essential exam concepts aligned to CAPS curriculum.
 
@@ -414,10 +589,13 @@ Generate 30 flashcards for ${gradeInfo?.label} ${selectedSubject} covering essen
 
 © ${new Date().getFullYear()} EduDash Pro • CAPS-Aligned Study Resources`;
 
-      display = `Flashcards: ${gradeInfo?.label} ${selectedSubject} • 30 Essential CAPS Concepts`;
+      display = `Flashcards: ${gradeInfo?.label} ${selectedSubject} • 30 Essential CAPS Concepts (${languageName})`;
     }
+    
+    // For practice tests, enable interactive mode
+    const isInteractive = selectedExamType === 'practice_test';
 
-    onAskDashAI(prompt, display);
+    onAskDashAI(prompt, display, selectedLanguage, isInteractive);
   };
 
   return (
@@ -470,6 +648,36 @@ Generate 30 flashcards for ${gradeInfo?.label} ${selectedSubject} covering essen
             </option>
           ))}
         </select>
+      </div>
+
+      {/* Language Selector */}
+      <div style={{ marginBottom: 'var(--space-4)' }}>
+        <label style={{ display: 'block', fontWeight: 600, marginBottom: 'var(--space-2)', fontSize: 14 }}>
+          <Globe className="w-4 h-4" style={{ display: 'inline', verticalAlign: 'middle', marginRight: 6 }} />
+          Select Language
+        </label>
+        <select
+          value={selectedLanguage}
+          onChange={(e) => setSelectedLanguage(e.target.value as SouthAfricanLanguage)}
+          style={{
+            width: '100%',
+            padding: 'var(--space-3)',
+            borderRadius: 'var(--radius-2)',
+            border: '1px solid var(--border)',
+            background: 'var(--surface)',
+            color: 'var(--text)',
+            fontSize: 14
+          }}
+        >
+          {Object.entries(LANGUAGE_OPTIONS).map(([code, name]) => (
+            <option key={code} value={code}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <p className="muted" style={{ fontSize: 11, marginTop: 'var(--space-2)' }}>
+          🇿🇦 All exam content will be generated in your selected language
+        </p>
       </div>
 
       {/* Subject Selector */}

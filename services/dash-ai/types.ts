@@ -735,3 +735,122 @@ export interface DecisionRecord {
   createdAt: number;
   context: Record<string, any>;  // Full context for decision
 }
+
+// ============================================================================
+// 7. TOOL REGISTRY TYPES (Agentic Function Calling)
+// ============================================================================
+
+/**
+ * Tool category classification
+ */
+export type ToolCategory = 'database' | 'navigation' | 'file' | 'communication' | 'report' | 'analysis';
+
+/**
+ * Tool parameter definition for function calling
+ */
+export interface ToolParameter {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  description: string;
+  required: boolean;
+  enum?: string[]; // Allowed values
+  default?: any;
+  validation?: {
+    min?: number;
+    max?: number;
+    pattern?: string;
+    maxLength?: number;
+  };
+}
+
+/**
+ * Tool execution result
+ */
+export interface ToolExecutionResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  metadata?: {
+    executionTime?: number;
+    rowsAffected?: number;
+    cached?: boolean;
+  };
+}
+
+/**
+ * Context provided to tool during execution
+ */
+export interface ToolExecutionContext {
+  userId: string;
+  preschoolId: string | null;
+  role: string;
+  tier: string;
+  sessionToken?: string;
+  
+  // For database tools
+  supabaseClient?: any;
+  
+  // For navigation tools
+  navigate?: (route: string) => void;
+  
+  // For file tools
+  fileSystem?: any;
+}
+
+/**
+ * Tool definition for Claude function calling
+ * 
+ * **Purpose**: Define autonomous functions Dash can call
+ * **Used By**: ai-proxy Edge Function, Tool Registry
+ * **Examples**: Database queries, navigation, file operations
+ */
+export interface Tool {
+  id: string;
+  name: string;
+  description: string;
+  category: ToolCategory;
+  riskLevel: RiskLevel;
+  
+  // Role-based access control
+  allowedRoles: Array<'parent' | 'teacher' | 'principal' | 'superadmin'>;
+  
+  // Subscription tier requirements
+  requiredTier?: 'free' | 'starter' | 'basic' | 'premium' | 'pro' | 'enterprise';
+  
+  // Parameters this tool accepts
+  parameters: ToolParameter[];
+  
+  // Claude tool use format (Anthropic API)
+  claudeToolDefinition: {
+    name: string;
+    description: string;
+    input_schema: {
+      type: 'object';
+      properties: Record<string, any>;
+      required: string[];
+    };
+  };
+  
+  // Execution function (server-side only)
+  execute: (params: Record<string, any>, context: ToolExecutionContext) => Promise<ToolExecutionResult>;
+}
+
+/**
+ * Tool execution request (client → server)
+ */
+export interface ToolExecutionRequest {
+  toolId: string;
+  parameters: Record<string, any>;
+  context: ToolExecutionContext;
+}
+
+/**
+ * Tool registry statistics
+ */
+export interface ToolRegistryStats {
+  totalTools: number;
+  toolsByCategory: Record<ToolCategory, number>;
+  toolsByRisk: Record<RiskLevel, number>;
+  recentExecutions: number;
+  successRate: number;
+}

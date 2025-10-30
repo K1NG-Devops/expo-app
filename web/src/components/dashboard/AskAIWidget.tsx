@@ -1,21 +1,29 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Bot } from 'lucide-react';
+import { X, Send, Bot, Database, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { parseExamMarkdown } from '@/lib/examParser';
+import { ExamInteractiveView } from './exam-prep/ExamInteractiveView';
 
 interface AskAIWidgetProps {
   inline?: boolean;
   initialPrompt?: string;
   displayMessage?: string; // what to show to the user (sanitized)
   fullscreen?: boolean;
+  language?: string; // Language code (e.g., 'en-ZA', 'af-ZA', 'zu-ZA')
+  enableInteractive?: boolean; // Enable interactive exam parsing for practice tests
 }
 
-export function AskAIWidget({ inline = true, initialPrompt, displayMessage, fullscreen = false }: AskAIWidgetProps) {
+export function AskAIWidget({ inline = true, initialPrompt, displayMessage, fullscreen = false, language = 'en-ZA', enableInteractive = false }: AskAIWidgetProps) {
   const [open, setOpen] = useState(inline);
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant' | 'tool'; text: string; tool?: any }[]>([]);
   const [hasProcessedInitial, setHasProcessedInitial] = useState(false);
+  const [interactiveExam, setInteractiveExam] = useState<any>(null);
+  const [isExecutingTool, setIsExecutingTool] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Auto-populate and send initial prompt
@@ -40,15 +48,54 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
         const token = sessionData.session?.access_token;
         const { data, error } = await supabase.functions.invoke('ai-proxy', {
           body: {
-            prompt: initialPrompt,
-            context: 'caps_activity',
-            source: 'parent_dashboard',
+            scope: 'parent',
+            service_type: 'homework_help',
+            enable_tools: true,  // Enable agentic mode
+            payload: {
+              prompt: initialPrompt,
+              context: 'caps_exam_preparation',
+              metadata: {
+                source: 'parent_dashboard',
+                feature: 'exam_prep',
+                language: language || 'en-ZA'
+              }
+            },
+            metadata: {
+              role: 'parent'  // Pass role for tool access control
+            }
           },
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
         if (error) throw error;
-        const content = typeof data === 'string' ? data : (data?.content ?? JSON.stringify(data));
-        setMessages((m) => [...m, { role: 'assistant', text: content }]);
+        
+        // Handle ai-proxy response format with tool execution
+        if (data?.tool_use && data?.tool_results) {
+          // Tool was executed - show tool execution
+          setMessages((m) => [
+            ...m,
+            { 
+              role: 'tool', 
+              text: `🔍 Executed: ${data.tool_use[0]?.name}`,
+              tool: {
+                name: data.tool_use[0]?.name,
+                results: data.tool_results[0]
+              }
+            }
+          ]);
+        }
+        
+        const content = data?.content || data?.error?.message || 'No response from AI';
+        if (content) {
+          setMessages((m) => [...m, { role: 'assistant', text: content }]);
+        }
+        
+        // If interactive mode is enabled, try to parse exam
+        if (enableInteractive && content) {
+          const parsedExam = parseExamMarkdown(content);
+          if (parsedExam) {
+            setInteractiveExam(parsedExam);
+          }
+        }
       } catch (err: any) {
         setMessages((m) => [...m, { role: 'assistant', text: 'Sorry, I could not generate the activity right now.' }]);
       } finally {
@@ -63,6 +110,7 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
     if (!text) return;
     setMessages((m) => [...m, { role: 'user', text }]);
     setInput('');
+    setIsExecutingTool(true);
 
     const supabase = createClient();
     try {
@@ -74,15 +122,51 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       const { data, error } = await supabase.functions.invoke('ai-proxy', {
-        body: { prompt: text, context: 'general', source: 'dashboard' },
+        body: {
+          scope: 'parent',
+          service_type: 'homework_help',
+          enable_tools: true,  // Enable agentic mode
+          payload: {
+            prompt: text,
+            context: 'general_question',
+            metadata: {
+              source: 'dashboard',
+              language: language || 'en-ZA'
+            }
+          },
+          metadata: {
+            role: 'parent'  // Pass role for tool access control
+          }
+        },
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
       if (error) throw error;
-      const content = typeof data === 'string' ? data : (data?.content ?? JSON.stringify(data));
-      setMessages((m) => [...m, { role: 'assistant', text: content }]);
+      
+      // Handle ai-proxy response format with tool execution
+      if (data?.tool_use && data?.tool_results) {
+        // Tool was executed - show tool execution
+        setMessages((m) => [
+          ...m,
+          { 
+            role: 'tool', 
+            text: `🔍 Queried database: ${data.tool_use[0]?.input?.query_type}`,
+            tool: {
+              name: data.tool_use[0]?.name,
+              input: data.tool_use[0]?.input,
+              results: JSON.parse(data.tool_results[0]?.content || '{}')
+            }
+          }
+        ]);
+      }
+      
+      const content = data?.content || data?.error?.message || 'No response from AI';
+      if (content) {
+        setMessages((m) => [...m, { role: 'assistant', text: content }]);
+      }
     } catch (err: any) {
       setMessages((m) => [...m, { role: 'assistant', text: 'Sorry, I could not process that right now.' }]);
     } finally {
+      setIsExecutingTool(false);
       scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
     }
   };
@@ -119,11 +203,29 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
           )}
           {messages.map((m, i) => (
             <div key={i} className={`text-sm leading-relaxed flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <span className={`inline-block rounded-2xl px-3 py-2 shadow-lg ${m.role === 'user' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white' : 'bg-white/5 border border-white/10 text-gray-200 backdrop-blur'}`}>
-                {m.text}
-              </span>
+              {m.role === 'tool' ? (
+                <div className="w-full bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-blue-300">{m.text}</span>
+                  {m.tool?.results?.row_count !== undefined && (
+                    <span className="ml-auto text-xs text-blue-400 font-semibold">
+                      ✓ {m.tool.results.row_count} results
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className={`inline-block rounded-2xl px-3 py-2 shadow-lg ${m.role === 'user' ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white' : 'bg-white/5 border border-white/10 text-gray-200 backdrop-blur'}`}>
+                  {m.text}
+                </span>
+              )}
             </div>
           ))}
+          {isExecutingTool && (
+            <div className="flex items-center gap-2 text-xs text-gray-400">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Executing tool...</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2 p-3 border-t border-gray-800">
           <input
@@ -143,6 +245,18 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
 
   // Fullscreen mode
   if (fullscreen) {
+    // If interactive exam is available, show it instead
+    if (interactiveExam) {
+      return (
+        <div style={{ height: '100%', overflowY: 'auto' }}>
+          <ExamInteractiveView
+            exam={interactiveExam}
+            onClose={() => setInteractiveExam(null)}
+          />
+        </div>
+      );
+    }
+    
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--background)' }}>
         {/* Messages area */}
@@ -165,9 +279,9 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
                     border: m.role === 'user' ? 'none' : '1px solid var(--border)'
                   }}
                 >
-                  <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                    {m.text}
-                  </p>
+                  <div style={{ margin: 0, lineHeight: 1.7 }} className="markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+                  </div>
                 </div>
               </div>
             ))}

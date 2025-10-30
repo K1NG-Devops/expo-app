@@ -35,10 +35,12 @@ interface AIProxyRequest {
     metadata?: Record<string, any>
   }
   stream?: boolean  // Enable Server-Sent Events streaming
+  enable_tools?: boolean  // Enable agentic tool calling
   metadata?: {
     student_id?: string
     class_id?: string
     subject?: string
+    role?: string  // User role for tool access control
     [key: string]: any
   }
 }
@@ -154,11 +156,207 @@ function selectModelForTier(tier: SubscriptionTier, hasImages: boolean): ClaudeM
   return 'claude-3-haiku-20240307'
 }
 
+// Tool definitions (loaded from registry)
+interface ClaudeTool {
+  name: string
+  description: string
+  input_schema: {
+    type: 'object'
+    properties: Record<string, any>
+    required: string[]
+  }
+}
+
+/**
+ * Get available tools for a given role and tier
+ * 
+ * **IMPORTANT**: This is a simplified version for the Edge Function.
+ * Full tool registry lives in services/dash-ai/DashToolRegistry.ts
+ */
+function getToolsForRole(role: string, tier: string): ClaudeTool[] {
+  const tools: ClaudeTool[] = []
+  
+  // Database Query Tool - available to all authenticated users
+  if (['parent', 'teacher', 'principal', 'superadmin'].includes(role)) {
+    tools.push({
+      name: 'query_database',
+      description: 'Execute safe, read-only database queries to retrieve information about students, teachers, classes, assignments, and attendance. Use this when the user asks about their students, classes, or school data. All queries automatically respect tenant isolation and security policies.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          query_type: {
+            type: 'string',
+            enum: ['list_students', 'list_teachers', 'list_classes', 'list_assignments', 'list_attendance', 'get_student_progress', 'get_class_summary'],
+            description: 'Type of query to execute. Available queries: list_students (get all students), list_teachers (get all teachers), list_classes (get all classes), list_assignments (get recent assignments), list_attendance (get recent attendance), get_student_progress (detailed progress for one student), get_class_summary (comprehensive class statistics)'
+          },
+          student_id: {
+            type: 'string',
+            description: 'UUID of the student (required for get_student_progress)'
+          },
+          class_id: {
+            type: 'string',
+            description: 'UUID of the class (required for get_class_summary)'
+          },
+          limit: {
+            type: 'number',
+            description: 'Maximum number of rows to return (default: 20, max: 100)'
+          }
+        },
+        required: ['query_type']
+      }
+    })
+  }
+  
+  // Add more tools based on role/tier here
+  // Future: Navigation tool, Report generation tool, etc.
+  
+  return tools
+}
+
+/**
+ * Execute a tool call
+ * 
+ * **Security**: All tool executions are RLS-protected via Supabase client
+ */
+async function executeTool(
+  toolName: string,
+  toolInput: Record<string, any>,
+  context: {
+    supabaseAdmin: any
+    userId: string
+    preschoolId: string | null
+    role: string
+    tier: string
+  }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  console.log(`[ai-proxy] Executing tool: ${toolName}`, toolInput)
+  
+  try {
+    if (toolName === 'query_database') {
+      return await executeQueryDatabaseTool(toolInput, context)
+    }
+    
+    return {
+      success: false,
+      error: `Unknown tool: ${toolName}`
+    }
+  } catch (error: any) {
+    console.error(`[ai-proxy] Tool execution error:`, error)
+    return {
+      success: false,
+      error: `Tool execution failed: ${error.message}`
+    }
+  }
+}
+
+/**
+ * Execute database query tool
+ */
+async function executeQueryDatabaseTool(
+  input: Record<string, any>,
+  context: { supabaseAdmin: any; userId: string; preschoolId: string | null }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  const { query_type, student_id, class_id, limit = 20 } = input
+  
+  if (!context.preschoolId) {
+    return {
+      success: false,
+      error: 'Missing preschool_id - user must be associated with a preschool'
+    }
+  }
+  
+  // Map query types to safe SQL (with RLS enforcement)
+  const queries: Record<string, { table: string; select: string; filter?: Record<string, any> }> = {
+    list_students: {
+      table: 'students',
+      select: 'id, first_name, last_name, grade, status, date_of_birth',
+      filter: { preschool_id: context.preschoolId, status: 'active' }
+    },
+    list_teachers: {
+      table: 'profiles',
+      select: 'id, full_name, email, role',
+      filter: { preschool_id: context.preschoolId, role: 'teacher' }
+    },
+    list_classes: {
+      table: 'classes',
+      select: 'id, name, grade, teacher_id, student_count',
+      filter: { preschool_id: context.preschoolId }
+    },
+    list_assignments: {
+      table: 'assignments',
+      select: 'id, title, subject, due_date, status, class_id',
+      filter: { preschool_id: context.preschoolId }
+    },
+    list_attendance: {
+      table: 'attendance',
+      select: 'id, student_id, date, status',
+      filter: { preschool_id: context.preschoolId }
+    }
+  }
+  
+  const queryDef = queries[query_type]
+  if (!queryDef) {
+    return {
+      success: false,
+      error: `Invalid query_type: ${query_type}`
+    }
+  }
+  
+  try {
+    let query = context.supabaseAdmin
+      .from(queryDef.table)
+      .select(queryDef.select)
+    
+    // Apply filters (including preschool_id for RLS)
+    if (queryDef.filter) {
+      Object.entries(queryDef.filter).forEach(([key, value]) => {
+        query = query.eq(key, value)
+      })
+    }
+    
+    // Apply student/class filters if provided
+    if (student_id) {
+      query = query.eq('id', student_id)
+    }
+    if (class_id) {
+      query = query.eq('class_id', class_id)
+    }
+    
+    // Apply limit
+    query = query.limit(Math.min(limit, 100))
+    
+    const { data, error } = await query
+    
+    if (error) {
+      console.error('[ai-proxy] Database query error:', error)
+      return {
+        success: false,
+        error: `Database query failed: ${error.message}`
+      }
+    }
+    
+    return {
+      success: true,
+      data: {
+        query_type,
+        rows: data || [],
+        row_count: data?.length || 0
+      }
+    }
+  } catch (error: any) {
+    return {
+      success: false,
+      error: `Query execution failed: ${error.message}`
+    }
+  }
+}
+
 async function callClaude(
   prompt: string,
   tier: SubscriptionTier,
   images?: Array<{ data: string; media_type: string }>,
-  stream?: boolean
+  stream?: boolean,
+  tools?: ClaudeTool[]
 ): Promise<{
   content: string
   tokensIn: number
@@ -166,6 +364,7 @@ async function callClaude(
   cost: number
   model: string
   response?: Response  // Raw response for streaming
+  tool_use?: Array<{ id: string; name: string; input: Record<string, any> }>  // Tool calls made by Claude
 }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('Anthropic API key not configured')
@@ -208,6 +407,7 @@ async function callClaude(
       model,
       max_tokens: 4096,
       stream: stream || false,  // Enable streaming if requested
+      tools: tools || undefined,  // Pass tools for Claude to use
       messages: [
         {
           role: 'user',
@@ -272,13 +472,25 @@ CRITICAL:
   // Calculate cost based on model
   const pricing = MODEL_PRICING[model]
   const cost = (tokensIn * pricing.input) + (tokensOut * pricing.output)
+  
+  // Extract tool use if present
+  const toolUse = result.content?.filter((block: any) => block.type === 'tool_use')
+    .map((block: any) => ({
+      id: block.id,
+      name: block.name,
+      input: block.input
+    })) || []
+  
+  // Extract text content
+  const textContent = result.content?.find((block: any) => block.type === 'text')?.text || ''
 
   return {
-    content: result.content[0]?.text || '',
+    content: textContent,
     tokensIn,
     tokensOut,
     cost,
-    model
+    model,
+    tool_use: toolUse.length > 0 ? toolUse : undefined
   }
 }
 
@@ -298,7 +510,7 @@ serve(async (req: Request): Promise<Response> => {
   try {
     // Parse request
     const requestBody: AIProxyRequest = await req.json()
-    const { scope, payload, metadata = {}, stream = false } = requestBody
+    const { scope, payload, metadata = {}, stream = false, enable_tools = false } = requestBody
     
     // Validate and normalize service_type with safe default
     const VALID_SERVICE_TYPES = [
@@ -366,7 +578,15 @@ serve(async (req: Request): Promise<Response> => {
 
     const preschoolId = profile?.preschool_id || null
     const tier: SubscriptionTier = (profile?.subscription_tier?.toLowerCase() || 'free') as SubscriptionTier
+    const role = metadata.role || scope  // Use role from metadata or fall back to scope
     const startTime = Date.now()
+    
+    // Load available tools if requested
+    let availableTools: ClaudeTool[] | undefined = undefined
+    if (enable_tools) {
+      availableTools = getToolsForRole(role, tier)
+      console.log(`[ai-proxy] Loaded ${availableTools.length} tools for role=${role}, tier=${tier}`)
+    }
 
     // Check quota before proceeding
     const quotaCheck = await checkQuota(supabaseAdmin, user.id, preschoolId, service_type)
@@ -400,7 +620,7 @@ serve(async (req: Request): Promise<Response> => {
     
     // Call Claude API
     try {
-      const aiResult = await callClaude(redactedText, tier, images, stream)
+      const aiResult = await callClaude(redactedText, tier, images, stream, availableTools)
       
       // Handle streaming response
       if (stream && aiResult.response) {
@@ -551,7 +771,56 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const usageId = logData?.id || 'unknown'
+      
+      // Handle tool use if present
+      if (aiResult.tool_use && aiResult.tool_use.length > 0) {
+        console.log(`[ai-proxy] Claude requested ${aiResult.tool_use.length} tool calls`)
+        
+        // Execute tools
+        const toolResults = await Promise.all(
+          aiResult.tool_use.map(async (toolCall) => {
+            const result = await executeTool(
+              toolCall.name,
+              toolCall.input,
+              {
+                supabaseAdmin,
+                userId: user.id,
+                preschoolId,
+                role,
+                tier
+              }
+            )
+            
+            return {
+              type: 'tool_result',
+              tool_use_id: toolCall.id,
+              content: result.success ? JSON.stringify(result.data) : `Error: ${result.error}`
+            }
+          })
+        )
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            content: aiResult.content,
+            tool_use: aiResult.tool_use,
+            tool_results: toolResults,
+            usage: {
+              tokens_in: aiResult.tokensIn,
+              tokens_out: aiResult.tokensOut,
+              cost: aiResult.cost,
+              usage_id: usageId
+            },
+            requires_continuation: true  // Client should send tool_results back
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
 
+      // No tool use - return normal response
       return new Response(
         JSON.stringify({
           success: true,

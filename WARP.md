@@ -4,9 +4,14 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## 🎯 Project Overview
 
-EduDash Pro is a React Native (Expo) mobile-first educational dashboard platform targeting South African preschools. It's architected as a multi-tenant SaaS with PostgreSQL/Supabase backend, focusing on student-teacher-parent engagement with AI enhancement.
+EduDash Pro is a React Native (Expo) mobile-first educational platform for South African learners, parents, and educators. It serves multiple organization types (schools, preschools, districts, tutoring centers) and supports **independent users** (parents without school affiliation). Architected as a multi-tenant SaaS with PostgreSQL/Supabase backend, focusing on student-teacher-parent engagement with AI enhancement.
 
 **Golden Rule**: Always design with students, teachers, and parents at the center. Every feature must make education simpler, smarter, and more engaging.
+
+**User Types**:
+- **Affiliated Users**: Connected to schools, preschools, or organizations
+- **Independent Users**: Parents/students using the app for self-study and exam prep (no organization)
+- **Guest Users**: Temporary access for app evaluation before signup
 
 ## 🔨 Common Development Commands
 
@@ -96,9 +101,13 @@ npm run setup-rls         # RLS policies setup
 ### Core Architecture Patterns
 
 **Multi-Tenant Security Model**
-- Every database query filtered by `preschool_id`
-- Strict RLS policies enforcing data isolation
-- Role-based access control (RBAC): superadmin, principal, teacher, parent
+- **Organization-Agnostic**: Supports `organization_id` (schools, preschools, districts) AND independent users (null organization)
+- **Flexible RLS Policies**: Data isolation by organization when applicable, personal data isolation for independent users
+- **Role-Based Access Control (RBAC)**: superadmin, principal, teacher, parent, independent_user
+- **Tenant Isolation Strategy**:
+  - Affiliated users: Filter by `organization_id` (or legacy `preschool_id`)
+  - Independent users: Filter by `user_id` only (organization_id is NULL)
+  - Guest users: Access to public/demo data only
 - Superadmin operations use service role server-side only
 
 **Mobile-First Design**
