@@ -157,6 +157,9 @@ Once approved, you'll see ${childName} in your dashboard.`);
       setSubmitting(null);
     }
   };
+
+  return (
+    <ParentShell tenantSlug={slug} userEmail={email}>
       <div className="container">
         <div className="section">
           <h1 className="h1">Search & Claim Child</h1>
