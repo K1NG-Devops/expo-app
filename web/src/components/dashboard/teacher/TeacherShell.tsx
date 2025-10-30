@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   Menu,
   X,
+  Activity,
 } from 'lucide-react';
 import { TierBadge } from '@/components/ui/TierBadge';
 
@@ -29,6 +30,8 @@ interface TeacherShellProps {
   userId?: string;
   unreadCount?: number;
   children: React.ReactNode;
+  rightSidebar?: React.ReactNode;
+  onOpenDashAI?: () => void;
 }
 
 export function TeacherShell({ 
@@ -39,13 +42,21 @@ export function TeacherShell({
   preschoolId,
   userId,
   unreadCount = 0, 
-  children 
+  children,
+  rightSidebar,
+  onOpenDashAI 
 }: TeacherShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
   const avatarLetter = useMemo(() => (userName?.[0] || userEmail?.[0] || 'T').toUpperCase(), [userName, userEmail]);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileWidgetsOpen, setMobileWidgetsOpen] = useState(false);
+  
+  // Count pending notifications/activity
+  const activityCount = useMemo(() => {
+    return unreadCount > 0 ? unreadCount : 0;
+  }, [unreadCount]);
 
   const nav = [
     { href: '/dashboard/teacher', label: 'Dashboard', icon: LayoutDashboard },
@@ -65,14 +76,15 @@ export function TeacherShell({
         <div className="topbarRow topbarEdge">
           <div className="leftGroup">
             <button 
-              className="iconBtn md:hidden" 
+              className="iconBtn mobile-nav-btn" 
               aria-label="Menu" 
-              onClick={() => setMobileMenuOpen(true)}
+              onClick={() => setMobileNavOpen(true)}
+              style={{ display: 'none' }}
             >
               <Menu className="icon20" />
             </button>
             {showBackButton && (
-              <button className="iconBtn hidden md:flex" aria-label="Back" onClick={() => router.back()}>
+              <button className="iconBtn desktop-back-btn" aria-label="Back" onClick={() => router.back()}>
                 <ArrowLeft className="icon20" />
               </button>
             )}
@@ -86,18 +98,29 @@ export function TeacherShell({
             )}
           </div>
           <div className="rightGroup" style={{ marginLeft: 'auto' }}>
-            <TierBadge preschoolId={preschoolId} userId={userId} size="sm" showUpgrade />
-            <button className="iconBtn" aria-label="Notifications">
-              <Bell className="icon20" />
-            </button>
-            <button
-              className="avatar" 
-              style={{ cursor: 'pointer', border: 'none', background: 'none' }}
-              onClick={() => router.push('/dashboard/teacher/settings')}
-              aria-label="Profile Settings"
-            >
-              {avatarLetter}
-            </button>
+            {rightSidebar && (
+              <button 
+                className="iconBtn" 
+                aria-label="Activity" 
+                onClick={() => setMobileWidgetsOpen(true)}
+                style={{ position: 'relative' }}
+              >
+                <Activity className="icon20" />
+                {activityCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    width: 8,
+                    height: 8,
+                    background: '#dc2626',
+                    borderRadius: '50%',
+                    border: '2px solid var(--surface-1)',
+                  }} />
+                )}
+              </button>
+            )}
+            <div className="avatar">{avatarLetter}</div>
           </div>
         </div>
       </header>
@@ -136,70 +159,206 @@ export function TeacherShell({
         <main className="content">
           {children}
         </main>
+
+        {rightSidebar && (
+          <aside className="right sticky" aria-label="Activity">
+            {rightSidebar}
+          </aside>
+        )}
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setMobileMenuOpen(false)}
-            aria-hidden
+      {/* Mobile Navigation Drawer (Left Sidebar) */}
+      {mobileNavOpen && (
+        <>
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.85)',
+              zIndex: 9998,
+              display: 'none',
+            }}
+            className="mobile-nav-overlay"
+            onClick={() => setMobileNavOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-80 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border-r border-slate-700/60 shadow-2xl rounded-r-2xl flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/60">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">🎓</div>
-                <div>
-                  <div className="text-sm font-bold text-white truncate max-w-[160px]">
-                    {preschoolName || 'EduDash Pro'}
-                  </div>
-                  <div className="text-xs text-blue-400 capitalize font-semibold">Teacher</div>
-                </div>
-              </div>
-              <button
-                aria-label="Close menu"
-                onClick={() => setMobileMenuOpen(false)}
-                className="p-2 rounded-xl hover:bg-slate-800/60 text-slate-300 border border-slate-700/40 transition-all duration-200"
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: '80%',
+              maxWidth: 320,
+              background: 'var(--surface-1)',
+              zIndex: 9999,
+              overflowY: 'auto',
+              padding: 'var(--space-4)',
+              display: 'none',
+              animation: 'slideInLeft 0.3s ease-out',
+            }}
+            className="mobile-nav-drawer"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Menu</h3>
+              <button 
+                onClick={() => setMobileNavOpen(false)}
+                className="iconBtn"
+                aria-label="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="icon20" />
               </button>
             </div>
-            <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+            
+            {/* Navigation Links */}
+            <nav className="nav" style={{ display: 'grid', gap: 6 }}>
               {nav.map((it) => {
                 const Icon = it.icon as any;
                 const active = pathname === it.href || pathname?.startsWith(it.href + '/');
                 return (
-                  <button
-                    key={it.href}
-                    onClick={() => { setMobileMenuOpen(false); router.push(it.href); }}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-all duration-200 ${
-                      active
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg'
-                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent hover:border-slate-700/40'
-                    }`}
+                  <Link 
+                    key={it.href} 
+                    href={it.href} 
+                    className={`navItem ${active ? 'navItemActive' : ''}`}
+                    onClick={() => setMobileNavOpen(false)}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="font-semibold text-sm truncate">{it.label}</span>
+                    <Icon className="navIcon" />
+                    <span>{it.label}</span>
                     {typeof it.badge === 'number' && it.badge > 0 && (
-                      <span className="ml-auto px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">{it.badge}</span>
+                      <span className="navItemBadge badgeNumber">{it.badge}</span>
                     )}
-                  </button>
+                  </Link>
                 );
               })}
             </nav>
-            <div className="px-4 pb-5 pt-4 border-t border-slate-700/60">
+            
+            {/* Footer */}
+            <div style={{ marginTop: 'auto', paddingTop: 'var(--space-4)' }}>
               <button
-                onClick={() => { setMobileMenuOpen(false); supabase.auth.signOut().then(() => router.push('/sign-in')); }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 text-red-400 hover:bg-red-900/30 rounded-xl transition-all duration-200 border border-transparent hover:border-red-800/40"
+                className="navItem"
+                style={{ width: '100%' }}
+                onClick={async () => { 
+                  await supabase.auth.signOut(); 
+                  router.push('/sign-in'); 
+                }}
               >
-                <LogOut className="w-5 h-5 flex-shrink-0" />
-                <span className="text-sm truncate font-semibold">Sign out</span>
+                <LogOut className="navIcon" />
+                <span>Sign out</span>
               </button>
+              <div className="brandPill" style={{ marginTop: 'var(--space-2)', width: '100%', textAlign: 'center' }}>Powered by EduDash Pro</div>
             </div>
           </div>
-        </div>
+        </>
       )}
+
+      {/* Mobile Widgets Drawer (Right Sidebar) */}
+      {rightSidebar && mobileWidgetsOpen && (
+        <>
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0, 0, 0, 0.85)',
+              zIndex: 9998,
+              display: 'none',
+            }}
+            className="mobile-widgets-overlay"
+            onClick={() => setMobileWidgetsOpen(false)}
+          />
+          <div 
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: '85%',
+              maxWidth: 400,
+              background: 'var(--surface-1)',
+              zIndex: 9999,
+              display: 'flex',
+              flexDirection: 'column',
+              animation: 'slideInRight 0.3s ease-out',
+            }}
+            className="mobile-widgets-drawer"
+          >
+            {/* Sticky Header */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: 'var(--space-4)',
+              borderBottom: '1px solid var(--border)',
+              flexShrink: 0,
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Activity & Updates</h3>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Notifications and recent activity</p>
+              </div>
+              <button 
+                onClick={() => setMobileWidgetsOpen(false)}
+                className="iconBtn"
+                aria-label="Close"
+              >
+                <X className="icon20" />
+              </button>
+            </div>
+            
+            {/* Scrollable Content */}
+            <div style={{ 
+              flex: 1, 
+              overflowY: 'auto', 
+              padding: 'var(--space-4)',
+              WebkitOverflowScrolling: 'touch',
+            }}>
+              {rightSidebar}
+            </div>
+          </div>
+        </>
+      )}
+
+      <style jsx>{`
+        @media (max-width: 1023px) {
+          /* Show mobile navigation button */
+          .mobile-nav-btn {
+            display: grid !important;
+          }
+          /* Hide desktop back button on mobile, use hamburger instead */
+          .desktop-back-btn {
+            display: none !important;
+          }
+          /* Show overlays and drawers */
+          .mobile-nav-overlay,
+          .mobile-nav-drawer,
+          .mobile-widgets-overlay {
+            display: block !important;
+          }
+          /* Mobile widgets drawer needs flex for sticky header */
+          .mobile-widgets-drawer {
+            display: flex !important;
+          }
+        }
+        @keyframes slideInLeft {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+        @keyframes slideInRight {
+          from {
+            transform: translateX(100%);
+          }
+          to {
+            transform: translateX(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

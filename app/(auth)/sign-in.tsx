@@ -288,11 +288,16 @@ console.log('[SignIn] Component rendering, theme:', theme);
       top: 14,
       padding: 4,
     },
+    rememberForgotContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 8,
+      marginBottom: 4,
+    },
     rememberMeContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginTop: 8,
-      marginBottom: 4,
     },
     checkbox: {
       width: 20,
@@ -312,6 +317,11 @@ console.log('[SignIn] Component rendering, theme:', theme);
     rememberMeText: {
       fontSize: 14,
       color: theme.text,
+    },
+    forgotPasswordText: {
+      fontSize: 14,
+      color: marketingTokens.colors.accent.cyan400,
+      fontWeight: '600',
     },
     dividerContainer: {
       flexDirection: 'row',
@@ -505,18 +515,27 @@ return (
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.rememberMeContainer}
-              onPress={() => setRememberMe(!rememberMe)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                {rememberMe && (
-                  <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
-                )}
-              </View>
-              <Text style={styles.rememberMeText}>{t('auth.remember_me', { defaultValue: 'Remember me' })}</Text>
-            </TouchableOpacity>
+            <View style={styles.rememberForgotContainer}>
+              <TouchableOpacity
+                style={styles.rememberMeContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                  {rememberMe && (
+                    <Ionicons name="checkmark" size={14} color={theme.onPrimary} />
+                  )}
+                </View>
+                <Text style={styles.rememberMeText}>{t('auth.remember_me', { defaultValue: 'Remember me' })}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={() => router.push('/(auth)/forgot-password')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forgotPasswordText}>{t('auth.forgot_password', { defaultValue: 'Forgot Password?' })}</Text>
+              </TouchableOpacity>
+            </View>
 
             <GradientButton
               label={loading ? t('auth.sign_in.signing_in', { defaultValue: 'Signing In...' }) : t('auth.sign_in.cta', { defaultValue: 'Sign In' })}

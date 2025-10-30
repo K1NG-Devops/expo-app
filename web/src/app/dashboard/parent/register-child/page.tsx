@@ -117,9 +117,41 @@ export default function RegisterChildPage() {
       return;
     }
 
+    if (!selectedOrgId) {
+      alert('Please select a school before submitting.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
+      // Proactive duplicate check: query for existing pending requests
+      // Normalize names: trim and collapse inner spaces
+      const normalizedFirst = firstName.trim().replace(/\s+/g, ' ');
+      const normalizedLast = lastName.trim().replace(/\s+/g, ' ');
+      const selectedOrgName = organizations.find(o => o.id === selectedOrgId)?.name || 'this school';
+
+      console.log('[RegisterChild] Checking for duplicate pending requests...');
+      
+      const { data: existingRequests, error: checkError } = await supabase
+        .from('child_registration_requests')
+        .select('id')
+        .eq('parent_id', userId)
+        .eq('preschool_id', selectedOrgId)
+        .eq('status', 'pending')
+        .ilike('child_first_name', normalizedFirst)
+        .ilike('child_last_name', normalizedLast);
+
+      if (checkError) {
+        // Log error but continue - DB uniqueness constraint is our fallback
+        console.error('[RegisterChild] Duplicate check query failed:', checkError);
+      } else if (existingRequests && existingRequests.length > 0) {
+        // Found duplicate - block submission
+        alert(`You already have a pending registration request for ${normalizedFirst} ${normalizedLast} at ${selectedOrgName}.\n\nPlease wait for the school to review your existing request.`);
+        setSubmitting(false);
+        return;
+      }
+
       // Note: We use profiles table directly (users table is deprecated)
       console.log('[RegisterChild] Using auth user ID directly (profiles-first architecture):', userId);
 
@@ -127,8 +159,8 @@ export default function RegisterChildPage() {
       const combinedNotes = (relationshipNote + (notes ? ` ${notes}` : '')).trim();
 
       const payload = {
-        child_first_name: firstName.trim(),
-        child_last_name: lastName.trim(),
+        child_first_name: normalizedFirst,
+        child_last_name: normalizedLast,
         child_birth_date: dateOfBirth,
         child_gender: gender || null,
         dietary_requirements: dietaryRequirements || null,
@@ -163,7 +195,7 @@ export default function RegisterChildPage() {
 
       if (error) {
         if (error.code === '23505' || error.message?.includes('duplicate')) {
-          alert(`You have already submitted a registration request for ${firstName} ${lastName} at this school.\n\nPlease wait for the school to review your existing request.`);
+          alert(`You have already submitted a registration request for ${normalizedFirst} ${normalizedLast} at ${selectedOrgName}.\n\nPlease wait for the school to review your existing request.`);
           return;
         }
         throw error;

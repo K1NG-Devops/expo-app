@@ -29,7 +29,9 @@ import {
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
 import { TierBadge } from '@/components/ui/TierBadge';
 import { CAPSActivitiesWidget } from '@/components/dashboard/parent/CAPSActivitiesWidget';
+import { ExamPrepWidget } from '@/components/dashboard/exam-prep/ExamPrepWidget';
 import { ParentOnboarding } from '@/components/dashboard/parent/ParentOnboarding';
+import { PendingRequestsWidget } from '@/components/dashboard/parent/PendingRequestsWidget';
 
 export default function ParentDashboard() {
   const router = useRouter();
@@ -41,8 +43,10 @@ export default function ParentDashboard() {
   const [showAskAI, setShowAskAI] = useState(false);
   const [aiPrompt, setAIPrompt] = useState('');
   const [aiDisplay, setAIDisplay] = useState('');
+  const [aiLanguage, setAiLanguage] = useState<string>('en-ZA');
+  const [aiInteractive, setAiInteractive] = useState(false);
 
-  const handleAskFromActivity = async (prompt: string, display: string) => {
+  const handleAskFromActivity = async (prompt: string, display: string, language?: string, enableInteractive?: boolean) => {
     try {
       const sb = createClient();
       // Determine school plan
@@ -72,11 +76,15 @@ export default function ParentDashboard() {
 
       setAIPrompt(prompt);
       setAIDisplay(display);
+      setAiLanguage(language || 'en-ZA');
+      setAiInteractive(enableInteractive || false);
       setShowAskAI(true);
     } catch {
       // Fallback: allow one
       setAIPrompt(prompt);
       setAIDisplay(display);
+      setAiLanguage(language || 'en-ZA');
+      setAiInteractive(enableInteractive || false);
       setShowAskAI(true);
     }
   };
@@ -380,6 +388,9 @@ export default function ParentDashboard() {
               <ParentOnboarding userName={userName} />
             )}
 
+            {/* Show pending requests widget */}
+            <PendingRequestsWidget userId={userId} />
+
             {/* Show pending status if preschool linked but no children */}
             {preschoolName && childrenCards.length === 0 && pendingRequests.length === 0 && !childrenLoading && (
               <div className="section">
@@ -610,6 +621,20 @@ export default function ParentDashboard() {
                 />
               </div>
             )}
+
+            {/* CAPS Exam Preparation - For older children (school-age) */}
+            {activeChild && activeChild.progressScore > 50 && (
+              <div className="section">
+                <div className="card" style={{ padding: 'var(--space-5)', background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.05) 0%, rgba(245, 158, 11, 0.05) 100%)', border: '1px solid rgba(251, 191, 36, 0.2)' }}>
+                <ExamPrepWidget
+                  onAskDashAI={(prompt, display, language, enableInteractive) => {
+                    handleAskFromActivity(prompt, display, language, enableInteractive);
+                  }}
+                  guestMode={false}
+                />
+                </div>
+              </div>
+            )}
         </main>
 
         <aside className="right sticky" aria-label="At a glance">
@@ -665,7 +690,14 @@ export default function ParentDashboard() {
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <AskAIWidget initialPrompt={aiPrompt} displayMessage={aiDisplay} inline fullscreen />
+            <AskAIWidget
+              initialPrompt={aiPrompt}
+              displayMessage={aiDisplay}
+              language={aiLanguage}
+              enableInteractive={aiInteractive}
+              inline
+              fullscreen
+            />
           </div>
         </div>
       )}

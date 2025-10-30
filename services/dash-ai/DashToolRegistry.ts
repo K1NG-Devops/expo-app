@@ -92,6 +92,14 @@ export class DashToolRegistry {
       };
     }
 
+    // Block guest users
+    if (context.isGuest) {
+      return {
+        success: false,
+        error: `Guest users cannot execute tools. Please sign in to use ${tool.name}.`
+      };
+    }
+
     // Verify role access
     if (!tool.allowedRoles.includes(context.role as any)) {
       return {

@@ -20,6 +20,7 @@ import {
   Clock,
   Activity,
   Search,
+  X,
 } from 'lucide-react';
 import { ParentApprovalWidget } from '@/components/dashboard/principal/ParentApprovalWidget';
 import { ChildRegistrationWidget } from '@/components/dashboard/principal/ChildRegistrationWidget';
@@ -54,6 +55,7 @@ export default function PrincipalDashboard() {
     upcomingEvents: 0,
   });
   const [metricsLoading, setMetricsLoading] = useState(true);
+  const [dashAIFullscreen, setDashAIFullscreen] = useState(false);
 
   // Fetch user profile with preschool data
   const { profile, loading: profileLoading } = useUserProfile(userId);
@@ -206,8 +208,17 @@ export default function PrincipalDashboard() {
         </ul>
       </div>
 
-      {/* Ask Dash AI Assistant */}
-      <AskAIWidget inline />
+      {/* Ask Dash AI Assistant - Wrapped in div with data-dash-ai for mobile detection */}
+      <div data-dash-ai onClick={(e) => {
+        // On mobile, intercept click and open fullscreen
+        if (window.innerWidth < 1024) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDashAIFullscreen(true);
+        }
+      }}>
+        <AskAIWidget inline />
+      </div>
     </>
   );
 
@@ -229,6 +240,7 @@ export default function PrincipalDashboard() {
         userName={userName}
         preschoolName={preschoolName}
         rightSidebar={rightSidebar}
+        onOpenDashAI={() => setDashAIFullscreen(true)}
       >
       {/* Search Bar */}
       <div style={{ marginTop: 0, marginBottom: 'var(--space-3)' }}>
@@ -376,6 +388,42 @@ export default function PrincipalDashboard() {
         </div>
       </div>
       </PrincipalShell>
+      
+      {/* Mobile Fullscreen Dash AI Modal */}
+      {dashAIFullscreen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'var(--background)',
+          zIndex: 10000,
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: 'var(--space-4)',
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--surface-1)',
+          }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Ask Dash AI</h2>
+            <button
+              onClick={() => setDashAIFullscreen(false)}
+              className="iconBtn"
+              aria-label="Close"
+            >
+              <X className="icon20" />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <AskAIWidget fullscreen />
+          </div>
+        </div>
+      )}
     </>
   );
 }

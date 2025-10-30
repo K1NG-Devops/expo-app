@@ -218,7 +218,28 @@ export function ExamPrepWidget({ onAskDashAI, guestMode = false }: ExamPrepWidge
     const isFoundationPhase = phase === 'foundation';
 
     if (selectedExamType === 'practice_test') {
-      prompt = `You are Dash, a South African education assistant specializing in CAPS (Curriculum and Assessment Policy Statement) curriculum.
+      // NEW: Use tool-based generation for structured output
+      prompt = `Generate a CAPS-aligned practice examination for ${gradeInfo?.label} ${selectedSubject} in ${languageName}.
+
+IMPORTANT: You MUST use the 'generate_caps_exam' tool to create this exam. Do NOT write markdown.
+
+Key requirements:
+- Student age: ${gradeInfo?.age} years old
+- Duration: ${complexity.duration}
+- Total marks: ${complexity.marks}
+- Language: ${languageName} (${selectedLanguage})
+- Question types: ${complexity.questionTypes}
+
+Every question MUST:
+1. Start with a clear action verb (${isFoundationPhase ? 'Circle, Count, Match, Choose' : phase === 'intermediate' ? 'List, Calculate, Identify, Describe' : phase === 'senior' ? 'Analyze, Evaluate, Explain, Compare' : 'Critically analyze, Evaluate, Justify, Synthesize'})
+2. Include ALL data needed to answer (sequences, options, scenarios)
+3. Be answerable without images/diagrams (use text descriptions)
+4. Be age-appropriate for ${gradeInfo?.age}-year-olds
+
+Use the generate_caps_exam tool now.`;
+      
+      // OLD PROMPT (keep as fallback if tool fails):
+      const fallbackPrompt = `You are Dash, a South African education assistant specializing in CAPS (Curriculum and Assessment Policy Statement) curriculum.
 
 **IMPORTANT: Generate ALL content in ${languageName} (${selectedLanguage}). Use ONLY this language throughout the entire exam and memorandum. Do NOT switch languages unless the user explicitly requests it.**
 
@@ -284,11 +305,59 @@ ${isFoundationPhase ? `
 
 ## SECTION A: [Simple topic appropriate for age]
 
-**Question 1.** [Simple, clear question with (X marks)]
+**Question 1.** [COMPLETE question with ALL DATA needed to answer it] (X marks)
 ${isFoundationPhase ? '[PICTURE: simple everyday object]' : ''}
 ${complexity.questionTypes.includes('word bank') ? `
 **Word Bank:** [word1] [word2] [word3]
 ` : ''}
+
+**PEDAGOGICAL FRAMEWORK - WRITE QUESTIONS LIKE A TEACHER:**
+
+Imagine you are a South African CAPS teacher preparing an exam for your ${gradeInfo?.label} class. You know your students' abilities and attention span (${gradeInfo?.age} years old). Every question must be:
+- Clear enough that students know EXACTLY what to do
+- Complete with all information needed (like you're speaking directly to the student)
+- Age-appropriate in language and complexity
+- Answerable within the time limit
+
+**AGE-APPROPRIATE INSTRUCTION VERBS (Use these):**
+${isFoundationPhase ? `
+**Foundation Phase (Ages 4-9):**
+- Point to, Circle, Color, Match, Draw, Count, Say, Show, Find, Name, Choose
+- Example: "Circle the animal that lives in water: cat, fish, bird, dog"` : 
+phase === 'intermediate' ? `
+**Intermediate Phase (Ages 10-12):**
+- List, Identify, Name, Calculate, Describe, Compare, Explain (simple), Choose, Give, State
+- Example: "List THREE ways that plants and animals are different"` : 
+phase === 'senior' ? `
+**Senior Phase (Ages 13-15):**
+- Analyze, Compare, Explain (detailed), Evaluate, Calculate (multi-step), Describe (detailed), Justify, Classify, Apply
+- Example: "Explain TWO ways that climate change affects coastal ecosystems in South Africa"` : `
+**FET Phase (Ages 16-18):**
+- Critically analyze, Evaluate, Justify, Synthesize, Formulate, Investigate, Prove, Derive, Discuss, Argue
+- Example: "Critically evaluate the impact of apartheid policies on South African economic development"`}
+
+**CRITICAL QUESTION FORMAT RULES (NON-NEGOTIABLE):**
+1. Start with an ACTION VERB appropriate for the age group
+2. Include ALL data, options, sequences, or information needed
+3. Specify HOW MANY items to provide ("List TWO", "Give THREE reasons", "Name FOUR")
+4. NO vague scenarios without questions
+5. NO references to diagrams/images (use text descriptions)
+6. Questions must be answerable in the allocated time
+
+**WRONG - Too vague (teacher would NEVER write this):**
+❌ "A building contractor is planning to construct a house. The contractor wants to use suitable materials."
+   - No question! What should the student do?
+❌ "A teacher wants to demonstrate the process of melting to the class."
+   - No clear instruction! What is being asked?
+❌ "Find the common difference in the sequence."
+   - Missing data! Which sequence?
+
+**CORRECT - Clear teacher instructions:**
+✅ "A building contractor must choose between brick, wood, and steel for house walls. **List TWO advantages** of using brick."
+✅ "Ice is heated from 0°C to 10°C. **Describe what happens** to the water particles during this process."
+✅ "**Calculate** the common difference in this sequence: 2, 5, 8, 11, 14"
+✅ "A substance has tightly packed particles in a fixed pattern. **Identify** the state of matter."
+✅ "**Choose** the correct answer: Which animal is a mammal? A) Snake  B) Eagle  C) Dolphin  D) Frog"
 
 [Continue with ${complexity.marks / 2} questions max]
 

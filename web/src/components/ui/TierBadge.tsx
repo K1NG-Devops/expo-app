@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Crown, Sparkles } from 'lucide-react';
 
@@ -40,6 +41,7 @@ export function TierBadge({ userId, preschoolId, size = 'md', showUpgrade = fals
   const [tier, setTier] = useState<string>('free');
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     if (!userId && !preschoolId) return;
@@ -159,8 +161,7 @@ export function TierBadge({ userId, preschoolId, size = 'md', showUpgrade = fals
             fontWeight: 600,
           }}
           onClick={() => {
-            // TODO: Navigate to upgrade page
-            alert('Upgrade to Premium!');
+            router.push('/#pricing');
           }}
         >
           Upgrade

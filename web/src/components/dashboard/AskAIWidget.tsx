@@ -25,13 +25,15 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
   const [interactiveExam, setInteractiveExam] = useState<any>(null);
   const [isExecutingTool, setIsExecutingTool] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const examSetRef = useRef(false);
 
   // Auto-populate and send initial prompt
   useEffect(() => {
+    if (!initialPrompt || hasProcessedInitial) return;
+    
     const runInitial = async () => {
-      if (!initialPrompt || hasProcessedInitial) return;
-      setInput(initialPrompt);
       setHasProcessedInitial(true);
+      setInput(initialPrompt);
       // Show a short, user-friendly message instead of the internal server prompt
       const shown = displayMessage || 'Generating activity...';
       setMessages([{ role: 'user', text: shown }]);
@@ -84,17 +86,76 @@ export function AskAIWidget({ inline = true, initialPrompt, displayMessage, full
           ]);
         }
         
+        console.log('[AskAI] Full AI response data:', data);
         const content = data?.content || data?.error?.message || 'No response from AI';
         if (content) {
           setMessages((m) => [...m, { role: 'assistant', text: content }]);
         }
         
-        // If interactive mode is enabled, try to parse exam
-        if (enableInteractive && content) {
-          const parsedExam = parseExamMarkdown(content);
-          if (parsedExam) {
-            setInteractiveExam(parsedExam);
+        // If interactive mode is enabled, check for structured exam from tool OR parse markdown
+        if (enableInteractive && !examSetRef.current) {
+          console.log('[AskAI] enableInteractive=true, checking for exam');
+          
+          // PRIORITY 1: Check if tool returned structured exam data
+          if (data?.tool_results && Array.isArray(data.tool_results)) {
+            for (const toolResult of data.tool_results) {
+              try {
+                console.log('[AskAI] Tool result content:', toolResult.content);
+                console.log('[AskAI] Tool result content type:', typeof toolResult.content);
+                
+                // Check if it's an error string
+                if (typeof toolResult.content === 'string' && toolResult.content.startsWith('Error:')) {
+                  console.error('[AskAI] Tool execution failed:', toolResult.content);
+                  continue; // Skip this result
+                }
+                
+                const resultData = typeof toolResult.content === 'string' 
+                  ? JSON.parse(toolResult.content)
+                  : toolResult.content;
+                
+                console.log('[AskAI] Parsed tool result data:', resultData);
+                
+                // Tool results have { success: true, data: { exam } } structure
+                if (resultData.success && resultData.data) {
+                  const examData = resultData.data;
+                  if (examData.sections && Array.isArray(examData.sections)) {
+                    console.log('[AskAI] ✅ Found structured exam from tool with', examData.sections.length, 'sections');
+                    examSetRef.current = true;
+                    setInteractiveExam(examData);
+                    return; // Exit early - structured exam found
+                  }
+                }
+                // Legacy format: direct exam data
+                else if (resultData.sections && Array.isArray(resultData.sections)) {
+                  console.log('[AskAI] ✅ Found structured exam (legacy format) with', resultData.sections.length, 'sections');
+                  examSetRef.current = true;
+                  setInteractiveExam(resultData);
+                  return;
+                }
+              } catch (e) {
+                console.error('[AskAI] Failed to parse tool result:', e);
+                console.error('[AskAI] Tool result content:', toolResult.content?.substring(0, 200));
+              }
+            }
           }
+          
+          // PRIORITY 2: Fall back to markdown parsing if no tool result
+          if (content) {
+            console.log('[AskAI] No tool result, attempting markdown parse. Content length:', content.length);
+            const parsedExam = parseExamMarkdown(content);
+            console.log('[AskAI] Parsed exam:', parsedExam);
+            if (parsedExam) {
+              console.log('[AskAI] Setting interactive exam with', parsedExam.sections.length, 'sections');
+              examSetRef.current = true;
+              setInteractiveExam(parsedExam);
+            } else {
+              console.warn('[AskAI] Failed to parse exam from markdown');
+            }
+          }
+        } else if (examSetRef.current) {
+          console.log('[AskAI] Exam already set, skipping');
+        } else {
+          console.log('[AskAI] Interactive mode not enabled. enableInteractive:', enableInteractive);
         }
       } catch (err: any) {
         setMessages((m) => [...m, { role: 'assistant', text: 'Sorry, I could not generate the activity right now.' }]);

@@ -85,6 +85,26 @@ export default function ClaimChildPage() {
     
     setSubmitting(studentId);
     try {
+      // Proactive duplicate check: query for existing pending requests
+      console.log('[ClaimChild] Checking for duplicate pending requests...');
+      
+      const { data: existingRequests, error: checkError } = await supabase
+        .from('guardian_requests')
+        .select('id')
+        .eq('parent_auth_id', userId)
+        .eq('student_id', studentId)
+        .eq('status', 'pending');
+
+      if (checkError) {
+        // Log error but continue - DB uniqueness constraint is our fallback
+        console.error('[ClaimChild] Duplicate check query failed:', checkError);
+      } else if (existingRequests && existingRequests.length > 0) {
+        // Found duplicate - block submission
+        alert(`You have already sent a link request for ${childName}.\n\nPlease wait for the school to review your existing request.`);
+        setSubmitting(null);
+        return;
+      }
+
       // Update parent's preschool_id if not set
       if (!preschoolId && selectedSchoolId) {
         console.log('✅ Setting parent preschool_id to:', selectedSchoolId);
@@ -115,12 +135,15 @@ export default function ClaimChildPage() {
       
       if (error) {
         if (error.code === '23505') {
-          alert('You have already sent a request for this child.');
+          alert(`You have already sent a link request for ${childName}.\n\nPlease wait for the school to review your existing request.`);
         } else {
           throw error;
         }
       } else {
-        alert(`✅ Request sent for ${childName}!\n\n🕒 Awaiting school approval.\n
+        alert(`✅ Request sent for ${childName}!
+
+🕒 Awaiting school approval.
+
 Once approved, you'll see ${childName} in your dashboard.`);
         setSearchResults(searchResults.filter(s => s.id !== studentId));
         
@@ -134,9 +157,6 @@ Once approved, you'll see ${childName} in your dashboard.`);
       setSubmitting(null);
     }
   };
-
-  return (
-    <ParentShell tenantSlug={slug} userEmail={email}>
       <div className="container">
         <div className="section">
           <h1 className="h1">Search & Claim Child</h1>

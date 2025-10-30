@@ -74,8 +74,8 @@ export default function SignInPage() {
           max-width: 100vw;
         }
       `}</style>
-      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0f", fontFamily: "system-ui, sans-serif", overflowX: "hidden" }}>
-        <div style={{ width: "100%", maxWidth: "100vw", background: "#111113", padding: "40px 5%", border: "1px solid #1f1f23", boxSizing: "border-box" }}>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0f", fontFamily: "system-ui, sans-serif", overflowX: "hidden", padding: "20px" }}>
+        <div style={{ width: "100%", maxWidth: "500px", background: "#111113", padding: "40px", border: "1px solid #1f1f23", boxSizing: "border-box", borderRadius: "12px" }}>
         {/* Header with icon */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{ width: 64, height: 64, background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 32 }}>
@@ -124,15 +124,20 @@ export default function SignInPage() {
             </div>
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              style={{ width: 16, height: 16 }}
-            />
-            <span style={{ color: "#9CA3AF", fontSize: 14 }}>Remember me</span>
-          </label>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ width: 16, height: 16 }}
+              />
+              <span style={{ color: "#9CA3AF", fontSize: 14 }}>Remember me</span>
+            </label>
+            <Link href="/forgot-password" style={{ color: "#00f5ff", fontSize: 14, textDecoration: "none", fontWeight: 600 }}>
+              Forgot Password?
+            </Link>
+          </div>
 
           {error && (
             <div style={{ padding: 12, background: "#7f1d1d", border: "1px solid #991b1b", borderRadius: 8 }}>

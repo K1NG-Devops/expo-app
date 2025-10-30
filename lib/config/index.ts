@@ -90,7 +90,8 @@ class ConfigManager {
   }
 
   private getRequired(key: string): string {
-    const value = process.env[key];
+    // Support both EXPO_PUBLIC_ (React Native) and NEXT_PUBLIC_ (Next.js) prefixes
+    const value = process.env[key] || process.env[key.replace('EXPO_PUBLIC_', 'NEXT_PUBLIC_')];
     if (!value) {
       throw new Error(`Missing required environment variable: ${key}`);
     }
@@ -98,11 +99,13 @@ class ConfigManager {
   }
 
   private getOptional(key: string, defaultValue: string): string {
-    return process.env[key] || defaultValue;
+    // Support both EXPO_PUBLIC_ (React Native) and NEXT_PUBLIC_ (Next.js) prefixes
+    return process.env[key] || process.env[key.replace('EXPO_PUBLIC_', 'NEXT_PUBLIC_')] || defaultValue;
   }
 
   private getBoolean(key: string, defaultValue: boolean): boolean {
-    const value = process.env[key];
+    // Support both EXPO_PUBLIC_ (React Native) and NEXT_PUBLIC_ (Next.js) prefixes
+    const value = process.env[key] || process.env[key.replace('EXPO_PUBLIC_', 'NEXT_PUBLIC_')];
     if (!value) return defaultValue;
     return value.toLowerCase() === 'true' || value === '1';
   }

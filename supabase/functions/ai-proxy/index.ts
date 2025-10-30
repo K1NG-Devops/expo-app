@@ -207,8 +207,96 @@ function getToolsForRole(role: string, tier: string): ClaudeTool[] {
     })
   }
   
-  // Add more tools based on role/tier here
-  // Future: Navigation tool, Report generation tool, etc.
+  // Exam Generation Tool - available to parents and teachers
+  if (['parent', 'teacher', 'principal'].includes(role)) {
+    tools.push({
+      name: 'generate_caps_exam',
+      description: 'Generate a structured, CAPS-aligned examination paper with complete, well-formed questions. Use this when a user requests an exam, practice test, or assessment. Every question MUST have: 1) Clear action verb (Calculate, List, Identify, etc.) 2) ALL required data (sequences, options, scenarios) 3) Specific instruction (NOT vague scenarios). NO diagram references.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Exam title (e.g., "Grade 9 Mathematics Practice Examination 2025")'
+          },
+          grade: {
+            type: 'string',
+            enum: ['grade_r', 'grade_1', 'grade_2', 'grade_3', 'grade_4', 'grade_5', 'grade_6', 'grade_7', 'grade_8', 'grade_9', 'grade_10', 'grade_11', 'grade_12'],
+            description: 'Student grade level'
+          },
+          subject: {
+            type: 'string',
+            description: 'Subject name (e.g., Mathematics, Natural Sciences, English Home Language)'
+          },
+          language: {
+            type: 'string',
+            enum: ['en-ZA', 'af-ZA', 'zu-ZA', 'xh-ZA'],
+            description: 'Language for exam content'
+          },
+          instructions: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Exam instructions for students'
+          },
+          totalMarks: {
+            type: 'number',
+            description: 'Total marks for the exam'
+          },
+          sections: {
+            type: 'array',
+            description: 'Exam sections with questions',
+            items: {
+              type: 'object',
+              properties: {
+                title: {
+                  type: 'string',
+                  description: 'Section title (e.g., "SECTION A: Algebra")'
+                },
+                questions: {
+                  type: 'array',
+                  description: 'Array of complete, structured questions',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: {
+                        type: 'string',
+                        description: 'Unique question ID (e.g., "q-1", "q-2")'
+                      },
+                      text: {
+                        type: 'string',
+                        description: 'COMPLETE question text with: 1) Action verb 2) ALL data needed 3) Clear instruction. Example: "Calculate the common difference in this sequence: 2, 5, 8, 11, 14" NOT "Find the common difference in the sequence"'
+                      },
+                      type: {
+                        type: 'string',
+                        enum: ['multiple_choice', 'short_answer', 'essay', 'numeric'],
+                        description: 'Question type'
+                      },
+                      marks: {
+                        type: 'number',
+                        description: 'Marks allocated for this question'
+                      },
+                      options: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description: 'Options for multiple choice questions (A, B, C, D)'
+                      },
+                      correctAnswer: {
+                        type: 'string',
+                        description: 'Correct answer for auto-grading (optional)'
+                      }
+                    },
+                    required: ['id', 'text', 'type', 'marks']
+                  }
+                }
+              },
+              required: ['title', 'questions']
+            }
+          }
+        },
+        required: ['title', 'grade', 'subject', 'sections', 'totalMarks']
+      }
+    })
+  }
   
   return tools
 }
@@ -238,6 +326,10 @@ async function executeTool(
       return await executeQueryDatabaseTool(toolInput, context)
     }
     
+    if (toolName === 'generate_caps_exam') {
+      return await executeGenerateCapsExamTool(toolInput, context)
+    }
+    
     return {
       success: false,
       error: `Unknown tool: ${toolName}`
@@ -248,6 +340,141 @@ async function executeTool(
       success: false,
       error: `Tool execution failed: ${error.message}`
     }
+  }
+}
+
+/**
+ * Execute CAPS exam generation tool
+ * Validates and returns structured exam data
+ */
+async function executeGenerateCapsExamTool(
+  input: Record<string, any>,
+  context: { supabaseAdmin: any; userId: string; organizationId: string | null; hasOrganization: boolean; isGuest: boolean }
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  console.log('[ai-proxy] Executing generate_caps_exam tool with input:', JSON.stringify(input, null, 2))
+  
+  // Validate required fields
+  const { title, grade, subject, sections, totalMarks } = input
+  
+  if (!title || !grade || !subject || !sections || !totalMarks) {
+    const missing = [];
+    if (!title) missing.push('title');
+    if (!grade) missing.push('grade');
+    if (!subject) missing.push('subject');
+    if (!sections) missing.push('sections');
+    if (!totalMarks) missing.push('totalMarks');
+    console.error('[ai-proxy] Missing fields:', missing.join(', '));
+    return {
+      success: false,
+      error: `Missing required fields: ${missing.join(', ')}`
+    }
+  }
+  
+  // Validate sections have questions
+  if (!Array.isArray(sections) || sections.length === 0) {
+    return {
+      success: false,
+      error: 'Exam must have at least one section with questions'
+    }
+  }
+  
+  // Helper: detect if question provides textual dataset (so it's not visually dependent)
+  const hasTextualDataset = (text: string): boolean => {
+    const t = (text || '').toLowerCase();
+    // Key-value pairs: "Jan: 120; Feb: 150; Mar: 180"
+    const kvPattern = /([a-z][a-z\- ]{1,20})\s*[:=]\s*\d+(\.\d+)?\s*(;|,|\n)/g;
+    let kvMatches = 0; let m;
+    while ((m = kvPattern.exec(t)) !== null) kvMatches++;
+
+    // Plain numeric series with separators: "2, 5, 8, 11, 14" or multi-line numbers
+    const seriesPattern = /\b\d+(\.\d+)?\b\s*(,|;|\n)\s*\b\d+(\.\d+)?\b/;
+
+    // Table-like rows inline: "Class A - 12; Class B - 15; Class C - 18"
+    const dashPattern = /([a-z][a-z\- ]{1,20})\s*(-|–|—)\s*\d+(\.\d+)?\s*(;|,|\n)/i;
+
+    return kvMatches >= 2 || seriesPattern.test(t) || dashPattern.test(t);
+  };
+
+  const isVisualReference = (text: string): boolean => {
+    const t = (text || '').toLowerCase();
+
+    // Strong visual-only phrases that imply external image/figure
+    const hardBan = [
+      'refer to the diagram', 'see the diagram', 'diagram below', 'diagram above',
+      'refer to the chart', 'see the chart', 'chart below', 'chart above', 'bar chart', 'pie chart', 'line graph', 'graph below', 'graph above',
+      'see the picture', 'picture below', 'image below', 'image above', 'figure below', 'figure above', 'as shown in the figure', 'as shown in the diagram'
+    ];
+    if (hardBan.some(p => t.includes(p))) return true;
+
+    // "table" is allowed ONLY if textual dataset is present
+    if (t.includes('table')) {
+      // words like "frequency table" without data should fail
+      if (!hasTextualDataset(t)) return true;
+    }
+
+    // Generic words "diagram/image/chart/figure" alone should fail unless we can see textual data
+    const genericVisual = /(diagram|picture|image|chart|figure|illustration|graph)/i;
+    if (genericVisual.test(t) && !hasTextualDataset(t)) return true;
+
+    return false; // considered text-only
+  };
+
+  // Validate questions are complete
+  for (const section of sections) {
+    if (!section.questions || section.questions.length === 0) {
+      return {
+        success: false,
+        error: `Section \"${section.title}\" has no questions`
+      }
+    }
+    
+    for (const question of section.questions) {
+      const qText: string = String(question.text || '').trim();
+
+      // Check for vague questions without data
+      if (qText.length < 20) {
+        return {
+          success: false,
+          error: `Question \"${qText}\" is too short. Questions must be complete with all data.`
+        }
+      }
+      
+      // Disallow external visual references unless textual dataset is present
+      if (isVisualReference(qText)) {
+        return {
+          success: false,
+          error: `Question \"${qText.substring(0, 80)}...\" references visual content. Interactive exams must use TEXT-ONLY data (e.g., \"Monthly sales: Jan 120; Feb 150; Mar 180;\").`
+        }
+      }
+      
+      // Check for action verbs (basic check)
+      const actionVerbs = /\b(calculate|compute|simplify|solve|list|identify|name|describe|explain|compare|choose|select|find|determine|evaluate|analyze|analyse|write|state|give|show|classify|match|order|arrange|label|prove|derive|expand|factorise|factorize|convert|graph|plot|sketch)\b/i
+      if (!actionVerbs.test(qText)) {
+        return {
+          success: false,
+          error: `Question \"${qText.substring(0, 80)}...\" missing clear action verb (e.g., Calculate, Simplify, Solve, List, Identify)`
+        }
+      }
+    }
+  }
+  
+  // All validation passed - return structured exam
+  const exam = {
+    title,
+    grade,
+    subject,
+    language: input.language || 'en-ZA',
+    instructions: input.instructions || [],
+    sections,
+    totalMarks,
+    hasMemo: false  // Can be enhanced later
+  }
+  
+  console.log(`[ai-proxy] Generated exam: ${sections.length} sections, ${sections.reduce((sum: number, s: any) => sum + s.questions.length, 0)} questions, ${totalMarks} marks`)
+  
+  return {
+    success: true,
+    data: exam
   }
 }
 
@@ -382,15 +609,16 @@ async function callClaude(
   tier: SubscriptionTier,
   images?: Array<{ data: string; media_type: string }>,
   stream?: boolean,
-  tools?: ClaudeTool[]
+  tools?: ClaudeTool[],
+  conversationHistory?: Array<{ role: string; content: any }>
 ): Promise<{
-  content: string
-  tokensIn: number
-  tokensOut: number
-  cost: number
-  model: string
-  response?: Response  // Raw response for streaming
-  tool_use?: Array<{ id: string; name: string; input: Record<string, any> }>  // Tool calls made by Claude
+  content: string;
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  model: string;
+  response?: Response;  // Raw response for streaming
+  tool_use?: Array<{ id: string; name: string; input: Record<string, any> }>;  // Tool calls made by Claude
 }> {
   if (!ANTHROPIC_API_KEY) {
     throw new Error('Anthropic API key not configured')
@@ -434,7 +662,7 @@ async function callClaude(
       max_tokens: 4096,
       stream: stream || false,  // Enable streaming if requested
       tools: tools || undefined,  // Pass tools for Claude to use
-      messages: [
+      messages: conversationHistory || [
         {
           role: 'user',
           content: messageContent
@@ -831,19 +1059,219 @@ tion_id: organizationId,
           })
         )
         
+        // If any tool failed, ask Claude to fix and retry once (auto-heal)
+        const toolHadError = toolResults.some((tr: any) => typeof tr.content === 'string' && tr.content.startsWith('Error:'))
+        if (toolHadError) {
+          console.warn('[ai-proxy] Tool returned error(s). Asking Claude to correct and retry tool call...')
+          const errorSummary = toolResults
+            .filter((tr: any) => typeof tr.content === 'string' && tr.content.startsWith('Error:'))
+            .map((tr: any) => tr.content)
+            .join(' | ')
+          
+          const retryInstruction = [
+            'Your previous tool call returned validation errors.',
+            `Errors: ${errorSummary}`,
+            '',
+            'Immediately call the generate_caps_exam tool AGAIN with corrected input that strictly follows these rules:',
+            '- Do NOT reference images, diagrams, charts, tables, or figures. Use text-only descriptions.',
+            '- If you need a chart/table, include the raw data explicitly in the question text (e.g., "Monthly sales: Jan 120; Feb 150; Mar 180;").',
+            '- Every question must begin with a clear action verb and include ALL the information needed to answer.',
+            '- Provide complete sections with questions and totalMarks. Ensure marks add up.',
+            '- Return ONLY a tool call. Do not write any explanatory text.'
+          ].join('\n')
+          
+          const retryResult = await callClaude(
+            redactedText,
+            tier,
+            images,
+            false,
+            availableTools,
+            [
+              { role: 'user', content: redactedText },
+              { role: 'assistant', content: [
+                  ...(aiResult.content ? [{ type: 'text', text: aiResult.content }] : []),
+                  ...aiResult.tool_use.map((tu: any) => ({ type: 'tool_use', id: tu.id, name: tu.name, input: tu.input }))
+                ] 
+              },
+              { role: 'user', content: toolResults.map((tr: any) => ({ type: 'tool_result', tool_use_id: tr.tool_use_id, content: tr.content })) },
+              { role: 'user', content: [{ type: 'text', text: retryInstruction }] }
+            ]
+          )
+          
+          if (retryResult.tool_use && retryResult.tool_use.length > 0) {
+            console.log(`[ai-proxy] Retry produced ${retryResult.tool_use.length} tool call(s). Executing...`)
+            const retryToolResults = await Promise.all(
+              retryResult.tool_use.map(async (toolCall: any) => {
+                const result = await executeTool(toolCall.name, toolCall.input, {
+                  supabaseAdmin,
+                  userId: user.id,
+                  organizationId,
+                  role,
+                  tier,
+                  hasOrganization,
+                  isGuest
+                })
+                return {
+                  type: 'tool_result',
+                  tool_use_id: toolCall.id,
+                  content: result.success ? JSON.stringify(result.data) : `Error: ${result.error}`
+                }
+              })
+            )
+            const retryHadError = retryToolResults.some((tr: any) => typeof tr.content === 'string' && tr.content.startsWith('Error:'))
+            if (!retryHadError) {
+              // Success after retry: request final response from Claude with successful results
+              console.log('[ai-proxy] Retry succeeded. Getting final response...')
+              const continuationAfterRetry = await callClaude(
+                redactedText,
+                tier,
+                images,
+                false,
+                availableTools,
+                [
+                  { role: 'user', content: redactedText },
+                  { role: 'assistant', content: [
+                      ...(retryResult.content ? [{ type: 'text', text: retryResult.content }] : []),
+                      ...retryResult.tool_use.map((tu: any) => ({ type: 'tool_use', id: tu.id, name: tu.name, input: tu.input }))
+                    ]
+                  },
+                  { role: 'user', content: retryToolResults.map((tr: any) => ({ type: 'tool_result', tool_use_id: tr.tool_use_id, content: tr.content })) }
+                ]
+              )
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  content: continuationAfterRetry.content,
+                  tool_use: retryResult.tool_use,
+                  tool_results: retryToolResults,
+                  usage: {
+                    tokens_in: aiResult.tokensIn + retryResult.tokensIn + continuationAfterRetry.tokensIn,
+                    tokens_out: aiResult.tokensOut + retryResult.tokensOut + continuationAfterRetry.tokensOut,
+                    cost: aiResult.cost + retryResult.cost + continuationAfterRetry.cost,
+                    usage_id: usageId
+                  }
+                }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            } else {
+              console.warn('[ai-proxy] Retry still failed. Returning latest error to client.')
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  content: 'Sorry, I could not generate a valid exam without visual references. Please try again or change the request.',
+                  tool_use: retryResult.tool_use,
+                  tool_results: retryToolResults,
+                  usage: {
+                    tokens_in: aiResult.tokensIn + retryResult.tokensIn,
+                    tokens_out: aiResult.tokensOut + retryResult.tokensOut,
+                    cost: aiResult.cost + retryResult.cost,
+                    usage_id: usageId
+                  }
+                }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+          } else {
+            console.log('[ai-proxy] Retry produced no tool call. Returning retry content.')
+            return new Response(
+              JSON.stringify({
+                success: true,
+                content: retryResult.content || 'The assistant did not produce a tool call. Please try again.',
+                tool_use: aiResult.tool_use,
+                tool_results: toolResults,
+                usage: {
+                  tokens_in: aiResult.tokensIn + retryResult.tokensIn,
+                  tokens_out: aiResult.tokensOut + retryResult.tokensOut,
+                  cost: aiResult.cost + retryResult.cost,
+                  usage_id: usageId
+                }
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+        }
+        
+        console.log('[ai-proxy] Tool execution complete. Sending results back to Claude for final response...')
+        
+        // Multi-turn: Send tool results back to Claude to get final response
+        const continuationResult = await callClaude(
+          redactedText,
+          tier,
+          images,
+          false, // No streaming for continuation
+          availableTools,
+          [
+            {
+              role: 'user',
+              content: redactedText
+            },
+            {
+              role: 'assistant',
+              content: [
+                ...(aiResult.content ? [{ type: 'text', text: aiResult.content }] : []),
+                ...aiResult.tool_use.map((tu: any) => ({
+                  type: 'tool_use',
+                  id: tu.id,
+                  name: tu.name,
+                  input: tu.input
+                }))
+              ]
+            },
+            {
+              role: 'user',
+              content: toolResults.map((tr: any) => ({
+                type: 'tool_result',
+                tool_use_id: tr.tool_use_id,
+                content: tr.content
+              }))
+            }
+          ]
+        )
+        
+        console.log('[ai-proxy] Received final response from Claude after tool use')
+        
+        // Log continuation usage (safe - never fail on logging errors)
+        const { error: contLogError } = await supabaseAdmin
+          .from('ai_usage_logs')
+          .insert({
+            user_id: user.id,
+            preschool_id: organizationId,
+            organization_id: organizationId,
+            service_type: service_type,
+            ai_model_used: continuationResult.model,
+            status: 'success',
+            input_tokens: continuationResult.tokensIn,
+            output_tokens: continuationResult.tokensOut,
+            total_cost: continuationResult.cost,
+            processing_time_ms: Date.now() - startTime,
+            input_text: 'Tool continuation',
+            output_text: continuationResult.content,
+            metadata: {
+              ...metadata,
+              scope,
+              tier,
+              continuation: true,
+              tool_count: toolResults.length
+            }
+          })
+        
+        if (contLogError) {
+          console.error('[ai-proxy] Failed to log continuation usage:', contLogError)
+        }
+        
+        // Return final response with tool context
         return new Response(
           JSON.stringify({
             success: true,
-            content: aiResult.content,
+            content: continuationResult.content,
             tool_use: aiResult.tool_use,
             tool_results: toolResults,
             usage: {
-              tokens_in: aiResult.tokensIn,
-              tokens_out: aiResult.tokensOut,
-              cost: aiResult.cost,
+              tokens_in: aiResult.tokensIn + continuationResult.tokensIn,
+              tokens_out: aiResult.tokensOut + continuationResult.tokensOut,
+              cost: aiResult.cost + continuationResult.cost,
               usage_id: usageId
-            },
-            requires_continuation: true  // Client should send tool_results back
+            }
           }),
           { 
             status: 200, 
@@ -876,8 +1304,8 @@ tion_id: organizationId,
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
-          preschool_id: preschoolId,
-          organization_id: preschoolId,
+          preschool_id: organizationId,
+          organization_id: organizationId,
           service_type: service_type,
           ai_model_used: tier === 'free' || tier === 'starter' ? 'claude-3-haiku-20240307' : 'claude-3-5-sonnet-20241022',
           status: 'error',
