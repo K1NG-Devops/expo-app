@@ -6,6 +6,9 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import OrganizationSelector from "@/components/auth/PreschoolSelector";
 
+// Force dynamic rendering to avoid prerender errors with useSearchParams
+export const dynamic = 'force-dynamic';
+
 export default function ParentSignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
