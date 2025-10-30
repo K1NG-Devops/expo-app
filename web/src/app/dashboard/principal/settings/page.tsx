@@ -46,7 +46,7 @@ export default function SettingsPage() {
       title: 'Account Settings',
       icon: User,
       items: [
-        { label: 'Profile Information', value: profile?.full_name || 'Not set' },
+        { label: 'Profile Information', value: profile ? `${profile.firstName || ''} ${profile.lastName || ''}`.trim() || 'Not set' : 'Not set' },
         { label: 'Email', value: profile?.email || 'Not set' },
         { label: 'Role', value: profile?.role || 'principal' },
       ],

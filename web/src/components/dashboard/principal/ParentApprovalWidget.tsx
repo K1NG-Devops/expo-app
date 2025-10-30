@@ -58,7 +58,7 @@ export function ParentApprovalWidget({ preschoolId, userId }: ParentApprovalWidg
           .select('id, email, first_name, last_name')
           .in('id', parentIds);
 
-        const profileMap = new Map(
+        const profileMap = new Map<string, { email: string; name: string }>(
           profiles?.map(p => [
             p.id,
             {
