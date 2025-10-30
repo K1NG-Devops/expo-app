@@ -779,13 +779,26 @@ export interface ToolExecutionResult {
 
 /**
  * Context provided to tool during execution
+ * 
+ * **Organization-Agnostic Design**:
+ * - organizationId is NULLABLE (supports independent users)
+ * - Independent users: organizationId = null, filter by userId only
+ * - Affiliated users: organizationId set, filter by organization
+ * - Legacy support: preschoolId maintained for backwards compatibility
  */
 export interface ToolExecutionContext {
   userId: string;
-  preschoolId: string | null;
-  role: string;
+  organizationId: string | null;  // NULL for independent users
+  role: string;  // 'parent', 'teacher', 'independent_user', etc.
   tier: string;
   sessionToken?: string;
+  
+  // User type flags
+  hasOrganization: boolean;  // False for independent users
+  isGuest: boolean;  // True for temporary/demo access
+  
+  // Legacy support (deprecated)
+  preschoolId?: string | null;  // Use organizationId instead
   
   // For database tools
   supabaseClient?: any;

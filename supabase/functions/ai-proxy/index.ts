@@ -70,7 +70,7 @@ function redactPII(text: string): { redactedText: string; redactionCount: number
 async function checkQuota(
   supabaseAdmin: any,
   userId: string,
-  preschoolId: string | null,
+  organizationId: string | null,  // Changed from preschoolId
   serviceType: string
 ): Promise<{ allowed: boolean; quotaInfo?: any; error?: string }> {
   try {
@@ -224,9 +224,11 @@ async function executeTool(
   context: {
     supabaseAdmin: any
     userId: string
-    preschoolId: string | null
+    organizationId: string | null  // Changed from preschoolId
     role: string
     tier: string
+    hasOrganization: boolean  // NEW: for independent user support
+    isGuest: boolean  // NEW: for guest user detection
   }
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   console.log(`[ai-proxy] Executing tool: ${toolName}`, toolInput)
@@ -254,43 +256,56 @@ async function executeTool(
  */
 async function executeQueryDatabaseTool(
   input: Record<string, any>,
-  context: { supabaseAdmin: any; userId: string; preschoolId: string | null }
+  context: { supabaseAdmin: any; userId: string; organizationId: string | null; hasOrganization: boolean; isGuest: boolean }
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   const { query_type, student_id, class_id, limit = 20 } = input
   
-  if (!context.preschoolId) {
+  // Guest users cannot access data
+  if (context.isGuest) {
     return {
       success: false,
-      error: 'Missing preschool_id - user must be associated with a preschool'
+      error: 'Guest users must sign up to access data'
     }
   }
   
+  // Independent users (no organization) can only query their own data
+  if (!context.hasOrganization && !context.organizationId) {
+    // Allow personal data queries only
+    console.log('[ai-proxy] Independent user query - filtering by userId only')
+  }
+  
   // Map query types to safe SQL (with RLS enforcement)
-  const queries: Record<string, { table: string; select: string; filter?: Record<string, any> }> = {
+  // Organization-agnostic query definitions
+  const queries: Record<string, { table: string; select: string; filter?: Record<string, any>; personalFilter?: boolean }> = {
     list_students: {
       table: 'students',
       select: 'id, first_name, last_name, grade, status, date_of_birth',
-      filter: { preschool_id: context.preschoolId, status: 'active' }
+      filter: context.organizationId ? { organization_id: context.organizationId, status: 'active' } : undefined,
+      personalFilter: true  // Can be filtered by userId for independent users
     },
     list_teachers: {
       table: 'profiles',
       select: 'id, full_name, email, role',
-      filter: { preschool_id: context.preschoolId, role: 'teacher' }
+      filter: context.organizationId ? { organization_id: context.organizationId, role: 'teacher' } : undefined,
+      personalFilter: false  // Org-only
     },
     list_classes: {
       table: 'classes',
       select: 'id, name, grade, teacher_id, student_count',
-      filter: { preschool_id: context.preschoolId }
+      filter: context.organizationId ? { organization_id: context.organizationId } : undefined,
+      personalFilter: false  // Org-only
     },
     list_assignments: {
       table: 'assignments',
       select: 'id, title, subject, due_date, status, class_id',
-      filter: { preschool_id: context.preschoolId }
+      filter: context.organizationId ? { organization_id: context.organizationId } : undefined,
+      personalFilter: true  // Can query personal assignments
     },
     list_attendance: {
       table: 'attendance',
       select: 'id, student_id, date, status',
-      filter: { preschool_id: context.preschoolId }
+      filter: context.organizationId ? { organization_id: context.organizationId } : undefined,
+      personalFilter: true  // Can query personal attendance
     }
   }
   
@@ -302,16 +317,27 @@ async function executeQueryDatabaseTool(
     }
   }
   
+  // Independent users: only allow personal queries
+  if (!context.hasOrganization && !queryDef.personalFilter) {
+    return {
+      success: false,
+      error: `Query '${query_type}' requires organization membership`
+    }
+  }
+  
   try {
     let query = context.supabaseAdmin
       .from(queryDef.table)
       .select(queryDef.select)
     
-    // Apply filters (including preschool_id for RLS)
+    // Apply filters (organization or personal)
     if (queryDef.filter) {
       Object.entries(queryDef.filter).forEach(([key, value]) => {
         query = query.eq(key, value)
       })
+    } else if (queryDef.personalFilter && !context.hasOrganization) {
+      // Independent user: filter by userId for personal data
+      query = query.eq('user_id', context.userId).is('organization_id', null)
     }
     
     // Apply student/class filters if provided
@@ -569,16 +595,19 @@ serve(async (req: Request): Promise<Response> => {
       )
     }
 
-    // Get user profile for preschool_id and subscription tier
+    // Get user profile for organization_id (or legacy preschool_id) and subscription tier
     const { data: profile } = await supabaseAdmin
       .from('users')
-      .select('preschool_id, subscription_tier')
+      .select('organization_id, preschool_id, subscription_tier, role')
       .eq('auth_user_id', user.id)
       .single()
 
-    const preschoolId = profile?.preschool_id || null
+    // Organization-agnostic: support both new and legacy fields
+    const organizationId = profile?.organization_id || profile?.preschool_id || null
     const tier: SubscriptionTier = (profile?.subscription_tier?.toLowerCase() || 'free') as SubscriptionTier
-    const role = metadata.role || scope  // Use role from metadata or fall back to scope
+    const role = profile?.role || metadata.role || scope  // Prefer profile role, fall back to metadata/scope
+    const hasOrganization = !!organizationId
+    const isGuest = !user.email_confirmed_at  // Guest users haven't confirmed email
     const startTime = Date.now()
     
     // Load available tools if requested
@@ -589,7 +618,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     // Check quota before proceeding
-    const quotaCheck = await checkQuota(supabaseAdmin, user.id, preschoolId, service_type)
+    const quotaCheck = await checkQuota(supabaseAdmin, user.id, organizationId, service_type)
 
     if (!quotaCheck.allowed) {
       return new Response(
@@ -692,8 +721,8 @@ serve(async (req: Request): Promise<Response> => {
                 .from('ai_usage_logs')
                 .insert({
                   user_id: user.id,
-                  preschool_id: preschoolId,
-                  organization_id: preschoolId,
+                  preschool_id: organizationId,  // Legacy field
+                  organization_id: organizationId,
                   service_type: service_type,
                   ai_model_used: aiResult.model,
                   status: 'success',
@@ -741,8 +770,9 @@ serve(async (req: Request): Promise<Response> => {
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
-          preschool_id: preschoolId,
-          organization_id: preschoolId,
+          preschool_id: organizationId,  // Legacy field
+          organization_id: organizationId,
+tion_id: organizationId,
           service_type: service_type,
           ai_model_used: aiResult.model,
           status: 'success',
@@ -785,9 +815,11 @@ serve(async (req: Request): Promise<Response> => {
               {
                 supabaseAdmin,
                 userId: user.id,
-                preschoolId,
+                organizationId,
                 role,
-                tier
+                tier,
+                hasOrganization,
+                isGuest
               }
             )
             

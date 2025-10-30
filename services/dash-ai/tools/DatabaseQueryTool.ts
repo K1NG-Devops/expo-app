@@ -229,11 +229,16 @@ export const DatabaseQueryTool: Tool = {
   execute: async (params: Record<string, any>, context: ToolExecutionContext): Promise<ToolExecutionResult> => {
     const { query_type, student_id, class_id, limit = 20 } = params;
 
-    // Validate preschool_id
-    if (!context.preschoolId) {
+    // Organization-agnostic validation
+    // Independent users: organizationId is null, filter by userId
+    // Affiliated users: organizationId is set, filter by organization
+    const organizationId = context.organizationId || context.preschoolId;  // Legacy support
+    
+    // Guest users: no data access
+    if (context.isGuest) {
       return {
         success: false,
-        error: 'Missing preschool_id in execution context'
+        error: 'Guest users cannot access database queries. Please sign up for access.'
       };
     }
 
@@ -264,10 +269,17 @@ export const DatabaseQueryTool: Tool = {
     const safeLimit = Math.min(limit, queryDef.maxRows);
 
     // Build query parameters
-    const queryParams: any[] = [context.preschoolId];
+    // For organization-scoped queries, use organizationId if available
+    // For independent users (organizationId = null), filter by userId in query
+    const queryParams: any[] = [organizationId];
     if (student_id) queryParams.push(student_id);
     if (class_id) queryParams.push(class_id);
     if (queryDef.optionalParams.includes('limit')) queryParams.push(safeLimit);
+    
+    // Add userId for independent user queries
+    if (!context.hasOrganization) {
+      queryParams.push(context.userId);
+    }
 
     // Execute query via Supabase client
     if (!context.supabaseClient) {
