@@ -4,6 +4,13 @@ const OFFLINE_URL = '/offline.html';
 const STATIC_CACHE = 'edudash-static-v1';
 const RUNTIME_CACHE = 'edudash-runtime-v1';
 
+// Message event - handle skip waiting command from client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -17,7 +24,7 @@ self.addEventListener('install', (event) => {
           '/icon-512.png',
         ]);
       })
-      .then(() => self.skipWaiting())
+      // Don't auto skip waiting - let update checker control it
   );
 });
 

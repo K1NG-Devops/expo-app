@@ -5,6 +5,7 @@ import "./globals.css";
 import "./design.css";
 import { PWARegister } from "@/components/PWARegister";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { PWAUpdateChecker } from "@/components/PWAUpdateChecker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -61,6 +62,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <PWARegister />
         <PWAInstallPrompt />
+        <PWAUpdateChecker />
         <ErrorBoundary>{children}</ErrorBoundary>
       </body>
     </html>
