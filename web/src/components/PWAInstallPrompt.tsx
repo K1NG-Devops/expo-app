@@ -45,8 +45,16 @@ export function PWAInstallPrompt() {
       }, 5000);
     }
 
+    // Android fallback: if no event after 8s and not installed, show instructions
+    const androidFallbackTimer = setTimeout(() => {
+      if (!iOS && !isInstalled && !deferredPrompt) {
+        setShowPrompt(true);
+      }
+    }, 8000);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      clearTimeout(androidFallbackTimer);
     };
   }, []);
 

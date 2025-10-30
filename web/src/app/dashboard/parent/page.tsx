@@ -138,7 +138,11 @@ export default function ParentDashboard() {
         const sb = createClient();
 
         // My pending requests
-        const userPreschoolData = await sb.from('users').select('preschool_id').eq('auth_user_id', userId).single();
+        const userPreschoolData = await sb
+          .from('profiles')
+          .select('preschool_id')
+          .eq('id', userId)
+          .maybeSingle();
         const userPreschoolId = userPreschoolData.data?.preschool_id;
         
         const { data: myReq } = await sb
@@ -167,7 +171,7 @@ export default function ParentDashboard() {
           .from('users')
           .select('id, preschool_id')
           .eq('auth_user_id', userId)
-          .single();
+          .maybeSingle();
 
         const internalId = internal?.id;
         const preschoolId = internal?.preschool_id;

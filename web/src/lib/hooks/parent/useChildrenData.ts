@@ -120,7 +120,7 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
         .from('users')
         .select('id, preschool_id')
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
       const internalUserId = me?.id;
 

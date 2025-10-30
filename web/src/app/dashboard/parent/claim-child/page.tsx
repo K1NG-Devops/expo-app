@@ -28,10 +28,10 @@ export default function ClaimChildPage() {
       
       // Get user's preschool_id
       const { data: userData } = await supabase
-        .from('users')
+        .from('profiles')
         .select('preschool_id')
-        .eq('auth_user_id', session.user.id)
-        .single();
+        .eq('id', session.user.id)
+        .maybeSingle();
       
       if (userData?.preschool_id) {
         setPreschoolId(userData.preschool_id);

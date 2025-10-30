@@ -31,22 +31,24 @@ export default function SignInPage() {
       return;
     }
 
-    // Get user role from users table
-    const { data: userData, error: userError } = await supabase
-      .from('users')
+    // Get user role from profiles table (single source of truth)
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
       .select('role')
-      .eq('auth_user_id', authData.user.id)
-      .single();
+      .eq('id', authData.user.id)
+      .maybeSingle();
 
     setLoading(false);
 
-    if (userError || !userData) {
+    if (profileError) {
       setError('Failed to fetch user profile. Please contact support.');
       return;
     }
 
+    const role = profile?.role as string | undefined;
+
     // Role-based routing
-    switch (userData.role) {
+    switch (role) {
       case 'parent':
         router.push('/dashboard/parent');
         break;

@@ -47,7 +47,7 @@ export default function ClassDetailPage() {
           .from('users')
           .select('id, preschool_id')
           .eq('auth_user_id', userId)
-          .single();
+          .maybeSingle();
 
         if (!userData) throw new Error('User not found');
 
