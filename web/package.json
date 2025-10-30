@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "pre-push": "./scripts/pre-push-check.sh"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

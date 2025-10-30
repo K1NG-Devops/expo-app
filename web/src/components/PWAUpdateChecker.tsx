@@ -28,21 +28,22 @@ export function PWAUpdateChecker() {
     };
 
     // Listen for new service worker waiting
-    const onUpdateFound = (event: Event) => {
-      const reg = (event.target as ServiceWorker)?.registration;
-      if (!reg) return;
+    const onUpdateFound = () => {
+      navigator.serviceWorker.ready.then((reg) => {
+        if (reg.waiting) {
+          console.log('✨ [PWA] Update found!');
+          setRegistration(reg);
+          setUpdateAvailable(true);
 
-      console.log('✨ [PWA] Update found!');
-      setRegistration(reg);
-      setUpdateAvailable(true);
-
-      // Auto-reload after 10 seconds if user doesn't act
-      setTimeout(() => {
-        if (updateAvailable) {
-          console.log('⏰ [PWA] Auto-applying update...');
-          handleUpdate();
+          // Auto-reload after 10 seconds if user doesn't act
+          setTimeout(() => {
+            if (reg.waiting) {
+              console.log('⏰ [PWA] Auto-applying update...');
+              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+            }
+          }, 10000);
         }
-      }, 10000);
+      });
     };
 
     // Listen for controller change (new service worker activated)
@@ -52,20 +53,27 @@ export function PWAUpdateChecker() {
     });
 
     // Register update listener
+    let intervalId: NodeJS.Timeout;
+    
     navigator.serviceWorker.ready.then((reg) => {
+      // Check for waiting service worker immediately
+      if (reg.waiting) {
+        onUpdateFound();
+      }
+      
+      // Listen for updatefound event
       reg.addEventListener('updatefound', onUpdateFound);
 
       // Initial check
       checkForUpdates();
 
       // Periodic checks
-      const interval = setInterval(checkForUpdates, CHECK_INTERVAL);
-
-      return () => {
-        clearInterval(interval);
-        reg.removeEventListener('updatefound', onUpdateFound);
-      };
+      intervalId = setInterval(checkForUpdates, CHECK_INTERVAL);
     });
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, []);
 
   const handleUpdate = () => {
