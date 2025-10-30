@@ -180,13 +180,19 @@ class RegistrationService {
         .insert({
           parent_id: userId,
           preschool_id: params.preschoolId,
+          organization_id: params.preschoolId, // Use preschool_id as organization_id for now
           status: "pending",
           message: `Parent signup request from ${params.firstName} ${params.lastName}`,
         });
 
       if (error) {
-        console.error("Failed to create join request:", error);
-        // Don't throw - parent account is still created
+        // Handle duplicate request gracefully (409 conflict / unique constraint violation)
+        if (error.code === '23505' || error.message?.includes('duplicate')) {
+          console.log('Join request already exists - this is fine');
+        } else {
+          console.error("Failed to create join request:", error);
+        }
+        // Don't throw - parent account is still created successfully
       }
     }
   }

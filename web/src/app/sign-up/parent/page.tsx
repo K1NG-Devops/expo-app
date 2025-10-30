@@ -148,8 +148,14 @@ function ParentSignUpForm() {
         });
 
       if (joinError) {
-        console.error('Join request error:', joinError);
-        // Don't fail the signup, just log the error
+        // Handle duplicate request (409 conflict) gracefully
+        if (joinError.code === '23505' || joinError.message?.includes('duplicate')) {
+          console.log('Join request already exists for this organization');
+          // This is fine - user already requested to join this org
+        } else {
+          console.error('Join request error:', joinError);
+        }
+        // Don't fail the signup - account is created successfully
       }
     }
 
