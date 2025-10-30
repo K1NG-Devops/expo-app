@@ -1,10 +1,42 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useIsPWA } from "@/lib/hooks/useIsPWA";
+import { createClient } from "@/lib/supabase/client";
 
 export default function Home() {
+  const router = useRouter();
+  const { isPWA, isLoading: isPWALoading } = useIsPWA();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // Redirect installed PWA users directly to dashboard
+  useEffect(() => {
+    if (isPWALoading) return;
+
+    const checkAuthAndRedirect = async () => {
+      if (isPWA) {
+        console.log('📱 [PWA] Installed app detected, checking auth...');
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          console.log('✅ [PWA] User authenticated, redirecting to dashboard');
+          router.replace('/dashboard');
+          return;
+        } else {
+          console.log('🔐 [PWA] No session, redirecting to sign-in');
+          router.replace('/sign-in');
+          return;
+        }
+      }
+      setChecking(false);
+    };
+
+    checkAuthAndRedirect();
+  }, [isPWA, isPWALoading, router]);
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -13,6 +45,19 @@ export default function Home() {
       setMobileMenuOpen(false);
     }
   };
+
+  // Show loading while checking PWA status
+  if (checking || isPWALoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎓</div>
+          <h2 style={{ color: '#00f5ff', fontSize: '20px', fontWeight: 700 }}>EduDash Pro</h2>
+          <p style={{ color: '#6B7280', fontSize: '14px', marginTop: '8px' }}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{minHeight: '100vh', background: '#0a0a0f', color: 'var(--text)'}}>
