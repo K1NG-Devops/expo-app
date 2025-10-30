@@ -42,21 +42,21 @@ export default function ClassDetailPage() {
       try {
         setLoading(true);
         
-        // Get user's internal ID and preschool
-        const { data: userData } = await supabase
-          .from('users')
+        // Get user's profile (profiles-first architecture)
+        const { data: profile } = await supabase
+          .from('profiles')
           .select('id, preschool_id')
-          .eq('auth_user_id', userId)
+          .eq('id', userId)
           .maybeSingle();
 
-        if (!userData) throw new Error('User not found');
+        if (!profile) throw new Error('Profile not found');
 
         // Fetch class details
         const { data: cls, error: clsError } = await supabase
           .from('classes')
           .select('id, name, grade, description, teacher_id, preschool_id')
           .eq('id', classId)
-          .eq('preschool_id', userData.preschool_id)
+          .eq('preschool_id', profile.preschool_id)
           .single();
 
         if (clsError) throw clsError;
@@ -67,7 +67,7 @@ export default function ClassDetailPage() {
           .from('students')
           .select('id, first_name, last_name, date_of_birth, is_active, class_id, preschool_id')
           .eq('class_id', classId)
-          .eq('preschool_id', userData.preschool_id)
+          .eq('preschool_id', profile.preschool_id)
           .eq('is_active', true)
           .order('last_name', { ascending: true });
 

@@ -102,21 +102,21 @@ Format the response in clear sections with practical, age-appropriate activities
 
     setSaving(true);
     try {
-      // Get user's internal ID
-      const { data: userData } = await supabase
-        .from('users')
+      // Get user's profile (profiles-first architecture)
+      const { data: profile } = await supabase
+        .from('profiles')
         .select('id, preschool_id')
-        .eq('auth_user_id', userId)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (!userData) throw new Error('User not found');
+      if (!profile) throw new Error('Profile not found');
 
       // Save to lessons table (adapt to your schema)
       // const { error } = await supabase
       //   .from('lessons')
       //   .insert({
-      //     teacher_id: userData.id,
-      //     preschool_id: userData.preschool_id,
+      //     teacher_id: userId,
+      //     preschool_id: profile.preschool_id,
       //     title: generatedLesson.title,
       //     content: generatedLesson.content,
       //     subject: generatedLesson.subject,

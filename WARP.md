@@ -1337,6 +1337,14 @@ If production issues arise:
 - **ALWAYS** maintain RLS policies for tenant isolation
 - **ALWAYS** use `ai-proxy` Edge Function for AI calls
 
+### User Data Architecture (CRITICAL)
+- **ALWAYS** use `profiles` table for user data (NOT `users` table)
+- The `users` table is **DEPRECATED** and being phased out
+- All foreign keys should reference `profiles.id` (which equals `auth.uid()`)
+- When creating new features, use `auth.uid()` directly - it maps to `profiles.id`
+- Migration: `20251030110200_change_child_registration_parent_id_to_profiles.sql`
+- Context: Profiles-first architecture simplifies auth and reduces table redundancy
+
 ### Root Directory Cleanliness
 - Keep root directory focused on core application files
 - Place test files in `tests/`, debug scripts in `debug/`

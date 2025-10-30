@@ -37,19 +37,20 @@ export function useTeacherDashboard(userId?: string) {
       setLoading(true);
       const supabase = createClient();
 
-      // Get teacher's internal user ID and preschool_id
-      const { data: userData, error: userError } = await supabase
-        .from('users')
+      // Get teacher's profile (profiles-first architecture)
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
         .select('id, preschool_id')
-        .eq('auth_user_id', userId)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (userError || !userData) {
-        throw new Error('Failed to fetch user data');
+      if (profileError || !profile) {
+        throw new Error('Failed to fetch profile data');
       }
 
-      const teacherId = userData.id;
-      const preschoolId = userData.preschool_id;
+      // userId is already auth.uid() which equals profiles.id
+      const teacherId = userId;
+      const preschoolId = profile.preschool_id;
 
       // Fetch classes assigned to this teacher
       const { data: classesData, error: classesError } = await supabase

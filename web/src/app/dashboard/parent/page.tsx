@@ -29,6 +29,7 @@ import {
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
 import { TierBadge } from '@/components/ui/TierBadge';
 import { CAPSActivitiesWidget } from '@/components/dashboard/parent/CAPSActivitiesWidget';
+import { ParentOnboarding } from '@/components/dashboard/parent/ParentOnboarding';
 
 export default function ParentDashboard() {
   const router = useRouter();
@@ -167,10 +168,11 @@ export default function ParentDashboard() {
         }
 
         // Incoming requests to approve (for children linked to this parent)
+        // Use profiles table (users table is deprecated)
         const { data: internal } = await sb
-          .from('users')
+          .from('profiles')
           .select('id, preschool_id')
-          .eq('auth_user_id', userId)
+          .eq('id', userId)
           .maybeSingle();
 
         const internalId = internal?.id;
@@ -291,8 +293,16 @@ export default function ParentDashboard() {
                 <span style={{ fontSize: 16 }}>🎓</span>
                 <span style={{ fontWeight: 600 }}>{preschoolName}</span>
               </div>
+            ) : profile?.preschoolId ? (
+              <div className="chip" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <span style={{ fontWeight: 600 }}>School Info Loading...</span>
+              </div>
             ) : (
-              <div className="chip">{tenantSlug || 'EduDash Pro'}</div>
+              <div className="chip" style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--warning-bg)', color: 'var(--warning)' }}>
+                <span style={{ fontSize: 16 }}>⚠️</span>
+                <span style={{ fontWeight: 600 }}>No School Linked</span>
+              </div>
             )}
           </div>
           <div className="rightGroup">
@@ -364,6 +374,34 @@ export default function ParentDashboard() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)', gap: 'var(--space-2)' }}>
               <h1 className="h1" style={{ margin: 0 }}>{greeting}, {userName}</h1>
             </div>
+
+            {/* Show onboarding if no preschool linked */}
+            {!preschoolName && !profile?.preschoolId && (
+              <ParentOnboarding userName={userName} />
+            )}
+
+            {/* Show pending status if preschool linked but no children */}
+            {preschoolName && childrenCards.length === 0 && pendingRequests.length === 0 && !childrenLoading && (
+              <div className="section">
+                <div className="card" style={{ 
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', 
+                  color: 'white',
+                  padding: 'var(--space-5)',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: 48, marginBottom: 16 }}>🕒</div>
+                  <h2 style={{ margin: 0, marginBottom: 8, fontSize: 20, fontWeight: 700 }}>
+                    Registration Pending
+                  </h2>
+                  <p style={{ margin: 0, marginBottom: 16, fontSize: 14, opacity: 0.9 }}>
+                    Your child registration is awaiting approval from {preschoolName}.
+                  </p>
+                  <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>
+                    You'll be notified once the school approves your request.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {preschoolName && (
               <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', marginBottom: 16, cursor: 'pointer' }} onClick={() => router.push('/dashboard/parent/preschool')}>
@@ -479,24 +517,7 @@ export default function ParentDashboard() {
             </div>
           )}
 
-            {!childrenLoading && childrenCards.length === 0 && pendingRequests.length === 0 && (
-              <div className="section">
-                <div className="card" style={{ textAlign: 'center' }}>
-                  <h3 style={{ marginBottom: 8 }}>No children linked yet</h3>
-                  <p style={{ color: 'var(--muted)', marginBottom: 16 }}>
-                    Link your child to get started.
-                  </p>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                    <button className="btn btnPrimary" onClick={() => router.push('/dashboard/parent/claim-child')}>
-                      <Search className="icon16" /> Link a child
-                    </button>
-                    <button className="btn" onClick={() => router.push('/dashboard/parent/children')}>
-                      <Users className="icon16" /> Register new
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Removed duplicate buttons - onboarding banner already has CTAs */}
 
             {pendingRequests.length > 0 && (
               <div className="section">

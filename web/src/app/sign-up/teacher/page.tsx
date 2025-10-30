@@ -61,17 +61,17 @@ export default function TeacherSignUpPage() {
       return;
     }
 
-    // Create user profile in database
+    // Create user profile in database (profiles-first architecture)
+    // Note: This should be handled by auth.users trigger or separate profile creation
+    // For now, profile is created automatically by Supabase auth trigger
+    // If additional data is needed, update profiles table:
     const { error: profileError } = await supabase
-      .from('users')
-      .insert({
-        auth_user_id: authData.user.id,
-        email: email,
-        full_name: fullName,
+      .from('profiles')
+      .update({
         role: 'teacher',
-        phone_number: phoneNumber || null,
-        // Note: school_name stored temporarily until principal assigns them to a preschool
-      });
+        // phone_number not in profiles schema - may need to add if required
+      })
+      .eq('id', authData.user.id);
 
     setLoading(false);
 

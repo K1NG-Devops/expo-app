@@ -56,7 +56,22 @@ export function useUserProfile(userId: string | undefined): UseUserProfileReturn
         .maybeSingle();
 
       if (profileError) {
-        console.error('Profile fetch error:', profileError);
+        console.error('❌ Profile fetch error:', profileError);
+      }
+
+      if (!profileData) {
+        console.warn('⚠️ No profile found for user:', userId);
+        console.warn('⚠️ User may need to complete registration or profile is missing');
+      } else if (!profileData.preschool_id) {
+        console.warn('⚠️ Profile found but NO preschool_id:', profileData);
+        console.warn('⚠️ User needs to be linked to a school');
+      } else {
+        console.log('✅ Profile loaded:', {
+          userId,
+          role: profileData.role,
+          preschoolId: profileData.preschool_id,
+          name: `${profileData.first_name} ${profileData.last_name}`
+        });
       }
 
       // Use preschool_id from profiles table
@@ -74,6 +89,16 @@ export function useUserProfile(userId: string | undefined): UseUserProfileReturn
           .eq('id', preschoolId)
           .maybeSingle();
 
+        if (preschoolError) {
+          console.error('❌ Preschool fetch error:', preschoolError);
+        }
+
+        if (!preschoolData) {
+          console.warn('⚠️ No preschool found with ID:', preschoolId);
+          console.warn('⚠️ Preschool may have been deleted or ID is invalid');
+        } else {
+          console.log('✅ Preschool loaded:', preschoolData.name);
+        }
 
         preschoolName = preschoolData?.name;
         preschoolSlug = undefined; // slug column doesn't exist in schema

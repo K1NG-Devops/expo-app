@@ -68,51 +68,31 @@ export async function GET(request: Request) {
     
     console.log('[Teachers API] Session found for user:', session.user.id);
 
-    // Fetch teachers from users table (which has role column)
-    const { data: usersData, error: usersError } = await supabase
-      .from('users')
-      .select('auth_user_id, preschool_id, role')
-      .eq('preschool_id', preschoolId)
-      .eq('role', 'teacher');
-
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-      return NextResponse.json({ error: usersError.message }, { status: 400 });
-    }
-
-    if (!usersData || usersData.length === 0) {
-      return NextResponse.json({ teachers: [] });
-    }
-
-    // Get profile data for these users
-    const authUserIds = usersData.map(u => u.auth_user_id);
+    // Fetch teachers from profiles table (profiles-first architecture)
     const { data: profilesData, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name')
-      .in('id', authUserIds);
+      .select('id, first_name, last_name, email, preschool_id, role')
+      .eq('preschool_id', preschoolId)
+      .eq('role', 'teacher');
 
     if (profilesError) {
       console.error('[Teachers API] Error fetching profiles:', profilesError);
       return NextResponse.json({ error: profilesError.message }, { status: 400 });
     }
 
-    // Merge users and profiles data
-    const profilesMap = new Map(profilesData?.map(p => [p.id, p]));
-    const teachersList = usersData.map((u: any) => {
-      const profile = profilesMap.get(u.auth_user_id);
-      return {
-        id: u.auth_user_id,
-        first_name: profile?.first_name || 'Unknown',
-        last_name: profile?.last_name || '',
-        email: '', // Email not available in profiles table
-        phone_number: '', // Phone not available in profiles table
-        status: 'active',
-      };
-    }).filter(t => t.first_name !== 'Unknown' || t.last_name); // Filter out entries without names
-
-    if (!teachersList || teachersList.length === 0) {
+    if (!profilesData || profilesData.length === 0) {
       return NextResponse.json({ teachers: [] });
     }
+
+    // Map profile data to teachers list
+    const teachersList = profilesData.map((p: any) => ({
+      id: p.id,
+      first_name: p.first_name || 'Unknown',
+      last_name: p.last_name || '',
+      email: p.email || '',
+      phone_number: '', // Not stored in profiles
+      status: 'active',
+    }));
 
     const teacherIds = teachersList.map((t: any) => t.id);
 

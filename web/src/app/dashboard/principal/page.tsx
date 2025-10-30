@@ -22,6 +22,7 @@ import {
   Search,
 } from 'lucide-react';
 import { ParentApprovalWidget } from '@/components/dashboard/principal/ParentApprovalWidget';
+import { ChildRegistrationWidget } from '@/components/dashboard/principal/ChildRegistrationWidget';
 import { AskAIWidget } from '@/components/dashboard/AskAIWidget';
 import { TierBadge } from '@/components/ui/TierBadge';
 
@@ -110,7 +111,7 @@ export default function PrincipalDashboard() {
         const { count: teacherCount } = await supabase
           .from('profiles')
           .select('*', { count: 'exact', head: true })
-          .eq('organization_id', preschoolId)
+          .eq('preschool_id', preschoolId)
           .eq('role', 'teacher');
 
         // Fetch classes count
@@ -156,6 +157,10 @@ export default function PrincipalDashboard() {
     );
   }
 
+  // Debug logging
+  console.log('🎓 [PrincipalDashboard] preschoolId:', preschoolId);
+  console.log('🎓 [PrincipalDashboard] userId:', userId);
+
   // Right sidebar content
   const rightSidebar = (
     <>
@@ -178,7 +183,10 @@ export default function PrincipalDashboard() {
         </ul>
       </div>
 
-      {/* Parent Approval Requests */}
+      {/* Child Registration Requests */}
+      <ChildRegistrationWidget preschoolId={preschoolId} userId={userId} />
+
+      {/* Parent Link Approval Requests */}
       <ParentApprovalWidget preschoolId={preschoolId} userId={userId} />
 
       {/* Recent Activity */}

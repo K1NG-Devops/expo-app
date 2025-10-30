@@ -17,6 +17,9 @@ export default function ClaimChildPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState<string | null>(null);
+  const [schools, setSchools] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState<string>('');
+  const [showSchoolSelector, setShowSchoolSelector] = useState(false);
   const { slug } = useTenantSlug(userId);
 
   useEffect(() => {
@@ -35,19 +38,33 @@ export default function ClaimChildPage() {
       
       if (userData?.preschool_id) {
         setPreschoolId(userData.preschool_id);
+        setSelectedSchoolId(userData.preschool_id);
+      } else {
+        // No preschool - show school selector
+        setShowSchoolSelector(true);
+        
+        // Load available schools
+        const { data: schoolsData } = await supabase
+          .from('preschools')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name');
+        
+        setSchools(schoolsData || []);
       }
     })();
   }, [router, supabase]);
 
   const handleSearch = async () => {
-    if (!searchQuery.trim() || !preschoolId) return;
+    const schoolToSearch = preschoolId || selectedSchoolId;
+    if (!searchQuery.trim() || !schoolToSearch) return;
     
     setLoading(true);
     try {
       const { data: students, error } = await supabase
         .from('students')
         .select('id, first_name, last_name, date_of_birth, class_id, classes(name, grade_level)')
-        .eq('preschool_id', preschoolId)
+        .eq('preschool_id', schoolToSearch)
         .eq('is_active', true)
         .or(`first_name.ilike.%${searchQuery}%,last_name.ilike.%${searchQuery}%`)
         .limit(10);
@@ -63,10 +80,27 @@ export default function ClaimChildPage() {
   };
 
   const handleClaimChild = async (studentId: string, childName: string) => {
-    if (!userId || !preschoolId) return;
+    const schoolId = preschoolId || selectedSchoolId;
+    if (!userId || !schoolId) return;
     
     setSubmitting(studentId);
     try {
+      // Update parent's preschool_id if not set
+      if (!preschoolId && selectedSchoolId) {
+        console.log('✅ Setting parent preschool_id to:', selectedSchoolId);
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ preschool_id: selectedSchoolId })
+          .eq('id', userId);
+        
+        if (updateError) {
+          console.error('❌ Failed to update parent preschool_id:', updateError);
+        } else {
+          console.log('✅ Parent preschool_id updated successfully');
+          setPreschoolId(selectedSchoolId);
+        }
+      }
+      
       // Insert guardian request
       const { error } = await supabase
         .from('guardian_requests')
@@ -75,7 +109,7 @@ export default function ClaimChildPage() {
           student_id: studentId,
           child_full_name: childName,
           status: 'pending',
-          school_id: preschoolId,
+          school_id: schoolId,
           created_at: new Date().toISOString(),
         });
       
@@ -86,8 +120,12 @@ export default function ClaimChildPage() {
           throw error;
         }
       } else {
-        alert(`Request sent for ${childName}! Awaiting school approval.`);
+        alert(`✅ Request sent for ${childName}!\n\n🕒 Awaiting school approval.\n
+Once approved, you'll see ${childName} in your dashboard.`);
         setSearchResults(searchResults.filter(s => s.id !== studentId));
+        
+        // Redirect to dashboard after short delay
+        setTimeout(() => router.push('/dashboard/parent'), 2000);
       }
     } catch (err) {
       console.error('Claim error:', err);
@@ -106,6 +144,41 @@ export default function ClaimChildPage() {
         </div>
         <div className="section">
           <div className="card p-md" style={{ paddingBottom: '2rem' }}>
+            {/* School selector for parents without preschool_id */}
+            {showSchoolSelector && (
+              <div style={{ marginBottom: 24, padding: 16, background: 'rgba(102, 126, 234, 0.1)', border: '1px solid rgba(102, 126, 234, 0.3)', borderRadius: 12 }}>
+                <label style={{ display: 'block', marginBottom: 12, fontWeight: 600, fontSize: 14, color: 'white' }}>
+                  🏫 Select Your Child's School *
+                </label>
+                <select
+                  value={selectedSchoolId}
+                  onChange={(e) => setSelectedSchoolId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: 'white',
+                    fontSize: 14,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="" style={{ background: '#1a1a1a', color: 'white' }}>-- Select a school --</option>
+                  {schools.map(school => (
+                    <option key={school.id} value={school.id} style={{ background: '#1a1a1a', color: 'white' }}>
+                      {school.name}
+                    </option>
+                  ))}
+                </select>
+                {!selectedSchoolId && (
+                  <p style={{ marginTop: 8, fontSize: 12, color: 'rgba(255, 255, 255, 0.7)' }}>
+                    ⚠️ Please select your child's school before searching
+                  </p>
+                )}
+              </div>
+            )}
+            
             <div className="flex gap-3">
               <input
                 type="text"
@@ -118,7 +191,7 @@ export default function ClaimChildPage() {
               />
               <button
                 onClick={handleSearch}
-                disabled={loading || !searchQuery.trim()}
+                disabled={loading || !searchQuery.trim() || (!preschoolId && !selectedSchoolId)}
                 className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-xl transition-all duration-200 flex items-center gap-2 font-semibold shadow-lg hover:shadow-blue-600/30 disabled:shadow-none"
               >
                 {loading ? (

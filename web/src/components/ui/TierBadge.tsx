@@ -50,12 +50,12 @@ export function TierBadge({ userId, preschoolId, size = 'md', showUpgrade = fals
         let schoolId = preschoolId;
 
         if (!schoolId && userId) {
-          const { data: user } = await supabase
-            .from('users')
-            .select('preschool_id, organization_id')
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('preschool_id')
             .eq('id', userId)
             .maybeSingle();
-          schoolId = user?.preschool_id || user?.organization_id || undefined;
+          schoolId = profile?.preschool_id || undefined;
         }
 
         if (!schoolId) {

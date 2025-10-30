@@ -28,14 +28,14 @@ export function useUnreadMessages(userId: string | undefined, childId: string | 
 
       const supabase = createClient();
 
-      // Get internal user ID
-      const { data: userData } = await supabase
-        .from('users')
+      // Get profile (profiles-first architecture)
+      const { data: profile } = await supabase
+        .from('profiles')
         .select('id, preschool_id')
-        .eq('auth_user_id', userId)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (!userData) {
+      if (!profile) {
         setUnreadCount(0);
         return;
       }

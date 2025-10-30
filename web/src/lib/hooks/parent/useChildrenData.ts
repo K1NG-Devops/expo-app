@@ -115,29 +115,54 @@ export function useChildrenData(userId: string | undefined): UseChildrenDataRetu
       const supabase = createClient();
       let studentsData: any[] = [];
 
-      // Get internal user ID and preschool
-      const { data: me } = await supabase
-        .from('users')
+      // Use profiles table (users table is deprecated)
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
         .select('id, preschool_id')
-        .eq('auth_user_id', userId)
+        .eq('id', userId)
         .maybeSingle();
 
-      const internalUserId = me?.id;
-
-      if (!internalUserId) {
-        throw new Error('User profile not found');
+      if (!profileData) {
+        console.error('❌ User profile not found in profiles table for user_id:', userId);
+        setError('Profile not found. Please complete registration or contact support.');
+        setLoading(false);
+        return;
       }
 
+      if (profileError) {
+        console.error('❌ Error fetching profile:', profileError);
+      }
+
+      const userProfileId = profileData.id;
+      const userPreschoolId = profileData.preschool_id;
+
+      // Check if user has preschool linked
+      if (!userPreschoolId) {
+        console.warn('⚠️ User has no preschool_id - cannot fetch children');
+        console.warn('⚠️ User must be linked to a school via claim-child or register-child');
+        // Return empty data gracefully - this is expected for new parents
+        setChildren([]);
+        setChildrenCards([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ Fetching children for:', { userProfileId, userPreschoolId });
+
       // Fetch children linked to this parent
-      const { data: directChildren } = await supabase
+      const { data: directChildren, error: studentsError } = await supabase
         .from('students')
         .select(`
           id, first_name, last_name, class_id, is_active, preschool_id, date_of_birth, parent_id, guardian_id, avatar_url,
           classes!left(id, name, grade_level)
         `)
-        .or(`parent_id.eq.${internalUserId},guardian_id.eq.${internalUserId}`)
+        .or(`parent_id.eq.${userProfileId},guardian_id.eq.${userProfileId}`)
         .eq('is_active', true)
-        .eq('preschool_id', me?.preschool_id);
+        .eq('preschool_id', userPreschoolId);
+
+      if (studentsError) {
+        console.error('❌ Error fetching students:', studentsError);
+      }
 
       studentsData = directChildren || [];
       setChildren(studentsData);

@@ -945,7 +945,16 @@ case 'homework':
               {/* Register New Child Button */}
               <TouchableOpacity 
                 style={[styles.emptyStateButton, { borderWidth: 1, borderColor: theme.border, backgroundColor: 'transparent' }]}
-                onPress={() => router.push('/screens/parent-child-registration')}
+                onPress={() => {
+                  console.log('[ParentDashboard] Register button pressed');
+                  console.log('[ParentDashboard] Navigating to /screens/parent-child-registration');
+                  try {
+                    router.push('/screens/parent-child-registration' as any);
+                    console.log('[ParentDashboard] Navigation called successfully');
+                  } catch (error) {
+                    console.error('[ParentDashboard] Navigation error:', error);
+                  }
+                }}
               >
                 <Ionicons name="person-add" size={20} color={theme.text} style={{ marginRight: 8 }} />
                 <Text style={[styles.emptyStateButtonText, { color: theme.text }]}>{t('parent.registerChild')}</Text>
